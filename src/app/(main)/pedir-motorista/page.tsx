@@ -38,6 +38,7 @@ import {
     History,
 } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
+import MyOpenRideRequests from '@/components/MyOpenRideRequests'
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
 
@@ -700,6 +701,13 @@ export default function PedirMotoristaPage() {
                 sender_whatsapp: requestFor === 'objeto' ? senderWhatsapp.trim() || null : null,
                 recipient_name: requestFor === 'objeto' ? recipientName.trim() || null : null,
                 recipient_whatsapp: requestFor === 'objeto' ? recipientWhatsapp.trim() || null : null,
+                origin_lat: origin.coords ? origin.coords[1] : null,
+                origin_lng: origin.coords ? origin.coords[0] : null,
+                destination_lat: destination.coords ? destination.coords[1] : null,
+                destination_lng: destination.coords ? destination.coords[0] : null,
+                distance_km: routes[selectedRoute]?.distanceKm ?? null,
+                duration_min: routes[selectedRoute]?.durationMin ?? null,
+                applications_close_at: new Date(Date.now() + 2 * 60 * 1000).toISOString(),
             })
 
             if (error) throw error
@@ -925,6 +933,10 @@ export default function PedirMotoristaPage() {
                                         Buscar ou entregar algo
                                     </span>
                                 </button>
+                            </div>
+
+                            <div className="mt-5">
+                                <MyOpenRideRequests limit={5} title="Meus pedidos de motorista em aberto" />
                             </div>
                         </>
                     )}

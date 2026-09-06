@@ -10,7 +10,7 @@ import Header from '@/app/Header'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import LoginAndRegister from '../LoginAndRegister'
 import { toast } from 'sonner'
-import { Briefcase, MapPin, Plus } from 'lucide-react'
+import { Briefcase, Car, MapPin, Plus } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import {
     BoardItem,
@@ -55,14 +55,13 @@ export default function SerParceiroPage() {
         }
         setMyUserId(user.id)
 
-        const [{ data: myServiceApplications }, { data: myRideApplications }] = await Promise.all([
-            supabase.from('service_applications').select('service_request_id').eq('applicant_id', user.id),
-            supabase.from('ride_applications').select('ride_request_id').eq('applicant_id', user.id),
-        ])
+        const { data: myServiceApplications } = await supabase
+            .from('service_applications')
+            .select('service_request_id')
+            .eq('applicant_id', user.id)
 
         const applied = new Set<string>()
         for (const a of myServiceApplications || []) applied.add(`service:${a.service_request_id}`)
-        for (const a of myRideApplications || []) applied.add(`ride:${a.ride_request_id}`)
         setAppliedKeys(applied)
 
         setLoading(false)
@@ -88,10 +87,7 @@ export default function SerParceiroPage() {
         const key = itemKey(item)
         setApplyingKey(key)
         try {
-            const { error } =
-                item.kind === 'ride'
-                    ? await supabase.from('ride_applications').insert({ ride_request_id: item.id, applicant_id: user.id })
-                    : await supabase.from('service_applications').insert({ service_request_id: item.id, applicant_id: user.id })
+            const { error } = await supabase.from('service_applications').insert({ service_request_id: item.id, applicant_id: user.id })
             if (error) throw error
             setAppliedKeys((prev) => new Set(prev).add(key))
             toast.success('Candidatura enviada!')
@@ -233,6 +229,23 @@ export default function SerParceiroPage() {
                         </div>
                     )}
                 </section>
+
+                {/* ===== BOTAO FLUTUANTE - ACEITAR CORRIDA (motorista) ===== */}
+                <div style={{ position: 'fixed', bottom: 96, right: 24, zIndex: 998 }}>
+                    <button
+                        onClick={() => router.push('/aceitar-corridas')}
+                        className="flex items-center gap-2 px-5 h-14 rounded-full shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95"
+                        style={{
+                            background: GRADIENT,
+                            color: '#ffffff',
+                            boxShadow: `0 8px 24px #f9731660`,
+                        }}
+                        aria-label="Aceitar corrida"
+                    >
+                        <Car size={22} />
+                        <span className="font-semibold text-sm">Aceitar corrida</span>
+                    </button>
+                </div>
 
                 {/* ===== BOTAO FLUTUANTE - SOLICITAR SERVICO ===== */}
                 <div style={{ position: 'fixed', bottom: 24, right: 24, zIndex: 998 }}>
