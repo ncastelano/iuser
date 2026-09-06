@@ -28,7 +28,6 @@ import HomeBag, { type HomeBagItem } from './HomeBag'
 import { isStoreOpenNow, type BusinessHours } from '@/lib/storeHours'
 import { isProfileOpenNow } from '@/lib/profileHours'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
-import ButtonSettingsHome from './ButtonSettingsHome'
 import ProductShowcase from './inicio/sections/ProductShowcase'
 import FeaturedPublications from './inicio/sections/FeaturePublications'
 import FeaturedProfiles from './inicio/sections/FeaturedProfiles'
@@ -53,7 +52,6 @@ const DEFAULT_SECTIONS = [
     'motorista',
     'canalMotorista',
     'servico',
-    'settingsSection',
     'orderSection',
 ]
 
@@ -577,8 +575,6 @@ export default function HomePage() {
                 return <AcceptARider />
             case 'servico':
                 return <HireAService />
-            case 'settingsSection':
-                return <ButtonSettingsHome onClick={handleProfileClick} />
             default:
                 return null
         }
