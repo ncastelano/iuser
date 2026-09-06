@@ -490,6 +490,18 @@ export default function StoreOrders({
                 return
             }
 
+            supabase.auth.getSession().then(({ data: { session } }) => {
+                if (!session) return
+                fetch('/api/push/send-order-status-update', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${session.access_token}`,
+                    },
+                    body: JSON.stringify({ checkoutId: selectedOrder.checkout_id, status }),
+                }).catch(() => { })
+            })
+
             setSelectedOrder(null)
             await loadOrders()
             await fetchEmployeeRoutes()
