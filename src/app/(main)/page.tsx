@@ -9,6 +9,7 @@ import CategoriasSection from './inicio/sections/CanIhelp'
 import LookForAService from './inicio/sections/LookForAService'
 import MotoristaSection from './inicio/sections/MotoristaSection'
 import HireAService from './inicio/sections/HireAService'
+import AcceptARider from './inicio/sections/AcceptARider'
 import SortableSection from './inicio/sections/SortableSection'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { useProfile } from '../contexts/ProfileContext'
@@ -50,6 +51,7 @@ const DEFAULT_SECTIONS = [
     'profileShowcase',
     'transporte',
     'motorista',
+    'canalMotorista',
     'servico',
     'settingsSection',
     'orderSection',
@@ -571,6 +573,8 @@ export default function HomePage() {
                 return <LookForAService onBreveStatusChange={breveCallbacks.transporte} />
             case 'motorista':
                 return <MotoristaSection onBreveStatusChange={breveCallbacks.motorista} />
+            case 'canalMotorista':
+                return <AcceptARider />
             case 'servico':
                 return <HireAService />
             case 'settingsSection':
