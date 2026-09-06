@@ -49,7 +49,7 @@ const ROUTE_COLORS = ['#3b82f6', '#a855f7', '#f59e0b']
 const AVERAGE_SPEED_KMH = 40
 
 type Step = 'type' | 'where' | 'details'
-type RequestFor = 'pessoa' | 'objeto'
+type RequestFor = 'pessoa' | 'objeto' | 'animal'
 type ActiveField = 'origin' | 'destination' | null
 type ObjectSize = 'pequeno' | 'medio' | 'grande'
 
@@ -219,6 +219,7 @@ export default function PedirMotoristaPage() {
     // ===== ADICIONAIS: PESSOA (além de quem pediu) =====
     const [extraPeopleCount, setExtraPeopleCount] = useState(0)
     const [hasChild, setHasChild] = useState(false)
+    const [childrenCount, setChildrenCount] = useState(1)
     const [childAge, setChildAge] = useState('')
     const [childNeedsCarSeat, setChildNeedsCarSeat] = useState<boolean | null>(null)
     const [hasShopping, setHasShopping] = useState(false)
@@ -250,7 +251,7 @@ export default function PedirMotoristaPage() {
     const [destinationNeedsAccess, setDestinationNeedsAccess] = useState(false)
     const [destinationAccessNotes, setDestinationAccessNotes] = useState('')
 
-    const totalPeople = 1 + extraPeopleCount + (hasChild ? 1 : 0)
+    const totalPeople = 1 + extraPeopleCount + (hasChild ? childrenCount : 0)
     const vehicleType = getVehicleTypeForPassengers(totalPeople)
     const stepIndex = STEPS.indexOf(step)
 
@@ -405,6 +406,7 @@ export default function PedirMotoristaPage() {
         if (typeof draft.scheduledFor === 'string') setScheduledFor(draft.scheduledFor)
         if (typeof draft.extraPeopleCount === 'number') setExtraPeopleCount(draft.extraPeopleCount)
         if (typeof draft.hasChild === 'boolean') setHasChild(draft.hasChild)
+        if (typeof draft.childrenCount === 'number') setChildrenCount(draft.childrenCount)
         if (typeof draft.childAge === 'string') setChildAge(draft.childAge)
         if (draft.childNeedsCarSeat !== undefined) setChildNeedsCarSeat(draft.childNeedsCarSeat)
         if (typeof draft.hasShopping === 'boolean') setHasShopping(draft.hasShopping)
@@ -641,6 +643,10 @@ export default function PedirMotoristaPage() {
             toast.error('Adicione uma foto do objeto para continuar')
             return
         }
+        if (requestFor === 'animal' && !petPhotoFile) {
+            toast.error('Adicione uma foto do animal para continuar')
+            return
+        }
         if (requestFor === 'pessoa' && hasExtraObject && !extraObjectPhotoFile) {
             toast.error('Adicione uma foto do objeto para continuar')
             return
@@ -665,11 +671,13 @@ export default function PedirMotoristaPage() {
             const peopleText = hasChild ? adultsText : (totalPeople === 1 ? 'uma pessoa' : `${totalPeople} pessoas`)
             rows.push({ label: 'Pedido', value: `levar ${peopleText}` })
             if (hasChild) {
-                const ageText = childAge.trim() ? ` de ${childAge.trim()} anos` : ''
+                const countText = childrenCount === 1 ? '1 criança' : `${childrenCount} crianças`
+                const ageRaw = childAge.trim()
+                const ageText = ageRaw ? ` de ${ageRaw}${/anos?\b/i.test(ageRaw) ? '' : ' anos'}` : ''
                 const carSeatText =
                     childNeedsCarSeat === true ? ', precisa de cadeirinha' :
                         childNeedsCarSeat === false ? ', não precisa de cadeirinha' : ''
-                rows.push({ label: 'Criança', value: `1 criança${ageText}${carSeatText}` })
+                rows.push({ label: 'Criança', value: `${countText}${ageText}${carSeatText}` })
             }
             rows.push({ label: 'De', value: from })
             rows.push({ label: 'Para', value: to })
@@ -683,6 +691,12 @@ export default function PedirMotoristaPage() {
             }
             if (hasExtraObject) rows.push({ label: 'Objeto', value: extraObjectDescription || 'não especificado' })
             if (hasPet) rows.push({ label: 'Pet', value: petDescription || 'não especificado' })
+        } else if (requestFor === 'animal') {
+            rows.push({ label: 'Pedido', value: 'levar um animal' })
+            rows.push({ label: 'Animal', value: petDescription || 'não especificado' })
+            rows.push({ label: 'De', value: from })
+            rows.push({ label: 'Para', value: to })
+            if (recipientName) rows.push({ label: 'Entregar a', value: recipientName })
         } else {
             rows.push({ label: 'Pedido', value: 'buscar e entregar um objeto' })
             rows.push({ label: 'Objeto', value: objectDescription || 'não especificado' })
@@ -710,7 +724,7 @@ export default function PedirMotoristaPage() {
         if (!user) {
             saveDraft({
                 step, requestFor, origin, destination, notes, scheduledFor,
-                extraPeopleCount, hasChild, childAge, childNeedsCarSeat, hasShopping, isGroceryShopping, bagCount,
+                extraPeopleCount, hasChild, childrenCount, childAge, childNeedsCarSeat, hasShopping, isGroceryShopping, bagCount,
                 hasExtraObject, extraObjectDescription,
                 hasPet, petDescription,
                 objectDescription, objectIsSensitive, objectSize,
@@ -729,7 +743,10 @@ export default function PedirMotoristaPage() {
         try {
             const objectPhotoUrl = requestFor === 'objeto' && objectPhotoFile ? await uploadRidePhoto(user.id, objectPhotoFile) : null
             const extraObjectPhotoUrl = requestFor === 'pessoa' && hasExtraObject && extraObjectPhotoFile ? await uploadRidePhoto(user.id, extraObjectPhotoFile) : null
-            const petPhotoUrl = requestFor === 'pessoa' && hasPet && petPhotoFile ? await uploadRidePhoto(user.id, petPhotoFile) : null
+            const petPhotoUrl =
+                ((requestFor === 'pessoa' && hasPet) || requestFor === 'animal') && petPhotoFile
+                    ? await uploadRidePhoto(user.id, petPhotoFile)
+                    : null
 
             const { data: insertedRide, error } = await supabase.from('ride_requests').insert({
                 requester_id: user.id,
@@ -744,7 +761,8 @@ export default function PedirMotoristaPage() {
                 passenger_count: requestFor === 'pessoa' ? totalPeople : 1,
                 vehicle_type: requestFor === 'pessoa' ? vehicleType : 'carro',
                 has_child: requestFor === 'pessoa' ? hasChild : false,
-                child_age: requestFor === 'pessoa' && hasChild && childAge.trim() ? parseInt(childAge.trim(), 10) : null,
+                children_count: requestFor === 'pessoa' && hasChild ? childrenCount : null,
+                child_age: requestFor === 'pessoa' && hasChild && childAge.trim() ? childAge.trim() : null,
                 child_needs_car_seat: requestFor === 'pessoa' && hasChild ? childNeedsCarSeat : null,
                 has_shopping: requestFor === 'pessoa' ? hasShopping : false,
                 is_grocery_shopping: requestFor === 'pessoa' && hasShopping ? isGroceryShopping : null,
@@ -753,16 +771,16 @@ export default function PedirMotoristaPage() {
                 extra_object_description: requestFor === 'pessoa' && hasExtraObject ? extraObjectDescription.trim() || null : null,
                 extra_object_photo_url: extraObjectPhotoUrl,
                 has_pet: requestFor === 'pessoa' ? hasPet : false,
-                pet_description: requestFor === 'pessoa' && hasPet ? petDescription.trim() || null : null,
+                pet_description: ((requestFor === 'pessoa' && hasPet) || requestFor === 'animal') ? petDescription.trim() || null : null,
                 pet_photo_url: petPhotoUrl,
                 object_description: requestFor === 'objeto' ? objectDescription.trim() || null : null,
                 object_is_sensitive: requestFor === 'objeto' ? objectIsSensitive : false,
-                object_size: requestFor === 'objeto' ? objectSize : null,
+                object_size: (requestFor === 'objeto' || requestFor === 'animal') ? objectSize : null,
                 object_photo_url: objectPhotoUrl,
-                sender_name: requestFor === 'objeto' ? senderName.trim() || null : null,
-                sender_whatsapp: requestFor === 'objeto' ? senderWhatsapp.trim() || null : null,
-                recipient_name: requestFor === 'objeto' ? recipientName.trim() || null : null,
-                recipient_whatsapp: requestFor === 'objeto' ? recipientWhatsapp.trim() || null : null,
+                sender_name: (requestFor === 'objeto' || requestFor === 'animal') ? senderName.trim() || null : null,
+                sender_whatsapp: (requestFor === 'objeto' || requestFor === 'animal') ? senderWhatsapp.trim() || null : null,
+                recipient_name: (requestFor === 'objeto' || requestFor === 'animal') ? recipientName.trim() || null : null,
+                recipient_whatsapp: (requestFor === 'objeto' || requestFor === 'animal') ? recipientWhatsapp.trim() || null : null,
                 origin_lat: origin.coords ? origin.coords[1] : null,
                 origin_lng: origin.coords ? origin.coords[0] : null,
                 destination_lat: destination.coords ? destination.coords[1] : null,
@@ -960,31 +978,45 @@ export default function PedirMotoristaPage() {
                             <h2 className="text-lg font-black mb-1" style={{ color: colors.textPrimary }}>Para que você quer o motorista?</h2>
                             <p className="text-xs mb-4" style={{ color: colors.textSecondary }}>Escolha uma opção pra começar</p>
 
-                            <div className="grid grid-cols-2 gap-3">
+                            <div className="grid grid-cols-3 gap-2">
                                 <button
                                     onClick={() => handleSelectType('pessoa')}
-                                    className="flex flex-col items-center gap-2 py-7 px-2 rounded-2xl transition-all hover:scale-[1.03] active:scale-95"
+                                    className="flex flex-col items-center gap-2 py-5 px-2 rounded-2xl transition-all hover:scale-[1.03] active:scale-95"
                                     style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}
                                 >
-                                    <div className="w-14 h-14 rounded-full flex items-center justify-center" style={{ background: GRADIENT, color: '#fff' }}>
-                                        <Users size={26} />
+                                    <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: GRADIENT, color: '#fff' }}>
+                                        <Users size={22} />
                                     </div>
-                                    <span className="text-sm font-black" style={{ color: colors.textPrimary }}>Pessoa</span>
-                                    <span className="text-[11px] text-center leading-tight" style={{ color: colors.textSecondary }}>
+                                    <span className="text-xs font-black" style={{ color: colors.textPrimary }}>Pessoa</span>
+                                    <span className="text-[10px] text-center leading-tight" style={{ color: colors.textSecondary }}>
                                         Te levar, buscar alguém, ou os dois
                                     </span>
                                 </button>
 
                                 <button
-                                    onClick={() => handleSelectType('objeto')}
-                                    className="flex flex-col items-center gap-2 py-7 px-2 rounded-2xl transition-all hover:scale-[1.03] active:scale-95"
+                                    onClick={() => handleSelectType('animal')}
+                                    className="flex flex-col items-center gap-2 py-5 px-2 rounded-2xl transition-all hover:scale-[1.03] active:scale-95"
                                     style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}
                                 >
-                                    <div className="w-14 h-14 rounded-full flex items-center justify-center" style={{ background: GRADIENT, color: '#fff' }}>
-                                        <Package size={26} />
+                                    <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: GRADIENT, color: '#fff' }}>
+                                        <PawPrint size={22} />
                                     </div>
-                                    <span className="text-sm font-black" style={{ color: colors.textPrimary }}>Objeto</span>
-                                    <span className="text-[11px] text-center leading-tight" style={{ color: colors.textSecondary }}>
+                                    <span className="text-xs font-black" style={{ color: colors.textPrimary }}>Animal</span>
+                                    <span className="text-[10px] text-center leading-tight" style={{ color: colors.textSecondary }}>
+                                        Levar só o bicho, sem você junto
+                                    </span>
+                                </button>
+
+                                <button
+                                    onClick={() => handleSelectType('objeto')}
+                                    className="flex flex-col items-center gap-2 py-5 px-2 rounded-2xl transition-all hover:scale-[1.03] active:scale-95"
+                                    style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}
+                                >
+                                    <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: GRADIENT, color: '#fff' }}>
+                                        <Package size={22} />
+                                    </div>
+                                    <span className="text-xs font-black" style={{ color: colors.textPrimary }}>Objeto</span>
+                                    <span className="text-[10px] text-center leading-tight" style={{ color: colors.textSecondary }}>
                                         Buscar ou entregar algo
                                     </span>
                                 </button>
@@ -1213,14 +1245,23 @@ export default function PedirMotoristaPage() {
                                 )}
                             </div>
 
-                            <button
-                                onClick={() => setStep('details')}
-                                disabled={!origin.address.trim() || !destination.address.trim()}
-                                className="w-full mt-4 py-3.5 rounded-xl font-black uppercase text-sm tracking-wider transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:hover:scale-100"
-                                style={{ background: GRADIENT, color: '#fff' }}
-                            >
-                                Continuar
-                            </button>
+                            <div className="flex items-center gap-2 mt-4">
+                                <button
+                                    onClick={() => setStep('type')}
+                                    className="py-3.5 px-5 rounded-xl font-black uppercase text-sm tracking-wider transition-all active:scale-95"
+                                    style={{ background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                                >
+                                    Voltar
+                                </button>
+                                <button
+                                    onClick={() => setStep('details')}
+                                    disabled={!origin.address.trim() || !destination.address.trim()}
+                                    className="flex-1 py-3.5 rounded-xl font-black uppercase text-sm tracking-wider transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:hover:scale-100"
+                                    style={{ background: GRADIENT, color: '#fff' }}
+                                >
+                                    Continuar
+                                </button>
+                            </div>
                         </>
                     )}
 
@@ -1228,7 +1269,7 @@ export default function PedirMotoristaPage() {
                     {step === 'details' && requestFor && (
                         <>
                             <h2 className="text-lg font-black mb-3" style={{ color: colors.textPrimary }}>
-                                {requestFor === 'pessoa' ? 'Mais alguém vai?' : 'Mais sobre o objeto'}
+                                {requestFor === 'pessoa' ? 'Mais alguém vai?' : requestFor === 'animal' ? 'Mais sobre o animal' : 'Mais sobre o objeto'}
                             </h2>
 
                             {requestFor === 'pessoa' ? (
@@ -1297,17 +1338,38 @@ export default function PedirMotoristaPage() {
                                     {hasChild && (
                                         <div className="rounded-xl px-3 py-2.5 mt-2" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
                                             <p className="text-[11px] mb-2" style={{ color: colors.textSecondary }}>
-                                                A criança conta como uma pessoa e ocupa lugar de adulto.
+                                                Cada criança conta como uma pessoa e ocupa lugar de adulto.
                                             </p>
-                                            <span className="text-xs font-bold block mb-1.5" style={{ color: colors.textPrimary }}>Idade da criança</span>
+                                            <div className="flex items-center justify-between gap-3">
+                                                <span className="text-xs font-bold" style={{ color: colors.textPrimary }}>Quantas crianças?</span>
+                                                <div className="flex items-center gap-3">
+                                                    <button
+                                                        onClick={() => setChildrenCount((n) => Math.max(1, n - 1))}
+                                                        disabled={childrenCount <= 1}
+                                                        className="w-7 h-7 rounded-full flex items-center justify-center disabled:opacity-40"
+                                                        style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                                                    >
+                                                        <Minus size={14} />
+                                                    </button>
+                                                    <span className="text-sm font-black w-5 text-center" style={{ color: colors.textPrimary }}>{childrenCount}</span>
+                                                    <button
+                                                        onClick={() => setChildrenCount((n) => Math.min(10, n + 1))}
+                                                        disabled={childrenCount >= 10}
+                                                        className="w-7 h-7 rounded-full flex items-center justify-center disabled:opacity-40"
+                                                        style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                                                    >
+                                                        <Plus size={14} />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <span className="text-xs font-bold block mb-1.5 mt-3" style={{ color: colors.textPrimary }}>
+                                                {childrenCount === 1 ? 'Idade da criança' : 'Idades das crianças'}
+                                            </span>
                                             <input
-                                                type="number"
-                                                inputMode="numeric"
-                                                min={0}
-                                                max={17}
+                                                type="text"
                                                 value={childAge}
                                                 onChange={(e) => setChildAge(e.target.value)}
-                                                placeholder="Ex: 5"
+                                                placeholder={childrenCount === 1 ? 'Ex: 5 anos' : 'Ex: 5 e 8 anos'}
                                                 className="w-full px-3 py-2 rounded-lg text-sm focus:outline-none"
                                                 style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
                                             />
@@ -1428,6 +1490,108 @@ export default function PedirMotoristaPage() {
                                             </div>
                                         </div>
                                     )}
+                                </>
+                            ) : requestFor === 'animal' ? (
+                                <>
+                                    <input
+                                        type="text"
+                                        value={petDescription}
+                                        onChange={(e) => setPetDescription(e.target.value)}
+                                        placeholder="Qual é o animal? Ex: cachorro pequeno, gato..."
+                                        className="w-full px-4 py-3 rounded-xl text-sm focus:outline-none"
+                                        style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                                    />
+
+                                    <div className="mt-3">
+                                        <span className="text-xs font-bold block mb-1.5" style={{ color: colors.textSecondary }}>Porte do animal</span>
+                                        <div className="flex gap-2">
+                                            {(['pequeno', 'medio', 'grande'] as ObjectSize[]).map((size) => {
+                                                const active = objectSize === size
+                                                const label = size === 'pequeno' ? 'Pequeno' : size === 'medio' ? 'Médio' : 'Grande'
+                                                return (
+                                                    <button
+                                                        key={size}
+                                                        onClick={() => setObjectSize(size)}
+                                                        className="flex-1 py-2.5 rounded-xl text-xs font-bold transition-all"
+                                                        style={
+                                                            active
+                                                                ? { background: GRADIENT, color: '#fff' }
+                                                                : { background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }
+                                                        }
+                                                    >
+                                                        {label}
+                                                    </button>
+                                                )
+                                            })}
+                                        </div>
+                                    </div>
+
+                                    <div className="mt-3">
+                                        <span className="text-xs font-bold block mb-1.5" style={{ color: colors.textSecondary }}>
+                                            Foto do animal <span style={{ color: '#ef4444' }}>*</span>
+                                        </span>
+                                        <PhotoPicker
+                                            preview={petPhotoPreview}
+                                            onPick={(file) => handlePhotoPick(file, setPetPhotoFile)}
+                                            colors={colors}
+                                        />
+                                    </div>
+
+                                    <div className="mt-3">
+                                        <span className="text-xs font-bold block mb-1.5" style={{ color: colors.textSecondary }}>Quem entrega</span>
+                                        <div className="flex flex-col gap-2">
+                                            <div className="relative">
+                                                <User size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: colors.textSecondary }} />
+                                                <input
+                                                    type="text"
+                                                    value={senderName}
+                                                    onChange={(e) => setSenderName(e.target.value)}
+                                                    placeholder="Nome de quem entrega"
+                                                    className="w-full pl-9 pr-4 py-3 rounded-xl text-sm focus:outline-none"
+                                                    style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                                                />
+                                            </div>
+                                            <div className="relative">
+                                                <Phone size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: colors.textSecondary }} />
+                                                <input
+                                                    type="tel"
+                                                    value={senderWhatsapp}
+                                                    onChange={(e) => setSenderWhatsapp(e.target.value)}
+                                                    placeholder="WhatsApp de quem entrega"
+                                                    className="w-full pl-9 pr-4 py-3 rounded-xl text-sm focus:outline-none"
+                                                    style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="mt-3">
+                                        <span className="text-xs font-bold block mb-1.5" style={{ color: colors.textSecondary }}>Quem recebe</span>
+                                        <div className="flex flex-col gap-2">
+                                            <div className="relative">
+                                                <User size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: colors.textSecondary }} />
+                                                <input
+                                                    type="text"
+                                                    value={recipientName}
+                                                    onChange={(e) => setRecipientName(e.target.value)}
+                                                    placeholder="Nome de quem recebe"
+                                                    className="w-full pl-9 pr-4 py-3 rounded-xl text-sm focus:outline-none"
+                                                    style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                                                />
+                                            </div>
+                                            <div className="relative">
+                                                <Phone size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: colors.textSecondary }} />
+                                                <input
+                                                    type="tel"
+                                                    value={recipientWhatsapp}
+                                                    onChange={(e) => setRecipientWhatsapp(e.target.value)}
+                                                    placeholder="WhatsApp de quem recebe"
+                                                    className="w-full pl-9 pr-4 py-3 rounded-xl text-sm focus:outline-none"
+                                                    style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
                                 </>
                             ) : (
                                 <>
@@ -1569,15 +1733,24 @@ export default function PedirMotoristaPage() {
                                 </button>
                             )}
 
-                            <button
-                                onClick={handleRequestConfirm}
-                                disabled={submitting || !origin.address.trim() || !destination.address.trim()}
-                                className="w-full mt-4 py-3.5 rounded-xl font-black uppercase text-sm tracking-wider transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:hover:scale-100 flex items-center justify-center gap-2"
-                                style={{ background: GRADIENT, color: '#fff' }}
-                            >
-                                {submitting ? <Spinner size={18} /> : <Car size={18} />}
-                                Pedir motorista
-                            </button>
+                            <div className="flex items-center gap-2 mt-4">
+                                <button
+                                    onClick={() => setStep('type')}
+                                    className="py-3.5 px-5 rounded-xl font-black uppercase text-sm tracking-wider transition-all active:scale-95"
+                                    style={{ background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                                >
+                                    Voltar
+                                </button>
+                                <button
+                                    onClick={handleRequestConfirm}
+                                    disabled={submitting || !origin.address.trim() || !destination.address.trim()}
+                                    className="flex-1 py-3.5 rounded-xl font-black uppercase text-sm tracking-wider transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:hover:scale-100 flex items-center justify-center gap-2"
+                                    style={{ background: GRADIENT, color: '#fff' }}
+                                >
+                                    {submitting ? <Spinner size={18} /> : <Car size={18} />}
+                                    Pedir motorista
+                                </button>
+                            </div>
                         </>
                     )}
                 </div>

@@ -3,6 +3,7 @@
 
 import { useEffect, useState } from 'react'
 import { useTheme } from '@/app/theme'
+import { Expand } from 'lucide-react'
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
 const TO_PICKUP_COLOR = '3b82f6' // azul: de você até o ponto de partida
@@ -61,9 +62,10 @@ interface RideMiniMapProps {
     destLat: number
     driverLng: number | null
     driverLat: number | null
+    onExpand?: () => void
 }
 
-export default function RideMiniMap({ originLng, originLat, destLng, destLat, driverLng, driverLat }: RideMiniMapProps) {
+export default function RideMiniMap({ originLng, originLat, destLng, destLat, driverLng, driverLat, onExpand }: RideMiniMapProps) {
     const { colors } = useTheme()
     const [imgUrl, setImgUrl] = useState<string | null>(null)
     const [failed, setFailed] = useState(false)
@@ -104,13 +106,23 @@ export default function RideMiniMap({ originLng, originLat, destLng, destLat, dr
 
     return (
         <div className="mb-2">
-            <div className="w-full rounded-xl overflow-hidden" style={{ height: 120, background: `${colors.border}30` }}>
+            <div className="w-full rounded-xl overflow-hidden relative" style={{ height: 120, background: `${colors.border}30` }}>
                 {imgUrl ? (
                     <img src={imgUrl} alt="Trajeto da corrida" className="w-full h-full object-cover" onError={() => setFailed(true)} />
                 ) : (
                     <div className="w-full h-full flex items-center justify-center">
                         <span className="text-[10px]" style={{ color: colors.textSecondary }}>Carregando mapa...</span>
                     </div>
+                )}
+                {onExpand && (
+                    <button
+                        onClick={onExpand}
+                        className="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold shadow-lg"
+                        style={{ background: colors.surface, color: colors.textPrimary }}
+                    >
+                        <Expand size={11} />
+                        Ver no mapa
+                    </button>
                 )}
             </div>
             <div className="flex items-center gap-3 mt-1.5 flex-wrap">

@@ -10,7 +10,7 @@ import Header from '@/app/Header'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import LoginAndRegister from '../LoginAndRegister'
 import { toast } from 'sonner'
-import { MapPin, Star, Pencil, X, Package, Users, CalendarClock } from 'lucide-react'
+import { MapPin, Star, Pencil, X, Package, Users, CalendarClock, PawPrint } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import { shortAddress } from '@/lib/serviceBoard'
 import { getAvatarUrl } from '@/lib/avatar'
@@ -18,6 +18,7 @@ import { computeSuggestedPrice, getEffectivePricing } from '@/lib/driverPricing'
 import { getProfileRideRatingsBatch, ProfileRideRating } from '@/lib/rideReviews'
 import { VEHICLE_TYPE_LABELS, VehicleType } from '@/lib/rideVehicle'
 import RideMiniMap from './RideMiniMap'
+import RideMapDialog from './RideMapDialog'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 const REFRESH_INTERVAL_MS = 15000
@@ -38,13 +39,14 @@ function relativeTime(iso: string): string {
 interface RideRow {
     id: string
     requester_id: string
-    ride_type: 'pessoa' | 'objeto'
+    ride_type: 'pessoa' | 'objeto' | 'animal'
     origin_address: string
     destination_address: string
     notes: string | null
     passenger_count: number
     vehicle_type: VehicleType
     object_description: string | null
+    pet_description: string | null
     distance_km: number | null
     duration_min: number | null
     scheduled_for: string | null
@@ -78,6 +80,7 @@ export default function AceitarCorridasPage() {
     const [customPriceFor, setCustomPriceFor] = useState<string | null>(null)
     const [customPriceValue, setCustomPriceValue] = useState('')
     const [driverCoords, setDriverCoords] = useState<[number, number] | null>(null)
+    const [mapDialogRideId, setMapDialogRideId] = useState<string | null>(null)
 
     // ===== SUA LOCALIZAÇÃO, PRA DESENHAR "VOCÊ → PARTIDA" NO MAPA DE CADA PEDIDO =====
     useEffect(() => {
@@ -119,7 +122,7 @@ export default function AceitarCorridasPage() {
 
         const { data: openRides } = await supabase
             .from('ride_requests')
-            .select('id, requester_id, ride_type, origin_address, destination_address, notes, passenger_count, vehicle_type, object_description, distance_km, duration_min, scheduled_for, created_at, origin_lat, origin_lng, destination_lat, destination_lng')
+            .select('id, requester_id, ride_type, origin_address, destination_address, notes, passenger_count, vehicle_type, object_description, pet_description, distance_km, duration_min, scheduled_for, created_at, origin_lat, origin_lng, destination_lat, destination_lng')
             .eq('status', 'pending')
             .neq('requester_id', user.id)
             .order('scheduled_for', { ascending: true, nullsFirst: true })
@@ -311,6 +314,7 @@ export default function AceitarCorridasPage() {
                                                 destLng={ride.destination_lng}
                                                 driverLat={driverCoords ? driverCoords[1] : null}
                                                 driverLng={driverCoords ? driverCoords[0] : null}
+                                                onExpand={() => setMapDialogRideId(ride.id)}
                                             />
                                         )}
 
@@ -327,6 +331,8 @@ export default function AceitarCorridasPage() {
                                             )}
                                             {ride.ride_type === 'objeto' ? (
                                                 <span className="flex items-center gap-1"><Package size={11} /> {ride.object_description || 'Objeto'}</span>
+                                            ) : ride.ride_type === 'animal' ? (
+                                                <span className="flex items-center gap-1"><PawPrint size={11} /> {ride.pet_description || 'Animal'}</span>
                                             ) : ride.passenger_count > 1 ? (
                                                 <span>{ride.passenger_count} passageiros</span>
                                             ) : null}
@@ -411,6 +417,24 @@ export default function AceitarCorridasPage() {
                     )}
                 </section>
             </main>
+
+            {mapDialogRideId && (() => {
+                const ride = rides.find((r) => r.id === mapDialogRideId)
+                if (!ride || ride.origin_lat == null || ride.origin_lng == null || ride.destination_lat == null || ride.destination_lng == null) {
+                    return null
+                }
+                return (
+                    <RideMapDialog
+                        originLat={ride.origin_lat}
+                        originLng={ride.origin_lng}
+                        destLat={ride.destination_lat}
+                        destLng={ride.destination_lng}
+                        driverLat={driverCoords ? driverCoords[1] : null}
+                        driverLng={driverCoords ? driverCoords[0] : null}
+                        onClose={() => setMapDialogRideId(null)}
+                    />
+                )
+            })()}
         </div>
     )
 }
