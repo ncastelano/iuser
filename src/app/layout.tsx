@@ -37,27 +37,21 @@ export const metadata: Metadata = {
     siteName: 'iuser.com.br',
     images: [
       {
-        url: '/logo-og.png',
-        width: 1200,
-        height: 630,
+        url: '/logo.png',
+        width: 1254,
+        height: 1254,
         alt: 'iUser',
         type: 'image/png',
       },
-      {
-        url: '/logo.png',
-        width: 400,
-        height: 400,
-        alt: 'iUser',
-      }
     ],
     type: 'website',
     locale: 'pt_BR',
   },
   twitter: {
-    card: 'summary_large_image',
+    card: 'summary',
     title: 'iUser | Mostre o que você tem de melhor!',
     description: 'Os melhores produtos e serviços, você encontra aqui!',
-    images: ['/logo-og.png'],
+    images: ['/logo.png'],
   },
   robots: {
     index: true,
