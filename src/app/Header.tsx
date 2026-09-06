@@ -189,10 +189,13 @@ export default function Header({
     }
     const surfaceRgb = hexToRgb(colors.surface)
 
-    const gradientBg = `linear-gradient(to bottom, 
-        rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.9) 0%, 
-        rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.7) 40%, 
-        rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.4) 70%, 
+    // Topo sólido (opaco); só o rodapé, a partir do início do input de busca,
+    // vai sumindo até ficar transparente na base do header.
+    const fadeHeight = isExpanded ? 56 : 84
+
+    const gradientBg = `linear-gradient(to bottom,
+        rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.98) 0px,
+        rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.98) calc(100% - ${fadeHeight}px),
         rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0) 100%)`
 
     const enhancedTabs: Tab[] = tabs || []
