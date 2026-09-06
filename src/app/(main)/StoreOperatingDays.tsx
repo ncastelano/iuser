@@ -7,6 +7,7 @@ import { useTheme } from '@/app/theme'
 import { toast } from 'sonner'
 import { X, Clock, ChevronDown, ChevronUp, AlertCircle, RefreshCw } from 'lucide-react'
 import { isStoreOpenNow, getStoreStatusWithLunch, getNextOpeningInfo } from '@/lib/storeHours'
+import { hexToRgb } from '@/lib/color'
 
 interface StoreOperatingDaysProps {
     storeId: string
@@ -34,12 +35,6 @@ const DEFAULT_WEEKLY = {
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
-
-function hexToRgb(hex: string) {
-    const clean = hex.replace('#', '')
-    const bigint = parseInt(clean, 16)
-    return { r: (bigint >> 16) & 255, g: (bigint >> 8) & 255, b: bigint & 255 }
-}
 
 // ===== STYLE PARA BOTÕES PILL =====
 const pillButtonStyle = {

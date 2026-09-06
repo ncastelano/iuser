@@ -5,6 +5,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/theme'
+import { hexToRgb } from '@/lib/color'
 import {
     Users,
     ChevronDown,
@@ -51,12 +52,6 @@ const pillButtonFullStyle = {
     width: '100%',
     padding: '0.75rem 1.25rem',
     fontSize: '0.875rem',
-}
-
-function hexToRgb(hex: string) {
-    const clean = hex.replace('#', '')
-    const bigint = parseInt(clean, 16)
-    return { r: (bigint >> 16) & 255, g: (bigint >> 8) & 255, b: bigint & 255 }
 }
 
 // ============================================

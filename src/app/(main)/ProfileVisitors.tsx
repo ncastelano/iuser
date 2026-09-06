@@ -4,6 +4,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/theme'
+import { hexToRgb } from '@/lib/color'
 import {
     Users,
     Eye,
@@ -37,12 +38,6 @@ const pillButtonStyle = {
     cursor: 'pointer',
     border: 'none',
     textDecoration: 'none',
-}
-
-function hexToRgb(hex: string) {
-    const clean = hex.replace('#', '')
-    const bigint = parseInt(clean, 16)
-    return { r: (bigint >> 16) & 255, g: (bigint >> 8) & 255, b: bigint & 255 }
 }
 
 interface ProfileVisitorsProps {

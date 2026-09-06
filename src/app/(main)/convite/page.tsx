@@ -6,6 +6,7 @@ import { useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/theme'
+import { hexToRgb } from '@/lib/color'
 import {
     Users,
     Link as LinkIcon,
@@ -29,12 +30,6 @@ import {
 } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import { toast } from 'sonner'
-
-function hexToRgb(hex: string) {
-    const clean = hex.replace('#', '')
-    const bigint = parseInt(clean, 16)
-    return { r: (bigint >> 16) & 255, g: (bigint >> 8) & 255, b: bigint & 255 }
-}
 
 function ConviteContent() {
     const router = useRouter()

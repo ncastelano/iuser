@@ -7,6 +7,7 @@ import { useNavProgressStore } from '@/store/useNavProgressStore'
 import { Car, MapPin } from 'lucide-react'
 import { useTheme } from '@/app/theme'
 import { getRecentRideDestinations, RecentRideDestination } from '@/lib/recentRideDestinations'
+import { hexToRgb } from '@/lib/color'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -14,17 +15,6 @@ const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 function shortAddress(address: string): string {
     const firstPart = address.split(',')[0].trim()
     return firstPart.length > 24 ? firstPart.substring(0, 22) + '...' : firstPart
-}
-
-/* ─── Helper para converter hex em RGB ─── */
-function hexToRgb(hex: string): { r: number; g: number; b: number } {
-    const clean = hex.replace('#', '')
-    const bigint = parseInt(clean, 16)
-    return {
-        r: (bigint >> 16) & 255,
-        g: (bigint >> 8) & 255,
-        b: bigint & 255,
-    }
 }
 
 interface MotoristaSectionProps {

@@ -7,20 +7,10 @@ import { useNavProgressStore } from '@/store/useNavProgressStore'
 import { Wrench } from 'lucide-react'
 import { useTheme } from '@/app/theme'
 import MyOpenServiceRequests from '@/components/MyOpenServiceRequests'
+import { hexToRgb } from '@/lib/color'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
-
-/* ─── Helper para converter hex em RGB ─── */
-function hexToRgb(hex: string): { r: number; g: number; b: number } {
-    const clean = hex.replace('#', '')
-    const bigint = parseInt(clean, 16)
-    return {
-        r: (bigint >> 16) & 255,
-        g: (bigint >> 8) & 255,
-        b: bigint & 255,
-    }
-}
 
 interface HireAServiceProps {
     dragHandle?: ReactNode

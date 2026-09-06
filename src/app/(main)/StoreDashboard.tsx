@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/theme'
 import { Spinner } from '@/components/Spinner'
 import { toast } from 'sonner'
+import { hexToRgb } from '@/lib/color'
 import {
     Settings,
     Plus,
@@ -46,12 +47,6 @@ const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 function startOfDay(date: Date = new Date()): string {
     date.setHours(0, 0, 0, 0)
     return date.toISOString()
-}
-
-function hexToRgb(hex: string) {
-    const clean = hex.replace('#', '')
-    const bigint = parseInt(clean, 16)
-    return { r: (bigint >> 16) & 255, g: (bigint >> 8) & 255, b: bigint & 255 }
 }
 
 const pillButtonStyle = {

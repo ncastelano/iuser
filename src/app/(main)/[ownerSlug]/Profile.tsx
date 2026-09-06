@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useState, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
+import { hexToRgb } from '@/lib/color'
 import {
     AlertTriangle,
     ArrowLeft,
@@ -276,11 +277,6 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
     const LOCATION_GRADIENT = 'linear-gradient(135deg, #dc2626, #f97316)'
 
     // ========== ESTILOS ==========
-    const hexToRgb = (hex: string) => {
-        const clean = hex.replace('#', '')
-        const bigint = parseInt(clean, 16)
-        return { r: (bigint >> 16) & 255, g: (bigint >> 8) & 255, b: bigint & 255 }
-    }
     const surfaceRgb = hexToRgb(colors.surface)
     const cardStyle = {
         background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.5)`,

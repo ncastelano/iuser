@@ -15,6 +15,7 @@ import { isStoreOpenNow, getNextOpeningInfo, type BusinessHours } from '@/lib/st
 import { toast } from 'sonner'
 import HeaderSearchInput from '@/app/HeaderSearchInput'
 import CatalogBag, { type CartItemWithComment } from './CatalogBag'
+import { hexToRgb } from '@/lib/color'
 
 interface Product {
     id: string
@@ -173,15 +174,6 @@ export default function CatalogoPage() {
     const onlyDeliveryAvailable = !!(storeConfig?.accepts_delivery && !storeConfig?.accepts_pickup)
 
     // ========== CORES DO HEADER ==========
-    const hexToRgb = (hex: string) => {
-        const clean = hex.replace('#', '')
-        const bigint = parseInt(clean, 16)
-        return {
-            r: (bigint >> 16) & 255,
-            g: (bigint >> 8) & 255,
-            b: bigint & 255,
-        }
-    }
     const surfaceRgb = hexToRgb(colors.surface)
 
     const gradientBg = `linear-gradient(to bottom, 

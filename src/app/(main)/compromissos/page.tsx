@@ -4,6 +4,7 @@
 import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
+import { hexToRgb } from '@/lib/color'
 import {
     Search,
     Check,
@@ -225,11 +226,6 @@ export default function CompromissosPage() {
     const { colors } = useTheme()
 
     // Movida para antes do uso
-    const hexToRgb = (hex: string) => {
-        const clean = hex.replace('#', '')
-        const bigint = parseInt(clean, 16)
-        return { r: (bigint >> 16) & 255, g: (bigint >> 8) & 255, b: bigint & 255 }
-    }
 
     const { appointments, loading, error, refetch } = useAppointments()
     const { updateStatus } = useUpdateAppointmentStatus()

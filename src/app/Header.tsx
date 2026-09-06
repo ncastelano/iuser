@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { ArrowLeft, Search, X } from 'lucide-react'
 import { useTheme } from '@/app/theme'
 import { useState, useRef, useEffect } from 'react'
+import { hexToRgb } from '@/lib/color'
 
 export interface Tab {
     id: string
@@ -178,15 +179,6 @@ export default function Header({
         }
     }
 
-    const hexToRgb = (hex: string) => {
-        const clean = hex.replace('#', '')
-        const bigint = parseInt(clean, 16)
-        return {
-            r: (bigint >> 16) & 255,
-            g: (bigint >> 8) & 255,
-            b: bigint & 255,
-        }
-    }
     const surfaceRgb = hexToRgb(colors.surface)
 
     // 90% do header (de cima) é sólido/opaco; só os 10% finais viram

@@ -4,6 +4,7 @@
 import { ReactNode, useState, useEffect } from 'react'
 import { Settings2, Save, RotateCcw, X, Layout } from 'lucide-react'
 import { useTheme } from '@/app/theme'
+import { hexToRgb } from '@/lib/color'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -16,16 +17,6 @@ interface OrderSectionProps {
     onRestore: () => void
     disabled?: boolean
     defaultOrder?: string[] // Nova prop para a ordem padrão
-}
-
-function hexToRgb(hex: string) {
-    const clean = hex.replace('#', '')
-    const bigint = parseInt(clean, 16)
-    return {
-        r: (bigint >> 16) & 255,
-        g: (bigint >> 8) & 255,
-        b: bigint & 255,
-    }
 }
 
 export default function OrderSection({

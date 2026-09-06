@@ -7,6 +7,7 @@ import { Plus, Check, X, Calendar, User, Lock, Earth, Eye, EyeOff, Clock, Chevro
 import { useAppointments, useDeleteAppointment } from '@/app/(main)/compromissos/dadosDoCompromisso'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/theme'
+import { hexToRgb } from '@/lib/color'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -55,15 +56,6 @@ const pillButtonFullStyle = {
 }
 
 /* ─── Auxiliar para converter hex em RGB ─── */
-function hexToRgb(hex: string): { r: number; g: number; b: number } {
-    const clean = hex.replace('#', '')
-    const bigint = parseInt(clean, 16)
-    return {
-        r: (bigint >> 16) & 255,
-        g: (bigint >> 8) & 255,
-        b: bigint & 255,
-    }
-}
 
 /* ─── Badge de visibilidade ─── */
 function VisibilityBadge({ isPublic, textColor }: { isPublic: boolean; textColor: string }) {

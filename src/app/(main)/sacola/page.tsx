@@ -3,6 +3,7 @@
 
 import { useCartStore } from '@/store/useCartStore'
 import { useRouter } from 'next/navigation'
+import { hexToRgb } from '@/lib/color'
 import {
     Store,
     ChevronRight,
@@ -1182,11 +1183,6 @@ export default function SacolaPage() {
         return counts
     }, [myPurchases])
 
-    const hexToRgb = (hex: string) => {
-        const clean = hex.replace('#', '')
-        const bigint = parseInt(clean, 16)
-        return { r: (bigint >> 16) & 255, g: (bigint >> 8) & 255, b: bigint & 255 }
-    }
     const surfaceRgb = hexToRgb(colors.surface)
     const cardStyle = {
         background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,

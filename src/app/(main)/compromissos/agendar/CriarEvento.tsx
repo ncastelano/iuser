@@ -2,6 +2,7 @@
 'use client'
 
 import { useState, useMemo, useEffect } from 'react'
+import { hexToRgb } from '@/lib/color'
 import {
     Calendar,
     Clock,
@@ -168,12 +169,6 @@ export default function CriarEvento({ onBack, context, storeId, activeFlow, mySt
         if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('/')) return path
         const { data } = supabase.storage.from(bucket).getPublicUrl(path)
         return data?.publicUrl || null
-    }
-
-    const hexToRgb = (hex: string) => {
-        const clean = hex.replace('#', '')
-        const bigint = parseInt(clean, 16)
-        return { r: (bigint >> 16) & 255, g: (bigint >> 8) & 255, b: bigint & 255 }
     }
 
     const cardStyle = {

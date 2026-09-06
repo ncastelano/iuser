@@ -8,12 +8,7 @@ import { useTheme } from '@/app/theme'
 import { Mail, ArrowLeft, CheckCircle2, AlertCircle } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import { toast } from 'sonner'
-
-function hexToRgb(hex: string) {
-    const clean = hex.replace('#', '')
-    const bigint = parseInt(clean, 16)
-    return { r: (bigint >> 16) & 255, g: (bigint >> 8) & 255, b: bigint & 255 }
-}
+import { hexToRgb } from '@/lib/color'
 
 interface RecoverPasswordProps {
     onBack?: () => void

@@ -10,6 +10,7 @@ import { Spinner } from '@/components/Spinner'
 import { useTheme } from '@/app/theme'
 import { addRecentClick } from '@/components/LastSearched'
 import { getAvatarUrl } from '@/lib/avatar'
+import { hexToRgb } from '@/lib/color'
 
 const categoriasInfo: { titulo: string; slug: string; color: string; keywords: string[] }[] = [
     { titulo: 'Alimentação', slug: 'alimentacao', color: '#f97316', keywords: ['restaurante', 'lanchonete', 'pizzaria', 'comida', 'alimentação', 'mercado', 'supermercado', 'hortifruti', 'bebidas'] },
@@ -284,11 +285,6 @@ export default function SearchResultsSection({ searchQuery, onSearchSelect }: Se
         router.push(`/${storeSlug}/${product.slug || product.id}`)
     }
 
-    const hexToRgb = (hex: string) => {
-        const clean = hex.replace('#', '')
-        const num = parseInt(clean, 16)
-        return { r: (num >> 16) & 255, g: (num >> 8) & 255, b: num & 255 }
-    }
     const surfaceRgb = hexToRgb(colors.surface)
     const cardBg = `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`
 

@@ -6,22 +6,13 @@ import { ReactNode, useEffect, useRef, useState } from 'react'
 import { useTheme } from '@/app/theme'
 import { categorias, type Categoria } from '@/lib/categorias'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
+import { hexToRgb } from '@/lib/color'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
 interface CanIhelpProps {
     dragHandle?: ReactNode
-}
-
-function hexToRgb(hex: string) {
-    const clean = hex.replace('#', '')
-    const bigint = parseInt(clean, 16)
-    return {
-        r: (bigint >> 16) & 255,
-        g: (bigint >> 8) & 255,
-        b: bigint & 255,
-    }
 }
 
 // ===== Contagem de cliques por categoria, salva no navegador =====

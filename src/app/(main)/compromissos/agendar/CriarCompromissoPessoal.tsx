@@ -2,6 +2,7 @@
 'use client'
 
 import { useState, useMemo, useEffect } from 'react'
+import { hexToRgb } from '@/lib/color'
 import {
     Calendar,
     Clock,
@@ -192,11 +193,6 @@ export default function CriarCompromissoPessoal({ onBack }: Props) {
     }
 
     // Helper para cores do tema
-    const hexToRgb = (hex: string) => {
-        const clean = hex.replace('#', '')
-        const bigint = parseInt(clean, 16)
-        return { r: (bigint >> 16) & 255, g: (bigint >> 8) & 255, b: bigint & 255 }
-    }
 
     const cardStyle = {
         background: `rgba(${hexToRgb(colors.surface).r}, ${hexToRgb(colors.surface).g}, ${hexToRgb(colors.surface).b}, 0.6)`,

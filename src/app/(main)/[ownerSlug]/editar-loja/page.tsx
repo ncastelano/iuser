@@ -11,6 +11,7 @@ import { useProfile } from '@/app/contexts/ProfileContext'
 import { useTheme } from '@/app/theme'
 import { StoreDescription } from '../../StoreDesciption'
 import { checkSlugAvailability } from '@/lib/slugUtils'
+import { hexToRgb } from '@/lib/color'
 
 const DAYS_OF_WEEK = [
     { key: 'mon', label: 'Segunda' },
@@ -152,12 +153,6 @@ async function reverseGeocode(lat: number, lng: number): Promise<{
         reverseGeocodeCache.set(key, fallback)
         return { fullAddress: fallback, streetDisplay: fallback, extractedNumber: '' }
     }
-}
-
-function hexToRgb(hex: string) {
-    const clean = hex.replace('#', '')
-    const bigint = parseInt(clean, 16)
-    return { r: (bigint >> 16) & 255, g: (bigint >> 8) & 255, b: bigint & 255 }
 }
 
 export default function EditarLoja() {

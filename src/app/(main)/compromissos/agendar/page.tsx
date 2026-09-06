@@ -12,6 +12,7 @@ import CriarCompromissoLoja from './CriarCompromissoLoja'
 import CriarCompromissoComAlguem from './CriarCompromissoComAlguem'
 import CriarCompromissoPessoal from './CriarCompromissoPessoal'
 import CriarEvento from './CriarEvento'
+import { hexToRgb } from '@/lib/color'
 
 type FlowType =
     | 'none'
@@ -94,12 +95,6 @@ export default function AgendarPage() {
     }, [userAvatarUrl, userProfileSlug, myStores])
 
     const handleBack = () => setActiveFlow('none')
-
-    const hexToRgb = (hex: string) => {
-        const clean = hex.replace('#', '')
-        const bigint = parseInt(clean, 16)
-        return { r: (bigint >> 16) & 255, g: (bigint >> 8) & 255, b: bigint & 255 }
-    }
 
     const cardStyle = {
         background: `rgba(${hexToRgb(colors.surface).r}, ${hexToRgb(colors.surface).g}, ${hexToRgb(colors.surface).b}, 0.6)`,

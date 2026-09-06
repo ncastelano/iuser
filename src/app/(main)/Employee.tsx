@@ -6,6 +6,7 @@ import React, { useState } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/theme'
 import { toast } from 'sonner'
+import { hexToRgb } from '@/lib/color'
 import {
     Truck,
     ChevronRight,
@@ -71,12 +72,6 @@ interface EmployeeProps {
     onToggleExpand: (id: string | null) => void
     storeId: string
     onRefresh: () => void
-}
-
-function hexToRgb(hex: string) {
-    const clean = hex.replace('#', '')
-    const bigint = parseInt(clean, 16)
-    return { r: (bigint >> 16) & 255, g: (bigint >> 8) & 255, b: bigint & 255 }
 }
 
 export default function Employee({

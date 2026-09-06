@@ -5,6 +5,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/theme'
 import { toast } from 'sonner'
+import { hexToRgb } from '@/lib/color'
 import {
     ShoppingCart,
     Send,
@@ -49,12 +50,6 @@ interface StoreOrdersProps {
     storeName?: string
     onOrderCountsChange?: (counts: { pending: number; preparing: number; ready: number }) => void
     onRefresh?: () => void
-}
-
-function hexToRgb(hex: string) {
-    const clean = hex.replace('#', '')
-    const bigint = parseInt(clean, 16)
-    return { r: (bigint >> 16) & 255, g: (bigint >> 8) & 255, b: bigint & 255 }
 }
 
 function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {

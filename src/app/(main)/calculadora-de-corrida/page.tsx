@@ -7,6 +7,7 @@ import { useTheme } from '@/app/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import Header from '@/app/Header'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
+import { hexToRgb } from '@/lib/color'
 import {
     ArrowLeft,
     MapPin,
@@ -71,12 +72,6 @@ const pillButtonFullStyle = {
     width: '100%',
     padding: '0.75rem 1.25rem',
     fontSize: '0.875rem',
-}
-
-function hexToRgb(hex: string) {
-    const clean = hex.replace('#', '')
-    const bigint = parseInt(clean, 16)
-    return { r: (bigint >> 16) & 255, g: (bigint >> 8) & 255, b: bigint & 255 }
 }
 
 // ===== FUNÇÃO DE DISTÂNCIA (Haversine) =====

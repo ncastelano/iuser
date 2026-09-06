@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/theme'
 import { Spinner } from '@/components/Spinner'
 import { useProfile } from '@/app/contexts/ProfileContext'
+import { hexToRgb } from '@/lib/color'
 import {
     AlertTriangle,
     ArrowLeft,
@@ -152,11 +153,6 @@ export function Store({
     const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
     // ========== ESTILOS ==========
-    const hexToRgb = (hex: string) => {
-        const clean = hex.replace('#', '')
-        const bigint = parseInt(clean, 16)
-        return { r: (bigint >> 16) & 255, g: (bigint >> 8) & 255, b: bigint & 255 }
-    }
     const surfaceRgb = hexToRgb(colors.surface)
     const glassBg = 'rgba(255, 255, 255, 0.08)'
 

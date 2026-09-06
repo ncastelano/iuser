@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/theme'
 import { toast } from 'sonner'
 import { Truck, ChevronDown, ChevronUp, TrendingUp } from 'lucide-react'
+import { hexToRgb } from '@/lib/color'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -23,12 +24,6 @@ const pillButtonStyle = {
     transition: 'all 0.2s ease',
     cursor: 'pointer',
     border: 'none',
-}
-
-function hexToRgb(hex: string) {
-    const clean = hex.replace('#', '')
-    const bigint = parseInt(clean, 16)
-    return { r: (bigint >> 16) & 255, g: (bigint >> 8) & 255, b: bigint & 255 }
 }
 
 interface StoreDeliverySettingsProps {

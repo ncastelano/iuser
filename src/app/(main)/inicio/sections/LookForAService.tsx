@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
 import { Briefcase, MapPin } from 'lucide-react'
 import { useTheme } from '@/app/theme'
+import { hexToRgb } from '@/lib/color'
 import {
     BoardItem,
     fetchOpenBoardItems,
@@ -18,17 +19,6 @@ import {
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
-
-/* ─── Helper para converter hex em RGB ─── */
-function hexToRgb(hex: string): { r: number; g: number; b: number } {
-    const clean = hex.replace('#', '')
-    const bigint = parseInt(clean, 16)
-    return {
-        r: (bigint >> 16) & 255,
-        g: (bigint >> 8) & 255,
-        b: bigint & 255,
-    }
-}
 
 interface LookForAServiceProps {
     dragHandle?: ReactNode

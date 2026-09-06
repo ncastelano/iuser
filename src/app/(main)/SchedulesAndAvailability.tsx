@@ -6,12 +6,7 @@ import { X, Earth, Lock, User, Check, Plus, Eye, EyeOff, Calendar } from 'lucide
 import { useAppointments, useDeleteAppointment } from '@/app/(main)/compromissos/dadosDoCompromisso'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/theme'
-
-function hexToRgb(hex: string) {
-    const clean = hex.replace('#', '')
-    const bigint = parseInt(clean, 16)
-    return { r: (bigint >> 16) & 255, g: (bigint >> 8) & 255, b: bigint & 255 }
-}
+import { hexToRgb } from '@/lib/color'
 
 function formatTime(time: string) {
     return time.slice(0, 5)
