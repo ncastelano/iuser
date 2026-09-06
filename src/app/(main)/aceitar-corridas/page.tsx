@@ -14,7 +14,7 @@ import { MapPin, Star, Pencil, X, Package, Users } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import { shortAddress } from '@/lib/serviceBoard'
 import { getAvatarUrl } from '@/lib/avatar'
-import { computeSuggestedPrice } from '@/lib/driverPricing'
+import { computeSuggestedPrice, getEffectivePricing } from '@/lib/driverPricing'
 import { getProfileRideRatingsBatch, ProfileRideRating } from '@/lib/rideReviews'
 import { VEHICLE_TYPE_LABELS, VehicleType } from '@/lib/rideVehicle'
 
@@ -74,7 +74,7 @@ export default function AceitarCorridasPage() {
         setCheckingPricing(true)
         const { data: pricing } = await supabase
             .from('driver_pricing')
-            .select('base_distance_km, base_fee, price_per_km_after_base')
+            .select('pricing_mode, base_distance_km, base_fee, price_per_km_after_base')
             .eq('driver_id', user.id)
             .maybeSingle()
         setCheckingPricing(false)
@@ -113,11 +113,7 @@ export default function AceitarCorridasPage() {
         ])
         const profilesById = new Map((profiles || []).map((p) => [p.id, p]))
 
-        const pricingShape = {
-            baseDistanceKm: pricing.base_distance_km,
-            baseFee: pricing.base_fee,
-            pricePerKmAfterBase: pricing.price_per_km_after_base,
-        }
+        const pricingShape = getEffectivePricing(pricing)
 
         const cards: RideCardData[] = openList.map((r) => {
             const p = profilesById.get(r.requester_id)

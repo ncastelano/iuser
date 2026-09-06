@@ -12,7 +12,7 @@ import LoginAndRegister from '../LoginAndRegister'
 import { toast } from 'sonner'
 import { TrendingUp, Car } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
-import { computeSuggestedPrice } from '@/lib/driverPricing'
+import { computeSuggestedPrice, PLATFORM_DEFAULT_PRICING, PricingMode } from '@/lib/driverPricing'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -27,6 +27,7 @@ function PainelMotoristaContent() {
     const [showLogin, setShowLogin] = useState(false)
     const [saving, setSaving] = useState(false)
 
+    const [pricingMode, setPricingMode] = useState<PricingMode>('platform')
     const [baseDistanceKm, setBaseDistanceKm] = useState('5')
     const [baseFee, setBaseFee] = useState('7')
     const [pricePerKmAfterBase, setPricePerKmAfterBase] = useState('2')
@@ -43,14 +44,15 @@ function PainelMotoristaContent() {
 
         const { data } = await supabase
             .from('driver_pricing')
-            .select('base_distance_km, base_fee, price_per_km_after_base')
+            .select('pricing_mode, base_distance_km, base_fee, price_per_km_after_base')
             .eq('driver_id', user.id)
             .maybeSingle()
 
         if (data) {
-            setBaseDistanceKm(String(data.base_distance_km))
-            setBaseFee(String(data.base_fee))
-            setPricePerKmAfterBase(String(data.price_per_km_after_base))
+            setPricingMode(data.pricing_mode)
+            if (data.base_distance_km != null) setBaseDistanceKm(String(data.base_distance_km))
+            if (data.base_fee != null) setBaseFee(String(data.base_fee))
+            if (data.price_per_km_after_base != null) setPricePerKmAfterBase(String(data.price_per_km_after_base))
         }
 
         setLoading(false)
@@ -78,9 +80,10 @@ function PainelMotoristaContent() {
             const { error } = await supabase.from('driver_pricing').upsert(
                 {
                     driver_id: user.id,
-                    base_distance_km: parseFloat(baseDistanceKm) || 0,
-                    base_fee: parseFloat(baseFee) || 0,
-                    price_per_km_after_base: parseFloat(pricePerKmAfterBase) || 0,
+                    pricing_mode: pricingMode,
+                    base_distance_km: pricingMode === 'custom' ? (parseFloat(baseDistanceKm) || 0) : null,
+                    base_fee: pricingMode === 'custom' ? (parseFloat(baseFee) || 0) : null,
+                    price_per_km_after_base: pricingMode === 'custom' ? (parseFloat(pricePerKmAfterBase) || 0) : null,
                 },
                 { onConflict: 'driver_id' }
             )
@@ -98,10 +101,27 @@ function PainelMotoristaContent() {
     }
 
     const previewDistance = 10
-    const previewPrice = computeSuggestedPrice(previewDistance, {
-        baseDistanceKm: parseFloat(baseDistanceKm) || 0,
-        baseFee: parseFloat(baseFee) || 0,
-        pricePerKmAfterBase: parseFloat(pricePerKmAfterBase) || 0,
+    const activePricing = pricingMode === 'platform'
+        ? PLATFORM_DEFAULT_PRICING
+        : {
+            baseDistanceKm: parseFloat(baseDistanceKm) || 0,
+            baseFee: parseFloat(baseFee) || 0,
+            pricePerKmAfterBase: parseFloat(pricePerKmAfterBase) || 0,
+        }
+    const previewPrice = computeSuggestedPrice(previewDistance, activePricing)
+
+    const planButtonStyle = (active: boolean) => ({
+        flex: 1,
+        padding: '0.85rem 1rem',
+        borderRadius: '1rem',
+        fontSize: '0.8rem',
+        fontWeight: 800,
+        transition: 'all 0.2s',
+        cursor: 'pointer',
+        textAlign: 'left' as const,
+        background: active ? GRADIENT : `${colors.border}20`,
+        color: active ? '#ffffff' : colors.textPrimary,
+        border: active ? 'none' : `1px solid ${colors.border}`,
     })
 
     return (
@@ -142,7 +162,7 @@ function PainelMotoristaContent() {
                                 </div>
                                 <div>
                                     <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
-                                        Sua tarifa por km
+                                        Escolha seu plano de tarifa
                                     </h3>
                                     <p className="text-xs" style={{ color: colors.textSecondary }}>
                                         Usada para calcular o preço sugerido em cada corrida disponível
@@ -150,64 +170,95 @@ function PainelMotoristaContent() {
                                 </div>
                             </div>
 
-                            <div
-                                className="p-4 rounded-2xl border"
-                                style={{ background: colors.surface, borderColor: colors.border }}
-                            >
-                                <div className="flex items-center gap-2 mb-3">
-                                    <TrendingUp size={16} style={{ color: '#f97316' }} />
-                                    <p className="text-[10px] font-black" style={{ color: '#f97316' }}>
-                                        Tarifa com valor base
+                            <div className="flex gap-2">
+                                <button onClick={() => setPricingMode('platform')} style={planButtonStyle(pricingMode === 'platform')}>
+                                    Tarifa da plataforma
+                                    <div className="text-[10px] font-normal mt-0.5 opacity-80">Valor padrão, sem configurar nada</div>
+                                </button>
+                                <button onClick={() => setPricingMode('custom')} style={planButtonStyle(pricingMode === 'custom')}>
+                                    Minha tarifa
+                                    <div className="text-[10px] font-normal mt-0.5 opacity-80">Você define seus próprios valores</div>
+                                </button>
+                            </div>
+
+                            {pricingMode === 'platform' ? (
+                                <div
+                                    className="p-4 rounded-2xl border"
+                                    style={{ background: colors.surface, borderColor: colors.border }}
+                                >
+                                    <div className="flex items-center gap-2 mb-3">
+                                        <TrendingUp size={16} style={{ color: '#f97316' }} />
+                                        <p className="text-[10px] font-black" style={{ color: '#f97316' }}>
+                                            Tarifa padrão da plataforma
+                                        </p>
+                                    </div>
+                                    <p className="text-xs" style={{ color: colors.textPrimary }}>
+                                        Até {PLATFORM_DEFAULT_PRICING.baseDistanceKm} km = R$ {PLATFORM_DEFAULT_PRICING.baseFee.toFixed(2)}, acima + R$ {PLATFORM_DEFAULT_PRICING.pricePerKmAfterBase.toFixed(2)}/km
+                                    </p>
+                                    <p className="text-[10px] mt-3 font-bold" style={{ color: colors.textPrimary }}>
+                                        Exemplo: uma corrida de {previewDistance} km sairia por R$ {previewPrice.toFixed(2)}
                                     </p>
                                 </div>
-                                <div className="grid grid-cols-3 gap-2">
-                                    <div>
-                                        <label className="text-[9px] font-bold block mb-1" style={{ color: colors.textSecondary }}>
-                                            Distância base (km)
-                                        </label>
-                                        <input
-                                            type="number"
-                                            value={baseDistanceKm}
-                                            onChange={(e) => setBaseDistanceKm(e.target.value)}
-                                            placeholder="5"
-                                            className="w-full p-2 rounded-full border text-sm"
-                                            style={{ background: colors.background, borderColor: colors.border, color: colors.textPrimary }}
-                                        />
+                            ) : (
+                                <div
+                                    className="p-4 rounded-2xl border"
+                                    style={{ background: colors.surface, borderColor: colors.border }}
+                                >
+                                    <div className="flex items-center gap-2 mb-3">
+                                        <TrendingUp size={16} style={{ color: '#f97316' }} />
+                                        <p className="text-[10px] font-black" style={{ color: '#f97316' }}>
+                                            Tarifa com valor base
+                                        </p>
                                     </div>
-                                    <div>
-                                        <label className="text-[9px] font-bold block mb-1" style={{ color: colors.textSecondary }}>
-                                            Valor base (R$)
-                                        </label>
-                                        <input
-                                            type="number"
-                                            value={baseFee}
-                                            onChange={(e) => setBaseFee(e.target.value)}
-                                            placeholder="7"
-                                            className="w-full p-2 rounded-full border text-sm"
-                                            style={{ background: colors.background, borderColor: colors.border, color: colors.textPrimary }}
-                                        />
+                                    <div className="grid grid-cols-3 gap-2">
+                                        <div>
+                                            <label className="text-[9px] font-bold block mb-1" style={{ color: colors.textSecondary }}>
+                                                Distância base (km)
+                                            </label>
+                                            <input
+                                                type="number"
+                                                value={baseDistanceKm}
+                                                onChange={(e) => setBaseDistanceKm(e.target.value)}
+                                                placeholder="5"
+                                                className="w-full p-2 rounded-full border text-sm"
+                                                style={{ background: colors.background, borderColor: colors.border, color: colors.textPrimary }}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-[9px] font-bold block mb-1" style={{ color: colors.textSecondary }}>
+                                                Valor base (R$)
+                                            </label>
+                                            <input
+                                                type="number"
+                                                value={baseFee}
+                                                onChange={(e) => setBaseFee(e.target.value)}
+                                                placeholder="7"
+                                                className="w-full p-2 rounded-full border text-sm"
+                                                style={{ background: colors.background, borderColor: colors.border, color: colors.textPrimary }}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-[9px] font-bold block mb-1" style={{ color: colors.textSecondary }}>
+                                                Extra por km (R$)
+                                            </label>
+                                            <input
+                                                type="number"
+                                                value={pricePerKmAfterBase}
+                                                onChange={(e) => setPricePerKmAfterBase(e.target.value)}
+                                                placeholder="2"
+                                                className="w-full p-2 rounded-full border text-sm"
+                                                style={{ background: colors.background, borderColor: colors.border, color: colors.textPrimary }}
+                                            />
+                                        </div>
                                     </div>
-                                    <div>
-                                        <label className="text-[9px] font-bold block mb-1" style={{ color: colors.textSecondary }}>
-                                            Extra por km (R$)
-                                        </label>
-                                        <input
-                                            type="number"
-                                            value={pricePerKmAfterBase}
-                                            onChange={(e) => setPricePerKmAfterBase(e.target.value)}
-                                            placeholder="2"
-                                            className="w-full p-2 rounded-full border text-sm"
-                                            style={{ background: colors.background, borderColor: colors.border, color: colors.textPrimary }}
-                                        />
-                                    </div>
+                                    <p className="text-[9px] mt-2" style={{ color: colors.textSecondary }}>
+                                        Ex: até {baseDistanceKm || '0'} km = R$ {(parseFloat(baseFee) || 0).toFixed(2)}, acima + R$ {(parseFloat(pricePerKmAfterBase) || 0).toFixed(2)}/km
+                                    </p>
+                                    <p className="text-[10px] mt-3 font-bold" style={{ color: colors.textPrimary }}>
+                                        Exemplo: uma corrida de {previewDistance} km sairia por R$ {previewPrice.toFixed(2)}
+                                    </p>
                                 </div>
-                                <p className="text-[9px] mt-2" style={{ color: colors.textSecondary }}>
-                                    Ex: até {baseDistanceKm || '0'} km = R$ {(parseFloat(baseFee) || 0).toFixed(2)}, acima + R$ {(parseFloat(pricePerKmAfterBase) || 0).toFixed(2)}/km
-                                </p>
-                                <p className="text-[10px] mt-3 font-bold" style={{ color: colors.textPrimary }}>
-                                    Exemplo: uma corrida de {previewDistance} km sairia por R$ {previewPrice.toFixed(2)}
-                                </p>
-                            </div>
+                            )}
 
                             <button
                                 onClick={handleSave}
