@@ -8,11 +8,15 @@ import { toast } from 'sonner'
 import { shortAddress } from '@/lib/serviceBoard'
 import { getAvatarUrl } from '@/lib/avatar'
 import { Spinner } from '@/components/Spinner'
-import { Check, X, MapPin, Search, CheckCircle2, XCircle, Car } from 'lucide-react'
+import { Check, X, MapPin, Search, CheckCircle2, XCircle, Car, CalendarClock } from 'lucide-react'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
 type RideStatus = 'pending' | 'accepted' | 'completed' | 'cancelled'
+
+function formatScheduledFor(iso: string): string {
+    return new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+}
 
 interface RideRow {
     id: string
@@ -21,6 +25,7 @@ interface RideRow {
     status: RideStatus
     driver_id: string | null
     created_at: string
+    scheduled_for: string | null
 }
 
 interface Candidate {
@@ -58,7 +63,7 @@ export default function RideTrackingPanel({ rideId, onExit }: RideTrackingPanelP
     const load = useCallback(async () => {
         const { data: rideRow } = await supabase
             .from('ride_requests')
-            .select('id, origin_address, destination_address, status, driver_id, created_at')
+            .select('id, origin_address, destination_address, status, driver_id, created_at, scheduled_for')
             .eq('id', rideId)
             .single()
 
@@ -253,7 +258,18 @@ export default function RideTrackingPanel({ rideId, onExit }: RideTrackingPanelP
     return (
         <div className="flex flex-col gap-4">
             <div>
-                <h2 className="text-lg font-black" style={{ color: colors.textPrimary }}>Seu pedido</h2>
+                <div className="flex items-center gap-2 flex-wrap">
+                    <h2 className="text-lg font-black" style={{ color: colors.textPrimary }}>Seu pedido</h2>
+                    {ride.scheduled_for && (
+                        <span
+                            className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black uppercase"
+                            style={{ background: `${colors.accent}15`, color: colors.accent }}
+                        >
+                            <CalendarClock size={11} />
+                            Agendada: {formatScheduledFor(ride.scheduled_for)}
+                        </span>
+                    )}
+                </div>
                 <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>
                     {shortAddress(ride.origin_address)} → {shortAddress(ride.destination_address)}
                 </p>

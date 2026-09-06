@@ -35,6 +35,8 @@ import {
     ScanLine,
     User,
     History,
+    Clock,
+    CalendarClock,
 } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import RideTrackingPanel from './RideTrackingPanel'
@@ -117,6 +119,15 @@ function PhotoPicker({ preview, onPick, colors }: { preview: string | null; onPi
     )
 }
 
+function toDatetimeLocalValue(date: Date): string {
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
+function formatScheduledFor(iso: string): string {
+    return new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+}
+
 function shortAddress(address: string): string {
     const firstPart = address.split(',')[0].trim()
     return firstPart.length > 28 ? firstPart.substring(0, 26) + '...' : firstPart
@@ -195,6 +206,10 @@ export default function PedirMotoristaPage() {
     const [notes, setNotes] = useState('')
     const [showNotes, setShowNotes] = useState(false)
     const [submitting, setSubmitting] = useState(false)
+
+    // ===== AGENDAMENTO: agora ou pra depois =====
+    const [scheduledFor, setScheduledFor] = useState<string>('') // valor cru do <input type="datetime-local">
+    const isScheduled = scheduledFor.trim().length > 0
     const [showPlateReminder, setShowPlateReminder] = useState(false)
 
     // ===== PEDIDO EM ANDAMENTO (permanece nessa página até concluir/cancelar) =====
@@ -387,6 +402,7 @@ export default function PedirMotoristaPage() {
         if (draft.origin) setOrigin(draft.origin)
         if (draft.destination) setDestination(draft.destination)
         if (typeof draft.notes === 'string') setNotes(draft.notes)
+        if (typeof draft.scheduledFor === 'string') setScheduledFor(draft.scheduledFor)
         if (typeof draft.extraPeopleCount === 'number') setExtraPeopleCount(draft.extraPeopleCount)
         if (typeof draft.hasChild === 'boolean') setHasChild(draft.hasChild)
         if (typeof draft.childAge === 'string') setChildAge(draft.childAge)
@@ -629,6 +645,10 @@ export default function PedirMotoristaPage() {
             toast.error('Adicione uma foto do objeto para continuar')
             return
         }
+        if (isScheduled && new Date(scheduledFor).getTime() <= Date.now()) {
+            toast.error('Escolha uma data e horário no futuro')
+            return
+        }
         setShowPlateReminder(true)
     }
 
@@ -671,6 +691,8 @@ export default function PedirMotoristaPage() {
             if (recipientName) rows.push({ label: 'Entregar a', value: recipientName })
         }
 
+        rows.push({ label: 'Quando', value: isScheduled ? formatScheduledFor(new Date(scheduledFor).toISOString()) : 'Agora' })
+
         return rows
     })()
 
@@ -687,7 +709,7 @@ export default function PedirMotoristaPage() {
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) {
             saveDraft({
-                step, requestFor, origin, destination, notes,
+                step, requestFor, origin, destination, notes, scheduledFor,
                 extraPeopleCount, hasChild, childAge, childNeedsCarSeat, hasShopping, isGroceryShopping, bagCount,
                 hasExtraObject, extraObjectDescription,
                 hasPet, petDescription,
@@ -747,7 +769,7 @@ export default function PedirMotoristaPage() {
                 destination_lng: destination.coords ? destination.coords[0] : null,
                 distance_km: routes[selectedRoute]?.distanceKm ?? null,
                 duration_min: routes[selectedRoute]?.durationMin ?? null,
-                applications_close_at: new Date(Date.now() + 2 * 60 * 1000).toISOString(),
+                scheduled_for: isScheduled ? new Date(scheduledFor).toISOString() : null,
             }).select('id').single()
 
             if (error) throw error
@@ -1151,6 +1173,45 @@ export default function PedirMotoristaPage() {
                                     })}
                                 </div>
                             )}
+
+                            {/* Agora ou agendar pra depois */}
+                            <div className="rounded-xl px-3 py-2.5 mt-3" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
+                                <div className="flex items-center justify-between gap-2 flex-wrap">
+                                    <span className="flex items-center gap-1.5 text-xs font-bold" style={{ color: colors.textPrimary }}>
+                                        <CalendarClock size={13} style={{ color: colors.accent }} />
+                                        Quando?
+                                    </span>
+                                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                                        <button
+                                            onClick={() => setScheduledFor('')}
+                                            className="px-3 py-1 rounded-full text-[11px] font-black transition-all"
+                                            style={!isScheduled ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                                        >
+                                            AGORA
+                                        </button>
+                                        <button
+                                            onClick={() => setScheduledFor((v) => v || toDatetimeLocalValue(new Date(Date.now() + 60 * 60 * 1000)))}
+                                            className="px-3 py-1 rounded-full text-[11px] font-black transition-all"
+                                            style={isScheduled ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                                        >
+                                            AGENDAR
+                                        </button>
+                                    </div>
+                                </div>
+                                {isScheduled && (
+                                    <div className="flex items-center gap-2 mt-2">
+                                        <Clock size={14} className="flex-shrink-0" style={{ color: colors.textSecondary }} />
+                                        <input
+                                            type="datetime-local"
+                                            value={scheduledFor}
+                                            min={toDatetimeLocalValue(new Date(Date.now() + 30 * 60 * 1000))}
+                                            onChange={(e) => setScheduledFor(e.target.value)}
+                                            className="flex-1 px-3 py-2 rounded-lg text-sm focus:outline-none"
+                                            style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                                        />
+                                    </div>
+                                )}
+                            </div>
 
                             <button
                                 onClick={() => setStep('details')}

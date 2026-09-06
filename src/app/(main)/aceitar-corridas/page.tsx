@@ -10,7 +10,7 @@ import Header from '@/app/Header'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import LoginAndRegister from '../LoginAndRegister'
 import { toast } from 'sonner'
-import { MapPin, Star, Pencil, X, Package, Users } from 'lucide-react'
+import { MapPin, Star, Pencil, X, Package, Users, CalendarClock } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import { shortAddress } from '@/lib/serviceBoard'
 import { getAvatarUrl } from '@/lib/avatar'
@@ -19,8 +19,20 @@ import { getProfileRideRatingsBatch, ProfileRideRating } from '@/lib/rideReviews
 import { VEHICLE_TYPE_LABELS, VehicleType } from '@/lib/rideVehicle'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
-const APPLICATION_WINDOW_MS = 2 * 60 * 1000
 const REFRESH_INTERVAL_MS = 15000
+
+function formatScheduledFor(iso: string): string {
+    return new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+}
+
+function relativeTime(iso: string): string {
+    const minutes = Math.floor((Date.now() - new Date(iso).getTime()) / 60000)
+    if (minutes < 1) return 'agora'
+    if (minutes < 60) return `há ${minutes} min`
+    const hours = Math.floor(minutes / 60)
+    if (hours < 24) return `há ${hours}h`
+    return `há ${Math.floor(hours / 24)}d`
+}
 
 interface RideRow {
     id: string
@@ -34,7 +46,7 @@ interface RideRow {
     object_description: string | null
     distance_km: number | null
     duration_min: number | null
-    applications_close_at: string
+    scheduled_for: string | null
     created_at: string
 }
 
@@ -60,7 +72,6 @@ export default function AceitarCorridasPage() {
     const [applyingId, setApplyingId] = useState<string | null>(null)
     const [customPriceFor, setCustomPriceFor] = useState<string | null>(null)
     const [customPriceValue, setCustomPriceValue] = useState('')
-    const [now, setNow] = useState(Date.now())
 
     const load = useCallback(async () => {
         const { data: { user } } = await supabase.auth.getUser()
@@ -92,10 +103,10 @@ export default function AceitarCorridasPage() {
 
         const { data: openRides } = await supabase
             .from('ride_requests')
-            .select('id, requester_id, ride_type, origin_address, destination_address, notes, passenger_count, vehicle_type, object_description, distance_km, duration_min, applications_close_at, created_at')
+            .select('id, requester_id, ride_type, origin_address, destination_address, notes, passenger_count, vehicle_type, object_description, distance_km, duration_min, scheduled_for, created_at')
             .eq('status', 'pending')
             .neq('requester_id', user.id)
-            .gt('applications_close_at', new Date().toISOString())
+            .order('scheduled_for', { ascending: true, nullsFirst: true })
             .order('created_at', { ascending: false })
 
         const openList = (openRides || []).filter((r) => !appliedIds.has(r.id))
@@ -142,11 +153,7 @@ export default function AceitarCorridasPage() {
 
     useEffect(() => {
         const poll = setInterval(load, REFRESH_INTERVAL_MS)
-        const tick = setInterval(() => setNow(Date.now()), 1000)
-        return () => {
-            clearInterval(poll)
-            clearInterval(tick)
-        }
+        return () => clearInterval(poll)
     }, [load])
 
     const handleLoginSuccess = () => {
@@ -156,8 +163,8 @@ export default function AceitarCorridasPage() {
     }
 
     const visibleRides = useMemo(
-        () => rides.filter((r) => !skippedIds.has(r.id) && new Date(r.applications_close_at).getTime() > now),
-        [rides, skippedIds, now]
+        () => rides.filter((r) => !skippedIds.has(r.id)),
+        [rides, skippedIds]
     )
 
     const applyToRide = async (ride: RideCardData, price: number) => {
@@ -231,9 +238,6 @@ export default function AceitarCorridasPage() {
                     {!loading && !showLogin && visibleRides.length > 0 && (
                         <div className="flex flex-col gap-3">
                             {visibleRides.map((ride) => {
-                                const remainingMs = Math.max(0, new Date(ride.applications_close_at).getTime() - now)
-                                const progress = Math.min(1, remainingMs / APPLICATION_WINDOW_MS)
-                                const remainingSec = Math.ceil(remainingMs / 1000)
                                 const isApplying = applyingId === ride.id
                                 const isEditingPrice = customPriceFor === ride.id
 
@@ -243,24 +247,23 @@ export default function AceitarCorridasPage() {
                                         className="rounded-2xl p-4 overflow-hidden relative"
                                         style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
                                     >
-                                        {/* Barra de progresso da janela de candidatura */}
-                                        <div className="absolute top-0 left-0 h-1 w-full" style={{ background: `${colors.border}40` }}>
-                                            <div
-                                                className="h-full transition-all"
-                                                style={{ width: `${progress * 100}%`, background: GRADIENT }}
-                                            />
-                                        </div>
-
-                                        <div className="flex items-center justify-between mb-2 mt-1">
+                                        <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
                                             <span
                                                 className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full"
                                                 style={{ background: `${colors.accent}15`, color: colors.accent }}
                                             >
                                                 {VEHICLE_TYPE_LABELS[ride.vehicle_type]}
                                             </span>
-                                            <span className="text-[10px] font-bold" style={{ color: colors.textSecondary }}>
-                                                {remainingSec}s
-                                            </span>
+                                            {ride.scheduled_for ? (
+                                                <span className="flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full" style={{ background: '#8b5cf615', color: '#8b5cf6' }}>
+                                                    <CalendarClock size={11} />
+                                                    {formatScheduledFor(ride.scheduled_for)}
+                                                </span>
+                                            ) : (
+                                                <span className="text-[10px] font-bold" style={{ color: colors.textSecondary }}>
+                                                    {relativeTime(ride.created_at)}
+                                                </span>
+                                            )}
                                         </div>
 
                                         <div className="flex items-center gap-2 mb-2">
