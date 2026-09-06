@@ -920,17 +920,9 @@ export default function SacolaPage() {
                 return
             }
 
-            supabase.auth.getSession().then(({ data: { session } }) => {
-                if (!session) return
-                fetch('/api/push/send-order-notification', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        Authorization: `Bearer ${session.access_token}`,
-                    },
-                    body: JSON.stringify({ orderId: orderData.id }),
-                }).catch(() => { })
-            })
+            // Notificação push do lojista é disparada por um Database Webhook do
+            // Supabase (INSERT em orders) — server-side, não depende do navegador
+            // do comprador terminar essa chamada. Ver src/app/api/push/send-order-notification/route.ts.
 
             clearStoreCart(slug)
             await loadUserData(currentUserId)

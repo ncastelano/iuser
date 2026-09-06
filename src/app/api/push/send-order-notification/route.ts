@@ -7,9 +7,19 @@ const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
 const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY
 const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
 const vapidSubject = appUrl.startsWith('https://') ? appUrl : 'mailto:ncastelano@gmail.com'
+const webhookSecret = process.env.SUPABASE_WEBHOOK_SECRET
 
 if (vapidPublicKey && vapidPrivateKey) {
     webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey)
+}
+
+interface OrderPayload {
+    id: string
+    store_id: string
+    buyer_id: string
+    buyer_profile_slug: string | null
+    total_amount: number
+    status: string
 }
 
 export async function POST(req: Request) {
@@ -19,35 +29,53 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'Push não configurado' }, { status: 500 })
         }
 
-        const authHeader = req.headers.get('authorization') || ''
-        const token = authHeader.replace('Bearer ', '')
-        if (!token) {
-            return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
-        }
+        // Chamada confiável vinda do Supabase Database Webhook (dispara no INSERT
+        // direto do Postgres — funciona mesmo se o navegador de quem fez o pedido
+        // fechar/navegar antes da chamada client-side terminar).
+        const isTrustedWebhook = webhookSecret && req.headers.get('x-webhook-secret') === webhookSecret
 
-        const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token)
-        if (authError || !user) {
-            return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
-        }
+        let order: OrderPayload
 
-        const { orderId } = await req.json()
-        if (!orderId) {
-            return NextResponse.json({ error: 'orderId é obrigatório' }, { status: 400 })
-        }
+        if (isTrustedWebhook) {
+            const payload = await req.json()
+            const record = payload?.record
+            if (!record?.id) {
+                return NextResponse.json({ error: 'record inválido' }, { status: 400 })
+            }
+            order = record
+        } else {
+            const authHeader = req.headers.get('authorization') || ''
+            const token = authHeader.replace('Bearer ', '')
+            if (!token) {
+                return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
+            }
 
-        const { data: order, error: orderError } = await supabaseAdmin
-            .from('orders')
-            .select('id, store_id, buyer_id, buyer_profile_slug, total_amount, status')
-            .eq('id', orderId)
-            .single()
+            const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token)
+            if (authError || !user) {
+                return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
+            }
 
-        if (orderError || !order) {
-            return NextResponse.json({ error: 'Pedido não encontrado' }, { status: 404 })
-        }
+            const { orderId } = await req.json()
+            if (!orderId) {
+                return NextResponse.json({ error: 'orderId é obrigatório' }, { status: 400 })
+            }
 
-        // Só quem fez o pedido pode disparar a notificação dele
-        if (order.buyer_id !== user.id) {
-            return NextResponse.json({ error: 'Sem permissão' }, { status: 403 })
+            const { data: fetchedOrder, error: orderError } = await supabaseAdmin
+                .from('orders')
+                .select('id, store_id, buyer_id, buyer_profile_slug, total_amount, status')
+                .eq('id', orderId)
+                .single()
+
+            if (orderError || !fetchedOrder) {
+                return NextResponse.json({ error: 'Pedido não encontrado' }, { status: 404 })
+            }
+
+            // Só quem fez o pedido pode disparar a notificação dele
+            if (fetchedOrder.buyer_id !== user.id) {
+                return NextResponse.json({ error: 'Sem permissão' }, { status: 403 })
+            }
+
+            order = fetchedOrder
         }
 
         if (order.status !== 'pending') {
