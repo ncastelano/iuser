@@ -77,7 +77,7 @@ export default function OwnerClientPage() {
     const [preparingCount, setPreparingCount] = useState(0)
     const [readyCount, setReadyCount] = useState(0)
     const [pendingReviewsCount, setPendingReviewsCount] = useState(0)
-    const [pendingInvitesCount, setPendingInvitesCount] = useState(0)
+    const pendingInvitesCount = useMerchantStore(s => s.pendingInvitesCount)
     const [profileOpenNow, setProfileOpenNow] = useState(false)
 
     // ========== FUNÇÃO PARA ABRIR PUBLICAÇÕES ==========
@@ -227,45 +227,9 @@ export default function OwnerClientPage() {
         fetchOrderStatuses()
     }, [])
 
-    // ========== CONVITES DE COMPROMISSO PENDENTES (badge da aba de perfil) ==========
-    useEffect(() => {
-        if (!loggedUserSlug) {
-            setPendingInvitesCount(0)
-            return
-        }
-
-        let channel: ReturnType<typeof supabase.channel> | null = null
-
-        const fetchPendingInvites = async (userId: string) => {
-            const { count } = await supabase
-                .from('appointments')
-                .select('id', { count: 'exact', head: true })
-                .eq('customer_id', userId)
-                .eq('direction', 'incoming')
-                .eq('status', 'pending')
-                .is('store_id', null)
-
-            setPendingInvitesCount(count || 0)
-        }
-
-        supabase.auth.getUser().then(({ data: { user } }) => {
-            if (!user) return
-            fetchPendingInvites(user.id)
-
-            channel = supabase
-                .channel(`convites-pendentes-${user.id}`)
-                .on(
-                    'postgres_changes',
-                    { event: '*', schema: 'public', table: 'appointments', filter: `customer_id=eq.${user.id}` },
-                    () => fetchPendingInvites(user.id)
-                )
-                .subscribe()
-        })
-
-        return () => {
-            if (channel) supabase.removeChannel(channel)
-        }
-    }, [loggedUserSlug])
+    // Convites de compromisso pendentes (badge da aba de perfil) vêm de
+    // useMerchantStore.pendingInvitesCount — uma única subscrição global em
+    // OrderNotification.tsx (evita duplicar canais realtime por página).
 
     // ========== STATUS ABERTO/FECHADO DO PERFIL LOGADO (cor da aba de perfil) ==========
     useEffect(() => {

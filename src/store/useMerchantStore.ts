@@ -19,6 +19,9 @@ interface MerchantStore {
   /** Contagem pending/preparing/ready por loja, mantida em tempo real por OrderNotification. */
   storeOrderCounts: Record<string, StoreOrderCounts>
   setStoreOrderCounts: (counts: Record<string, StoreOrderCounts>) => void
+  /** Convites de compromisso pendentes (badge da aba de perfil), mantido em tempo real por OrderNotification. */
+  pendingInvitesCount: number
+  setPendingInvitesCount: (count: number) => void
 }
 
 export const useMerchantStore = create<MerchantStore>()(
@@ -34,6 +37,8 @@ export const useMerchantStore = create<MerchantStore>()(
       setPendingReviewsCount: (count) => set({ pendingReviewsCount: count }),
       storeOrderCounts: {},
       setStoreOrderCounts: (counts) => set({ storeOrderCounts: counts }),
+      pendingInvitesCount: 0,
+      setPendingInvitesCount: (count) => set({ pendingInvitesCount: count }),
     }),
     {
       name: 'iuser-merchant-storage',

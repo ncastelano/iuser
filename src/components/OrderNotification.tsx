@@ -11,6 +11,7 @@ export function OrderNotification() {
     const setPendingOrdersCount = useMerchantStore(s => s.setPendingOrdersCount)
     const setCustomerOrderStatuses = useMerchantStore(s => s.setCustomerOrderStatuses)
     const setStoreOrderCounts = useMerchantStore(s => s.setStoreOrderCounts)
+    const setPendingInvitesCount = useMerchantStore(s => s.setPendingInvitesCount)
 
     const channelsRef = useRef<ReturnType<typeof supabase.channel>[]>([])
     const pollRef = useRef<NodeJS.Timeout | null>(null)
@@ -72,6 +73,23 @@ export function OrderNotification() {
             console.error('[OrderNotification] reload customer error', e)
         }
     }, [setCustomerOrderStatuses])
+
+    // Convites de compromisso pendentes (badge da aba de perfil)
+    const reloadInvites = useCallback(async (userId: string) => {
+        try {
+            const { count } = await supabase
+                .from('appointments')
+                .select('id', { count: 'exact', head: true })
+                .eq('customer_id', userId)
+                .eq('direction', 'incoming')
+                .eq('status', 'pending')
+                .is('store_id', null)
+
+            setPendingInvitesCount(count || 0)
+        } catch (e) {
+            console.error('[OrderNotification] reload invites error', e)
+        }
+    }, [setPendingInvitesCount])
 
     const cleanup = useCallback(() => {
         channelsRef.current.forEach(ch => supabase.removeChannel(ch))
@@ -135,17 +153,27 @@ export function OrderNotification() {
             customerChannel.subscribe()
             channelsRef.current.push(customerChannel)
 
+            // --- Convites de compromisso pendentes ---
+            await reloadInvites(userId)
+            const ts3 = Date.now()
+            const invitesChannel = supabase.channel(`convites-pendentes-${userId}-${ts3}`)
+            invitesChannel
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'appointments', filter: `customer_id=eq.${userId}` }, () => reloadInvites(userId))
+            invitesChannel.subscribe()
+            channelsRef.current.push(invitesChannel)
+
             // Polling de segurança
             pollRef.current = setInterval(() => {
                 reloadMerchant()
                 reloadCustomer(userId)
+                reloadInvites(userId)
             }, 5000)
         } catch (err) {
             console.error('[OrderNotification] setup error:', err)
         } finally {
             isSettingUpRef.current = false
         }
-    }, [cleanup, reloadMerchant, reloadCustomer, setPendingOrdersCount, setStoreOrderCounts])
+    }, [cleanup, reloadMerchant, reloadCustomer, reloadInvites, setPendingOrdersCount, setStoreOrderCounts])
 
     useEffect(() => {
         const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
@@ -156,6 +184,7 @@ export function OrderNotification() {
                 setPendingOrdersCount(0)
                 setStoreOrderCounts({})
                 setCustomerOrderStatuses([])
+                setPendingInvitesCount(0)
             }
         })
 
@@ -167,6 +196,7 @@ export function OrderNotification() {
             if (document.visibilityState === 'visible' && userIdRef.current) {
                 reloadMerchant()
                 reloadCustomer(userIdRef.current)
+                reloadInvites(userIdRef.current)
             }
         }
         document.addEventListener('visibilitychange', onVisible)
