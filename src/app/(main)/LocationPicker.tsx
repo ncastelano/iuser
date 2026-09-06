@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useTheme } from '@/app/theme'
-import { MapPin, X, Check, Navigation, Search, Home, MoveVertical, Hash, FileText, AlertCircle } from 'lucide-react'
+import { MapPin, X, Check, Navigation, Search, Home, MoveVertical, Hash, FileText, AlertCircle, Car, Radio } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
@@ -140,8 +140,6 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
     const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
     const initializedRef = useRef(false)
 
-    const [searchDebounceTimer, setSearchDebounceTimer] = useState<NodeJS.Timeout | null>(null)
-
     const [selectedPosition, setSelectedPosition] = useState<{ lat: number; lng: number }>({
         lat: initialLocation?.lat || -15.7801,
         lng: initialLocation?.lng || -47.9292
@@ -162,6 +160,56 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
     const [numberError, setNumberError] = useState('')
     const [mapReady, setMapReady] = useState(false)
     const [usingGPS, setUsingGPS] = useState(false)
+
+    // ===== SINCRONIZAÇÃO DE LOCALIZAÇÃO PARA MOTORISTA =====
+    // Só aparece pra quem já aceitou um plano de tarifa em /painel-motorista
+    // (ou seja, já existe uma linha em driver_pricing).
+    const [isDriver, setIsDriver] = useState(false)
+    const [liveLocationSync, setLiveLocationSync] = useState(false)
+    const [savingSync, setSavingSync] = useState(false)
+
+    useEffect(() => {
+        if (!isAuthenticated) return
+
+        const loadDriverSync = async () => {
+            const { data: { user } } = await supabase.auth.getUser()
+            if (!user) return
+
+            const { data } = await supabase
+                .from('driver_pricing')
+                .select('live_location_sync')
+                .eq('driver_id', user.id)
+                .maybeSingle()
+
+            if (data) {
+                setIsDriver(true)
+                setLiveLocationSync(!!data.live_location_sync)
+            }
+        }
+
+        loadDriverSync()
+    }, [isAuthenticated])
+
+    const toggleLiveLocationSync = useCallback(async () => {
+        setSavingSync(true)
+        const nextValue = !liveLocationSync
+        try {
+            const { data: { user } } = await supabase.auth.getUser()
+            if (!user) return
+
+            const { error } = await supabase
+                .from('driver_pricing')
+                .update({ live_location_sync: nextValue })
+                .eq('driver_id', user.id)
+
+            if (error) throw error
+            setLiveLocationSync(nextValue)
+        } catch (err) {
+            console.error('Erro ao atualizar sincronização do motorista:', err)
+        } finally {
+            setSavingSync(false)
+        }
+    }, [liveLocationSync])
 
     // ===== CONFIRMATION DIALOG STATE =====
     const [showConfirmDialog, setShowConfirmDialog] = useState(false)
@@ -260,26 +308,12 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
         setLoading(false)
     }, [flyTo])
 
-    // ===== DEBOUNCE DA BUSCA =====
-    useEffect(() => {
-        if (searchDebounceTimer) {
-            clearTimeout(searchDebounceTimer)
+    const handleSearchKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Enter') {
+            e.preventDefault()
+            performSearch(searchQuery)
         }
-
-        if (searchQuery.trim().length >= 3) {
-            const timer = setTimeout(() => {
-                performSearch(searchQuery)
-            }, 800)
-
-            setSearchDebounceTimer(timer)
-        }
-
-        return () => {
-            if (searchDebounceTimer) {
-                clearTimeout(searchDebounceTimer)
-            }
-        }
-    }, [searchQuery, performSearch])
+    }, [performSearch, searchQuery])
 
     // 🗺️ INICIALIZAR MAPA
     const initializeMap = useCallback(async () => {
@@ -592,7 +626,7 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
 
                     {/* ===== TEXTO INSTRUTIVO ACIMA DO INPUT ===== */}
                     <p className="text-[10px] mb-2 opacity-60" style={{ color: colors.textPrimary }}>
-                        Escreva a localização e clique em <strong>"Ir"</strong> para buscar
+                        Escreva a localização e aperte <strong>Enter</strong> ou clique em <strong>"Ir"</strong> para buscar
                     </p>
 
                     <div className="flex gap-2 mb-3">
@@ -611,6 +645,7 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
                                 type="text"
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
+                                onKeyDown={handleSearchKeyDown}
                                 placeholder="Digite o endereço..."
                                 className="flex-1 bg-transparent outline-none ml-1.5 text-xs"
                                 style={{ color: colors.textPrimary }}
@@ -664,6 +699,47 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
                             </div>
                         )}
                     </div>
+
+                    {isDriver && (
+                        <button
+                            onClick={toggleLiveLocationSync}
+                            disabled={savingSync}
+                            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl mb-3 transition-all disabled:opacity-60"
+                            style={{
+                                background: liveLocationSync ? '#f9731620' : `${colors.surface}88`,
+                                border: `1px solid ${liveLocationSync ? '#f9731660' : colors.border}`,
+                            }}
+                        >
+                            <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center"
+                                style={{ background: liveLocationSync ? '#f97316' : `${colors.border}40` }}>
+                                {savingSync ? (
+                                    <Spinner size={14} color={liveLocationSync ? '#ffffff' : colors.textPrimary} />
+                                ) : (
+                                    <Car size={16} color={liveLocationSync ? '#ffffff' : colors.textPrimary} />
+                                )}
+                            </div>
+                            <div className="flex-1 min-w-0 text-left">
+                                <span className="flex items-center gap-1.5 text-xs font-bold" style={{ color: colors.textPrimary }}>
+                                    Sincronização para motorista
+                                    {liveLocationSync && <Radio size={11} style={{ color: '#f97316' }} />}
+                                </span>
+                                <p className="text-[10px] mt-0.5 opacity-70" style={{ color: colors.textPrimary }}>
+                                    {liveLocationSync
+                                        ? 'Ativada — sua localização em tempo real aparece no mapa de /aceitar-corridas'
+                                        : 'Mostra sua localização em tempo real no mapa de /aceitar-corridas'}
+                                </p>
+                            </div>
+                            <div
+                                className="flex-shrink-0 w-10 h-6 rounded-full relative transition-all"
+                                style={{ background: liveLocationSync ? '#f97316' : colors.border }}
+                            >
+                                <div
+                                    className="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all"
+                                    style={{ left: liveLocationSync ? 18 : 2 }}
+                                />
+                            </div>
+                        </button>
+                    )}
 
                     <div className="space-y-2 mb-3">
                         {savedPosition && (

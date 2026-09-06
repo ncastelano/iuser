@@ -80,17 +80,24 @@ export default function AceitarCorridasPage() {
     const [customPriceFor, setCustomPriceFor] = useState<string | null>(null)
     const [customPriceValue, setCustomPriceValue] = useState('')
     const [driverCoords, setDriverCoords] = useState<[number, number] | null>(null)
+    const [liveLocationSync, setLiveLocationSync] = useState(false)
     const [mapDialogRideId, setMapDialogRideId] = useState<string | null>(null)
 
-    // ===== SUA LOCALIZAÇÃO, PRA DESENHAR "VOCÊ → PARTIDA" NO MAPA DE CADA PEDIDO =====
+    // ===== SUA LOCALIZAÇÃO EM TEMPO REAL, PRA DESENHAR "VOCÊ → PARTIDA" NO MAPA =====
+    // Só liga o GPS contínuo se o motorista ativou "Sincronização para motorista"
+    // em Definir local. Fora isso, o mapa usa a localização salva do perfil
+    // (mais previsível do que uma leitura avulsa de GPS a cada carregamento).
     useEffect(() => {
-        if (!navigator.geolocation) return
-        navigator.geolocation.getCurrentPosition(
+        if (!liveLocationSync || !navigator.geolocation) return
+
+        const watchId = navigator.geolocation.watchPosition(
             (pos) => setDriverCoords([pos.coords.longitude, pos.coords.latitude]),
             () => { /* sem permissão: mapa mostra só o trajeto partida → chegada */ },
-            { enableHighAccuracy: true, timeout: 10000 }
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
         )
-    }, [])
+
+        return () => navigator.geolocation.clearWatch(watchId)
+    }, [liveLocationSync])
 
     const load = useCallback(async () => {
         const { data: { user } } = await supabase.auth.getUser()
@@ -102,16 +109,38 @@ export default function AceitarCorridasPage() {
         setShowLogin(false)
 
         setCheckingPricing(true)
-        const { data: pricing } = await supabase
-            .from('driver_pricing')
-            .select('pricing_mode, base_distance_km, base_fee, price_per_km_after_base')
-            .eq('driver_id', user.id)
-            .maybeSingle()
+        const [{ data: pricing }, { data: profile }] = await Promise.all([
+            supabase
+                .from('driver_pricing')
+                .select('pricing_mode, base_distance_km, base_fee, price_per_km_after_base')
+                .eq('driver_id', user.id)
+                .maybeSingle(),
+            supabase
+                .from('profiles')
+                .select('store_lat, store_lng')
+                .eq('id', user.id)
+                .maybeSingle(),
+        ])
         setCheckingPricing(false)
 
         if (!pricing) {
             router.replace('/painel-motorista?next=/aceitar-corridas')
             return
+        }
+
+        // Consulta separada e best-effort: se a coluna ainda não existir (migração
+        // pendente), isso não pode derrubar a checagem de tarifa acima.
+        supabase
+            .from('driver_pricing')
+            .select('live_location_sync')
+            .eq('driver_id', user.id)
+            .maybeSingle()
+            .then(({ data }) => setLiveLocationSync(!!data?.live_location_sync))
+
+        // Localização salva do perfil como base — se a sincronização em tempo
+        // real estiver ativa, o watchPosition acima assume e vai atualizando.
+        if (profile?.store_lat != null && profile?.store_lng != null) {
+            setDriverCoords((prev) => prev ?? [profile.store_lng, profile.store_lat])
         }
 
         const { data: myApplications } = await supabase
