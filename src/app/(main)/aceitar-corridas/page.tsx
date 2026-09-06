@@ -17,6 +17,7 @@ import { getAvatarUrl } from '@/lib/avatar'
 import { computeSuggestedPrice, getEffectivePricing } from '@/lib/driverPricing'
 import { getProfileRideRatingsBatch, ProfileRideRating } from '@/lib/rideReviews'
 import { VEHICLE_TYPE_LABELS, VehicleType } from '@/lib/rideVehicle'
+import RideMiniMap from './RideMiniMap'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 const REFRESH_INTERVAL_MS = 15000
@@ -48,6 +49,10 @@ interface RideRow {
     duration_min: number | null
     scheduled_for: string | null
     created_at: string
+    origin_lat: number | null
+    origin_lng: number | null
+    destination_lat: number | null
+    destination_lng: number | null
 }
 
 interface RideCardData extends RideRow {
@@ -72,6 +77,17 @@ export default function AceitarCorridasPage() {
     const [applyingId, setApplyingId] = useState<string | null>(null)
     const [customPriceFor, setCustomPriceFor] = useState<string | null>(null)
     const [customPriceValue, setCustomPriceValue] = useState('')
+    const [driverCoords, setDriverCoords] = useState<[number, number] | null>(null)
+
+    // ===== SUA LOCALIZAÇÃO, PRA DESENHAR "VOCÊ → PARTIDA" NO MAPA DE CADA PEDIDO =====
+    useEffect(() => {
+        if (!navigator.geolocation) return
+        navigator.geolocation.getCurrentPosition(
+            (pos) => setDriverCoords([pos.coords.longitude, pos.coords.latitude]),
+            () => { /* sem permissão: mapa mostra só o trajeto partida → chegada */ },
+            { enableHighAccuracy: true, timeout: 10000 }
+        )
+    }, [])
 
     const load = useCallback(async () => {
         const { data: { user } } = await supabase.auth.getUser()
@@ -103,7 +119,7 @@ export default function AceitarCorridasPage() {
 
         const { data: openRides } = await supabase
             .from('ride_requests')
-            .select('id, requester_id, ride_type, origin_address, destination_address, notes, passenger_count, vehicle_type, object_description, distance_km, duration_min, scheduled_for, created_at')
+            .select('id, requester_id, ride_type, origin_address, destination_address, notes, passenger_count, vehicle_type, object_description, distance_km, duration_min, scheduled_for, created_at, origin_lat, origin_lng, destination_lat, destination_lng')
             .eq('status', 'pending')
             .neq('requester_id', user.id)
             .order('scheduled_for', { ascending: true, nullsFirst: true })
@@ -286,6 +302,17 @@ export default function AceitarCorridasPage() {
                                                 )}
                                             </div>
                                         </div>
+
+                                        {ride.origin_lat != null && ride.origin_lng != null && ride.destination_lat != null && ride.destination_lng != null && (
+                                            <RideMiniMap
+                                                originLat={ride.origin_lat}
+                                                originLng={ride.origin_lng}
+                                                destLat={ride.destination_lat}
+                                                destLng={ride.destination_lng}
+                                                driverLat={driverCoords ? driverCoords[1] : null}
+                                                driverLng={driverCoords ? driverCoords[0] : null}
+                                            />
+                                        )}
 
                                         <div className="flex items-start gap-2 text-xs mb-1" style={{ color: colors.textSecondary }}>
                                             <MapPin size={12} className="flex-shrink-0 mt-0.5" />
