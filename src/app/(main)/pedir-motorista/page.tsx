@@ -18,7 +18,6 @@ import {
     Package,
     MapPin,
     MapPinPlus,
-    CheckCircle2,
     ArrowLeft,
     Search,
     X,
@@ -38,7 +37,7 @@ import {
     History,
 } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
-import MyOpenRideRequests from '@/components/MyOpenRideRequests'
+import RideTrackingPanel from './RideTrackingPanel'
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
 
@@ -196,12 +195,17 @@ export default function PedirMotoristaPage() {
     const [notes, setNotes] = useState('')
     const [showNotes, setShowNotes] = useState(false)
     const [submitting, setSubmitting] = useState(false)
-    const [submitted, setSubmitted] = useState(false)
     const [showPlateReminder, setShowPlateReminder] = useState(false)
+
+    // ===== PEDIDO EM ANDAMENTO (permanece nessa página até concluir/cancelar) =====
+    const [activeRideId, setActiveRideId] = useState<string | null>(null)
+    const [checkingActiveRide, setCheckingActiveRide] = useState(true)
 
     // ===== ADICIONAIS: PESSOA (além de quem pediu) =====
     const [extraPeopleCount, setExtraPeopleCount] = useState(0)
     const [hasChild, setHasChild] = useState(false)
+    const [childAge, setChildAge] = useState('')
+    const [childNeedsCarSeat, setChildNeedsCarSeat] = useState<boolean | null>(null)
     const [hasShopping, setHasShopping] = useState(false)
     const [isGroceryShopping, setIsGroceryShopping] = useState<boolean | null>(null)
     const [bagCount, setBagCount] = useState(1)
@@ -270,6 +274,29 @@ export default function PedirMotoristaPage() {
     useEffect(() => {
         setRecentOrigins(getRecentRideOrigins())
         setRecentDestinations(getRecentRideDestinations())
+    }, [])
+
+    // ===== SE JÁ HOUVER UM PEDIDO EM ANDAMENTO, VOLTA DIRETO PRO ACOMPANHAMENTO =====
+    useEffect(() => {
+        const checkActiveRide = async () => {
+            const { data: { user } } = await supabase.auth.getUser()
+            if (!user) {
+                setCheckingActiveRide(false)
+                return
+            }
+            const { data } = await supabase
+                .from('ride_requests')
+                .select('id')
+                .eq('requester_id', user.id)
+                .in('status', ['pending', 'accepted'])
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .maybeSingle()
+
+            if (data) setActiveRideId(data.id)
+            setCheckingActiveRide(false)
+        }
+        checkActiveRide()
     }, [])
 
     // ===== INIT MAP =====
@@ -362,6 +389,8 @@ export default function PedirMotoristaPage() {
         if (typeof draft.notes === 'string') setNotes(draft.notes)
         if (typeof draft.extraPeopleCount === 'number') setExtraPeopleCount(draft.extraPeopleCount)
         if (typeof draft.hasChild === 'boolean') setHasChild(draft.hasChild)
+        if (typeof draft.childAge === 'string') setChildAge(draft.childAge)
+        if (draft.childNeedsCarSeat !== undefined) setChildNeedsCarSeat(draft.childNeedsCarSeat)
         if (typeof draft.hasShopping === 'boolean') setHasShopping(draft.hasShopping)
         if (draft.isGroceryShopping !== undefined) setIsGroceryShopping(draft.isGroceryShopping)
         if (typeof draft.bagCount === 'number') setBagCount(draft.bagCount)
@@ -611,8 +640,17 @@ export default function PedirMotoristaPage() {
         const rows: { label: string; value: string }[] = []
 
         if (requestFor === 'pessoa') {
-            const peopleText = totalPeople === 1 ? 'uma pessoa' : `${totalPeople} pessoas`
+            const adults = 1 + extraPeopleCount
+            const adultsText = adults === 1 ? '1 adulto' : `${adults} adultos`
+            const peopleText = hasChild ? adultsText : (totalPeople === 1 ? 'uma pessoa' : `${totalPeople} pessoas`)
             rows.push({ label: 'Pedido', value: `levar ${peopleText}` })
+            if (hasChild) {
+                const ageText = childAge.trim() ? ` de ${childAge.trim()} anos` : ''
+                const carSeatText =
+                    childNeedsCarSeat === true ? ', precisa de cadeirinha' :
+                        childNeedsCarSeat === false ? ', não precisa de cadeirinha' : ''
+                rows.push({ label: 'Criança', value: `1 criança${ageText}${carSeatText}` })
+            }
             rows.push({ label: 'De', value: from })
             rows.push({ label: 'Para', value: to })
             if (hasShopping) {
@@ -650,7 +688,7 @@ export default function PedirMotoristaPage() {
         if (!user) {
             saveDraft({
                 step, requestFor, origin, destination, notes,
-                extraPeopleCount, hasChild, hasShopping, isGroceryShopping, bagCount,
+                extraPeopleCount, hasChild, childAge, childNeedsCarSeat, hasShopping, isGroceryShopping, bagCount,
                 hasExtraObject, extraObjectDescription,
                 hasPet, petDescription,
                 objectDescription, objectIsSensitive, objectSize,
@@ -671,7 +709,7 @@ export default function PedirMotoristaPage() {
             const extraObjectPhotoUrl = requestFor === 'pessoa' && hasExtraObject && extraObjectPhotoFile ? await uploadRidePhoto(user.id, extraObjectPhotoFile) : null
             const petPhotoUrl = requestFor === 'pessoa' && hasPet && petPhotoFile ? await uploadRidePhoto(user.id, petPhotoFile) : null
 
-            const { error } = await supabase.from('ride_requests').insert({
+            const { data: insertedRide, error } = await supabase.from('ride_requests').insert({
                 requester_id: user.id,
                 ride_type: requestFor,
                 origin_address: origin.address.trim(),
@@ -684,6 +722,8 @@ export default function PedirMotoristaPage() {
                 passenger_count: requestFor === 'pessoa' ? totalPeople : 1,
                 vehicle_type: requestFor === 'pessoa' ? vehicleType : 'carro',
                 has_child: requestFor === 'pessoa' ? hasChild : false,
+                child_age: requestFor === 'pessoa' && hasChild && childAge.trim() ? parseInt(childAge.trim(), 10) : null,
+                child_needs_car_seat: requestFor === 'pessoa' && hasChild ? childNeedsCarSeat : null,
                 has_shopping: requestFor === 'pessoa' ? hasShopping : false,
                 is_grocery_shopping: requestFor === 'pessoa' && hasShopping ? isGroceryShopping : null,
                 bag_count: requestFor === 'pessoa' && hasShopping && isGroceryShopping ? bagCount : null,
@@ -708,10 +748,11 @@ export default function PedirMotoristaPage() {
                 distance_km: routes[selectedRoute]?.distanceKm ?? null,
                 duration_min: routes[selectedRoute]?.durationMin ?? null,
                 applications_close_at: new Date(Date.now() + 2 * 60 * 1000).toISOString(),
-            })
+            }).select('id').single()
 
             if (error) throw error
-            setSubmitted(true)
+            clearDraft()
+            setActiveRideId(insertedRide.id)
         } catch (err: any) {
             toast.error('Erro ao enviar pedido: ' + (err.message || 'tente novamente'))
         } finally {
@@ -852,33 +893,25 @@ export default function PedirMotoristaPage() {
                 </div>
             )}
 
-            {/* Ficha de confirmação */}
-            {submitted && (
-                <div className="absolute inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)' }}>
-                    <div
-                        className="w-full max-w-sm rounded-2xl p-8 flex flex-col items-center gap-3 text-center"
-                        style={{ background: colors.surface, boxShadow: colors.shadow }}
-                    >
-                        <div className="w-16 h-16 rounded-full flex items-center justify-center" style={{ background: GRADIENT, color: '#fff' }}>
-                            <CheckCircle2 size={32} />
-                        </div>
-                        <h2 className="text-lg font-black" style={{ color: colors.textPrimary }}>Pedido enviado!</h2>
-                        <p className="text-sm" style={{ color: colors.textSecondary }}>
-                            Assim que tivermos motoristas parceiros disponíveis na sua região, vamos avisar você.
-                        </p>
-                        <button
-                            onClick={() => router.push('/')}
-                            className="mt-2 w-full py-3 rounded-full font-bold text-sm"
-                            style={{ background: GRADIENT, color: '#fff' }}
-                        >
-                            Voltar ao início
-                        </button>
-                    </div>
+            {/* Acompanhamento do pedido em andamento — fica nessa página até concluir/cancelar */}
+            {!activeField && activeRideId && (
+                <div
+                    className="absolute bottom-0 inset-x-0 z-20 rounded-t-3xl px-5 pt-4 pb-8 max-h-[75vh] overflow-y-auto"
+                    style={{ background: colors.surface, boxShadow: '0 -8px 30px rgba(0,0,0,0.35)' }}
+                >
+                    <div className="w-10 h-1 rounded-full mx-auto mb-4" style={{ background: colors.border }} />
+                    <RideTrackingPanel rideId={activeRideId} onExit={() => setActiveRideId(null)} />
+                </div>
+            )}
+
+            {checkingActiveRide && (
+                <div className="absolute inset-0 z-20 flex items-center justify-center" style={{ background: `${colors.background}80` }}>
+                    <Spinner size={24} color={colors.textSecondary} />
                 </div>
             )}
 
             {/* Bottom sheet estilo Uber, por etapas */}
-            {!activeField && !submitted && (
+            {!activeField && !activeRideId && !checkingActiveRide && (
                 <div
                     className="absolute bottom-0 inset-x-0 z-20 rounded-t-3xl px-5 pt-4 pb-8 max-h-[75vh] overflow-y-auto"
                     style={{ background: colors.surface, boxShadow: '0 -8px 30px rgba(0,0,0,0.35)' }}
@@ -933,10 +966,6 @@ export default function PedirMotoristaPage() {
                                         Buscar ou entregar algo
                                     </span>
                                 </button>
-                            </div>
-
-                            <div className="mt-5">
-                                <MyOpenRideRequests limit={5} title="Meus pedidos de motorista em aberto" />
                             </div>
                         </>
                     )}
@@ -1205,9 +1234,42 @@ export default function PedirMotoristaPage() {
                                     </div>
 
                                     {hasChild && (
-                                        <p className="text-[11px] mt-2 px-1" style={{ color: colors.textSecondary }}>
-                                            A criança conta como uma pessoa e ocupa lugar de adulto.
-                                        </p>
+                                        <div className="rounded-xl px-3 py-2.5 mt-2" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
+                                            <p className="text-[11px] mb-2" style={{ color: colors.textSecondary }}>
+                                                A criança conta como uma pessoa e ocupa lugar de adulto.
+                                            </p>
+                                            <span className="text-xs font-bold block mb-1.5" style={{ color: colors.textPrimary }}>Idade da criança</span>
+                                            <input
+                                                type="number"
+                                                inputMode="numeric"
+                                                min={0}
+                                                max={17}
+                                                value={childAge}
+                                                onChange={(e) => setChildAge(e.target.value)}
+                                                placeholder="Ex: 5"
+                                                className="w-full px-3 py-2 rounded-lg text-sm focus:outline-none"
+                                                style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                                            />
+                                            <div className="flex items-center justify-between gap-2 flex-wrap mt-3">
+                                                <span className="text-xs font-bold" style={{ color: colors.textPrimary }}>Precisa de cadeirinha?</span>
+                                                <div className="flex items-center gap-1.5 flex-shrink-0">
+                                                    <button
+                                                        onClick={() => setChildNeedsCarSeat(true)}
+                                                        className="px-3 py-1 rounded-full text-[11px] font-black transition-all"
+                                                        style={childNeedsCarSeat === true ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                                                    >
+                                                        SIM
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setChildNeedsCarSeat(false)}
+                                                        className="px-3 py-1 rounded-full text-[11px] font-black transition-all"
+                                                        style={childNeedsCarSeat === false ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                                                    >
+                                                        NÃO
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
                                     )}
 
                                     {/* Compras — mercado? quantas sacolas? */}
