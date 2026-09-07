@@ -83,10 +83,21 @@ export default function AceitarCorridasPage() {
     const [liveLocationSync, setLiveLocationSync] = useState(false)
     const [mapDialogRideId, setMapDialogRideId] = useState<string | null>(null)
 
-    // ===== SUA LOCALIZAÇÃO EM TEMPO REAL, PRA DESENHAR "VOCÊ → PARTIDA" NO MAPA =====
-    // Só liga o GPS contínuo se o motorista ativou "Sincronização para motorista"
-    // em Definir local. Fora isso, o mapa usa a localização salva do perfil
-    // (mais previsível do que uma leitura avulsa de GPS a cada carregamento).
+    // ===== SUA LOCALIZAÇÃO, PRA DESENHAR "VOCÊ → PARTIDA" NO MAPA DE CADA PEDIDO =====
+    // Sempre tenta uma leitura de GPS ao abrir a página — essa é a posição
+    // "atual" de verdade. Até ela responder (ou se for negada), o load() logo
+    // abaixo preenche com a localização salva do perfil como placeholder.
+    useEffect(() => {
+        if (!navigator.geolocation) return
+        navigator.geolocation.getCurrentPosition(
+            (pos) => setDriverCoords([pos.coords.longitude, pos.coords.latitude]),
+            () => { /* sem permissão: fica na localização salva do perfil, se houver */ },
+            { enableHighAccuracy: true, timeout: 10000 }
+        )
+    }, [])
+
+    // Com "Sincronização para motorista" ativada em Definir local, a leitura
+    // acima vira contínua (a posição no mapa acompanha o motorista se movendo).
     useEffect(() => {
         if (!liveLocationSync || !navigator.geolocation) return
 
