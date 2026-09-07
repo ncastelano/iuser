@@ -504,21 +504,23 @@ export default function PedirMotoristaPage() {
 
         if (destMarkerRef.current) destMarkerRef.current.remove()
         if (destination.coords) {
+            const routeInfo = route ? `<div style="background:#fff;color:#ef4444;font-size:10px;font-weight:800;padding:1px 7px;border-radius:9999px;margin-bottom:3px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,0.25);">${route.distanceKm.toFixed(1)} km · ${Math.round(route.durationMin)} min</div>` : ''
             const el = document.createElement('div')
             el.style.cssText = 'display:flex;flex-direction:column;align-items:center;'
             el.innerHTML = `
                 <div style="background:#ef4444;color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:9999px;margin-bottom:4px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,0.35);">Chegada</div>
+                ${routeInfo}
                 <svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 24 24" fill="#ef4444" stroke="white" stroke-width="1.5"><path d="M12 22s8-7.58 8-13a8 8 0 1 0-16 0c0 5.42 8 13 8 13z"/></svg>
             `
             destMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: 'bottom' }).setLngLat(destination.coords).addTo(map)
         }
 
-        if (origin.coords && destination.coords) {
+        if (origin.coords && destination.coords && !route) {
             const bounds = new mapboxgl.LngLatBounds(origin.coords, origin.coords)
             bounds.extend(destination.coords)
             map.fitBounds(bounds, { padding: 100, duration: 800 })
         }
-    }, [mapReady, origin.coords, destination.coords])
+    }, [mapReady, origin.coords, destination.coords, route])
 
     // ===== BUSCA DA ROTA (uma só, sem alternativas) =====
     useEffect(() => {
@@ -1061,11 +1063,26 @@ export default function PedirMotoristaPage() {
                     {/* ===== ETAPA 2: ENDEREÇOS ===== */}
                     {step === 'where' && (
                         <>
-                            <h2 className="text-lg font-black mb-3" style={{ color: colors.textPrimary }}>Para onde ir</h2>
+                            {/* Local de início */}
+                            <h2 className="text-lg font-black mb-3" style={{ color: colors.textPrimary }}>Qual local para iniciar a corrida?</h2>
+                            <div className="flex items-center gap-3 px-4 py-3 rounded-2xl" style={{ border: `1px solid ${colors.border}` }}>
+                                <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: '#22c55e' }} />
+                                <input
+                                    readOnly
+                                    onClick={() => openField('origin')}
+                                    value={locatingOrigin ? 'Localizando...' : origin.address}
+                                    placeholder="Local de início"
+                                    className="flex-1 bg-transparent text-sm focus:outline-none cursor-pointer"
+                                    style={inputStyle}
+                                />
+                                <button onClick={() => useMyLocationAsOrigin(true)} className="flex-shrink-0" style={{ color: colors.accent }}>
+                                    {locatingOrigin ? <Spinner size={16} /> : <MapPinPlus size={16} />}
+                                </button>
+                            </div>
 
                             {/* Locais de partida já usados */}
                             {recentOrigins.length > 0 && (
-                                <div className="flex gap-2 overflow-x-auto pb-2 mb-1">
+                                <div className="flex gap-2 overflow-x-auto pt-2 pb-1">
                                     {recentOrigins.map((place) => (
                                         <button
                                             key={place.address}
@@ -1080,35 +1097,18 @@ export default function PedirMotoristaPage() {
                                 </div>
                             )}
 
-                            {/* Bloco de endereços conectados por uma linha, igual Uber */}
-                            <div className="rounded-2xl overflow-hidden relative" style={{ border: `1px solid ${colors.border}` }}>
-                                <div className="absolute w-0.5" style={{ left: 21, top: 24, bottom: 24, background: colors.border }} />
-                                <div className="flex items-center gap-3 px-4 py-3">
-                                    <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: '#22c55e' }} />
-                                    <input
-                                        readOnly
-                                        onClick={() => openField('origin')}
-                                        value={locatingOrigin ? 'Localizando...' : origin.address}
-                                        placeholder="Local de partida"
-                                        className="flex-1 bg-transparent text-sm focus:outline-none cursor-pointer"
-                                        style={inputStyle}
-                                    />
-                                    <button onClick={() => useMyLocationAsOrigin(true)} className="flex-shrink-0" style={{ color: colors.accent }}>
-                                        {locatingOrigin ? <Spinner size={16} /> : <MapPinPlus size={16} />}
-                                    </button>
-                                </div>
-                                <div style={{ borderTop: `1px solid ${colors.border}` }} />
-                                <div className="flex items-center gap-3 px-4 py-3">
-                                    <MapPin size={14} className="flex-shrink-0" style={{ color: '#ef4444' }} />
-                                    <input
-                                        readOnly
-                                        onClick={() => openField('destination')}
-                                        value={destination.address}
-                                        placeholder="Local de chegada"
-                                        className="flex-1 bg-transparent text-sm focus:outline-none cursor-pointer"
-                                        style={inputStyle}
-                                    />
-                                </div>
+                            {/* Local de chegada */}
+                            <h2 className="text-lg font-black mb-3 mt-4" style={{ color: colors.textPrimary }}>Para onde quer ir?</h2>
+                            <div className="flex items-center gap-3 px-4 py-3 rounded-2xl" style={{ border: `1px solid ${colors.border}` }}>
+                                <MapPin size={14} className="flex-shrink-0" style={{ color: '#ef4444' }} />
+                                <input
+                                    readOnly
+                                    onClick={() => openField('destination')}
+                                    value={destination.address}
+                                    placeholder="Local de chegada"
+                                    className="flex-1 bg-transparent text-sm focus:outline-none cursor-pointer"
+                                    style={inputStyle}
+                                />
                             </div>
 
                             {/* Locais de chegada já usados */}
@@ -1203,18 +1203,11 @@ export default function PedirMotoristaPage() {
                                 </div>
                             </div>
 
-                            {/* Rota (uma só, sem alternativas) */}
+                            {/* Rota (uma só, sem alternativas) — a distância/tempo aparece no mapa, no marcador de chegada */}
                             {loadingRoutes && (
                                 <div className="flex items-center gap-2 mt-3 text-xs" style={{ color: colors.textSecondary }}>
                                     <Spinner size={14} />
                                     Calculando rota...
-                                </div>
-                            )}
-
-                            {!loadingRoutes && route && (
-                                <div className="flex items-center gap-1.5 mt-3 text-xs font-bold" style={{ color: colors.textSecondary }}>
-                                    <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: ROUTE_COLOR }} />
-                                    {route.distanceKm.toFixed(1)} km · {Math.round(route.durationMin)} min
                                 </div>
                             )}
 

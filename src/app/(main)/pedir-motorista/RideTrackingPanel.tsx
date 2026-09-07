@@ -9,8 +9,9 @@ import { toast } from 'sonner'
 import { shortAddress } from '@/lib/serviceBoard'
 import { getAvatarUrl } from '@/lib/avatar'
 import { Spinner } from '@/components/Spinner'
-import { Check, X, MapPin, Search, CheckCircle2, XCircle, Car, CalendarClock, Clock, Flag } from 'lucide-react'
+import { Check, X, MapPin, Search, CheckCircle2, XCircle, Car, CalendarClock, Clock, Flag, ChevronDown, ChevronUp, Store, MessageSquare } from 'lucide-react'
 import { fetchRoute } from '@/lib/mapboxRoute'
+import { DRIVER_SERVICE_OPTIONS } from '@/lib/driverServices'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 const TRIP_ROUTE_COLOR = '#ef4444'
@@ -43,6 +44,13 @@ interface RideRow {
     duration_min: number | null
 }
 
+interface CandidateStore {
+    name: string
+    logoUrl: string | undefined
+    slug: string | null
+    products: { id: string; name: string; imageUrl: string | undefined; price: number | null }[]
+}
+
 interface Candidate {
     applicationId: string
     applicantId: string
@@ -56,6 +64,14 @@ interface Candidate {
     etaMin: number | null
     etaDistanceKm: number | null
     routeCoords: [number, number][] | null
+    carModel: string | null
+    carColor: string | null
+    carPhotoUrl: string | undefined
+    services: string[]
+    ratingAvg: number | null
+    ratingCount: number
+    lastComment: string | null
+    store: CandidateStore | null
 }
 
 interface DriverInfo {
@@ -80,6 +96,7 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady }: Rid
     const [driver, setDriver] = useState<DriverInfo | null>(null)
     const [decidingId, setDecidingId] = useState<string | null>(null)
     const [cancelling, setCancelling] = useState(false)
+    const [expandedId, setExpandedId] = useState<string | null>(null)
     const knownCandidateIds = useRef<Set<string>>(new Set())
     const firstLoad = useRef(true)
 
@@ -122,8 +139,74 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady }: Rid
             profilesById = new Map((profiles || []).map((p) => [p.id, p]))
         }
 
+        // Ficha do carro (modelo, cor, foto, serviços) — pública, pro
+        // passageiro comparar os candidatos além do preço.
+        let vehiclesById = new Map<string, { car_model: string | null; car_color: string | null; car_photo_url: string | null; services: string[] }>()
+        if (idsToFetch.length > 0) {
+            const { data: vehicles } = await supabase
+                .from('driver_vehicles')
+                .select('driver_id, car_model, car_color, car_photo_url, services')
+                .in('driver_id', idsToFetch)
+            vehiclesById = new Map((vehicles || []).map((v) => [v.driver_id, v]))
+        }
+
+        // Avaliações recebidas — média, quantidade e o comentário mais recente.
+        let ratingsById = new Map<string, { avg: number; count: number; lastComment: string | null }>()
+        if (idsToFetch.length > 0) {
+            const { data: reviewRows } = await supabase
+                .from('ride_reviews')
+                .select('reviewee_id, rating, comment, created_at')
+                .in('reviewee_id', idsToFetch)
+                .order('created_at', { ascending: false })
+            const grouped = new Map<string, { rating: number; comment: string | null }[]>()
+            for (const r of reviewRows || []) {
+                const arr = grouped.get(r.reviewee_id) || []
+                arr.push({ rating: r.rating, comment: r.comment })
+                grouped.set(r.reviewee_id, arr)
+            }
+            for (const [id, arr] of grouped) {
+                ratingsById.set(id, {
+                    avg: arr.reduce((s, x) => s + x.rating, 0) / arr.length,
+                    count: arr.length,
+                    lastComment: arr.find((x) => x.comment)?.comment || null,
+                })
+            }
+        }
+
+        // "Loja embutida" — se o candidato tem uma loja, mostra a logo e os
+        // 3 produtos mais recentes dela no card.
+        let storesByOwnerId = new Map<string, { id: string; name: string; logo_url: string | null; storeSlug: string | null }>()
+        if (idsToFetch.length > 0) {
+            const { data: stores } = await supabase
+                .from('stores')
+                .select('id, owner_id, name, logo_url, storeSlug')
+                .in('owner_id', idsToFetch)
+                .order('created_at', { ascending: true })
+            // Se o candidato tiver mais de uma loja, fica sempre com a mais antiga.
+            for (const s of stores || []) {
+                if (!storesByOwnerId.has(s.owner_id)) storesByOwnerId.set(s.owner_id, s)
+            }
+        }
+        const storeIds = Array.from(storesByOwnerId.values()).map((s) => s.id)
+        const productsByStoreId = new Map<string, { id: string; name: string; image_url: string | null; price: number | null }[]>()
+        if (storeIds.length > 0) {
+            const { data: products } = await supabase
+                .from('products')
+                .select('id, store_id, name, image_url, price')
+                .in('store_id', storeIds)
+                .order('created_at', { ascending: false })
+            for (const prod of products || []) {
+                const arr = productsByStoreId.get(prod.store_id) || []
+                if (arr.length < 3) arr.push(prod)
+                productsByStoreId.set(prod.store_id, arr)
+            }
+        }
+
         const nextCandidates: Candidate[] = await Promise.all((applications || []).map(async (a) => {
             const p = profilesById.get(a.applicant_id)
+            const vehicle = vehiclesById.get(a.applicant_id)
+            const rating = ratingsById.get(a.applicant_id)
+            const store = storesByOwnerId.get(a.applicant_id)
 
             // Aproximação: tempo/distância da localização salva do motorista
             // (Definir local) até o ponto de partida — ajuda a comparar
@@ -138,6 +221,8 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady }: Rid
                 routeCoords = route.coords
             }
 
+            const storeProducts = store ? (productsByStoreId.get(store.id) || []) : []
+
             return {
                 applicationId: a.id,
                 applicantId: a.applicant_id,
@@ -151,6 +236,24 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady }: Rid
                 etaMin,
                 etaDistanceKm,
                 routeCoords,
+                carModel: vehicle?.car_model || null,
+                carColor: vehicle?.car_color || null,
+                carPhotoUrl: vehicle?.car_photo_url ? supabase.storage.from('driver-car-photos').getPublicUrl(vehicle.car_photo_url).data.publicUrl : undefined,
+                services: vehicle?.services || [],
+                ratingAvg: rating?.avg ?? null,
+                ratingCount: rating?.count ?? 0,
+                lastComment: rating?.lastComment ?? null,
+                store: store ? {
+                    name: store.name,
+                    logoUrl: store.logo_url ? supabase.storage.from('store-logos').getPublicUrl(store.logo_url).data.publicUrl : undefined,
+                    slug: store.storeSlug,
+                    products: storeProducts.map((prod) => ({
+                        id: prod.id,
+                        name: prod.name,
+                        imageUrl: prod.image_url ? supabase.storage.from('product-images').getPublicUrl(prod.image_url).data.publicUrl : undefined,
+                        price: prod.price,
+                    })),
+                } : null,
             }
         }))
 
@@ -510,9 +613,13 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady }: Rid
                                     ? formatClockTime(new Date(Date.now() + (pickupEtaMin + (ride.duration_min ?? 0)) * 60000))
                                     : null
                                 const color = CANDIDATE_COLORS[i % CANDIDATE_COLORS.length]
+                                const expanded = expandedId === c.applicationId
+                                const hasDetails = !!c.carModel || !!c.carColor || c.services.length > 0 || c.ratingCount > 0 || !!c.store
+                                const roundedRating = Math.round(c.ratingAvg || 0)
 
                                 return (
-                                <div key={c.applicationId} className="flex items-center gap-2 rounded-xl px-3 py-2.5" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
+                                <div key={c.applicationId} className="flex flex-col rounded-xl px-3 py-2.5" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
+                                <div className="flex items-center gap-2">
                                     {c.avatarUrl ? (
                                         <img src={c.avatarUrl} className="w-9 h-9 rounded-full object-cover flex-shrink-0" style={{ border: `2px solid ${color}` }} alt="" />
                                     ) : (
@@ -573,6 +680,104 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady }: Rid
                                             {c.status === 'accepted' ? 'Aceito' : 'Recusado'}
                                         </span>
                                     )}
+                                </div>
+
+                                {hasDetails && (
+                                    <button
+                                        onClick={() => setExpandedId(expanded ? null : c.applicationId)}
+                                        className="flex items-center justify-center gap-1 mt-2 pt-2 text-[10px] font-bold w-full"
+                                        style={{ color: colors.accent, borderTop: `1px solid ${colors.border}` }}
+                                    >
+                                        {expanded ? 'Ver menos' : 'Ver carro, serviços e avaliações'}
+                                        {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                                    </button>
+                                )}
+
+                                {expanded && (
+                                    <div className="mt-2 pt-2 flex flex-col gap-2" style={{ borderTop: `1px solid ${colors.border}` }}>
+                                        {(c.carModel || c.carColor || c.carPhotoUrl) && (
+                                            <div className="flex items-center gap-2">
+                                                {c.carPhotoUrl ? (
+                                                    <img src={c.carPhotoUrl} className="w-10 h-10 rounded-lg object-cover flex-shrink-0" alt="" />
+                                                ) : (
+                                                    <span className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: `${colors.border}30` }}>
+                                                        <Car size={16} style={{ color: colors.textSecondary }} />
+                                                    </span>
+                                                )}
+                                                <span className="text-[11px] font-bold" style={{ color: colors.textPrimary }}>
+                                                    {[c.carModel, c.carColor].filter(Boolean).join(' · ') || 'Carro não informado'}
+                                                </span>
+                                            </div>
+                                        )}
+
+                                        {c.services.length > 0 && (
+                                            <div className="flex gap-1.5 flex-wrap">
+                                                {c.services.map((sid) => {
+                                                    const opt = DRIVER_SERVICE_OPTIONS.find((o) => o.id === sid)
+                                                    if (!opt) return null
+                                                    const Icon = opt.icon
+                                                    return (
+                                                        <span
+                                                            key={sid}
+                                                            className="flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold"
+                                                            style={{ background: colors.surface, color: colors.textPrimary, border: `1px solid ${colors.border}` }}
+                                                        >
+                                                            <Icon size={11} />
+                                                            {opt.label}
+                                                        </span>
+                                                    )
+                                                })}
+                                            </div>
+                                        )}
+
+                                        {c.ratingCount > 0 && (
+                                            <div>
+                                                <span className="text-[11px] font-black" style={{ color: '#f97316' }}>
+                                                    {'★'.repeat(roundedRating)}{'☆'.repeat(5 - roundedRating)} {(c.ratingAvg || 0).toFixed(1)} ({c.ratingCount})
+                                                </span>
+                                                {c.lastComment && (
+                                                    <p className="flex items-start gap-1 text-[10px] mt-1" style={{ color: colors.textSecondary }}>
+                                                        <MessageSquare size={10} className="flex-shrink-0 mt-0.5" />
+                                                        "{c.lastComment}"
+                                                    </p>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {c.store && (
+                                            <a
+                                                href={c.store.slug ? `/${c.store.slug}` : undefined}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="flex flex-col gap-1.5 p-2 rounded-lg"
+                                                style={{ background: colors.surface, border: `1px solid ${colors.border}` }}
+                                            >
+                                                <div className="flex items-center gap-1.5">
+                                                    {c.store.logoUrl ? (
+                                                        <img src={c.store.logoUrl} className="w-5 h-5 rounded-full object-cover flex-shrink-0" alt="" />
+                                                    ) : (
+                                                        <Store size={12} style={{ color: colors.textSecondary }} />
+                                                    )}
+                                                    <span className="text-[10px] font-black truncate" style={{ color: colors.textPrimary }}>{c.store.name}</span>
+                                                </div>
+                                                {c.store.products.length > 0 && (
+                                                    <div className="flex gap-1.5">
+                                                        {c.store.products.map((prod) => (
+                                                            <div key={prod.id} className="flex-1 min-w-0">
+                                                                {prod.imageUrl ? (
+                                                                    <img src={prod.imageUrl} className="w-full aspect-square rounded object-cover" alt="" />
+                                                                ) : (
+                                                                    <div className="w-full aspect-square rounded" style={{ background: `${colors.border}30` }} />
+                                                                )}
+                                                                <span className="text-[9px] truncate block mt-0.5" style={{ color: colors.textSecondary }}>{prod.name}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </a>
+                                        )}
+                                    </div>
+                                )}
                                 </div>
                                 )
                             })}
