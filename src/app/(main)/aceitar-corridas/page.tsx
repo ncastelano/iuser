@@ -1,7 +1,7 @@
 // app/(main)/aceitar-corridas/page.tsx
 'use client'
 
-import { useEffect, useMemo, useState, useCallback } from 'react'
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { useProfile } from '@/app/contexts/ProfileContext'
@@ -134,6 +134,13 @@ export default function AceitarCorridasPage() {
     const [showLocationDialog, setShowLocationDialog] = useState(false)
     const [isSavingLocation, setIsSavingLocation] = useState(false)
 
+    // Guarda de qual conta é o driverCoords/savedLocation atual — sem isso,
+    // trocar de conta sem recarregar a página (logout/login dentro da mesma
+    // sessão do componente) deixava a localização da conta anterior "presa"
+    // no mapa das corridas, já que o fallback abaixo só preenche quando ainda
+    // está null.
+    const lastUserIdRef = useRef<string | null>(null)
+
     // ===== SUA LOCALIZAÇÃO, PRA DESENHAR "VOCÊ → PARTIDA" NO MAPA DE CADA PEDIDO =====
     // Sempre tenta uma leitura de GPS ao abrir a página — essa é a posição
     // "atual" de verdade. Até ela responder (ou se for negada), o load() logo
@@ -169,6 +176,19 @@ export default function AceitarCorridasPage() {
             return
         }
         setShowLogin(false)
+
+        if (lastUserIdRef.current !== user.id) {
+            lastUserIdRef.current = user.id
+            setDriverCoords(null)
+            setSavedLocation(null)
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (pos) => setDriverCoords([pos.coords.longitude, pos.coords.latitude]),
+                    () => { /* sem permissão: fica na localização salva do perfil desta conta, se houver */ },
+                    { enableHighAccuracy: true, timeout: 10000 }
+                )
+            }
+        }
 
         setCheckingPricing(true)
         const [{ data: pricing }, { data: profile }] = await Promise.all([

@@ -425,7 +425,22 @@ export default function PedirMotoristaPage() {
     }, [])
 
     useEffect(() => {
-        if (mapReady && !origin.address) useMyLocationAsOrigin()
+        if (!mapReady || origin.address) return
+
+        // Prefere o último local de partida usado (mesma lista mostrada como
+        // sugestão em "Locais de partida já usados") em vez de localizar por
+        // GPS toda vez — evita repetir a mesma pergunta de local se a pessoa
+        // sempre parte do mesmo lugar.
+        const lastOrigin = getRecentRideOrigins()[0]
+        if (lastOrigin) {
+            setOrigin({ address: lastOrigin.address, coords: lastOrigin.coords })
+            if (lastOrigin.coords && mapRef.current) {
+                mapRef.current.flyTo({ center: lastOrigin.coords, zoom: 15, duration: 800 })
+            }
+            return
+        }
+
+        useMyLocationAsOrigin()
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [mapReady, useMyLocationAsOrigin])
 
