@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react'
 import { useTheme } from '@/app/theme'
 import { Expand } from 'lucide-react'
-import { fetchRoute } from '@/lib/mapboxRoute'
+import { fetchRoute, offsetPolyline } from '@/lib/mapboxRoute'
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
 const TO_PICKUP_COLOR = '3b82f6' // azul: de você até o ponto de partida
@@ -74,11 +74,14 @@ export default function RideMiniMap({ originLng, originLat, destLng, destLat, dr
             if (hasDriver) {
                 const leg = await fetchRoute([driverLng as number, driverLat as number], [originLng, originLat])
                 nextToPickupKm = leg.distanceKm
-                overlays.push(`path-3+${TO_PICKUP_COLOR}-0.85(${encodeURIComponent(encodePolyline(leg.coords))})`)
+                // Desloca as duas pernas pra lados opostos: se o motorista tiver
+                // que ir e voltar pelo mesmo trecho de rua, as duas cores ficam
+                // lado a lado no mapa em vez de uma cobrir a outra.
+                overlays.push(`path-3+${TO_PICKUP_COLOR}-0.85(${encodeURIComponent(encodePolyline(offsetPolyline(leg.coords, 5)))})`)
             }
 
             const trip = await fetchRoute([originLng, originLat], [destLng, destLat])
-            overlays.push(`path-4+${TRIP_COLOR}-0.9(${encodeURIComponent(encodePolyline(trip.coords))})`)
+            overlays.push(`path-4+${TRIP_COLOR}-0.9(${encodeURIComponent(encodePolyline(offsetPolyline(trip.coords, -5)))})`)
 
             if (hasDriver) overlays.push(`pin-s+${TO_PICKUP_COLOR}(${driverLng},${driverLat})`)
             overlays.push(`pin-s+22c55e(${originLng},${originLat})`)

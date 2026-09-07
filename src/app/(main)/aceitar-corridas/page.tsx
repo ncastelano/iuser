@@ -17,7 +17,8 @@ import { shortAddress } from '@/lib/serviceBoard'
 import { getAvatarUrl } from '@/lib/avatar'
 import { computeSuggestedPrice, getEffectivePricing } from '@/lib/driverPricing'
 import { getProfileRideRatingsBatch, ProfileRideRating } from '@/lib/rideReviews'
-import { VEHICLE_TYPE_LABELS, VehicleType } from '@/lib/rideVehicle'
+import { VehicleType } from '@/lib/rideVehicle'
+import { buildRideSpecRows } from '@/lib/rideSpecs'
 import RideMiniMap from './RideMiniMap'
 import RideMapDialog from './RideMapDialog'
 
@@ -77,7 +78,19 @@ interface RideRow {
     passenger_count: number
     vehicle_type: VehicleType
     object_description: string | null
+    object_is_sensitive: boolean
     pet_description: string | null
+    has_child: boolean
+    children_count: number | null
+    child_age: string | null
+    child_needs_car_seat: boolean | null
+    has_shopping: boolean
+    bag_count: number | null
+    has_extra_object: boolean
+    extra_object_description: string | null
+    has_pet: boolean
+    has_special_needs: boolean
+    special_needs_description: string | null
     distance_km: number | null
     duration_min: number | null
     scheduled_for: string | null
@@ -224,7 +237,7 @@ export default function AceitarCorridasPage() {
 
         const { data: openRides } = await supabase
             .from('ride_requests')
-            .select('id, requester_id, ride_type, origin_address, destination_address, notes, passenger_count, vehicle_type, object_description, pet_description, distance_km, duration_min, scheduled_for, created_at, origin_lat, origin_lng, destination_lat, destination_lng')
+            .select('id, requester_id, ride_type, origin_address, destination_address, notes, passenger_count, vehicle_type, object_description, object_is_sensitive, pet_description, has_child, children_count, child_age, child_needs_car_seat, has_shopping, bag_count, has_extra_object, extra_object_description, has_pet, has_special_needs, special_needs_description, distance_km, duration_min, scheduled_for, created_at, origin_lat, origin_lng, destination_lat, destination_lng')
             .eq('status', 'pending')
             .neq('requester_id', user.id)
             .order('scheduled_for', { ascending: true, nullsFirst: true })
@@ -255,7 +268,7 @@ export default function AceitarCorridasPage() {
         if (myApplications.length > 0) {
             const { data } = await supabase
                 .from('ride_requests')
-                .select('id, requester_id, ride_type, origin_address, destination_address, notes, passenger_count, vehicle_type, object_description, pet_description, distance_km, duration_min, scheduled_for, created_at, origin_lat, origin_lng, destination_lat, destination_lng')
+                .select('id, requester_id, ride_type, origin_address, destination_address, notes, passenger_count, vehicle_type, object_description, object_is_sensitive, pet_description, has_child, children_count, child_age, child_needs_car_seat, has_shopping, bag_count, has_extra_object, extra_object_description, has_pet, has_special_needs, special_needs_description, distance_km, duration_min, scheduled_for, created_at, origin_lat, origin_lng, destination_lat, destination_lng')
                 .in('id', myApplications.map((a) => a.ride_request_id))
                 .eq('status', 'pending')
             myRideRows = data || []
@@ -502,12 +515,18 @@ export default function AceitarCorridasPage() {
                                         style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
                                     >
                                         <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
-                                            <span
-                                                className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full"
-                                                style={{ background: `${colors.accent}15`, color: colors.accent }}
-                                            >
-                                                {VEHICLE_TYPE_LABELS[ride.vehicle_type]}
-                                            </span>
+                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                                {buildRideSpecRows(ride).map((spec, i) => (
+                                                    <span
+                                                        key={i}
+                                                        className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full"
+                                                        style={{ background: `${colors.accent}15`, color: colors.accent }}
+                                                        title={`${spec.label}: ${spec.value}`}
+                                                    >
+                                                        {spec.label}: {spec.value}
+                                                    </span>
+                                                ))}
+                                            </div>
                                             <div className="flex items-center gap-2 flex-wrap">
                                                 {ride.applicant_count > 0 && (
                                                     <span className="text-[9px] font-bold" style={{ color: colors.textSecondary }}>
@@ -681,13 +700,19 @@ export default function AceitarCorridasPage() {
                                         style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
                                     >
                                         <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
-                                            <span
-                                                className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full"
-                                                style={{ background: `${colors.accent}15`, color: colors.accent }}
-                                            >
-                                                {VEHICLE_TYPE_LABELS[ride.vehicle_type]}
-                                            </span>
-                                            <span className="flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full" style={{ background: '#eab30815', color: '#eab308' }}>
+                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                                {buildRideSpecRows(ride).map((spec, i) => (
+                                                    <span
+                                                        key={i}
+                                                        className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full"
+                                                        style={{ background: `${colors.accent}15`, color: colors.accent }}
+                                                        title={`${spec.label}: ${spec.value}`}
+                                                    >
+                                                        {spec.label}: {spec.value}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                            <span className="flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full flex-shrink-0" style={{ background: '#eab30815', color: '#eab308' }}>
                                                 Aguardando decisão
                                             </span>
                                         </div>

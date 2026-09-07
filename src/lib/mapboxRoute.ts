@@ -37,3 +37,32 @@ export async function fetchRoute(from: [number, number], to: [number, number]): 
     const distanceKm = haversineKm(from, to)
     return { coords: [from, to], distanceKm, durationMin: (distanceKm / FALLBACK_SPEED_KMH) * 60 }
 }
+
+// Desloca uma polyline perpendicularmente à sua própria direção por uma
+// distância fixa (em metros). Usado pra separar visualmente duas rotas que
+// percorrem a mesma via (ex: motorista tem que ir e voltar pelo mesmo
+// caminho) — sem isso uma cor cobre a outra por inteiro no mapa.
+export function offsetPolyline(coords: [number, number][], offsetMeters: number): [number, number][] {
+    if (coords.length < 2) return coords
+
+    return coords.map((point, i) => {
+        const prev = coords[Math.max(0, i - 1)]
+        const next = coords[Math.min(coords.length - 1, i + 1)]
+        const dx = next[0] - prev[0]
+        const dy = next[1] - prev[1]
+        const len = Math.hypot(dx, dy) || 1
+
+        // Vetor perpendicular unitário (rotaciona a direção local em 90°).
+        const perpX = -dy / len
+        const perpY = dx / len
+
+        const latRad = point[1] * Math.PI / 180
+        const metersPerDegLat = 111320
+        const metersPerDegLng = 111320 * Math.cos(latRad)
+
+        return [
+            point[0] + (perpX * offsetMeters) / metersPerDegLng,
+            point[1] + (perpY * offsetMeters) / metersPerDegLat,
+        ] as [number, number]
+    })
+}

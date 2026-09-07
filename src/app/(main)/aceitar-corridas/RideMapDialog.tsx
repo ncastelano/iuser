@@ -71,7 +71,10 @@ export default function RideMapDialog({ originLat, originLng, destLat, destLng, 
                     type: 'line',
                     source: 'leg-to-pickup',
                     layout: { 'line-join': 'round', 'line-cap': 'round' },
-                    paint: { 'line-color': TO_PICKUP_COLOR, 'line-width': 4, 'line-opacity': 0.9 },
+                    // line-offset separa visualmente as duas pernas quando elas
+                    // percorrem a mesma via (motorista indo e voltando pelo
+                    // mesmo caminho) — sem isso uma cor cobre a outra por inteiro.
+                    paint: { 'line-color': TO_PICKUP_COLOR, 'line-width': 4, 'line-opacity': 0.9, 'line-offset': -2.5 },
                 })
                 legToOrigin.coords.forEach((c) => bounds.extend(c as [number, number]))
                 new mapboxgl.Marker({ element: marker(TO_PICKUP_COLOR, 'Você') }).setLngLat([driverLng as number, driverLat as number]).addTo(map)
@@ -86,7 +89,7 @@ export default function RideMapDialog({ originLat, originLng, destLat, destLng, 
                 type: 'line',
                 source: 'leg-trip',
                 layout: { 'line-join': 'round', 'line-cap': 'round' },
-                paint: { 'line-color': TRIP_COLOR, 'line-width': 5, 'line-opacity': 0.95 },
+                paint: { 'line-color': TRIP_COLOR, 'line-width': 5, 'line-opacity': 0.95, 'line-offset': 2.5 },
             })
             legTrip.coords.forEach((c) => bounds.extend(c as [number, number]))
             setTripKm(legTrip.distanceKm)
