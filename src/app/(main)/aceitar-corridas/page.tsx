@@ -55,7 +55,10 @@ interface RideRow {
     origin_lng: number | null
     destination_lat: number | null
     destination_lng: number | null
+    applicant_count: number
 }
+
+const MAX_CANDIDATES = 5
 
 interface RideCardData extends RideRow {
     requesterName: string | null
@@ -162,9 +165,10 @@ export default function AceitarCorridasPage() {
 
         const { data: openRides } = await supabase
             .from('ride_requests')
-            .select('id, requester_id, ride_type, origin_address, destination_address, notes, passenger_count, vehicle_type, object_description, pet_description, distance_km, duration_min, scheduled_for, created_at, origin_lat, origin_lng, destination_lat, destination_lng')
+            .select('id, requester_id, ride_type, origin_address, destination_address, notes, passenger_count, vehicle_type, object_description, pet_description, distance_km, duration_min, scheduled_for, created_at, origin_lat, origin_lng, destination_lat, destination_lng, applicant_count')
             .eq('status', 'pending')
             .neq('requester_id', user.id)
+            .lt('applicant_count', MAX_CANDIDATES)
             .order('scheduled_for', { ascending: true, nullsFirst: true })
             .order('created_at', { ascending: false })
 
@@ -246,7 +250,12 @@ export default function AceitarCorridasPage() {
             setRides((prev) => prev.filter((r) => r.id !== ride.id))
             setCustomPriceFor(null)
         } catch (err: any) {
-            toast.error('Erro ao se candidatar: ' + (err.message || 'tente novamente'))
+            if (err.code === '42501' || err.code === 'PGRST301') {
+                toast.error('Essa corrida já atingiu o limite de candidatos.')
+                setRides((prev) => prev.filter((r) => r.id !== ride.id))
+            } else {
+                toast.error('Erro ao se candidatar: ' + (err.message || 'tente novamente'))
+            }
         } finally {
             setApplyingId(null)
         }
@@ -313,16 +322,23 @@ export default function AceitarCorridasPage() {
                                             >
                                                 {VEHICLE_TYPE_LABELS[ride.vehicle_type]}
                                             </span>
-                                            {ride.scheduled_for ? (
-                                                <span className="flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full" style={{ background: '#8b5cf615', color: '#8b5cf6' }}>
-                                                    <CalendarClock size={11} />
-                                                    {formatScheduledFor(ride.scheduled_for)}
-                                                </span>
-                                            ) : (
-                                                <span className="text-[10px] font-bold" style={{ color: colors.textSecondary }}>
-                                                    {relativeTime(ride.created_at)}
-                                                </span>
-                                            )}
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                                {ride.applicant_count > 0 && (
+                                                    <span className="text-[9px] font-bold" style={{ color: colors.textSecondary }}>
+                                                        {ride.applicant_count}/{MAX_CANDIDATES} candidatos
+                                                    </span>
+                                                )}
+                                                {ride.scheduled_for ? (
+                                                    <span className="flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full" style={{ background: '#8b5cf615', color: '#8b5cf6' }}>
+                                                        <CalendarClock size={11} />
+                                                        {formatScheduledFor(ride.scheduled_for)}
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-[10px] font-bold" style={{ color: colors.textSecondary }}>
+                                                        {relativeTime(ride.created_at)}
+                                                    </span>
+                                                )}
+                                            </div>
                                         </div>
 
                                         <div className="flex items-center gap-2 mb-2">
@@ -413,7 +429,7 @@ export default function AceitarCorridasPage() {
                                                     className="w-full mt-1 py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all disabled:opacity-70 flex items-center justify-center gap-2"
                                                     style={{ background: '#a3e635', color: '#1a2e05' }}
                                                 >
-                                                    {isApplying ? <Spinner size={14} /> : `Aceitar por R$ ${ride.suggestedPrice.toFixed(2)}`}
+                                                    {isApplying ? <Spinner size={14} /> : `Candidatar-se por R$ ${ride.suggestedPrice.toFixed(2)}`}
                                                 </button>
 
                                                 {ride.hasDistance && (
