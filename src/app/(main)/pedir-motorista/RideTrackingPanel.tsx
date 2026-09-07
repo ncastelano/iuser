@@ -9,7 +9,7 @@ import { toast } from 'sonner'
 import { shortAddress } from '@/lib/serviceBoard'
 import { getAvatarUrl } from '@/lib/avatar'
 import { Spinner } from '@/components/Spinner'
-import { Check, X, MapPin, Search, CheckCircle2, XCircle, Car, CalendarClock, Clock, ChevronDown, ChevronUp, Store, MessageSquare } from 'lucide-react'
+import { Check, X, MapPin, Search, CheckCircle2, XCircle, Car, CalendarClock, Clock, Store, MessageSquare } from 'lucide-react'
 import { fetchRoute } from '@/lib/mapboxRoute'
 import { DRIVER_SERVICE_OPTIONS } from '@/lib/driverServices'
 
@@ -96,7 +96,6 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady }: Rid
     const [driver, setDriver] = useState<DriverInfo | null>(null)
     const [decidingId, setDecidingId] = useState<string | null>(null)
     const [cancelling, setCancelling] = useState(false)
-    const [expandedId, setExpandedId] = useState<string | null>(null)
     const knownCandidateIds = useRef<Set<string>>(new Set())
     const firstLoad = useRef(true)
 
@@ -613,181 +612,155 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady }: Rid
                                     ? formatClockTime(new Date(Date.now() + (pickupEtaMin + (ride.duration_min ?? 0)) * 60000))
                                     : null
                                 const color = CANDIDATE_COLORS[i % CANDIDATE_COLORS.length]
-                                const expanded = expandedId === c.applicationId
-                                const hasDetails = !!c.carModel || !!c.carColor || c.services.length > 0 || c.ratingCount > 0 || !!c.store
                                 const roundedRating = Math.round(c.ratingAvg || 0)
 
                                 return (
-                                <div key={c.applicationId} className="flex flex-col rounded-xl px-3 py-2.5" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
-                                <div className="flex items-center gap-2">
+                                <div key={c.applicationId} className="flex flex-col items-center text-center gap-2.5 rounded-2xl px-4 py-5" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
                                     {c.avatarUrl ? (
-                                        <img src={c.avatarUrl} className="w-9 h-9 rounded-full object-cover flex-shrink-0" style={{ border: `2px solid ${color}` }} alt="" />
+                                        <img src={c.avatarUrl} className="w-16 h-16 rounded-full object-cover" style={{ border: `3px solid ${color}` }} alt="" />
                                     ) : (
-                                        <span className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: color }}>
-                                            <MapPin size={14} color="#fff" />
+                                        <span className="w-16 h-16 rounded-full flex items-center justify-center" style={{ background: color }}>
+                                            <MapPin size={22} color="#fff" />
                                         </span>
                                     )}
-                                    <div className="flex-1 min-w-0">
-                                        <span className="text-xs font-bold block truncate" style={{ color: colors.textPrimary }}>
+
+                                    <div>
+                                        <span className="text-sm font-bold block" style={{ color: colors.textPrimary }}>
                                             {c.name || (c.profileSlug ? `@${c.profileSlug}` : 'Candidato')}
                                         </span>
-                                        <span className="text-[11px] font-black block" style={{ color: '#f97316' }}>
+                                        <span className="text-xs font-black block mt-0.5" style={{ color: '#f97316' }}>
                                             {c.proposedPrice != null ? `Proposta: R$ ${c.proposedPrice.toFixed(2)}` : 'Sem valor definido'}
                                         </span>
-                                        {(pickupEtaMin != null || destArrival) && (
-                                            <span
-                                                className="flex items-center gap-1 text-[10px] font-bold"
-                                                style={{ color: colors.textSecondary }}
-                                                title="Estimativa a partir da localização salva do motorista, não é uma posição ao vivo"
-                                            >
-                                                <Clock size={10} className="flex-shrink-0" />
-                                                {pickupEtaMin != null && `Chega em: ${pickupEtaMin} minuto${pickupEtaMin > 1 ? 's' : ''}`}
-                                                {pickupEtaMin != null && destArrival && ' / '}
-                                                {destArrival && `destino: ${destArrival}`}
-                                            </span>
-                                        )}
                                     </div>
+
+                                    {(pickupEtaMin != null || destArrival) && (
+                                        <span
+                                            className="flex items-center gap-1.5 text-[11px] font-bold"
+                                            style={{ color: colors.textSecondary }}
+                                            title="Estimativa a partir da localização salva do motorista, não é uma posição ao vivo"
+                                        >
+                                            <Clock size={11} className="flex-shrink-0" />
+                                            {pickupEtaMin != null && `Carro chegando em ${pickupEtaMin} minuto${pickupEtaMin > 1 ? 's' : ''}`}
+                                            {pickupEtaMin != null && destArrival && ', '}
+                                            {destArrival && `você chegará às ${destArrival}`}
+                                        </span>
+                                    )}
+
+                                    {(c.carModel || c.carColor || c.carPhotoUrl) && (
+                                        <div className="flex items-center gap-2">
+                                            {c.carPhotoUrl ? (
+                                                <img src={c.carPhotoUrl} className="w-8 h-8 rounded-lg object-cover flex-shrink-0" alt="" />
+                                            ) : (
+                                                <span className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: `${colors.border}30` }}>
+                                                    <Car size={14} style={{ color: colors.textSecondary }} />
+                                                </span>
+                                            )}
+                                            <span className="text-[11px] font-bold" style={{ color: colors.textPrimary }}>
+                                                {[c.carModel, c.carColor].filter(Boolean).join(' · ') || 'Carro não informado'}
+                                            </span>
+                                        </div>
+                                    )}
+
+                                    {c.services.length > 0 && (
+                                        <div className="flex gap-1.5 flex-wrap justify-center">
+                                            {c.services.map((sid) => {
+                                                const opt = DRIVER_SERVICE_OPTIONS.find((o) => o.id === sid)
+                                                if (!opt) return null
+                                                const Icon = opt.icon
+                                                return (
+                                                    <span
+                                                        key={sid}
+                                                        className="flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold"
+                                                        style={{ background: colors.surface, color: colors.textPrimary, border: `1px solid ${colors.border}` }}
+                                                    >
+                                                        <Icon size={11} />
+                                                        {opt.label}
+                                                    </span>
+                                                )
+                                            })}
+                                        </div>
+                                    )}
+
+                                    {c.ratingCount > 0 && (
+                                        <div>
+                                            <span className="text-[11px] font-black" style={{ color: '#f97316' }}>
+                                                {'★'.repeat(roundedRating)}{'☆'.repeat(5 - roundedRating)} {(c.ratingAvg || 0).toFixed(1)} ({c.ratingCount})
+                                            </span>
+                                            {c.lastComment && (
+                                                <p className="flex items-center gap-1 justify-center text-[10px] mt-1" style={{ color: colors.textSecondary }}>
+                                                    <MessageSquare size={10} className="flex-shrink-0" />
+                                                    "{c.lastComment}"
+                                                </p>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {c.store && (
+                                        <a
+                                            href={c.store.slug ? `/${c.store.slug}` : undefined}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="flex flex-col items-center gap-1.5 p-2 rounded-lg w-full"
+                                            style={{ background: colors.surface, border: `1px solid ${colors.border}` }}
+                                        >
+                                            <div className="flex items-center gap-1.5">
+                                                {c.store.logoUrl ? (
+                                                    <img src={c.store.logoUrl} className="w-6 h-6 rounded-full object-cover flex-shrink-0" alt="" />
+                                                ) : (
+                                                    <span className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: `${colors.border}30` }}>
+                                                        <Store size={12} style={{ color: colors.textSecondary }} />
+                                                    </span>
+                                                )}
+                                                <span className="text-[10px] font-black truncate" style={{ color: colors.textPrimary }}>{c.store.name}</span>
+                                            </div>
+
+                                            {c.store.products.length > 0 && (
+                                                <div className="flex -space-x-2">
+                                                    {c.store.products.map((prod) => (
+                                                        <div
+                                                            key={prod.id}
+                                                            className="w-6 h-6 rounded-full overflow-hidden flex-shrink-0"
+                                                            style={{ background: `${colors.border}30`, border: `1.5px solid ${colors.surface}` }}
+                                                            title={prod.name}
+                                                        >
+                                                            {prod.imageUrl && (
+                                                                <img src={prod.imageUrl} className="w-full h-full object-cover" alt="" />
+                                                            )}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </a>
+                                    )}
 
                                     {c.status === 'pending' ? (
                                         decidingId === c.applicationId ? (
-                                            <Spinner size={14} color={colors.textSecondary} className="flex-shrink-0" />
+                                            <Spinner size={16} color={colors.textSecondary} />
                                         ) : (
-                                            <div className="flex items-center gap-1.5 flex-shrink-0">
+                                            <div className="flex items-center gap-3 mt-1">
                                                 <button
                                                     onClick={() => acceptCandidate(c.applicationId, c.applicantId)}
-                                                    className="w-7 h-7 rounded-full flex items-center justify-center"
+                                                    className="flex items-center gap-1.5 px-5 py-2 rounded-full text-xs font-bold"
                                                     style={{ background: '#22c55e', color: '#fff' }}
-                                                    title="Aceitar"
                                                 >
                                                     <Check size={14} />
+                                                    Aceitar
                                                 </button>
                                                 <button
                                                     onClick={() => rejectCandidate(c.applicationId)}
-                                                    className="w-7 h-7 rounded-full flex items-center justify-center"
+                                                    className="flex items-center gap-1.5 px-5 py-2 rounded-full text-xs font-bold"
                                                     style={{ background: '#ef4444', color: '#fff' }}
-                                                    title="Recusar"
                                                 >
                                                     <X size={14} />
+                                                    Recusar
                                                 </button>
                                             </div>
                                         )
                                     ) : (
-                                        <span className="text-[10px] font-black uppercase flex-shrink-0" style={{ color: c.status === 'accepted' ? '#22c55e' : colors.textSecondary }}>
+                                        <span className="text-[10px] font-black uppercase" style={{ color: c.status === 'accepted' ? '#22c55e' : colors.textSecondary }}>
                                             {c.status === 'accepted' ? 'Aceito' : 'Recusado'}
                                         </span>
                                     )}
-                                </div>
-
-                                {hasDetails && (
-                                    <button
-                                        onClick={() => setExpandedId(expanded ? null : c.applicationId)}
-                                        className="flex items-center justify-center gap-1 mt-2 pt-2 text-[10px] font-bold w-full"
-                                        style={{ color: colors.accent, borderTop: `1px solid ${colors.border}` }}
-                                    >
-                                        {expanded ? 'Ver menos' : 'Ver carro, serviços e avaliações'}
-                                        {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-                                    </button>
-                                )}
-
-                                {expanded && (
-                                    <div className="mt-2 pt-2 flex flex-col gap-2" style={{ borderTop: `1px solid ${colors.border}` }}>
-                                        {(c.carModel || c.carColor || c.carPhotoUrl) && (
-                                            <div className="flex items-center gap-2">
-                                                {c.carPhotoUrl ? (
-                                                    <img src={c.carPhotoUrl} className="w-10 h-10 rounded-lg object-cover flex-shrink-0" alt="" />
-                                                ) : (
-                                                    <span className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: `${colors.border}30` }}>
-                                                        <Car size={16} style={{ color: colors.textSecondary }} />
-                                                    </span>
-                                                )}
-                                                <span className="text-[11px] font-bold" style={{ color: colors.textPrimary }}>
-                                                    {[c.carModel, c.carColor].filter(Boolean).join(' · ') || 'Carro não informado'}
-                                                </span>
-                                            </div>
-                                        )}
-
-                                        {c.services.length > 0 && (
-                                            <div className="flex gap-1.5 flex-wrap">
-                                                {c.services.map((sid) => {
-                                                    const opt = DRIVER_SERVICE_OPTIONS.find((o) => o.id === sid)
-                                                    if (!opt) return null
-                                                    const Icon = opt.icon
-                                                    return (
-                                                        <span
-                                                            key={sid}
-                                                            className="flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold"
-                                                            style={{ background: colors.surface, color: colors.textPrimary, border: `1px solid ${colors.border}` }}
-                                                        >
-                                                            <Icon size={11} />
-                                                            {opt.label}
-                                                        </span>
-                                                    )
-                                                })}
-                                            </div>
-                                        )}
-
-                                        {c.ratingCount > 0 && (
-                                            <div>
-                                                <span className="text-[11px] font-black" style={{ color: '#f97316' }}>
-                                                    {'★'.repeat(roundedRating)}{'☆'.repeat(5 - roundedRating)} {(c.ratingAvg || 0).toFixed(1)} ({c.ratingCount})
-                                                </span>
-                                                {c.lastComment && (
-                                                    <p className="flex items-start gap-1 text-[10px] mt-1" style={{ color: colors.textSecondary }}>
-                                                        <MessageSquare size={10} className="flex-shrink-0 mt-0.5" />
-                                                        "{c.lastComment}"
-                                                    </p>
-                                                )}
-                                            </div>
-                                        )}
-
-                                        {c.store && (
-                                            <a
-                                                href={c.store.slug ? `/${c.store.slug}` : undefined}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="flex flex-col gap-1.5 p-2 rounded-lg"
-                                                style={{ background: colors.surface, border: `1px solid ${colors.border}` }}
-                                            >
-                                                <div className="flex items-center gap-1.5">
-                                                    {c.store.logoUrl ? (
-                                                        <img src={c.store.logoUrl} className="w-6 h-6 rounded-full object-cover flex-shrink-0" alt="" />
-                                                    ) : (
-                                                        <span className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: `${colors.border}30` }}>
-                                                            <Store size={12} style={{ color: colors.textSecondary }} />
-                                                        </span>
-                                                    )}
-                                                    <span className="text-[10px] font-black truncate" style={{ color: colors.textPrimary }}>{c.store.name}</span>
-                                                </div>
-
-                                                {c.store.products.length > 0 && (
-                                                    <>
-                                                        <div className="flex -space-x-2">
-                                                            {c.store.products.map((prod) => (
-                                                                <div
-                                                                    key={prod.id}
-                                                                    className="w-6 h-6 rounded-full overflow-hidden flex-shrink-0"
-                                                                    style={{ background: `${colors.border}30`, border: `1.5px solid ${colors.surface}` }}
-                                                                    title={prod.name}
-                                                                >
-                                                                    {prod.imageUrl && (
-                                                                        <img src={prod.imageUrl} className="w-full h-full object-cover" alt="" />
-                                                                    )}
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                        <div className="flex flex-col gap-0.5">
-                                                            {c.store.products.map((prod) => (
-                                                                <span key={prod.id} className="text-[9px] truncate" style={{ color: colors.textSecondary }}>
-                                                                    {prod.name}
-                                                                </span>
-                                                            ))}
-                                                        </div>
-                                                    </>
-                                                )}
-                                            </a>
-                                        )}
-                                    </div>
-                                )}
                                 </div>
                                 )
                             })}
