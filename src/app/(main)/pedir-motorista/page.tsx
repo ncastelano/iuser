@@ -839,7 +839,20 @@ export default function PedirMotoristaPage() {
             clearDraft()
             setActiveRideId(insertedRide.id)
         } catch (err: any) {
-            toast.error('Erro ao enviar pedido: ' + (err.message || 'tente novamente'))
+            if (err.code === '23505') {
+                toast.error('Você já tem um pedido de corrida em andamento.')
+                const { data: existing } = await supabase
+                    .from('ride_requests')
+                    .select('id')
+                    .eq('requester_id', user.id)
+                    .in('status', ['pending', 'accepted'])
+                    .order('created_at', { ascending: false })
+                    .limit(1)
+                    .maybeSingle()
+                if (existing) setActiveRideId(existing.id)
+            } else {
+                toast.error('Erro ao enviar pedido: ' + (err.message || 'tente novamente'))
+            }
         } finally {
             setSubmitting(false)
         }
