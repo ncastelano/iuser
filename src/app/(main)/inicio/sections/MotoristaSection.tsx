@@ -6,8 +6,15 @@ import { useRouter } from 'next/navigation'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
 import { Car, MapPin } from 'lucide-react'
 import { useTheme } from '@/app/theme'
-import { getRecentRideDestinations, RecentRideDestination } from '@/lib/recentRideDestinations'
+import { supabase } from '@/lib/supabase/client'
 import { hexToRgb } from '@/lib/color'
+
+interface RecentRideTrip {
+    originAddress: string
+    originCoords: [number, number] | null
+    destinationAddress: string
+    destinationCoords: [number, number] | null
+}
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -26,21 +33,52 @@ export default function MotoristaSection({ dragHandle, onBreveStatusChange }: Mo
     const { colors } = useTheme()
     const router = useRouter()
     const startNavProgress = useNavProgressStore((s) => s.start)
-    const [recentDestinations, setRecentDestinations] = useState<RecentRideDestination[]>([])
+    const [recentTrips, setRecentTrips] = useState<RecentRideTrip[]>([])
 
     useEffect(() => {
         onBreveStatusChange?.(false)
     }, [onBreveStatusChange])
 
     useEffect(() => {
-        setRecentDestinations(getRecentRideDestinations().slice(0, 3))
+        let active = true
+        supabase.auth.getUser().then(async ({ data: { user } }) => {
+            if (!user) return
+            const { data } = await supabase
+                .from('ride_requests')
+                .select('origin_address, origin_lat, origin_lng, destination_address, destination_lat, destination_lng')
+                .eq('requester_id', user.id)
+                .order('created_at', { ascending: false })
+                .limit(20)
+            if (!active || !data) return
+
+            const seen = new Set<string>()
+            const trips: RecentRideTrip[] = []
+            for (const r of data) {
+                const key = `${r.origin_address}|${r.destination_address}`
+                if (seen.has(key)) continue
+                seen.add(key)
+                trips.push({
+                    originAddress: r.origin_address,
+                    originCoords: r.origin_lat != null && r.origin_lng != null ? [r.origin_lng, r.origin_lat] : null,
+                    destinationAddress: r.destination_address,
+                    destinationCoords: r.destination_lat != null && r.destination_lng != null ? [r.destination_lng, r.destination_lat] : null,
+                })
+                if (trips.length >= 3) break
+            }
+            setRecentTrips(trips)
+        })
+        return () => { active = false }
     }, [])
 
-    const goToDestination = (destination: RecentRideDestination) => {
-        const params = new URLSearchParams({ destino: destination.address })
-        if (destination.coords) {
-            params.set('lng', String(destination.coords[0]))
-            params.set('lat', String(destination.coords[1]))
+    const goToTrip = (trip: RecentRideTrip) => {
+        const params = new URLSearchParams({ origem: trip.originAddress, destino: trip.destinationAddress })
+        if (trip.originCoords) {
+            params.set('origem_lng', String(trip.originCoords[0]))
+            params.set('origem_lat', String(trip.originCoords[1]))
+        }
+        if (trip.destinationCoords) {
+            params.set('lng', String(trip.destinationCoords[0]))
+            params.set('lat', String(trip.destinationCoords[1]))
         }
         startNavProgress()
         router.push(`/pedir-motorista?${params.toString()}`)
@@ -115,13 +153,13 @@ export default function MotoristaSection({ dragHandle, onBreveStatusChange }: Mo
                     </button>
                 </div>
 
-                {/* Últimos destinos buscados */}
-                {recentDestinations.length > 0 && (
+                {/* Trajetos já feitos antes */}
+                {recentTrips.length > 0 && (
                     <div className="flex flex-wrap gap-2 mt-4">
-                        {recentDestinations.map((destination) => (
+                        {recentTrips.map((trip) => (
                             <button
-                                key={destination.address}
-                                onClick={() => goToDestination(destination)}
+                                key={`${trip.originAddress}|${trip.destinationAddress}`}
+                                onClick={() => goToTrip(trip)}
                                 className="flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-bold transition-all hover:scale-105 active:scale-95"
                                 style={{
                                     background: `${colors.border}30`,
@@ -130,7 +168,7 @@ export default function MotoristaSection({ dragHandle, onBreveStatusChange }: Mo
                                 }}
                             >
                                 <MapPin size={14} />
-                                {shortAddress(destination.address)}
+                                {shortAddress(trip.originAddress)} → {shortAddress(trip.destinationAddress)}
                             </button>
                         ))}
                     </div>

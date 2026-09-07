@@ -446,6 +446,15 @@ export default function PedirMotoristaPage() {
                 lat && lng ? [parseFloat(lng), parseFloat(lat)] : null
             setDestination({ address: destino, coords })
         }
+
+        const origem = params.get('origem')
+        const origemLat = params.get('origem_lat')
+        const origemLng = params.get('origem_lng')
+        if (origem) {
+            const coords: [number, number] | null =
+                origemLat && origemLng ? [parseFloat(origemLng), parseFloat(origemLat)] : null
+            setOrigin({ address: origem, coords })
+        }
     }, [])
 
     // ===== RESTAURA O RASCUNHO SE VOLTOU DE UM LOGIN =====

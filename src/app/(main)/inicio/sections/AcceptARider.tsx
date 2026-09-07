@@ -101,27 +101,23 @@ export default function AcceptARider({ dragHandle }: AcceptARiderProps) {
                     </div>
 
                     <div className="flex flex-col items-stretch sm:items-end gap-2 w-full sm:w-auto">
-                        <div className="flex flex-wrap gap-2 justify-center sm:justify-end">
+                        <div className="flex flex-row flex-nowrap gap-2 justify-center sm:justify-end">
                             <button
                                 onClick={goToPainel}
-                                className="flex items-center justify-center gap-2 px-5 py-3 rounded-full font-bold text-sm transition-all whitespace-nowrap hover:scale-105 active:scale-95"
-                                style={{
-                                    background: `${colors.border}30`,
-                                    border: `1px solid ${colors.border}`,
-                                    color: colors.textPrimary,
-                                }}
+                                className="flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-3 rounded-full font-bold text-xs sm:text-sm transition-all whitespace-nowrap hover:scale-105 active:scale-95 flex-1 sm:flex-none min-w-0"
+                                style={buttonStyle}
                             >
-                                <Settings2 size={16} />
+                                <Settings2 size={16} className="flex-shrink-0" />
                                 painel do motorista
                             </button>
 
                             {hasPricing && (
                                 <button
                                     onClick={goToCorridas}
-                                    className="flex items-center justify-center gap-2 px-6 py-3 rounded-full font-bold text-sm transition-all shadow-lg whitespace-nowrap hover:scale-105 active:scale-95"
+                                    className="flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-6 py-3 rounded-full font-bold text-xs sm:text-sm transition-all shadow-lg whitespace-nowrap hover:scale-105 active:scale-95 flex-1 sm:flex-none min-w-0"
                                     style={buttonStyle}
                                 >
-                                    <Car size={16} />
+                                    <Car size={16} className="flex-shrink-0" />
                                     ver corridas
                                 </button>
                             )}

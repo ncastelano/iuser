@@ -9,7 +9,7 @@ import { toast } from 'sonner'
 import { shortAddress } from '@/lib/serviceBoard'
 import { getAvatarUrl } from '@/lib/avatar'
 import { Spinner } from '@/components/Spinner'
-import { Check, X, MapPin, Search, CheckCircle2, XCircle, Car, CalendarClock, Clock, Flag, ChevronDown, ChevronUp, Store, MessageSquare } from 'lucide-react'
+import { Check, X, MapPin, Search, CheckCircle2, XCircle, Car, CalendarClock, Clock, ChevronDown, ChevronUp, Store, MessageSquare } from 'lucide-react'
 import { fetchRoute } from '@/lib/mapboxRoute'
 import { DRIVER_SERVICE_OPTIONS } from '@/lib/driverServices'
 
@@ -634,20 +634,16 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady }: Rid
                                         <span className="text-[11px] font-black block" style={{ color: '#f97316' }}>
                                             {c.proposedPrice != null ? `Proposta: R$ ${c.proposedPrice.toFixed(2)}` : 'Sem valor definido'}
                                         </span>
-                                        {pickupEtaMin != null && (
+                                        {(pickupEtaMin != null || destArrival) && (
                                             <span
                                                 className="flex items-center gap-1 text-[10px] font-bold"
                                                 style={{ color: colors.textSecondary }}
                                                 title="Estimativa a partir da localização salva do motorista, não é uma posição ao vivo"
                                             >
-                                                <Clock size={10} />
-                                                Chega em: {pickupEtaMin} minuto{pickupEtaMin > 1 ? 's' : ''}
-                                            </span>
-                                        )}
-                                        {destArrival && (
-                                            <span className="flex items-center gap-1 text-[10px] font-bold" style={{ color: colors.textSecondary }}>
-                                                <Flag size={10} />
-                                                Você chegará no destino: {destArrival}
+                                                <Clock size={10} className="flex-shrink-0" />
+                                                {pickupEtaMin != null && `Chega em: ${pickupEtaMin} minuto${pickupEtaMin > 1 ? 's' : ''}`}
+                                                {pickupEtaMin != null && destArrival && ' / '}
+                                                {destArrival && `destino: ${destArrival}`}
                                             </span>
                                         )}
                                     </div>
@@ -754,25 +750,39 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady }: Rid
                                             >
                                                 <div className="flex items-center gap-1.5">
                                                     {c.store.logoUrl ? (
-                                                        <img src={c.store.logoUrl} className="w-5 h-5 rounded-full object-cover flex-shrink-0" alt="" />
+                                                        <img src={c.store.logoUrl} className="w-6 h-6 rounded-full object-cover flex-shrink-0" alt="" />
                                                     ) : (
-                                                        <Store size={12} style={{ color: colors.textSecondary }} />
+                                                        <span className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: `${colors.border}30` }}>
+                                                            <Store size={12} style={{ color: colors.textSecondary }} />
+                                                        </span>
                                                     )}
                                                     <span className="text-[10px] font-black truncate" style={{ color: colors.textPrimary }}>{c.store.name}</span>
                                                 </div>
+
                                                 {c.store.products.length > 0 && (
-                                                    <div className="flex gap-1.5">
-                                                        {c.store.products.map((prod) => (
-                                                            <div key={prod.id} className="flex-1 min-w-0">
-                                                                {prod.imageUrl ? (
-                                                                    <img src={prod.imageUrl} className="w-full aspect-square rounded object-cover" alt="" />
-                                                                ) : (
-                                                                    <div className="w-full aspect-square rounded" style={{ background: `${colors.border}30` }} />
-                                                                )}
-                                                                <span className="text-[9px] truncate block mt-0.5" style={{ color: colors.textSecondary }}>{prod.name}</span>
-                                                            </div>
-                                                        ))}
-                                                    </div>
+                                                    <>
+                                                        <div className="flex -space-x-2">
+                                                            {c.store.products.map((prod) => (
+                                                                <div
+                                                                    key={prod.id}
+                                                                    className="w-6 h-6 rounded-full overflow-hidden flex-shrink-0"
+                                                                    style={{ background: `${colors.border}30`, border: `1.5px solid ${colors.surface}` }}
+                                                                    title={prod.name}
+                                                                >
+                                                                    {prod.imageUrl && (
+                                                                        <img src={prod.imageUrl} className="w-full h-full object-cover" alt="" />
+                                                                    )}
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                        <div className="flex flex-col gap-0.5">
+                                                            {c.store.products.map((prod) => (
+                                                                <span key={prod.id} className="text-[9px] truncate" style={{ color: colors.textSecondary }}>
+                                                                    {prod.name}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    </>
                                                 )}
                                             </a>
                                         )}

@@ -253,7 +253,7 @@ function PainelMotoristaContent() {
 
             <main className="relative z-10 min-h-dvh">
                 <Header
-                    title="Minha tarifa de motorista"
+                    title="Painel do Motorista"
                     showBack={true}
                     onBack={() => router.push('/procurar-servico')}
                     greeting={`Olá, ${profileLoading ? '...' : profileSlug ? `@${profileSlug}` : 'Visitante'}`}
