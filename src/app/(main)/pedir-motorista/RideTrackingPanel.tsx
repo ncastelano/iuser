@@ -2,21 +2,27 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import mapboxgl from 'mapbox-gl'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme, type ThemeColors } from '@/app/theme'
 import { toast } from 'sonner'
 import { shortAddress } from '@/lib/serviceBoard'
 import { getAvatarUrl } from '@/lib/avatar'
 import { Spinner } from '@/components/Spinner'
-import { Check, X, MapPin, Search, CheckCircle2, XCircle, Car, CalendarClock, Clock } from 'lucide-react'
+import { Check, X, MapPin, Search, CheckCircle2, XCircle, Car, CalendarClock, Clock, Flag } from 'lucide-react'
 import { fetchRoute } from '@/lib/mapboxRoute'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
+const CANDIDATE_COLORS = ['#3b82f6', '#a855f7', '#22c55e', '#eab308', '#ec4899']
 
 type RideStatus = 'pending' | 'accepted' | 'completed' | 'cancelled'
 
 function formatScheduledFor(iso: string): string {
     return new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+}
+
+function formatClockTime(date: Date): string {
+    return date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
 }
 
 interface RideRow {
@@ -29,6 +35,9 @@ interface RideRow {
     scheduled_for: string | null
     origin_lat: number | null
     origin_lng: number | null
+    destination_lat: number | null
+    destination_lng: number | null
+    duration_min: number | null
 }
 
 interface Candidate {
@@ -39,8 +48,11 @@ interface Candidate {
     name: string | null
     profileSlug: string | null
     avatarUrl: string | undefined
+    lat: number | null
+    lng: number | null
     etaMin: number | null
     etaDistanceKm: number | null
+    routeCoords: [number, number][] | null
 }
 
 interface DriverInfo {
@@ -52,9 +64,11 @@ interface DriverInfo {
 interface RideTrackingPanelProps {
     rideId: string
     onExit: () => void
+    map?: mapboxgl.Map | null
+    mapReady?: boolean
 }
 
-export default function RideTrackingPanel({ rideId, onExit }: RideTrackingPanelProps) {
+export default function RideTrackingPanel({ rideId, onExit, map, mapReady }: RideTrackingPanelProps) {
     const { colors } = useTheme()
     const [loading, setLoading] = useState(true)
     const [ride, setRide] = useState<RideRow | null>(null)
@@ -68,7 +82,7 @@ export default function RideTrackingPanel({ rideId, onExit }: RideTrackingPanelP
     const load = useCallback(async () => {
         const { data: rideRow } = await supabase
             .from('ride_requests')
-            .select('id, origin_address, destination_address, status, driver_id, created_at, scheduled_for, origin_lat, origin_lng')
+            .select('id, origin_address, destination_address, status, driver_id, created_at, scheduled_for, origin_lat, origin_lng, destination_lat, destination_lng, duration_min')
             .eq('id', rideId)
             .single()
 
@@ -103,10 +117,12 @@ export default function RideTrackingPanel({ rideId, onExit }: RideTrackingPanelP
             // candidatos além do preço, mas não é uma posição ao vivo.
             let etaMin: number | null = null
             let etaDistanceKm: number | null = null
+            let routeCoords: [number, number][] | null = null
             if (p?.store_lat != null && p?.store_lng != null && rideRow.origin_lat != null && rideRow.origin_lng != null) {
                 const route = await fetchRoute([p.store_lng, p.store_lat], [rideRow.origin_lng, rideRow.origin_lat])
                 etaMin = route.durationMin
                 etaDistanceKm = route.distanceKm
+                routeCoords = route.coords
             }
 
             return {
@@ -117,8 +133,11 @@ export default function RideTrackingPanel({ rideId, onExit }: RideTrackingPanelP
                 name: p?.name || null,
                 profileSlug: p?.profileSlug || null,
                 avatarUrl: getAvatarUrl(supabase, p?.avatar_url),
+                lat: p?.store_lat ?? null,
+                lng: p?.store_lng ?? null,
                 etaMin,
                 etaDistanceKm,
+                routeCoords,
             }
         }))
 
@@ -180,6 +199,84 @@ export default function RideTrackingPanel({ rideId, onExit }: RideTrackingPanelP
             supabase.removeChannel(channel)
         }
     }, [rideId, load])
+
+    // ===== MAPA: trajeto + marcador de cada candidato, ao mesmo tempo =====
+    const candidateMarkersRef = useRef<mapboxgl.Marker[]>([])
+    const candidateLayerIdsRef = useRef<string[]>([])
+
+    useEffect(() => {
+        if (!map || !mapReady || !ride) return
+
+        if (ride.status !== 'pending') return
+
+        const visible = candidates.filter(
+            (c) => c.status === 'pending' && c.lat != null && c.lng != null && c.routeCoords
+        )
+        if (visible.length === 0) return
+
+        const bounds = new mapboxgl.LngLatBounds()
+        if (ride.origin_lat != null && ride.origin_lng != null) bounds.extend([ride.origin_lng, ride.origin_lat])
+        if (ride.destination_lat != null && ride.destination_lng != null) bounds.extend([ride.destination_lng, ride.destination_lat])
+
+        visible.forEach((c, i) => {
+            const color = CANDIDATE_COLORS[i % CANDIDATE_COLORS.length]
+            const layerId = `candidate-route-${c.applicationId}`
+
+            map.addSource(layerId, {
+                type: 'geojson',
+                data: { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: c.routeCoords! } },
+            })
+            map.addLayer({
+                id: layerId,
+                type: 'line',
+                source: layerId,
+                layout: { 'line-join': 'round', 'line-cap': 'round' },
+                paint: { 'line-color': color, 'line-width': 4, 'line-opacity': 0.85, 'line-dasharray': [2, 1.5] },
+            })
+            candidateLayerIdsRef.current.push(layerId)
+
+            const firstName = (c.name || 'Candidato').split(' ')[0]
+            const priceText = c.proposedPrice != null ? `R$ ${c.proposedPrice.toFixed(2)}` : '—'
+            const etaText = c.etaMin != null ? `${Math.max(1, Math.round(c.etaMin))} min` : ''
+
+            const el = document.createElement('div')
+            el.style.cssText = 'display:flex;flex-direction:column;align-items:center;'
+            el.innerHTML = `
+                <div style="background:${color};color:#fff;font-size:9px;font-weight:800;padding:3px 8px;border-radius:9999px;margin-bottom:4px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,0.35);text-align:center;line-height:1.3;">
+                    <div>${firstName}</div>
+                    <div style="font-weight:600;opacity:0.9;">${priceText}${etaText ? ' · ' + etaText : ''}</div>
+                </div>
+                ${c.avatarUrl
+                    ? `<img src="${c.avatarUrl}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;border:3px solid ${color};box-shadow:0 2px 6px rgba(0,0,0,0.4);" />`
+                    : `<div style="width:32px;height:32px;border-radius:50%;background:${color};border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.4);"></div>`
+                }
+            `
+            const marker = new mapboxgl.Marker({ element: el, anchor: 'bottom' }).setLngLat([c.lng!, c.lat!]).addTo(map)
+            candidateMarkersRef.current.push(marker)
+
+            bounds.extend([c.lng!, c.lat!])
+            c.routeCoords!.forEach((coord) => bounds.extend(coord as [number, number]))
+        })
+
+        if (!bounds.isEmpty()) {
+            // A folha "Seu pedido" cobre até 75% da tela por baixo — sem isso
+            // o fitBounds centraliza tudo numa área escondida atrás dela.
+            map.fitBounds(bounds, {
+                padding: { top: 60, bottom: Math.round(window.innerHeight * 0.68), left: 40, right: 40 },
+                duration: 500,
+            })
+        }
+
+        return () => {
+            candidateMarkersRef.current.forEach((m) => m.remove())
+            candidateMarkersRef.current = []
+            candidateLayerIdsRef.current.forEach((id) => {
+                if (map.getLayer(id)) map.removeLayer(id)
+                if (map.getSource(id)) map.removeSource(id)
+            })
+            candidateLayerIdsRef.current = []
+        }
+    }, [map, mapReady, candidates, ride])
 
     const acceptCandidate = async (applicationId: string, applicantId: string) => {
         setDecidingId(applicationId)
@@ -359,12 +456,19 @@ export default function RideTrackingPanel({ rideId, onExit }: RideTrackingPanelP
                         </div>
                     ) : (
                         <div className="flex flex-col gap-2">
-                            {candidates.map((c) => (
+                            {candidates.map((c, i) => {
+                                const pickupEtaMin = c.etaMin != null ? Math.max(1, Math.round(c.etaMin)) : null
+                                const destArrival = pickupEtaMin != null
+                                    ? formatClockTime(new Date(Date.now() + (pickupEtaMin + (ride.duration_min ?? 0)) * 60000))
+                                    : null
+                                const color = CANDIDATE_COLORS[i % CANDIDATE_COLORS.length]
+
+                                return (
                                 <div key={c.applicationId} className="flex items-center gap-2 rounded-xl px-3 py-2.5" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
                                     {c.avatarUrl ? (
-                                        <img src={c.avatarUrl} className="w-9 h-9 rounded-full object-cover flex-shrink-0" alt="" />
+                                        <img src={c.avatarUrl} className="w-9 h-9 rounded-full object-cover flex-shrink-0" style={{ border: `2px solid ${color}` }} alt="" />
                                     ) : (
-                                        <span className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT }}>
+                                        <span className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: color }}>
                                             <MapPin size={14} color="#fff" />
                                         </span>
                                     )}
@@ -372,21 +476,25 @@ export default function RideTrackingPanel({ rideId, onExit }: RideTrackingPanelP
                                         <span className="text-xs font-bold block truncate" style={{ color: colors.textPrimary }}>
                                             {c.name || (c.profileSlug ? `@${c.profileSlug}` : 'Candidato')}
                                         </span>
-                                        <div className="flex items-center gap-2 flex-wrap">
-                                            <span className="text-[11px] font-black" style={{ color: '#f97316' }}>
-                                                {c.proposedPrice != null ? `Proposta: R$ ${c.proposedPrice.toFixed(2)}` : 'Sem valor definido'}
+                                        <span className="text-[11px] font-black block" style={{ color: '#f97316' }}>
+                                            {c.proposedPrice != null ? `Proposta: R$ ${c.proposedPrice.toFixed(2)}` : 'Sem valor definido'}
+                                        </span>
+                                        {pickupEtaMin != null && (
+                                            <span
+                                                className="flex items-center gap-1 text-[10px] font-bold"
+                                                style={{ color: colors.textSecondary }}
+                                                title="Estimativa a partir da localização salva do motorista, não é uma posição ao vivo"
+                                            >
+                                                <Clock size={10} />
+                                                Chega em: {pickupEtaMin} minuto{pickupEtaMin > 1 ? 's' : ''}
                                             </span>
-                                            {c.etaMin != null && (
-                                                <span
-                                                    className="flex items-center gap-0.5 text-[10px] font-bold"
-                                                    style={{ color: colors.textSecondary }}
-                                                    title="Estimativa a partir da localização salva do motorista, não é uma posição ao vivo"
-                                                >
-                                                    <Clock size={10} />
-                                                    ~{Math.round(c.etaMin)} min ({c.etaDistanceKm!.toFixed(1)} km)
-                                                </span>
-                                            )}
-                                        </div>
+                                        )}
+                                        {destArrival && (
+                                            <span className="flex items-center gap-1 text-[10px] font-bold" style={{ color: colors.textSecondary }}>
+                                                <Flag size={10} />
+                                                Você chegará no destino: {destArrival}
+                                            </span>
+                                        )}
                                     </div>
 
                                     {c.status === 'pending' ? (
@@ -418,7 +526,8 @@ export default function RideTrackingPanel({ rideId, onExit }: RideTrackingPanelP
                                         </span>
                                     )}
                                 </div>
-                            ))}
+                                )
+                            })}
                         </div>
                     )}
                 </div>

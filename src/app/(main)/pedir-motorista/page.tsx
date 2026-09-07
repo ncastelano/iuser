@@ -940,7 +940,7 @@ export default function PedirMotoristaPage() {
                     style={{ background: colors.surface, boxShadow: '0 -8px 30px rgba(0,0,0,0.35)' }}
                 >
                     <div className="w-10 h-1 rounded-full mx-auto mb-4" style={{ background: colors.border }} />
-                    <RideTrackingPanel rideId={activeRideId} onExit={() => setActiveRideId(null)} />
+                    <RideTrackingPanel rideId={activeRideId} onExit={() => setActiveRideId(null)} map={mapRef.current} mapReady={mapReady} />
                 </div>
             )}
 
