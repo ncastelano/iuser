@@ -290,7 +290,7 @@ export default function AceitarCorridasPage() {
     const headerTabs: Tab[] = useMemo((): any[] => [
         {
             id: 'servicos',
-            label: 'Serviços',
+            label: 'Corridas em abertos',
             icon: MapPin,
             onClick: () => setActiveTab('servicos'),
             isActive: activeTab === 'servicos',
@@ -298,7 +298,7 @@ export default function AceitarCorridasPage() {
         },
         {
             id: 'candidatos',
-            label: 'Candidatos',
+            label: 'Me candidatei',
             icon: Users,
             onClick: () => setActiveTab('candidatos'),
             isActive: activeTab === 'candidatos',
