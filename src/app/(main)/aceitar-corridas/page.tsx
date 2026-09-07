@@ -1,7 +1,7 @@
 // app/(main)/aceitar-corridas/page.tsx
 'use client'
 
-import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
+import { useEffect, useMemo, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { useProfile } from '@/app/contexts/ProfileContext'
@@ -134,28 +134,11 @@ export default function AceitarCorridasPage() {
     const [showLocationDialog, setShowLocationDialog] = useState(false)
     const [isSavingLocation, setIsSavingLocation] = useState(false)
 
-    // Guarda de qual conta é o driverCoords/savedLocation atual — sem isso,
-    // trocar de conta sem recarregar a página (logout/login dentro da mesma
-    // sessão do componente) deixava a localização da conta anterior "presa"
-    // no mapa das corridas, já que o fallback abaixo só preenche quando ainda
-    // está null.
-    const lastUserIdRef = useRef<string | null>(null)
-
     // ===== SUA LOCALIZAÇÃO, PRA DESENHAR "VOCÊ → PARTIDA" NO MAPA DE CADA PEDIDO =====
-    // Sempre tenta uma leitura de GPS ao abrir a página — essa é a posição
-    // "atual" de verdade. Até ela responder (ou se for negada), o load() logo
-    // abaixo preenche com a localização salva do perfil como placeholder.
-    useEffect(() => {
-        if (!navigator.geolocation) return
-        navigator.geolocation.getCurrentPosition(
-            (pos) => setDriverCoords([pos.coords.longitude, pos.coords.latitude]),
-            () => { /* sem permissão: fica na localização salva do perfil, se houver */ },
-            { enableHighAccuracy: true, timeout: 10000 }
-        )
-    }, [])
-
-    // Com "Sincronização para motorista" ativada em Definir local, a leitura
-    // acima vira contínua (a posição no mapa acompanha o motorista se movendo).
+    // Fonte da verdade é a localização definida em "Definir local" (LocationPicker,
+    // salva em profiles.store_lat/lng) — é ela que o load() abaixo aplica a cada
+    // 15s. Só quando "Sincronização para motorista" está ativada é que o GPS ao
+    // vivo assume e vai atualizando continuamente por cima.
     useEffect(() => {
         if (!liveLocationSync || !navigator.geolocation) return
 
@@ -176,19 +159,6 @@ export default function AceitarCorridasPage() {
             return
         }
         setShowLogin(false)
-
-        if (lastUserIdRef.current !== user.id) {
-            lastUserIdRef.current = user.id
-            setDriverCoords(null)
-            setSavedLocation(null)
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(
-                    (pos) => setDriverCoords([pos.coords.longitude, pos.coords.latitude]),
-                    () => { /* sem permissão: fica na localização salva do perfil desta conta, se houver */ },
-                    { enableHighAccuracy: true, timeout: 10000 }
-                )
-            }
-        }
 
         setCheckingPricing(true)
         const [{ data: pricing }, { data: profile }] = await Promise.all([
@@ -217,20 +187,32 @@ export default function AceitarCorridasPage() {
             .select('live_location_sync')
             .eq('driver_id', user.id)
             .maybeSingle()
-            .then(({ data }) => setLiveLocationSync(!!data?.live_location_sync))
-
-        // Localização salva do perfil como base — se a sincronização em tempo
-        // real estiver ativa, o watchPosition acima assume e vai atualizando.
-        if (profile?.store_lat != null && profile?.store_lng != null) {
-            setDriverCoords((prev) => prev ?? [profile.store_lng, profile.store_lat])
-            setSavedLocation({
-                lat: profile.store_lat,
-                lng: profile.store_lng,
-                address: profile.address || 'Local salvo',
-                addressNumber: profile.address_number || '',
-                addressComplement: profile.address_complement || '',
+            .then(({ data }) => {
+                const syncOn = !!data?.live_location_sync
+                setLiveLocationSync(syncOn)
+                // Enquanto a sincronização ao vivo não está ligada, a posição
+                // exibida é sempre a localização definida em "Definir local"
+                // desta conta — nunca a de outra conta nem um GPS "grudado".
+                if (!syncOn) {
+                    setDriverCoords(
+                        profile?.store_lat != null && profile?.store_lng != null
+                            ? [profile.store_lng, profile.store_lat]
+                            : null
+                    )
+                }
             })
-        }
+
+        setSavedLocation(
+            profile?.store_lat != null && profile?.store_lng != null
+                ? {
+                    lat: profile.store_lat,
+                    lng: profile.store_lng,
+                    address: profile.address || 'Local salvo',
+                    addressNumber: profile.address_number || '',
+                    addressComplement: profile.address_complement || '',
+                }
+                : null
+        )
 
         const { data: myApplicationRows } = await supabase
             .from('ride_applications')
