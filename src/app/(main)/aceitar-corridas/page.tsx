@@ -711,6 +711,18 @@ export default function AceitarCorridasPage() {
                                             </div>
                                         </div>
 
+                                        {ride.origin_lat != null && ride.origin_lng != null && ride.destination_lat != null && ride.destination_lng != null && (
+                                            <RideMiniMap
+                                                originLat={ride.origin_lat}
+                                                originLng={ride.origin_lng}
+                                                destLat={ride.destination_lat}
+                                                destLng={ride.destination_lng}
+                                                driverLat={driverCoords ? driverCoords[1] : null}
+                                                driverLng={driverCoords ? driverCoords[0] : null}
+                                                onExpand={() => setMapDialogRideId(ride.id)}
+                                            />
+                                        )}
+
                                         <div className="flex items-start gap-2 text-xs mb-1" style={{ color: colors.textSecondary }}>
                                             <MapPin size={12} className="flex-shrink-0 mt-0.5" />
                                             <span>{shortAddress(ride.origin_address)} → {shortAddress(ride.destination_address)}</span>
@@ -759,7 +771,7 @@ export default function AceitarCorridasPage() {
             </main>
 
             {mapDialogRideId && (() => {
-                const ride = rides.find((r) => r.id === mapDialogRideId)
+                const ride = rides.find((r) => r.id === mapDialogRideId) || candidacies.find((c) => c.id === mapDialogRideId)
                 if (!ride || ride.origin_lat == null || ride.origin_lng == null || ride.destination_lat == null || ride.destination_lng == null) {
                     return null
                 }

@@ -158,6 +158,11 @@ export default function RideMapDialog({ originLat, originLng, destLat, destLng, 
                                 Partida → chegada: {tripKm.toFixed(1)} km
                             </span>
                         )}
+                        {hasDriver && toPickupKm != null && tripKm != null && (
+                            <span className="text-[10px] font-black" style={{ color: colors.textPrimary }}>
+                                Total: {(toPickupKm + tripKm).toFixed(1)} km
+                            </span>
+                        )}
                     </div>
                 </div>
             </div>

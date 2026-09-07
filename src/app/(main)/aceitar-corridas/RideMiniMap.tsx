@@ -149,6 +149,11 @@ export default function RideMiniMap({ originLng, originLat, destLng, destLat, dr
                         Partida → chegada: {tripKm.toFixed(1)} km
                     </span>
                 )}
+                {hasDriver && toPickupKm != null && tripKm != null && (
+                    <span className="text-[9px] font-black" style={{ color: colors.textPrimary }}>
+                        Total: {(toPickupKm + tripKm).toFixed(1)} km
+                    </span>
+                )}
             </div>
         </div>
     )
