@@ -13,16 +13,36 @@ mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
 const TO_PICKUP_COLOR = '#3b82f6'
 const TRIP_COLOR = '#f97316'
 
-async function fetchRouteCoords(from: [number, number], to: [number, number]): Promise<[number, number][] | null> {
+interface RouteResult {
+    coords: [number, number][]
+    distanceKm: number
+}
+
+function haversineKm(a: [number, number], b: [number, number]): number {
+    const R = 6371
+    const dLat = (b[1] - a[1]) * Math.PI / 180
+    const dLng = (b[0] - a[0]) * Math.PI / 180
+    const lat1 = a[1] * Math.PI / 180
+    const lat2 = b[1] * Math.PI / 180
+    const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2
+    return R * 2 * Math.asin(Math.sqrt(h))
+}
+
+async function fetchRoute(from: [number, number], to: [number, number]): Promise<RouteResult> {
     try {
         const res = await fetch(
             `https://api.mapbox.com/directions/v5/mapbox/driving/${from[0]},${from[1]};${to[0]},${to[1]}?geometries=geojson&overview=full&access_token=${mapboxgl.accessToken}`
         )
         const data = await res.json()
-        return data.routes?.[0]?.geometry?.coordinates || null
+        const route = data.routes?.[0]
+        const coords = route?.geometry?.coordinates
+        if (coords && coords.length > 1) {
+            return { coords, distanceKm: route.distance / 1000 }
+        }
     } catch {
-        return null
+        // cai no fallback de linha reta abaixo
     }
+    return { coords: [from, to], distanceKm: haversineKm(from, to) }
 }
 
 function marker(color: string, label?: string): HTMLDivElement {
@@ -50,6 +70,8 @@ export default function RideMapDialog({ originLat, originLng, destLat, destLng, 
     const containerRef = useRef<HTMLDivElement | null>(null)
     const mapRef = useRef<mapboxgl.Map | null>(null)
     const [loading, setLoading] = useState(true)
+    const [toPickupKm, setToPickupKm] = useState<number | null>(null)
+    const [tripKm, setTripKm] = useState<number | null>(null)
     const hasDriver = driverLat != null && driverLng != null
 
     useEffect(() => {
@@ -72,10 +94,9 @@ export default function RideMapDialog({ originLat, originLng, destLat, destLng, 
             bounds.extend([destLng, destLat])
 
             if (hasDriver) {
-                const legToOrigin = await fetchRouteCoords([driverLng as number, driverLat as number], [originLng, originLat])
-                const coords = legToOrigin && legToOrigin.length > 1 ? legToOrigin : [[driverLng, driverLat] as [number, number], [originLng, originLat] as [number, number]]
+                const legToOrigin = await fetchRoute([driverLng as number, driverLat as number], [originLng, originLat])
                 if (cancelled) return
-                map.addSource('leg-to-pickup', { type: 'geojson', data: { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: coords } } })
+                map.addSource('leg-to-pickup', { type: 'geojson', data: { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: legToOrigin.coords } } })
                 map.addLayer({
                     id: 'leg-to-pickup-line',
                     type: 'line',
@@ -83,14 +104,14 @@ export default function RideMapDialog({ originLat, originLng, destLat, destLng, 
                     layout: { 'line-join': 'round', 'line-cap': 'round' },
                     paint: { 'line-color': TO_PICKUP_COLOR, 'line-width': 4, 'line-opacity': 0.9 },
                 })
-                coords.forEach((c) => bounds.extend(c as [number, number]))
+                legToOrigin.coords.forEach((c) => bounds.extend(c as [number, number]))
                 new mapboxgl.Marker({ element: marker(TO_PICKUP_COLOR, 'Você') }).setLngLat([driverLng as number, driverLat as number]).addTo(map)
+                setToPickupKm(legToOrigin.distanceKm)
             }
 
-            const legTrip = await fetchRouteCoords([originLng, originLat], [destLng, destLat])
-            const tripCoords = legTrip && legTrip.length > 1 ? legTrip : [[originLng, originLat] as [number, number], [destLng, destLat] as [number, number]]
+            const legTrip = await fetchRoute([originLng, originLat], [destLng, destLat])
             if (cancelled) return
-            map.addSource('leg-trip', { type: 'geojson', data: { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: tripCoords } } })
+            map.addSource('leg-trip', { type: 'geojson', data: { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: legTrip.coords } } })
             map.addLayer({
                 id: 'leg-trip-line',
                 type: 'line',
@@ -98,7 +119,8 @@ export default function RideMapDialog({ originLat, originLng, destLat, destLng, 
                 layout: { 'line-join': 'round', 'line-cap': 'round' },
                 paint: { 'line-color': TRIP_COLOR, 'line-width': 5, 'line-opacity': 0.95 },
             })
-            tripCoords.forEach((c) => bounds.extend(c as [number, number]))
+            legTrip.coords.forEach((c) => bounds.extend(c as [number, number]))
+            setTripKm(legTrip.distanceKm)
 
             new mapboxgl.Marker({ element: marker('#22c55e', 'Partida') }).setLngLat([originLng, originLat]).addTo(map)
             new mapboxgl.Marker({ element: marker('#ef4444', 'Chegada') }).setLngLat([destLng, destLat]).addTo(map)
@@ -137,17 +159,37 @@ export default function RideMapDialog({ originLat, originLng, destLat, destLng, 
 
                 <div ref={containerRef} className="w-full h-full" style={{ background: '#111' }} />
 
-                <div className="absolute bottom-3 left-3 right-3 flex items-center gap-3 flex-wrap px-3 py-2 rounded-xl" style={{ background: `${colors.surface}e6`, boxShadow: colors.shadow }}>
-                    {hasDriver && (
+                <div className="absolute bottom-3 left-3 right-3 flex flex-col gap-1.5 px-3 py-2 rounded-xl" style={{ background: `${colors.surface}e6`, boxShadow: colors.shadow }}>
+                    <div className="flex items-center gap-3 flex-wrap">
+                        {hasDriver && (
+                            <span className="flex items-center gap-1.5 text-[11px] font-bold" style={{ color: colors.textPrimary }}>
+                                <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: TO_PICKUP_COLOR }} />
+                                Você
+                            </span>
+                        )}
                         <span className="flex items-center gap-1.5 text-[11px] font-bold" style={{ color: colors.textPrimary }}>
-                            <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: TO_PICKUP_COLOR }} />
-                            Você → partida
+                            <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: '#22c55e' }} />
+                            Partida
                         </span>
-                    )}
-                    <span className="flex items-center gap-1.5 text-[11px] font-bold" style={{ color: colors.textPrimary }}>
-                        <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: TRIP_COLOR }} />
-                        Partida → chegada
-                    </span>
+                        <span className="flex items-center gap-1.5 text-[11px] font-bold" style={{ color: colors.textPrimary }}>
+                            <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: '#ef4444' }} />
+                            Chegada
+                        </span>
+                    </div>
+                    <div className="flex items-center gap-3 flex-wrap">
+                        {hasDriver && toPickupKm != null && (
+                            <span className="flex items-center gap-1.5 text-[10px] font-bold" style={{ color: colors.textSecondary }}>
+                                <span className="w-3.5 h-1 rounded-full flex-shrink-0" style={{ background: TO_PICKUP_COLOR }} />
+                                Até a partida: {toPickupKm.toFixed(1)} km
+                            </span>
+                        )}
+                        {tripKm != null && (
+                            <span className="flex items-center gap-1.5 text-[10px] font-bold" style={{ color: colors.textSecondary }}>
+                                <span className="w-3.5 h-1 rounded-full flex-shrink-0" style={{ background: TRIP_COLOR }} />
+                                Partida → chegada: {tripKm.toFixed(1)} km
+                            </span>
+                        )}
+                    </div>
                 </div>
             </div>
         </div>

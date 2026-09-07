@@ -43,16 +43,36 @@ function encodePolyline(coords: [number, number][]): string {
     return output
 }
 
-async function fetchRouteCoords(from: [number, number], to: [number, number]): Promise<[number, number][] | null> {
+interface RouteResult {
+    coords: [number, number][]
+    distanceKm: number
+}
+
+function haversineKm(a: [number, number], b: [number, number]): number {
+    const R = 6371
+    const dLat = (b[1] - a[1]) * Math.PI / 180
+    const dLng = (b[0] - a[0]) * Math.PI / 180
+    const lat1 = a[1] * Math.PI / 180
+    const lat2 = b[1] * Math.PI / 180
+    const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2
+    return R * 2 * Math.asin(Math.sqrt(h))
+}
+
+async function fetchRoute(from: [number, number], to: [number, number]): Promise<RouteResult> {
     try {
         const res = await fetch(
             `https://api.mapbox.com/directions/v5/mapbox/driving/${from[0]},${from[1]};${to[0]},${to[1]}?geometries=geojson&overview=simplified&access_token=${MAPBOX_TOKEN}`
         )
         const data = await res.json()
-        return data.routes?.[0]?.geometry?.coordinates || null
+        const route = data.routes?.[0]
+        const coords = route?.geometry?.coordinates
+        if (coords && coords.length > 1) {
+            return { coords, distanceKm: route.distance / 1000 }
+        }
     } catch {
-        return null
+        // cai no fallback de linha reta abaixo
     }
+    return { coords: [from, to], distanceKm: haversineKm(from, to) }
 }
 
 interface RideMiniMapProps {
@@ -69,6 +89,8 @@ export default function RideMiniMap({ originLng, originLat, destLng, destLat, dr
     const { colors } = useTheme()
     const [imgUrl, setImgUrl] = useState<string | null>(null)
     const [failed, setFailed] = useState(false)
+    const [toPickupKm, setToPickupKm] = useState<number | null>(null)
+    const [tripKm, setTripKm] = useState<number | null>(null)
     const hasDriver = driverLng != null && driverLat != null
 
     useEffect(() => {
@@ -78,23 +100,27 @@ export default function RideMiniMap({ originLng, originLat, destLng, destLat, dr
 
         const build = async () => {
             const overlays: string[] = []
+            let nextToPickupKm: number | null = null
 
             if (hasDriver) {
-                const legToOrigin = await fetchRouteCoords([driverLng as number, driverLat as number], [originLng, originLat])
-                const coords = legToOrigin && legToOrigin.length > 1 ? legToOrigin : [[driverLng, driverLat], [originLng, originLat]]
-                overlays.push(`path-3+${TO_PICKUP_COLOR}-0.85(${encodeURIComponent(encodePolyline(coords as [number, number][]))})`)
+                const leg = await fetchRoute([driverLng as number, driverLat as number], [originLng, originLat])
+                nextToPickupKm = leg.distanceKm
+                overlays.push(`path-3+${TO_PICKUP_COLOR}-0.85(${encodeURIComponent(encodePolyline(leg.coords))})`)
             }
 
-            const legTrip = await fetchRouteCoords([originLng, originLat], [destLng, destLat])
-            const tripCoords = legTrip && legTrip.length > 1 ? legTrip : [[originLng, originLat], [destLng, destLat]]
-            overlays.push(`path-4+${TRIP_COLOR}-0.9(${encodeURIComponent(encodePolyline(tripCoords as [number, number][]))})`)
+            const trip = await fetchRoute([originLng, originLat], [destLng, destLat])
+            overlays.push(`path-4+${TRIP_COLOR}-0.9(${encodeURIComponent(encodePolyline(trip.coords))})`)
 
             if (hasDriver) overlays.push(`pin-s+${TO_PICKUP_COLOR}(${driverLng},${driverLat})`)
             overlays.push(`pin-s+22c55e(${originLng},${originLat})`)
             overlays.push(`pin-s+ef4444(${destLng},${destLat})`)
 
             const url = `https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/${overlays.join(',')}/auto/500x220@2x?padding=40&access_token=${MAPBOX_TOKEN}`
-            if (!cancelled) setImgUrl(url)
+            if (!cancelled) {
+                setImgUrl(url)
+                setToPickupKm(nextToPickupKm)
+                setTripKm(trip.distanceKm)
+            }
         }
 
         build().catch(() => { if (!cancelled) setFailed(true) })
@@ -129,13 +155,31 @@ export default function RideMiniMap({ originLng, originLat, destLng, destLat, dr
                 {hasDriver && (
                     <span className="flex items-center gap-1 text-[9px] font-bold" style={{ color: colors.textSecondary }}>
                         <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: `#${TO_PICKUP_COLOR}` }} />
-                        Você → partida
+                        Você
                     </span>
                 )}
                 <span className="flex items-center gap-1 text-[9px] font-bold" style={{ color: colors.textSecondary }}>
-                    <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: `#${TRIP_COLOR}` }} />
-                    Partida → chegada
+                    <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: '#22c55e' }} />
+                    Partida
                 </span>
+                <span className="flex items-center gap-1 text-[9px] font-bold" style={{ color: colors.textSecondary }}>
+                    <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: '#ef4444' }} />
+                    Chegada
+                </span>
+            </div>
+            <div className="flex items-center gap-3 mt-1 flex-wrap">
+                {hasDriver && toPickupKm != null && (
+                    <span className="flex items-center gap-1 text-[9px] font-bold" style={{ color: colors.textSecondary }}>
+                        <span className="w-3 h-[3px] rounded-full flex-shrink-0" style={{ background: `#${TO_PICKUP_COLOR}` }} />
+                        Até a partida: {toPickupKm.toFixed(1)} km
+                    </span>
+                )}
+                {tripKm != null && (
+                    <span className="flex items-center gap-1 text-[9px] font-bold" style={{ color: colors.textSecondary }}>
+                        <span className="w-3 h-[3px] rounded-full flex-shrink-0" style={{ background: `#${TRIP_COLOR}` }} />
+                        Partida → chegada: {tripKm.toFixed(1)} km
+                    </span>
+                )}
             </div>
         </div>
     )
