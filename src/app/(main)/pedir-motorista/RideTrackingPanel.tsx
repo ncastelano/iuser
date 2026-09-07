@@ -14,8 +14,9 @@ import { fetchRoute } from '@/lib/mapboxRoute'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 const TRIP_ROUTE_COLOR = '#ef4444'
-// Alto contraste entre si, e nenhuma perto do vermelho (reservado pro trajeto partida → chegada).
-const CANDIDATE_COLORS = ['#eab308', '#3b82f6', '#ec4899', '#06b6d4', '#14b8a6']
+// Alto contraste entre si, e nenhuma perto do vermelho/rosa/roxo (o
+// vermelho já é do trajeto partida → chegada, e rosa/roxo confundem com ele).
+const CANDIDATE_COLORS = ['#eab308', '#3b82f6', '#06b6d4', '#14b8a6', '#84cc16']
 
 type RideStatus = 'pending' | 'accepted' | 'completed' | 'cancelled'
 
