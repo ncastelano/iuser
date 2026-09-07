@@ -165,14 +165,29 @@ export default function AceitarCorridasPage() {
 
         const { data: openRides } = await supabase
             .from('ride_requests')
-            .select('id, requester_id, ride_type, origin_address, destination_address, notes, passenger_count, vehicle_type, object_description, pet_description, distance_km, duration_min, scheduled_for, created_at, origin_lat, origin_lng, destination_lat, destination_lng, applicant_count')
+            .select('id, requester_id, ride_type, origin_address, destination_address, notes, passenger_count, vehicle_type, object_description, pet_description, distance_km, duration_min, scheduled_for, created_at, origin_lat, origin_lng, destination_lat, destination_lng')
             .eq('status', 'pending')
             .neq('requester_id', user.id)
-            .lt('applicant_count', MAX_CANDIDATES)
             .order('scheduled_for', { ascending: true, nullsFirst: true })
             .order('created_at', { ascending: false })
 
-        const openList = (openRides || []).filter((r) => !appliedIds.has(r.id))
+        const candidateRides = (openRides || []).filter((r) => !appliedIds.has(r.id))
+
+        // Consulta separada e best-effort: se a coluna ainda não existir (migração
+        // pendente), isso não pode derrubar o quadro de corridas inteiro — só
+        // deixa de aplicar o limite de 5 candidatos até a migração rodar.
+        const countById = new Map<string, number>()
+        if (candidateRides.length > 0) {
+            const { data: counts } = await supabase
+                .from('ride_requests')
+                .select('id, applicant_count')
+                .in('id', candidateRides.map((r) => r.id))
+            for (const c of counts || []) countById.set(c.id, c.applicant_count as number)
+        }
+
+        const openList = candidateRides
+            .filter((r) => (countById.get(r.id) ?? 0) < MAX_CANDIDATES)
+            .map((r) => ({ ...r, applicant_count: countById.get(r.id) ?? 0 }))
 
         if (openList.length === 0) {
             setRides([])
