@@ -8,7 +8,8 @@ import { toast } from 'sonner'
 import { shortAddress } from '@/lib/serviceBoard'
 import { getAvatarUrl } from '@/lib/avatar'
 import { Spinner } from '@/components/Spinner'
-import { Check, X, MapPin, Search, CheckCircle2, XCircle, Car, CalendarClock } from 'lucide-react'
+import { Check, X, MapPin, Search, CheckCircle2, XCircle, Car, CalendarClock, Clock } from 'lucide-react'
+import { fetchRoute } from '@/lib/mapboxRoute'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -26,6 +27,8 @@ interface RideRow {
     driver_id: string | null
     created_at: string
     scheduled_for: string | null
+    origin_lat: number | null
+    origin_lng: number | null
 }
 
 interface Candidate {
@@ -36,6 +39,8 @@ interface Candidate {
     name: string | null
     profileSlug: string | null
     avatarUrl: string | undefined
+    etaMin: number | null
+    etaDistanceKm: number | null
 }
 
 interface DriverInfo {
@@ -63,7 +68,7 @@ export default function RideTrackingPanel({ rideId, onExit }: RideTrackingPanelP
     const load = useCallback(async () => {
         const { data: rideRow } = await supabase
             .from('ride_requests')
-            .select('id, origin_address, destination_address, status, driver_id, created_at, scheduled_for')
+            .select('id, origin_address, destination_address, status, driver_id, created_at, scheduled_for, origin_lat, origin_lng')
             .eq('id', rideId)
             .single()
 
@@ -81,17 +86,29 @@ export default function RideTrackingPanel({ rideId, onExit }: RideTrackingPanelP
         const applicantIds = Array.from(new Set((applications || []).map((a) => a.applicant_id)))
         const idsToFetch = Array.from(new Set([...applicantIds, ...(rideRow.driver_id ? [rideRow.driver_id] : [])]))
 
-        let profilesById = new Map<string, { name: string | null; profileSlug: string | null; avatar_url: string | null }>()
+        let profilesById = new Map<string, { name: string | null; profileSlug: string | null; avatar_url: string | null; store_lat: number | null; store_lng: number | null }>()
         if (idsToFetch.length > 0) {
             const { data: profiles } = await supabase
                 .from('profiles')
-                .select('id, name, profileSlug, avatar_url')
+                .select('id, name, profileSlug, avatar_url, store_lat, store_lng')
                 .in('id', idsToFetch)
             profilesById = new Map((profiles || []).map((p) => [p.id, p]))
         }
 
-        const nextCandidates: Candidate[] = (applications || []).map((a) => {
+        const nextCandidates: Candidate[] = await Promise.all((applications || []).map(async (a) => {
             const p = profilesById.get(a.applicant_id)
+
+            // Aproximação: tempo/distância da localização salva do motorista
+            // (Definir local) até o ponto de partida — ajuda a comparar
+            // candidatos além do preço, mas não é uma posição ao vivo.
+            let etaMin: number | null = null
+            let etaDistanceKm: number | null = null
+            if (p?.store_lat != null && p?.store_lng != null && rideRow.origin_lat != null && rideRow.origin_lng != null) {
+                const route = await fetchRoute([p.store_lng, p.store_lat], [rideRow.origin_lng, rideRow.origin_lat])
+                etaMin = route.durationMin
+                etaDistanceKm = route.distanceKm
+            }
+
             return {
                 applicationId: a.id,
                 applicantId: a.applicant_id,
@@ -100,8 +117,10 @@ export default function RideTrackingPanel({ rideId, onExit }: RideTrackingPanelP
                 name: p?.name || null,
                 profileSlug: p?.profileSlug || null,
                 avatarUrl: getAvatarUrl(supabase, p?.avatar_url),
+                etaMin,
+                etaDistanceKm,
             }
-        })
+        }))
 
         // Notifica sobre candidaturas novas desde a última carga (não na primeira).
         if (!firstLoad.current) {
@@ -353,9 +372,21 @@ export default function RideTrackingPanel({ rideId, onExit }: RideTrackingPanelP
                                         <span className="text-xs font-bold block truncate" style={{ color: colors.textPrimary }}>
                                             {c.name || (c.profileSlug ? `@${c.profileSlug}` : 'Candidato')}
                                         </span>
-                                        <span className="text-[11px] font-black" style={{ color: '#f97316' }}>
-                                            {c.proposedPrice != null ? `Proposta: R$ ${c.proposedPrice.toFixed(2)}` : 'Sem valor definido'}
-                                        </span>
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                            <span className="text-[11px] font-black" style={{ color: '#f97316' }}>
+                                                {c.proposedPrice != null ? `Proposta: R$ ${c.proposedPrice.toFixed(2)}` : 'Sem valor definido'}
+                                            </span>
+                                            {c.etaMin != null && (
+                                                <span
+                                                    className="flex items-center gap-0.5 text-[10px] font-bold"
+                                                    style={{ color: colors.textSecondary }}
+                                                    title="Estimativa a partir da localização salva do motorista, não é uma posição ao vivo"
+                                                >
+                                                    <Clock size={10} />
+                                                    ~{Math.round(c.etaMin)} min ({c.etaDistanceKm!.toFixed(1)} km)
+                                                </span>
+                                            )}
+                                        </div>
                                     </div>
 
                                     {c.status === 'pending' ? (

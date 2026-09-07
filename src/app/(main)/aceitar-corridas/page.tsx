@@ -69,6 +69,16 @@ interface RideCardData extends RideRow {
     hasDistance: boolean
 }
 
+interface CandidacyCardData extends RideRow {
+    requesterName: string | null
+    requesterSlug: string | null
+    requesterAvatarUrl: string | undefined
+    requesterRating: ProfileRideRating
+    applicationId: string
+    myProposedPrice: number | null
+    hasDistance: boolean
+}
+
 export default function AceitarCorridasPage() {
     const router = useRouter()
     const { avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
@@ -77,7 +87,10 @@ export default function AceitarCorridasPage() {
     const [loading, setLoading] = useState(true)
     const [showLogin, setShowLogin] = useState(false)
     const [checkingPricing, setCheckingPricing] = useState(false)
+    const [activeTab, setActiveTab] = useState<'servicos' | 'candidatos'>('servicos')
     const [rides, setRides] = useState<RideCardData[]>([])
+    const [candidacies, setCandidacies] = useState<CandidacyCardData[]>([])
+    const [withdrawingId, setWithdrawingId] = useState<string | null>(null)
     const [skippedIds, setSkippedIds] = useState<Set<string>>(new Set())
     const [applyingId, setApplyingId] = useState<string | null>(null)
     const [customPriceFor, setCustomPriceFor] = useState<string | null>(null)
@@ -157,11 +170,13 @@ export default function AceitarCorridasPage() {
             setDriverCoords((prev) => prev ?? [profile.store_lng, profile.store_lat])
         }
 
-        const { data: myApplications } = await supabase
+        const { data: myApplicationRows } = await supabase
             .from('ride_applications')
-            .select('ride_request_id')
+            .select('id, ride_request_id, proposed_price')
             .eq('applicant_id', user.id)
-        const appliedIds = new Set((myApplications || []).map((a) => a.ride_request_id))
+            .eq('status', 'pending')
+        const myApplications = myApplicationRows || []
+        const appliedIds = new Set(myApplications.map((a) => a.ride_request_id))
 
         const { data: openRides } = await supabase
             .from('ride_requests')
@@ -189,17 +204,26 @@ export default function AceitarCorridasPage() {
             .filter((r) => (countById.get(r.id) ?? 0) < MAX_CANDIDATES)
             .map((r) => ({ ...r, applicant_count: countById.get(r.id) ?? 0 }))
 
-        if (openList.length === 0) {
-            setRides([])
-            setLoading(false)
-            return
+        // Minhas candidaturas em aberto — some daqui assim que a corrida deixa
+        // de estar pendente (seja porque eu fui aceito, outro motorista foi
+        // aceito, ou o pedido foi cancelado).
+        let myRideRows: Omit<RideRow, 'applicant_count'>[] = []
+        if (myApplications.length > 0) {
+            const { data } = await supabase
+                .from('ride_requests')
+                .select('id, requester_id, ride_type, origin_address, destination_address, notes, passenger_count, vehicle_type, object_description, pet_description, distance_km, duration_min, scheduled_for, created_at, origin_lat, origin_lng, destination_lat, destination_lng')
+                .in('id', myApplications.map((a) => a.ride_request_id))
+                .eq('status', 'pending')
+            myRideRows = data || []
         }
 
-        const requesterIds = Array.from(new Set(openList.map((r) => r.requester_id)))
-        const [{ data: profiles }, ratingsMap] = await Promise.all([
-            supabase.from('profiles').select('id, name, profileSlug, avatar_url').in('id', requesterIds),
-            getProfileRideRatingsBatch(supabase, requesterIds),
-        ])
+        const requesterIds = Array.from(new Set([...openList, ...myRideRows].map((r) => r.requester_id)))
+        const [{ data: profiles }, ratingsMap] = requesterIds.length > 0
+            ? await Promise.all([
+                supabase.from('profiles').select('id, name, profileSlug, avatar_url').in('id', requesterIds),
+                getProfileRideRatingsBatch(supabase, requesterIds),
+            ])
+            : [{ data: [] as { id: string; name: string | null; profileSlug: string | null; avatar_url: string | null }[] }, new Map<string, ProfileRideRating>()]
         const profilesById = new Map((profiles || []).map((p) => [p.id, p]))
 
         const pricingShape = getEffectivePricing(pricing)
@@ -221,7 +245,25 @@ export default function AceitarCorridasPage() {
             }
         })
 
+        const applicationByRideId = new Map(myApplications.map((a) => [a.ride_request_id, a]))
+        const candidacyCards: CandidacyCardData[] = myRideRows.map((r) => {
+            const p = profilesById.get(r.requester_id)
+            const application = applicationByRideId.get(r.id)
+            return {
+                ...r,
+                applicant_count: 0,
+                requesterName: p?.name || null,
+                requesterSlug: p?.profileSlug || null,
+                requesterAvatarUrl: getAvatarUrl(supabase, p?.avatar_url),
+                requesterRating: ratingsMap.get(r.requester_id) || { avg: 0, count: 0 },
+                applicationId: application?.id || '',
+                myProposedPrice: application?.proposed_price ?? null,
+                hasDistance: r.distance_km != null,
+            }
+        })
+
         setRides(cards)
+        setCandidacies(candidacyCards)
         setLoading(false)
     }, [router])
 
@@ -262,8 +304,8 @@ export default function AceitarCorridasPage() {
             })
             if (error) throw error
             toast.success('Candidatura enviada!')
-            setRides((prev) => prev.filter((r) => r.id !== ride.id))
             setCustomPriceFor(null)
+            load()
         } catch (err: any) {
             if (err.code === '42501' || err.code === 'PGRST301') {
                 toast.error('Essa corrida já atingiu o limite de candidatos.')
@@ -278,6 +320,20 @@ export default function AceitarCorridasPage() {
 
     const skipRide = (rideId: string) => {
         setSkippedIds((prev) => new Set(prev).add(rideId))
+    }
+
+    const withdrawApplication = async (applicationId: string) => {
+        setWithdrawingId(applicationId)
+        try {
+            const { error } = await supabase.from('ride_applications').delete().eq('id', applicationId)
+            if (error) throw error
+            toast.success('Você saiu da candidatura.')
+            setCandidacies((prev) => prev.filter((c) => c.applicationId !== applicationId))
+        } catch (err: any) {
+            toast.error('Erro ao sair da candidatura: ' + (err.message || 'tente novamente'))
+        } finally {
+            setWithdrawingId(null)
+        }
     }
 
     return (
@@ -296,6 +352,52 @@ export default function AceitarCorridasPage() {
                     loading={profileLoading}
                 />
 
+                {!loading && !showLogin && (
+                    <div className="px-4 md:px-6 mt-4 max-w-lg mx-auto">
+                        <div
+                            className="flex rounded-2xl overflow-hidden"
+                            style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
+                        >
+                            <button
+                                onClick={() => setActiveTab('servicos')}
+                                className="flex-1 py-2.5 text-[10px] font-bold transition-all relative"
+                                style={{ color: activeTab === 'servicos' ? '#f97316' : colors.textSecondary }}
+                            >
+                                <div className="flex items-center justify-center gap-1.5">
+                                    <MapPin size={14} />
+                                    Serviços
+                                    {rides.length > 0 && (
+                                        <span className="px-1.5 py-0.5 rounded-full text-[8px]" style={{ background: '#f9731620', color: '#f97316' }}>
+                                            {rides.length}
+                                        </span>
+                                    )}
+                                </div>
+                                {activeTab === 'servicos' && (
+                                    <div className="absolute bottom-0 left-0 right-0 h-0.5" style={{ background: GRADIENT }} />
+                                )}
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('candidatos')}
+                                className="flex-1 py-2.5 text-[10px] font-bold transition-all relative"
+                                style={{ color: activeTab === 'candidatos' ? '#f97316' : colors.textSecondary }}
+                            >
+                                <div className="flex items-center justify-center gap-1.5">
+                                    <Users size={14} />
+                                    Candidatos
+                                    {candidacies.length > 0 && (
+                                        <span className="px-1.5 py-0.5 rounded-full text-[8px]" style={{ background: '#f9731620', color: '#f97316' }}>
+                                            {candidacies.length}
+                                        </span>
+                                    )}
+                                </div>
+                                {activeTab === 'candidatos' && (
+                                    <div className="absolute bottom-0 left-0 right-0 h-0.5" style={{ background: GRADIENT }} />
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                )}
+
                 <section className="px-4 md:px-6 mt-4 pb-24 max-w-lg mx-auto">
                     {(loading || checkingPricing) && (
                         <div className="flex justify-center py-10">
@@ -307,7 +409,7 @@ export default function AceitarCorridasPage() {
                         <LoginAndRegister onLoginSuccess={handleLoginSuccess} />
                     )}
 
-                    {!loading && !showLogin && visibleRides.length === 0 && (
+                    {!loading && !showLogin && activeTab === 'servicos' && visibleRides.length === 0 && (
                         <div
                             className="rounded-2xl p-6 text-center"
                             style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
@@ -318,7 +420,7 @@ export default function AceitarCorridasPage() {
                         </div>
                     )}
 
-                    {!loading && !showLogin && visibleRides.length > 0 && (
+                    {!loading && !showLogin && activeTab === 'servicos' && visibleRides.length > 0 && (
                         <div className="flex flex-col gap-3">
                             {visibleRides.map((ride) => {
                                 const isApplying = applyingId === ride.id
@@ -481,6 +583,92 @@ export default function AceitarCorridasPage() {
                                                 </button>
                                             </>
                                         )}
+                                    </div>
+                                )
+                            })}
+                        </div>
+                    )}
+
+                    {!loading && !showLogin && activeTab === 'candidatos' && candidacies.length === 0 && (
+                        <div
+                            className="rounded-2xl p-6 text-center"
+                            style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
+                        >
+                            <p className="text-sm" style={{ color: colors.textSecondary }}>
+                                Você ainda não se candidatou a nenhuma corrida.
+                            </p>
+                        </div>
+                    )}
+
+                    {!loading && !showLogin && activeTab === 'candidatos' && candidacies.length > 0 && (
+                        <div className="flex flex-col gap-3">
+                            {candidacies.map((ride) => {
+                                const isWithdrawing = withdrawingId === ride.applicationId
+
+                                return (
+                                    <div
+                                        key={ride.applicationId}
+                                        className="rounded-2xl p-4 overflow-hidden relative"
+                                        style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
+                                    >
+                                        <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
+                                            <span
+                                                className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full"
+                                                style={{ background: `${colors.accent}15`, color: colors.accent }}
+                                            >
+                                                {VEHICLE_TYPE_LABELS[ride.vehicle_type]}
+                                            </span>
+                                            <span className="flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full" style={{ background: '#eab30815', color: '#eab308' }}>
+                                                Aguardando decisão
+                                            </span>
+                                        </div>
+
+                                        <div className="flex items-center gap-2 mb-2">
+                                            {ride.requesterAvatarUrl ? (
+                                                <img src={ride.requesterAvatarUrl} className="w-8 h-8 rounded-full object-cover flex-shrink-0" alt="" />
+                                            ) : (
+                                                <span className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT }}>
+                                                    <Users size={14} color="#fff" />
+                                                </span>
+                                            )}
+                                            <div className="min-w-0">
+                                                <p className="text-xs font-black truncate" style={{ color: colors.textPrimary }}>
+                                                    {ride.requesterName || (ride.requesterSlug ? `@${ride.requesterSlug}` : 'Passageiro')}
+                                                </p>
+                                                {ride.requesterRating.count > 0 && (
+                                                    <span className="flex items-center gap-1 text-[10px]" style={{ color: colors.textSecondary }}>
+                                                        <Star size={10} className="fill-current" style={{ color: '#eab308' }} />
+                                                        {ride.requesterRating.avg.toFixed(2)} ({ride.requesterRating.count})
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-start gap-2 text-xs mb-1" style={{ color: colors.textSecondary }}>
+                                            <MapPin size={12} className="flex-shrink-0 mt-0.5" />
+                                            <span>{shortAddress(ride.origin_address)} → {shortAddress(ride.destination_address)}</span>
+                                        </div>
+
+                                        <div className="flex items-center gap-2 text-[11px] mb-2" style={{ color: colors.textSecondary }}>
+                                            {ride.hasDistance ? (
+                                                <span>{ride.distance_km!.toFixed(1)} km · {Math.round(ride.duration_min || 0)} min</span>
+                                            ) : (
+                                                <span>Distância não calculada</span>
+                                            )}
+                                        </div>
+
+                                        <p className="text-sm font-black mb-2" style={{ color: '#f97316' }}>
+                                            {ride.myProposedPrice != null ? `Sua proposta: R$ ${ride.myProposedPrice.toFixed(2)}` : 'Proposta enviada'}
+                                        </p>
+
+                                        <button
+                                            onClick={() => withdrawApplication(ride.applicationId)}
+                                            disabled={isWithdrawing}
+                                            className="w-full py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all disabled:opacity-70 flex items-center justify-center gap-2"
+                                            style={{ background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                                        >
+                                            {isWithdrawing ? <Spinner size={14} /> : <>Sair da candidatura</>}
+                                        </button>
                                     </div>
                                 )
                             })}
