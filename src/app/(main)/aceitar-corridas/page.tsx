@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { useTheme } from '@/app/theme'
-import Header from '@/app/Header'
+import Header, { type Tab } from '@/app/Header'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import LoginAndRegister from '../LoginAndRegister'
 import { toast } from 'sonner'
@@ -287,6 +287,25 @@ export default function AceitarCorridasPage() {
         [rides, skippedIds]
     )
 
+    const headerTabs: Tab[] = useMemo((): any[] => [
+        {
+            id: 'servicos',
+            label: 'Serviços',
+            icon: MapPin,
+            onClick: () => setActiveTab('servicos'),
+            isActive: activeTab === 'servicos',
+            badge: rides.length > 0 ? { count: rides.length } : null,
+        },
+        {
+            id: 'candidatos',
+            label: 'Candidatos',
+            icon: Users,
+            onClick: () => setActiveTab('candidatos'),
+            isActive: activeTab === 'candidatos',
+            badge: candidacies.length > 0 ? { count: candidacies.length } : null,
+        },
+    ], [activeTab, rides.length, candidacies.length])
+
     const applyToRide = async (ride: RideCardData, price: number) => {
         if (price <= 0) {
             toast.error('Informe um valor válido')
@@ -350,53 +369,8 @@ export default function AceitarCorridasPage() {
                     greeting={`Olá, ${profileLoading ? '...' : profileSlug ? `@${profileSlug}` : 'Visitante'}`}
                     avatarUrl={avatarUrl}
                     loading={profileLoading}
+                    tabs={headerTabs}
                 />
-
-                {!loading && !showLogin && (
-                    <div className="px-4 md:px-6 mt-4 max-w-lg mx-auto">
-                        <div
-                            className="flex rounded-2xl overflow-hidden"
-                            style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
-                        >
-                            <button
-                                onClick={() => setActiveTab('servicos')}
-                                className="flex-1 py-2.5 text-[10px] font-bold transition-all relative"
-                                style={{ color: activeTab === 'servicos' ? '#f97316' : colors.textSecondary }}
-                            >
-                                <div className="flex items-center justify-center gap-1.5">
-                                    <MapPin size={14} />
-                                    Serviços
-                                    {rides.length > 0 && (
-                                        <span className="px-1.5 py-0.5 rounded-full text-[8px]" style={{ background: '#f9731620', color: '#f97316' }}>
-                                            {rides.length}
-                                        </span>
-                                    )}
-                                </div>
-                                {activeTab === 'servicos' && (
-                                    <div className="absolute bottom-0 left-0 right-0 h-0.5" style={{ background: GRADIENT }} />
-                                )}
-                            </button>
-                            <button
-                                onClick={() => setActiveTab('candidatos')}
-                                className="flex-1 py-2.5 text-[10px] font-bold transition-all relative"
-                                style={{ color: activeTab === 'candidatos' ? '#f97316' : colors.textSecondary }}
-                            >
-                                <div className="flex items-center justify-center gap-1.5">
-                                    <Users size={14} />
-                                    Candidatos
-                                    {candidacies.length > 0 && (
-                                        <span className="px-1.5 py-0.5 rounded-full text-[8px]" style={{ background: '#f9731620', color: '#f97316' }}>
-                                            {candidacies.length}
-                                        </span>
-                                    )}
-                                </div>
-                                {activeTab === 'candidatos' && (
-                                    <div className="absolute bottom-0 left-0 right-0 h-0.5" style={{ background: GRADIENT }} />
-                                )}
-                            </button>
-                        </div>
-                    </div>
-                )}
 
                 <section className="px-4 md:px-6 mt-4 pb-24 max-w-lg mx-auto">
                     {(loading || checkingPricing) && (
