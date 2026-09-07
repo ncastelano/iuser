@@ -73,6 +73,7 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady }: Rid
     const [loading, setLoading] = useState(true)
     const [ride, setRide] = useState<RideRow | null>(null)
     const [candidates, setCandidates] = useState<Candidate[]>([])
+    const [tripRouteCoords, setTripRouteCoords] = useState<[number, number][] | null>(null)
     const [driver, setDriver] = useState<DriverInfo | null>(null)
     const [decidingId, setDecidingId] = useState<string | null>(null)
     const [cancelling, setCancelling] = useState(false)
@@ -91,6 +92,14 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady }: Rid
             return
         }
         setRide(rideRow)
+
+        // Trajeto partida → chegada, calculado uma única vez (não muda por
+        // candidato) e reaproveitado tanto pra desenhar o percurso da
+        // corrida sozinho quanto emendado na rota completa de cada um.
+        if (rideRow.origin_lat != null && rideRow.origin_lng != null && rideRow.destination_lat != null && rideRow.destination_lng != null) {
+            fetchRoute([rideRow.origin_lng, rideRow.origin_lat], [rideRow.destination_lng, rideRow.destination_lat])
+                .then((route) => setTripRouteCoords(route.coords))
+        }
 
         const { data: applications } = await supabase
             .from('ride_applications')
@@ -200,63 +209,82 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady }: Rid
         }
     }, [rideId, load])
 
-    // ===== MAPA: trajeto + marcador de cada candidato, ao mesmo tempo =====
+    // ===== MAPA: meu trajeto + a rota completa (motorista → partida → chegada)
+    // de cada candidato, cada uma numa cor só, ao mesmo tempo =====
     const candidateMarkersRef = useRef<mapboxgl.Marker[]>([])
     const candidateLayerIdsRef = useRef<string[]>([])
 
     useEffect(() => {
         if (!map || !mapReady || !ride) return
 
-        if (ride.status !== 'pending') return
-
-        const visible = candidates.filter(
-            (c) => c.status === 'pending' && c.lat != null && c.lng != null && c.routeCoords
-        )
-        if (visible.length === 0) return
-
         const bounds = new mapboxgl.LngLatBounds()
         if (ride.origin_lat != null && ride.origin_lng != null) bounds.extend([ride.origin_lng, ride.origin_lat])
         if (ride.destination_lat != null && ride.destination_lng != null) bounds.extend([ride.destination_lng, ride.destination_lat])
 
-        visible.forEach((c, i) => {
-            const color = CANDIDATE_COLORS[i % CANDIDATE_COLORS.length]
-            const layerId = `candidate-route-${c.applicationId}`
-
-            map.addSource(layerId, {
+        // Meu trajeto (partida → chegada), sempre visível enquanto existir.
+        if (tripRouteCoords) {
+            map.addSource('my-trip-route', {
                 type: 'geojson',
-                data: { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: c.routeCoords! } },
+                data: { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: tripRouteCoords } },
             })
             map.addLayer({
-                id: layerId,
+                id: 'my-trip-route',
                 type: 'line',
-                source: layerId,
+                source: 'my-trip-route',
                 layout: { 'line-join': 'round', 'line-cap': 'round' },
-                paint: { 'line-color': color, 'line-width': 4, 'line-opacity': 0.85, 'line-dasharray': [2, 1.5] },
+                paint: { 'line-color': '#111827', 'line-width': 5, 'line-opacity': 0.85 },
             })
-            candidateLayerIdsRef.current.push(layerId)
+            candidateLayerIdsRef.current.push('my-trip-route')
+            tripRouteCoords.forEach((coord) => bounds.extend(coord as [number, number]))
+        }
 
-            const firstName = (c.name || 'Candidato').split(' ')[0]
-            const priceText = c.proposedPrice != null ? `R$ ${c.proposedPrice.toFixed(2)}` : '—'
-            const etaText = c.etaMin != null ? `${Math.max(1, Math.round(c.etaMin))} min` : ''
+        // Rota completa de cada candidato (dele até a partida + partida até a
+        // chegada, emendadas), uma cor por candidato — só enquanto pendente.
+        if (ride.status === 'pending') {
+            const visible = candidates.filter(
+                (c) => c.status === 'pending' && c.lat != null && c.lng != null && c.routeCoords
+            )
 
-            const el = document.createElement('div')
-            el.style.cssText = 'display:flex;flex-direction:column;align-items:center;'
-            el.innerHTML = `
-                <div style="background:${color};color:#fff;font-size:9px;font-weight:800;padding:3px 8px;border-radius:9999px;margin-bottom:4px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,0.35);text-align:center;line-height:1.3;">
-                    <div>${firstName}</div>
-                    <div style="font-weight:600;opacity:0.9;">${priceText}${etaText ? ' · ' + etaText : ''}</div>
-                </div>
-                ${c.avatarUrl
-                    ? `<img src="${c.avatarUrl}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;border:3px solid ${color};box-shadow:0 2px 6px rgba(0,0,0,0.4);" />`
-                    : `<div style="width:32px;height:32px;border-radius:50%;background:${color};border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.4);"></div>`
-                }
-            `
-            const marker = new mapboxgl.Marker({ element: el, anchor: 'bottom' }).setLngLat([c.lng!, c.lat!]).addTo(map)
-            candidateMarkersRef.current.push(marker)
+            visible.forEach((c, i) => {
+                const color = CANDIDATE_COLORS[i % CANDIDATE_COLORS.length]
+                const layerId = `candidate-route-${c.applicationId}`
+                const fullCoords = tripRouteCoords ? c.routeCoords!.concat(tripRouteCoords) : c.routeCoords!
 
-            bounds.extend([c.lng!, c.lat!])
-            c.routeCoords!.forEach((coord) => bounds.extend(coord as [number, number]))
-        })
+                map.addSource(layerId, {
+                    type: 'geojson',
+                    data: { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: fullCoords } },
+                })
+                map.addLayer({
+                    id: layerId,
+                    type: 'line',
+                    source: layerId,
+                    layout: { 'line-join': 'round', 'line-cap': 'round' },
+                    paint: { 'line-color': color, 'line-width': 4, 'line-opacity': 0.8, 'line-dasharray': [2, 1.5] },
+                })
+                candidateLayerIdsRef.current.push(layerId)
+
+                const firstName = (c.name || 'Candidato').split(' ')[0]
+                const priceText = c.proposedPrice != null ? `R$ ${c.proposedPrice.toFixed(2)}` : '—'
+                const etaText = c.etaMin != null ? `${Math.max(1, Math.round(c.etaMin))} min` : ''
+
+                const el = document.createElement('div')
+                el.style.cssText = 'display:flex;flex-direction:column;align-items:center;'
+                el.innerHTML = `
+                    <div style="background:${color};color:#fff;font-size:9px;font-weight:800;padding:3px 8px;border-radius:9999px;margin-bottom:4px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,0.35);text-align:center;line-height:1.3;">
+                        <div>${firstName}</div>
+                        <div style="font-weight:600;opacity:0.9;">${priceText}${etaText ? ' · ' + etaText : ''}</div>
+                    </div>
+                    ${c.avatarUrl
+                        ? `<img src="${c.avatarUrl}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;border:3px solid ${color};box-shadow:0 2px 6px rgba(0,0,0,0.4);" />`
+                        : `<div style="width:32px;height:32px;border-radius:50%;background:${color};border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.4);"></div>`
+                    }
+                `
+                const marker = new mapboxgl.Marker({ element: el, anchor: 'bottom' }).setLngLat([c.lng!, c.lat!]).addTo(map)
+                candidateMarkersRef.current.push(marker)
+
+                bounds.extend([c.lng!, c.lat!])
+            })
+        }
 
         if (!bounds.isEmpty()) {
             // A folha "Seu pedido" cobre até 75% da tela por baixo — sem isso
@@ -276,7 +304,7 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady }: Rid
             })
             candidateLayerIdsRef.current = []
         }
-    }, [map, mapReady, candidates, ride])
+    }, [map, mapReady, candidates, ride, tripRouteCoords])
 
     const acceptCandidate = async (applicationId: string, applicantId: string) => {
         setDecidingId(applicationId)

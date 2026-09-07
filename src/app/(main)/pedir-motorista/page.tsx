@@ -302,14 +302,26 @@ export default function PedirMotoristaPage() {
             }
             const { data } = await supabase
                 .from('ride_requests')
-                .select('id')
+                .select('id, origin_address, origin_lat, origin_lng, destination_address, destination_lat, destination_lng')
                 .eq('requester_id', user.id)
                 .in('status', ['pending', 'accepted'])
                 .order('created_at', { ascending: false })
                 .limit(1)
                 .maybeSingle()
 
-            if (data) setActiveRideId(data.id)
+            if (data) {
+                setActiveRideId(data.id)
+                // O fluxo normal (etapas type/where/details) já deixa origin/destination
+                // preenchidos: isso só é necessário quando a página é recarregada direto
+                // num pedido já em andamento — sem isso o mapa fica sem os marcadores
+                // de partida/chegada e sem o trajeto da corrida.
+                if (data.origin_lat != null && data.origin_lng != null) {
+                    setOrigin({ address: data.origin_address, coords: [data.origin_lng, data.origin_lat] })
+                }
+                if (data.destination_lat != null && data.destination_lng != null) {
+                    setDestination({ address: data.destination_address, coords: [data.destination_lng, data.destination_lat] })
+                }
+            }
             setCheckingActiveRide(false)
         }
         checkActiveRide()
