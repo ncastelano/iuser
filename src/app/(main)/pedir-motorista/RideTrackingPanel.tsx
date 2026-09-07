@@ -107,6 +107,7 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady }: Rid
             .from('ride_applications')
             .select('id, applicant_id, status, proposed_price')
             .eq('ride_request_id', rideId)
+            .order('created_at', { ascending: true })
 
         const applicantIds = Array.from(new Set((applications || []).map((a) => a.applicant_id)))
         const idsToFetch = Array.from(new Set([...applicantIds, ...(rideRow.driver_id ? [rideRow.driver_id] : [])]))
@@ -218,6 +219,22 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady }: Rid
 
     useEffect(() => {
         if (!map || !mapReady || !ride) return
+
+        // Limpeza defensiva: some pelo ESTILO do mapa, não só pelo que o ref
+        // acha que adicionou — se uma execução anterior travou no meio (ex.:
+        // addSource com id duplicado lançando erro e abortando o forEach),
+        // camadas/rotas de candidatos antigos ficariam presas no mapa pra
+        // sempre. Isso garante começar de uma folha realmente limpa sempre.
+        const staleIds = (map.getStyle()?.layers || [])
+            .map((l) => l.id)
+            .filter((id) => id === 'my-trip-route' || id.startsWith('candidate-route-'))
+        staleIds.forEach((id) => {
+            if (map.getLayer(id)) map.removeLayer(id)
+            if (map.getSource(id)) map.removeSource(id)
+        })
+        candidateMarkersRef.current.forEach((m) => m.remove())
+        candidateMarkersRef.current = []
+        candidateLayerIdsRef.current = []
 
         const bounds = new mapboxgl.LngLatBounds()
         if (ride.origin_lat != null && ride.origin_lng != null) bounds.extend([ride.origin_lng, ride.origin_lat])
