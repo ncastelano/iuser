@@ -9,8 +9,9 @@ import { useTheme } from '@/app/theme'
 import Header, { type Tab } from '@/app/Header'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import LoginAndRegister from '../LoginAndRegister'
+import LocationPicker from '../LocationPicker'
 import { toast } from 'sonner'
-import { MapPin, Star, Pencil, X, Package, Users, CalendarClock, PawPrint } from 'lucide-react'
+import { MapPin, Star, Pencil, X, Package, Users, CalendarClock, PawPrint, Car } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import { shortAddress } from '@/lib/serviceBoard'
 import { getAvatarUrl } from '@/lib/avatar'
@@ -25,6 +26,36 @@ const REFRESH_INTERVAL_MS = 15000
 
 function formatScheduledFor(iso: string): string {
     return new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+}
+
+function formatAddress(address: string, addressNumber?: string): string {
+    if (!address) return 'Definir local'
+
+    const displayAddress = addressNumber ? `${address.split(',')[0]}, ${addressNumber}` : address
+    const firstPart = displayAddress.split(',')[0].trim()
+    const match = firstPart.match(/^(.+?)(\s+\d+)/)
+
+    if (match) {
+        let result = match[0].trim()
+        result = result
+            .replace(/^Avenida\s/, 'Av. ')
+            .replace(/^Rua\s/, 'R. ')
+            .replace(/^Travessa\s/, 'Tv. ')
+            .replace(/^Praça\s/, 'Pç. ')
+            .replace(/^Alameda\s/, 'Al. ')
+            .replace(/^Rodovia\s/, 'Rod. ')
+            .replace(/^Estrada\s/, 'Estr. ')
+
+        if (result.length > 28) {
+            return result.substring(0, 25) + '...'
+        }
+        return result
+    }
+
+    if (firstPart.length > 28) {
+        return firstPart.substring(0, 25) + '...'
+    }
+    return firstPart
 }
 
 function relativeTime(iso: string): string {
@@ -99,6 +130,10 @@ export default function AceitarCorridasPage() {
     const [liveLocationSync, setLiveLocationSync] = useState(false)
     const [mapDialogRideId, setMapDialogRideId] = useState<string | null>(null)
 
+    const [savedLocation, setSavedLocation] = useState<{ lat: number; lng: number; address: string; addressNumber?: string; addressComplement?: string } | null>(null)
+    const [showLocationDialog, setShowLocationDialog] = useState(false)
+    const [isSavingLocation, setIsSavingLocation] = useState(false)
+
     // ===== SUA LOCALIZAÇÃO, PRA DESENHAR "VOCÊ → PARTIDA" NO MAPA DE CADA PEDIDO =====
     // Sempre tenta uma leitura de GPS ao abrir a página — essa é a posição
     // "atual" de verdade. Até ela responder (ou se for negada), o load() logo
@@ -144,7 +179,7 @@ export default function AceitarCorridasPage() {
                 .maybeSingle(),
             supabase
                 .from('profiles')
-                .select('store_lat, store_lng')
+                .select('address, address_number, address_complement, store_lat, store_lng')
                 .eq('id', user.id)
                 .maybeSingle(),
         ])
@@ -168,6 +203,13 @@ export default function AceitarCorridasPage() {
         // real estiver ativa, o watchPosition acima assume e vai atualizando.
         if (profile?.store_lat != null && profile?.store_lng != null) {
             setDriverCoords((prev) => prev ?? [profile.store_lng, profile.store_lat])
+            setSavedLocation({
+                lat: profile.store_lat,
+                lng: profile.store_lng,
+                address: profile.address || 'Local salvo',
+                addressNumber: profile.address_number || '',
+                addressComplement: profile.address_complement || '',
+            })
         }
 
         const { data: myApplicationRows } = await supabase
@@ -341,6 +383,41 @@ export default function AceitarCorridasPage() {
         setSkippedIds((prev) => new Set(prev).add(rideId))
     }
 
+    const handleLocationSave = async (location: {
+        lat: number
+        lng: number
+        address: string
+        addressNumber?: string
+        addressComplement?: string
+    }) => {
+        setIsSavingLocation(true)
+        try {
+            const { data: { user } } = await supabase.auth.getUser()
+            if (!user) return
+
+            const { error } = await supabase
+                .from('profiles')
+                .upsert({
+                    id: user.id,
+                    address: location.address,
+                    address_number: location.addressNumber || null,
+                    address_complement: location.addressComplement || null,
+                    store_lat: location.lat,
+                    store_lng: location.lng,
+                }, { onConflict: 'id', ignoreDuplicates: false })
+
+            if (error) throw error
+
+            setSavedLocation(location)
+            setDriverCoords([location.lng, location.lat])
+            setShowLocationDialog(false)
+        } catch (err: any) {
+            toast.error('Erro ao salvar localização: ' + (err.message || 'tente novamente'))
+        } finally {
+            setIsSavingLocation(false)
+        }
+    }
+
     const withdrawApplication = async (applicationId: string) => {
         setWithdrawingId(applicationId)
         try {
@@ -370,6 +447,22 @@ export default function AceitarCorridasPage() {
                     avatarUrl={avatarUrl}
                     loading={profileLoading}
                     tabs={headerTabs}
+                    locationElement={
+                        <button
+                            onClick={() => setShowLocationDialog(true)}
+                            disabled={isSavingLocation}
+                            className="flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full bg-black/10 hover:bg-black/20 transition disabled:opacity-50"
+                            style={{ color: liveLocationSync ? '#f97316' : colors.textPrimary }}
+                        >
+                            {liveLocationSync ? <Car size={14} /> : null}
+                            {isSavingLocation
+                                ? 'Salvando...'
+                                : savedLocation
+                                    ? formatAddress(savedLocation.address, savedLocation.addressNumber)
+                                    : 'Definir local'
+                            }
+                        </button>
+                    }
                 />
 
                 <section className="px-4 md:px-6 mt-4 pb-24 max-w-lg mx-auto">
@@ -649,6 +742,20 @@ export default function AceitarCorridasPage() {
                         </div>
                     )}
                 </section>
+
+                {showLocationDialog && (
+                    <LocationPicker
+                        initialLocation={savedLocation ? {
+                            lat: savedLocation.lat,
+                            lng: savedLocation.lng,
+                            address: savedLocation.address,
+                            addressNumber: savedLocation.addressNumber || '',
+                            addressComplement: savedLocation.addressComplement || '',
+                        } : null}
+                        onSave={handleLocationSave}
+                        onClose={() => setShowLocationDialog(false)}
+                    />
+                )}
             </main>
 
             {mapDialogRideId && (() => {
