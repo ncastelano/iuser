@@ -1,7 +1,7 @@
 // app/(main)/pedir-motorista/page.tsx
 'use client'
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, type ElementType } from 'react'
 import { useRouter } from 'next/navigation'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
@@ -45,7 +45,7 @@ mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 const DEFAULT_CENTER: [number, number] = [-63.9039, -8.7612] // Porto Velho
-const ROUTE_COLORS = ['#3b82f6', '#a855f7', '#f59e0b']
+const ROUTE_COLOR = '#3b82f6'
 const AVERAGE_SPEED_KMH = 40
 
 type Step = 'type' | 'where' | 'details'
@@ -119,6 +119,46 @@ function PhotoPicker({ preview, onPick, colors }: { preview: string | null; onPi
     )
 }
 
+function CounterRow({
+    label, icon: Icon, value, onChange, min = 0, max = 30, colors,
+}: {
+    label: string
+    icon: ElementType
+    value: number
+    onChange: (n: number) => void
+    min?: number
+    max?: number
+    colors: ThemeColors
+}) {
+    return (
+        <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
+            <div className="flex items-center gap-2">
+                <Icon size={16} style={{ color: colors.textSecondary }} />
+                <span className="text-sm font-bold" style={{ color: colors.textPrimary }}>{label}</span>
+            </div>
+            <div className="flex items-center gap-3">
+                <button
+                    onClick={() => onChange(Math.max(min, value - 1))}
+                    disabled={value <= min}
+                    className="w-7 h-7 rounded-full flex items-center justify-center disabled:opacity-40"
+                    style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                >
+                    <Minus size={14} />
+                </button>
+                <span className="text-sm font-black w-5 text-center" style={{ color: colors.textPrimary }}>{value}</span>
+                <button
+                    onClick={() => onChange(Math.min(max, value + 1))}
+                    disabled={value >= max}
+                    className="w-7 h-7 rounded-full flex items-center justify-center disabled:opacity-40"
+                    style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                >
+                    <Plus size={14} />
+                </button>
+            </div>
+        </div>
+    )
+}
+
 function toDatetimeLocalValue(date: Date): string {
     const pad = (n: number) => String(n).padStart(2, '0')
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
@@ -133,20 +173,19 @@ function shortAddress(address: string): string {
     return firstPart.length > 28 ? firstPart.substring(0, 26) + '...' : firstPart
 }
 
-async function fetchRoutes(origin: [number, number], destination: [number, number]): Promise<RouteOption[]> {
+async function fetchRoute(origin: [number, number], destination: [number, number]): Promise<RouteOption | null> {
     try {
         const res = await fetch(
-            `https://api.mapbox.com/directions/v5/mapbox/driving/${origin[0]},${origin[1]};${destination[0]},${destination[1]}?alternatives=true&geometries=geojson&overview=full&access_token=${mapboxgl.accessToken}`
+            `https://api.mapbox.com/directions/v5/mapbox/driving/${origin[0]},${origin[1]};${destination[0]},${destination[1]}?geometries=geojson&overview=full&access_token=${mapboxgl.accessToken}`
         )
         const data = await res.json()
-        const rawRoutes: any[] = data.routes || []
-        return rawRoutes.slice(0, 3).map((r) => {
-            const distanceKm = r.distance / 1000
-            const durationMin = (distanceKm / AVERAGE_SPEED_KMH) * 60
-            return { coords: r.geometry.coordinates as [number, number][], distanceKm, durationMin }
-        })
+        const r = data.routes?.[0]
+        if (!r) return null
+        const distanceKm = r.distance / 1000
+        const durationMin = (distanceKm / AVERAGE_SPEED_KMH) * 60
+        return { coords: r.geometry.coordinates as [number, number][], distanceKm, durationMin }
     } catch {
-        return []
+        return null
     }
 }
 
@@ -200,8 +239,7 @@ export default function PedirMotoristaPage() {
     const suggestionRefs = useRef<(HTMLButtonElement | null)[]>([])
     const [searching, setSearching] = useState(false)
     const [locatingOrigin, setLocatingOrigin] = useState(false)
-    const [routes, setRoutes] = useState<RouteOption[]>([])
-    const [selectedRoute, setSelectedRoute] = useState(0)
+    const [route, setRoute] = useState<RouteOption | null>(null)
     const [loadingRoutes, setLoadingRoutes] = useState(false)
     const [notes, setNotes] = useState('')
     const [showNotes, setShowNotes] = useState(false)
@@ -216,23 +254,25 @@ export default function PedirMotoristaPage() {
     const [activeRideId, setActiveRideId] = useState<string | null>(null)
     const [checkingActiveRide, setCheckingActiveRide] = useState(true)
 
-    // ===== ADICIONAIS: PESSOA (além de quem pediu) =====
+    // ===== ADICIONAIS: PESSOA (além de quem pediu) — cada item é um contador,
+    // 0 significa que não tem esse adicional =====
     const [extraPeopleCount, setExtraPeopleCount] = useState(0)
-    const [hasChild, setHasChild] = useState(false)
-    const [childrenCount, setChildrenCount] = useState(1)
+    const [childrenCount, setChildrenCount] = useState(0)
     const [childAge, setChildAge] = useState('')
     const [childNeedsCarSeat, setChildNeedsCarSeat] = useState<boolean | null>(null)
-    const [hasShopping, setHasShopping] = useState(false)
-    const [isGroceryShopping, setIsGroceryShopping] = useState<boolean | null>(null)
-    const [bagCount, setBagCount] = useState(1)
-    const [hasExtraObject, setHasExtraObject] = useState(false)
+    const [bagCount, setBagCount] = useState(0)
+    const [extraObjectCount, setExtraObjectCount] = useState(0)
     const [extraObjectDescription, setExtraObjectDescription] = useState('')
     const [extraObjectPhotoFile, setExtraObjectPhotoFile] = useState<File | null>(null)
     const [extraObjectPhotoPreview, setExtraObjectPhotoPreview] = useState<string | null>(null)
-    const [hasPet, setHasPet] = useState(false)
+    const [petCount, setPetCount] = useState(0)
     const [petDescription, setPetDescription] = useState('')
     const [petPhotoFile, setPetPhotoFile] = useState<File | null>(null)
     const [petPhotoPreview, setPetPhotoPreview] = useState<string | null>(null)
+    const hasChild = childrenCount > 0
+    const hasShopping = bagCount > 0
+    const hasExtraObject = extraObjectCount > 0
+    const hasPet = petCount > 0
 
     // ===== DETALHES: OBJETO =====
     const [objectDescription, setObjectDescription] = useState('')
@@ -251,7 +291,11 @@ export default function PedirMotoristaPage() {
     const [destinationNeedsAccess, setDestinationNeedsAccess] = useState(false)
     const [destinationAccessNotes, setDestinationAccessNotes] = useState('')
 
-    const totalPeople = 1 + extraPeopleCount + (hasChild ? childrenCount : 0)
+    // ===== NECESSIDADE ESPECIAL =====
+    const [hasSpecialNeeds, setHasSpecialNeeds] = useState(false)
+    const [specialNeedsDescription, setSpecialNeedsDescription] = useState('')
+
+    const totalPeople = 1 + extraPeopleCount + childrenCount
     const vehicleType = getVehicleTypeForPassengers(totalPeople)
     const stepIndex = STEPS.indexOf(step)
 
@@ -417,17 +461,16 @@ export default function PedirMotoristaPage() {
         if (typeof draft.notes === 'string') setNotes(draft.notes)
         if (typeof draft.scheduledFor === 'string') setScheduledFor(draft.scheduledFor)
         if (typeof draft.extraPeopleCount === 'number') setExtraPeopleCount(draft.extraPeopleCount)
-        if (typeof draft.hasChild === 'boolean') setHasChild(draft.hasChild)
         if (typeof draft.childrenCount === 'number') setChildrenCount(draft.childrenCount)
         if (typeof draft.childAge === 'string') setChildAge(draft.childAge)
         if (draft.childNeedsCarSeat !== undefined) setChildNeedsCarSeat(draft.childNeedsCarSeat)
-        if (typeof draft.hasShopping === 'boolean') setHasShopping(draft.hasShopping)
-        if (draft.isGroceryShopping !== undefined) setIsGroceryShopping(draft.isGroceryShopping)
         if (typeof draft.bagCount === 'number') setBagCount(draft.bagCount)
-        if (typeof draft.hasExtraObject === 'boolean') setHasExtraObject(draft.hasExtraObject)
+        if (typeof draft.extraObjectCount === 'number') setExtraObjectCount(draft.extraObjectCount)
         if (typeof draft.extraObjectDescription === 'string') setExtraObjectDescription(draft.extraObjectDescription)
-        if (typeof draft.hasPet === 'boolean') setHasPet(draft.hasPet)
+        if (typeof draft.petCount === 'number') setPetCount(draft.petCount)
         if (typeof draft.petDescription === 'string') setPetDescription(draft.petDescription)
+        if (typeof draft.hasSpecialNeeds === 'boolean') setHasSpecialNeeds(draft.hasSpecialNeeds)
+        if (typeof draft.specialNeedsDescription === 'string') setSpecialNeedsDescription(draft.specialNeedsDescription)
         if (typeof draft.objectDescription === 'string') setObjectDescription(draft.objectDescription)
         if (typeof draft.objectIsSensitive === 'boolean') setObjectIsSensitive(draft.objectIsSensitive)
         if (draft.objectSize !== undefined) setObjectSize(draft.objectSize)
@@ -477,19 +520,18 @@ export default function PedirMotoristaPage() {
         }
     }, [mapReady, origin.coords, destination.coords])
 
-    // ===== BUSCA DE ROTAS (até 3 caminhos mais rápidos) =====
+    // ===== BUSCA DA ROTA (uma só, sem alternativas) =====
     useEffect(() => {
         if (!origin.coords || !destination.coords) {
-            setRoutes([])
+            setRoute(null)
             return
         }
 
         let cancelled = false
         setLoadingRoutes(true)
-        fetchRoutes(origin.coords, destination.coords).then((result) => {
+        fetchRoute(origin.coords, destination.coords).then((result) => {
             if (cancelled) return
-            setRoutes(result)
-            setSelectedRoute(0)
+            setRoute(result)
             setLoadingRoutes(false)
         })
 
@@ -498,60 +540,40 @@ export default function PedirMotoristaPage() {
         }
     }, [origin.coords, destination.coords])
 
-    // ===== DESENHA AS ROTAS NO MAPA =====
+    // ===== DESENHA A ROTA NO MAPA =====
     useEffect(() => {
         if (!mapReady || !mapRef.current) return
         const map = mapRef.current
-        const clickHandlers: { layerId: string; handler: () => void }[] = []
+        const layerId = 'route-line'
+        const sourceId = 'route-source'
 
-        for (let i = 0; i < 3; i++) {
-            const layerId = `route-line-${i}`
-            const sourceId = `route-source-${i}`
-            if (map.getLayer(layerId)) map.removeLayer(layerId)
-            if (map.getSource(sourceId)) map.removeSource(sourceId)
-        }
+        if (map.getLayer(layerId)) map.removeLayer(layerId)
+        if (map.getSource(sourceId)) map.removeSource(sourceId)
 
-        if (routes.length > 0) {
-            const order = routes.map((_, i) => i).sort((a, b) => (a === selectedRoute ? 1 : b === selectedRoute ? -1 : 0))
-
-            order.forEach((i) => {
-                const route = routes[i]
-                const sourceId = `route-source-${i}`
-                const layerId = `route-line-${i}`
-                map.addSource(sourceId, {
-                    type: 'geojson',
-                    data: { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: route.coords } },
-                })
-                map.addLayer({
-                    id: layerId,
-                    type: 'line',
-                    source: sourceId,
-                    layout: { 'line-join': 'round', 'line-cap': 'round' },
-                    paint: {
-                        'line-color': ROUTE_COLORS[i % ROUTE_COLORS.length],
-                        'line-width': i === selectedRoute ? 6 : 4,
-                        'line-opacity': i === selectedRoute ? 1 : 0.45,
-                    },
-                })
-                const handler = () => setSelectedRoute(i)
-                map.on('click', layerId, handler)
-                clickHandlers.push({ layerId, handler })
+        if (route) {
+            map.addSource(sourceId, {
+                type: 'geojson',
+                data: { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: route.coords } },
+            })
+            map.addLayer({
+                id: layerId,
+                type: 'line',
+                source: sourceId,
+                layout: { 'line-join': 'round', 'line-cap': 'round' },
+                paint: {
+                    'line-color': ROUTE_COLOR,
+                    'line-width': 5,
+                    'line-opacity': 0.9,
+                },
             })
 
-            const active = routes[selectedRoute]
-            if (active) {
-                const bounds = active.coords.reduce(
-                    (b, c) => b.extend(c),
-                    new mapboxgl.LngLatBounds(active.coords[0], active.coords[0])
-                )
-                map.fitBounds(bounds, { padding: 80, duration: 500 })
-            }
+            const bounds = route.coords.reduce(
+                (b, c) => b.extend(c),
+                new mapboxgl.LngLatBounds(route.coords[0], route.coords[0])
+            )
+            map.fitBounds(bounds, { padding: 80, duration: 500 })
         }
-
-        return () => {
-            clickHandlers.forEach(({ layerId, handler }) => map.off('click', layerId, handler))
-        }
-    }, [mapReady, routes, selectedRoute])
+    }, [mapReady, route])
 
     // ===== BUSCA DE ENDEREÇO (autocomplete) =====
     const handleAddressChange = (field: 'origin' | 'destination', value: string) => {
@@ -694,12 +716,7 @@ export default function PedirMotoristaPage() {
             rows.push({ label: 'De', value: from })
             rows.push({ label: 'Para', value: to })
             if (hasShopping) {
-                rows.push({
-                    label: 'Compras',
-                    value: isGroceryShopping
-                        ? `de mercado${bagCount ? ` (${bagCount} ${bagCount === 1 ? 'sacola' : 'sacolas'})` : ''}`
-                        : 'sim',
-                })
+                rows.push({ label: 'Compras', value: `de mercado (${bagCount} ${bagCount === 1 ? 'sacola' : 'sacolas'})` })
             }
             if (hasExtraObject) rows.push({ label: 'Objeto', value: extraObjectDescription || 'não especificado' })
             if (hasPet) rows.push({ label: 'Pet', value: petDescription || 'não especificado' })
@@ -736,12 +753,13 @@ export default function PedirMotoristaPage() {
         if (!user) {
             saveDraft({
                 step, requestFor, origin, destination, notes, scheduledFor,
-                extraPeopleCount, hasChild, childrenCount, childAge, childNeedsCarSeat, hasShopping, isGroceryShopping, bagCount,
-                hasExtraObject, extraObjectDescription,
-                hasPet, petDescription,
+                extraPeopleCount, childrenCount, childAge, childNeedsCarSeat, bagCount,
+                extraObjectCount, extraObjectDescription,
+                petCount, petDescription,
                 objectDescription, objectIsSensitive, objectSize,
                 senderName, senderWhatsapp, recipientName, recipientWhatsapp,
                 originNeedsAccess, originAccessNotes, destinationNeedsAccess, destinationAccessNotes,
+                hasSpecialNeeds, specialNeedsDescription,
             })
             router.push(`/login?redirect=${encodeURIComponent('/pedir-motorista')}`)
             return
@@ -777,28 +795,32 @@ export default function PedirMotoristaPage() {
                 child_age: requestFor === 'pessoa' && hasChild && childAge.trim() ? childAge.trim() : null,
                 child_needs_car_seat: requestFor === 'pessoa' && hasChild ? childNeedsCarSeat : null,
                 has_shopping: requestFor === 'pessoa' ? hasShopping : false,
-                is_grocery_shopping: requestFor === 'pessoa' && hasShopping ? isGroceryShopping : null,
-                bag_count: requestFor === 'pessoa' && hasShopping && isGroceryShopping ? bagCount : null,
+                is_grocery_shopping: requestFor === 'pessoa' && hasShopping ? true : null,
+                bag_count: requestFor === 'pessoa' && hasShopping ? bagCount : null,
                 has_extra_object: requestFor === 'pessoa' ? hasExtraObject : false,
+                extra_object_count: requestFor === 'pessoa' && hasExtraObject ? extraObjectCount : null,
                 extra_object_description: requestFor === 'pessoa' && hasExtraObject ? extraObjectDescription.trim() || null : null,
                 extra_object_photo_url: extraObjectPhotoUrl,
                 has_pet: requestFor === 'pessoa' ? hasPet : false,
+                pet_count: requestFor === 'pessoa' && hasPet ? petCount : null,
                 pet_description: ((requestFor === 'pessoa' && hasPet) || requestFor === 'animal') ? petDescription.trim() || null : null,
                 pet_photo_url: petPhotoUrl,
                 object_description: requestFor === 'objeto' ? objectDescription.trim() || null : null,
                 object_is_sensitive: requestFor === 'objeto' ? objectIsSensitive : false,
-                object_size: (requestFor === 'objeto' || requestFor === 'animal') ? objectSize : null,
+                object_size: requestFor === 'pessoa' ? (hasExtraObject ? objectSize : null) : objectSize,
                 object_photo_url: objectPhotoUrl,
                 sender_name: (requestFor === 'objeto' || requestFor === 'animal') ? senderName.trim() || null : null,
                 sender_whatsapp: (requestFor === 'objeto' || requestFor === 'animal') ? senderWhatsapp.trim() || null : null,
                 recipient_name: (requestFor === 'objeto' || requestFor === 'animal') ? recipientName.trim() || null : null,
                 recipient_whatsapp: (requestFor === 'objeto' || requestFor === 'animal') ? recipientWhatsapp.trim() || null : null,
+                has_special_needs: hasSpecialNeeds,
+                special_needs_description: hasSpecialNeeds ? specialNeedsDescription.trim() || null : null,
                 origin_lat: origin.coords ? origin.coords[1] : null,
                 origin_lng: origin.coords ? origin.coords[0] : null,
                 destination_lat: destination.coords ? destination.coords[1] : null,
                 destination_lng: destination.coords ? destination.coords[0] : null,
-                distance_km: routes[selectedRoute]?.distanceKm ?? null,
-                duration_min: routes[selectedRoute]?.durationMin ?? null,
+                distance_km: route?.distanceKm ?? null,
+                duration_min: route?.durationMin ?? null,
                 scheduled_for: isScheduled ? new Date(scheduledFor).toISOString() : null,
             }).select('id').single()
 
@@ -1181,42 +1203,57 @@ export default function PedirMotoristaPage() {
                                 </div>
                             </div>
 
-                            {/* Opções de rota */}
+                            {/* Rota (uma só, sem alternativas) */}
                             {loadingRoutes && (
                                 <div className="flex items-center gap-2 mt-3 text-xs" style={{ color: colors.textSecondary }}>
                                     <Spinner size={14} />
-                                    Calculando rotas...
+                                    Calculando rota...
                                 </div>
                             )}
 
-                            {!loadingRoutes && routes.length > 0 && (
-                                <div className="flex gap-2 mt-3 overflow-x-auto pb-1">
-                                    {routes.map((r, i) => {
-                                        const color = ROUTE_COLORS[i % ROUTE_COLORS.length]
-                                        const active = i === selectedRoute
-                                        return (
-                                            <button
-                                                key={i}
-                                                onClick={() => setSelectedRoute(i)}
-                                                className="flex-shrink-0 flex flex-col items-start gap-1 px-3 py-2 rounded-xl text-left transition-all"
-                                                style={
-                                                    active
-                                                        ? { background: `${color}20`, border: `2px solid ${color}` }
-                                                        : { background: `${colors.border}30`, border: `1px solid ${colors.border}` }
-                                                }
-                                            >
-                                                <div className="flex items-center gap-1.5">
-                                                    <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: color }} />
-                                                    <span className="text-xs font-bold" style={{ color: colors.textPrimary }}>Rota {i + 1}</span>
-                                                </div>
-                                                <span className="text-[11px]" style={{ color: colors.textSecondary }}>
-                                                    {r.distanceKm.toFixed(1)} km · {Math.round(r.durationMin)} min
-                                                </span>
-                                            </button>
-                                        )
-                                    })}
+                            {!loadingRoutes && route && (
+                                <div className="flex items-center gap-1.5 mt-3 text-xs font-bold" style={{ color: colors.textSecondary }}>
+                                    <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: ROUTE_COLOR }} />
+                                    {route.distanceKm.toFixed(1)} km · {Math.round(route.durationMin)} min
                                 </div>
                             )}
+
+                            {/* Necessidade especial */}
+                            <div className="rounded-xl px-3 py-2.5 mt-3" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
+                                <div className="flex items-center justify-between gap-2 flex-wrap">
+                                    <span className="flex items-center gap-1.5 text-xs font-bold" style={{ color: colors.textPrimary }}>
+                                        <ShieldAlert size={13} style={{ color: colors.accent }} />
+                                        Portador de necessidade especial?
+                                    </span>
+                                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                                        <button
+                                            onClick={() => setHasSpecialNeeds(true)}
+                                            className="px-3 py-1 rounded-full text-[11px] font-black transition-all"
+                                            style={hasSpecialNeeds ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                                        >
+                                            SIM
+                                        </button>
+                                        <button
+                                            onClick={() => { setHasSpecialNeeds(false); setSpecialNeedsDescription('') }}
+                                            className="px-3 py-1 rounded-full text-[11px] font-black transition-all"
+                                            style={!hasSpecialNeeds ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                                        >
+                                            NÃO
+                                        </button>
+                                    </div>
+                                </div>
+                                {hasSpecialNeeds && (
+                                    <input
+                                        type="text"
+                                        value={specialNeedsDescription}
+                                        onChange={(e) => setSpecialNeedsDescription(e.target.value)}
+                                        autoFocus
+                                        placeholder="Qual necessidade especial?"
+                                        className="w-full mt-2 px-3 py-2 rounded-lg text-sm focus:outline-none"
+                                        style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                                    />
+                                )}
+                            </div>
 
                             {/* Agora ou agendar pra depois */}
                             <div className="rounded-xl px-3 py-2.5 mt-3" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
@@ -1281,227 +1318,136 @@ export default function PedirMotoristaPage() {
                     {step === 'details' && requestFor && (
                         <>
                             <h2 className="text-lg font-black mb-3" style={{ color: colors.textPrimary }}>
-                                {requestFor === 'pessoa' ? 'Mais alguém vai?' : requestFor === 'animal' ? 'Mais sobre o animal' : 'Mais sobre o objeto'}
+                                {requestFor === 'pessoa' ? 'Detalhes da corrida' : requestFor === 'animal' ? 'Mais sobre o animal' : 'Mais sobre o objeto'}
                             </h2>
 
                             {requestFor === 'pessoa' ? (
                                 <>
-                                    {/* Nº de pessoas a mais, além de quem pediu — define o tipo de veículo sugerido */}
-                                    <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
-                                        <div className="flex items-center gap-2">
-                                            <Users size={16} style={{ color: colors.textSecondary }} />
-                                            <span className="text-sm font-bold" style={{ color: colors.textPrimary }}>Quantas pessoas a mais?</span>
-                                        </div>
-                                        <div className="flex items-center gap-3">
-                                            <button
-                                                onClick={() => setExtraPeopleCount((n) => Math.max(0, n - 1))}
-                                                disabled={extraPeopleCount <= 0}
-                                                className="w-7 h-7 rounded-full flex items-center justify-center disabled:opacity-40"
-                                                style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
-                                            >
-                                                <Minus size={14} />
-                                            </button>
-                                            <span className="text-sm font-black w-5 text-center" style={{ color: colors.textPrimary }}>{extraPeopleCount}</span>
-                                            <button
-                                                onClick={() => setExtraPeopleCount((n) => Math.min(29, n + 1))}
-                                                disabled={extraPeopleCount >= 29}
-                                                className="w-7 h-7 rounded-full flex items-center justify-center disabled:opacity-40"
-                                                style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
-                                            >
-                                                <Plus size={14} />
-                                            </button>
-                                        </div>
-                                    </div>
+                                    {/* Cada adicional é um contador — 0 significa que não tem esse adicional */}
+                                    <div className="flex flex-col gap-2">
+                                        <CounterRow
+                                            label="Quantas adultos a mais?"
+                                            icon={Users}
+                                            value={extraPeopleCount}
+                                            onChange={setExtraPeopleCount}
+                                            max={29}
+                                            colors={colors}
+                                        />
 
-                                    {totalPeople > 4 && (
-                                        <div className="flex items-center gap-1.5 mt-2 px-3 py-2 rounded-lg text-xs font-semibold" style={{ background: `${colors.accent}15`, color: colors.accent }}>
-                                            <Bus size={14} />
-                                            Vai precisar de: {VEHICLE_TYPE_LABELS[vehicleType]}
-                                        </div>
-                                    )}
-
-                                    {/* Adicionais combináveis */}
-                                    <div className="grid grid-cols-2 gap-2 mt-3">
-                                        {[
-                                            { active: hasChild, label: 'Vai criança', icon: Baby, toggle: () => setHasChild((v) => !v) },
-                                            { active: hasShopping, label: 'Compras', icon: ShoppingBag, toggle: () => setHasShopping((v) => !v) },
-                                            { active: hasExtraObject, label: 'Objeto', icon: PackagePlus, toggle: () => setHasExtraObject((v) => !v) },
-                                            { active: hasPet, label: 'Pet', icon: PawPrint, toggle: () => setHasPet((v) => !v) },
-                                        ].map((chip) => {
-                                            const Icon = chip.icon
-                                            return (
-                                                <button
-                                                    key={chip.label}
-                                                    onClick={chip.toggle}
-                                                    className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold transition-all"
-                                                    style={
-                                                        chip.active
-                                                            ? { background: GRADIENT, color: '#fff' }
-                                                            : { background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }
-                                                    }
-                                                >
-                                                    <Icon size={15} />
-                                                    {chip.label}
-                                                </button>
-                                            )
-                                        })}
-                                    </div>
-
-                                    {hasChild && (
-                                        <div className="rounded-xl px-3 py-2.5 mt-2" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
-                                            <p className="text-[11px] mb-2" style={{ color: colors.textSecondary }}>
-                                                Cada criança conta como uma pessoa e ocupa lugar de adulto.
-                                            </p>
-                                            <div className="flex items-center justify-between gap-3">
-                                                <span className="text-xs font-bold" style={{ color: colors.textPrimary }}>Quantas crianças?</span>
-                                                <div className="flex items-center gap-3">
-                                                    <button
-                                                        onClick={() => setChildrenCount((n) => Math.max(1, n - 1))}
-                                                        disabled={childrenCount <= 1}
-                                                        className="w-7 h-7 rounded-full flex items-center justify-center disabled:opacity-40"
-                                                        style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
-                                                    >
-                                                        <Minus size={14} />
-                                                    </button>
-                                                    <span className="text-sm font-black w-5 text-center" style={{ color: colors.textPrimary }}>{childrenCount}</span>
-                                                    <button
-                                                        onClick={() => setChildrenCount((n) => Math.min(10, n + 1))}
-                                                        disabled={childrenCount >= 10}
-                                                        className="w-7 h-7 rounded-full flex items-center justify-center disabled:opacity-40"
-                                                        style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
-                                                    >
-                                                        <Plus size={14} />
-                                                    </button>
-                                                </div>
+                                        {totalPeople > 4 && (
+                                            <div className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold" style={{ background: `${colors.accent}15`, color: colors.accent }}>
+                                                <Bus size={14} />
+                                                Vai precisar de: {VEHICLE_TYPE_LABELS[vehicleType]}
                                             </div>
-                                            <span className="text-xs font-bold block mb-1.5 mt-3" style={{ color: colors.textPrimary }}>
-                                                {childrenCount === 1 ? 'Idade da criança' : 'Idades das crianças'}
-                                            </span>
-                                            <input
-                                                type="text"
-                                                value={childAge}
-                                                onChange={(e) => setChildAge(e.target.value)}
-                                                placeholder={childrenCount === 1 ? 'Ex: 5 anos' : 'Ex: 5 e 8 anos'}
-                                                className="w-full px-3 py-2 rounded-lg text-sm focus:outline-none"
-                                                style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
-                                            />
-                                            <div className="flex items-center justify-between gap-2 flex-wrap mt-3">
-                                                <span className="text-xs font-bold" style={{ color: colors.textPrimary }}>Precisa de cadeirinha?</span>
-                                                <div className="flex items-center gap-1.5 flex-shrink-0">
-                                                    <button
-                                                        onClick={() => setChildNeedsCarSeat(true)}
-                                                        className="px-3 py-1 rounded-full text-[11px] font-black transition-all"
-                                                        style={childNeedsCarSeat === true ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
-                                                    >
-                                                        SIM
-                                                    </button>
-                                                    <button
-                                                        onClick={() => setChildNeedsCarSeat(false)}
-                                                        className="px-3 py-1 rounded-full text-[11px] font-black transition-all"
-                                                        style={childNeedsCarSeat === false ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
-                                                    >
-                                                        NÃO
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    )}
+                                        )}
 
-                                    {/* Compras — mercado? quantas sacolas? */}
-                                    {hasShopping && (
-                                        <div className="rounded-xl px-3 py-2.5 mt-2" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
-                                            <div className="flex items-center justify-between gap-2 flex-wrap">
-                                                <span className="text-xs font-bold" style={{ color: colors.textPrimary }}>É compra de mercado?</span>
-                                                <div className="flex items-center gap-1.5 flex-shrink-0">
-                                                    <button
-                                                        onClick={() => setIsGroceryShopping(true)}
-                                                        className="px-3 py-1 rounded-full text-[11px] font-black transition-all"
-                                                        style={isGroceryShopping === true ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
-                                                    >
-                                                        SIM
-                                                    </button>
-                                                    <button
-                                                        onClick={() => setIsGroceryShopping(false)}
-                                                        className="px-3 py-1 rounded-full text-[11px] font-black transition-all"
-                                                        style={isGroceryShopping === false ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
-                                                    >
-                                                        NÃO
-                                                    </button>
-                                                </div>
-                                            </div>
-                                            {isGroceryShopping === true && (
-                                                <div className="flex items-center justify-between gap-3 mt-2">
-                                                    <span className="text-xs font-bold" style={{ color: colors.textSecondary }}>Quantas sacolas?</span>
-                                                    <div className="flex items-center gap-3">
+                                        <CounterRow label="Criança" icon={Baby} value={childrenCount} onChange={setChildrenCount} max={10} colors={colors} />
+                                        {hasChild && (
+                                            <div className="rounded-xl px-3 py-2.5" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
+                                                <span className="text-xs font-bold block mb-1.5" style={{ color: colors.textPrimary }}>
+                                                    {childrenCount === 1 ? 'Idade da criança' : 'Idades das crianças'}
+                                                </span>
+                                                <input
+                                                    type="text"
+                                                    value={childAge}
+                                                    onChange={(e) => setChildAge(e.target.value)}
+                                                    autoFocus
+                                                    placeholder={childrenCount === 1 ? 'Ex: 5 anos' : 'Ex: 5 e 8 anos'}
+                                                    className="w-full px-3 py-2 rounded-lg text-sm focus:outline-none"
+                                                    style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                                                />
+                                                <div className="flex items-center justify-between gap-2 flex-wrap mt-3">
+                                                    <span className="text-xs font-bold" style={{ color: colors.textPrimary }}>Precisa de cadeirinha?</span>
+                                                    <div className="flex items-center gap-1.5 flex-shrink-0">
                                                         <button
-                                                            onClick={() => setBagCount((n) => Math.max(1, n - 1))}
-                                                            disabled={bagCount <= 1}
-                                                            className="w-7 h-7 rounded-full flex items-center justify-center disabled:opacity-40"
-                                                            style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                                                            onClick={() => setChildNeedsCarSeat(true)}
+                                                            className="px-3 py-1 rounded-full text-[11px] font-black transition-all"
+                                                            style={childNeedsCarSeat === true ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
                                                         >
-                                                            <Minus size={14} />
+                                                            SIM
                                                         </button>
-                                                        <span className="text-sm font-black w-5 text-center" style={{ color: colors.textPrimary }}>{bagCount}</span>
                                                         <button
-                                                            onClick={() => setBagCount((n) => Math.min(20, n + 1))}
-                                                            disabled={bagCount >= 20}
-                                                            className="w-7 h-7 rounded-full flex items-center justify-center disabled:opacity-40"
-                                                            style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                                                            onClick={() => setChildNeedsCarSeat(false)}
+                                                            className="px-3 py-1 rounded-full text-[11px] font-black transition-all"
+                                                            style={childNeedsCarSeat === false ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
                                                         >
-                                                            <Plus size={14} />
+                                                            NÃO
                                                         </button>
                                                     </div>
                                                 </div>
-                                            )}
-                                        </div>
-                                    )}
-
-                                    {/* Objeto extra — qual é e foto */}
-                                    {hasExtraObject && (
-                                        <div className="rounded-xl px-3 py-2.5 mt-2" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
-                                            <span className="text-xs font-bold block mb-2" style={{ color: colors.textPrimary }}>Qual é o objeto?</span>
-                                            <input
-                                                type="text"
-                                                value={extraObjectDescription}
-                                                onChange={(e) => setExtraObjectDescription(e.target.value)}
-                                                placeholder="Ex: mochila, caixa, mala..."
-                                                className="w-full px-3 py-2 rounded-lg text-sm focus:outline-none"
-                                                style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
-                                            />
-                                            <div className="mt-2">
-                                                <span className="text-xs font-bold block mb-1.5" style={{ color: colors.textSecondary }}>
-                                                    Foto do objeto <span style={{ color: '#ef4444' }}>*</span>
-                                                </span>
-                                                <PhotoPicker
-                                                    preview={extraObjectPhotoPreview}
-                                                    onPick={(file) => handlePhotoPick(file, setExtraObjectPhotoFile)}
-                                                    colors={colors}
-                                                />
                                             </div>
-                                        </div>
-                                    )}
+                                        )}
 
-                                    {/* Pet — qual é e foto */}
-                                    {hasPet && (
-                                        <div className="rounded-xl px-3 py-2.5 mt-2" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
-                                            <span className="text-xs font-bold block mb-2" style={{ color: colors.textPrimary }}>Qual é o pet?</span>
-                                            <input
-                                                type="text"
-                                                value={petDescription}
-                                                onChange={(e) => setPetDescription(e.target.value)}
-                                                placeholder="Ex: cachorro pequeno, gato..."
-                                                className="w-full px-3 py-2 rounded-lg text-sm focus:outline-none"
-                                                style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
-                                            />
-                                            <div className="mt-2">
-                                                <PhotoPicker
-                                                    preview={petPhotoPreview}
-                                                    onPick={(file) => handlePhotoPick(file, setPetPhotoFile)}
-                                                    colors={colors}
+                                        <CounterRow label="Compras de mercado" icon={ShoppingBag} value={bagCount} onChange={setBagCount} max={20} colors={colors} />
+
+                                        <CounterRow label="Objeto" icon={PackagePlus} value={extraObjectCount} onChange={setExtraObjectCount} max={10} colors={colors} />
+                                        {hasExtraObject && (
+                                            <div className="rounded-xl px-3 py-2.5" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
+                                                <span className="text-xs font-bold block mb-1.5" style={{ color: colors.textSecondary }}>Tamanho do objeto</span>
+                                                <div className="flex gap-2 mb-2">
+                                                    {(['pequeno', 'medio', 'grande'] as ObjectSize[]).map((size) => {
+                                                        const active = objectSize === size
+                                                        const label = size === 'pequeno' ? 'Pequeno' : size === 'medio' ? 'Médio' : 'Grande'
+                                                        return (
+                                                            <button
+                                                                key={size}
+                                                                onClick={() => setObjectSize(size)}
+                                                                className="flex-1 py-2 rounded-xl text-xs font-bold transition-all"
+                                                                style={
+                                                                    active
+                                                                        ? { background: GRADIENT, color: '#fff' }
+                                                                        : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }
+                                                                }
+                                                            >
+                                                                {label}
+                                                            </button>
+                                                        )
+                                                    })}
+                                                </div>
+                                                <input
+                                                    type="text"
+                                                    value={extraObjectDescription}
+                                                    onChange={(e) => setExtraObjectDescription(e.target.value)}
+                                                    placeholder="Ex: mochila, caixa, mala..."
+                                                    className="w-full px-3 py-2 rounded-lg text-sm focus:outline-none"
+                                                    style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
                                                 />
+                                                <div className="mt-2">
+                                                    <span className="text-xs font-bold block mb-1.5" style={{ color: colors.textSecondary }}>
+                                                        Foto do objeto <span style={{ color: '#ef4444' }}>*</span>
+                                                    </span>
+                                                    <PhotoPicker
+                                                        preview={extraObjectPhotoPreview}
+                                                        onPick={(file) => handlePhotoPick(file, setExtraObjectPhotoFile)}
+                                                        colors={colors}
+                                                    />
+                                                </div>
                                             </div>
-                                        </div>
-                                    )}
+                                        )}
+
+                                        <CounterRow label="Pet" icon={PawPrint} value={petCount} onChange={setPetCount} max={10} colors={colors} />
+                                        {hasPet && (
+                                            <div className="rounded-xl px-3 py-2.5" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
+                                                <span className="text-xs font-bold block mb-2" style={{ color: colors.textPrimary }}>Qual é o animal?</span>
+                                                <input
+                                                    type="text"
+                                                    value={petDescription}
+                                                    onChange={(e) => setPetDescription(e.target.value)}
+                                                    placeholder="Ex: cachorro pequeno, gato..."
+                                                    className="w-full px-3 py-2 rounded-lg text-sm focus:outline-none"
+                                                    style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                                                />
+                                                <div className="mt-2">
+                                                    <span className="text-xs font-bold block mb-1.5" style={{ color: colors.textSecondary }}>Foto do animal</span>
+                                                    <PhotoPicker
+                                                        preview={petPhotoPreview}
+                                                        onPick={(file) => handlePhotoPick(file, setPetPhotoFile)}
+                                                        colors={colors}
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
                                 </>
                             ) : requestFor === 'animal' ? (
                                 <>
