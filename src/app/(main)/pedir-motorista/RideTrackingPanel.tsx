@@ -13,7 +13,9 @@ import { Check, X, MapPin, Search, CheckCircle2, XCircle, Car, CalendarClock, Cl
 import { fetchRoute } from '@/lib/mapboxRoute'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
-const CANDIDATE_COLORS = ['#3b82f6', '#a855f7', '#22c55e', '#eab308', '#ec4899']
+const TRIP_ROUTE_COLOR = '#ef4444'
+// Alto contraste entre si, e nenhuma perto do vermelho (reservado pro trajeto partida → chegada).
+const CANDIDATE_COLORS = ['#eab308', '#3b82f6', '#ec4899', '#06b6d4', '#14b8a6']
 
 type RideStatus = 'pending' | 'accepted' | 'completed' | 'cancelled'
 
@@ -209,8 +211,8 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady }: Rid
         }
     }, [rideId, load])
 
-    // ===== MAPA: meu trajeto + a rota completa (motorista → partida → chegada)
-    // de cada candidato, cada uma numa cor só, ao mesmo tempo =====
+    // ===== MAPA: uma única rota partida → chegada (vermelha), mais a conexão
+    // de cada candidato até a partida, cada uma na sua própria cor =====
     const candidateMarkersRef = useRef<mapboxgl.Marker[]>([])
     const candidateLayerIdsRef = useRef<string[]>([])
 
@@ -221,7 +223,8 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady }: Rid
         if (ride.origin_lat != null && ride.origin_lng != null) bounds.extend([ride.origin_lng, ride.origin_lat])
         if (ride.destination_lat != null && ride.destination_lng != null) bounds.extend([ride.destination_lng, ride.destination_lat])
 
-        // Meu trajeto (partida → chegada), sempre visível enquanto existir.
+        // Meu trajeto (partida → chegada) — uma rota só, sempre visível
+        // enquanto existir. Sem alternativas, sem repetir por candidato.
         if (tripRouteCoords) {
             map.addSource('my-trip-route', {
                 type: 'geojson',
@@ -232,14 +235,14 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady }: Rid
                 type: 'line',
                 source: 'my-trip-route',
                 layout: { 'line-join': 'round', 'line-cap': 'round' },
-                paint: { 'line-color': '#111827', 'line-width': 5, 'line-opacity': 0.85 },
+                paint: { 'line-color': TRIP_ROUTE_COLOR, 'line-width': 5, 'line-opacity': 0.9 },
             })
             candidateLayerIdsRef.current.push('my-trip-route')
             tripRouteCoords.forEach((coord) => bounds.extend(coord as [number, number]))
         }
 
-        // Rota completa de cada candidato (dele até a partida + partida até a
-        // chegada, emendadas), uma cor por candidato — só enquanto pendente.
+        // Conexão de cada candidato até a partida — só a perna dele, sem
+        // repetir o trajeto partida → chegada (que já está desenhado acima).
         if (ride.status === 'pending') {
             const visible = candidates.filter(
                 (c) => c.status === 'pending' && c.lat != null && c.lng != null && c.routeCoords
@@ -248,18 +251,17 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady }: Rid
             visible.forEach((c, i) => {
                 const color = CANDIDATE_COLORS[i % CANDIDATE_COLORS.length]
                 const layerId = `candidate-route-${c.applicationId}`
-                const fullCoords = tripRouteCoords ? c.routeCoords!.concat(tripRouteCoords) : c.routeCoords!
 
                 map.addSource(layerId, {
                     type: 'geojson',
-                    data: { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: fullCoords } },
+                    data: { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: c.routeCoords! } },
                 })
                 map.addLayer({
                     id: layerId,
                     type: 'line',
                     source: layerId,
                     layout: { 'line-join': 'round', 'line-cap': 'round' },
-                    paint: { 'line-color': color, 'line-width': 4, 'line-opacity': 0.8, 'line-dasharray': [2, 1.5] },
+                    paint: { 'line-color': color, 'line-width': 4, 'line-opacity': 0.9, 'line-dasharray': [2, 1.5] },
                 })
                 candidateLayerIdsRef.current.push(layerId)
 
