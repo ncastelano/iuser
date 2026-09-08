@@ -12,6 +12,7 @@ import { Spinner } from '@/components/Spinner'
 import { Check, X, MapPin, Search, CheckCircle2, XCircle, Car, CalendarClock, Clock, Store, MessageSquare } from 'lucide-react'
 import { fetchRoute } from '@/lib/mapboxRoute'
 import { DRIVER_SERVICE_OPTIONS } from '@/lib/driverServices'
+import RideChat from '@/components/RideChat'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 const TRIP_ROUTE_COLOR = '#ef4444'
@@ -687,6 +688,11 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady }: Rid
                         <p className="text-[11px]" style={{ color: colors.textSecondary }}>Confira a placa e a cor do carro antes de entrar.</p>
                     </div>
                 </div>
+            )}
+
+            {/* Chat com o motorista, enquanto a corrida está aceita */}
+            {ride.status === 'accepted' && driver && (
+                <RideChat rideId={ride.id} />
             )}
 
             {/* Candidatos, enquanto pendente */}
