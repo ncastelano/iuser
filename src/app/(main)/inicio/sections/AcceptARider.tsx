@@ -4,7 +4,7 @@
 import { ReactNode, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
-import { Car, Settings2 } from 'lucide-react'
+import { Car, Settings2, CheckCircle2, Navigation } from 'lucide-react'
 import { useTheme } from '@/app/theme'
 import { supabase } from '@/lib/supabase/client'
 import { hexToRgb } from '@/lib/color'
@@ -12,32 +12,127 @@ import { hexToRgb } from '@/lib/color'
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
-interface AcceptARiderProps {
-    dragHandle?: ReactNode
+function shortAddress(address: string): string {
+    const firstPart = address.split(',')[0].trim()
+    return firstPart.length > 24 ? firstPart.substring(0, 22) + '...' : firstPart
 }
 
-export default function AcceptARider({ dragHandle }: AcceptARiderProps) {
+interface AcceptedRideStatus {
+    id: string
+    origin_address: string
+    destination_address: string
+    driver_en_route: boolean
+    requesterName: string | null
+    requesterSlug: string | null
+    proposedPrice: number | null
+}
+
+interface AcceptARiderProps {
+    dragHandle?: ReactNode
+    // Dispara quando o motorista está com uma corrida aceita em andamento —
+    // a home usa isso pra subir esse componente na frente de Categorias
+    // enquanto durar, do mesmo jeito que o Motorista Particular já faz.
+    onUrgentChange?: (urgent: boolean) => void
+}
+
+export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARiderProps) {
     const { colors } = useTheme()
     const router = useRouter()
     const startNavProgress = useNavProgressStore((s) => s.start)
     const [hasPricing, setHasPricing] = useState<boolean | null>(null)
+    const [acceptedRide, setAcceptedRide] = useState<AcceptedRideStatus | null>(null)
 
     useEffect(() => {
         let active = true
-        supabase.auth.getUser().then(async ({ data: { user } }) => {
-            if (!user) {
-                if (active) setHasPricing(false)
+        let channel: ReturnType<typeof supabase.channel> | null = null
+        let userId: string | null = null
+
+        const loadRide = async () => {
+            if (!userId) return
+
+            const { data: order } = await supabase
+                .from('ride_requests')
+                .select('id, requester_id, origin_address, destination_address, driver_en_route')
+                .eq('driver_id', userId)
+                .eq('status', 'accepted')
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .maybeSingle()
+
+            if (!active) return
+            if (!order) {
+                setAcceptedRide(null)
                 return
             }
-            const { data } = await supabase
+
+            const [{ data: requester }, { data: application }] = await Promise.all([
+                supabase.from('profiles').select('name, profileSlug').eq('id', order.requester_id).maybeSingle(),
+                supabase
+                    .from('ride_applications')
+                    .select('proposed_price')
+                    .eq('ride_request_id', order.id)
+                    .eq('applicant_id', userId)
+                    .eq('status', 'accepted')
+                    .maybeSingle(),
+            ])
+            if (!active) return
+
+            setAcceptedRide({
+                id: order.id,
+                origin_address: order.origin_address,
+                destination_address: order.destination_address,
+                driver_en_route: order.driver_en_route,
+                requesterName: requester?.name || null,
+                requesterSlug: requester?.profileSlug || null,
+                proposedPrice: application?.proposed_price ?? null,
+            })
+        }
+
+        const init = async () => {
+            const { data: { user } } = await supabase.auth.getUser()
+            if (!active) return
+            if (!user) {
+                setHasPricing(false)
+                return
+            }
+            userId = user.id
+
+            const { data: pricing } = await supabase
                 .from('driver_pricing')
                 .select('id')
                 .eq('driver_id', user.id)
                 .maybeSingle()
-            if (active) setHasPricing(!!data)
-        })
-        return () => { active = false }
+            if (!active) return
+            setHasPricing(!!pricing)
+
+            await loadRide()
+
+            // Tempo real: aceite, "a caminho" e finalização/cancelamento são
+            // todos UPDATE nesta própria linha — um canal cobre tudo.
+            channel = supabase
+                .channel(`canal-motorista-${user.id}`)
+                .on(
+                    'postgres_changes',
+                    { event: '*', schema: 'public', table: 'ride_requests', filter: `driver_id=eq.${user.id}` },
+                    () => loadRide()
+                )
+                .subscribe()
+        }
+
+        init()
+        const poll = setInterval(loadRide, 15000)
+        return () => {
+            active = false
+            clearInterval(poll)
+            if (channel) supabase.removeChannel(channel)
+        }
     }, [])
+
+    useEffect(() => {
+        onUrgentChange?.(!!acceptedRide)
+        return () => { onUrgentChange?.(false) }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [acceptedRide])
 
     const surfaceRgb = hexToRgb(colors.surface)
 
@@ -134,6 +229,35 @@ export default function AcceptARider({ dragHandle }: AcceptARiderProps) {
                         )}
                     </div>
                 </div>
+
+                {acceptedRide && (
+                    <button
+                        onClick={goToCorridas}
+                        className="w-full mt-4 p-3 rounded-xl text-left transition-all hover:scale-[1.01]"
+                        style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}
+                    >
+                        <div className="flex items-center justify-between gap-2 flex-wrap mb-1">
+                            <span
+                                className="flex items-center gap-1.5 text-xs font-black"
+                                style={{ color: acceptedRide.driver_en_route ? '#22c55e' : '#f97316' }}
+                            >
+                                {acceptedRide.driver_en_route ? <Navigation size={13} /> : <CheckCircle2 size={13} />}
+                                {acceptedRide.driver_en_route ? 'A caminho do ponto de partida' : 'Corrida aceita — aguardando você sair'}
+                            </span>
+                            {acceptedRide.proposedPrice != null && (
+                                <span className="text-[10px] font-black" style={{ color: '#f97316' }}>
+                                    R$ {acceptedRide.proposedPrice.toFixed(2)}
+                                </span>
+                            )}
+                        </div>
+                        <p className="text-[10px] font-bold mb-1" style={{ color: colors.textSecondary }}>
+                            {acceptedRide.requesterName || (acceptedRide.requesterSlug ? `@${acceptedRide.requesterSlug}` : 'Passageiro')}
+                        </p>
+                        <span className="text-xs" style={{ color: colors.textPrimary }}>
+                            {shortAddress(acceptedRide.origin_address)} → {shortAddress(acceptedRide.destination_address)}
+                        </span>
+                    </button>
+                )}
             </div>
         </section>
     )

@@ -131,6 +131,7 @@ export default function HomePage() {
 
     const [breveMap, setBreveMap] = useState<Record<string, boolean>>({})
     const [motoristaUrgent, setMotoristaUrgent] = useState(false)
+    const [canalMotoristaUrgent, setCanalMotoristaUrgent] = useState(false)
 
     const storeOrderCounts = useMerchantStore(s => s.storeOrderCounts)
     const setMerchantStoreOrderCounts = useMerchantStore(s => s.setStoreOrderCounts)
@@ -450,9 +451,17 @@ export default function HomePage() {
     }
 
     // ---------- SEÇÕES EXIBIDAS (categorias sempre em primeiro, exceto quando
-    // o Motorista Particular está com atualização urgente — candidato novo
-    // se candidatando ou motorista a caminho — aí ele sobe pra frente de
-    // Categorias até a corrida ser concluída/cancelada) ----------
+    // Motorista Particular ou Canal do Motorista estão com atualização
+    // urgente — pedido com candidato/motorista a caminho, ou corrida aceita
+    // em andamento — aí a seção urgente sobe pra frente de Categorias até
+    // resolver) ----------
+    const urgentSections = useMemo(() => {
+        const list: string[] = []
+        if (canalMotoristaUrgent) list.push('canalMotorista')
+        if (motoristaUrgent) list.push('motorista')
+        return list
+    }, [motoristaUrgent, canalMotoristaUrgent])
+
     const displayedSections = useMemo(() => {
         const uniqueSections = Array.from(new Set(sections))
         if (!uniqueSections.includes('categorias')) {
@@ -460,13 +469,14 @@ export default function HomePage() {
         }
         const withoutCategorias = uniqueSections.filter(s => s !== 'categorias')
 
-        if (motoristaUrgent && withoutCategorias.includes('motorista')) {
-            const withoutMotorista = withoutCategorias.filter(s => s !== 'motorista')
-            return ['motorista', 'categorias', ...withoutMotorista]
+        const activeUrgent = urgentSections.filter(s => withoutCategorias.includes(s))
+        if (activeUrgent.length > 0) {
+            const rest = withoutCategorias.filter(s => !activeUrgent.includes(s))
+            return [...activeUrgent, 'categorias', ...rest]
         }
 
         return ['categorias', ...withoutCategorias]
-    }, [sections, motoristaUrgent])
+    }, [sections, urgentSections])
 
     // ---------- SALVAR ORDEM ----------
     const handleSaveOrder = () => {
@@ -582,7 +592,7 @@ export default function HomePage() {
             case 'motorista':
                 return <MotoristaSection onBreveStatusChange={breveCallbacks.motorista} onUrgentChange={setMotoristaUrgent} />
             case 'canalMotorista':
-                return <AcceptARider />
+                return <AcceptARider onUrgentChange={setCanalMotoristaUrgent} />
             case 'servico':
                 return <HireAService />
             default:
