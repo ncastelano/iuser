@@ -4,10 +4,12 @@
 import { ReactNode, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
-import { Car, Settings2, CheckCircle2, Navigation } from 'lucide-react'
+import { Car, Settings2, CheckCircle2, Navigation, MessageCircle, X } from 'lucide-react'
 import { useTheme } from '@/app/theme'
 import { supabase } from '@/lib/supabase/client'
 import { hexToRgb } from '@/lib/color'
+import RideChat from '@/components/RideChat'
+import { DRIVER_CHAT_QUICK_REPLIES } from '@/lib/rideChatQuickReplies'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -41,6 +43,7 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
     const startNavProgress = useNavProgressStore((s) => s.start)
     const [hasPricing, setHasPricing] = useState<boolean | null>(null)
     const [acceptedRide, setAcceptedRide] = useState<AcceptedRideStatus | null>(null)
+    const [showChat, setShowChat] = useState(false)
 
     useEffect(() => {
         let active = true
@@ -231,9 +234,9 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
                 </div>
 
                 {acceptedRide && (
-                    <button
+                    <div
                         onClick={goToCorridas}
-                        className="w-full mt-4 p-3 rounded-xl text-left transition-all hover:scale-[1.01]"
+                        className="w-full mt-4 p-3 rounded-xl text-left transition-all hover:scale-[1.01] cursor-pointer"
                         style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}
                     >
                         <div className="flex items-center justify-between gap-2 flex-wrap mb-1">
@@ -253,12 +256,49 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
                         <p className="text-[10px] font-bold mb-1" style={{ color: colors.textSecondary }}>
                             {acceptedRide.requesterName || (acceptedRide.requesterSlug ? `@${acceptedRide.requesterSlug}` : 'Passageiro')}
                         </p>
-                        <span className="text-xs" style={{ color: colors.textPrimary }}>
+                        <span className="text-xs block mb-2" style={{ color: colors.textPrimary }}>
                             {shortAddress(acceptedRide.origin_address)} → {shortAddress(acceptedRide.destination_address)}
                         </span>
-                    </button>
+
+                        <button
+                            onClick={(e) => { e.stopPropagation(); setShowChat(true) }}
+                            className="flex items-center justify-center gap-1.5 w-full px-3 py-2 rounded-full text-xs font-bold transition-all hover:scale-105 active:scale-95"
+                            style={{ background: colors.surface, color: colors.textPrimary, border: `1px solid ${colors.border}` }}
+                        >
+                            <MessageCircle size={14} />
+                            Abrir chat com {acceptedRide.requesterName || 'o passageiro'}
+                        </button>
+                    </div>
                 )}
             </div>
+
+            {showChat && acceptedRide && (
+                <div
+                    className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/70 backdrop-blur-sm"
+                    onClick={() => setShowChat(false)}
+                >
+                    <div
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-full sm:max-w-sm rounded-t-3xl sm:rounded-2xl p-4 shadow-2xl"
+                        style={{ background: colors.surface, border: `1px solid ${colors.border}` }}
+                    >
+                        <div className="flex items-center justify-between mb-3">
+                            <h3 className="text-sm font-black" style={{ color: colors.textPrimary }}>
+                                Chat com {acceptedRide.requesterName || (acceptedRide.requesterSlug ? `@${acceptedRide.requesterSlug}` : 'o passageiro')}
+                            </h3>
+                            <button
+                                onClick={() => setShowChat(false)}
+                                className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+                                style={{ background: `${colors.border}40`, color: colors.textPrimary }}
+                                aria-label="Fechar"
+                            >
+                                <X size={16} />
+                            </button>
+                        </div>
+                        <RideChat rideId={acceptedRide.id} quickReplies={DRIVER_CHAT_QUICK_REPLIES} />
+                    </div>
+                </div>
+            )}
         </section>
     )
 }

@@ -22,19 +22,12 @@ import { buildRideSpecRows } from '@/lib/rideSpecs'
 import { getDriverCancelQuota, describeDriverCancelQuota } from '@/lib/rideCancellation'
 import { haversineKm } from '@/lib/mapboxRoute'
 import RideChat from '@/components/RideChat'
+import { DRIVER_CHAT_QUICK_REPLIES } from '@/lib/rideChatQuickReplies'
 import RideMiniMap from './RideMiniMap'
 import RideMapDialog from './RideMapDialog'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 const REFRESH_INTERVAL_MS = 15000
-
-const DRIVER_CHAT_QUICK_REPLIES = [
-    'Obrigado por aceitar a corrida, estou a caminho',
-    'Já estou chegando',
-    'Cheguei no local',
-    'Só um minuto, por favor',
-    'Não encontrei o endereço, pode me ajudar?',
-]
 
 function formatScheduledFor(iso: string): string {
     return new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
