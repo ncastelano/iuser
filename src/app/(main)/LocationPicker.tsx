@@ -700,6 +700,10 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
                         )}
                     </div>
 
+                    <p className="text-[10px] mb-3 ml-1 opacity-50" style={{ color: colors.textPrimary }}>
+                        💡 Arraste o marcador laranja ou o mapa para ajustar a nova localização
+                    </p>
+
                     {isDriver && (
                         <button
                             onClick={toggleLiveLocationSync}
@@ -859,10 +863,6 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
                     {error && (
                         <p className="text-red-500 text-xs font-medium mb-2 ml-1">{error}</p>
                     )}
-
-                    <p className="text-[10px] mb-3 ml-1 opacity-50" style={{ color: colors.textPrimary }}>
-                        💡 Arraste o marcador laranja ou o mapa para ajustar a nova localização
-                    </p>
 
                     <div className="flex gap-2 justify-end">
                         <button onClick={onClose} disabled={loading}
