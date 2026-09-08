@@ -4,7 +4,7 @@
 import { ReactNode, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
-import { Car, Settings2, CheckCircle2, Navigation, MessageCircle, X } from 'lucide-react'
+import { Car, Settings2, CheckCircle2, Navigation, ChevronDown, ChevronUp } from 'lucide-react'
 import { useTheme } from '@/app/theme'
 import { supabase } from '@/lib/supabase/client'
 import { hexToRgb } from '@/lib/color'
@@ -43,7 +43,9 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
     const startNavProgress = useNavProgressStore((s) => s.start)
     const [hasPricing, setHasPricing] = useState<boolean | null>(null)
     const [acceptedRide, setAcceptedRide] = useState<AcceptedRideStatus | null>(null)
-    const [showChat, setShowChat] = useState(false)
+    const [chatExpanded, setChatExpanded] = useState(false)
+    const [messageCount, setMessageCount] = useState(0)
+    const [myUserId, setMyUserId] = useState<string | null>(null)
 
     useEffect(() => {
         let active = true
@@ -99,6 +101,7 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
                 return
             }
             userId = user.id
+            setMyUserId(user.id)
 
             const { data: pricing } = await supabase
                 .from('driver_pricing')
@@ -136,6 +139,41 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
         return () => { onUrgentChange?.(false) }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [acceptedRide])
+
+    // Quantas mensagens o passageiro já mandou nessa corrida — vira o badge
+    // "você tem uma mensagem!" no botão do chat.
+    useEffect(() => {
+        const rideId = acceptedRide?.id
+        if (!rideId || !myUserId) {
+            setMessageCount(0)
+            return
+        }
+
+        let active = true
+        const loadCount = async () => {
+            const { count } = await supabase
+                .from('ride_messages')
+                .select('id', { count: 'exact', head: true })
+                .eq('ride_request_id', rideId)
+                .neq('sender_id', myUserId)
+            if (active) setMessageCount(count || 0)
+        }
+        loadCount()
+
+        const channel = supabase
+            .channel(`chat-badge-${rideId}`)
+            .on(
+                'postgres_changes',
+                { event: 'INSERT', schema: 'public', table: 'ride_messages', filter: `ride_request_id=eq.${rideId}` },
+                () => loadCount()
+            )
+            .subscribe()
+
+        return () => {
+            active = false
+            supabase.removeChannel(channel)
+        }
+    }, [acceptedRide?.id, myUserId])
 
     const surfaceRgb = hexToRgb(colors.surface)
 
@@ -261,44 +299,34 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
                         </span>
 
                         <button
-                            onClick={(e) => { e.stopPropagation(); setShowChat(true) }}
-                            className="flex items-center justify-center gap-1.5 w-full px-3 py-2 rounded-full text-xs font-bold transition-all hover:scale-105 active:scale-95"
+                            onClick={(e) => { e.stopPropagation(); setChatExpanded((v) => !v) }}
+                            className="flex items-center justify-center gap-2 w-full px-3 py-2 rounded-full text-xs font-bold transition-all hover:scale-105 active:scale-95"
                             style={{ background: colors.surface, color: colors.textPrimary, border: `1px solid ${colors.border}` }}
                         >
-                            <MessageCircle size={14} />
-                            Abrir chat com {acceptedRide.requesterName || 'o passageiro'}
+                            {messageCount > 0 && (
+                                <span
+                                    className="flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-black flex-shrink-0"
+                                    style={{ background: '#ef4444', border: '1.5px solid #ffffff', color: '#ffffff' }}
+                                >
+                                    {messageCount}
+                                </span>
+                            )}
+                            <span className="truncate">
+                                {messageCount > 0
+                                    ? `Você tem ${messageCount === 1 ? 'uma mensagem' : `${messageCount} mensagens`}!`
+                                    : 'Abrir chat'}
+                            </span>
+                            {chatExpanded ? <ChevronUp size={14} className="flex-shrink-0" /> : <ChevronDown size={14} className="flex-shrink-0" />}
                         </button>
+
+                        {chatExpanded && (
+                            <div onClick={(e) => e.stopPropagation()} className="mt-2">
+                                <RideChat rideId={acceptedRide.id} quickReplies={DRIVER_CHAT_QUICK_REPLIES} />
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
-
-            {showChat && acceptedRide && (
-                <div
-                    className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/70 backdrop-blur-sm"
-                    onClick={() => setShowChat(false)}
-                >
-                    <div
-                        onClick={(e) => e.stopPropagation()}
-                        className="w-full sm:max-w-sm rounded-t-3xl sm:rounded-2xl p-4 shadow-2xl"
-                        style={{ background: colors.surface, border: `1px solid ${colors.border}` }}
-                    >
-                        <div className="flex items-center justify-between mb-3">
-                            <h3 className="text-sm font-black" style={{ color: colors.textPrimary }}>
-                                Chat com {acceptedRide.requesterName || (acceptedRide.requesterSlug ? `@${acceptedRide.requesterSlug}` : 'o passageiro')}
-                            </h3>
-                            <button
-                                onClick={() => setShowChat(false)}
-                                className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
-                                style={{ background: `${colors.border}40`, color: colors.textPrimary }}
-                                aria-label="Fechar"
-                            >
-                                <X size={16} />
-                            </button>
-                        </div>
-                        <RideChat rideId={acceptedRide.id} quickReplies={DRIVER_CHAT_QUICK_REPLIES} />
-                    </div>
-                </div>
-            )}
         </section>
     )
 }
