@@ -3,16 +3,26 @@
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/theme'
-import { Send, MessageCircle } from 'lucide-react'
+import { Send, MessageCircle, User } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
+import { getAvatarUrl } from '@/lib/avatar'
 
-const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
+// Passageiro: laranja -> vermelho (mesmo gradiente do resto do app).
+// Motorista: verde escuro -> verde claro. Os dois com texto branco, sempre —
+// a cor identifica QUEM mandou (papel na corrida), não se é "minha" mensagem.
+const REQUESTER_GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
+const DRIVER_GRADIENT = 'linear-gradient(135deg, #14532d, #4ade80)'
 
 interface RideMessage {
     id: string
     sender_id: string
     message: string
     created_at: string
+}
+
+interface Participant {
+    role: 'driver' | 'requester'
+    avatarUrl: string | undefined
 }
 
 interface RideChatProps {
@@ -22,16 +32,27 @@ interface RideChatProps {
     quickReplies?: string[]
 }
 
+function timeAgo(iso: string): string {
+    const minutes = Math.floor((Date.now() - new Date(iso).getTime()) / 60000)
+    if (minutes < 1) return 'agora'
+    if (minutes < 60) return `há ${minutes} min`
+    const hours = Math.floor(minutes / 60)
+    if (hours < 24) return `há ${hours}h`
+    return `há ${Math.floor(hours / 24)}d`
+}
+
 // Chat momentâneo de uma corrida aceita — some junto com o pedido, não é uma
 // conversa persistente. Usado tanto em /pedir-motorista (passageiro) quanto
 // em /aceitar-corridas (motorista), lendo/escrevendo em ride_messages.
 export default function RideChat({ rideId, quickReplies }: RideChatProps) {
     const { colors } = useTheme()
     const [messages, setMessages] = useState<RideMessage[]>([])
+    const [participants, setParticipants] = useState<Record<string, Participant>>({})
     const [text, setText] = useState('')
     const [sending, setSending] = useState(false)
     const [loading, setLoading] = useState(true)
     const [userId, setUserId] = useState<string | null>(null)
+    const [, forceTick] = useState(0)
     const bottomRef = useRef<HTMLDivElement>(null)
 
     useEffect(() => {
@@ -41,6 +62,36 @@ export default function RideChat({ rideId, quickReplies }: RideChatProps) {
         })
         return () => { active = false }
     }, [])
+
+    // Papel (motorista/passageiro) e avatar de cada participante — pra
+    // colorir e ilustrar as mensagens sem precisar que quem chama o
+    // componente já tenha esses dados à mão.
+    useEffect(() => {
+        let active = true
+        supabase
+            .from('ride_requests')
+            .select('requester_id, driver_id')
+            .eq('id', rideId)
+            .maybeSingle()
+            .then(async ({ data: ride }) => {
+                if (!active || !ride) return
+                const ids = [ride.requester_id, ride.driver_id].filter(Boolean) as string[]
+                if (ids.length === 0) return
+
+                const { data: profiles } = await supabase.from('profiles').select('id, avatar_url').in('id', ids)
+                if (!active) return
+
+                const map: Record<string, Participant> = {}
+                for (const p of profiles || []) {
+                    map[p.id] = {
+                        role: p.id === ride.driver_id ? 'driver' : 'requester',
+                        avatarUrl: getAvatarUrl(supabase, p.avatar_url),
+                    }
+                }
+                setParticipants(map)
+            })
+        return () => { active = false }
+    }, [rideId])
 
     useEffect(() => {
         let active = true
@@ -80,6 +131,14 @@ export default function RideChat({ rideId, quickReplies }: RideChatProps) {
         bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
     }, [messages.length])
 
+    // Mantém "há X min" atualizado sem precisar de nova mensagem pra re-renderizar.
+    useEffect(() => {
+        const t = setInterval(() => forceTick((n) => n + 1), 30000)
+        return () => clearInterval(t)
+    }, [])
+
+    const myGradient = participants[userId || '']?.role === 'driver' ? DRIVER_GRADIENT : REQUESTER_GRADIENT
+
     const send = async (content: string) => {
         const trimmed = content.trim()
         if (!trimmed || !userId || sending) return
@@ -106,7 +165,7 @@ export default function RideChat({ rideId, quickReplies }: RideChatProps) {
                 Chat da corrida
             </p>
 
-            <div className="flex flex-col gap-1.5 max-h-52 overflow-y-auto pr-1">
+            <div className="flex flex-col gap-2 max-h-52 overflow-y-auto pr-1">
                 {loading ? (
                     <div className="flex justify-center py-3">
                         <Spinner size={14} color={colors.textSecondary} />
@@ -118,18 +177,32 @@ export default function RideChat({ rideId, quickReplies }: RideChatProps) {
                 ) : (
                     messages.map((m) => {
                         const mine = m.sender_id === userId
+                        const participant = participants[m.sender_id]
+                        const gradient = participant?.role === 'driver' ? DRIVER_GRADIENT : REQUESTER_GRADIENT
+
+                        const avatar = participant?.avatarUrl ? (
+                            <img src={participant.avatarUrl} className="w-6 h-6 rounded-full object-cover flex-shrink-0" alt="" />
+                        ) : (
+                            <span className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: gradient }}>
+                                <User size={12} color="#fff" />
+                            </span>
+                        )
+
                         return (
-                            <div key={m.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
-                                <div
-                                    className="max-w-[80%] px-3 py-1.5 rounded-2xl text-xs break-words"
-                                    style={
-                                        mine
-                                            ? { background: GRADIENT, color: '#fff' }
-                                            : { background: colors.surface, color: colors.textPrimary, border: `1px solid ${colors.border}` }
-                                    }
-                                >
-                                    {m.message}
+                            <div key={m.id} className={`flex items-end gap-1.5 ${mine ? 'justify-end' : 'justify-start'}`}>
+                                {!mine && avatar}
+                                <div className={`flex flex-col ${mine ? 'items-end' : 'items-start'}`}>
+                                    <div
+                                        className="max-w-[200px] px-3 py-1.5 rounded-2xl text-xs break-words"
+                                        style={{ background: gradient, color: '#ffffff' }}
+                                    >
+                                        {m.message}
+                                    </div>
+                                    <span className="text-[9px] mt-0.5 px-1" style={{ color: colors.textSecondary }}>
+                                        {timeAgo(m.created_at)}
+                                    </span>
                                 </div>
+                                {mine && avatar}
                             </div>
                         )
                     })
@@ -172,7 +245,7 @@ export default function RideChat({ rideId, quickReplies }: RideChatProps) {
                     onClick={() => send(text)}
                     disabled={sending || !text.trim()}
                     className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 disabled:opacity-50"
-                    style={{ background: GRADIENT, color: '#fff' }}
+                    style={{ background: myGradient, color: '#fff' }}
                 >
                     {sending ? <Spinner size={14} /> : <Send size={14} />}
                 </button>
