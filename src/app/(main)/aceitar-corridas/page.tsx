@@ -11,7 +11,7 @@ import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import LoginAndRegister from '../LoginAndRegister'
 import LocationPicker from '../LocationPicker'
 import { toast } from 'sonner'
-import { MapPin, Star, Pencil, X, Package, Users, CalendarClock, PawPrint, Car, CheckCircle2, Navigation, Ban, Flag } from 'lucide-react'
+import { MapPin, Star, Pencil, X, Package, CalendarClock, PawPrint, Car, CheckCircle2, Navigation, Ban, Flag } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import { shortAddress } from '@/lib/serviceBoard'
 import { getAvatarUrl } from '@/lib/avatar'
@@ -28,6 +28,13 @@ import RideMapDialog from './RideMapDialog'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 const REFRESH_INTERVAL_MS = 15000
+
+// Ícone da aba "Me candidatei": sempre no verde-limão do botão "Candidatar-se"
+// (não no branco que o Header aplica normalmente aos ícones de aba), pra não
+// ficar idêntico ao ícone de avatar sem foto.
+function CandidateiTabIcon({ size }: { size?: number }) {
+    return <CheckCircle2 size={size} color="#a3e635" />
+}
 
 function formatScheduledFor(iso: string): string {
     return new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
@@ -448,8 +455,8 @@ export default function AceitarCorridasPage() {
         tabs.push(
             {
                 id: 'servicos',
-                label: 'Corridas em abertos',
-                icon: MapPin,
+                label: 'Solicitações de motorista',
+                icon: Car,
                 onClick: () => setActiveTab('servicos'),
                 isActive: activeTab === 'servicos',
                 badge: rides.length > 0 ? { count: rides.length } : null,
@@ -457,7 +464,7 @@ export default function AceitarCorridasPage() {
             {
                 id: 'candidatos',
                 label: 'Me candidatei',
-                icon: Users,
+                icon: CandidateiTabIcon,
                 onClick: () => setActiveTab('candidatos'),
                 isActive: activeTab === 'candidatos',
                 badge: candidacies.length > 0 ? { count: candidacies.length } : null,
@@ -783,8 +790,8 @@ export default function AceitarCorridasPage() {
                                             {ride.requesterAvatarUrl ? (
                                                 <img src={ride.requesterAvatarUrl} className="w-8 h-8 rounded-full object-cover flex-shrink-0" alt="" />
                                             ) : (
-                                                <span className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT }}>
-                                                    <Users size={14} color="#fff" />
+                                                <span className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-black" style={{ background: GRADIENT, color: '#fff' }}>
+                                                    {(ride.requesterName || ride.requesterSlug || '?').charAt(0).toUpperCase()}
                                                 </span>
                                             )}
                                             <div className="min-w-0">
@@ -961,8 +968,8 @@ export default function AceitarCorridasPage() {
                                             {ride.requesterAvatarUrl ? (
                                                 <img src={ride.requesterAvatarUrl} className="w-8 h-8 rounded-full object-cover flex-shrink-0" alt="" />
                                             ) : (
-                                                <span className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT }}>
-                                                    <Users size={14} color="#fff" />
+                                                <span className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-black" style={{ background: GRADIENT, color: '#fff' }}>
+                                                    {(ride.requesterName || ride.requesterSlug || '?').charAt(0).toUpperCase()}
                                                 </span>
                                             )}
                                             <div className="min-w-0">
@@ -1040,8 +1047,8 @@ export default function AceitarCorridasPage() {
                                 {acceptedRide.requesterAvatarUrl ? (
                                     <img src={acceptedRide.requesterAvatarUrl} className="w-8 h-8 rounded-full object-cover flex-shrink-0" alt="" />
                                 ) : (
-                                    <span className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT }}>
-                                        <Users size={14} color="#fff" />
+                                    <span className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-black" style={{ background: GRADIENT, color: '#fff' }}>
+                                        {(acceptedRide.requesterName || acceptedRide.requesterSlug || '?').charAt(0).toUpperCase()}
                                     </span>
                                 )}
                                 <div className="min-w-0">
