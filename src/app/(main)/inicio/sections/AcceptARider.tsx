@@ -4,10 +4,12 @@
 import { ReactNode, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
-import { Car, Settings2, CheckCircle2, Navigation, ChevronDown, ChevronUp } from 'lucide-react'
+import { Car, Settings2, CheckCircle2, Navigation, ChevronDown, ChevronUp, MapPin, Users, Package, PawPrint } from 'lucide-react'
 import { useTheme } from '@/app/theme'
 import { supabase } from '@/lib/supabase/client'
 import { hexToRgb } from '@/lib/color'
+import { getAvatarUrl } from '@/lib/avatar'
+import { computeSuggestedPrice, getEffectivePricing } from '@/lib/driverPricing'
 import RideChat from '@/components/RideChat'
 import { DRIVER_CHAT_QUICK_REPLIES } from '@/lib/rideChatQuickReplies'
 
@@ -29,6 +31,21 @@ interface AcceptedRideStatus {
     proposedPrice: number | null
 }
 
+interface OpenRidePreview {
+    id: string
+    ride_type: 'pessoa' | 'objeto' | 'animal'
+    requesterName: string | null
+    requesterSlug: string | null
+    requesterAvatarUrl: string | undefined
+    suggestedPrice: number
+    origin_address: string
+    destination_address: string
+    distance_km: number | null
+    passenger_count: number
+    object_description: string | null
+    pet_description: string | null
+}
+
 interface AcceptARiderProps {
     dragHandle?: ReactNode
     // Dispara quando o motorista está com uma corrida aceita em andamento —
@@ -43,6 +60,7 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
     const startNavProgress = useNavProgressStore((s) => s.start)
     const [hasPricing, setHasPricing] = useState<boolean | null>(null)
     const [acceptedRide, setAcceptedRide] = useState<AcceptedRideStatus | null>(null)
+    const [openRides, setOpenRides] = useState<OpenRidePreview[]>([])
     const [chatExpanded, setChatExpanded] = useState(false)
     const [messageCount, setMessageCount] = useState(0)
     const [myUserId, setMyUserId] = useState<string | null>(null)
@@ -93,6 +111,73 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
             })
         }
 
+        // Prévia das corridas abertas pra se candidatar — mesma lógica do
+        // quadro de /aceitar-corridas (sem candidatura própria, sem lotadas),
+        // só que resumida às 3 mais recentes pra caber na home.
+        const loadOpenRides = async () => {
+            if (!userId) return
+
+            const { data: pricing } = await supabase
+                .from('driver_pricing')
+                .select('pricing_mode, base_distance_km, base_fee, price_per_km_after_base')
+                .eq('driver_id', userId)
+                .maybeSingle()
+            if (!active || !pricing) {
+                setOpenRides([])
+                return
+            }
+
+            const { data: myApplicationRows } = await supabase
+                .from('ride_applications')
+                .select('ride_request_id')
+                .eq('applicant_id', userId)
+                .eq('status', 'pending')
+            const appliedIds = new Set((myApplicationRows || []).map((a) => a.ride_request_id))
+
+            const { data: rows } = await supabase
+                .from('ride_requests')
+                .select('id, requester_id, ride_type, origin_address, destination_address, distance_km, passenger_count, object_description, pet_description, applicant_count')
+                .eq('status', 'pending')
+                .neq('requester_id', userId)
+                .order('created_at', { ascending: false })
+                .limit(10)
+            if (!active) return
+
+            const candidateRows = (rows || []).filter((r) => !appliedIds.has(r.id) && (r.applicant_count ?? 0) < 5)
+            const top = candidateRows.slice(0, 3)
+
+            const requesterIds = Array.from(new Set(top.map((r) => r.requester_id)))
+            const { data: profiles } = requesterIds.length > 0
+                ? await supabase.from('profiles').select('id, name, profileSlug, avatar_url').in('id', requesterIds)
+                : { data: [] as { id: string; name: string | null; profileSlug: string | null; avatar_url: string | null }[] }
+            if (!active) return
+            const profilesById = new Map((profiles || []).map((p) => [p.id, p]))
+
+            const pricingShape = getEffectivePricing(pricing)
+            setOpenRides(
+                top.map((r) => {
+                    const p = profilesById.get(r.requester_id)
+                    const suggestedPrice = r.distance_km != null
+                        ? computeSuggestedPrice(r.distance_km, pricingShape)
+                        : pricingShape.baseFee
+                    return {
+                        id: r.id,
+                        ride_type: r.ride_type,
+                        requesterName: p?.name || null,
+                        requesterSlug: p?.profileSlug || null,
+                        requesterAvatarUrl: getAvatarUrl(supabase, p?.avatar_url),
+                        suggestedPrice,
+                        origin_address: r.origin_address,
+                        destination_address: r.destination_address,
+                        distance_km: r.distance_km,
+                        passenger_count: r.passenger_count,
+                        object_description: r.object_description,
+                        pet_description: r.pet_description,
+                    }
+                })
+            )
+        }
+
         const init = async () => {
             const { data: { user } } = await supabase.auth.getUser()
             if (!active) return
@@ -112,6 +197,7 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
             setHasPricing(!!pricing)
 
             await loadRide()
+            await loadOpenRides()
 
             // Tempo real: aceite, "a caminho" e finalização/cancelamento são
             // todos UPDATE nesta própria linha — um canal cobre tudo.
@@ -126,7 +212,7 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
         }
 
         init()
-        const poll = setInterval(loadRide, 15000)
+        const poll = setInterval(() => { loadRide(); loadOpenRides() }, 15000)
         return () => {
             active = false
             clearInterval(poll)
@@ -324,6 +410,60 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
                                 <RideChat rideId={acceptedRide.id} quickReplies={DRIVER_CHAT_QUICK_REPLIES} />
                             </div>
                         )}
+                    </div>
+                )}
+
+                {hasPricing && openRides.length > 0 && (
+                    <div className="flex flex-col gap-2 mt-4">
+                        {openRides.map((ride) => (
+                            <button
+                                key={ride.id}
+                                onClick={goToCorridas}
+                                className="w-full p-3 rounded-xl text-left transition-all hover:scale-[1.01]"
+                                style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}
+                            >
+                                <div className="flex items-center gap-2 mb-1.5">
+                                    {ride.requesterAvatarUrl ? (
+                                        <img src={ride.requesterAvatarUrl} className="w-8 h-8 rounded-full object-cover flex-shrink-0" alt="" />
+                                    ) : (
+                                        <span
+                                            className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-black"
+                                            style={{ background: GRADIENT, color: '#fff' }}
+                                        >
+                                            {(ride.requesterName || ride.requesterSlug || '?').charAt(0).toUpperCase()}
+                                        </span>
+                                    )}
+                                    <div className="min-w-0 flex-1">
+                                        <p className="text-xs font-black truncate" style={{ color: colors.textPrimary }}>
+                                            {ride.requesterName || (ride.requesterSlug ? `@${ride.requesterSlug}` : 'Passageiro')}
+                                        </p>
+                                        <span className="flex items-center gap-1 text-[10px]" style={{ color: colors.textSecondary }}>
+                                            {ride.ride_type === 'objeto' ? (
+                                                <><Package size={10} className="flex-shrink-0" /> {ride.object_description || 'Objeto'}</>
+                                            ) : ride.ride_type === 'animal' ? (
+                                                <><PawPrint size={10} className="flex-shrink-0" /> {ride.pet_description || 'Animal'}</>
+                                            ) : (
+                                                <><Users size={10} className="flex-shrink-0" /> {ride.passenger_count} passageiro{ride.passenger_count > 1 ? 's' : ''}</>
+                                            )}
+                                        </span>
+                                    </div>
+                                    <span className="text-xs font-black flex-shrink-0" style={{ color: '#f97316' }}>
+                                        R$ {ride.suggestedPrice.toFixed(2)}
+                                    </span>
+                                </div>
+
+                                <div className="flex items-start gap-1.5 text-[11px] mb-1" style={{ color: colors.textSecondary }}>
+                                    <MapPin size={11} className="flex-shrink-0 mt-0.5" />
+                                    <span>{shortAddress(ride.origin_address)} → {shortAddress(ride.destination_address)}</span>
+                                </div>
+
+                                {ride.distance_km != null && (
+                                    <span className="text-[10px] font-bold" style={{ color: colors.textPrimary }}>
+                                        {ride.distance_km.toFixed(1)} km total
+                                    </span>
+                                )}
+                            </button>
+                        ))}
                     </div>
                 )}
             </div>
