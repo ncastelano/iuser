@@ -130,6 +130,7 @@ export default function HomePage() {
     const [loadingStores, setLoadingStores] = useState(true)
 
     const [breveMap, setBreveMap] = useState<Record<string, boolean>>({})
+    const [motoristaUrgent, setMotoristaUrgent] = useState(false)
 
     const storeOrderCounts = useMerchantStore(s => s.storeOrderCounts)
     const setMerchantStoreOrderCounts = useMerchantStore(s => s.setStoreOrderCounts)
@@ -448,15 +449,24 @@ export default function HomePage() {
         setMerchantStoreOrderCounts({ ...storeOrderCounts, [store.id]: counts })
     }
 
-    // ---------- SEÇÕES EXIBIDAS (categorias sempre em primeiro) ----------
+    // ---------- SEÇÕES EXIBIDAS (categorias sempre em primeiro, exceto quando
+    // o Motorista Particular está com atualização urgente — candidato novo
+    // se candidatando ou motorista a caminho — aí ele sobe pra frente de
+    // Categorias até a corrida ser concluída/cancelada) ----------
     const displayedSections = useMemo(() => {
         const uniqueSections = Array.from(new Set(sections))
         if (!uniqueSections.includes('categorias')) {
             return uniqueSections
         }
         const withoutCategorias = uniqueSections.filter(s => s !== 'categorias')
+
+        if (motoristaUrgent && withoutCategorias.includes('motorista')) {
+            const withoutMotorista = withoutCategorias.filter(s => s !== 'motorista')
+            return ['motorista', 'categorias', ...withoutMotorista]
+        }
+
         return ['categorias', ...withoutCategorias]
-    }, [sections])
+    }, [sections, motoristaUrgent])
 
     // ---------- SALVAR ORDEM ----------
     const handleSaveOrder = () => {
@@ -570,7 +580,7 @@ export default function HomePage() {
             case 'transporte':
                 return <LookForAService onBreveStatusChange={breveCallbacks.transporte} />
             case 'motorista':
-                return <MotoristaSection onBreveStatusChange={breveCallbacks.motorista} />
+                return <MotoristaSection onBreveStatusChange={breveCallbacks.motorista} onUrgentChange={setMotoristaUrgent} />
             case 'canalMotorista':
                 return <AcceptARider />
             case 'servico':

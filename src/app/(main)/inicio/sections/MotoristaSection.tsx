@@ -41,9 +41,13 @@ function formatScheduledFor(iso: string): string {
 interface MotoristaSectionProps {
     dragHandle?: ReactNode
     onBreveStatusChange?: (isBreve: boolean) => void
+    // Dispara quando o pedido ativo passa a exigir atenção (candidato novo
+    // se candidatando, ou motorista aceito/a caminho) — a home usa isso pra
+    // subir esse componente na frente de Categorias enquanto durar.
+    onUrgentChange?: (urgent: boolean) => void
 }
 
-export default function MotoristaSection({ dragHandle, onBreveStatusChange }: MotoristaSectionProps) {
+export default function MotoristaSection({ dragHandle, onBreveStatusChange, onUrgentChange }: MotoristaSectionProps) {
     const { colors } = useTheme()
     const router = useRouter()
     const startNavProgress = useNavProgressStore((s) => s.start)
@@ -56,10 +60,11 @@ export default function MotoristaSection({ dragHandle, onBreveStatusChange }: Mo
 
     useEffect(() => {
         let active = true
+        let channel: ReturnType<typeof supabase.channel> | null = null
+        let userId: string | null = null
 
         const load = async () => {
-            const { data: { user } } = await supabase.auth.getUser()
-            if (!user) return
+            if (!userId) return
 
             // Pedido ativo (pending/accepted) tem prioridade sobre os
             // trajetos recentes — enquanto ele existe, mostramos o status
@@ -67,7 +72,7 @@ export default function MotoristaSection({ dragHandle, onBreveStatusChange }: Mo
             const { data: order } = await supabase
                 .from('ride_requests')
                 .select('id, status, applicant_count, scheduled_for, driver_en_route, origin_address, destination_address')
-                .eq('requester_id', user.id)
+                .eq('requester_id', userId)
                 .in('status', ['pending', 'accepted'])
                 .order('created_at', { ascending: false })
                 .limit(1)
@@ -83,7 +88,7 @@ export default function MotoristaSection({ dragHandle, onBreveStatusChange }: Mo
             const { data } = await supabase
                 .from('ride_requests')
                 .select('origin_address, origin_lat, origin_lng, destination_address, destination_lat, destination_lng')
-                .eq('requester_id', user.id)
+                .eq('requester_id', userId)
                 .order('created_at', { ascending: false })
                 .limit(20)
             if (!active || !data) return
@@ -105,10 +110,43 @@ export default function MotoristaSection({ dragHandle, onBreveStatusChange }: Mo
             setRecentTrips(trips)
         }
 
-        load()
+        const init = async () => {
+            const { data: { user } } = await supabase.auth.getUser()
+            if (!active || !user) return
+            userId = user.id
+            await load()
+
+            // Tempo real: candidato se candidatando bate applicant_count (via
+            // trigger em ride_applications) num UPDATE nesta própria linha, e
+            // aceite/"a caminho" também são UPDATE — um único canal cobre tudo.
+            channel = supabase
+                .channel(`motorista-section-${user.id}`)
+                .on(
+                    'postgres_changes',
+                    { event: '*', schema: 'public', table: 'ride_requests', filter: `requester_id=eq.${user.id}` },
+                    () => load()
+                )
+                .subscribe()
+        }
+
+        init()
         const poll = setInterval(load, 15000)
-        return () => { active = false; clearInterval(poll) }
+        return () => {
+            active = false
+            clearInterval(poll)
+            if (channel) supabase.removeChannel(channel)
+        }
     }, [])
+
+    // Urgente = passageiro precisa olhar: já apareceu candidato, ou o
+    // motorista já foi aceito/está a caminho. Enquanto só "buscando
+    // motorista" sem ninguém ainda, fica na posição normal.
+    useEffect(() => {
+        const urgent = !!activeOrder && (activeOrder.status === 'accepted' || activeOrder.applicant_count > 0)
+        onUrgentChange?.(urgent)
+        return () => { onUrgentChange?.(false) }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activeOrder])
 
     const goToTrip = (trip: RecentRideTrip) => {
         const params = new URLSearchParams({ origem: trip.originAddress, destino: trip.destinationAddress })

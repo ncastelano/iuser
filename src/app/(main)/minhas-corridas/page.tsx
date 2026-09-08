@@ -14,13 +14,17 @@ import { MapPin, CheckCircle2 } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import { shortAddress } from '@/lib/serviceBoard'
 import { getAvatarUrl } from '@/lib/avatar'
+import { haversineKm } from '@/lib/mapboxRoute'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
+const FINISH_RADIUS_METERS = 100
 
 interface AcceptedRide {
     id: string
     origin_address: string
     destination_address: string
+    destination_lat: number | null
+    destination_lng: number | null
     requesterName: string | null
     requesterSlug: string | null
     requesterAvatarUrl: string | undefined
@@ -48,7 +52,7 @@ export default function MinhasCorridasPage() {
 
         const { data: myRides } = await supabase
             .from('ride_requests')
-            .select('id, requester_id, origin_address, destination_address')
+            .select('id, requester_id, origin_address, destination_address, destination_lat, destination_lng')
             .eq('driver_id', user.id)
             .eq('status', 'accepted')
             .order('created_at', { ascending: false })
@@ -73,6 +77,8 @@ export default function MinhasCorridasPage() {
                     id: r.id,
                     origin_address: r.origin_address,
                     destination_address: r.destination_address,
+                    destination_lat: r.destination_lat,
+                    destination_lng: r.destination_lng,
                     requesterName: p?.name || null,
                     requesterSlug: p?.profileSlug || null,
                     requesterAvatarUrl: getAvatarUrl(supabase, p?.avatar_url),
@@ -91,25 +97,54 @@ export default function MinhasCorridasPage() {
         load()
     }
 
-    const finalizeRide = async (rideId: string) => {
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) return
-
-        setFinishingId(rideId)
-        try {
-            const { error } = await supabase
-                .from('ride_requests')
-                .update({ status: 'completed' })
-                .eq('id', rideId)
-                .eq('driver_id', user.id)
-            if (error) throw error
-            toast.success('Corrida finalizada!')
-            setRides((prev) => prev.filter((r) => r.id !== rideId))
-        } catch (err: any) {
-            toast.error('Erro ao finalizar corrida: ' + (err.message || 'tente novamente'))
-        } finally {
-            setFinishingId(null)
+    const finalizeRide = async (ride: AcceptedRide) => {
+        if (ride.destination_lat == null || ride.destination_lng == null) {
+            toast.error('Não dá pra confirmar a chegada: esse pedido não tem coordenadas de destino.')
+            return
         }
+        if (!navigator.geolocation) {
+            toast.error('Geolocalização não disponível neste dispositivo.')
+            return
+        }
+
+        setFinishingId(ride.id)
+        navigator.geolocation.getCurrentPosition(
+            async (pos) => {
+                const distanceMeters = haversineKm(
+                    [pos.coords.longitude, pos.coords.latitude],
+                    [ride.destination_lng as number, ride.destination_lat as number]
+                ) * 1000
+
+                if (distanceMeters > FINISH_RADIUS_METERS) {
+                    toast.error(`Você está a ${Math.round(distanceMeters)} m do destino. Chegue a até ${FINISH_RADIUS_METERS} m pra concluir.`)
+                    setFinishingId(null)
+                    return
+                }
+
+                const { data: { user } } = await supabase.auth.getUser()
+                if (!user) { setFinishingId(null); return }
+
+                try {
+                    const { error } = await supabase
+                        .from('ride_requests')
+                        .update({ status: 'completed' })
+                        .eq('id', ride.id)
+                        .eq('driver_id', user.id)
+                    if (error) throw error
+                    toast.success('Corrida finalizada!')
+                    setRides((prev) => prev.filter((r) => r.id !== ride.id))
+                } catch (err: any) {
+                    toast.error('Erro ao finalizar corrida: ' + (err.message || 'tente novamente'))
+                } finally {
+                    setFinishingId(null)
+                }
+            },
+            () => {
+                toast.error('Não conseguimos confirmar sua localização. Ative o GPS pra concluir a corrida.')
+                setFinishingId(null)
+            },
+            { enableHighAccuracy: true, timeout: 10000 }
+        )
     }
 
     return (
@@ -173,7 +208,7 @@ export default function MinhasCorridasPage() {
                                         <span>{shortAddress(ride.origin_address)} → {shortAddress(ride.destination_address)}</span>
                                     </div>
                                     <button
-                                        onClick={() => finalizeRide(ride.id)}
+                                        onClick={() => finalizeRide(ride)}
                                         disabled={finishingId === ride.id}
                                         className="w-full py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all disabled:opacity-70 flex items-center justify-center gap-2"
                                         style={{ background: GRADIENT, color: '#fff' }}

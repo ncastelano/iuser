@@ -20,6 +20,7 @@ import { getProfileRideRatingsBatch, ProfileRideRating } from '@/lib/rideReviews
 import { VehicleType } from '@/lib/rideVehicle'
 import { buildRideSpecRows } from '@/lib/rideSpecs'
 import { getDriverCancelQuota, describeDriverCancelQuota } from '@/lib/rideCancellation'
+import { haversineKm } from '@/lib/mapboxRoute'
 import RideMiniMap from './RideMiniMap'
 import RideMapDialog from './RideMapDialog'
 
@@ -565,28 +566,61 @@ export default function AceitarCorridasPage() {
         }
     }
 
+    // Só deixa concluir com o motorista fisicamente perto do destino — evita
+    // finalizar a corrida antes de realmente chegar lá.
+    const FINISH_RADIUS_METERS = 100
+
     const finishAcceptedRide = async () => {
         if (!acceptedRide) return
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) return
+        if (acceptedRide.destination_lat == null || acceptedRide.destination_lng == null) {
+            toast.error('Não dá pra confirmar a chegada: esse pedido não tem coordenadas de destino.')
+            return
+        }
+        if (!navigator.geolocation) {
+            toast.error('Geolocalização não disponível neste dispositivo.')
+            return
+        }
 
         setFinishing(true)
-        try {
-            const { error } = await supabase
-                .from('ride_requests')
-                .update({ status: 'completed' })
-                .eq('id', acceptedRide.id)
-                .eq('driver_id', user.id)
-            if (error) throw error
-            toast.success('Corrida finalizada!')
-            lastAcceptedRideIdRef.current = null
-            setAcceptedRide(null)
-            setActiveTab('servicos')
-        } catch (err: any) {
-            toast.error('Erro ao finalizar corrida: ' + (err.message || 'tente novamente'))
-        } finally {
-            setFinishing(false)
-        }
+        navigator.geolocation.getCurrentPosition(
+            async (pos) => {
+                const distanceMeters = haversineKm(
+                    [pos.coords.longitude, pos.coords.latitude],
+                    [acceptedRide.destination_lng as number, acceptedRide.destination_lat as number]
+                ) * 1000
+
+                if (distanceMeters > FINISH_RADIUS_METERS) {
+                    toast.error(`Você está a ${Math.round(distanceMeters)} m do destino. Chegue a até ${FINISH_RADIUS_METERS} m pra concluir.`)
+                    setFinishing(false)
+                    return
+                }
+
+                const { data: { user } } = await supabase.auth.getUser()
+                if (!user) { setFinishing(false); return }
+
+                try {
+                    const { error } = await supabase
+                        .from('ride_requests')
+                        .update({ status: 'completed' })
+                        .eq('id', acceptedRide.id)
+                        .eq('driver_id', user.id)
+                    if (error) throw error
+                    toast.success('Corrida finalizada!')
+                    lastAcceptedRideIdRef.current = null
+                    setAcceptedRide(null)
+                    setActiveTab('servicos')
+                } catch (err: any) {
+                    toast.error('Erro ao finalizar corrida: ' + (err.message || 'tente novamente'))
+                } finally {
+                    setFinishing(false)
+                }
+            },
+            () => {
+                toast.error('Não conseguimos confirmar sua localização. Ative o GPS pra concluir a corrida.')
+                setFinishing(false)
+            },
+            { enableHighAccuracy: true, timeout: 10000 }
+        )
     }
 
     const cancelAcceptedRide = async () => {
