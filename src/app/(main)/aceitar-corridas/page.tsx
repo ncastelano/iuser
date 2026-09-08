@@ -518,7 +518,8 @@ export default function AceitarCorridasPage() {
 
             toast.success('Candidatura enviada!')
             setCustomPriceFor(null)
-            load()
+            await load()
+            setActiveTab('candidatos')
         } catch (err: any) {
             if (err.code === '42501' || err.code === 'PGRST301') {
                 toast.error('Essa corrida já atingiu o limite de candidatos.')
