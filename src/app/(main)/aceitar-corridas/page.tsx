@@ -483,6 +483,32 @@ export default function AceitarCorridasPage() {
                 proposed_price: price,
             })
             if (error) throw error
+
+            // O passageiro precisa poder ver o motorista em tempo real assim
+            // que ele vira candidato — não dá pra depender dele lembrar de
+            // ativar "Sincronização para motorista" manualmente. Liga o flag
+            // e já manda uma primeira leitura de GPS: o
+            // DriverLiveLocationBroadcaster global assume o watch contínuo
+            // a partir daqui.
+            supabase.from('driver_pricing').update({ live_location_sync: true }).eq('driver_id', user.id).then(() => {})
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (pos) => {
+                        supabase
+                            .from('driver_pricing')
+                            .update({
+                                live_lat: pos.coords.latitude,
+                                live_lng: pos.coords.longitude,
+                                live_updated_at: new Date().toISOString(),
+                            })
+                            .eq('driver_id', user.id)
+                            .then(() => {})
+                    },
+                    () => { /* sem permissão ainda: o broadcaster global tenta de novo depois */ },
+                    { enableHighAccuracy: true, timeout: 10000 }
+                )
+            }
+
             toast.success('Candidatura enviada!')
             setCustomPriceFor(null)
             load()
