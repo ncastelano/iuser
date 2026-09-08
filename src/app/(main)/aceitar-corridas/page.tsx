@@ -457,7 +457,7 @@ export default function AceitarCorridasPage() {
                 <Header
                     title="Aceitar corrida"
                     showBack={true}
-                    onBack={() => router.push('/procurar-servico')}
+                    onBack={() => router.back()}
                     greeting={`Olá, ${profileLoading ? '...' : profileSlug ? `@${profileSlug}` : 'Visitante'}`}
                     avatarUrl={avatarUrl}
                     loading={profileLoading}

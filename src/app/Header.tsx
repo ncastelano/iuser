@@ -580,25 +580,25 @@ export default function Header({
                     }
                     input::placeholder {
                         color: ${colors.textPrimary} !important;
-                        opacity: 0.6;
+                        opacity: 1;
                         font-weight: 400;
                         letter-spacing: 0.3px;
                     }
                     input::-webkit-input-placeholder {
                         color: ${colors.textPrimary} !important;
-                        opacity: 0.6;
+                        opacity: 1;
                     }
                     input::-moz-placeholder {
                         color: ${colors.textPrimary} !important;
-                        opacity: 0.6;
+                        opacity: 1;
                     }
                     input:-ms-input-placeholder {
                         color: ${colors.textPrimary} !important;
-                        opacity: 0.6;
+                        opacity: 1;
                     }
                     input:-moz-placeholder {
                         color: ${colors.textPrimary} !important;
-                        opacity: 0.6;
+                        opacity: 1;
                     }
                     input[type="search"]::-webkit-search-decoration,
                     input[type="search"]::-webkit-search-cancel-button,

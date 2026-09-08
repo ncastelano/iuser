@@ -851,7 +851,10 @@ export default function HomePage() {
                 )}
 
                 {/* ===== BOTÃO FLUTUANTE - RADAR (independente, não disputa espaço com a sacola) ===== */}
-                {shouldShowSacola && (
+                {/* Escondido enquanto o LocationPicker está aberto — ele fica fixo em
+                    cima de tudo (z-50) mas os botões flutuantes têm z-index maior (998)
+                    e apareciam por cima do card do LocationPicker. */}
+                {shouldShowSacola && !showLocationDialog && (
                     <div style={{ position: 'fixed', bottom: 32, left: 24, zIndex: 998 }}>
                         <button
                             onClick={() => { startNavProgress(); router.push('/radar') }}
@@ -876,7 +879,7 @@ export default function HomePage() {
                 {/* ===== BOTÕES FLUTUANTES - SACOLA E VOLTAR (container próprio, ancorado só na direita, sem cortar na tela) ===== */}
                 <div style={{ position: 'fixed', bottom: 32, right: 24, zIndex: 998 }}>
                     <div className="flex flex-col-reverse sm:flex-row items-end gap-3">
-                        {shouldShowBag && (
+                        {shouldShowBag && !showLocationDialog && (
                             <div>
                                 {loadingStatus ? (
                                     <div className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl bg-gray-300 animate-pulse">

@@ -10,7 +10,7 @@ import Header from '@/app/Header'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import LoginAndRegister from '../LoginAndRegister'
 import { toast } from 'sonner'
-import { Briefcase, Car, MapPin, Plus } from 'lucide-react'
+import { Briefcase, MapPin, Plus } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import {
     BoardItem,
@@ -229,23 +229,6 @@ export default function SerParceiroPage() {
                         </div>
                     )}
                 </section>
-
-                {/* ===== BOTAO FLUTUANTE - ACEITAR CORRIDA (motorista) ===== */}
-                <div style={{ position: 'fixed', bottom: 96, right: 24, zIndex: 998 }}>
-                    <button
-                        onClick={() => router.push('/aceitar-corridas')}
-                        className="flex items-center gap-2 px-5 h-14 rounded-full shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95"
-                        style={{
-                            background: GRADIENT,
-                            color: '#ffffff',
-                            boxShadow: `0 8px 24px #f9731660`,
-                        }}
-                        aria-label="Aceitar corrida"
-                    >
-                        <Car size={22} />
-                        <span className="font-semibold text-sm">Aceitar corrida</span>
-                    </button>
-                </div>
 
                 {/* ===== BOTAO FLUTUANTE - SOLICITAR SERVICO ===== */}
                 <div style={{ position: 'fixed', bottom: 24, right: 24, zIndex: 998 }}>
