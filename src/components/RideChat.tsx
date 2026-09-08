@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/theme'
-import { Send, MessageCircle, User } from 'lucide-react'
+import { Send, MessageCircle } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import { getAvatarUrl } from '@/lib/avatar'
 
@@ -23,6 +23,12 @@ interface RideMessage {
 interface Participant {
     role: 'driver' | 'requester'
     avatarUrl: string | undefined
+    initial: string
+}
+
+function getInitial(name: string | null, profileSlug: string | null): string {
+    const source = (name || profileSlug || '?').trim()
+    return source.charAt(0).toUpperCase()
 }
 
 interface RideChatProps {
@@ -78,7 +84,7 @@ export default function RideChat({ rideId, quickReplies }: RideChatProps) {
                 const ids = [ride.requester_id, ride.driver_id].filter(Boolean) as string[]
                 if (ids.length === 0) return
 
-                const { data: profiles } = await supabase.from('profiles').select('id, avatar_url').in('id', ids)
+                const { data: profiles } = await supabase.from('profiles').select('id, name, profileSlug, avatar_url').in('id', ids)
                 if (!active) return
 
                 const map: Record<string, Participant> = {}
@@ -86,6 +92,7 @@ export default function RideChat({ rideId, quickReplies }: RideChatProps) {
                     map[p.id] = {
                         role: p.id === ride.driver_id ? 'driver' : 'requester',
                         avatarUrl: getAvatarUrl(supabase, p.avatar_url),
+                        initial: getInitial(p.name, p.profileSlug),
                     }
                 }
                 setParticipants(map)
@@ -183,8 +190,11 @@ export default function RideChat({ rideId, quickReplies }: RideChatProps) {
                         const avatar = participant?.avatarUrl ? (
                             <img src={participant.avatarUrl} className="w-6 h-6 rounded-full object-cover flex-shrink-0" alt="" />
                         ) : (
-                            <span className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: gradient }}>
-                                <User size={12} color="#fff" />
+                            <span
+                                className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-[10px] font-black"
+                                style={{ background: gradient, color: '#ffffff' }}
+                            >
+                                {participant?.initial || '?'}
                             </span>
                         )
 
