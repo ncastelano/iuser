@@ -4,10 +4,14 @@
 import { ReactNode, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
-import { Car, MapPin, Search, CheckCircle2, CalendarClock } from 'lucide-react'
+import { Car, MapPin, Search, CheckCircle2, CalendarClock, Navigation, ChevronDown, ChevronUp } from 'lucide-react'
 import { useTheme } from '@/app/theme'
 import { supabase } from '@/lib/supabase/client'
 import { hexToRgb } from '@/lib/color'
+import { getAvatarUrl } from '@/lib/avatar'
+import { fetchRoute } from '@/lib/mapboxRoute'
+import { buildRideSpecRows } from '@/lib/rideSpecs'
+import RideChat from '@/components/RideChat'
 
 interface RecentRideTrip {
     originAddress: string
@@ -22,12 +26,47 @@ interface ActiveOrder {
     applicant_count: number
     scheduled_for: string | null
     driver_en_route: boolean
+    driver_id: string | null
     origin_address: string
     destination_address: string
+    origin_lat: number | null
+    origin_lng: number | null
+    // Campos usados só pra montar "o que eu pedi" (buildRideSpecRows)
+    ride_type: 'pessoa' | 'objeto' | 'animal'
+    passenger_count: number
+    has_child: boolean
+    children_count: number | null
+    child_age: string | null
+    child_needs_car_seat: boolean | null
+    has_shopping: boolean
+    bag_count: number | null
+    has_extra_object: boolean
+    extra_object_description: string | null
+    has_pet: boolean
+    pet_description: string | null
+    object_description: string | null
+    object_is_sensitive: boolean
+    has_special_needs: boolean
+    special_needs_description: string | null
+}
+
+interface DriverInfo {
+    name: string | null
+    profileSlug: string | null
+    avatarUrl: string | undefined
 }
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
+
+const ORDER_FIELDS = `
+    id, status, applicant_count, scheduled_for, driver_en_route, driver_id,
+    origin_address, destination_address, origin_lat, origin_lng,
+    ride_type, passenger_count, has_child, children_count, child_age, child_needs_car_seat,
+    has_shopping, bag_count, has_extra_object, extra_object_description,
+    has_pet, pet_description, object_description, object_is_sensitive,
+    has_special_needs, special_needs_description
+`
 
 function shortAddress(address: string): string {
     const firstPart = address.split(',')[0].trim()
@@ -53,6 +92,12 @@ export default function MotoristaSection({ dragHandle, onBreveStatusChange, onUr
     const startNavProgress = useNavProgressStore((s) => s.start)
     const [recentTrips, setRecentTrips] = useState<RecentRideTrip[]>([])
     const [activeOrder, setActiveOrder] = useState<ActiveOrder | null>(null)
+    const [driverInfo, setDriverInfo] = useState<DriverInfo | null>(null)
+    const [proposedPrice, setProposedPrice] = useState<number | null>(null)
+    const [liveEta, setLiveEta] = useState<{ distanceKm: number; durationMin: number } | null>(null)
+    const [messageCount, setMessageCount] = useState(0)
+    const [chatExpanded, setChatExpanded] = useState(false)
+    const [myUserId, setMyUserId] = useState<string | null>(null)
 
     useEffect(() => {
         onBreveStatusChange?.(false)
@@ -71,7 +116,7 @@ export default function MotoristaSection({ dragHandle, onBreveStatusChange, onUr
             // do pedido em vez de sugestões de para onde ir de novo.
             const { data: order } = await supabase
                 .from('ride_requests')
-                .select('id, status, applicant_count, scheduled_for, driver_en_route, origin_address, destination_address')
+                .select(ORDER_FIELDS)
                 .eq('requester_id', userId)
                 .in('status', ['pending', 'accepted'])
                 .order('created_at', { ascending: false })
@@ -80,10 +125,35 @@ export default function MotoristaSection({ dragHandle, onBreveStatusChange, onUr
 
             if (!active) return
             if (order) {
-                setActiveOrder(order as ActiveOrder)
+                setActiveOrder(order as unknown as ActiveOrder)
+
+                if (order.status === 'accepted' && order.driver_id) {
+                    const [{ data: driver }, { data: application }] = await Promise.all([
+                        supabase.from('profiles').select('name, profileSlug, avatar_url').eq('id', order.driver_id).maybeSingle(),
+                        supabase
+                            .from('ride_applications')
+                            .select('proposed_price')
+                            .eq('ride_request_id', order.id)
+                            .eq('applicant_id', order.driver_id)
+                            .eq('status', 'accepted')
+                            .maybeSingle(),
+                    ])
+                    if (!active) return
+                    setDriverInfo({
+                        name: driver?.name || null,
+                        profileSlug: driver?.profileSlug || null,
+                        avatarUrl: getAvatarUrl(supabase, driver?.avatar_url),
+                    })
+                    setProposedPrice(application?.proposed_price ?? null)
+                } else {
+                    setDriverInfo(null)
+                    setProposedPrice(null)
+                }
                 return
             }
             setActiveOrder(null)
+            setDriverInfo(null)
+            setProposedPrice(null)
 
             const { data } = await supabase
                 .from('ride_requests')
@@ -114,6 +184,7 @@ export default function MotoristaSection({ dragHandle, onBreveStatusChange, onUr
             const { data: { user } } = await supabase.auth.getUser()
             if (!active || !user) return
             userId = user.id
+            setMyUserId(user.id)
             await load()
 
             // Tempo real: candidato se candidatando bate applicant_count (via
@@ -137,6 +208,85 @@ export default function MotoristaSection({ dragHandle, onBreveStatusChange, onUr
             if (channel) supabase.removeChannel(channel)
         }
     }, [])
+
+    // Distância/tempo em tempo real até o motorista chegar no ponto de
+    // partida — lida de driver_pricing.live_lat/lng (preenchida globalmente
+    // pelo DriverLiveLocationBroadcaster quando ele ativa "Sincronização
+    // para motorista").
+    useEffect(() => {
+        const driverId = activeOrder?.status === 'accepted' ? activeOrder.driver_id : null
+        const originLat = activeOrder?.origin_lat
+        const originLng = activeOrder?.origin_lng
+        if (!driverId || originLat == null || originLng == null) {
+            setLiveEta(null)
+            return
+        }
+
+        let active = true
+        const loadEta = async () => {
+            const { data } = await supabase
+                .from('driver_pricing')
+                .select('live_lat, live_lng')
+                .eq('driver_id', driverId)
+                .maybeSingle()
+            if (!active || data?.live_lat == null || data?.live_lng == null) return
+
+            const route = await fetchRoute([data.live_lng, data.live_lat], [originLng, originLat])
+            if (active) setLiveEta({ distanceKm: route.distanceKm, durationMin: route.durationMin })
+        }
+        loadEta()
+
+        const channel = supabase
+            .channel(`motorista-section-live-${driverId}`)
+            .on(
+                'postgres_changes',
+                { event: 'UPDATE', schema: 'public', table: 'driver_pricing', filter: `driver_id=eq.${driverId}` },
+                () => loadEta()
+            )
+            .subscribe()
+
+        const poll = setInterval(loadEta, 10000)
+        return () => {
+            active = false
+            clearInterval(poll)
+            supabase.removeChannel(channel)
+        }
+    }, [activeOrder?.status, activeOrder?.driver_id, activeOrder?.origin_lat, activeOrder?.origin_lng])
+
+    // Quantas mensagens o motorista já mandou nessa corrida — vira o botão
+    // "você tem uma mensagem!" (ou "Enviar mensagem" se ainda não tem nenhuma).
+    useEffect(() => {
+        const rideId = activeOrder?.status === 'accepted' ? activeOrder.id : null
+        if (!rideId || !myUserId) {
+            setMessageCount(0)
+            return
+        }
+
+        let active = true
+        const loadCount = async () => {
+            const { count } = await supabase
+                .from('ride_messages')
+                .select('id', { count: 'exact', head: true })
+                .eq('ride_request_id', rideId)
+                .neq('sender_id', myUserId)
+            if (active) setMessageCount(count || 0)
+        }
+        loadCount()
+
+        const channel = supabase
+            .channel(`chat-badge-passageiro-${rideId}`)
+            .on(
+                'postgres_changes',
+                { event: 'INSERT', schema: 'public', table: 'ride_messages', filter: `ride_request_id=eq.${rideId}` },
+                () => loadCount()
+            )
+            .subscribe()
+
+        return () => {
+            active = false
+            supabase.removeChannel(channel)
+        }
+    }, [activeOrder?.id, activeOrder?.status, myUserId])
 
     // Urgente = passageiro precisa olhar: já apareceu candidato, ou o
     // motorista já foi aceito/está a caminho. Enquanto só "buscando
@@ -180,6 +330,8 @@ export default function MotoristaSection({ dragHandle, onBreveStatusChange, onUr
         boxShadow: `0 4px 12px #f9731640`,
         cursor: 'pointer',
     }
+
+    const specRows = activeOrder ? buildRideSpecRows(activeOrder) : []
 
     return (
         <section>
@@ -232,9 +384,9 @@ export default function MotoristaSection({ dragHandle, onBreveStatusChange, onUr
                 </div>
 
                 {activeOrder ? (
-                    <button
+                    <div
                         onClick={() => { startNavProgress(); router.push('/pedir-motorista') }}
-                        className="w-full mt-4 p-3 rounded-xl text-left transition-all hover:scale-[1.01]"
+                        className="w-full mt-4 p-3 rounded-xl text-left transition-all hover:scale-[1.01] cursor-pointer"
                         style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}
                     >
                         <div className="flex items-center justify-between gap-2 flex-wrap mb-1">
@@ -247,24 +399,103 @@ export default function MotoristaSection({ dragHandle, onBreveStatusChange, onUr
                                     ? (activeOrder.driver_en_route ? 'Motorista a caminho!' : 'Motorista aceito, aguardando ele sair')
                                     : 'Buscando motorista...'}
                             </span>
-                            {activeOrder.status === 'pending' && (
+                            {activeOrder.status === 'pending' ? (
                                 <span className="text-[10px] font-bold" style={{ color: colors.textSecondary }}>
                                     {activeOrder.applicant_count > 0
                                         ? `${activeOrder.applicant_count} candidato${activeOrder.applicant_count > 1 ? 's' : ''}`
                                         : 'sem candidatos ainda'}
                                 </span>
+                            ) : proposedPrice != null && (
+                                <span className="text-[10px] font-black" style={{ color: '#f97316' }}>
+                                    R$ {proposedPrice.toFixed(2)}
+                                </span>
                             )}
                         </div>
+
                         {activeOrder.scheduled_for && (
                             <span className="flex items-center gap-1 text-[10px] font-bold mb-1" style={{ color: '#8b5cf6' }}>
                                 <CalendarClock size={11} />
                                 Agendada: {formatScheduledFor(activeOrder.scheduled_for)}
                             </span>
                         )}
-                        <span className="text-xs" style={{ color: colors.textPrimary }}>
+
+                        <span className="text-xs block mb-2" style={{ color: colors.textPrimary }}>
                             {shortAddress(activeOrder.origin_address)} → {shortAddress(activeOrder.destination_address)}
                         </span>
-                    </button>
+
+                        {specRows.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mb-2">
+                                {specRows.map((spec, i) => (
+                                    <span
+                                        key={i}
+                                        className="text-[9px] font-bold px-2 py-0.5 rounded-full"
+                                        style={{ background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                                        title={`${spec.label}: ${spec.value}`}
+                                    >
+                                        {spec.label}: {spec.value}
+                                    </span>
+                                ))}
+                            </div>
+                        )}
+
+                        {activeOrder.status === 'accepted' && driverInfo && (
+                            <div className="flex items-center gap-2 p-2 rounded-lg mb-2" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
+                                {driverInfo.avatarUrl ? (
+                                    <img src={driverInfo.avatarUrl} className="w-8 h-8 rounded-full object-cover flex-shrink-0" alt="" />
+                                ) : (
+                                    <span className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-black" style={{ background: GRADIENT, color: '#fff' }}>
+                                        {(driverInfo.name || driverInfo.profileSlug || '?').charAt(0).toUpperCase()}
+                                    </span>
+                                )}
+                                <div className="min-w-0 flex-1">
+                                    <p className="text-[11px] font-black truncate" style={{ color: colors.textPrimary }}>
+                                        {driverInfo.name || (driverInfo.profileSlug ? `@${driverInfo.profileSlug}` : 'Motorista')}
+                                    </p>
+                                    {liveEta ? (
+                                        <span className="flex items-center gap-1 text-[10px] font-bold" style={{ color: '#22c55e' }} title="Localização em tempo real">
+                                            <Navigation size={10} />
+                                            {liveEta.distanceKm.toFixed(1)} km · {Math.max(1, Math.round(liveEta.durationMin))} min para chegar
+                                        </span>
+                                    ) : (
+                                        <span className="text-[10px]" style={{ color: colors.textSecondary }}>
+                                            Localização em tempo real indisponível
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {activeOrder.status === 'accepted' && (
+                            <>
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); setChatExpanded((v) => !v) }}
+                                    className="flex items-center justify-center gap-2 w-full px-3 py-2 rounded-full text-xs font-bold transition-all hover:scale-105 active:scale-95"
+                                    style={{ background: colors.surface, color: colors.textPrimary, border: `1px solid ${colors.border}` }}
+                                >
+                                    {messageCount > 0 && (
+                                        <span
+                                            className="flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-black flex-shrink-0"
+                                            style={{ background: '#ef4444', border: '1.5px solid #ffffff', color: '#ffffff' }}
+                                        >
+                                            {messageCount}
+                                        </span>
+                                    )}
+                                    <span className="truncate">
+                                        {messageCount > 0
+                                            ? `Você tem ${messageCount === 1 ? 'uma mensagem' : `${messageCount} mensagens`}!`
+                                            : 'Enviar mensagem'}
+                                    </span>
+                                    {chatExpanded ? <ChevronUp size={14} className="flex-shrink-0" /> : <ChevronDown size={14} className="flex-shrink-0" />}
+                                </button>
+
+                                {chatExpanded && (
+                                    <div onClick={(e) => e.stopPropagation()} className="mt-2">
+                                        <RideChat rideId={activeOrder.id} />
+                                    </div>
+                                )}
+                            </>
+                        )}
+                    </div>
                 ) : (
                     recentTrips.length > 0 && (
                         <div className="flex flex-wrap gap-2 mt-4">
