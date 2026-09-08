@@ -15,7 +15,7 @@ import { MapPin, Star, Pencil, X, Package, Users, CalendarClock, PawPrint, Car }
 import { Spinner } from '@/components/Spinner'
 import { shortAddress } from '@/lib/serviceBoard'
 import { getAvatarUrl } from '@/lib/avatar'
-import { computeSuggestedPrice, getEffectivePricing } from '@/lib/driverPricing'
+import { computeSuggestedPrice, getEffectivePricing, DriverPricing } from '@/lib/driverPricing'
 import { getProfileRideRatingsBatch, ProfileRideRating } from '@/lib/rideReviews'
 import { VehicleType } from '@/lib/rideVehicle'
 import { buildRideSpecRows } from '@/lib/rideSpecs'
@@ -133,6 +133,7 @@ export default function AceitarCorridasPage() {
     const [checkingPricing, setCheckingPricing] = useState(false)
     const [activeTab, setActiveTab] = useState<'servicos' | 'candidatos'>('servicos')
     const [rides, setRides] = useState<RideCardData[]>([])
+    const [myPricing, setMyPricing] = useState<DriverPricing | null>(null)
     const [candidacies, setCandidacies] = useState<CandidacyCardData[]>([])
     const [withdrawingId, setWithdrawingId] = useState<string | null>(null)
     const [skippedIds, setSkippedIds] = useState<Set<string>>(new Set())
@@ -284,6 +285,7 @@ export default function AceitarCorridasPage() {
         const profilesById = new Map((profiles || []).map((p) => [p.id, p]))
 
         const pricingShape = getEffectivePricing(pricing)
+        setMyPricing(pricingShape)
 
         const cards: RideCardData[] = openList.map((r) => {
             const p = profilesById.get(r.requester_id)
@@ -598,6 +600,13 @@ export default function AceitarCorridasPage() {
                                                 <span>{ride.passenger_count} passageiros</span>
                                             ) : null}
                                         </div>
+
+                                        {myPricing && (
+                                            <p className="text-[10px] font-bold mb-2" style={{ color: colors.textSecondary }}>
+                                                Sua tarifa: até {myPricing.baseDistanceKm} km R$ {myPricing.baseFee.toFixed(2)}, + R$ {myPricing.pricePerKmAfterBase.toFixed(2)}/km
+                                                {ride.hasDistance && ride.distance_km ? ` · R$ ${(ride.suggestedPrice / ride.distance_km).toFixed(2)}/km nesta corrida` : ''}
+                                            </p>
+                                        )}
 
                                         {isEditingPrice ? (
                                             <div className="flex items-center gap-2 mt-2">
