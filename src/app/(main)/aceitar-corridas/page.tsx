@@ -427,7 +427,22 @@ export default function AceitarCorridasPage() {
     )
 
     const headerTabs: Tab[] = useMemo((): any[] => {
-        const tabs: any[] = [
+        const tabs: any[] = []
+
+        // Corrida aceita vem primeiro — quem tem uma corrida ativa precisa
+        // vê-la assim que entra na tela, não procurar nas outras abas.
+        if (acceptedRide) {
+            tabs.push({
+                id: 'aceita',
+                label: 'Corrida aceita',
+                icon: CheckCircle2,
+                onClick: () => setActiveTab('aceita'),
+                isActive: activeTab === 'aceita',
+                badge: null,
+            })
+        }
+
+        tabs.push(
             {
                 id: 'servicos',
                 label: 'Corridas em abertos',
@@ -444,17 +459,8 @@ export default function AceitarCorridasPage() {
                 isActive: activeTab === 'candidatos',
                 badge: candidacies.length > 0 ? { count: candidacies.length } : null,
             },
-        ]
-        if (acceptedRide) {
-            tabs.push({
-                id: 'aceita',
-                label: 'Corrida aceita',
-                icon: CheckCircle2,
-                onClick: () => setActiveTab('aceita'),
-                isActive: activeTab === 'aceita',
-                badge: null,
-            })
-        }
+        )
+
         return tabs
     }, [activeTab, rides.length, candidacies.length, acceptedRide])
 

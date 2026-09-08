@@ -4,7 +4,7 @@
 import { ReactNode, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
-import { Car, MapPin } from 'lucide-react'
+import { Car, MapPin, Search, CheckCircle2, CalendarClock } from 'lucide-react'
 import { useTheme } from '@/app/theme'
 import { supabase } from '@/lib/supabase/client'
 import { hexToRgb } from '@/lib/color'
@@ -16,12 +16,26 @@ interface RecentRideTrip {
     destinationCoords: [number, number] | null
 }
 
+interface ActiveOrder {
+    id: string
+    status: 'pending' | 'accepted'
+    applicant_count: number
+    scheduled_for: string | null
+    driver_en_route: boolean
+    origin_address: string
+    destination_address: string
+}
+
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
 function shortAddress(address: string): string {
     const firstPart = address.split(',')[0].trim()
     return firstPart.length > 24 ? firstPart.substring(0, 22) + '...' : firstPart
+}
+
+function formatScheduledFor(iso: string): string {
+    return new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
 }
 
 interface MotoristaSectionProps {
@@ -34,6 +48,7 @@ export default function MotoristaSection({ dragHandle, onBreveStatusChange }: Mo
     const router = useRouter()
     const startNavProgress = useNavProgressStore((s) => s.start)
     const [recentTrips, setRecentTrips] = useState<RecentRideTrip[]>([])
+    const [activeOrder, setActiveOrder] = useState<ActiveOrder | null>(null)
 
     useEffect(() => {
         onBreveStatusChange?.(false)
@@ -41,8 +56,30 @@ export default function MotoristaSection({ dragHandle, onBreveStatusChange }: Mo
 
     useEffect(() => {
         let active = true
-        supabase.auth.getUser().then(async ({ data: { user } }) => {
+
+        const load = async () => {
+            const { data: { user } } = await supabase.auth.getUser()
             if (!user) return
+
+            // Pedido ativo (pending/accepted) tem prioridade sobre os
+            // trajetos recentes — enquanto ele existe, mostramos o status
+            // do pedido em vez de sugestões de para onde ir de novo.
+            const { data: order } = await supabase
+                .from('ride_requests')
+                .select('id, status, applicant_count, scheduled_for, driver_en_route, origin_address, destination_address')
+                .eq('requester_id', user.id)
+                .in('status', ['pending', 'accepted'])
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .maybeSingle()
+
+            if (!active) return
+            if (order) {
+                setActiveOrder(order as ActiveOrder)
+                return
+            }
+            setActiveOrder(null)
+
             const { data } = await supabase
                 .from('ride_requests')
                 .select('origin_address, origin_lat, origin_lng, destination_address, destination_lat, destination_lng')
@@ -66,8 +103,11 @@ export default function MotoristaSection({ dragHandle, onBreveStatusChange }: Mo
                 if (trips.length >= 3) break
             }
             setRecentTrips(trips)
-        })
-        return () => { active = false }
+        }
+
+        load()
+        const poll = setInterval(load, 15000)
+        return () => { active = false; clearInterval(poll) }
     }, [])
 
     const goToTrip = (trip: RecentRideTrip) => {
@@ -149,29 +189,64 @@ export default function MotoristaSection({ dragHandle, onBreveStatusChange }: Mo
                         style={buttonStyle}
                     >
                         <Car size={16} />
-                        pedir motorista
+                        {activeOrder ? 'ver meu pedido' : 'pedir motorista'}
                     </button>
                 </div>
 
-                {/* Trajetos já feitos antes */}
-                {recentTrips.length > 0 && (
-                    <div className="flex flex-wrap gap-2 mt-4">
-                        {recentTrips.map((trip) => (
-                            <button
-                                key={`${trip.originAddress}|${trip.destinationAddress}`}
-                                onClick={() => goToTrip(trip)}
-                                className="flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-bold transition-all hover:scale-105 active:scale-95"
-                                style={{
-                                    background: `${colors.border}30`,
-                                    border: `1px solid ${colors.border}`,
-                                    color: colors.textPrimary,
-                                }}
+                {activeOrder ? (
+                    <button
+                        onClick={() => { startNavProgress(); router.push('/pedir-motorista') }}
+                        className="w-full mt-4 p-3 rounded-xl text-left transition-all hover:scale-[1.01]"
+                        style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}
+                    >
+                        <div className="flex items-center justify-between gap-2 flex-wrap mb-1">
+                            <span
+                                className="flex items-center gap-1.5 text-xs font-black"
+                                style={{ color: activeOrder.status === 'accepted' ? '#22c55e' : '#f97316' }}
                             >
-                                <MapPin size={14} />
-                                {shortAddress(trip.originAddress)} → {shortAddress(trip.destinationAddress)}
-                            </button>
-                        ))}
-                    </div>
+                                {activeOrder.status === 'accepted' ? <CheckCircle2 size={13} /> : <Search size={13} />}
+                                {activeOrder.status === 'accepted'
+                                    ? (activeOrder.driver_en_route ? 'Motorista a caminho!' : 'Motorista aceito, aguardando ele sair')
+                                    : 'Buscando motorista...'}
+                            </span>
+                            {activeOrder.status === 'pending' && (
+                                <span className="text-[10px] font-bold" style={{ color: colors.textSecondary }}>
+                                    {activeOrder.applicant_count > 0
+                                        ? `${activeOrder.applicant_count} candidato${activeOrder.applicant_count > 1 ? 's' : ''}`
+                                        : 'sem candidatos ainda'}
+                                </span>
+                            )}
+                        </div>
+                        {activeOrder.scheduled_for && (
+                            <span className="flex items-center gap-1 text-[10px] font-bold mb-1" style={{ color: '#8b5cf6' }}>
+                                <CalendarClock size={11} />
+                                Agendada: {formatScheduledFor(activeOrder.scheduled_for)}
+                            </span>
+                        )}
+                        <span className="text-xs" style={{ color: colors.textPrimary }}>
+                            {shortAddress(activeOrder.origin_address)} → {shortAddress(activeOrder.destination_address)}
+                        </span>
+                    </button>
+                ) : (
+                    recentTrips.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mt-4">
+                            {recentTrips.map((trip) => (
+                                <button
+                                    key={`${trip.originAddress}|${trip.destinationAddress}`}
+                                    onClick={() => goToTrip(trip)}
+                                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-bold transition-all hover:scale-105 active:scale-95"
+                                    style={{
+                                        background: `${colors.border}30`,
+                                        border: `1px solid ${colors.border}`,
+                                        color: colors.textPrimary,
+                                    }}
+                                >
+                                    <MapPin size={14} />
+                                    {shortAddress(trip.originAddress)} → {shortAddress(trip.destinationAddress)}
+                                </button>
+                            ))}
+                        </div>
+                    )
                 )}
             </div>
         </section>
