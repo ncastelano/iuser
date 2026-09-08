@@ -574,11 +574,11 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady }: Rid
         try {
             const { error } = await supabase
                 .from('ride_requests')
-                .update({ status: 'cancelled' })
+                .update({ status: 'cancelled', cancelled_by: 'requester' })
                 .eq('id', rideId)
-                .eq('status', 'pending')
+                .in('status', ['pending', 'accepted'])
             if (error) throw error
-            toast.success('Pedido cancelado.')
+            toast.success('Corrida cancelada.')
             onExit()
         } catch (err: any) {
             toast.error('Erro ao cancelar: ' + (err.message || 'tente novamente'))
@@ -857,14 +857,14 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady }: Rid
                 </div>
             )}
 
-            {ride.status === 'pending' && (
+            {(ride.status === 'pending' || ride.status === 'accepted') && (
                 <button
                     onClick={cancelRide}
                     disabled={cancelling}
                     className="w-full py-3 rounded-full font-bold text-xs disabled:opacity-50"
                     style={{ color: '#ef4444', border: `1px solid #ef444440` }}
                 >
-                    {cancelling ? <Spinner size={14} /> : 'Cancelar pedido'}
+                    {cancelling ? <Spinner size={14} /> : 'Cancelar corrida'}
                 </button>
             )}
 

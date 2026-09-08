@@ -11,7 +11,7 @@ import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import LoginAndRegister from '../LoginAndRegister'
 import LocationPicker from '../LocationPicker'
 import { toast } from 'sonner'
-import { MapPin, Star, Pencil, X, Package, Users, CalendarClock, PawPrint, Car } from 'lucide-react'
+import { MapPin, Star, Pencil, X, Package, Users, CalendarClock, PawPrint, Car, CheckCircle2, Navigation, Ban, Flag } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import { shortAddress } from '@/lib/serviceBoard'
 import { getAvatarUrl } from '@/lib/avatar'
@@ -19,6 +19,7 @@ import { computeSuggestedPrice, getEffectivePricing, DriverPricing } from '@/lib
 import { getProfileRideRatingsBatch, ProfileRideRating } from '@/lib/rideReviews'
 import { VehicleType } from '@/lib/rideVehicle'
 import { buildRideSpecRows } from '@/lib/rideSpecs'
+import { getDriverCancelQuota, describeDriverCancelQuota } from '@/lib/rideCancellation'
 import RideMiniMap from './RideMiniMap'
 import RideMapDialog from './RideMapDialog'
 
@@ -123,6 +124,24 @@ interface CandidacyCardData extends RideRow {
     hasDistance: boolean
 }
 
+interface AcceptedRideDetail {
+    id: string
+    origin_address: string
+    destination_address: string
+    origin_lat: number | null
+    origin_lng: number | null
+    destination_lat: number | null
+    destination_lng: number | null
+    distance_km: number | null
+    duration_min: number | null
+    driver_en_route: boolean
+    requesterName: string | null
+    requesterSlug: string | null
+    requesterAvatarUrl: string | undefined
+    requesterRating: ProfileRideRating
+    proposedPrice: number | null
+}
+
 export default function AceitarCorridasPage() {
     const router = useRouter()
     const { avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
@@ -131,10 +150,15 @@ export default function AceitarCorridasPage() {
     const [loading, setLoading] = useState(true)
     const [showLogin, setShowLogin] = useState(false)
     const [checkingPricing, setCheckingPricing] = useState(false)
-    const [activeTab, setActiveTab] = useState<'servicos' | 'candidatos'>('servicos')
+    const [activeTab, setActiveTab] = useState<'servicos' | 'candidatos' | 'aceita'>('servicos')
     const [rides, setRides] = useState<RideCardData[]>([])
     const [myPricing, setMyPricing] = useState<DriverPricing | null>(null)
     const [candidacies, setCandidacies] = useState<CandidacyCardData[]>([])
+    const [acceptedRide, setAcceptedRide] = useState<AcceptedRideDetail | null>(null)
+    const [departing, setDeparting] = useState(false)
+    const [finishing, setFinishing] = useState(false)
+    const [cancellingAccepted, setCancellingAccepted] = useState(false)
+    const lastAcceptedRideIdRef = useRef<string | null>(null)
     const [withdrawingId, setWithdrawingId] = useState<string | null>(null)
     const [skippedIds, setSkippedIds] = useState<Set<string>>(new Set())
     const [applyingId, setApplyingId] = useState<string | null>(null)
@@ -153,27 +177,14 @@ export default function AceitarCorridasPage() {
     // Fonte da verdade é a localização definida em "Definir local" (LocationPicker,
     // salva em profiles.store_lat/lng) — é ela que o load() abaixo aplica a cada
     // 15s. Só quando "Sincronização para motorista" está ativada é que o GPS ao
-    // vivo assume e vai atualizando continuamente por cima.
+    // vivo assume e vai atualizando continuamente por cima (a persistência em
+    // driver_pricing pro passageiro acompanhar é feita globalmente pelo
+    // DriverLiveLocationBroadcaster, montado em providers.tsx).
     useEffect(() => {
         if (!liveLocationSync || !navigator.geolocation) return
 
         const watchId = navigator.geolocation.watchPosition(
-            (pos) => {
-                const coords: [number, number] = [pos.coords.longitude, pos.coords.latitude]
-                setDriverCoords(coords)
-
-                // Persiste em driver_pricing pra o passageiro da corrida aceita
-                // acompanhar em /pedir-motorista — sem isso a posição ao vivo
-                // fica só no navegador deste motorista.
-                const userId = userIdRef.current
-                if (userId) {
-                    supabase
-                        .from('driver_pricing')
-                        .update({ live_lat: coords[1], live_lng: coords[0], live_updated_at: new Date().toISOString() })
-                        .eq('driver_id', userId)
-                        .then(() => {})
-                }
-            },
+            (pos) => setDriverCoords([pos.coords.longitude, pos.coords.latitude]),
             () => { /* sem permissão: mapa mostra só o trajeto partida → chegada */ },
             { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
         )
@@ -340,6 +351,58 @@ export default function AceitarCorridasPage() {
 
         setRides(cards)
         setCandidacies(candidacyCards)
+
+        // Corrida aceita, se houver — o motorista tem no máximo uma por vez,
+        // já que o passageiro só pode ter um pedido ativo (ver migração
+        // ride_requests_one_active_per_requester), e o driver_id só é
+        // definido no momento em que o pedido dele vira "accepted".
+        const { data: acceptedRow } = await supabase
+            .from('ride_requests')
+            .select('id, requester_id, origin_address, destination_address, origin_lat, origin_lng, destination_lat, destination_lng, distance_km, duration_min, driver_en_route')
+            .eq('driver_id', user.id)
+            .eq('status', 'accepted')
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle()
+
+        let acceptedDetail: AcceptedRideDetail | null = null
+        if (acceptedRow) {
+            const [{ data: reqProfile }, { data: acceptedApp }, requesterRatings] = await Promise.all([
+                supabase.from('profiles').select('name, profileSlug, avatar_url').eq('id', acceptedRow.requester_id).maybeSingle(),
+                supabase.from('ride_applications').select('proposed_price').eq('ride_request_id', acceptedRow.id).eq('applicant_id', user.id).eq('status', 'accepted').maybeSingle(),
+                getProfileRideRatingsBatch(supabase, [acceptedRow.requester_id]),
+            ])
+            acceptedDetail = {
+                id: acceptedRow.id,
+                origin_address: acceptedRow.origin_address,
+                destination_address: acceptedRow.destination_address,
+                origin_lat: acceptedRow.origin_lat,
+                origin_lng: acceptedRow.origin_lng,
+                destination_lat: acceptedRow.destination_lat,
+                destination_lng: acceptedRow.destination_lng,
+                distance_km: acceptedRow.distance_km,
+                duration_min: acceptedRow.duration_min,
+                driver_en_route: acceptedRow.driver_en_route,
+                requesterName: reqProfile?.name || null,
+                requesterSlug: reqProfile?.profileSlug || null,
+                requesterAvatarUrl: getAvatarUrl(supabase, reqProfile?.avatar_url),
+                requesterRating: requesterRatings.get(acceptedRow.requester_id) || { avg: 0, count: 0 },
+                proposedPrice: acceptedApp?.proposed_price ?? null,
+            }
+        }
+
+        // Assim que uma corrida vira aceita, o layout muda pra essa aba
+        // automaticamente; quando ela sai de aceita (cancelada/concluída),
+        // volta pra "Corridas em abertos" se ainda estava nela.
+        if (acceptedDetail && lastAcceptedRideIdRef.current !== acceptedDetail.id) {
+            lastAcceptedRideIdRef.current = acceptedDetail.id
+            setActiveTab('aceita')
+        } else if (!acceptedDetail && lastAcceptedRideIdRef.current != null) {
+            lastAcceptedRideIdRef.current = null
+            setActiveTab((prev) => (prev === 'aceita' ? 'servicos' : prev))
+        }
+        setAcceptedRide(acceptedDetail)
+
         setLoading(false)
     }, [router])
 
@@ -363,24 +426,37 @@ export default function AceitarCorridasPage() {
         [rides, skippedIds]
     )
 
-    const headerTabs: Tab[] = useMemo((): any[] => [
-        {
-            id: 'servicos',
-            label: 'Corridas em abertos',
-            icon: MapPin,
-            onClick: () => setActiveTab('servicos'),
-            isActive: activeTab === 'servicos',
-            badge: rides.length > 0 ? { count: rides.length } : null,
-        },
-        {
-            id: 'candidatos',
-            label: 'Me candidatei',
-            icon: Users,
-            onClick: () => setActiveTab('candidatos'),
-            isActive: activeTab === 'candidatos',
-            badge: candidacies.length > 0 ? { count: candidacies.length } : null,
-        },
-    ], [activeTab, rides.length, candidacies.length])
+    const headerTabs: Tab[] = useMemo((): any[] => {
+        const tabs: any[] = [
+            {
+                id: 'servicos',
+                label: 'Corridas em abertos',
+                icon: MapPin,
+                onClick: () => setActiveTab('servicos'),
+                isActive: activeTab === 'servicos',
+                badge: rides.length > 0 ? { count: rides.length } : null,
+            },
+            {
+                id: 'candidatos',
+                label: 'Me candidatei',
+                icon: Users,
+                onClick: () => setActiveTab('candidatos'),
+                isActive: activeTab === 'candidatos',
+                badge: candidacies.length > 0 ? { count: candidacies.length } : null,
+            },
+        ]
+        if (acceptedRide) {
+            tabs.push({
+                id: 'aceita',
+                label: 'Corrida aceita',
+                icon: CheckCircle2,
+                onClick: () => setActiveTab('aceita'),
+                isActive: activeTab === 'aceita',
+                badge: null,
+            })
+        }
+        return tabs
+    }, [activeTab, rides.length, candidacies.length, acceptedRide])
 
     const applyToRide = async (ride: RideCardData, price: number) => {
         if (price <= 0) {
@@ -463,6 +539,76 @@ export default function AceitarCorridasPage() {
             toast.error('Erro ao sair da candidatura: ' + (err.message || 'tente novamente'))
         } finally {
             setWithdrawingId(null)
+        }
+    }
+
+    const departToPickup = async () => {
+        if (!acceptedRide) return
+        setDeparting(true)
+        try {
+            const { error } = await supabase
+                .from('ride_requests')
+                .update({ driver_en_route: true, driver_departed_at: new Date().toISOString() })
+                .eq('id', acceptedRide.id)
+            if (error) throw error
+            setAcceptedRide((prev) => (prev ? { ...prev, driver_en_route: true } : prev))
+        } catch (err: any) {
+            toast.error('Erro ao confirmar saída: ' + (err.message || 'tente novamente'))
+        } finally {
+            setDeparting(false)
+        }
+    }
+
+    const finishAcceptedRide = async () => {
+        if (!acceptedRide) return
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) return
+
+        setFinishing(true)
+        try {
+            const { error } = await supabase
+                .from('ride_requests')
+                .update({ status: 'completed' })
+                .eq('id', acceptedRide.id)
+                .eq('driver_id', user.id)
+            if (error) throw error
+            toast.success('Corrida finalizada!')
+            lastAcceptedRideIdRef.current = null
+            setAcceptedRide(null)
+            setActiveTab('servicos')
+        } catch (err: any) {
+            toast.error('Erro ao finalizar corrida: ' + (err.message || 'tente novamente'))
+        } finally {
+            setFinishing(false)
+        }
+    }
+
+    const cancelAcceptedRide = async () => {
+        if (!acceptedRide) return
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) return
+
+        setCancellingAccepted(true)
+        try {
+            const quota = await getDriverCancelQuota(supabase, user.id)
+            if (!quota.allowed) {
+                toast.error(describeDriverCancelQuota(quota))
+                return
+            }
+            const { error } = await supabase
+                .from('ride_requests')
+                .update({ status: 'cancelled', cancelled_by: 'driver' })
+                .eq('id', acceptedRide.id)
+                .eq('driver_id', user.id)
+            if (error) throw error
+            toast.success('Corrida cancelada.')
+            lastAcceptedRideIdRef.current = null
+            setAcceptedRide(null)
+            setActiveTab('servicos')
+        } catch (err: any) {
+            toast.error('Erro ao cancelar: ' + (err.message || 'tente novamente'))
+        } finally {
+            setCancellingAccepted(false)
         }
     }
 
@@ -806,6 +952,102 @@ export default function AceitarCorridasPage() {
                             })}
                         </div>
                     )}
+
+                    {!loading && !showLogin && activeTab === 'aceita' && acceptedRide && (
+                        <div
+                            className="rounded-2xl p-4 overflow-hidden relative"
+                            style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
+                        >
+                            <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
+                                <span
+                                    className="flex items-center gap-1 text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full"
+                                    style={{ background: '#22c55e15', color: '#22c55e' }}
+                                >
+                                    <CheckCircle2 size={11} />
+                                    {acceptedRide.driver_en_route ? 'A caminho' : 'Aceita'}
+                                </span>
+                            </div>
+
+                            <div className="flex items-center gap-2 mb-2">
+                                {acceptedRide.requesterAvatarUrl ? (
+                                    <img src={acceptedRide.requesterAvatarUrl} className="w-8 h-8 rounded-full object-cover flex-shrink-0" alt="" />
+                                ) : (
+                                    <span className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT }}>
+                                        <Users size={14} color="#fff" />
+                                    </span>
+                                )}
+                                <div className="min-w-0">
+                                    <p className="text-xs font-black truncate" style={{ color: colors.textPrimary }}>
+                                        {acceptedRide.requesterName || (acceptedRide.requesterSlug ? `@${acceptedRide.requesterSlug}` : 'Passageiro')}
+                                    </p>
+                                    {acceptedRide.requesterRating.count > 0 && (
+                                        <span className="flex items-center gap-1 text-[10px]" style={{ color: colors.textSecondary }}>
+                                            <Star size={10} className="fill-current" style={{ color: '#eab308' }} />
+                                            {acceptedRide.requesterRating.avg.toFixed(2)} ({acceptedRide.requesterRating.count})
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+
+                            {acceptedRide.origin_lat != null && acceptedRide.origin_lng != null && acceptedRide.destination_lat != null && acceptedRide.destination_lng != null && (
+                                <RideMiniMap
+                                    originLat={acceptedRide.origin_lat}
+                                    originLng={acceptedRide.origin_lng}
+                                    destLat={acceptedRide.destination_lat}
+                                    destLng={acceptedRide.destination_lng}
+                                    driverLat={driverCoords ? driverCoords[1] : null}
+                                    driverLng={driverCoords ? driverCoords[0] : null}
+                                    onExpand={() => setMapDialogRideId(acceptedRide.id)}
+                                />
+                            )}
+
+                            <div className="flex items-start gap-2 text-xs mb-1" style={{ color: colors.textSecondary }}>
+                                <MapPin size={12} className="flex-shrink-0 mt-0.5" />
+                                <span>{shortAddress(acceptedRide.origin_address)} → {shortAddress(acceptedRide.destination_address)}</span>
+                            </div>
+
+                            <div className="flex items-center gap-2 text-[11px] mb-2" style={{ color: colors.textSecondary }}>
+                                {acceptedRide.distance_km != null ? (
+                                    <span>{acceptedRide.distance_km.toFixed(1)} km · {Math.round(acceptedRide.duration_min || 0)} min</span>
+                                ) : (
+                                    <span>Distância não calculada</span>
+                                )}
+                            </div>
+
+                            <p className="text-sm font-black mb-3" style={{ color: '#f97316' }}>
+                                {acceptedRide.proposedPrice != null ? `Valor combinado: R$ ${acceptedRide.proposedPrice.toFixed(2)}` : 'Valor não definido'}
+                            </p>
+
+                            {!acceptedRide.driver_en_route && (
+                                <button
+                                    onClick={departToPickup}
+                                    disabled={departing}
+                                    className="w-full py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all disabled:opacity-70 flex items-center justify-center gap-2"
+                                    style={{ background: GRADIENT, color: '#fff' }}
+                                >
+                                    {departing ? <Spinner size={14} /> : <><Navigation size={14} /> Ir para o ponto de partida</>}
+                                </button>
+                            )}
+
+                            <button
+                                onClick={finishAcceptedRide}
+                                disabled={finishing}
+                                className="w-full mt-2 py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all disabled:opacity-70 flex items-center justify-center gap-2"
+                                style={{ background: '#22c55e', color: '#fff' }}
+                            >
+                                {finishing ? <Spinner size={14} /> : <><Flag size={14} /> Concluir corrida</>}
+                            </button>
+
+                            <button
+                                onClick={cancelAcceptedRide}
+                                disabled={cancellingAccepted}
+                                className="w-full mt-2 py-2 rounded-full text-[11px] font-bold disabled:opacity-60 flex items-center justify-center gap-1.5"
+                                style={{ color: '#ef4444', border: '1px solid #ef444440' }}
+                            >
+                                {cancellingAccepted ? <Spinner size={12} /> : <><Ban size={12} /> Cancelar corrida</>}
+                            </button>
+                        </div>
+                    )}
                 </section>
 
                 {showLocationDialog && (
@@ -824,7 +1066,7 @@ export default function AceitarCorridasPage() {
             </main>
 
             {mapDialogRideId && (() => {
-                const ride = rides.find((r) => r.id === mapDialogRideId) || candidacies.find((c) => c.id === mapDialogRideId)
+                const ride = rides.find((r) => r.id === mapDialogRideId) || candidacies.find((c) => c.id === mapDialogRideId) || (acceptedRide?.id === mapDialogRideId ? acceptedRide : undefined)
                 if (!ride || ride.origin_lat == null || ride.origin_lng == null || ride.destination_lat == null || ride.destination_lng == null) {
                     return null
                 }

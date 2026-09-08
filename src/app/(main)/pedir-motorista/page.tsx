@@ -1048,7 +1048,7 @@ export default function PedirMotoristaPage() {
                     {/* ===== ETAPA 1: PESSOA OU OBJETO ===== */}
                     {step === 'type' && (
                         <>
-                            <h2 className="text-lg font-black mb-1" style={{ color: colors.textPrimary }}>Para que você quer o motorista?</h2>
+                            <h2 className="text-lg font-black mb-1" style={{ color: colors.textPrimary }}>Motorista para:</h2>
                             <p className="text-xs mb-4" style={{ color: colors.textSecondary }}>Escolha uma opção pra começar</p>
 
                             <div className="grid grid-cols-3 gap-2">
