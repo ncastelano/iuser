@@ -41,6 +41,7 @@ interface OpenRidePreview {
     origin_address: string
     destination_address: string
     distance_km: number | null
+    duration_min: number | null
     passenger_count: number
     object_description: string | null
     pet_description: string | null
@@ -136,15 +137,15 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
 
             const { data: rows } = await supabase
                 .from('ride_requests')
-                .select('id, requester_id, ride_type, origin_address, destination_address, distance_km, passenger_count, object_description, pet_description, applicant_count')
+                .select('id, requester_id, ride_type, origin_address, destination_address, distance_km, duration_min, passenger_count, object_description, pet_description, applicant_count')
                 .eq('status', 'pending')
                 .neq('requester_id', userId)
                 .order('created_at', { ascending: false })
-                .limit(10)
+                .limit(15)
             if (!active) return
 
             const candidateRows = (rows || []).filter((r) => !appliedIds.has(r.id) && (r.applicant_count ?? 0) < 5)
-            const top = candidateRows.slice(0, 3)
+            const top = candidateRows.slice(0, 5)
 
             const requesterIds = Array.from(new Set(top.map((r) => r.requester_id)))
             const { data: profiles } = requesterIds.length > 0
@@ -170,6 +171,7 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
                         origin_address: r.origin_address,
                         destination_address: r.destination_address,
                         distance_km: r.distance_km,
+                        duration_min: r.duration_min,
                         passenger_count: r.passenger_count,
                         object_description: r.object_description,
                         pet_description: r.pet_description,
@@ -460,6 +462,7 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
                                 {ride.distance_km != null && (
                                     <span className="text-[10px] font-bold" style={{ color: colors.textPrimary }}>
                                         {ride.distance_km.toFixed(1)} km total
+                                        {ride.duration_min != null && ` · ${Math.round(ride.duration_min)} min total`}
                                     </span>
                                 )}
                             </button>
