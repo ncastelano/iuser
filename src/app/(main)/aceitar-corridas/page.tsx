@@ -1,7 +1,7 @@
 // app/(main)/aceitar-corridas/page.tsx
 'use client'
 
-import { useEffect, useMemo, useState, useCallback } from 'react'
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { useProfile } from '@/app/contexts/ProfileContext'
@@ -147,6 +147,7 @@ export default function AceitarCorridasPage() {
     const [savedLocation, setSavedLocation] = useState<{ lat: number; lng: number; address: string; addressNumber?: string; addressComplement?: string } | null>(null)
     const [showLocationDialog, setShowLocationDialog] = useState(false)
     const [isSavingLocation, setIsSavingLocation] = useState(false)
+    const userIdRef = useRef<string | null>(null)
 
     // ===== SUA LOCALIZAÇÃO, PRA DESENHAR "VOCÊ → PARTIDA" NO MAPA DE CADA PEDIDO =====
     // Fonte da verdade é a localização definida em "Definir local" (LocationPicker,
@@ -157,7 +158,22 @@ export default function AceitarCorridasPage() {
         if (!liveLocationSync || !navigator.geolocation) return
 
         const watchId = navigator.geolocation.watchPosition(
-            (pos) => setDriverCoords([pos.coords.longitude, pos.coords.latitude]),
+            (pos) => {
+                const coords: [number, number] = [pos.coords.longitude, pos.coords.latitude]
+                setDriverCoords(coords)
+
+                // Persiste em driver_pricing pra o passageiro da corrida aceita
+                // acompanhar em /pedir-motorista — sem isso a posição ao vivo
+                // fica só no navegador deste motorista.
+                const userId = userIdRef.current
+                if (userId) {
+                    supabase
+                        .from('driver_pricing')
+                        .update({ live_lat: coords[1], live_lng: coords[0], live_updated_at: new Date().toISOString() })
+                        .eq('driver_id', userId)
+                        .then(() => {})
+                }
+            },
             () => { /* sem permissão: mapa mostra só o trajeto partida → chegada */ },
             { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
         )
@@ -167,6 +183,7 @@ export default function AceitarCorridasPage() {
 
     const load = useCallback(async () => {
         const { data: { user } } = await supabase.auth.getUser()
+        userIdRef.current = user?.id ?? null
         if (!user) {
             setShowLogin(true)
             setLoading(false)

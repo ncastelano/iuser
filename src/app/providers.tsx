@@ -9,6 +9,7 @@ import { PwaCleanup } from '@/components/PwaCleanup'
 import { PushNotificationSetup } from '@/components/PushNotificationSetup'
 import { NavigationProgressBar } from '@/components/NavigationProgressBar'
 import { FinishedRideTrigger } from '@/components/ratings/FinishedRideTrigger'
+import { RideAcceptedDialog } from '@/components/RideAcceptedDialog'
 import { Toaster } from 'sonner'
 import { ProfileProvider } from './contexts/ProfileContext'
 
@@ -22,6 +23,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <FontLoader />
         <OrderNotification />
         <FinishedRideTrigger />
+        <RideAcceptedDialog />
         <PwaCleanup />
         <PushNotificationSetup />
         <Toaster

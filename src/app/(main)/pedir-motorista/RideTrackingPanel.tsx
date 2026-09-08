@@ -42,6 +42,7 @@ interface RideRow {
     destination_lat: number | null
     destination_lng: number | null
     duration_min: number | null
+    driver_en_route: boolean
 }
 
 interface CandidateStore {
@@ -96,13 +97,15 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady }: Rid
     const [driver, setDriver] = useState<DriverInfo | null>(null)
     const [decidingId, setDecidingId] = useState<string | null>(null)
     const [cancelling, setCancelling] = useState(false)
+    const [driverLiveCoords, setDriverLiveCoords] = useState<[number, number] | null>(null)
+    const driverMarkerRef = useRef<mapboxgl.Marker | null>(null)
     const knownCandidateIds = useRef<Set<string>>(new Set())
     const firstLoad = useRef(true)
 
     const load = useCallback(async () => {
         const { data: rideRow } = await supabase
             .from('ride_requests')
-            .select('id, origin_address, destination_address, status, driver_id, created_at, scheduled_for, origin_lat, origin_lng, destination_lat, destination_lng, duration_min')
+            .select('id, origin_address, destination_address, status, driver_id, created_at, scheduled_for, origin_lat, origin_lng, destination_lat, destination_lng, duration_min, driver_en_route')
             .eq('id', rideId)
             .single()
 
@@ -428,6 +431,82 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady }: Rid
         }
     }, [map, mapReady, candidates, ride, tripRouteCoords])
 
+    // ===== LOCALIZAÇÃO AO VIVO DO MOTORISTA ACEITO =====
+    // Lida de driver_pricing (preenchida por /aceitar-corridas quando o
+    // motorista ativa "Sincronização para motorista"). Realtime com
+    // fallback de polling, mesmo padrão usado no resto do app.
+    const rideStatus = ride?.status
+    const rideDriverId = ride?.driver_id
+    useEffect(() => {
+        if (rideStatus !== 'accepted' || !rideDriverId) {
+            setDriverLiveCoords(null)
+            return
+        }
+
+        const fetchLive = async () => {
+            const { data } = await supabase
+                .from('driver_pricing')
+                .select('live_lat, live_lng')
+                .eq('driver_id', rideDriverId)
+                .maybeSingle()
+            if (data?.live_lat != null && data?.live_lng != null) {
+                setDriverLiveCoords([data.live_lng, data.live_lat])
+            }
+        }
+        fetchLive()
+
+        const channel = supabase
+            .channel(`driver-live-${rideDriverId}`)
+            .on(
+                'postgres_changes',
+                { event: 'UPDATE', schema: 'public', table: 'driver_pricing', filter: `driver_id=eq.${rideDriverId}` },
+                (payload) => {
+                    const row = payload.new as { live_lat?: number | null; live_lng?: number | null }
+                    if (row.live_lat != null && row.live_lng != null) setDriverLiveCoords([row.live_lng, row.live_lat])
+                }
+            )
+            .subscribe()
+
+        const poll = setInterval(fetchLive, 8000)
+
+        return () => {
+            supabase.removeChannel(channel)
+            clearInterval(poll)
+        }
+    }, [rideStatus, rideDriverId])
+
+    // Marcador do motorista no mapa — separado do efeito principal acima pra
+    // não reconstruir rotas/candidatos a cada atualização de posição.
+    useEffect(() => {
+        if (!map || !mapReady) return
+
+        if (!driverLiveCoords) {
+            driverMarkerRef.current?.remove()
+            driverMarkerRef.current = null
+            return
+        }
+
+        if (driverMarkerRef.current) {
+            driverMarkerRef.current.setLngLat(driverLiveCoords)
+        } else {
+            const el = document.createElement('div')
+            el.style.cssText = 'display:flex;flex-direction:column;align-items:center;'
+            el.innerHTML = `
+                <div style="background:#3b82f6;color:#fff;font-size:9px;font-weight:800;padding:2px 8px;border-radius:9999px;margin-bottom:4px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,0.35);">Motorista</div>
+                <div style="width:18px;height:18px;border-radius:50%;background:#3b82f6;border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.4);"></div>
+            `
+            driverMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: 'bottom' }).setLngLat(driverLiveCoords).addTo(map)
+        }
+    }, [map, mapReady, driverLiveCoords])
+
+    // Some com o marcador quando o mapa some/troca, ou quando este painel desmonta.
+    useEffect(() => {
+        return () => {
+            driverMarkerRef.current?.remove()
+            driverMarkerRef.current = null
+        }
+    }, [map])
+
     const acceptCandidate = async (applicationId: string, applicantId: string) => {
         setDecidingId(applicationId)
         try {
@@ -455,6 +534,20 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady }: Rid
 
             toast.success('Motorista escolhido!')
             load()
+
+            // Best-effort: avisa o motorista aceito via push, independente de
+            // onde ele esteja no app. Não bloqueia o fluxo se falhar.
+            supabase.auth.getSession().then(({ data: { session } }) => {
+                if (!session) return
+                fetch('/api/push/send-ride-accepted', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${session.access_token}`,
+                    },
+                    body: JSON.stringify({ rideRequestId: rideId }),
+                }).catch(() => { /* silencioso: notificação é best-effort */ })
+            })
         } catch (err: any) {
             toast.error('Erro ao decidir candidatura: ' + (err.message || 'tente novamente'))
         } finally {
@@ -588,6 +681,9 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady }: Rid
                         <p className="text-sm font-black truncate" style={{ color: colors.textPrimary }}>
                             {driver.name || (driver.profileSlug ? `@${driver.profileSlug}` : 'Motorista')}
                         </p>
+                        <p className="text-[11px] font-bold" style={{ color: ride.driver_en_route ? '#22c55e' : colors.textSecondary }}>
+                            {ride.driver_en_route ? 'A caminho do ponto de partida' : 'Aguardando ele sair para buscar você'}
+                        </p>
                         <p className="text-[11px]" style={{ color: colors.textSecondary }}>Confira a placa e a cor do carro antes de entrar.</p>
                     </div>
                 </div>
@@ -605,7 +701,7 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady }: Rid
                             <span className="text-xs" style={{ color: colors.textSecondary }}>Assim que um motorista se candidatar, ele aparece aqui.</span>
                         </div>
                     ) : (
-                        <div className="flex flex-col gap-2">
+                        <div className="grid grid-cols-2 gap-2">
                             {candidates.map((c, i) => {
                                 const pickupEtaMin = c.etaMin != null ? Math.max(1, Math.round(c.etaMin)) : null
                                 const destArrival = pickupEtaMin != null
@@ -615,54 +711,54 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady }: Rid
                                 const roundedRating = Math.round(c.ratingAvg || 0)
 
                                 return (
-                                <div key={c.applicationId} className="flex flex-col items-center text-center gap-2.5 rounded-2xl px-4 py-5" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
+                                <div key={c.applicationId} className="flex flex-col items-center text-center gap-1.5 rounded-2xl px-2.5 py-3 min-w-0" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
                                     {c.avatarUrl ? (
-                                        <img src={c.avatarUrl} className="w-16 h-16 rounded-full object-cover" style={{ border: `3px solid ${color}` }} alt="" />
+                                        <img src={c.avatarUrl} className="w-11 h-11 rounded-full object-cover" style={{ border: `2px solid ${color}` }} alt="" />
                                     ) : (
-                                        <span className="w-16 h-16 rounded-full flex items-center justify-center" style={{ background: color }}>
-                                            <MapPin size={22} color="#fff" />
+                                        <span className="w-11 h-11 rounded-full flex items-center justify-center" style={{ background: color }}>
+                                            <MapPin size={16} color="#fff" />
                                         </span>
                                     )}
 
-                                    <div>
-                                        <span className="text-sm font-bold block" style={{ color: colors.textPrimary }}>
+                                    <div className="w-full min-w-0">
+                                        <span className="text-[11px] font-bold block truncate" style={{ color: colors.textPrimary }}>
                                             {c.name || (c.profileSlug ? `@${c.profileSlug}` : 'Candidato')}
                                         </span>
-                                        <span className="text-xs font-black block mt-0.5" style={{ color: '#f97316' }}>
-                                            {c.proposedPrice != null ? `Proposta: R$ ${c.proposedPrice.toFixed(2)}` : 'Sem valor definido'}
+                                        <span className="text-[11px] font-black block mt-0.5 truncate" style={{ color: '#f97316' }}>
+                                            {c.proposedPrice != null ? `R$ ${c.proposedPrice.toFixed(2)}` : 'Sem valor'}
                                         </span>
                                     </div>
 
                                     {(pickupEtaMin != null || destArrival) && (
                                         <span
-                                            className="flex items-center gap-1.5 text-[11px] font-bold"
+                                            className="flex items-center gap-1 text-[9px] font-bold leading-tight"
                                             style={{ color: colors.textSecondary }}
                                             title="Estimativa a partir da localização salva do motorista, não é uma posição ao vivo"
                                         >
-                                            <Clock size={11} className="flex-shrink-0" />
-                                            {pickupEtaMin != null && `Carro chegando em ${pickupEtaMin} minuto${pickupEtaMin > 1 ? 's' : ''}`}
-                                            {pickupEtaMin != null && destArrival && ', '}
-                                            {destArrival && `você chegará às ${destArrival}`}
+                                            <Clock size={9} className="flex-shrink-0" />
+                                            {pickupEtaMin != null ? `${pickupEtaMin} min` : ''}
+                                            {pickupEtaMin != null && destArrival && ' · '}
+                                            {destArrival && `chega às ${destArrival}`}
                                         </span>
                                     )}
 
                                     {(c.carModel || c.carColor || c.carPhotoUrl) && (
-                                        <div className="flex items-center gap-2">
+                                        <div className="flex items-center gap-1.5 w-full min-w-0 justify-center">
                                             {c.carPhotoUrl ? (
-                                                <img src={c.carPhotoUrl} className="w-8 h-8 rounded-lg object-cover flex-shrink-0" alt="" />
+                                                <img src={c.carPhotoUrl} className="w-6 h-6 rounded-md object-cover flex-shrink-0" alt="" />
                                             ) : (
-                                                <span className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: `${colors.border}30` }}>
-                                                    <Car size={14} style={{ color: colors.textSecondary }} />
+                                                <span className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0" style={{ background: `${colors.border}30` }}>
+                                                    <Car size={11} style={{ color: colors.textSecondary }} />
                                                 </span>
                                             )}
-                                            <span className="text-[11px] font-bold" style={{ color: colors.textPrimary }}>
-                                                {[c.carModel, c.carColor].filter(Boolean).join(' · ') || 'Carro não informado'}
+                                            <span className="text-[10px] font-bold truncate" style={{ color: colors.textPrimary }}>
+                                                {[c.carModel, c.carColor].filter(Boolean).join(' · ') || 'Não informado'}
                                             </span>
                                         </div>
                                     )}
 
                                     {c.services.length > 0 && (
-                                        <div className="flex gap-1.5 flex-wrap justify-center">
+                                        <div className="flex gap-1 flex-wrap justify-center">
                                             {c.services.map((sid) => {
                                                 const opt = DRIVER_SERVICE_OPTIONS.find((o) => o.id === sid)
                                                 if (!opt) return null
@@ -670,11 +766,11 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady }: Rid
                                                 return (
                                                     <span
                                                         key={sid}
-                                                        className="flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold"
+                                                        className="flex items-center justify-center w-5 h-5 rounded-full"
                                                         style={{ background: colors.surface, color: colors.textPrimary, border: `1px solid ${colors.border}` }}
+                                                        title={opt.label}
                                                     >
-                                                        <Icon size={11} />
-                                                        {opt.label}
+                                                        <Icon size={10} />
                                                     </span>
                                                 )
                                             })}
@@ -682,17 +778,9 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady }: Rid
                                     )}
 
                                     {c.ratingCount > 0 && (
-                                        <div>
-                                            <span className="text-[11px] font-black" style={{ color: '#f97316' }}>
-                                                {'★'.repeat(roundedRating)}{'☆'.repeat(5 - roundedRating)} {(c.ratingAvg || 0).toFixed(1)} ({c.ratingCount})
-                                            </span>
-                                            {c.lastComment && (
-                                                <p className="flex items-center gap-1 justify-center text-[10px] mt-1" style={{ color: colors.textSecondary }}>
-                                                    <MessageSquare size={10} className="flex-shrink-0" />
-                                                    "{c.lastComment}"
-                                                </p>
-                                            )}
-                                        </div>
+                                        <span className="text-[10px] font-black" style={{ color: '#f97316' }}>
+                                            {'★'.repeat(roundedRating)}{'☆'.repeat(5 - roundedRating)} {(c.ratingAvg || 0).toFixed(1)}
+                                        </span>
                                     )}
 
                                     {c.store && (
@@ -700,27 +788,27 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady }: Rid
                                             href={c.store.slug ? `/${c.store.slug}` : undefined}
                                             target="_blank"
                                             rel="noopener noreferrer"
-                                            className="flex flex-col items-center gap-1.5 p-2 rounded-lg w-full"
+                                            className="flex flex-col items-center gap-1 p-1.5 rounded-lg w-full min-w-0"
                                             style={{ background: colors.surface, border: `1px solid ${colors.border}` }}
                                         >
-                                            <div className="flex items-center gap-1.5">
+                                            <div className="flex items-center gap-1 w-full min-w-0 justify-center">
                                                 {c.store.logoUrl ? (
-                                                    <img src={c.store.logoUrl} className="w-6 h-6 rounded-full object-cover flex-shrink-0" alt="" />
+                                                    <img src={c.store.logoUrl} className="w-4 h-4 rounded-full object-cover flex-shrink-0" alt="" />
                                                 ) : (
-                                                    <span className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: `${colors.border}30` }}>
-                                                        <Store size={12} style={{ color: colors.textSecondary }} />
+                                                    <span className="w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: `${colors.border}30` }}>
+                                                        <Store size={9} style={{ color: colors.textSecondary }} />
                                                     </span>
                                                 )}
-                                                <span className="text-[10px] font-black truncate" style={{ color: colors.textPrimary }}>{c.store.name}</span>
+                                                <span className="text-[9px] font-black truncate" style={{ color: colors.textPrimary }}>{c.store.name}</span>
                                             </div>
 
                                             {c.store.products.length > 0 && (
-                                                <div className="flex -space-x-2">
+                                                <div className="flex -space-x-1.5">
                                                     {c.store.products.map((prod) => (
                                                         <div
                                                             key={prod.id}
-                                                            className="w-6 h-6 rounded-full overflow-hidden flex-shrink-0"
-                                                            style={{ background: `${colors.border}30`, border: `1.5px solid ${colors.surface}` }}
+                                                            className="w-4 h-4 rounded-full overflow-hidden flex-shrink-0"
+                                                            style={{ background: `${colors.border}30`, border: `1px solid ${colors.surface}` }}
                                                             title={prod.name}
                                                         >
                                                             {prod.imageUrl && (
@@ -735,29 +823,29 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady }: Rid
 
                                     {c.status === 'pending' ? (
                                         decidingId === c.applicationId ? (
-                                            <Spinner size={16} color={colors.textSecondary} />
+                                            <Spinner size={14} color={colors.textSecondary} />
                                         ) : (
-                                            <div className="flex items-center gap-3 mt-1">
+                                            <div className="flex items-center gap-1.5 mt-0.5 w-full">
                                                 <button
                                                     onClick={() => acceptCandidate(c.applicationId, c.applicantId)}
-                                                    className="flex items-center gap-1.5 px-5 py-2 rounded-full text-xs font-bold"
+                                                    className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-full text-[10px] font-bold"
                                                     style={{ background: '#22c55e', color: '#fff' }}
                                                 >
-                                                    <Check size={14} />
+                                                    <Check size={11} />
                                                     Aceitar
                                                 </button>
                                                 <button
                                                     onClick={() => rejectCandidate(c.applicationId)}
-                                                    className="flex items-center gap-1.5 px-5 py-2 rounded-full text-xs font-bold"
+                                                    className="w-7 h-7 flex-shrink-0 flex items-center justify-center rounded-full"
                                                     style={{ background: '#ef4444', color: '#fff' }}
+                                                    aria-label="Recusar"
                                                 >
-                                                    <X size={14} />
-                                                    Recusar
+                                                    <X size={12} />
                                                 </button>
                                             </div>
                                         )
                                     ) : (
-                                        <span className="text-[10px] font-black uppercase" style={{ color: c.status === 'accepted' ? '#22c55e' : colors.textSecondary }}>
+                                        <span className="text-[9px] font-black uppercase" style={{ color: c.status === 'accepted' ? '#22c55e' : colors.textSecondary }}>
                                             {c.status === 'accepted' ? 'Aceito' : 'Recusado'}
                                         </span>
                                     )}
