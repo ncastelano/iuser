@@ -367,6 +367,10 @@ export default function PedirMotoristaPage() {
     // ===== LOCAL DE ENTREGA (só pra ride_type 'objeto') =====
     const [deliveryLocation, setDeliveryLocation] = useState<'portaria' | 'area_interna' | 'apartamento' | null>(null)
 
+    // ===== PAGAMENTO =====
+    const [paymentMethod, setPaymentMethod] = useState<'dinheiro' | 'pix' | null>(null)
+    const [cashChangeFor, setCashChangeFor] = useState('')
+
     // ===== NECESSIDADE ESPECIAL =====
     const [hasSpecialNeeds, setHasSpecialNeeds] = useState(false)
     const [specialNeedsDescription, setSpecialNeedsDescription] = useState('')
@@ -585,6 +589,8 @@ export default function PedirMotoristaPage() {
         if (draft.specialNeedsWheelchairType !== undefined) setSpecialNeedsWheelchairType(draft.specialNeedsWheelchairType)
         if (typeof draft.specialNeedsVisualImpairment === 'boolean') setSpecialNeedsVisualImpairment(draft.specialNeedsVisualImpairment)
         if (typeof draft.hasGuideDog === 'boolean') setHasGuideDog(draft.hasGuideDog)
+        if (draft.paymentMethod !== undefined) setPaymentMethod(draft.paymentMethod)
+        if (typeof draft.cashChangeFor === 'string') setCashChangeFor(draft.cashChangeFor)
         if (typeof draft.objectDescription === 'string') setObjectDescription(draft.objectDescription)
         if (typeof draft.objectIsSensitive === 'boolean') setObjectIsSensitive(draft.objectIsSensitive)
         if (draft.objectSize !== undefined) setObjectSize(draft.objectSize)
@@ -877,6 +883,11 @@ export default function PedirMotoristaPage() {
             rows.push({ label: 'Necessidade especial', value: parts.length > 0 ? parts.join('; ') : 'sim' })
         }
 
+        if (paymentMethod) {
+            const changeText = paymentMethod === 'dinheiro' && cashChangeFor.trim() ? ` (troco para R$ ${cashChangeFor})` : ''
+            rows.push({ label: 'Pagamento', value: `${paymentMethod === 'dinheiro' ? 'Dinheiro' : 'Pix'}${changeText}` })
+        }
+
         rows.push({ label: 'Quando', value: isScheduled ? formatScheduledFor(new Date(scheduledFor).toISOString()) : 'Agora' })
 
         return rows
@@ -906,6 +917,7 @@ export default function PedirMotoristaPage() {
                 deliveryLocation,
                 hasSpecialNeeds, specialNeedsDescription,
                 specialNeedsWheelchair, specialNeedsWheelchairType, specialNeedsVisualImpairment, hasGuideDog,
+                paymentMethod, cashChangeFor,
             })
             router.push(`/login?redirect=${encodeURIComponent('/pedir-motorista')}`)
             return
@@ -972,6 +984,8 @@ export default function PedirMotoristaPage() {
                 special_needs_wheelchair_type: hasSpecialNeeds && specialNeedsWheelchair ? specialNeedsWheelchairType : null,
                 special_needs_visual_impairment: hasSpecialNeeds ? specialNeedsVisualImpairment : false,
                 has_guide_dog: hasSpecialNeeds && specialNeedsVisualImpairment ? hasGuideDog : false,
+                payment_method: paymentMethod,
+                cash_change_for: paymentMethod === 'dinheiro' && cashChangeFor.trim() ? Number(cashChangeFor.replace(',', '.')) : null,
                 origin_lat: origin.coords ? origin.coords[1] : null,
                 origin_lng: origin.coords ? origin.coords[0] : null,
                 destination_lat: destination.coords ? destination.coords[1] : null,
@@ -1991,6 +2005,37 @@ export default function PedirMotoristaPage() {
                                     + Adicionar observação
                                 </button>
                             )}
+
+                            <div className="rounded-xl px-3 py-2.5 mt-3" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
+                                <span className="text-xs font-bold block mb-2" style={{ color: colors.textPrimary }}>Forma de pagamento</span>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => { setPaymentMethod('dinheiro') }}
+                                        className="flex-1 py-2.5 rounded-xl text-xs font-bold transition-all"
+                                        style={paymentMethod === 'dinheiro' ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                                    >
+                                        Dinheiro
+                                    </button>
+                                    <button
+                                        onClick={() => { setPaymentMethod('pix'); setCashChangeFor('') }}
+                                        className="flex-1 py-2.5 rounded-xl text-xs font-bold transition-all"
+                                        style={paymentMethod === 'pix' ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                                    >
+                                        Pix
+                                    </button>
+                                </div>
+                                {paymentMethod === 'dinheiro' && (
+                                    <input
+                                        type="text"
+                                        inputMode="decimal"
+                                        value={cashChangeFor}
+                                        onChange={(e) => setCashChangeFor(e.target.value.replace(/[^0-9,.]/g, ''))}
+                                        placeholder="Precisa de troco para quanto? (opcional)"
+                                        className="w-full mt-2 px-3 py-2 rounded-lg text-sm focus:outline-none"
+                                        style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                                    />
+                                )}
+                            </div>
 
                             <div className="flex items-center gap-2 mt-4">
                                 <button

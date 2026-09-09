@@ -32,6 +32,8 @@ export interface RideSpecFields {
     special_needs_wheelchair_type?: 'dobravel' | 'grande' | null
     special_needs_visual_impairment?: boolean
     has_guide_dog?: boolean
+    payment_method?: 'dinheiro' | 'pix' | null
+    cash_change_for?: number | null
 }
 
 const PET_WEIGHT_LABELS: Record<string, string> = {
@@ -110,6 +112,11 @@ export function buildRideSpecRows(ride: RideSpecFields): RideSpecRow[] {
         if (ride.has_guide_dog) {
             rows.push({ label: 'Atenção', value: 'Cão-guia — não é pet comum, não recuse por causa dele' })
         }
+    }
+
+    if (ride.payment_method) {
+        const changeText = ride.payment_method === 'dinheiro' && ride.cash_change_for != null ? ` (troco para R$ ${ride.cash_change_for.toFixed(2)})` : ''
+        rows.push({ label: 'Pagamento', value: `${ride.payment_method === 'dinheiro' ? 'Dinheiro' : 'Pix'}${changeText}` })
     }
 
     if ((ride.origin_complement || '').trim()) {
