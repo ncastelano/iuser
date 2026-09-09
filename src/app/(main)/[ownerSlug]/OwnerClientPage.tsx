@@ -29,9 +29,6 @@ type OwnerType = 'profile' | 'store'
 // GRADIENTE FIXO
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
-// GRADIENTE ROXO (para o botão "Compra Simples")
-const PURPLE_GRADIENT = 'linear-gradient(135deg, #4c1d95, #7c3aed)'
-
 export interface StoreInfo {
     id: string
     slug: string
@@ -542,11 +539,11 @@ export default function OwnerClientPage() {
                     <div style={{ position: 'fixed', bottom: 32, left: 24, zIndex: 998 }}>
                         <button
                             onClick={handleOpenCatalogo}
-                            className="px-6 py-3 rounded-full font-bold text-white shadow-2xl transition-all duration-300 hover:scale-110 hover:shadow-[0_0_30px_rgba(124,58,237,0.5)] active:scale-95"
+                            className="px-6 py-3 rounded-full font-bold text-white shadow-2xl transition-all duration-300 hover:scale-110 hover:shadow-[0_0_30px_rgba(249,115,22,0.5)] active:scale-95"
                             style={{
-                                background: PURPLE_GRADIENT,
-                                boxShadow: '0 8px 24px rgba(76, 29, 149, 0.5)',
-                                border: '2px solid rgba(124, 58, 237, 0.3)',
+                                background: GRADIENT,
+                                boxShadow: '0 8px 24px rgba(220, 38, 38, 0.5)',
+                                border: '2px solid rgba(249, 115, 22, 0.3)',
                             }}
                             aria-label="Ver Catálogo"
                         >

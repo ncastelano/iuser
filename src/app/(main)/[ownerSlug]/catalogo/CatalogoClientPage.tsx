@@ -891,6 +891,17 @@ export default function CatalogoClientPage() {
         return result
     }, [products, searchQuery, selectedCategory])
 
+    // ========== AGRUPAR POR CATEGORIA (o tipo vira título da seção, não etiqueta do card) ==========
+    const groupedFilteredProducts = useMemo(() => {
+        const groups: Record<string, typeof filteredProducts> = {}
+        filteredProducts.forEach(product => {
+            const cat = product.category || 'Geral'
+            if (!groups[cat]) groups[cat] = []
+            groups[cat].push(product)
+        })
+        return groups
+    }, [filteredProducts])
+
     // ========== CATEGORIAS ==========
     const categories = useMemo(() => {
         const cats = new Map<string, number>()
@@ -1028,29 +1039,7 @@ export default function CatalogoClientPage() {
                     </div>
 
                     <div className="relative z-10">
-                        <div className="flex items-center gap-2 mb-1">
-                            <button
-                                onClick={handleHome}
-                                className="w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center flex-shrink-0"
-                                style={{
-                                    background: 'transparent',
-                                    border: 'none',
-                                    cursor: 'pointer',
-                                    padding: 0,
-                                }}
-                            >
-                                <img src="/logo.png" alt="iUser" className="w-6 h-6 sm:w-7 sm:h-7 object-contain" />
-                            </button>
-                            <button
-                                onClick={handleHome}
-                                className="text-sm sm:text-lg font-semibold opacity-90 bg-transparent border-none cursor-pointer"
-                                style={{ color: colors.textPrimary }}
-                            >
-                                iUser
-                            </button>
-                        </div>
-
-                        <div className="flex items-center gap-3 mt-1">
+                        <div className="flex items-center gap-3">
                             {storeInfo.logo_url && (
                                 <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 border-2" style={{ borderColor: colors.accent }}>
                                     <img src={storeInfo.logo_url} alt={storeInfo.name} className="w-full h-full object-cover" />
@@ -1176,8 +1165,14 @@ export default function CatalogoClientPage() {
                             </p>
                         </div>
                     ) : (
-                        <div className="flex flex-col gap-4">
-                            {filteredProducts.map((product) => {
+                        <div className="flex flex-col gap-6">
+                            {Object.entries(groupedFilteredProducts).map(([category, categoryProducts]) => (
+                                <div key={category} className="flex flex-col gap-3">
+                                    <h4 className="text-[11px] font-black uppercase tracking-wider" style={{ color: '#f97316' }}>
+                                        {category}
+                                    </h4>
+                                    <div className="flex flex-col gap-4">
+                                        {categoryProducts.map((product) => {
                                 const isSelected = mounted && cartItems.some((item: any) => item.product.id === product.id)
                                 const quantity = getProductQuantity(product.id)
                                 const isHourly = product.price_type === 'hourly'
@@ -1243,11 +1238,6 @@ export default function CatalogoClientPage() {
                                                         <h3 className="font-semibold text-sm truncate" style={{ color: textColor }}>
                                                             {product.name}
                                                         </h3>
-                                                        {product.category && (
-                                                            <span className="inline-block mt-0.5 px-2 py-0.5 rounded-full text-[9px] font-bold" style={{ background: '#f9731620', color: '#f97316' }}>
-                                                                {product.category}
-                                                            </span>
-                                                        )}
                                                     </div>
                                                     <div className="flex-shrink-0 text-right">
                                                         <span className="text-base sm:text-lg font-bold" style={{ color: '#f97316' }}>
@@ -1328,8 +1318,24 @@ export default function CatalogoClientPage() {
                                     </div>
                                 )
                             })}
+                                    </div>
+                                </div>
+                            ))}
                         </div>
                     )}
+                </div>
+
+                {/* ===== MARCA IUSER — fica embaixo do último produto, não mais no header ===== */}
+                <div className="max-w-7xl mx-auto px-4 py-8 flex justify-center">
+                    <button
+                        onClick={handleHome}
+                        className="flex items-center gap-2 opacity-60 hover:opacity-100 transition-opacity bg-transparent border-none cursor-pointer"
+                    >
+                        <img src="/logo.png" alt="iUser" className="w-6 h-6 object-contain" />
+                        <span className="text-xs font-semibold" style={{ color: textColor }}>
+                            Catálogo oferecido pelo iUser
+                        </span>
+                    </button>
                 </div>
 
                 {/* ===== BOTÃO FLUTUANTE - SACOLA (busca agora vive no header, igual à home) ===== */}
