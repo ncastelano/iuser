@@ -220,22 +220,6 @@ export default function RideChat({ rideId, quickReplies }: RideChatProps) {
                 <div ref={bottomRef} />
             </div>
 
-            {quickReplies && quickReplies.length > 0 && (
-                <div className="flex gap-1.5 flex-wrap">
-                    {quickReplies.map((reply) => (
-                        <button
-                            key={reply}
-                            onClick={() => send(reply)}
-                            disabled={sending}
-                            className="px-2.5 py-1 rounded-full text-[10px] font-bold disabled:opacity-60 transition-all hover:scale-105 active:scale-95"
-                            style={{ background: colors.surface, color: colors.textPrimary, border: `1px solid ${colors.border}` }}
-                        >
-                            {reply}
-                        </button>
-                    ))}
-                </div>
-            )}
-
             <div className="flex items-center gap-2">
                 <input
                     type="text"
@@ -260,6 +244,27 @@ export default function RideChat({ rideId, quickReplies }: RideChatProps) {
                     {sending ? <Spinner size={14} /> : <Send size={14} />}
                 </button>
             </div>
+
+            {quickReplies && quickReplies.length > 0 && (
+                <div className="flex flex-col gap-1.5">
+                    <p className="text-[9px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>
+                        Frases pré-moldadas
+                    </p>
+                    <div className="flex gap-1.5 flex-wrap">
+                        {quickReplies.map((reply) => (
+                            <button
+                                key={reply}
+                                onClick={() => send(reply)}
+                                disabled={sending}
+                                className="px-2.5 py-1 rounded-full text-[10px] font-bold disabled:opacity-60 transition-all hover:scale-105 active:scale-95"
+                                style={{ background: colors.surface, color: colors.textPrimary, border: `1px solid ${colors.border}` }}
+                            >
+                                {reply}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
         </div>
     )
 }
