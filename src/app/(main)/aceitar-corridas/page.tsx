@@ -159,7 +159,6 @@ export default function AceitarCorridasPage() {
 
     const [loading, setLoading] = useState(true)
     const [showLogin, setShowLogin] = useState(false)
-    const [checkingPricing, setCheckingPricing] = useState(false)
     const [activeTab, setActiveTab] = useState<'servicos' | 'candidatos' | 'aceita'>('servicos')
     const [rides, setRides] = useState<RideCardData[]>([])
     const [myPricing, setMyPricing] = useState<DriverPricing | null>(null)
@@ -212,7 +211,6 @@ export default function AceitarCorridasPage() {
         }
         setShowLogin(false)
 
-        setCheckingPricing(true)
         const [{ data: pricing }, { data: profile }] = await Promise.all([
             supabase
                 .from('driver_pricing')
@@ -225,7 +223,6 @@ export default function AceitarCorridasPage() {
                 .eq('id', user.id)
                 .maybeSingle(),
         ])
-        setCheckingPricing(false)
 
         if (!pricing) {
             router.replace('/painel-motorista?next=/aceitar-corridas')
@@ -722,12 +719,6 @@ export default function AceitarCorridasPage() {
                 />
 
                 <section className="px-4 md:px-6 mt-4 pb-24 max-w-lg mx-auto">
-                    {(loading || checkingPricing) && (
-                        <div className="flex justify-center py-10">
-                            <Spinner size={24} color={colors.textSecondary} />
-                        </div>
-                    )}
-
                     {!loading && showLogin && (
                         <LoginAndRegister onLoginSuccess={handleLoginSuccess} />
                     )}

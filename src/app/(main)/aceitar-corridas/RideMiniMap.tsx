@@ -64,7 +64,6 @@ export default function RideMiniMap({ originLng, originLat, destLng, destLat, dr
 
     useEffect(() => {
         let cancelled = false
-        setImgUrl(null)
         setFailed(false)
 
         const build = async () => {
