@@ -34,7 +34,6 @@ import {
     Share2,
 } from 'lucide-react'
 import { RatingStars } from '@/components/ratings/RatingStars'
-import { useCartStore } from '@/store/useCartStore'
 import { isStoreOpenNow, getStoreStatusText, getNextOpeningInfo, type BusinessHours } from '@/lib/storeHours'
 import { toast } from 'sonner'
 import { getAvatarUrl } from '@/lib/avatar'
@@ -49,7 +48,6 @@ interface StoreProps {
     bgMode: string
     customBgUrl?: string | null
     loggedUserSlug?: string | null
-    onCartUpdate?: (total: number) => void
     onOpenPublications?: (publications: any[], initialIndex: number, storeSlug: string) => void
 }
 
@@ -106,7 +104,6 @@ export function Store({
     bgMode,
     customBgUrl,
     loggedUserSlug,
-    onCartUpdate,
     onOpenPublications
 }: StoreProps) {
     const router = useRouter()
@@ -133,7 +130,6 @@ export function Store({
     const [showAllHours, setShowAllHours] = useState(false)
     const [showScheduleModal, setShowScheduleModal] = useState(false)
     const [storeWhatsapp, setStoreWhatsapp] = useState<string | null>(null)
-    const [showClosedAlert, setShowClosedAlert] = useState(false)
 
     // ===== MODAL DE DETALHES DO PRODUTO =====
     const [selectedProduct, setSelectedProduct] = useState<any | null>(null)
@@ -147,8 +143,6 @@ export function Store({
     const [pubPreview, setPubPreview] = useState<string | null>(null)
     const [pubSaving, setPubSaving] = useState(false)
     const [pubLoading, setPubLoading] = useState(false)
-
-    const { itemsByStore, addItem, removeItem, updateQuantity } = useCartStore()
 
     const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -203,71 +197,9 @@ export function Store({
         }
     }, [owner?.business_hours])
 
-    // ========== CARRINHO ==========
-    const storeKey = useMemo(() => {
-        if (!ownerSlug) return ''
-        return ownerSlug
-    }, [ownerSlug])
-
-    const cartItems = useMemo(() => {
-        if (!storeKey) return []
-        return itemsByStore[storeKey] || []
-    }, [itemsByStore, storeKey])
-
-    const totalCartQuantity = useMemo(
-        () => cartItems.reduce((sum, item) => sum + item.quantity, 0),
-        [cartItems]
-    )
-
-    useEffect(() => {
-        if (onCartUpdate) {
-            onCartUpdate(totalCartQuantity)
-        }
-    }, [totalCartQuantity, onCartUpdate])
-
     useEffect(() => {
         setMounted(true)
     }, [])
-
-    // ========== QUANTITY HELPERS ==========
-    const getProductQuantity = useCallback(
-        (productId: string) => {
-            const storeItems = itemsByStore[ownerSlug] || []
-            const found = storeItems.find((item) => item.product.id === productId)
-            return found ? found.quantity : 0
-        },
-        [itemsByStore, ownerSlug]
-    )
-
-    // ========== INCREASE QUANTITY (com validação de loja aberta) ==========
-    const increaseQuantity = useCallback(
-        (product: any) => {
-            if (!owner) return
-
-            if (!isStoreOpen) {
-                setShowClosedAlert(true)
-                toast.error('Loja fechada no momento. Não é possível adicionar itens ao carrinho.')
-                return
-            }
-
-            addItem(ownerSlug, { name: owner.name, logo_url: owner.avatar_url ?? null }, product)
-        },
-        [owner, ownerSlug, addItem, isStoreOpen]
-    )
-
-    const decreaseQuantity = useCallback(
-        (productId: string) => {
-            updateQuantity(ownerSlug, productId, -1)
-        },
-        [ownerSlug, updateQuantity]
-    )
-
-    const removeAllOfProduct = useCallback(
-        (productId: string) => {
-            removeItem(ownerSlug, productId)
-        },
-        [ownerSlug, removeItem]
-    )
 
     // ========== FILTRO ==========
     const filteredProducts = useMemo(() => {
@@ -846,41 +778,6 @@ export function Store({
                 </div>
             )}
 
-            {/* ===== ALERTA DE LOJA FECHADA ===== */}
-            {showClosedAlert && !isStoreOpen && (
-                <div
-                    className="rounded-2xl p-4 animate-slide-down-alert"
-                    style={{
-                        background: 'rgba(239, 68, 68, 0.1)',
-                        border: '2px solid #ef4444',
-                        backdropFilter: 'blur(12px)',
-                    }}
-                >
-                    <div className="flex items-start gap-3">
-                        <AlertCircle size={20} style={{ color: '#ef4444' }} className="flex-shrink-0 mt-0.5" />
-                        <div className="flex-1">
-                            <p className="text-sm font-bold" style={{ color: '#ef4444' }}>
-                                Loja fechada no momento
-                            </p>
-                            <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>
-                                {statusText}
-                                {nextAvailable && (
-                                    <span className="block mt-1 font-bold" style={{ color: '#f97316' }}>
-                                        Abre {nextAvailable.day} às {nextAvailable.open}
-                                    </span>
-                                )}
-                            </p>
-                            <button
-                                onClick={() => setShowClosedAlert(false)}
-                                className="mt-2 text-[10px] font-bold uppercase hover:underline"
-                                style={{ color: colors.textSecondary }}
-                            >
-                                Fechar
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
 
             {/* ===== CARD DA LOJA ===== */}
             <div className="rounded-2xl p-6 space-y-4" style={cardStyle}>
@@ -1193,30 +1090,18 @@ export function Store({
                                     </h4>
                                     <div className="grid grid-cols-2 gap-2">
                                         {products.map(product => {
-                                            const isSelected = mounted && cartItems.some((item: any) => item.product.id === product.id)
-                                            const quantity = getProductQuantity(product.id)
                                             const isHourly = product.price_type === 'hourly'
                                             const hasImage = !!product.image_url
-                                            const productIsDisabled = !isStoreOpen && !isOwner
-
-                                            const handleProductInteraction = (e: React.MouseEvent) => {
-                                                e.stopPropagation()
-                                                if (productIsDisabled) {
-                                                    handleProductClick(product, e)
-                                                } else {
-                                                    increaseQuantity(product)
-                                                }
-                                            }
 
                                             if (!hasImage) {
                                                 return (
                                                     <div
                                                         key={product.id}
                                                         onClick={(e) => handleProductClick(product, e)}
-                                                        className={`col-span-2 rounded-xl overflow-hidden border transition-all duration-300 hover:shadow-xl hover:-translate-y-1 ${productIsDisabled ? 'cursor-pointer' : 'cursor-pointer'}`}
+                                                        className="col-span-2 rounded-xl overflow-hidden border transition-all duration-300 hover:shadow-xl hover:-translate-y-1 cursor-pointer"
                                                         style={{
                                                             background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
-                                                            borderColor: isSelected ? '#22c55e' : colors.border,
+                                                            borderColor: colors.border,
                                                         }}
                                                     >
                                                         <div className="p-3 flex flex-col justify-center min-w-0">
@@ -1226,80 +1111,20 @@ export function Store({
                                                             <p className="text-[10px] line-clamp-1 mt-0.5 opacity-75" style={{ color: colors.textSecondary }}>
                                                                 {product.description || 'Sem descrição'}
                                                             </p>
-                                                            <div className="mt-2">
+                                                            <div className="mt-2 flex items-center justify-between">
                                                                 <div className="flex items-center">
                                                                     <span className="text-sm font-extrabold" style={{ color: '#f97316' }}>
                                                                         R$ {(product.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                                                     </span>
                                                                     {isHourly && <span className="text-[10px] ml-1 opacity-75">/h</span>}
                                                                 </div>
-                                                            </div>
-                                                            <div className="mt-3 flex justify-end items-center">
-                                                                {isOwner ? (
+                                                                {isOwner && (
                                                                     <button
                                                                         onClick={e => { e.stopPropagation(); router.push(`/${ownerSlug}/${product.slug || product.id}/editar-produto`) }}
                                                                         className="w-7 h-7 rounded-full border flex items-center justify-center text-xs product-action-button"
                                                                         style={{ borderColor: colors.border, color: '#f97316' }}
                                                                     >
                                                                         <ExternalLink size={12} />
-                                                                    </button>
-                                                                ) : isSelected ? (
-                                                                    <div className="flex items-center gap-2">
-                                                                        <button
-                                                                            onClick={(e) => {
-                                                                                e.stopPropagation()
-                                                                                if (quantity <= 1) {
-                                                                                    removeAllOfProduct(product.id)
-                                                                                } else {
-                                                                                    decreaseQuantity(product.id)
-                                                                                }
-                                                                            }}
-                                                                            className="w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shadow-md hover:scale-110 transition-transform product-action-button"
-                                                                            style={{
-                                                                                background: GRADIENT,
-                                                                                color: '#ffffff'
-                                                                            }}
-                                                                        >
-                                                                            −
-                                                                        </button>
-                                                                        <span className="text-xs font-bold min-w-[16px] text-center" style={{ color: '#f97316' }}>
-                                                                            {quantity}
-                                                                        </span>
-                                                                        <button
-                                                                            onClick={(e) => {
-                                                                                e.stopPropagation()
-                                                                                increaseQuantity(product)
-                                                                            }}
-                                                                            className="w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shadow-md hover:scale-110 transition-transform product-action-button"
-                                                                            style={{
-                                                                                background: GRADIENT,
-                                                                                color: '#ffffff'
-                                                                            }}
-                                                                        >
-                                                                            +
-                                                                        </button>
-                                                                        <button
-                                                                            onClick={(e) => {
-                                                                                e.stopPropagation()
-                                                                                removeAllOfProduct(product.id)
-                                                                            }}
-                                                                            className="w-6 h-6 rounded-full flex items-center justify-center shadow-md hover:scale-110 transition-transform text-xs product-action-button"
-                                                                            style={{
-                                                                                background: '#ef4444',
-                                                                                color: '#ffffff'
-                                                                            }}
-                                                                            title="Remover todos"
-                                                                        >
-                                                                            <X className="w-3 h-3 text-white" />
-                                                                        </button>
-                                                                    </div>
-                                                                ) : (
-                                                                    <button
-                                                                        onClick={handleProductInteraction}
-                                                                        className="w-7 h-7 rounded-full text-white flex items-center justify-center shadow-md hover:scale-110 transition-transform product-action-button"
-                                                                        style={{ background: GRADIENT }}
-                                                                    >
-                                                                        {productIsDisabled ? <Info size={12} /> : <Plus size={12} />}
                                                                     </button>
                                                                 )}
                                                             </div>
@@ -1312,10 +1137,10 @@ export function Store({
                                                 <div
                                                     key={product.id}
                                                     onClick={(e) => handleProductClick(product, e)}
-                                                    className={`relative rounded-xl overflow-hidden border transition-all duration-300 hover:shadow-xl hover:-translate-y-1 cursor-pointer`}
+                                                    className="relative rounded-xl overflow-hidden border transition-all duration-300 hover:shadow-xl hover:-translate-y-1 cursor-pointer"
                                                     style={{
                                                         background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
-                                                        borderColor: isSelected ? '#22c55e' : colors.border,
+                                                        borderColor: colors.border,
                                                     }}
                                                 >
                                                     <div className="aspect-square relative overflow-hidden" style={{ background: colors.accentLight }}>
@@ -1332,13 +1157,6 @@ export function Store({
                                                                 {product.type === 'physical' ? 'Físico' : product.type === 'service' ? 'Serviço' : 'Digital'}
                                                             </span>
                                                         )}
-                                                        {productIsDisabled && (
-                                                            <div className="absolute inset-0 flex items-center justify-center bg-black/30 backdrop-blur-sm">
-                                                                <span className="text-[8px] font-black uppercase px-2 py-1 rounded-full flex items-center gap-1" style={{ background: 'rgba(249, 115, 22, 0.9)', color: '#fff' }}>
-                                                                    <Info size={10} /> Ver detalhes
-                                                                </span>
-                                                            </div>
-                                                        )}
                                                     </div>
                                                     <div className="p-2">
                                                         <h4 className="text-xs font-bold line-clamp-1" style={{ color: colors.textPrimary }}>
@@ -1347,80 +1165,20 @@ export function Store({
                                                         <p className="text-[10px] line-clamp-1 mt-0.5 opacity-75" style={{ color: colors.textSecondary }}>
                                                             {product.description || 'Sem descrição'}
                                                         </p>
-                                                        <div className="mt-2">
+                                                        <div className="mt-2 flex items-center justify-between">
                                                             <div className="flex items-center">
                                                                 <span className="text-sm font-extrabold" style={{ color: '#f97316' }}>
                                                                     R$ {(product.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                                                 </span>
                                                                 {isHourly && <span className="text-[10px] ml-1 opacity-75">/h</span>}
                                                             </div>
-                                                        </div>
-                                                        <div className="mt-3 flex justify-end items-center">
-                                                            {isOwner ? (
+                                                            {isOwner && (
                                                                 <button
                                                                     onClick={e => { e.stopPropagation(); router.push(`/${ownerSlug}/${product.slug || product.id}/editar-produto`) }}
                                                                     className="w-7 h-7 rounded-full border flex items-center justify-center text-xs product-action-button"
                                                                     style={{ borderColor: colors.border, color: '#f97316' }}
                                                                 >
                                                                     <ExternalLink size={12} />
-                                                                </button>
-                                                            ) : isSelected ? (
-                                                                <div className="flex items-center gap-2">
-                                                                    <button
-                                                                        onClick={(e) => {
-                                                                            e.stopPropagation()
-                                                                            if (quantity <= 1) {
-                                                                                removeAllOfProduct(product.id)
-                                                                            } else {
-                                                                                decreaseQuantity(product.id)
-                                                                            }
-                                                                        }}
-                                                                        className="w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shadow-md hover:scale-110 transition-transform product-action-button"
-                                                                        style={{
-                                                                            background: GRADIENT,
-                                                                            color: '#ffffff'
-                                                                        }}
-                                                                    >
-                                                                        −
-                                                                    </button>
-                                                                    <span className="text-xs font-bold min-w-[16px] text-center" style={{ color: '#f97316' }}>
-                                                                        {quantity}
-                                                                    </span>
-                                                                    <button
-                                                                        onClick={(e) => {
-                                                                            e.stopPropagation()
-                                                                            increaseQuantity(product)
-                                                                        }}
-                                                                        className="w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shadow-md hover:scale-110 transition-transform product-action-button"
-                                                                        style={{
-                                                                            background: GRADIENT,
-                                                                            color: '#ffffff'
-                                                                        }}
-                                                                    >
-                                                                        +
-                                                                    </button>
-                                                                    <button
-                                                                        onClick={(e) => {
-                                                                            e.stopPropagation()
-                                                                            removeAllOfProduct(product.id)
-                                                                        }}
-                                                                        className="w-6 h-6 rounded-full flex items-center justify-center shadow-md hover:scale-110 transition-transform text-xs product-action-button"
-                                                                        style={{
-                                                                            background: '#ef4444',
-                                                                            color: '#ffffff'
-                                                                        }}
-                                                                        title="Remover todos"
-                                                                    >
-                                                                        <X className="w-3 h-3 text-white" />
-                                                                    </button>
-                                                                </div>
-                                                            ) : (
-                                                                <button
-                                                                    onClick={handleProductInteraction}
-                                                                    className="w-7 h-7 rounded-full text-white flex items-center justify-center shadow-md hover:scale-110 transition-transform product-action-button"
-                                                                    style={{ background: GRADIENT }}
-                                                                >
-                                                                    {productIsDisabled ? <Info size={12} /> : <Plus size={12} />}
                                                                 </button>
                                                             )}
                                                         </div>

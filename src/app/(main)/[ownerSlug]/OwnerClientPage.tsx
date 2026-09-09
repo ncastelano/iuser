@@ -530,9 +530,6 @@ export default function OwnerClientPage() {
                                 bgMode={bgMode}
                                 customBgUrl={customBgUrl}
                                 loggedUserSlug={loggedUserSlug}
-                                onCartUpdate={(total) => {
-                                    // Atualiza o estado do carrinho se necessário
-                                }}
                                 onOpenPublications={handleOpenPublications}
                             />
                         )}
@@ -540,7 +537,7 @@ export default function OwnerClientPage() {
                 )}
 
                 {/* ===== BOTÕES FLUTUANTES ===== */}
-                {/* Botão "Compra Simples" - lado esquerdo (apenas fora do dashboard) */}
+                {/* Botão "Ver Catálogo" - lado esquerdo (apenas fora do dashboard) */}
                 {!showProfile && !showStoreDashboard && !showPublications && ownerType === 'store' && (
                     <div style={{ position: 'fixed', bottom: 32, left: 24, zIndex: 998 }}>
                         <button
@@ -551,35 +548,40 @@ export default function OwnerClientPage() {
                                 boxShadow: '0 8px 24px rgba(76, 29, 149, 0.5)',
                                 border: '2px solid rgba(124, 58, 237, 0.3)',
                             }}
-                            aria-label="Compra Simples"
+                            aria-label="Ver Catálogo"
                         >
-                            <span className="text-sm font-bold tracking-wide">Compra Simples</span>
+                            <span className="text-sm font-bold tracking-wide">Ver Catálogo</span>
                         </button>
                     </div>
                 )}
 
                 {/* Botões do lado direito - sacola sempre ao lado do botão Home */}
                 <div style={{ position: 'fixed', bottom: 32, right: 24, display: 'flex', gap: 12, zIndex: 998 }}>
-                    <HomeBag
-                        items={homeBagItems}
-                        isExpanded={isBagExpanded}
-                        onToggleExpanded={() => setIsBagExpanded(!isBagExpanded)}
-                        onIncrease={handleBagIncrease}
-                        onDecrease={handleBagDecrease}
-                        onRemove={handleBagRemove}
-                        onCheckout={(storeSlug) => {
-                            setIsBagExpanded(false)
-                            router.push(`/${storeSlug}/catalogo`)
-                        }}
-                        statusCounts={{
-                            pending: pendingCount,
-                            preparing: preparingCount,
-                            ready: readyCount,
-                            reviews: pendingReviewsCount,
-                        }}
-                        animate={cartAnimating}
-                        colors={colors}
-                    />
+                    {/* Na página da loja, adicionar ao carrinho só acontece no catálogo
+                        (com as etapas de verificação/observação) — a sacola flutuante
+                        não faz sentido aqui, só tampava a tela por cima do conteúdo. */}
+                    {ownerType !== 'store' && (
+                        <HomeBag
+                            items={homeBagItems}
+                            isExpanded={isBagExpanded}
+                            onToggleExpanded={() => setIsBagExpanded(!isBagExpanded)}
+                            onIncrease={handleBagIncrease}
+                            onDecrease={handleBagDecrease}
+                            onRemove={handleBagRemove}
+                            onCheckout={(storeSlug) => {
+                                setIsBagExpanded(false)
+                                router.push(`/${storeSlug}/catalogo`)
+                            }}
+                            statusCounts={{
+                                pending: pendingCount,
+                                preparing: preparingCount,
+                                ready: readyCount,
+                                reviews: pendingReviewsCount,
+                            }}
+                            animate={cartAnimating}
+                            colors={colors}
+                        />
+                    )}
 
                     <button
                         onClick={(showProfile || showStoreDashboard || showPublications) ? showMainContent : () => router.push('/')}
