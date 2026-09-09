@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/theme'
 import { toast } from 'sonner'
@@ -23,6 +24,7 @@ interface AcceptedRide {
 // proposta dele — não depende de estar em /aceitar-corridas ou /pedir-motorista.
 export function RideAcceptedDialog() {
     const { colors } = useTheme()
+    const router = useRouter()
     const [pending, setPending] = useState<AcceptedRide[]>([])
     const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set())
     const [departing, setDeparting] = useState(false)
@@ -155,6 +157,9 @@ export function RideAcceptedDialog() {
                 .update({ driver_en_route: true, driver_departed_at: new Date().toISOString() })
                 .eq('id', current.id)
             setPending((prev) => prev.filter((r) => r.id !== current.id))
+            // Leva o motorista direto pra tela da corrida — /aceitar-corridas já
+            // troca sozinho pra aba "Corrida aceita" assim que detecta a corrida.
+            router.push('/aceitar-corridas')
         } finally {
             setDeparting(false)
         }
