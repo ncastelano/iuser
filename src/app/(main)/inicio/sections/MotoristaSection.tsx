@@ -4,7 +4,7 @@
 import { ReactNode, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
-import { Car, MapPin, Search, CheckCircle2, CalendarClock, Navigation, ChevronDown, ChevronUp } from 'lucide-react'
+import { Car, MapPin, Search, CheckCircle2, CalendarClock, Navigation } from 'lucide-react'
 import { useTheme } from '@/app/theme'
 import { supabase } from '@/lib/supabase/client'
 import { hexToRgb } from '@/lib/color'
@@ -95,9 +95,6 @@ export default function MotoristaSection({ dragHandle, onBreveStatusChange, onUr
     const [driverInfo, setDriverInfo] = useState<DriverInfo | null>(null)
     const [proposedPrice, setProposedPrice] = useState<number | null>(null)
     const [liveEta, setLiveEta] = useState<{ distanceKm: number; durationMin: number } | null>(null)
-    const [messageCount, setMessageCount] = useState(0)
-    const [chatExpanded, setChatExpanded] = useState(false)
-    const [myUserId, setMyUserId] = useState<string | null>(null)
 
     useEffect(() => {
         onBreveStatusChange?.(false)
@@ -184,7 +181,6 @@ export default function MotoristaSection({ dragHandle, onBreveStatusChange, onUr
             const { data: { user } } = await supabase.auth.getUser()
             if (!active || !user) return
             userId = user.id
-            setMyUserId(user.id)
             await load()
 
             // Tempo real: candidato se candidatando bate applicant_count (via
@@ -252,41 +248,6 @@ export default function MotoristaSection({ dragHandle, onBreveStatusChange, onUr
             supabase.removeChannel(channel)
         }
     }, [activeOrder?.status, activeOrder?.driver_id, activeOrder?.origin_lat, activeOrder?.origin_lng])
-
-    // Quantas mensagens o motorista já mandou nessa corrida — vira o botão
-    // "você tem uma mensagem!" (ou "Enviar mensagem" se ainda não tem nenhuma).
-    useEffect(() => {
-        const rideId = activeOrder?.status === 'accepted' ? activeOrder.id : null
-        if (!rideId || !myUserId) {
-            setMessageCount(0)
-            return
-        }
-
-        let active = true
-        const loadCount = async () => {
-            const { count } = await supabase
-                .from('ride_messages')
-                .select('id', { count: 'exact', head: true })
-                .eq('ride_request_id', rideId)
-                .neq('sender_id', myUserId)
-            if (active) setMessageCount(count || 0)
-        }
-        loadCount()
-
-        const channel = supabase
-            .channel(`chat-badge-passageiro-${rideId}`)
-            .on(
-                'postgres_changes',
-                { event: 'INSERT', schema: 'public', table: 'ride_messages', filter: `ride_request_id=eq.${rideId}` },
-                () => loadCount()
-            )
-            .subscribe()
-
-        return () => {
-            active = false
-            supabase.removeChannel(channel)
-        }
-    }, [activeOrder?.id, activeOrder?.status, myUserId])
 
     // Urgente = passageiro precisa olhar: já apareceu candidato, ou o
     // motorista já foi aceito/está a caminho. Enquanto só "buscando
@@ -466,34 +427,9 @@ export default function MotoristaSection({ dragHandle, onBreveStatusChange, onUr
                         )}
 
                         {activeOrder.status === 'accepted' && (
-                            <>
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); setChatExpanded((v) => !v) }}
-                                    className="flex items-center justify-center gap-2 w-full px-3 py-2 rounded-full text-xs font-bold transition-all hover:scale-105 active:scale-95"
-                                    style={{ background: colors.surface, color: colors.textPrimary, border: `1px solid ${colors.border}` }}
-                                >
-                                    {messageCount > 0 && (
-                                        <span
-                                            className="flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-black flex-shrink-0"
-                                            style={{ background: '#ef4444', border: '1.5px solid #ffffff', color: '#ffffff' }}
-                                        >
-                                            {messageCount}
-                                        </span>
-                                    )}
-                                    <span className="truncate">
-                                        {messageCount > 0
-                                            ? `Você tem ${messageCount === 1 ? 'uma mensagem' : `${messageCount} mensagens`}!`
-                                            : 'Enviar mensagem'}
-                                    </span>
-                                    {chatExpanded ? <ChevronUp size={14} className="flex-shrink-0" /> : <ChevronDown size={14} className="flex-shrink-0" />}
-                                </button>
-
-                                {chatExpanded && (
-                                    <div onClick={(e) => e.stopPropagation()} className="mt-2">
-                                        <RideChat rideId={activeOrder.id} />
-                                    </div>
-                                )}
-                            </>
+                            <div onClick={(e) => e.stopPropagation()} className="mt-2">
+                                <RideChat rideId={activeOrder.id} />
+                            </div>
                         )}
                     </div>
                 ) : (
