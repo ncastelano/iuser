@@ -13,6 +13,7 @@ import { toast } from 'sonner'
 import { MapPin, CheckCircle2 } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import { shortAddress } from '@/lib/serviceBoard'
+import { notifyRideStatus } from '@/lib/notifyRideStatus'
 import { getAvatarUrl } from '@/lib/avatar'
 import { haversineKm } from '@/lib/mapboxRoute'
 
@@ -132,6 +133,7 @@ export default function MinhasCorridasPage() {
                         .eq('driver_id', user.id)
                     if (error) throw error
                     toast.success('Corrida finalizada!')
+                    notifyRideStatus(ride.id, 'completed')
                     setRides((prev) => prev.filter((r) => r.id !== ride.id))
                 } catch (err: any) {
                     toast.error('Erro ao finalizar corrida: ' + (err.message || 'tente novamente'))

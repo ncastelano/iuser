@@ -9,6 +9,7 @@ import { Car, Navigation, X, Radio, Ban } from 'lucide-react'
 import { shortAddress } from '@/lib/serviceBoard'
 import { Spinner } from '@/components/Spinner'
 import { getDriverCancelQuota, describeDriverCancelQuota } from '@/lib/rideCancellation'
+import { notifyRideStatus } from '@/lib/notifyRideStatus'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -156,6 +157,7 @@ export function RideAcceptedDialog() {
                 .from('ride_requests')
                 .update({ driver_en_route: true, driver_departed_at: new Date().toISOString() })
                 .eq('id', current.id)
+            notifyRideStatus(current.id, 'en_route')
             setPending((prev) => prev.filter((r) => r.id !== current.id))
             // Leva o motorista direto pra tela da corrida — /aceitar-corridas já
             // troca sozinho pra aba "Corrida aceita" assim que detecta a corrida.
@@ -187,6 +189,7 @@ export function RideAcceptedDialog() {
                 .eq('driver_id', driverId)
             if (error) throw error
             toast.success('Corrida cancelada.')
+            notifyRideStatus(current.id, 'cancelled')
             setPending((prev) => prev.filter((r) => r.id !== current.id))
         } catch (err: any) {
             toast.error('Erro ao cancelar: ' + (err.message || 'tente novamente'))

@@ -20,6 +20,7 @@ import { getProfileRideRatingsBatch, ProfileRideRating } from '@/lib/rideReviews
 import { VehicleType } from '@/lib/rideVehicle'
 import { buildRideSpecRows } from '@/lib/rideSpecs'
 import { getDriverCancelQuota, describeDriverCancelQuota } from '@/lib/rideCancellation'
+import { notifyRideStatus } from '@/lib/notifyRideStatus'
 import { haversineKm } from '@/lib/mapboxRoute'
 import RideChat from '@/components/RideChat'
 import { DRIVER_CHAT_QUICK_REPLIES } from '@/lib/rideChatQuickReplies'
@@ -597,6 +598,7 @@ export default function AceitarCorridasPage() {
                 .update({ driver_en_route: true, driver_departed_at: new Date().toISOString() })
                 .eq('id', acceptedRide.id)
             if (error) throw error
+            notifyRideStatus(acceptedRide.id, 'en_route')
             setAcceptedRide((prev) => (prev ? { ...prev, driver_en_route: true } : prev))
         } catch (err: any) {
             toast.error('Erro ao confirmar saída: ' + (err.message || 'tente novamente'))
@@ -645,6 +647,7 @@ export default function AceitarCorridasPage() {
                         .eq('driver_id', user.id)
                     if (error) throw error
                     toast.success('Corrida finalizada!')
+                    notifyRideStatus(acceptedRide.id, 'completed')
                     lastAcceptedRideIdRef.current = null
                     setAcceptedRide(null)
                     setActiveTab('servicos')
@@ -681,6 +684,7 @@ export default function AceitarCorridasPage() {
                 .eq('driver_id', user.id)
             if (error) throw error
             toast.success('Corrida cancelada.')
+            notifyRideStatus(acceptedRide.id, 'cancelled')
             lastAcceptedRideIdRef.current = null
             setAcceptedRide(null)
             setActiveTab('servicos')

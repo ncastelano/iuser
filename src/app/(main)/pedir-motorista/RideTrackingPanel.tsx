@@ -13,6 +13,7 @@ import { Check, X, MapPin, Search, CheckCircle2, XCircle, Car, CalendarClock, Cl
 import { fetchRoute } from '@/lib/mapboxRoute'
 import { DRIVER_SERVICE_OPTIONS } from '@/lib/driverServices'
 import RideChat from '@/components/RideChat'
+import { notifyRideStatus } from '@/lib/notifyRideStatus'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 const TRIP_ROUTE_COLOR = '#ef4444'
@@ -582,6 +583,7 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady }: Rid
                 .in('status', ['pending', 'accepted'])
             if (error) throw error
             toast.success('Corrida cancelada.')
+            notifyRideStatus(rideId, 'cancelled')
             onExit()
         } catch (err: any) {
             toast.error('Erro ao cancelar: ' + (err.message || 'tente novamente'))
