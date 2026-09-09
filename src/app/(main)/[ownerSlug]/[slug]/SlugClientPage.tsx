@@ -67,9 +67,13 @@ export default function SlugClientPage() {
 
                 let store: any = null
 
-                // Verifica se o item pertence ao ownerSlug correto
-                // Se for produto de loja, verifica se a loja pertence ao ownerSlug
-                if (item.listing_type === 'sale' && item.store_id) {
+                // Verifica se o item pertence ao ownerSlug correto. Isso tem que
+                // decidir pelo que está de fato preenchido (store_id ou owner_id),
+                // não pelo listing_type — uma publicação de loja tem os dois
+                // preenchidos (store_id da loja + owner_id do dono da loja), e
+                // checar só o owner_id nesse caso rejeitava a própria loja dona
+                // do post com "Publicação não pertence a este perfil".
+                if (item.store_id) {
                     const { data: storeRow, error: storeErr } = await supabase
                         .from('stores')
                         .select('id, name, storeSlug, logo_url, owner_id')
@@ -77,12 +81,11 @@ export default function SlugClientPage() {
                         .maybeSingle()
 
                     if (storeErr || !storeRow || storeRow.storeSlug !== ownerSlug) {
-                        throw new Error('Produto não pertence a esta loja')
+                        throw new Error(item.listing_type === 'sale' ? 'Produto não pertence a esta loja' : 'Publicação não pertence a esta loja')
                     }
                     store = storeRow
                 }
-                // Se for publicação, verifica se o perfil pertence ao ownerSlug
-                else if (item.listing_type === 'publication' && item.owner_id) {
+                else if (item.owner_id) {
                     const { data: profile, error: profileErr } = await supabase
                         .from('profiles')
                         .select('profileSlug')
