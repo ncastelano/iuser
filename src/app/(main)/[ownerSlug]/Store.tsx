@@ -311,34 +311,14 @@ export function Store({
         return supabase.storage.from('product-images').getPublicUrl(path).data.publicUrl
     }
 
-    // ========== ABRIR PUBLICAÇÕES NO OVERLAY ==========
-    const handleOpenPub = useCallback((pub: Publication, index: number) => {
-        if (!owner) return
-
-        // Preparar o feed de publicações no formato esperado pelo PublicationsListView
-        const feed = publications.map(p => ({
-            id: p.id,
-            name: p.name,
-            slug: p.slug,
-            description: p.description,
-            image_url: getImageUrl(p.image_url),
-            listing_type: 'publication' as const,
-            owner_id: owner.id,
-            store_id: owner.id,
-            created_at: p.created_at,
-            owner: {
-                id: owner.id,
-                name: owner.name,
-                slug: owner.slug,
-                avatar_url: imageUrl,
-            },
-        }))
-
-        // Chamar o callback para abrir o PublicationsListView
-        if (onOpenPublications) {
-            onOpenPublications(feed, index, ownerSlug)
-        }
-    }, [owner, publications, imageUrl, ownerSlug, onOpenPublications])
+    // ========== ABRIR PUBLICAÇÃO ==========
+    // Navega pra página própria da publicação — mesmo comportamento de abrir
+    // um link de produto, com URL de verdade (compartilhável e que sobrevive
+    // a um recarregamento da página), em vez de só um overlay por cima desta.
+    const handleOpenPub = useCallback((pub: Publication) => {
+        const identifier = pub.slug || pub.id
+        router.push(`/${ownerSlug}/${identifier}`)
+    }, [ownerSlug, router])
 
     useEffect(() => {
         if (!pubImageFile) return
@@ -487,30 +467,9 @@ export function Store({
 
         const isPublication = product.listing_type === 'publication'
         if (isPublication) {
-            // Para publicações, usar o callback do overlay
-            const pubIndex = publications.findIndex(p => p.id === product.id)
-            if (pubIndex !== -1 && onOpenPublications) {
-                const feed = publications.map(p => ({
-                    id: p.id,
-                    name: p.name,
-                    slug: p.slug,
-                    description: p.description,
-                    image_url: getImageUrl(p.image_url),
-                    listing_type: 'publication' as const,
-                    owner_id: owner?.id || '',
-                    store_id: owner?.id || '',
-                    created_at: p.created_at,
-                    owner: {
-                        id: owner?.id || '',
-                        name: owner?.name || '',
-                        slug: owner?.slug || '',
-                        avatar_url: imageUrl,
-                    },
-                }))
-                onOpenPublications(feed, pubIndex, ownerSlug)
-                return
-            }
-            // Fallback: usar router
+            // Navega pra página própria da publicação — mesmo comportamento de
+            // abrir um link de produto, com URL de verdade (compartilhável e
+            // que sobrevive a um recarregamento da página).
             router.push(`/${ownerSlug}/${productIdentifier}`)
             return
         }
@@ -1523,7 +1482,7 @@ export function Store({
                                                     background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
                                                     borderColor: colors.border,
                                                 }}
-                                                onClick={() => handleOpenPub(pub, index)}
+                                                onClick={() => handleOpenPub(pub)}
                                             >
                                                 <div className="w-full aspect-square rounded-lg overflow-hidden bg-gray-100">
                                                     {imgUrl ? (
