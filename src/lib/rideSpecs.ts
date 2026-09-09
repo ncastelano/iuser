@@ -25,6 +25,7 @@ export interface RideSpecFields {
     pet_has_carrier?: boolean | null
     object_description: string | null
     object_is_sensitive: boolean
+    delivery_location?: 'portaria' | 'area_interna' | 'apartamento' | null
     has_special_needs: boolean
     special_needs_description: string | null
     special_needs_wheelchair?: boolean
@@ -89,6 +90,10 @@ export function buildRideSpecRows(ride: RideSpecFields): RideSpecRow[] {
     } else {
         rows.push({ label: 'Objeto', value: ride.object_description || 'não especificado' })
         if (ride.object_is_sensitive) rows.push({ label: 'Atenção', value: 'sensível/frágil' })
+        if (ride.delivery_location) {
+            const label = ride.delivery_location === 'portaria' ? 'Portaria' : ride.delivery_location === 'area_interna' ? 'Área interna do condomínio' : 'Apartamento/residência'
+            rows.push({ label: 'Entregar em', value: label })
+        }
     }
 
     if (ride.has_special_needs) {

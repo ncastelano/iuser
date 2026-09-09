@@ -364,6 +364,9 @@ export default function PedirMotoristaPage() {
     const [destinationNeedsAccess, setDestinationNeedsAccess] = useState(false)
     const [destinationAccessNotes, setDestinationAccessNotes] = useState('')
 
+    // ===== LOCAL DE ENTREGA (só pra ride_type 'objeto') =====
+    const [deliveryLocation, setDeliveryLocation] = useState<'portaria' | 'area_interna' | 'apartamento' | null>(null)
+
     // ===== NECESSIDADE ESPECIAL =====
     const [hasSpecialNeeds, setHasSpecialNeeds] = useState(false)
     const [specialNeedsDescription, setSpecialNeedsDescription] = useState('')
@@ -594,6 +597,7 @@ export default function PedirMotoristaPage() {
         if (typeof draft.originNeedsAccess === 'boolean') setOriginNeedsAccess(draft.originNeedsAccess)
         if (typeof draft.originAccessNotes === 'string') setOriginAccessNotes(draft.originAccessNotes)
         if (typeof draft.destinationNeedsAccess === 'boolean') setDestinationNeedsAccess(draft.destinationNeedsAccess)
+        if (draft.deliveryLocation !== undefined) setDeliveryLocation(draft.deliveryLocation)
         if (typeof draft.destinationAccessNotes === 'string') setDestinationAccessNotes(draft.destinationAccessNotes)
 
         toast.info('Continuando de onde você parou.')
@@ -852,6 +856,10 @@ export default function PedirMotoristaPage() {
             if (originComplement.trim()) rows.push({ label: 'Complemento (origem)', value: originComplement.trim() })
             rows.push({ label: 'Para', value: to })
             if (destinationComplement.trim()) rows.push({ label: 'Complemento (destino)', value: destinationComplement.trim() })
+            if (deliveryLocation) {
+                const label = deliveryLocation === 'portaria' ? 'Portaria' : deliveryLocation === 'area_interna' ? 'Área interna do condomínio' : 'Apartamento/residência'
+                rows.push({ label: 'Entregar em', value: label })
+            }
             if (recipientName) rows.push({ label: 'Entregar a', value: recipientName })
         }
 
@@ -895,6 +903,7 @@ export default function PedirMotoristaPage() {
                 senderName, senderWhatsapp, recipientName, recipientWhatsapp,
                 originComplement, destinationComplement,
                 originNeedsAccess, originAccessNotes, destinationNeedsAccess, destinationAccessNotes,
+                deliveryLocation,
                 hasSpecialNeeds, specialNeedsDescription,
                 specialNeedsWheelchair, specialNeedsWheelchairType, specialNeedsVisualImpairment, hasGuideDog,
             })
@@ -925,8 +934,11 @@ export default function PedirMotoristaPage() {
                 notes: notes.trim() || null,
                 origin_needs_access: originNeedsAccess,
                 origin_access_notes: originNeedsAccess ? originAccessNotes.trim() || null : null,
-                destination_needs_access: destinationNeedsAccess,
-                destination_access_notes: destinationNeedsAccess ? destinationAccessNotes.trim() || null : null,
+                destination_needs_access: requestFor === 'objeto' ? deliveryLocation !== 'portaria' : destinationNeedsAccess,
+                destination_access_notes: requestFor === 'objeto'
+                    ? (deliveryLocation !== 'portaria' ? destinationAccessNotes.trim() || null : null)
+                    : (destinationNeedsAccess ? destinationAccessNotes.trim() || null : null),
+                delivery_location: requestFor === 'objeto' ? deliveryLocation : null,
                 passenger_count: requestFor === 'pessoa' ? totalPeople : 1,
                 vehicle_type: requestFor === 'pessoa' ? vehicleType : 'carro',
                 has_child: requestFor === 'pessoa' ? hasChild : false,
@@ -1338,41 +1350,80 @@ export default function PedirMotoristaPage() {
                                     )}
                                 </div>
 
-                                <div className="rounded-xl px-3 py-2.5" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
-                                    <div className="flex items-center justify-between gap-2 flex-wrap">
-                                        <span className="flex items-center gap-1.5 text-xs font-bold" style={{ color: colors.textPrimary }}>
+                                {requestFor === 'objeto' ? (
+                                    <div className="rounded-xl px-3 py-2.5" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
+                                        <span className="flex items-center gap-1.5 text-xs font-bold mb-2" style={{ color: colors.textPrimary }}>
                                             <Building2 size={13} style={{ color: '#ef4444' }} />
-                                            Me deixa dentro do condomínio
+                                            Onde entregar?
                                         </span>
-                                        <div className="flex items-center gap-1.5 flex-shrink-0">
-                                            <button
-                                                onClick={() => setDestinationNeedsAccess(true)}
-                                                className="px-3 py-1 rounded-full text-[11px] font-black transition-all"
-                                                style={destinationNeedsAccess ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
-                                            >
-                                                SIM
-                                            </button>
-                                            <button
-                                                onClick={() => { setDestinationNeedsAccess(false); setDestinationAccessNotes('') }}
-                                                className="px-3 py-1 rounded-full text-[11px] font-black transition-all"
-                                                style={!destinationNeedsAccess ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
-                                            >
-                                                NÃO
-                                            </button>
+                                        <div className="flex flex-col gap-2">
+                                            {([
+                                                { value: 'portaria', label: 'Portaria', hint: 'Deixar com o porteiro/recepção' },
+                                                { value: 'area_interna', label: 'Área interna do prédio/condomínio', hint: 'Entrar e deixar em área comum' },
+                                                { value: 'apartamento', label: 'Apartamento/residência do destinatário', hint: 'Entregar na porta' },
+                                            ] as const).map((opt) => {
+                                                const active = deliveryLocation === opt.value
+                                                return (
+                                                    <button
+                                                        key={opt.value}
+                                                        onClick={() => setDeliveryLocation(opt.value)}
+                                                        className="text-left px-3 py-2 rounded-lg transition-all"
+                                                        style={active ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textPrimary, border: `1px solid ${colors.border}` }}
+                                                    >
+                                                        <span className="text-xs font-bold block">{opt.label}</span>
+                                                        <span className="text-[10px] block opacity-80">{opt.hint}</span>
+                                                    </button>
+                                                )
+                                            })}
                                         </div>
+                                        {deliveryLocation && deliveryLocation !== 'portaria' && (
+                                            <input
+                                                type="text"
+                                                value={destinationAccessNotes}
+                                                onChange={(e) => setDestinationAccessNotes(e.target.value)}
+                                                placeholder="Número da rua, apartamento ou quadra..."
+                                                className="w-full mt-2 px-3 py-2 rounded-lg text-sm focus:outline-none"
+                                                style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                                            />
+                                        )}
                                     </div>
-                                    {destinationNeedsAccess && (
-                                        <input
-                                            type="text"
-                                            value={destinationAccessNotes}
-                                            onChange={(e) => setDestinationAccessNotes(e.target.value)}
-                                            autoFocus
-                                            placeholder="Número da rua, apartamento ou quadra..."
-                                            className="w-full mt-2 px-3 py-2 rounded-lg text-sm focus:outline-none"
-                                            style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
-                                        />
-                                    )}
-                                </div>
+                                ) : (
+                                    <div className="rounded-xl px-3 py-2.5" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
+                                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                                            <span className="flex items-center gap-1.5 text-xs font-bold" style={{ color: colors.textPrimary }}>
+                                                <Building2 size={13} style={{ color: '#ef4444' }} />
+                                                Me deixa dentro do condomínio
+                                            </span>
+                                            <div className="flex items-center gap-1.5 flex-shrink-0">
+                                                <button
+                                                    onClick={() => setDestinationNeedsAccess(true)}
+                                                    className="px-3 py-1 rounded-full text-[11px] font-black transition-all"
+                                                    style={destinationNeedsAccess ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                                                >
+                                                    SIM
+                                                </button>
+                                                <button
+                                                    onClick={() => { setDestinationNeedsAccess(false); setDestinationAccessNotes('') }}
+                                                    className="px-3 py-1 rounded-full text-[11px] font-black transition-all"
+                                                    style={!destinationNeedsAccess ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                                                >
+                                                    NÃO
+                                                </button>
+                                            </div>
+                                        </div>
+                                        {destinationNeedsAccess && (
+                                            <input
+                                                type="text"
+                                                value={destinationAccessNotes}
+                                                onChange={(e) => setDestinationAccessNotes(e.target.value)}
+                                                autoFocus
+                                                placeholder="Número da rua, apartamento ou quadra..."
+                                                className="w-full mt-2 px-3 py-2 rounded-lg text-sm focus:outline-none"
+                                                style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                                            />
+                                        )}
+                                    </div>
+                                )}
                             </div>
 
                             {/* Rota (uma só, sem alternativas) — a distância/tempo aparece no mapa, no marcador de chegada */}

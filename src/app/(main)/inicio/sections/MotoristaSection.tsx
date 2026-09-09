@@ -51,6 +51,7 @@ interface ActiveOrder {
     pet_has_carrier: boolean | null
     object_description: string | null
     object_is_sensitive: boolean
+    delivery_location: 'portaria' | 'area_interna' | 'apartamento' | null
     has_special_needs: boolean
     special_needs_description: string | null
     special_needs_wheelchair: boolean
@@ -73,7 +74,7 @@ const ORDER_FIELDS = `
     origin_address, destination_address, origin_complement, destination_complement, origin_lat, origin_lng,
     ride_type, passenger_count, has_child, children_count, child_age, child_needs_car_seat,
     has_shopping, bag_count, has_extra_object, extra_object_description,
-    has_pet, pet_description, pet_weight_range, pet_has_carrier, object_description, object_is_sensitive,
+    has_pet, pet_description, pet_weight_range, pet_has_carrier, object_description, object_is_sensitive, delivery_location,
     has_special_needs, special_needs_description,
     special_needs_wheelchair, special_needs_wheelchair_type, special_needs_visual_impairment, has_guide_dog
 `
