@@ -47,10 +47,16 @@ interface ActiveOrder {
     extra_object_description: string | null
     has_pet: boolean
     pet_description: string | null
+    pet_weight_range: 'ate_5kg' | '5_a_15kg' | '15_a_30kg' | 'acima_30kg' | null
+    pet_has_carrier: boolean | null
     object_description: string | null
     object_is_sensitive: boolean
     has_special_needs: boolean
     special_needs_description: string | null
+    special_needs_wheelchair: boolean
+    special_needs_wheelchair_type: 'dobravel' | 'grande' | null
+    special_needs_visual_impairment: boolean
+    has_guide_dog: boolean
 }
 
 interface DriverInfo {
@@ -67,8 +73,9 @@ const ORDER_FIELDS = `
     origin_address, destination_address, origin_complement, destination_complement, origin_lat, origin_lng,
     ride_type, passenger_count, has_child, children_count, child_age, child_needs_car_seat,
     has_shopping, bag_count, has_extra_object, extra_object_description,
-    has_pet, pet_description, object_description, object_is_sensitive,
-    has_special_needs, special_needs_description
+    has_pet, pet_description, pet_weight_range, pet_has_carrier, object_description, object_is_sensitive,
+    has_special_needs, special_needs_description,
+    special_needs_wheelchair, special_needs_wheelchair_type, special_needs_visual_impairment, has_guide_dog
 `
 
 function shortAddress(address: string): string {

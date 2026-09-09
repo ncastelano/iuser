@@ -159,6 +159,75 @@ function CounterRow({
     )
 }
 
+type PetWeightRange = 'ate_5kg' | '5_a_15kg' | '15_a_30kg' | 'acima_30kg'
+
+const PET_WEIGHT_OPTIONS: { value: PetWeightRange; label: string }[] = [
+    { value: 'ate_5kg', label: 'Até 5kg' },
+    { value: '5_a_15kg', label: '5 a 15kg' },
+    { value: '15_a_30kg', label: '15 a 30kg' },
+    { value: 'acima_30kg', label: 'Acima de 30kg' },
+]
+
+// Faixa de peso + confirmação de caixa de transporte — usado tanto quando o
+// pet viaja junto com o dono (requestFor 'pessoa') quanto quando é só o
+// animal sendo levado (requestFor 'animal'). Não se aplica a cão-guia — esse
+// é tratado como acessibilidade, não como pet.
+function PetCarrierFields({
+    weightRange, onWeightRangeChange, hasCarrier, onHasCarrierChange, colors,
+}: {
+    weightRange: PetWeightRange | null
+    onWeightRangeChange: (v: PetWeightRange) => void
+    hasCarrier: boolean | null
+    onHasCarrierChange: (v: boolean) => void
+    colors: ThemeColors
+}) {
+    return (
+        <div className="mt-2">
+            <span className="text-xs font-bold block mb-1.5" style={{ color: colors.textSecondary }}>Peso aproximado</span>
+            <div className="grid grid-cols-2 gap-2">
+                {PET_WEIGHT_OPTIONS.map((opt) => {
+                    const active = weightRange === opt.value
+                    return (
+                        <button
+                            key={opt.value}
+                            onClick={() => onWeightRangeChange(opt.value)}
+                            className="py-2 rounded-lg text-xs font-bold transition-all"
+                            style={active ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                        >
+                            {opt.label}
+                        </button>
+                    )
+                })}
+            </div>
+
+            <div className="flex items-center justify-between gap-2 flex-wrap mt-3">
+                <span className="text-xs font-bold" style={{ color: colors.textSecondary }}>Vai numa caixa de transporte?</span>
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <button
+                        onClick={() => onHasCarrierChange(true)}
+                        className="px-3 py-1 rounded-full text-[11px] font-black transition-all"
+                        style={hasCarrier === true ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                    >
+                        SIM
+                    </button>
+                    <button
+                        onClick={() => onHasCarrierChange(false)}
+                        className="px-3 py-1 rounded-full text-[11px] font-black transition-all"
+                        style={hasCarrier === false ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                    >
+                        NÃO
+                    </button>
+                </div>
+            </div>
+            {hasCarrier === false && (
+                <p className="text-[10px] mt-1" style={{ color: '#f97316' }}>
+                    Recomendamos usar uma caixa de transporte apropriada — ajuda a manter o animal seguro e o motorista pode preferir isso.
+                </p>
+            )}
+        </div>
+    )
+}
+
 function toDatetimeLocalValue(date: Date): string {
     const pad = (n: number) => String(n).padStart(2, '0')
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
@@ -298,6 +367,14 @@ export default function PedirMotoristaPage() {
     // ===== NECESSIDADE ESPECIAL =====
     const [hasSpecialNeeds, setHasSpecialNeeds] = useState(false)
     const [specialNeedsDescription, setSpecialNeedsDescription] = useState('')
+    const [specialNeedsWheelchair, setSpecialNeedsWheelchair] = useState(false)
+    const [specialNeedsWheelchairType, setSpecialNeedsWheelchairType] = useState<'dobravel' | 'grande' | null>(null)
+    const [specialNeedsVisualImpairment, setSpecialNeedsVisualImpairment] = useState(false)
+    const [hasGuideDog, setHasGuideDog] = useState(false)
+
+    // ===== ANIMAL (peso e caixa de transporte) =====
+    const [petWeightRange, setPetWeightRange] = useState<'ate_5kg' | '5_a_15kg' | '15_a_30kg' | 'acima_30kg' | null>(null)
+    const [petHasCarrier, setPetHasCarrier] = useState<boolean | null>(null)
 
     const totalPeople = 1 + extraPeopleCount + childrenCount
     const vehicleType = getVehicleTypeForPassengers(totalPeople)
@@ -497,8 +574,14 @@ export default function PedirMotoristaPage() {
         if (typeof draft.extraObjectDescription === 'string') setExtraObjectDescription(draft.extraObjectDescription)
         if (typeof draft.petCount === 'number') setPetCount(draft.petCount)
         if (typeof draft.petDescription === 'string') setPetDescription(draft.petDescription)
+        if (draft.petWeightRange !== undefined) setPetWeightRange(draft.petWeightRange)
+        if (draft.petHasCarrier !== undefined) setPetHasCarrier(draft.petHasCarrier)
         if (typeof draft.hasSpecialNeeds === 'boolean') setHasSpecialNeeds(draft.hasSpecialNeeds)
         if (typeof draft.specialNeedsDescription === 'string') setSpecialNeedsDescription(draft.specialNeedsDescription)
+        if (typeof draft.specialNeedsWheelchair === 'boolean') setSpecialNeedsWheelchair(draft.specialNeedsWheelchair)
+        if (draft.specialNeedsWheelchairType !== undefined) setSpecialNeedsWheelchairType(draft.specialNeedsWheelchairType)
+        if (typeof draft.specialNeedsVisualImpairment === 'boolean') setSpecialNeedsVisualImpairment(draft.specialNeedsVisualImpairment)
+        if (typeof draft.hasGuideDog === 'boolean') setHasGuideDog(draft.hasGuideDog)
         if (typeof draft.objectDescription === 'string') setObjectDescription(draft.objectDescription)
         if (typeof draft.objectIsSensitive === 'boolean') setObjectIsSensitive(draft.objectIsSensitive)
         if (draft.objectSize !== undefined) setObjectSize(draft.objectSize)
@@ -772,6 +855,20 @@ export default function PedirMotoristaPage() {
             if (recipientName) rows.push({ label: 'Entregar a', value: recipientName })
         }
 
+        if (((requestFor === 'pessoa' && hasPet) || requestFor === 'animal') && (petWeightRange || petHasCarrier != null)) {
+            const weightLabel = PET_WEIGHT_OPTIONS.find((o) => o.value === petWeightRange)?.label
+            const carrierText = petHasCarrier === true ? 'com caixa de transporte' : petHasCarrier === false ? 'sem caixa de transporte' : ''
+            rows.push({ label: 'Peso/transporte', value: [weightLabel, carrierText].filter(Boolean).join(', ') || 'não especificado' })
+        }
+
+        if (hasSpecialNeeds) {
+            const parts: string[] = []
+            if (specialNeedsWheelchair) parts.push(`cadeirante${specialNeedsWheelchairType ? ` (${specialNeedsWheelchairType === 'dobravel' ? 'dobrável' : 'grande'})` : ''}`)
+            if (specialNeedsVisualImpairment) parts.push(`deficiência visual${hasGuideDog ? ' com cão-guia' : ''}`)
+            if (specialNeedsDescription.trim()) parts.push(specialNeedsDescription.trim())
+            rows.push({ label: 'Necessidade especial', value: parts.length > 0 ? parts.join('; ') : 'sim' })
+        }
+
         rows.push({ label: 'Quando', value: isScheduled ? formatScheduledFor(new Date(scheduledFor).toISOString()) : 'Agora' })
 
         return rows
@@ -793,12 +890,13 @@ export default function PedirMotoristaPage() {
                 step, requestFor, origin, destination, notes, scheduledFor,
                 extraPeopleCount, childrenCount, childAge, childNeedsCarSeat, bagCount,
                 extraObjectCount, extraObjectDescription,
-                petCount, petDescription,
+                petCount, petDescription, petWeightRange, petHasCarrier,
                 objectDescription, objectIsSensitive, objectSize,
                 senderName, senderWhatsapp, recipientName, recipientWhatsapp,
                 originComplement, destinationComplement,
                 originNeedsAccess, originAccessNotes, destinationNeedsAccess, destinationAccessNotes,
                 hasSpecialNeeds, specialNeedsDescription,
+                specialNeedsWheelchair, specialNeedsWheelchairType, specialNeedsVisualImpairment, hasGuideDog,
             })
             router.push(`/login?redirect=${encodeURIComponent('/pedir-motorista')}`)
             return
@@ -846,6 +944,8 @@ export default function PedirMotoristaPage() {
                 pet_count: requestFor === 'pessoa' && hasPet ? petCount : null,
                 pet_description: ((requestFor === 'pessoa' && hasPet) || requestFor === 'animal') ? petDescription.trim() || null : null,
                 pet_photo_url: petPhotoUrl,
+                pet_weight_range: ((requestFor === 'pessoa' && hasPet) || requestFor === 'animal') ? petWeightRange : null,
+                pet_has_carrier: ((requestFor === 'pessoa' && hasPet) || requestFor === 'animal') ? petHasCarrier : null,
                 object_description: requestFor === 'objeto' ? objectDescription.trim() || null : null,
                 object_is_sensitive: requestFor === 'objeto' ? objectIsSensitive : false,
                 object_size: requestFor === 'pessoa' ? (hasExtraObject ? objectSize : null) : objectSize,
@@ -856,6 +956,10 @@ export default function PedirMotoristaPage() {
                 recipient_whatsapp: (requestFor === 'objeto' || requestFor === 'animal') ? recipientWhatsapp.trim() || null : null,
                 has_special_needs: hasSpecialNeeds,
                 special_needs_description: hasSpecialNeeds ? specialNeedsDescription.trim() || null : null,
+                special_needs_wheelchair: hasSpecialNeeds ? specialNeedsWheelchair : false,
+                special_needs_wheelchair_type: hasSpecialNeeds && specialNeedsWheelchair ? specialNeedsWheelchairType : null,
+                special_needs_visual_impairment: hasSpecialNeeds ? specialNeedsVisualImpairment : false,
+                has_guide_dog: hasSpecialNeeds && specialNeedsVisualImpairment ? hasGuideDog : false,
                 origin_lat: origin.coords ? origin.coords[1] : null,
                 origin_lng: origin.coords ? origin.coords[0] : null,
                 destination_lat: destination.coords ? destination.coords[1] : null,
@@ -1295,7 +1399,14 @@ export default function PedirMotoristaPage() {
                                             SIM
                                         </button>
                                         <button
-                                            onClick={() => { setHasSpecialNeeds(false); setSpecialNeedsDescription('') }}
+                                            onClick={() => {
+                                                setHasSpecialNeeds(false)
+                                                setSpecialNeedsDescription('')
+                                                setSpecialNeedsWheelchair(false)
+                                                setSpecialNeedsWheelchairType(null)
+                                                setSpecialNeedsVisualImpairment(false)
+                                                setHasGuideDog(false)
+                                            }}
                                             className="px-3 py-1 rounded-full text-[11px] font-black transition-all"
                                             style={!hasSpecialNeeds ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
                                         >
@@ -1304,15 +1415,78 @@ export default function PedirMotoristaPage() {
                                     </div>
                                 </div>
                                 {hasSpecialNeeds && (
-                                    <input
-                                        type="text"
-                                        value={specialNeedsDescription}
-                                        onChange={(e) => setSpecialNeedsDescription(e.target.value)}
-                                        autoFocus
-                                        placeholder="Qual necessidade especial?"
-                                        className="w-full mt-2 px-3 py-2 rounded-lg text-sm focus:outline-none"
-                                        style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
-                                    />
+                                    <div className="mt-2 flex flex-col gap-2">
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => setSpecialNeedsWheelchair((v) => !v)}
+                                                className="flex-1 py-2 rounded-lg text-xs font-bold transition-all"
+                                                style={specialNeedsWheelchair ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                                            >
+                                                Cadeirante
+                                            </button>
+                                            <button
+                                                onClick={() => setSpecialNeedsVisualImpairment((v) => { const next = !v; if (!next) setHasGuideDog(false); return next })}
+                                                className="flex-1 py-2 rounded-lg text-xs font-bold transition-all"
+                                                style={specialNeedsVisualImpairment ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                                            >
+                                                Deficiência visual
+                                            </button>
+                                        </div>
+
+                                        {specialNeedsWheelchair && (
+                                            <div>
+                                                <span className="text-[11px] font-bold block mb-1" style={{ color: colors.textSecondary }}>Tipo de cadeira de rodas</span>
+                                                <div className="flex gap-2">
+                                                    {(['dobravel', 'grande'] as const).map((type) => (
+                                                        <button
+                                                            key={type}
+                                                            onClick={() => setSpecialNeedsWheelchairType(type)}
+                                                            className="flex-1 py-2 rounded-lg text-[11px] font-bold transition-all"
+                                                            style={specialNeedsWheelchairType === type ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                                                        >
+                                                            {type === 'dobravel' ? 'Dobrável / compacta' : 'Grande / elétrica'}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {specialNeedsVisualImpairment && (
+                                            <div className="flex items-center justify-between gap-2 flex-wrap">
+                                                <span className="text-[11px] font-bold" style={{ color: colors.textSecondary }}>Estará com cão-guia?</span>
+                                                <div className="flex items-center gap-1.5 flex-shrink-0">
+                                                    <button
+                                                        onClick={() => setHasGuideDog(true)}
+                                                        className="px-3 py-1 rounded-full text-[11px] font-black transition-all"
+                                                        style={hasGuideDog ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                                                    >
+                                                        SIM
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setHasGuideDog(false)}
+                                                        className="px-3 py-1 rounded-full text-[11px] font-black transition-all"
+                                                        style={!hasGuideDog ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                                                    >
+                                                        NÃO
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+                                        {hasGuideDog && (
+                                            <p className="text-[10px]" style={{ color: colors.textSecondary }}>
+                                                🐕‍🦺 Cão-guia é equipamento de acessibilidade, não conta como animal de estimação — o motorista não pode recusar por causa dele.
+                                            </p>
+                                        )}
+
+                                        <input
+                                            type="text"
+                                            value={specialNeedsDescription}
+                                            onChange={(e) => setSpecialNeedsDescription(e.target.value)}
+                                            placeholder="Outras necessidades (opcional)"
+                                            className="w-full px-3 py-2 rounded-lg text-sm focus:outline-none"
+                                            style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                                        />
+                                    </div>
                                 )}
                             </div>
 
@@ -1506,6 +1680,13 @@ export default function PedirMotoristaPage() {
                                                         colors={colors}
                                                     />
                                                 </div>
+                                                <PetCarrierFields
+                                                    weightRange={petWeightRange}
+                                                    onWeightRangeChange={setPetWeightRange}
+                                                    hasCarrier={petHasCarrier}
+                                                    onHasCarrierChange={setPetHasCarrier}
+                                                    colors={colors}
+                                                />
                                             </div>
                                         )}
                                     </div>
@@ -1555,6 +1736,14 @@ export default function PedirMotoristaPage() {
                                             colors={colors}
                                         />
                                     </div>
+
+                                    <PetCarrierFields
+                                        weightRange={petWeightRange}
+                                        onWeightRangeChange={setPetWeightRange}
+                                        hasCarrier={petHasCarrier}
+                                        onHasCarrierChange={setPetHasCarrier}
+                                        colors={colors}
+                                    />
 
                                     <div className="mt-3">
                                         <span className="text-xs font-bold block mb-1.5" style={{ color: colors.textSecondary }}>Quem entrega</span>

@@ -21,15 +21,35 @@ export interface RideSpecFields {
     extra_object_description: string | null
     has_pet: boolean
     pet_description: string | null
+    pet_weight_range?: 'ate_5kg' | '5_a_15kg' | '15_a_30kg' | 'acima_30kg' | null
+    pet_has_carrier?: boolean | null
     object_description: string | null
     object_is_sensitive: boolean
     has_special_needs: boolean
     special_needs_description: string | null
+    special_needs_wheelchair?: boolean
+    special_needs_wheelchair_type?: 'dobravel' | 'grande' | null
+    special_needs_visual_impairment?: boolean
+    has_guide_dog?: boolean
+}
+
+const PET_WEIGHT_LABELS: Record<string, string> = {
+    ate_5kg: 'até 5kg',
+    '5_a_15kg': '5 a 15kg',
+    '15_a_30kg': '15 a 30kg',
+    acima_30kg: 'acima de 30kg',
 }
 
 export interface RideSpecRow {
     label: string
     value: string
+}
+
+function petWeightCarrierText(ride: RideSpecFields): string | null {
+    const weightLabel = ride.pet_weight_range ? PET_WEIGHT_LABELS[ride.pet_weight_range] : null
+    const carrierText = ride.pet_has_carrier === true ? 'com caixa de transporte' : ride.pet_has_carrier === false ? 'sem caixa de transporte' : null
+    const parts = [weightLabel, carrierText].filter(Boolean)
+    return parts.length > 0 ? parts.join(', ') : null
 }
 
 export function buildRideSpecRows(ride: RideSpecFields): RideSpecRow[] {
@@ -59,16 +79,32 @@ export function buildRideSpecRows(ride: RideSpecFields): RideSpecRow[] {
 
         if (ride.has_pet) {
             rows.push({ label: 'Pet', value: ride.pet_description || 'não especificado' })
+            const petDetails = petWeightCarrierText(ride)
+            if (petDetails) rows.push({ label: 'Peso/transporte', value: petDetails })
         }
     } else if (ride.ride_type === 'animal') {
         rows.push({ label: 'Animal', value: ride.pet_description || 'não especificado' })
+        const petDetails = petWeightCarrierText(ride)
+        if (petDetails) rows.push({ label: 'Peso/transporte', value: petDetails })
     } else {
         rows.push({ label: 'Objeto', value: ride.object_description || 'não especificado' })
         if (ride.object_is_sensitive) rows.push({ label: 'Atenção', value: 'sensível/frágil' })
     }
 
     if (ride.has_special_needs) {
-        rows.push({ label: 'Necessidade especial', value: ride.special_needs_description || 'sim' })
+        const parts: string[] = []
+        if (ride.special_needs_wheelchair) {
+            parts.push(`cadeirante${ride.special_needs_wheelchair_type ? ` (${ride.special_needs_wheelchair_type === 'dobravel' ? 'dobrável' : 'grande'})` : ''}`)
+        }
+        if (ride.special_needs_visual_impairment) {
+            parts.push(`deficiência visual${ride.has_guide_dog ? ' — vem com cão-guia' : ''}`)
+        }
+        if (ride.special_needs_description) parts.push(ride.special_needs_description)
+        rows.push({ label: 'Necessidade especial', value: parts.length > 0 ? parts.join('; ') : 'sim' })
+
+        if (ride.has_guide_dog) {
+            rows.push({ label: 'Atenção', value: 'Cão-guia — não é pet comum, não recuse por causa dele' })
+        }
     }
 
     if ((ride.origin_complement || '').trim()) {
