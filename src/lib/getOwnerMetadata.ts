@@ -28,12 +28,20 @@ function getSupabaseClient() {
     return createClient(SUPABASE_URL, SUPABASE_KEY)
 }
 
+// Passa a imagem por /api/og-thumb pra garantir um quadrado pequeno (300x300)
+// — avatar_url/logo_url vêm do Storage em qualquer tamanho, e a maioria dos
+// apps (WhatsApp, Telegram, iMessage) só mostra a miniatura do lado do texto
+// quando a imagem é pequena; do contrário preferem esticar em cima, como banner.
+function toThumbUrl(imageUrl: string): string {
+    return `${BASE_URL}/api/og-thumb?src=${encodeURIComponent(imageUrl)}`
+}
+
 /**
  * Generates OpenGraph and Twitter metadata for an owner page (Store or Profile).
  * Route: /[ownerSlug]
  */
 export async function generateOwnerMetadata(ownerSlug: string): Promise<Metadata> {
-    const defaultLogoUrl = `${BASE_URL}/logo.png`
+    const defaultLogoUrl = `${BASE_URL}/logo-preview.png`
     const pageUrl = `${BASE_URL}/${ownerSlug}`
 
     const supabase = getSupabaseClient()
@@ -56,7 +64,8 @@ export async function generateOwnerMetadata(ownerSlug: string): Promise<Metadata
             const displayName = profile.name ? profile.name : `@${profile.profileSlug}`
             const title = `${displayName} (@${profile.profileSlug}) | iUser`
             const description = profile.bio || `Confira o perfil de ${displayName} no iUser!`
-            const avatarUrl = getPublicStorageUrl('avatars', profile.avatar_url) || defaultLogoUrl
+            const rawAvatarUrl = getPublicStorageUrl('avatars', profile.avatar_url)
+            const avatarUrl = rawAvatarUrl ? toThumbUrl(rawAvatarUrl) : defaultLogoUrl
 
             return {
                 title,
@@ -70,13 +79,15 @@ export async function generateOwnerMetadata(ownerSlug: string): Promise<Metadata
                     images: [
                         {
                             url: avatarUrl,
+                            width: 300,
+                            height: 300,
                             alt: displayName,
                         },
                     ],
                     type: 'profile',
                 },
                 twitter: {
-                    card: 'summary_large_image',
+                    card: 'summary',
                     title: `${displayName} (@${profile.profileSlug})`,
                     description,
                     images: [avatarUrl],
@@ -95,7 +106,8 @@ export async function generateOwnerMetadata(ownerSlug: string): Promise<Metadata
             const displayName = store.name ? store.name : store.storeSlug
             const title = `${displayName} (@${store.storeSlug}) | iUser`
             const description = store.description || `Confira a loja ${displayName} no iUser! Os melhores produtos e serviços.`
-            const logoUrl = getPublicStorageUrl('store-logos', store.logo_url) || defaultLogoUrl
+            const rawLogoUrl = getPublicStorageUrl('store-logos', store.logo_url)
+            const logoUrl = rawLogoUrl ? toThumbUrl(rawLogoUrl) : defaultLogoUrl
 
             return {
                 title,
@@ -109,13 +121,15 @@ export async function generateOwnerMetadata(ownerSlug: string): Promise<Metadata
                     images: [
                         {
                             url: logoUrl,
+                            width: 300,
+                            height: 300,
                             alt: displayName,
                         },
                     ],
                     type: 'website',
                 },
                 twitter: {
-                    card: 'summary_large_image',
+                    card: 'summary',
                     title: `${displayName} (@${store.storeSlug})`,
                     description,
                     images: [logoUrl],
@@ -129,6 +143,76 @@ export async function generateOwnerMetadata(ownerSlug: string): Promise<Metadata
     return {
         title: 'Perfil ou Loja não encontrado | iUser',
         description: 'O perfil ou loja procurado não existe no iUser.',
+    }
+}
+
+/**
+ * Generates OpenGraph and Twitter metadata for a store's catalog page.
+ * Route: /[ownerSlug]/catalogo
+ * Mesma ideia do perfil/loja: logo pequena e quadrada, card "summary" — o
+ * catálogo é uma lista de produtos, não uma publicação, então a logo da loja
+ * aparece do lado do texto em vez de em cima.
+ */
+export async function generateCatalogMetadata(ownerSlug: string): Promise<Metadata> {
+    const defaultLogoUrl = `${BASE_URL}/logo-preview.png`
+    const pageUrl = `${BASE_URL}/${ownerSlug}/catalogo`
+
+    const supabase = getSupabaseClient()
+    if (!supabase || !ownerSlug) {
+        return {
+            title: 'Catálogo | iUser',
+            description: 'Confira o catálogo no iUser!',
+        }
+    }
+
+    try {
+        const { data: store } = await supabase
+            .from('stores')
+            .select('name, storeSlug, logo_url, description')
+            .eq('storeSlug', ownerSlug)
+            .maybeSingle()
+
+        if (store) {
+            const displayName = store.name ? store.name : store.storeSlug
+            const title = `Catálogo de ${displayName} | iUser`
+            const description = store.description || `Confira o catálogo de ${displayName} no iUser!`
+            const rawLogoUrl = getPublicStorageUrl('store-logos', store.logo_url)
+            const logoUrl = rawLogoUrl ? toThumbUrl(rawLogoUrl) : defaultLogoUrl
+
+            return {
+                title,
+                description,
+                alternates: { canonical: pageUrl },
+                openGraph: {
+                    title: `Catálogo de ${displayName}`,
+                    description,
+                    url: pageUrl,
+                    siteName: 'iUser',
+                    images: [
+                        {
+                            url: logoUrl,
+                            width: 300,
+                            height: 300,
+                            alt: displayName,
+                        },
+                    ],
+                    type: 'website',
+                },
+                twitter: {
+                    card: 'summary',
+                    title: `Catálogo de ${displayName}`,
+                    description,
+                    images: [logoUrl],
+                },
+            }
+        }
+    } catch (err) {
+        console.error('[generateCatalogMetadata] Erro ao buscar metadados:', err)
+    }
+
+    return {
+        title: 'Catálogo não encontrado | iUser',
+        description: 'A loja procurada não existe no iUser.',
     }
 }
 
