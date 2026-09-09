@@ -11,7 +11,7 @@ import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import LoginAndRegister from '../LoginAndRegister'
 import LocationPicker from '../LocationPicker'
 import { toast } from 'sonner'
-import { MapPin, Star, Pencil, X, Package, CalendarClock, PawPrint, Car, CheckCircle2, Navigation, Ban, Flag } from 'lucide-react'
+import { MapPin, Star, Pencil, X, Package, CalendarClock, PawPrint, Car, CheckCircle2, Navigation, Ban, Flag, Share2 } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import { shortAddress } from '@/lib/serviceBoard'
 import { getAvatarUrl } from '@/lib/avatar'
@@ -21,6 +21,7 @@ import { VehicleType } from '@/lib/rideVehicle'
 import { buildRideSpecRows } from '@/lib/rideSpecs'
 import { getDriverCancelQuota, describeDriverCancelQuota } from '@/lib/rideCancellation'
 import { notifyRideStatus } from '@/lib/notifyRideStatus'
+import { handleShareLink } from '@/lib/share'
 import { haversineKm } from '@/lib/mapboxRoute'
 import RideChat from '@/components/RideChat'
 import { DRIVER_CHAT_QUICK_REPLIES } from '@/lib/rideChatQuickReplies'
@@ -1064,6 +1065,18 @@ export default function AceitarCorridasPage() {
                                     <CheckCircle2 size={11} />
                                     {acceptedRide.driver_arrived_at ? 'Chegou' : acceptedRide.driver_en_route ? 'A caminho' : 'Aceita'}
                                 </span>
+                                <button
+                                    onClick={() => handleShareLink({
+                                        title: 'Acompanhe esta corrida no iUser',
+                                        text: 'Acompanhe o status desta corrida em tempo real.',
+                                        url: `${window.location.origin}/acompanhar-corrida/${acceptedRide.id}`,
+                                    })}
+                                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold flex-shrink-0"
+                                    style={{ background: `${colors.border}30`, color: colors.textPrimary, border: `1px solid ${colors.border}` }}
+                                >
+                                    <Share2 size={11} />
+                                    Compartilhar
+                                </button>
                             </div>
 
                             <div className="flex items-center gap-2 mb-2">

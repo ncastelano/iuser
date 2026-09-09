@@ -9,11 +9,12 @@ import { toast } from 'sonner'
 import { shortAddress } from '@/lib/serviceBoard'
 import { getAvatarUrl } from '@/lib/avatar'
 import { Spinner } from '@/components/Spinner'
-import { Check, X, MapPin, Search, CheckCircle2, XCircle, Car, CalendarClock, Clock, Store, MessageSquare } from 'lucide-react'
+import { Check, X, MapPin, Search, CheckCircle2, XCircle, Car, CalendarClock, Clock, Store, MessageSquare, Share2 } from 'lucide-react'
 import { fetchRoute } from '@/lib/mapboxRoute'
 import { DRIVER_SERVICE_OPTIONS } from '@/lib/driverServices'
 import RideChat from '@/components/RideChat'
 import { notifyRideStatus } from '@/lib/notifyRideStatus'
+import { handleShareLink } from '@/lib/share'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 const TRIP_ROUTE_COLOR = '#ef4444'
@@ -623,16 +624,32 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady }: Rid
     return (
         <div className="flex flex-col gap-4">
             <div>
-                <div className="flex items-center gap-2 flex-wrap">
-                    <h2 className="text-lg font-black" style={{ color: colors.textPrimary }}>Seu pedido</h2>
-                    {ride.scheduled_for && (
-                        <span
-                            className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black uppercase"
-                            style={{ background: `${colors.accent}15`, color: colors.accent }}
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <h2 className="text-lg font-black" style={{ color: colors.textPrimary }}>Seu pedido</h2>
+                        {ride.scheduled_for && (
+                            <span
+                                className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black uppercase"
+                                style={{ background: `${colors.accent}15`, color: colors.accent }}
+                            >
+                                <CalendarClock size={11} />
+                                Agendada: {formatScheduledFor(ride.scheduled_for)}
+                            </span>
+                        )}
+                    </div>
+                    {ride.status !== 'cancelled' && (
+                        <button
+                            onClick={() => handleShareLink({
+                                title: 'Acompanhe minha corrida no iUser',
+                                text: 'Acompanhe o status da minha corrida em tempo real.',
+                                url: `${window.location.origin}/acompanhar-corrida/${ride.id}`,
+                            })}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold flex-shrink-0"
+                            style={{ background: colors.surface, color: colors.textPrimary, border: `1px solid ${colors.border}` }}
                         >
-                            <CalendarClock size={11} />
-                            Agendada: {formatScheduledFor(ride.scheduled_for)}
-                        </span>
+                            <Share2 size={12} />
+                            Compartilhar
+                        </button>
                     )}
                 </div>
                 <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>
