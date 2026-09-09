@@ -49,6 +49,9 @@ interface RideRow {
     duration_min: number | null
     driver_en_route: boolean
     driver_arrived_at: string | null
+    extra_task_minutes: number | null
+    extra_task_fee: number | null
+    extra_task_description: string | null
 }
 
 interface CandidateStore {
@@ -111,7 +114,7 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady }: Rid
     const load = useCallback(async () => {
         const { data: rideRow } = await supabase
             .from('ride_requests')
-            .select('id, origin_address, destination_address, origin_complement, destination_complement, status, driver_id, created_at, scheduled_for, origin_lat, origin_lng, destination_lat, destination_lng, duration_min, driver_en_route, driver_arrived_at')
+            .select('id, origin_address, destination_address, origin_complement, destination_complement, status, driver_id, created_at, scheduled_for, origin_lat, origin_lng, destination_lat, destination_lng, duration_min, driver_en_route, driver_arrived_at, extra_task_minutes, extra_task_fee, extra_task_description')
             .eq('id', rideId)
             .single()
 
@@ -715,6 +718,14 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady }: Rid
                         </p>
                         <p className="text-[11px]" style={{ color: colors.textSecondary }}>Confira a placa e a cor do carro antes de entrar.</p>
                     </div>
+                </div>
+            )}
+
+            {ride.extra_task_fee != null && (
+                <div className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs" style={{ background: '#f9731615', color: colors.textPrimary }}>
+                    <span>
+                        + Tarefa extra do motorista ({ride.extra_task_minutes} min{ride.extra_task_description ? ` — ${ride.extra_task_description}` : ''}): <strong>R$ {ride.extra_task_fee.toFixed(2)}</strong>
+                    </span>
                 </div>
             )}
 

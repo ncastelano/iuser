@@ -27,6 +27,9 @@ interface ActiveOrder {
     scheduled_for: string | null
     driver_en_route: boolean
     driver_arrived_at: string | null
+    extra_task_minutes: number | null
+    extra_task_fee: number | null
+    extra_task_description: string | null
     driver_id: string | null
     origin_address: string
     destination_address: string
@@ -72,7 +75,7 @@ interface DriverInfo {
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
 const ORDER_FIELDS = `
-    id, status, applicant_count, scheduled_for, driver_en_route, driver_arrived_at, driver_id,
+    id, status, applicant_count, scheduled_for, driver_en_route, driver_arrived_at, extra_task_minutes, extra_task_fee, extra_task_description, driver_id,
     origin_address, destination_address, origin_complement, destination_complement, origin_lat, origin_lng,
     ride_type, passenger_count, has_child, children_count, child_age, child_needs_car_seat,
     has_shopping, bag_count, has_extra_object, extra_object_description,
@@ -437,6 +440,14 @@ export default function MotoristaSection({ dragHandle, onBreveStatusChange, onUr
                                         </span>
                                     )}
                                 </div>
+                            </div>
+                        )}
+
+                        {activeOrder.extra_task_fee != null && (
+                            <div className="flex items-center gap-2 px-3 py-2 mt-2 rounded-xl text-xs" style={{ background: '#f9731615', color: colors.textPrimary }}>
+                                <span>
+                                    + Tarefa extra do motorista ({activeOrder.extra_task_minutes} min{activeOrder.extra_task_description ? ` — ${activeOrder.extra_task_description}` : ''}): <strong>R$ {activeOrder.extra_task_fee.toFixed(2)}</strong>
+                                </span>
                             </div>
                         )}
 

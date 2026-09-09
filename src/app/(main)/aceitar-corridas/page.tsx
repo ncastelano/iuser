@@ -22,6 +22,7 @@ import { buildRideSpecRows } from '@/lib/rideSpecs'
 import { getDriverCancelQuota, describeDriverCancelQuota } from '@/lib/rideCancellation'
 import { notifyRideStatus } from '@/lib/notifyRideStatus'
 import { handleShareLink } from '@/lib/share'
+import { computeExtraTaskFee, EXTRA_TASK_FEE_TIERS } from '@/lib/extraTaskFees'
 import { haversineKm } from '@/lib/mapboxRoute'
 import RideChat from '@/components/RideChat'
 import { DRIVER_CHAT_QUICK_REPLIES } from '@/lib/rideChatQuickReplies'
@@ -166,6 +167,9 @@ interface AcceptedRideDetail {
     requesterAvatarUrl: string | undefined
     requesterRating: ProfileRideRating
     proposedPrice: number | null
+    extra_task_minutes: number | null
+    extra_task_fee: number | null
+    extra_task_description: string | null
 }
 
 export default function AceitarCorridasPage() {
@@ -182,6 +186,10 @@ export default function AceitarCorridasPage() {
     const [acceptedRide, setAcceptedRide] = useState<AcceptedRideDetail | null>(null)
     const [departing, setDeparting] = useState(false)
     const [arriving, setArriving] = useState(false)
+    const [showExtraTaskForm, setShowExtraTaskForm] = useState(false)
+    const [extraTaskMinutesInput, setExtraTaskMinutesInput] = useState('')
+    const [extraTaskDescriptionInput, setExtraTaskDescriptionInput] = useState('')
+    const [savingExtraTask, setSavingExtraTask] = useState(false)
     const [finishing, setFinishing] = useState(false)
     const [cancellingAccepted, setCancellingAccepted] = useState(false)
     const lastAcceptedRideIdRef = useRef<string | null>(null)
@@ -382,7 +390,7 @@ export default function AceitarCorridasPage() {
         // definido no momento em que o pedido dele vira "accepted".
         const { data: acceptedRow } = await supabase
             .from('ride_requests')
-            .select('id, requester_id, origin_address, destination_address, origin_complement, destination_complement, origin_lat, origin_lng, destination_lat, destination_lng, distance_km, duration_min, driver_en_route, driver_arrived_at')
+            .select('id, requester_id, origin_address, destination_address, origin_complement, destination_complement, origin_lat, origin_lng, destination_lat, destination_lng, distance_km, duration_min, driver_en_route, driver_arrived_at, extra_task_minutes, extra_task_fee, extra_task_description')
             .eq('driver_id', user.id)
             .eq('status', 'accepted')
             .order('created_at', { ascending: false })
@@ -415,6 +423,9 @@ export default function AceitarCorridasPage() {
                 requesterAvatarUrl: getAvatarUrl(supabase, reqProfile?.avatar_url),
                 requesterRating: requesterRatings.get(acceptedRow.requester_id) || { avg: 0, count: 0 },
                 proposedPrice: acceptedApp?.proposed_price ?? null,
+                extra_task_minutes: acceptedRow.extra_task_minutes,
+                extra_task_fee: acceptedRow.extra_task_fee,
+                extra_task_description: acceptedRow.extra_task_description,
             }
         }
 
@@ -635,6 +646,54 @@ export default function AceitarCorridasPage() {
             toast.error('Erro ao confirmar chegada: ' + (err.message || 'tente novamente'))
         } finally {
             setArriving(false)
+        }
+    }
+
+    const saveExtraTask = async () => {
+        if (!acceptedRide) return
+        const minutes = parseInt(extraTaskMinutesInput, 10)
+        if (!minutes || minutes <= 0) {
+            toast.error('Informe quantos minutos a tarefa levou')
+            return
+        }
+        const fee = computeExtraTaskFee(minutes)
+        setSavingExtraTask(true)
+        try {
+            const { error } = await supabase
+                .from('ride_requests')
+                .update({
+                    extra_task_minutes: minutes,
+                    extra_task_fee: fee,
+                    extra_task_description: extraTaskDescriptionInput.trim() || null,
+                })
+                .eq('id', acceptedRide.id)
+            if (error) throw error
+            setAcceptedRide((prev) => (prev ? { ...prev, extra_task_minutes: minutes, extra_task_fee: fee, extra_task_description: extraTaskDescriptionInput.trim() || null } : prev))
+            setShowExtraTaskForm(false)
+            toast.success(`Tarefa extra registrada: R$ ${fee.toFixed(2)}`)
+        } catch (err: any) {
+            toast.error('Erro ao registrar tarefa extra: ' + (err.message || 'tente novamente'))
+        } finally {
+            setSavingExtraTask(false)
+        }
+    }
+
+    const removeExtraTask = async () => {
+        if (!acceptedRide) return
+        setSavingExtraTask(true)
+        try {
+            const { error } = await supabase
+                .from('ride_requests')
+                .update({ extra_task_minutes: null, extra_task_fee: null, extra_task_description: null })
+                .eq('id', acceptedRide.id)
+            if (error) throw error
+            setAcceptedRide((prev) => (prev ? { ...prev, extra_task_minutes: null, extra_task_fee: null, extra_task_description: null } : prev))
+            setExtraTaskMinutesInput('')
+            setExtraTaskDescriptionInput('')
+        } catch (err: any) {
+            toast.error('Erro ao remover tarefa extra: ' + (err.message || 'tente novamente'))
+        } finally {
+            setSavingExtraTask(false)
         }
     }
 
@@ -1144,9 +1203,74 @@ export default function AceitarCorridasPage() {
                                 )}
                             </div>
 
-                            <p className="text-sm font-black mb-3" style={{ color: '#f97316' }}>
+                            <p className="text-sm font-black mb-1" style={{ color: '#f97316' }}>
                                 {acceptedRide.proposedPrice != null ? `Valor combinado: R$ ${acceptedRide.proposedPrice.toFixed(2)}` : 'Valor não definido'}
                             </p>
+
+                            {acceptedRide.extra_task_fee != null ? (
+                                <div className="flex items-center justify-between gap-2 flex-wrap mb-3 px-3 py-2 rounded-xl" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
+                                    <span className="text-xs" style={{ color: colors.textSecondary }}>
+                                        + Tarefa extra ({acceptedRide.extra_task_minutes} min{acceptedRide.extra_task_description ? ` — ${acceptedRide.extra_task_description}` : ''}): <strong style={{ color: colors.textPrimary }}>R$ {acceptedRide.extra_task_fee.toFixed(2)}</strong>
+                                    </span>
+                                    <button onClick={removeExtraTask} disabled={savingExtraTask} className="text-[10px] font-bold" style={{ color: '#ef4444' }}>
+                                        Remover
+                                    </button>
+                                </div>
+                            ) : showExtraTaskForm ? (
+                                <div className="mb-3 px-3 py-2.5 rounded-xl" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
+                                    <span className="text-xs font-bold block mb-1.5" style={{ color: colors.textPrimary }}>Registrar tarefa extra</span>
+                                    <p className="text-[10px] mb-2" style={{ color: colors.textSecondary }}>
+                                        {EXTRA_TASK_FEE_TIERS.map((t) => `${t.label}: R$ ${t.fee.toFixed(2)}`).join(' · ')}
+                                    </p>
+                                    <input
+                                        type="text"
+                                        inputMode="numeric"
+                                        value={extraTaskMinutesInput}
+                                        onChange={(e) => setExtraTaskMinutesInput(e.target.value.replace(/[^0-9]/g, ''))}
+                                        placeholder="Quantos minutos levou?"
+                                        className="w-full px-3 py-2 rounded-lg text-sm focus:outline-none mb-2"
+                                        style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                                    />
+                                    <input
+                                        type="text"
+                                        value={extraTaskDescriptionInput}
+                                        onChange={(e) => setExtraTaskDescriptionInput(e.target.value)}
+                                        placeholder="O que foi? (opcional) Ex: subiu no apartamento"
+                                        className="w-full px-3 py-2 rounded-lg text-sm focus:outline-none mb-2"
+                                        style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                                    />
+                                    {extraTaskMinutesInput && Number(extraTaskMinutesInput) > 0 && (
+                                        <p className="text-xs font-black mb-2" style={{ color: '#f97316' }}>
+                                            Valor: R$ {computeExtraTaskFee(Number(extraTaskMinutesInput)).toFixed(2)}
+                                        </p>
+                                    )}
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => setShowExtraTaskForm(false)}
+                                            className="flex-1 py-2 rounded-lg text-xs font-bold"
+                                            style={{ background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                                        >
+                                            Cancelar
+                                        </button>
+                                        <button
+                                            onClick={saveExtraTask}
+                                            disabled={savingExtraTask}
+                                            className="flex-1 py-2 rounded-lg text-xs font-bold disabled:opacity-60"
+                                            style={{ background: GRADIENT, color: '#fff' }}
+                                        >
+                                            {savingExtraTask ? <Spinner size={12} /> : 'Salvar'}
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <button
+                                    onClick={() => setShowExtraTaskForm(true)}
+                                    className="text-[11px] font-bold mb-3 text-left"
+                                    style={{ color: colors.accent }}
+                                >
+                                    + Registrar tarefa extra (subir, esperar, carregar)
+                                </button>
+                            )}
 
                             {!acceptedRide.driver_en_route && (
                                 <button
