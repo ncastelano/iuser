@@ -1,7 +1,13 @@
 import type { Metadata } from 'next'
 import { createClient } from '@supabase/supabase-js'
+import sharp from 'sharp'
 
 const BASE_URL = 'https://www.iuser.com.br'
+const DEFAULT_LOGO_DIMENSIONS = { width: 1254, height: 1254 }
+// Chute razoável só usado se a imagem real falhar ao baixar/ler — evita
+// deixar a tag sem width/height (é isso que fazia o WhatsApp/Facebook
+// recusar a mostrar a imagem nas publicações, mesmo com og:image presente).
+const FALLBACK_IMAGE_DIMENSIONS = { width: 1200, height: 630 }
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 
@@ -34,6 +40,23 @@ function getSupabaseClient() {
 // quando a imagem é pequena; do contrário preferem esticar em cima, como banner.
 function toThumbUrl(imageUrl: string): string {
     return `${BASE_URL}/api/og-thumb?src=${encodeURIComponent(imageUrl)}`
+}
+
+// Lê as dimensões reais da imagem — produtos/publicações têm foto de
+// qualquer tamanho/proporção (ao contrário do avatar/logo, que sempre vira
+// um quadrado pequeno via toThumbUrl). Sem width/height no og:image, vários
+// apps (WhatsApp, Facebook) simplesmente não mostram nenhuma imagem.
+async function getImageDimensions(url: string): Promise<{ width: number; height: number } | null> {
+    try {
+        const res = await fetch(url)
+        if (!res.ok) return null
+        const buffer = Buffer.from(await res.arrayBuffer())
+        const meta = await sharp(buffer).metadata()
+        if (!meta.width || !meta.height) return null
+        return { width: meta.width, height: meta.height }
+    } catch {
+        return null
+    }
 }
 
 /**
@@ -264,6 +287,9 @@ export async function generateProductOrPublicationMetadata(
             const description = product.description || `Confira ${product.name} no iUser!`
 
             const imageUrl = getPublicStorageUrl('product-images', product.image_url) || ownerImage || defaultLogoUrl
+            const dimensions = imageUrl === defaultLogoUrl
+                ? DEFAULT_LOGO_DIMENSIONS
+                : (await getImageDimensions(imageUrl)) || FALLBACK_IMAGE_DIMENSIONS
 
             return {
                 title,
@@ -277,6 +303,8 @@ export async function generateProductOrPublicationMetadata(
                     images: [
                         {
                             url: imageUrl,
+                            width: dimensions.width,
+                            height: dimensions.height,
                             alt: product.name,
                         },
                     ],
@@ -327,6 +355,9 @@ export async function generatePublicationMetadata(slug: string): Promise<Metadat
             const title = `${publication.name || 'Publicação'} | iUser`
             const description = publication.description || 'Confira esta publicação no iUser!'
             const imageUrl = getPublicStorageUrl('product-images', publication.image_url) || defaultLogoUrl
+            const dimensions = imageUrl === defaultLogoUrl
+                ? DEFAULT_LOGO_DIMENSIONS
+                : (await getImageDimensions(imageUrl)) || FALLBACK_IMAGE_DIMENSIONS
 
             return {
                 title,
@@ -337,7 +368,12 @@ export async function generatePublicationMetadata(slug: string): Promise<Metadat
                     description,
                     url: pageUrl,
                     siteName: 'iUser',
-                    images: [{ url: imageUrl, alt: publication.name || 'Publicação' }],
+                    images: [{
+                        url: imageUrl,
+                        width: dimensions.width,
+                        height: dimensions.height,
+                        alt: publication.name || 'Publicação',
+                    }],
                     type: 'article',
                 },
                 twitter: {
