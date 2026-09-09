@@ -85,6 +85,8 @@ interface RideRow {
     ride_type: 'pessoa' | 'objeto' | 'animal'
     origin_address: string
     destination_address: string
+    origin_complement: string | null
+    destination_complement: string | null
     notes: string | null
     passenger_count: number
     vehicle_type: VehicleType
@@ -138,6 +140,8 @@ interface AcceptedRideDetail {
     id: string
     origin_address: string
     destination_address: string
+    origin_complement: string | null
+    destination_complement: string | null
     origin_lat: number | null
     origin_lng: number | null
     destination_lat: number | null
@@ -273,7 +277,7 @@ export default function AceitarCorridasPage() {
 
         const { data: openRides } = await supabase
             .from('ride_requests')
-            .select('id, requester_id, ride_type, origin_address, destination_address, notes, passenger_count, vehicle_type, object_description, object_is_sensitive, pet_description, has_child, children_count, child_age, child_needs_car_seat, has_shopping, bag_count, has_extra_object, extra_object_description, has_pet, has_special_needs, special_needs_description, distance_km, duration_min, scheduled_for, created_at, origin_lat, origin_lng, destination_lat, destination_lng')
+            .select('id, requester_id, ride_type, origin_address, destination_address, origin_complement, destination_complement, notes, passenger_count, vehicle_type, object_description, object_is_sensitive, pet_description, has_child, children_count, child_age, child_needs_car_seat, has_shopping, bag_count, has_extra_object, extra_object_description, has_pet, has_special_needs, special_needs_description, distance_km, duration_min, scheduled_for, created_at, origin_lat, origin_lng, destination_lat, destination_lng')
             .eq('status', 'pending')
             .neq('requester_id', user.id)
             .order('scheduled_for', { ascending: true, nullsFirst: true })
@@ -304,7 +308,7 @@ export default function AceitarCorridasPage() {
         if (myApplications.length > 0) {
             const { data } = await supabase
                 .from('ride_requests')
-                .select('id, requester_id, ride_type, origin_address, destination_address, notes, passenger_count, vehicle_type, object_description, object_is_sensitive, pet_description, has_child, children_count, child_age, child_needs_car_seat, has_shopping, bag_count, has_extra_object, extra_object_description, has_pet, has_special_needs, special_needs_description, distance_km, duration_min, scheduled_for, created_at, origin_lat, origin_lng, destination_lat, destination_lng')
+                .select('id, requester_id, ride_type, origin_address, destination_address, origin_complement, destination_complement, notes, passenger_count, vehicle_type, object_description, object_is_sensitive, pet_description, has_child, children_count, child_age, child_needs_car_seat, has_shopping, bag_count, has_extra_object, extra_object_description, has_pet, has_special_needs, special_needs_description, distance_km, duration_min, scheduled_for, created_at, origin_lat, origin_lng, destination_lat, destination_lng')
                 .in('id', myApplications.map((a) => a.ride_request_id))
                 .eq('status', 'pending')
             myRideRows = data || []
@@ -365,7 +369,7 @@ export default function AceitarCorridasPage() {
         // definido no momento em que o pedido dele vira "accepted".
         const { data: acceptedRow } = await supabase
             .from('ride_requests')
-            .select('id, requester_id, origin_address, destination_address, origin_lat, origin_lng, destination_lat, destination_lng, distance_km, duration_min, driver_en_route')
+            .select('id, requester_id, origin_address, destination_address, origin_complement, destination_complement, origin_lat, origin_lng, destination_lat, destination_lng, distance_km, duration_min, driver_en_route')
             .eq('driver_id', user.id)
             .eq('status', 'accepted')
             .order('created_at', { ascending: false })
@@ -383,6 +387,8 @@ export default function AceitarCorridasPage() {
                 id: acceptedRow.id,
                 origin_address: acceptedRow.origin_address,
                 destination_address: acceptedRow.destination_address,
+                origin_complement: acceptedRow.origin_complement,
+                destination_complement: acceptedRow.destination_complement,
                 origin_lat: acceptedRow.origin_lat,
                 origin_lng: acceptedRow.origin_lng,
                 destination_lat: acceptedRow.destination_lat,
@@ -1072,6 +1078,16 @@ export default function AceitarCorridasPage() {
                                 <MapPin size={12} className="flex-shrink-0 mt-0.5" />
                                 <span>{shortAddress(acceptedRide.origin_address)} → {shortAddress(acceptedRide.destination_address)}</span>
                             </div>
+                            {(acceptedRide.origin_complement || acceptedRide.destination_complement) && (
+                                <div className="flex flex-col gap-0.5 text-[11px] mb-2" style={{ color: colors.textSecondary }}>
+                                    {acceptedRide.origin_complement && (
+                                        <span>📍 Origem: {acceptedRide.origin_complement}</span>
+                                    )}
+                                    {acceptedRide.destination_complement && (
+                                        <span>📍 Destino: {acceptedRide.destination_complement}</span>
+                                    )}
+                                </div>
+                            )}
 
                             <div className="flex items-center gap-2 text-[11px] mb-2" style={{ color: colors.textSecondary }}>
                                 {acceptedRide.distance_km != null ? (

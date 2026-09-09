@@ -8,6 +8,8 @@
 
 export interface RideSpecFields {
     ride_type: 'pessoa' | 'objeto' | 'animal'
+    origin_complement?: string | null
+    destination_complement?: string | null
     passenger_count: number
     has_child: boolean
     children_count: number | null
@@ -67,6 +69,13 @@ export function buildRideSpecRows(ride: RideSpecFields): RideSpecRow[] {
 
     if (ride.has_special_needs) {
         rows.push({ label: 'Necessidade especial', value: ride.special_needs_description || 'sim' })
+    }
+
+    if ((ride.origin_complement || '').trim()) {
+        rows.push({ label: 'Complemento (origem)', value: (ride.origin_complement as string).trim() })
+    }
+    if ((ride.destination_complement || '').trim()) {
+        rows.push({ label: 'Complemento (destino)', value: (ride.destination_complement as string).trim() })
     }
 
     return rows

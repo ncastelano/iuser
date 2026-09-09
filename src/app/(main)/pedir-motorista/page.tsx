@@ -285,6 +285,10 @@ export default function PedirMotoristaPage() {
     const [recipientName, setRecipientName] = useState('')
     const [recipientWhatsapp, setRecipientWhatsapp] = useState('')
 
+    // ===== COMPLEMENTO DO ENDEREÇO (referência pra achar o local) =====
+    const [originComplement, setOriginComplement] = useState('')
+    const [destinationComplement, setDestinationComplement] = useState('')
+
     // ===== ACESSO AO LOCAL =====
     const [originNeedsAccess, setOriginNeedsAccess] = useState(false)
     const [originAccessNotes, setOriginAccessNotes] = useState('')
@@ -502,6 +506,8 @@ export default function PedirMotoristaPage() {
         if (typeof draft.senderWhatsapp === 'string') setSenderWhatsapp(draft.senderWhatsapp)
         if (typeof draft.recipientName === 'string') setRecipientName(draft.recipientName)
         if (typeof draft.recipientWhatsapp === 'string') setRecipientWhatsapp(draft.recipientWhatsapp)
+        if (typeof draft.originComplement === 'string') setOriginComplement(draft.originComplement)
+        if (typeof draft.destinationComplement === 'string') setDestinationComplement(draft.destinationComplement)
         if (typeof draft.originNeedsAccess === 'boolean') setOriginNeedsAccess(draft.originNeedsAccess)
         if (typeof draft.originAccessNotes === 'string') setOriginAccessNotes(draft.originAccessNotes)
         if (typeof draft.destinationNeedsAccess === 'boolean') setDestinationNeedsAccess(draft.destinationNeedsAccess)
@@ -740,7 +746,9 @@ export default function PedirMotoristaPage() {
                 rows.push({ label: 'Criança', value: `${countText}${ageText}${carSeatText}` })
             }
             rows.push({ label: 'De', value: from })
+            if (originComplement.trim()) rows.push({ label: 'Complemento (origem)', value: originComplement.trim() })
             rows.push({ label: 'Para', value: to })
+            if (destinationComplement.trim()) rows.push({ label: 'Complemento (destino)', value: destinationComplement.trim() })
             if (hasShopping) {
                 rows.push({ label: 'Compras', value: `de mercado (${bagCount} ${bagCount === 1 ? 'sacola' : 'sacolas'})` })
             }
@@ -750,13 +758,17 @@ export default function PedirMotoristaPage() {
             rows.push({ label: 'Pedido', value: 'levar um animal' })
             rows.push({ label: 'Animal', value: petDescription || 'não especificado' })
             rows.push({ label: 'De', value: from })
+            if (originComplement.trim()) rows.push({ label: 'Complemento (origem)', value: originComplement.trim() })
             rows.push({ label: 'Para', value: to })
+            if (destinationComplement.trim()) rows.push({ label: 'Complemento (destino)', value: destinationComplement.trim() })
             if (recipientName) rows.push({ label: 'Entregar a', value: recipientName })
         } else {
             rows.push({ label: 'Pedido', value: 'buscar e entregar um objeto' })
             rows.push({ label: 'Objeto', value: objectDescription || 'não especificado' })
             rows.push({ label: 'De', value: from })
+            if (originComplement.trim()) rows.push({ label: 'Complemento (origem)', value: originComplement.trim() })
             rows.push({ label: 'Para', value: to })
+            if (destinationComplement.trim()) rows.push({ label: 'Complemento (destino)', value: destinationComplement.trim() })
             if (recipientName) rows.push({ label: 'Entregar a', value: recipientName })
         }
 
@@ -784,6 +796,7 @@ export default function PedirMotoristaPage() {
                 petCount, petDescription,
                 objectDescription, objectIsSensitive, objectSize,
                 senderName, senderWhatsapp, recipientName, recipientWhatsapp,
+                originComplement, destinationComplement,
                 originNeedsAccess, originAccessNotes, destinationNeedsAccess, destinationAccessNotes,
                 hasSpecialNeeds, specialNeedsDescription,
             })
@@ -809,6 +822,8 @@ export default function PedirMotoristaPage() {
                 ride_type: requestFor,
                 origin_address: origin.address.trim(),
                 destination_address: destination.address.trim(),
+                origin_complement: originComplement.trim() || null,
+                destination_complement: destinationComplement.trim() || null,
                 notes: notes.trim() || null,
                 origin_needs_access: originNeedsAccess,
                 origin_access_notes: originNeedsAccess ? originAccessNotes.trim() || null : null,
@@ -1116,6 +1131,14 @@ export default function PedirMotoristaPage() {
                                     {locatingOrigin ? <Spinner size={16} /> : <MapPinPlus size={16} />}
                                 </button>
                             </div>
+                            <input
+                                type="text"
+                                value={originComplement}
+                                onChange={(e) => setOriginComplement(e.target.value)}
+                                placeholder="Complemento (opcional): casa amarela, portão de ferro, perto de..."
+                                className="w-full mt-2 px-3 py-2 rounded-lg text-xs focus:outline-none"
+                                style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                            />
 
                             {/* Locais de partida já usados */}
                             {recentOrigins.length > 0 && (
@@ -1147,6 +1170,14 @@ export default function PedirMotoristaPage() {
                                     style={inputStyle}
                                 />
                             </div>
+                            <input
+                                type="text"
+                                value={destinationComplement}
+                                onChange={(e) => setDestinationComplement(e.target.value)}
+                                placeholder="Complemento (opcional): casa amarela, portão de ferro, perto de..."
+                                className="w-full mt-2 px-3 py-2 rounded-lg text-xs focus:outline-none"
+                                style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                            />
 
                             {/* Locais de chegada já usados */}
                             {recentDestinations.length > 0 && (

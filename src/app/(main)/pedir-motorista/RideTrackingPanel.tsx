@@ -34,6 +34,8 @@ interface RideRow {
     id: string
     origin_address: string
     destination_address: string
+    origin_complement: string | null
+    destination_complement: string | null
     status: RideStatus
     driver_id: string | null
     created_at: string
@@ -106,7 +108,7 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady }: Rid
     const load = useCallback(async () => {
         const { data: rideRow } = await supabase
             .from('ride_requests')
-            .select('id, origin_address, destination_address, status, driver_id, created_at, scheduled_for, origin_lat, origin_lng, destination_lat, destination_lng, duration_min, driver_en_route')
+            .select('id, origin_address, destination_address, origin_complement, destination_complement, status, driver_id, created_at, scheduled_for, origin_lat, origin_lng, destination_lat, destination_lng, duration_min, driver_en_route')
             .eq('id', rideId)
             .single()
 
@@ -633,6 +635,12 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady }: Rid
                 <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>
                     {shortAddress(ride.origin_address)} → {shortAddress(ride.destination_address)}
                 </p>
+                {(ride.origin_complement || ride.destination_complement) && (
+                    <div className="flex flex-col gap-0.5 mt-1 text-[10px]" style={{ color: colors.textSecondary }}>
+                        {ride.origin_complement && <span>📍 Origem: {ride.origin_complement}</span>}
+                        {ride.destination_complement && <span>📍 Destino: {ride.destination_complement}</span>}
+                    </div>
+                )}
             </div>
 
             {/* Barra de progresso */}

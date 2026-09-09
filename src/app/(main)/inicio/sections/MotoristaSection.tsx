@@ -29,6 +29,8 @@ interface ActiveOrder {
     driver_id: string | null
     origin_address: string
     destination_address: string
+    origin_complement: string | null
+    destination_complement: string | null
     origin_lat: number | null
     origin_lng: number | null
     // Campos usados só pra montar "o que eu pedi" (buildRideSpecRows)
@@ -61,7 +63,7 @@ const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
 const ORDER_FIELDS = `
     id, status, applicant_count, scheduled_for, driver_en_route, driver_id,
-    origin_address, destination_address, origin_lat, origin_lng,
+    origin_address, destination_address, origin_complement, destination_complement, origin_lat, origin_lng,
     ride_type, passenger_count, has_child, children_count, child_age, child_needs_car_seat,
     has_shopping, bag_count, has_extra_object, extra_object_description,
     has_pet, pet_description, object_description, object_is_sensitive,
