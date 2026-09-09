@@ -26,6 +26,7 @@ interface ActiveOrder {
     applicant_count: number
     scheduled_for: string | null
     driver_en_route: boolean
+    driver_arrived_at: string | null
     driver_id: string | null
     origin_address: string
     destination_address: string
@@ -62,7 +63,7 @@ interface DriverInfo {
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
 const ORDER_FIELDS = `
-    id, status, applicant_count, scheduled_for, driver_en_route, driver_id,
+    id, status, applicant_count, scheduled_for, driver_en_route, driver_arrived_at, driver_id,
     origin_address, destination_address, origin_complement, destination_complement, origin_lat, origin_lng,
     ride_type, passenger_count, has_child, children_count, child_age, child_needs_car_seat,
     has_shopping, bag_count, has_extra_object, extra_object_description,
@@ -359,7 +360,7 @@ export default function MotoristaSection({ dragHandle, onBreveStatusChange, onUr
                             >
                                 {activeOrder.status === 'accepted' ? <CheckCircle2 size={13} /> : <Search size={13} />}
                                 {activeOrder.status === 'accepted'
-                                    ? (activeOrder.driver_en_route ? 'Motorista a caminho!' : 'Motorista aceito, aguardando ele sair')
+                                    ? (activeOrder.driver_arrived_at ? 'Motorista chegou!' : activeOrder.driver_en_route ? 'Motorista a caminho!' : 'Motorista aceito, aguardando ele sair')
                                     : 'Buscando motorista...'}
                             </span>
                             {activeOrder.status === 'pending' ? (

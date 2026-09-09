@@ -150,6 +150,7 @@ interface AcceptedRideDetail {
     distance_km: number | null
     duration_min: number | null
     driver_en_route: boolean
+    driver_arrived_at: string | null
     requesterName: string | null
     requesterSlug: string | null
     requesterAvatarUrl: string | undefined
@@ -170,6 +171,7 @@ export default function AceitarCorridasPage() {
     const [candidacies, setCandidacies] = useState<CandidacyCardData[]>([])
     const [acceptedRide, setAcceptedRide] = useState<AcceptedRideDetail | null>(null)
     const [departing, setDeparting] = useState(false)
+    const [arriving, setArriving] = useState(false)
     const [finishing, setFinishing] = useState(false)
     const [cancellingAccepted, setCancellingAccepted] = useState(false)
     const lastAcceptedRideIdRef = useRef<string | null>(null)
@@ -370,7 +372,7 @@ export default function AceitarCorridasPage() {
         // definido no momento em que o pedido dele vira "accepted".
         const { data: acceptedRow } = await supabase
             .from('ride_requests')
-            .select('id, requester_id, origin_address, destination_address, origin_complement, destination_complement, origin_lat, origin_lng, destination_lat, destination_lng, distance_km, duration_min, driver_en_route')
+            .select('id, requester_id, origin_address, destination_address, origin_complement, destination_complement, origin_lat, origin_lng, destination_lat, destination_lng, distance_km, duration_min, driver_en_route, driver_arrived_at')
             .eq('driver_id', user.id)
             .eq('status', 'accepted')
             .order('created_at', { ascending: false })
@@ -397,6 +399,7 @@ export default function AceitarCorridasPage() {
                 distance_km: acceptedRow.distance_km,
                 duration_min: acceptedRow.duration_min,
                 driver_en_route: acceptedRow.driver_en_route,
+                driver_arrived_at: acceptedRow.driver_arrived_at,
                 requesterName: reqProfile?.name || null,
                 requesterSlug: reqProfile?.profileSlug || null,
                 requesterAvatarUrl: getAvatarUrl(supabase, reqProfile?.avatar_url),
@@ -604,6 +607,24 @@ export default function AceitarCorridasPage() {
             toast.error('Erro ao confirmar saída: ' + (err.message || 'tente novamente'))
         } finally {
             setDeparting(false)
+        }
+    }
+
+    const arriveAtPickup = async () => {
+        if (!acceptedRide) return
+        setArriving(true)
+        try {
+            const { error } = await supabase
+                .from('ride_requests')
+                .update({ driver_arrived_at: new Date().toISOString() })
+                .eq('id', acceptedRide.id)
+            if (error) throw error
+            notifyRideStatus(acceptedRide.id, 'arrived')
+            setAcceptedRide((prev) => (prev ? { ...prev, driver_arrived_at: new Date().toISOString() } : prev))
+        } catch (err: any) {
+            toast.error('Erro ao confirmar chegada: ' + (err.message || 'tente novamente'))
+        } finally {
+            setArriving(false)
         }
     }
 
@@ -1041,7 +1062,7 @@ export default function AceitarCorridasPage() {
                                     style={{ background: '#22c55e15', color: '#22c55e' }}
                                 >
                                     <CheckCircle2 size={11} />
-                                    {acceptedRide.driver_en_route ? 'A caminho' : 'Aceita'}
+                                    {acceptedRide.driver_arrived_at ? 'Chegou' : acceptedRide.driver_en_route ? 'A caminho' : 'Aceita'}
                                 </span>
                             </div>
 
@@ -1113,6 +1134,17 @@ export default function AceitarCorridasPage() {
                                     style={{ background: GRADIENT, color: '#fff' }}
                                 >
                                     {departing ? <Spinner size={14} /> : <><Navigation size={14} /> Ir para o ponto de partida</>}
+                                </button>
+                            )}
+
+                            {acceptedRide.driver_en_route && !acceptedRide.driver_arrived_at && (
+                                <button
+                                    onClick={arriveAtPickup}
+                                    disabled={arriving}
+                                    className="w-full py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all disabled:opacity-70 flex items-center justify-center gap-2"
+                                    style={{ background: GRADIENT, color: '#fff' }}
+                                >
+                                    {arriving ? <Spinner size={14} /> : <><MapPin size={14} /> Cheguei ao ponto de partida</>}
                                 </button>
                             )}
 

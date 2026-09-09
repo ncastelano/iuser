@@ -12,7 +12,7 @@ if (vapidPublicKey && vapidPrivateKey) {
     webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey)
 }
 
-type RideStatusEvent = 'en_route' | 'completed' | 'cancelled'
+type RideStatusEvent = 'en_route' | 'arrived' | 'completed' | 'cancelled'
 
 export async function POST(req: Request) {
     try {
@@ -61,17 +61,22 @@ export async function POST(req: Request) {
         let body = ''
         let url = '/'
 
-        if (status === 'en_route' || status === 'completed') {
+        if (status === 'en_route' || status === 'arrived' || status === 'completed') {
             if (!isDriver || !ride.driver_id) {
                 return NextResponse.json({ success: true, skipped: true })
             }
             recipientId = ride.requester_id
             url = '/pedir-motorista'
-            if (status === 'en_route') {
+            if (status === 'en_route' || status === 'arrived') {
                 const { data: driver } = await supabaseAdmin.from('profiles').select('name, profileSlug').eq('id', ride.driver_id).single()
                 const driverName = driver?.name || (driver?.profileSlug ? `@${driver.profileSlug}` : 'O motorista')
-                title = 'Motorista a caminho!'
-                body = `${driverName} está a caminho do local de partida.`
+                if (status === 'en_route') {
+                    title = 'Motorista a caminho!'
+                    body = `${driverName} está a caminho do local de partida.`
+                } else {
+                    title = 'Motorista chegou!'
+                    body = `${driverName} chegou ao local de partida.`
+                }
             } else {
                 title = 'Corrida concluída!'
                 body = 'Sua corrida foi concluída. Obrigado por usar o iUser!'
