@@ -266,11 +266,11 @@ export default function MotoristaSection({ dragHandle, onBreveStatusChange, onUr
         }
     }, [activeOrder?.status, activeOrder?.driver_id, activeOrder?.origin_lat, activeOrder?.origin_lng])
 
-    // Urgente = passageiro precisa olhar: já apareceu candidato, ou o
-    // motorista já foi aceito/está a caminho. Enquanto só "buscando
-    // motorista" sem ninguém ainda, fica na posição normal.
+    // Urgente = passageiro precisa olhar: assim que existe um pedido ativo
+    // (pending ou accepted) ele deve ser o primeiro componente da tela,
+    // antes de Categorias — não só depois que aparece candidato/motorista.
     useEffect(() => {
-        const urgent = !!activeOrder && (activeOrder.status === 'accepted' || activeOrder.applicant_count > 0)
+        const urgent = !!activeOrder
         onUrgentChange?.(urgent)
         return () => { onUrgentChange?.(false) }
         // eslint-disable-next-line react-hooks/exhaustive-deps
