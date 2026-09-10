@@ -789,12 +789,12 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
                             disabled={savingSync}
                             className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl mb-3 transition-all disabled:opacity-60"
                             style={{
-                                background: liveLocationSync ? '#f9731620' : `${colors.surface}88`,
-                                border: `1px solid ${liveLocationSync ? '#f9731660' : colors.border}`,
+                                background: liveLocationSync ? '#22c55e20' : `${colors.surface}88`,
+                                border: `1px solid ${liveLocationSync ? '#22c55e60' : colors.border}`,
                             }}
                         >
                             <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center"
-                                style={{ background: liveLocationSync ? '#f97316' : `${colors.border}40` }}>
+                                style={{ background: liveLocationSync ? '#22c55e' : `${colors.border}40` }}>
                                 {savingSync ? (
                                     <Spinner size={14} color={liveLocationSync ? '#ffffff' : colors.textPrimary} />
                                 ) : (
@@ -804,7 +804,7 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
                             <div className="flex-1 min-w-0 text-left">
                                 <span className="flex items-center gap-1.5 text-xs font-bold" style={{ color: colors.textPrimary }}>
                                     Sincronização para motorista
-                                    {liveLocationSync && <Radio size={11} style={{ color: '#f97316' }} />}
+                                    {liveLocationSync && <Radio size={11} style={{ color: '#22c55e' }} />}
                                 </span>
                                 <p className="text-[10px] mt-0.5 opacity-70" style={{ color: colors.textPrimary }}>
                                     {liveLocationSync
@@ -814,7 +814,7 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
                             </div>
                             <div
                                 className="flex-shrink-0 w-10 h-6 rounded-full relative transition-all"
-                                style={{ background: liveLocationSync ? '#f97316' : colors.border }}
+                                style={{ background: liveLocationSync ? '#22c55e' : colors.border }}
                             >
                                 <div
                                     className="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all"

@@ -11,7 +11,7 @@ import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import LoginAndRegister from '../LoginAndRegister'
 import LocationPicker from '../LocationPicker'
 import { toast } from 'sonner'
-import { MapPin, Star, Pencil, X, Package, CalendarClock, PawPrint, Car, CheckCircle2, Navigation, Ban, Flag, Share2 } from 'lucide-react'
+import { MapPin, Star, Pencil, X, Package, CalendarClock, PawPrint, Car, CheckCircle2, Navigation, Ban, Flag, Share2, AlertCircle } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import { shortAddress } from '@/lib/serviceBoard'
 import { getAvatarUrl } from '@/lib/avatar'
@@ -229,6 +229,14 @@ export default function AceitarCorridasPage() {
     const liveLocationDebounceRef = useRef<NodeJS.Timeout | null>(null)
     const [mapDialogRideId, setMapDialogRideId] = useState<string | null>(null)
 
+    // ===== DIALOG "ATIVAR SINCRONIZAÇÃO" AO ENTRAR NA PÁGINA =====
+    // Pra aceitar corridas o motorista precisa estar com a sincronização
+    // ligada — em vez de deixar isso implícito (só ligava sozinho ao
+    // candidatar-se numa corrida), pergunta logo na entrada da página.
+    const [showSyncPrompt, setShowSyncPrompt] = useState(false)
+    const [activatingSync, setActivatingSync] = useState(false)
+    const syncPromptedRef = useRef(false)
+
     const [savedLocation, setSavedLocation] = useState<{ lat: number; lng: number; address: string; addressNumber?: string; addressComplement?: string } | null>(null)
     const [showLocationDialog, setShowLocationDialog] = useState(false)
     const [isSavingLocation, setIsSavingLocation] = useState(false)
@@ -311,6 +319,10 @@ export default function AceitarCorridasPage() {
             .then(({ data }) => {
                 const syncOn = !!data?.live_location_sync
                 setLiveLocationSync(syncOn)
+                if (!syncPromptedRef.current) {
+                    syncPromptedRef.current = true
+                    if (!syncOn) setShowSyncPrompt(true)
+                }
                 // Enquanto a sincronização ao vivo não está ligada, a posição
                 // exibida é sempre a localização definida em "Definir local"
                 // desta conta — nunca a de outra conta nem um GPS "grudado".
@@ -827,6 +839,27 @@ export default function AceitarCorridasPage() {
         }
     }
 
+    const handleActivateSync = useCallback(async () => {
+        setActivatingSync(true)
+        try {
+            const { data: { user } } = await supabase.auth.getUser()
+            if (!user) return
+            const { error } = await supabase.from('driver_pricing').update({ live_location_sync: true }).eq('driver_id', user.id)
+            if (error) throw error
+            setLiveLocationSync(true)
+            setShowSyncPrompt(false)
+        } catch (err: any) {
+            toast.error('Erro ao ativar sincronização: ' + (err.message || 'tente novamente'))
+        } finally {
+            setActivatingSync(false)
+        }
+    }, [])
+
+    const handleDeclineSync = useCallback(() => {
+        setShowSyncPrompt(false)
+        router.back()
+    }, [router])
+
     return (
         <div className="relative min-h-dvh" style={{ background: colors.background }}>
             <div className="fixed inset-0 z-0">
@@ -846,10 +879,10 @@ export default function AceitarCorridasPage() {
                         <button
                             onClick={() => setShowLocationDialog(true)}
                             disabled={isSavingLocation}
-                            className="flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full bg-black/10 hover:bg-black/20 transition disabled:opacity-50"
-                            style={{ color: liveLocationSync ? '#f97316' : colors.textPrimary }}
+                            className="flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-full bg-black/10 hover:bg-black/20 transition disabled:opacity-50"
+                            style={{ color: colors.textPrimary }}
                         >
-                            {liveLocationSync ? <Car size={14} /> : null}
+                            {liveLocationSync && <span className="live-pulse-dot" aria-hidden="true" />}
                             {isSavingLocation
                                 ? 'Salvando...'
                                 : liveLocationSync
@@ -1397,6 +1430,62 @@ export default function AceitarCorridasPage() {
                     />
                 )
             })()}
+
+            {showSyncPrompt && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+                    <div
+                        className="w-full max-w-md rounded-3xl p-6 shadow-2xl space-y-5"
+                        style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                    >
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: '#22c55e20' }}>
+                                <AlertCircle size={20} style={{ color: '#22c55e' }} />
+                            </div>
+                            <h2 className="text-lg font-black" style={{ color: colors.textPrimary }}>
+                                Ativar sincronização
+                            </h2>
+                        </div>
+
+                        <p className="text-xs font-medium" style={{ color: colors.textSecondary }}>
+                            Para aceitar corridas você precisa ativar a <strong>sincronização para motorista</strong> — é ela que mostra sua localização em tempo real pros passageiros. Ativar agora?
+                        </p>
+
+                        <div className="flex gap-2 pt-2">
+                            <button
+                                onClick={handleDeclineSync}
+                                disabled={activatingSync}
+                                className="flex-1 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all hover:scale-[1.02] disabled:opacity-60"
+                                style={{ background: `${colors.surface}88`, color: colors.textPrimary, border: `1px solid ${colors.border}` }}
+                            >
+                                Não
+                            </button>
+                            <button
+                                onClick={handleActivateSync}
+                                disabled={activatingSync}
+                                className="flex-1 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all hover:scale-[1.02] disabled:opacity-60 flex items-center justify-center gap-2"
+                                style={{ background: '#22c55e', color: '#ffffff', boxShadow: '0 4px 14px rgba(34, 197, 94, 0.4)' }}
+                            >
+                                {activatingSync ? <Spinner size={14} color="#ffffff" /> : 'Sim'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            <style jsx>{`
+                .live-pulse-dot {
+                    display: inline-block;
+                    width: 8px;
+                    height: 8px;
+                    border-radius: 9999px;
+                    background: #22c55e;
+                    animation: livePulseDot 1.4s ease-in-out infinite;
+                }
+                @keyframes livePulseDot {
+                    0%, 100% { transform: scale(0.7); opacity: 0.6; }
+                    50% { transform: scale(1.2); opacity: 1; }
+                }
+            `}</style>
         </div>
     )
 }
