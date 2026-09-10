@@ -19,7 +19,6 @@ import { computeSuggestedPrice, getEffectivePricing, DriverPricing } from '@/lib
 import { getProfileRideRatingsBatch, ProfileRideRating } from '@/lib/rideReviews'
 import { VehicleType } from '@/lib/rideVehicle'
 import { buildRideSpecRows } from '@/lib/rideSpecs'
-import { getDriverCancelQuota, describeDriverCancelQuota } from '@/lib/rideCancellation'
 import { notifyRideStatus } from '@/lib/notifyRideStatus'
 import { handleShareLink } from '@/lib/share'
 import { computeExtraTaskFee, EXTRA_TASK_FEE_TIERS } from '@/lib/extraTaskFees'
@@ -762,11 +761,6 @@ export default function AceitarCorridasPage() {
 
         setCancellingAccepted(true)
         try {
-            const quota = await getDriverCancelQuota(supabase, user.id)
-            if (!quota.allowed) {
-                toast.error(describeDriverCancelQuota(quota))
-                return
-            }
             const { error } = await supabase
                 .from('ride_requests')
                 .update({ status: 'cancelled', cancelled_by: 'driver' })

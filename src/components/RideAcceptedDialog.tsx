@@ -8,7 +8,6 @@ import { toast } from 'sonner'
 import { Car, Navigation, X, Radio, Ban } from 'lucide-react'
 import { shortAddress } from '@/lib/serviceBoard'
 import { Spinner } from '@/components/Spinner'
-import { getDriverCancelQuota, describeDriverCancelQuota } from '@/lib/rideCancellation'
 import { notifyRideStatus } from '@/lib/notifyRideStatus'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -177,11 +176,6 @@ export function RideAcceptedDialog() {
         const driverId = userIdRef.current
         setCancelling(true)
         try {
-            const quota = await getDriverCancelQuota(supabase, driverId)
-            if (!quota.allowed) {
-                toast.error(describeDriverCancelQuota(quota))
-                return
-            }
             const { error } = await supabase
                 .from('ride_requests')
                 .update({ status: 'cancelled', cancelled_by: 'driver' })
