@@ -49,6 +49,7 @@ interface StoreProps {
     customBgUrl?: string | null
     loggedUserSlug?: string | null
     onOpenPublications?: (publications: any[], initialIndex: number, storeSlug: string) => void
+    onDialogOpenChange?: (open: boolean) => void
 }
 
 interface OwnerData {
@@ -104,7 +105,8 @@ export function Store({
     bgMode,
     customBgUrl,
     loggedUserSlug,
-    onOpenPublications
+    onOpenPublications,
+    onDialogOpenChange
 }: StoreProps) {
     const router = useRouter()
     const fileInputRef = useRef<HTMLInputElement>(null)
@@ -134,6 +136,15 @@ export function Store({
     // ===== MODAL DE DETALHES DO PRODUTO =====
     const [selectedProduct, setSelectedProduct] = useState<any | null>(null)
     const [showProductModal, setShowProductModal] = useState(false)
+
+    // Avisa o componente pai (OwnerClientPage) quando algum dialog em tela
+    // cheia está aberto, pra ele esconder os botões flutuantes ("Ver
+    // Catálogo" / Home) que senão ficam por cima do dialog.
+    useEffect(() => {
+        onDialogOpenChange?.(showAllHours || showScheduleModal || showProductModal)
+        return () => { onDialogOpenChange?.(false) }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [showAllHours, showScheduleModal, showProductModal])
 
     // States para Publicações
     const [isCreatingPublication, setIsCreatingPublication] = useState(false)
@@ -811,12 +822,8 @@ export function Store({
                             </div>
                             <button
                                 onClick={() => {
-                                    if (isOwner) {
-                                        router.push(`/${ownerSlug}/editar-loja`)
-                                    } else {
-                                        if (owner.business_hours && Object.keys(owner.business_hours).length > 0) {
-                                            setShowAllHours(true)
-                                        }
+                                    if (owner.business_hours && Object.keys(owner.business_hours).length > 0) {
+                                        setShowAllHours(true)
                                     }
                                 }}
                                 className="flex items-center gap-1 font-bold hover:underline cursor-pointer w-fit"

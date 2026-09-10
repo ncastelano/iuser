@@ -68,6 +68,7 @@ export default function OwnerClientPage() {
     const [showProfile, setShowProfile] = useState(false)
     const [showStoreDashboard, setShowStoreDashboard] = useState<{ slug: string; name: string } | null>(null)
     const [showPublications, setShowPublications] = useState(false)
+    const [storeDialogOpen, setStoreDialogOpen] = useState(false)
 
     // ===== STATUS DOS PEDIDOS DO USUÁRIO (COMPRADOR) =====
     const [pendingCount, setPendingCount] = useState(0)
@@ -528,14 +529,17 @@ export default function OwnerClientPage() {
                                 customBgUrl={customBgUrl}
                                 loggedUserSlug={loggedUserSlug}
                                 onOpenPublications={handleOpenPublications}
+                                onDialogOpenChange={setStoreDialogOpen}
                             />
                         )}
                     </>
                 )}
 
                 {/* ===== BOTÕES FLUTUANTES ===== */}
+                {/* Escondidos com algum dialog do Store aberto (ex: Agendar,
+                    horários, produto) — senão ficam flutuando por cima dele. */}
                 {/* Botão "Ver Catálogo" - lado esquerdo (apenas fora do dashboard) */}
-                {!showProfile && !showStoreDashboard && !showPublications && ownerType === 'store' && (
+                {!showProfile && !showStoreDashboard && !showPublications && !storeDialogOpen && ownerType === 'store' && (
                     <div style={{ position: 'fixed', bottom: 32, left: 24, zIndex: 998 }}>
                         <button
                             onClick={handleOpenCatalogo}
@@ -553,50 +557,52 @@ export default function OwnerClientPage() {
                 )}
 
                 {/* Botões do lado direito - sacola sempre ao lado do botão Home */}
-                <div style={{ position: 'fixed', bottom: 32, right: 24, display: 'flex', gap: 12, zIndex: 998 }}>
-                    {/* Na página da loja, adicionar ao carrinho só acontece no catálogo
-                        (com as etapas de verificação/observação) — a sacola flutuante
-                        não faz sentido aqui, só tampava a tela por cima do conteúdo. */}
-                    {ownerType !== 'store' && (
-                        <HomeBag
-                            items={homeBagItems}
-                            isExpanded={isBagExpanded}
-                            onToggleExpanded={() => setIsBagExpanded(!isBagExpanded)}
-                            onIncrease={handleBagIncrease}
-                            onDecrease={handleBagDecrease}
-                            onRemove={handleBagRemove}
-                            onCheckout={(storeSlug) => {
-                                setIsBagExpanded(false)
-                                router.push(`/${storeSlug}/catalogo`)
-                            }}
-                            statusCounts={{
-                                pending: pendingCount,
-                                preparing: preparingCount,
-                                ready: readyCount,
-                                reviews: pendingReviewsCount,
-                            }}
-                            animate={cartAnimating}
-                            colors={colors}
-                        />
-                    )}
+                {!storeDialogOpen && (
+                    <div style={{ position: 'fixed', bottom: 32, right: 24, display: 'flex', gap: 12, zIndex: 998 }}>
+                        {/* Na página da loja, adicionar ao carrinho só acontece no catálogo
+                            (com as etapas de verificação/observação) — a sacola flutuante
+                            não faz sentido aqui, só tampava a tela por cima do conteúdo. */}
+                        {ownerType !== 'store' && (
+                            <HomeBag
+                                items={homeBagItems}
+                                isExpanded={isBagExpanded}
+                                onToggleExpanded={() => setIsBagExpanded(!isBagExpanded)}
+                                onIncrease={handleBagIncrease}
+                                onDecrease={handleBagDecrease}
+                                onRemove={handleBagRemove}
+                                onCheckout={(storeSlug) => {
+                                    setIsBagExpanded(false)
+                                    router.push(`/${storeSlug}/catalogo`)
+                                }}
+                                statusCounts={{
+                                    pending: pendingCount,
+                                    preparing: preparingCount,
+                                    ready: readyCount,
+                                    reviews: pendingReviewsCount,
+                                }}
+                                animate={cartAnimating}
+                                colors={colors}
+                            />
+                        )}
 
-                    <button
-                        onClick={(showProfile || showStoreDashboard || showPublications) ? showMainContent : () => router.push('/')}
-                        className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95"
-                        style={{
-                            background: GRADIENT,
-                            color: '#ffffff',
-                            borderTop: '2px solid #f97316',
-                            borderRight: '2px solid #f97316',
-                            borderBottom: '2px solid #f97316',
-                            borderLeft: '2px solid #f97316',
-                            boxShadow: `0 8px 24px #f9731660`,
-                        }}
-                        aria-label={(showProfile || showStoreDashboard || showPublications) ? 'Voltar ao conteúdo' : 'Voltar ao início'}
-                    >
-                        <Home size={24} />
-                    </button>
-                </div>
+                        <button
+                            onClick={(showProfile || showStoreDashboard || showPublications) ? showMainContent : () => router.push('/')}
+                            className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95"
+                            style={{
+                                background: GRADIENT,
+                                color: '#ffffff',
+                                borderTop: '2px solid #f97316',
+                                borderRight: '2px solid #f97316',
+                                borderBottom: '2px solid #f97316',
+                                borderLeft: '2px solid #f97316',
+                                boxShadow: `0 8px 24px #f9731660`,
+                            }}
+                            aria-label={(showProfile || showStoreDashboard || showPublications) ? 'Voltar ao conteúdo' : 'Voltar ao início'}
+                        >
+                            <Home size={24} />
+                        </button>
+                    </div>
+                )}
             </main>
         </div>
     )

@@ -126,11 +126,6 @@ export default function StoreDashboard({
         router.push(`/${profileSlug}/editar-perfil`)
     }
 
-    // ===== FUNÇÃO PARA NAVEGAR PARA EDITAR LOJA (via StoreDescription) =====
-    const handleEditStore = () => {
-        router.push(`/${storeSlug}/editar-loja`)
-    }
-
     // ===== VERIFICAÇÃO DE SLUG ÚNICO GLOBAL =====
     useEffect(() => {
         if (!storeSlugState || storeSlugState === storeSlug) {
