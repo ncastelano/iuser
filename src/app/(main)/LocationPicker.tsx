@@ -277,6 +277,54 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
         }
     }, [])
 
+    // ===== RASTREAMENTO AO VIVO ENQUANTO "SINCRONIZAÇÃO PARA MOTORISTA" ESTÁ LIGADA =====
+    // O toggle acima só controla o envio em background (driver_pricing.live_lat/lng,
+    // feito globalmente pelo DriverLiveLocationBroadcaster) — sem isso aqui, o mapa
+    // deste picker nunca se move sozinho. Mesmo padrão usado em
+    // /aceitar-corridas (watchPosition contínuo) pra mostrar a posição em tempo real.
+    const liveWatchIdRef = useRef<number | null>(null)
+
+    useEffect(() => {
+        if (!liveLocationSync || !mapReady || !navigator.geolocation) return
+
+        liveWatchIdRef.current = navigator.geolocation.watchPosition(
+            (pos) => {
+                const newPos = { lat: pos.coords.latitude, lng: pos.coords.longitude }
+                setSelectedPosition(newPos)
+
+                if (movableMarkerRef.current && mapInstanceRef.current) {
+                    movableMarkerRef.current.setLatLng([newPos.lat, newPos.lng])
+                    mapInstanceRef.current.panTo([newPos.lat, newPos.lng], { animate: true })
+                    updatePolyline(mapInstanceRef.current, savedPosition, newPos)
+                }
+
+                if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
+                setResolvingAddress(true)
+                setError('')
+                debounceTimerRef.current = setTimeout(async () => {
+                    try {
+                        const result = await reverseGeocode(newPos.lat, newPos.lng)
+                        setNewAddress(result.fullAddress)
+                        if (result.extractedNumber && !newNumber) {
+                            setNewNumber(result.extractedNumber)
+                        }
+                    } finally {
+                        setResolvingAddress(false)
+                    }
+                }, 500)
+            },
+            () => { /* sem permissão: mapa fica na última posição conhecida */ },
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
+        )
+
+        return () => {
+            if (liveWatchIdRef.current != null) {
+                navigator.geolocation.clearWatch(liveWatchIdRef.current)
+                liveWatchIdRef.current = null
+            }
+        }
+    }, [liveLocationSync, mapReady, savedPosition, updatePolyline, newNumber])
+
     // ===== FLY TO =====
     const flyTo = useCallback((lat: number, lng: number) => {
         if (!mapInstanceRef.current || !movableMarkerRef.current) return
