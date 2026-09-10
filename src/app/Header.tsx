@@ -1,7 +1,7 @@
 // src/components/Header.tsx
 'use client'
 
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { ArrowLeft, Search, ShoppingCart, X } from 'lucide-react'
 import { useTheme } from '@/app/theme'
 import { useState, useRef, useEffect, useMemo } from 'react'
@@ -67,6 +67,7 @@ export default function Header({
     locationElement,
 }: HeaderProps) {
     const router = useRouter()
+    const pathname = usePathname()
     const { colors } = useTheme()
 
     const cartItemsByStore = useCartStore((state) => state.itemsByStore)
@@ -576,26 +577,28 @@ export default function Header({
                             )}
                         </div>
 
-                        <button
-                            onClick={() => router.push('/sacola')}
-                            className="relative flex items-center justify-center rounded-full flex-shrink-0 h-7 w-7 sm:h-9 sm:w-9 transition-transform hover:scale-105 active:scale-95"
-                            style={{
-                                background: 'linear-gradient(135deg, #f97316, #dc2626)',
-                                color: '#ffffff',
-                            }}
-                            aria-label="Ver sacola"
-                            title="Ver sacola"
-                        >
-                            <ShoppingCart size={14} strokeWidth={2} />
-                            {cartCount > 0 && (
-                                <span
-                                    className="absolute -top-1 -right-1 w-4 h-4 rounded-full text-white text-[7px] flex items-center justify-center font-black leading-none"
-                                    style={{ backgroundColor: '#ef4444' }}
-                                >
-                                    {cartCount}
-                                </span>
-                            )}
-                        </button>
+                        {pathname !== '/sacola' && (
+                            <button
+                                onClick={() => router.push('/sacola')}
+                                className="relative flex items-center justify-center rounded-full flex-shrink-0 h-12 w-12 transition-transform hover:scale-105 active:scale-95"
+                                style={{
+                                    background: 'linear-gradient(135deg, #f97316, #dc2626)',
+                                    color: '#ffffff',
+                                }}
+                                aria-label="Ver sacola"
+                                title="Ver sacola"
+                            >
+                                <ShoppingCart size={20} strokeWidth={2} />
+                                {cartCount > 0 && (
+                                    <span
+                                        className="absolute -top-1 -right-1 w-5 h-5 rounded-full text-white text-[9px] flex items-center justify-center font-black leading-none"
+                                        style={{ backgroundColor: '#ef4444', border: '2px solid #ffffff' }}
+                                    >
+                                        {cartCount}
+                                    </span>
+                                )}
+                            </button>
+                        )}
                     </div>
                 )}
             </div>
