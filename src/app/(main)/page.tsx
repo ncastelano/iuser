@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { User, Store, Home, MapPin, LayoutDashboard, ShoppingBag, ShoppingCart, X, Radar } from 'lucide-react'
+import { User, Store, Home, MapPin, LayoutDashboard, ShoppingBag, X, Radar } from 'lucide-react'
 
 import CategoriasSection from './inicio/sections/CanIhelp'
 import LookForAService from './inicio/sections/LookForAService'
@@ -22,9 +22,7 @@ import Header from '../Header'
 import CreateStoreAndRegisterProfile from './CreateStoreAndRegisterProfile'
 import LoginAndRegister from './LoginAndRegister'
 import ProfileDashboard from './ProfileDashboard'
-import { useCartStore } from '@/store/useCartStore'
 import { useMerchantStore } from '@/store/useMerchantStore'
-import HomeBag, { type HomeBagItem } from './HomeBag'
 import { isStoreOpenNow, type BusinessHours } from '@/lib/storeHours'
 import { isProfileOpenNow } from '@/lib/profileHours'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
@@ -108,15 +106,12 @@ export default function HomePage() {
     } = useProfile()
 
     const { colors } = useTheme()
-    const { itemsByStore, storeDetails, addItem, updateQuantity, removeItem } = useCartStore()
 
     const [sections, setSections] = useState<string[]>(DEFAULT_SECTIONS)
     const [editMode, setEditMode] = useState(false)
     const [searchQuery, setSearchQuery] = useState('')
     const [searchFocused, setSearchFocused] = useState(false)
     const [hasInteractedWithSearch, setHasInteractedWithSearch] = useState(false)
-    const [cartAnimating, setCartAnimating] = useState(false)
-    const [isBagExpanded, setIsBagExpanded] = useState(false)
     const [stores, setStores] = useState<StoreInfo[]>([])
     const [showCreateStore, setShowCreateStore] = useState(false)
     const [showLogin, setShowLogin] = useState(false)
@@ -149,71 +144,6 @@ export default function HomePage() {
     const lastSearchedRef = useRef<HTMLDivElement>(null)
     const searchInputRef = useRef<HTMLInputElement>(null)
 
-    // ===== CALCULAR TOTAL DE ITENS DO CARRINHO =====
-    const totalCartItems = useMemo(() => {
-        return Object.values(itemsByStore).reduce((acc, items) => acc + items.length, 0)
-    }, [itemsByStore])
-
-    // ===== CALCULAR VALOR TOTAL DO CARRINHO =====
-    // ===== SACOLA DA HOME: fusão dos itens de todas as lojas =====
-    const homeBagItems: HomeBagItem[] = useMemo(() => {
-        return Object.entries(itemsByStore).flatMap(([storeSlug, items]) =>
-            items.map((item) => ({
-                product: item.product,
-                quantity: item.quantity,
-                storeSlug,
-                storeName: storeDetails[storeSlug]?.name || storeSlug,
-                storeLogoUrl: storeDetails[storeSlug]?.logo_url || null,
-                comment: item.comment,
-            }))
-        )
-    }, [itemsByStore, storeDetails])
-
-    // ===== STATUS ABERTO/FECHADO DAS LOJAS QUE ESTÃO NA SACOLA =====
-    const [cartStoreOpenStatus, setCartStoreOpenStatus] = useState<Record<string, boolean>>({})
-
-    useEffect(() => {
-        const slugs = Object.keys(itemsByStore)
-        if (slugs.length === 0) {
-            setCartStoreOpenStatus({})
-            return
-        }
-
-        let cancelled = false
-        supabase
-            .from('stores')
-            .select('storeSlug, business_hours')
-            .in('storeSlug', slugs)
-            .then(({ data }) => {
-                if (cancelled || !data) return
-                const status: Record<string, boolean> = {}
-                for (const row of data as any[]) {
-                    status[row.storeSlug] = isStoreOpenNow(row.business_hours)
-                }
-                setCartStoreOpenStatus(status)
-            })
-
-        return () => { cancelled = true }
-    }, [itemsByStore])
-
-    const handleBagIncrease = (item: HomeBagItem) => {
-        const store = storeDetails[item.storeSlug] || { name: item.storeName, logo_url: null }
-        addItem(item.storeSlug, store, item.product, item.comment)
-    }
-
-    const handleBagDecrease = (item: HomeBagItem) => {
-        updateQuantity(item.storeSlug, item.product.id, -1, item.comment)
-    }
-
-    const handleBagRemove = (item: HomeBagItem) => {
-        removeItem(item.storeSlug, item.product.id, item.comment)
-    }
-
-    const [pendingCount, setPendingCount] = useState(0)
-    const [preparingCount, setPreparingCount] = useState(0)
-    const [readyCount, setReadyCount] = useState(0)
-    const [pendingReviewsCount, setPendingReviewsCount] = useState(0)
-    const [loadingStatus, setLoadingStatus] = useState(true)
     const pendingInvitesCount = useMerchantStore(s => s.pendingInvitesCount)
     const [profileOpenNow, setProfileOpenNow] = useState(false)
 
@@ -300,77 +230,6 @@ export default function HomePage() {
         }
 
         fetchLocationFromProfile()
-    }, [profileSlug])
-
-    // ---------- ANIMAÇÃO DO CARRINHO ----------
-    useEffect(() => {
-        if (totalCartItems > 0) {
-            setCartAnimating(true)
-            const timer = setTimeout(() => setCartAnimating(false), 3000)
-            return () => clearTimeout(timer)
-        }
-    }, [totalCartItems])
-
-    // ---------- PEDIDOS (comprador) ----------
-    useEffect(() => {
-        const fetchOrderStatuses = async () => {
-            setLoadingStatus(true)
-            try {
-                const { data: { user } } = await supabase.auth.getUser()
-                if (!user) {
-                    setLoadingStatus(false)
-                    return
-                }
-
-                const { data: orders } = await supabase
-                    .from('orders')
-                    .select('status')
-                    .eq('buyer_id', user.id)
-
-                if (orders) {
-                    setPendingCount(orders.filter(o => o.status === 'pending').length)
-                    setPreparingCount(orders.filter(o => o.status === 'preparing').length)
-                    setReadyCount(orders.filter(o => o.status === 'ready').length)
-                }
-
-                const { data: paidOrders } = await supabase
-                    .from('orders')
-                    .select('id')
-                    .eq('buyer_id', user.id)
-                    .eq('status', 'paid')
-
-                if (paidOrders && paidOrders.length > 0) {
-                    const orderIds = paidOrders.map(o => o.id)
-                    const { data: orderItems } = await supabase
-                        .from('order_items')
-                        .select('product_id')
-                        .in('order_id', orderIds)
-
-                    if (orderItems && orderItems.length > 0) {
-                        const productIds = orderItems.map(item => item.product_id)
-                        const { data: reviews } = await supabase
-                            .from('product_reviews')
-                            .select('product_id')
-                            .eq('profile_id', user.id)
-                            .in('product_id', productIds)
-
-                        const reviewedIds = new Set(reviews?.map(r => r.product_id) || [])
-                        const pending = productIds.filter(pid => !reviewedIds.has(pid)).length
-                        setPendingReviewsCount(pending)
-                    } else {
-                        setPendingReviewsCount(0)
-                    }
-                } else {
-                    setPendingReviewsCount(0)
-                }
-            } catch (err) {
-                console.error('[HomePage] Erro ao buscar status dos pedidos:', err)
-            } finally {
-                setLoadingStatus(false)
-            }
-        }
-
-        fetchOrderStatuses()
     }, [profileSlug])
 
     // Convites de compromisso pendentes (badge da aba de perfil) vêm de
@@ -688,7 +547,6 @@ export default function HomePage() {
 
     const showFab = showCreateStore || showLogin || showProfile || showStoreDashboard
     const shouldShowSacola = !showProfile && !showStoreDashboard && !showLogin
-    const shouldShowBag = !showStoreDashboard && !showLogin
 
     // ===== VERIFICAR SE ESTÁ EM TELA DE LOGIN =====
     const isLoginScreen = showLogin || showCreateStore
@@ -897,42 +755,9 @@ export default function HomePage() {
                     </div>
                 )}
 
-                {/* ===== BOTÕES FLUTUANTES - SACOLA E VOLTAR (container próprio, ancorado só na direita, sem cortar na tela) ===== */}
+                {/* ===== BOTÃO FLUTUANTE - VOLTAR ===== */}
                 <div style={{ position: 'fixed', bottom: 32, right: 24, zIndex: 40 }}>
                     <div className="flex flex-col-reverse sm:flex-row items-end gap-3">
-                        {shouldShowBag && (
-                            <div>
-                                {loadingStatus ? (
-                                    <div className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl bg-gray-300 animate-pulse">
-                                        <ShoppingCart size={24} style={{ color: '#ffffff' }} />
-                                    </div>
-                                ) : (
-                                    <HomeBag
-                                        items={homeBagItems}
-                                        isExpanded={isBagExpanded}
-                                        onToggleExpanded={() => setIsBagExpanded(!isBagExpanded)}
-                                        onIncrease={handleBagIncrease}
-                                        onDecrease={handleBagDecrease}
-                                        onRemove={handleBagRemove}
-                                        onCheckout={(storeSlug) => {
-                                            setIsBagExpanded(false)
-                                            startNavProgress()
-                                            router.push(`/${storeSlug}/catalogo`)
-                                        }}
-                                        statusCounts={{
-                                            pending: pendingCount,
-                                            preparing: preparingCount,
-                                            ready: readyCount,
-                                            reviews: pendingReviewsCount,
-                                        }}
-                                        animate={cartAnimating}
-                                        colors={colors}
-                                        storeOpenStatus={cartStoreOpenStatus}
-                                    />
-                                )}
-                            </div>
-                        )}
-
                         {showFab && (
                             <button
                                 onClick={showHomeSections}

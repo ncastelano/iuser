@@ -10,8 +10,6 @@ import { useTheme } from '@/app/theme'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import Header from '@/app/Header'
-import HomeBag, { type HomeBagItem } from '@/app/(main)/HomeBag'
-import { useCartStore } from '@/store/useCartStore'
 import { useMerchantStore } from '@/store/useMerchantStore'
 import { User, Store as StoreIcon, LayoutDashboard, Home } from 'lucide-react'
 import type { Tab } from '@/app/Header'
@@ -49,8 +47,6 @@ export default function OwnerClientPage() {
         avatarUrl: loggedUserAvatarUrl,
         loading: profileLoading
     } = useProfile()
-    const { itemsByStore, storeDetails, addItem, updateQuantity, removeItem } = useCartStore()
-    const [isBagExpanded, setIsBagExpanded] = useState(false)
     const publicationsStore = usePublicationsStore()
 
     const ownerSlug = Array.isArray(params.ownerSlug) ? params.ownerSlug[0] : params.ownerSlug
@@ -60,7 +56,6 @@ export default function OwnerClientPage() {
     const [ownerId, setOwnerId] = useState<string | null>(null)
     const [error, setError] = useState<string | null>(null)
     const [mounted, setMounted] = useState(false)
-    const [cartAnimating, setCartAnimating] = useState(false)
     const [stores, setStores] = useState<StoreInfo[]>([])
     const [loadingStores, setLoadingStores] = useState(true)
     const storeOrderCounts = useMerchantStore(s => s.storeOrderCounts)
@@ -70,11 +65,6 @@ export default function OwnerClientPage() {
     const [showPublications, setShowPublications] = useState(false)
     const [storeDialogOpen, setStoreDialogOpen] = useState(false)
 
-    // ===== STATUS DOS PEDIDOS DO USUÁRIO (COMPRADOR) =====
-    const [pendingCount, setPendingCount] = useState(0)
-    const [preparingCount, setPreparingCount] = useState(0)
-    const [readyCount, setReadyCount] = useState(0)
-    const [pendingReviewsCount, setPendingReviewsCount] = useState(0)
     const pendingInvitesCount = useMerchantStore(s => s.pendingInvitesCount)
     const [profileOpenNow, setProfileOpenNow] = useState(false)
 
@@ -168,62 +158,6 @@ export default function OwnerClientPage() {
 
     // As contagens de pedidos por loja vêm do OrderNotification (montado globalmente em
     // providers.tsx), que mantém uma assinatura realtime confiável em useMerchantStore.
-
-    // ========== BUSCAR STATUS DOS PEDIDOS DO USUÁRIO ==========
-    useEffect(() => {
-        const fetchOrderStatuses = async () => {
-            const { data: { user } } = await supabase.auth.getUser()
-            if (!user) return
-
-            // Buscar pedidos do usuário
-            const { data: orders } = await supabase
-                .from('orders')
-                .select('status')
-                .eq('buyer_id', user.id)
-
-            if (orders) {
-                setPendingCount(orders.filter(o => o.status === 'pending').length)
-                setPreparingCount(orders.filter(o => o.status === 'preparing').length)
-                setReadyCount(orders.filter(o => o.status === 'ready').length)
-            }
-
-            // Buscar pedidos pagos para avaliações pendentes
-            const { data: paidOrders } = await supabase
-                .from('orders')
-                .select('id')
-                .eq('buyer_id', user.id)
-                .eq('status', 'paid')
-
-            if (paidOrders && paidOrders.length > 0) {
-                const orderIds = paidOrders.map(o => o.id)
-
-                const { data: orderItems } = await supabase
-                    .from('order_items')
-                    .select('product_id')
-                    .in('order_id', orderIds)
-
-                if (orderItems && orderItems.length > 0) {
-                    const productIds = orderItems.map(item => item.product_id)
-
-                    const { data: reviews } = await supabase
-                        .from('product_reviews')
-                        .select('product_id')
-                        .eq('profile_id', user.id)
-                        .in('product_id', productIds)
-
-                    const reviewedIds = new Set(reviews?.map(r => r.product_id) || [])
-                    const pending = productIds.filter(pid => !reviewedIds.has(pid)).length
-                    setPendingReviewsCount(pending)
-                } else {
-                    setPendingReviewsCount(0)
-                }
-            } else {
-                setPendingReviewsCount(0)
-            }
-        }
-
-        fetchOrderStatuses()
-    }, [])
 
     // Convites de compromisso pendentes (badge da aba de perfil) vêm de
     // useMerchantStore.pendingInvitesCount — uma única subscrição global em
@@ -373,57 +307,6 @@ export default function OwnerClientPage() {
         setMounted(true)
     }, [])
 
-    // ========== CALCULAR TOTAL DO CARRINHO ==========
-    const storeKey = useMemo(() => {
-        if (!ownerSlug) return ''
-        return ownerType === 'store' ? ownerSlug : `profile_${ownerSlug}`
-    }, [ownerType, ownerSlug])
-
-    const cartItems = useMemo(() => {
-        if (!storeKey) return []
-        return itemsByStore[storeKey] || []
-    }, [itemsByStore, storeKey])
-
-    const totalCartQuantity = useMemo(
-        () => cartItems.reduce((sum, item) => sum + item.quantity, 0),
-        [cartItems]
-    )
-
-    // ===== SACOLA FLUTUANTE: fusão dos itens de todas as lojas, igual à home =====
-    const homeBagItems: HomeBagItem[] = useMemo(() => {
-        return Object.entries(itemsByStore).flatMap(([slug, items]) =>
-            items.map((item) => ({
-                product: item.product,
-                quantity: item.quantity,
-                storeSlug: slug,
-                storeName: storeDetails[slug]?.name || slug,
-                storeLogoUrl: storeDetails[slug]?.logo_url || null,
-                comment: item.comment,
-            }))
-        )
-    }, [itemsByStore, storeDetails])
-
-    const handleBagIncrease = (item: HomeBagItem) => {
-        const store = storeDetails[item.storeSlug] || { name: item.storeName, logo_url: null }
-        addItem(item.storeSlug, store, item.product, item.comment)
-    }
-
-    const handleBagDecrease = (item: HomeBagItem) => {
-        updateQuantity(item.storeSlug, item.product.id, -1, item.comment)
-    }
-
-    const handleBagRemove = (item: HomeBagItem) => {
-        removeItem(item.storeSlug, item.product.id, item.comment)
-    }
-
-    useEffect(() => {
-        if (totalCartQuantity > 0) {
-            setCartAnimating(true)
-            const timer = setTimeout(() => setCartAnimating(false), 3000)
-            return () => clearTimeout(timer)
-        }
-    }, [totalCartQuantity])
-
     // ========== RENDER ==========
     if (loading) {
         return (
@@ -556,35 +439,9 @@ export default function OwnerClientPage() {
                     </div>
                 )}
 
-                {/* Botões do lado direito - sacola sempre ao lado do botão Home */}
+                {/* Botão de voltar/Home */}
                 {!storeDialogOpen && (
                     <div style={{ position: 'fixed', bottom: 32, right: 24, display: 'flex', gap: 12, zIndex: 998 }}>
-                        {/* Na página da loja, adicionar ao carrinho só acontece no catálogo
-                            (com as etapas de verificação/observação) — a sacola flutuante
-                            não faz sentido aqui, só tampava a tela por cima do conteúdo. */}
-                        {ownerType !== 'store' && (
-                            <HomeBag
-                                items={homeBagItems}
-                                isExpanded={isBagExpanded}
-                                onToggleExpanded={() => setIsBagExpanded(!isBagExpanded)}
-                                onIncrease={handleBagIncrease}
-                                onDecrease={handleBagDecrease}
-                                onRemove={handleBagRemove}
-                                onCheckout={(storeSlug) => {
-                                    setIsBagExpanded(false)
-                                    router.push(`/${storeSlug}/catalogo`)
-                                }}
-                                statusCounts={{
-                                    pending: pendingCount,
-                                    preparing: preparingCount,
-                                    ready: readyCount,
-                                    reviews: pendingReviewsCount,
-                                }}
-                                animate={cartAnimating}
-                                colors={colors}
-                            />
-                        )}
-
                         <button
                             onClick={(showProfile || showStoreDashboard || showPublications) ? showMainContent : () => router.push('/')}
                             className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95"

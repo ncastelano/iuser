@@ -25,7 +25,6 @@ import Header from '@/app/Header'
 import { handleShareLink } from '@/lib/share'
 import { toast } from 'sonner'
 import { useCartStore } from '@/store/useCartStore'
-import HomeBag, { type HomeBagItem } from '@/app/(main)/HomeBag'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -103,14 +102,7 @@ export function ProductClientPage({
 }: ProductClientPageProps) {
     const router = useRouter()
 
-    const {
-        itemsByStore,
-        storeDetails,
-        addItem,
-        updateQuantity,
-        removeItem
-    } = useCartStore()
-    const [isBagExpanded, setIsBagExpanded] = useState(false)
+    const { itemsByStore, addItem, updateQuantity } = useCartStore()
 
     const [loading, setLoading] = useState(true)
     const [product, setProduct] = useState<ProductWithStore | null>(null)
@@ -125,33 +117,6 @@ export function ProductClientPage({
         image_url: string | null
         price: number | null
     }[]>([])
-
-    // ===== SACOLA FLUTUANTE: fusão dos itens de todas as lojas, igual à home =====
-    const homeBagItems: HomeBagItem[] = useMemo(() => {
-        return Object.entries(itemsByStore).flatMap(([storeSlug, items]) =>
-            items.map((item) => ({
-                product: item.product,
-                quantity: item.quantity,
-                storeSlug,
-                storeName: storeDetails[storeSlug]?.name || storeSlug,
-                storeLogoUrl: storeDetails[storeSlug]?.logo_url || null,
-                comment: item.comment,
-            }))
-        )
-    }, [itemsByStore, storeDetails])
-
-    const handleBagIncrease = (item: HomeBagItem) => {
-        const store = storeDetails[item.storeSlug] || { name: item.storeName, logo_url: null }
-        addItem(item.storeSlug, store, item.product, item.comment)
-    }
-
-    const handleBagDecrease = (item: HomeBagItem) => {
-        updateQuantity(item.storeSlug, item.product.id, -1, item.comment)
-    }
-
-    const handleBagRemove = (item: HomeBagItem) => {
-        removeItem(item.storeSlug, item.product.id, item.comment)
-    }
 
     // ========== CARREGAR PRODUTO ==========
     // O produto e a loja já vêm prontos do SlugClientPage (que os buscou pra
@@ -662,22 +627,6 @@ export function ProductClientPage({
                     </div>
                 </div>
 
-                {/* Sacola flutuante - igual ao catálogo/home */}
-                <div style={{ position: 'fixed', bottom: 24, right: 24, zIndex: 998 }}>
-                    <HomeBag
-                        items={homeBagItems}
-                        isExpanded={isBagExpanded}
-                        onToggleExpanded={() => setIsBagExpanded(!isBagExpanded)}
-                        onIncrease={handleBagIncrease}
-                        onDecrease={handleBagDecrease}
-                        onRemove={handleBagRemove}
-                        onCheckout={(storeSlug) => {
-                            setIsBagExpanded(false)
-                            router.push(`/${storeSlug}/catalogo`)
-                        }}
-                        colors={colors}
-                    />
-                </div>
             </main>
         </div>
     )
