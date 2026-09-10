@@ -2,10 +2,11 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Search, X } from 'lucide-react'
+import { ArrowLeft, Search, ShoppingCart, X } from 'lucide-react'
 import { useTheme } from '@/app/theme'
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { hexToRgb } from '@/lib/color'
+import { useCartStore } from '@/store/useCartStore'
 
 export interface Tab {
     id: string
@@ -67,6 +68,12 @@ export default function Header({
 }: HeaderProps) {
     const router = useRouter()
     const { colors } = useTheme()
+
+    const cartItemsByStore = useCartStore((state) => state.itemsByStore)
+    const cartCount = useMemo(
+        () => Object.values(cartItemsByStore).reduce((acc, items) => acc + items.length, 0),
+        [cartItemsByStore]
+    )
 
     const [internalSearchValue, setInternalSearchValue] = useState('')
     const [isFocused, setIsFocused] = useState(false)
@@ -449,7 +456,7 @@ export default function Header({
                 {/* ButtonSearch com brilho sempre ativo */}
                 {showSearch && (
                     <div
-                        className="w-full"
+                        className="w-full flex items-center gap-2"
                         style={{
                             marginTop: isExpanded ? 0 : 12,
                             paddingBottom: isExpanded ? 0 : 16,
@@ -458,8 +465,10 @@ export default function Header({
                     >
                         <div
                             ref={containerRef}
-                            className="relative w-full"
+                            className="relative"
                             style={{
+                                flex: 1,
+                                minWidth: 0,
                                 position: 'relative',
                                 height: 48,
                                 borderRadius: 999,
@@ -566,6 +575,27 @@ export default function Header({
                                 </button>
                             )}
                         </div>
+
+                        <button
+                            onClick={() => router.push('/sacola')}
+                            className="relative flex items-center justify-center rounded-full flex-shrink-0 h-7 w-7 sm:h-9 sm:w-9 transition-transform hover:scale-105 active:scale-95"
+                            style={{
+                                background: 'linear-gradient(135deg, #f97316, #dc2626)',
+                                color: '#ffffff',
+                            }}
+                            aria-label="Ver sacola"
+                            title="Ver sacola"
+                        >
+                            <ShoppingCart size={14} strokeWidth={2} />
+                            {cartCount > 0 && (
+                                <span
+                                    className="absolute -top-1 -right-1 w-4 h-4 rounded-full text-white text-[7px] flex items-center justify-center font-black leading-none"
+                                    style={{ backgroundColor: '#ef4444' }}
+                                >
+                                    {cartCount}
+                                </span>
+                            )}
+                        </button>
                     </div>
                 )}
             </div>
