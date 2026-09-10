@@ -35,6 +35,7 @@ import {
     Users,
     UserCheck,
     UserPlus,
+    Camera,
 } from 'lucide-react'
 import { RatingStars } from '@/components/ratings/RatingStars'
 import { isStoreOpenNow, getStoreStatusText, getNextOpeningInfo, type BusinessHours } from '@/lib/storeHours'
@@ -66,6 +67,7 @@ interface OwnerData {
     description?: string | null
     address?: string | null
     whatsapp?: string | null
+    instagram?: string | null
     view_count?: number
     ratings_avg?: number
     ratings_count?: number
@@ -121,6 +123,7 @@ export function Store({
     const [isOwner, setIsOwner] = useState(false)
     const [currentUserId, setCurrentUserId] = useState<string | null>(null)
     const [followersCount, setFollowersCount] = useState(0)
+    const [shareCount, setShareCount] = useState(0)
     const [showFollowers, setShowFollowers] = useState(false)
     const [isFollowing, setIsFollowing] = useState(false)
     const [totalVisitors, setTotalVisitors] = useState(0)
@@ -250,6 +253,13 @@ export function Store({
     const whatsappLink = useMemo(() => {
         if (!owner?.whatsapp) return null
         return `https://wa.me/${owner.whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(`Olá! Vi sua loja no iUser e tenho interesse nos seus produtos/serviços.`)}`
+    }, [owner])
+
+    // ========== INSTAGRAM ==========
+    const instagramLink = useMemo(() => {
+        if (!owner?.instagram) return null
+        const handle = owner.instagram.trim().replace(/^@/, '').replace(/^https?:\/\/(www\.)?instagram\.com\//i, '').replace(/\/$/, '')
+        return handle ? `https://instagram.com/${handle}` : null
     }, [owner])
 
     // ========== PUBLICATIONS ==========
@@ -474,13 +484,15 @@ export function Store({
                 : null
 
             let storeWhatsapp = store.whatsapp
-            if (!storeWhatsapp && store.owner_id) {
+            let storeInstagram = store.instagram
+            if ((!storeWhatsapp || !storeInstagram) && store.owner_id) {
                 const { data: profile } = await supabase
                     .from('profiles')
-                    .select('whatsapp')
+                    .select('whatsapp, instagram')
                     .eq('id', store.owner_id)
                     .single()
-                storeWhatsapp = profile?.whatsapp
+                storeWhatsapp = storeWhatsapp || profile?.whatsapp
+                storeInstagram = storeInstagram || profile?.instagram
             }
 
             const ownerData: OwnerData = {
@@ -493,6 +505,7 @@ export function Store({
                 description: store.description,
                 address: store.address,
                 whatsapp: storeWhatsapp,
+                instagram: storeInstagram,
                 view_count: store.view_count || 0,
                 ratings_avg: avg,
                 ratings_count: count,
@@ -502,6 +515,7 @@ export function Store({
 
             setOwner(ownerData)
             setTotalVisitors(store.view_count || 0)
+            setShareCount(store.share_count || 0)
             setImageUrl(logoUrl)
             setStoreWhatsapp(storeWhatsapp)
 
@@ -582,6 +596,17 @@ export function Store({
             setFollowersCount(prev => prev + 1)
             await supabase.from('follows').insert({ follower_id: currentUserId, following_id: owner.id })
         }
+    }
+
+    const handleShareStore = async () => {
+        if (!owner) return
+        handleShareLink({
+            title: owner.name,
+            text: owner.description || `Confira a loja ${owner.name} no iUser!`
+        })
+        setShareCount(prev => prev + 1)
+        const { data } = await supabase.rpc('increment_store_share_count', { store_id: owner.id })
+        if (typeof data === 'number') setShareCount(data)
     }
 
     // ========== RENDER ==========
@@ -795,8 +820,26 @@ export function Store({
             )}
 
 
-            {/* ===== CARD DA LOJA ===== */}
-            <div className="rounded-2xl p-6 space-y-4" style={cardStyle}>
+            {/* ===== CARD DA LOJA (CABEÇALHO) ===== */}
+            <div className="relative rounded-2xl p-6 space-y-4" style={cardStyle}>
+                <button
+                    onClick={handleShareStore}
+                    className="absolute top-4 right-4 w-10 h-10 rounded-full flex items-center justify-center transition-all hover:scale-110"
+                    style={{ background: glassBg, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                    aria-label="Compartilhar"
+                    title="Compartilhar"
+                >
+                    <Share2 size={16} />
+                    {shareCount > 0 && (
+                        <span
+                            className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full text-white text-[9px] flex items-center justify-center font-black leading-none"
+                            style={{ backgroundColor: '#ef4444', border: `2px solid ${colors.surface}` }}
+                        >
+                            {shareCount}
+                        </span>
+                    )}
+                </button>
+
                 <div className="flex items-center gap-4">
                     <div className="flex-shrink-0">
                         <div
@@ -864,69 +907,75 @@ export function Store({
                     </div>
                 )}
 
-                <div className="flex flex-wrap items-center gap-3 pt-2">
-                    {owner.address && (
-                        <button
-                            onClick={openGoogleMaps}
-                            className="flex items-center gap-1 font-bold text-xs uppercase hover:underline"
-                            style={{ color: '#f97316' }}
-                        >
-                            <MapPin className="w-3.5 h-3.5" />
-                            <span>{owner.address.split(',')[0].trim()}</span>
-                        </button>
-                    )}
-
-                    {owner.allow_scheduling && (
-                        <button
-                            onClick={() => {
-                                setShowScheduleModal(true)
-                            }}
-                            className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold shadow-xl transition-all hover:scale-105 ${nextAvailable ? 'animate-pulse-status' : ''}`}
-                            style={{
-                                background: GRADIENT,
-                                color: '#ffffff',
-                                border: `1px solid #f97316`,
-                                boxShadow: `0 8px 18px #f9731650`,
-                            }}
-                        >
-                            <Calendar className="w-4 h-4" />
-                            <span>
-                                {nextAvailable
-                                    ? `Agendar · ${nextAvailable.day} ${nextAvailable.open}`
-                                    : 'Agendar'}
-                            </span>
-                        </button>
-                    )}
-
-                    {whatsappLink && (
-                        <a
-                            href={whatsappLink}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="px-4 py-2 rounded-full text-xs font-bold transition-all hover:scale-105 flex items-center gap-2"
-                            style={{ background: '#25D366', color: '#fff' }}
-                        >
-                            <MessageCircle className="w-4 h-4" />
-                            WhatsApp
-                        </a>
-                    )}
-
+                {owner.address && (
                     <button
-                        onClick={() => handleShareLink({
-                            title: owner.name,
-                            text: owner.description || `Confira a loja ${owner.name} no iUser!`
-                        })}
-                        className="px-4 py-2 rounded-full text-xs font-bold transition-all hover:scale-105 flex items-center gap-2"
-                        style={{
-                            background: glassBg,
-                            color: colors.textPrimary,
-                            border: `1px solid ${colors.border}`,
-                        }}
+                        onClick={openGoogleMaps}
+                        className="w-full flex items-center gap-3 p-3 rounded-xl text-left transition-all hover:scale-[1.01]"
+                        style={{ background: glassBg, border: `1px solid ${colors.border}` }}
                     >
-                        <Share2 className="w-4 h-4" />
-                        <span>Compartilhar</span>
+                        <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#fff' }}>
+                            <MapPin size={18} />
+                        </div>
+                        <div className="min-w-0">
+                            <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>Estamos localizados</p>
+                            <p className="text-xs mt-0.5 truncate" style={{ color: colors.textSecondary }}>{owner.address}</p>
+                        </div>
                     </button>
-                </div>
+                )}
+
+                {owner.allow_scheduling && (
+                    <button
+                        onClick={() => setShowScheduleModal(true)}
+                        className={`w-full flex items-center gap-3 p-3 rounded-xl text-left transition-all hover:scale-[1.01] ${nextAvailable ? 'animate-pulse-status' : ''}`}
+                        style={{ background: glassBg, border: `1px solid ${colors.border}` }}
+                    >
+                        <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#fff' }}>
+                            <Calendar size={18} />
+                        </div>
+                        <div className="min-w-0">
+                            <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>Agendar Atendimento</p>
+                            <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>
+                                {nextAvailable ? `Próximo horário disponível: ${nextAvailable.day} ${nextAvailable.open}` : 'Ver horários disponíveis'}
+                            </p>
+                        </div>
+                    </button>
+                )}
+
+                {whatsappLink && (
+                    <a
+                        href={whatsappLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-full flex items-center gap-3 p-3 rounded-xl transition-all hover:scale-[1.01]"
+                        style={{ background: glassBg, border: `1px solid ${colors.border}` }}
+                    >
+                        <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: '#25D366', color: '#fff' }}>
+                            <MessageCircle size={18} />
+                        </div>
+                        <div className="min-w-0">
+                            <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>WhatsApp</p>
+                            <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>{owner.whatsapp}</p>
+                        </div>
+                    </a>
+                )}
+
+                {instagramLink && (
+                    <a
+                        href={instagramLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-full flex items-center gap-3 p-3 rounded-xl transition-all hover:scale-[1.01]"
+                        style={{ background: glassBg, border: `1px solid ${colors.border}` }}
+                    >
+                        <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'linear-gradient(135deg, #f09433, #dc2743, #bc1888)', color: '#fff' }}>
+                            <Camera size={18} />
+                        </div>
+                        <div className="min-w-0">
+                            <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>Instagram</p>
+                            <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>{owner.instagram}</p>
+                        </div>
+                    </a>
+                )}
 
                 <div className="flex flex-wrap items-center gap-2">
                     <button
