@@ -72,6 +72,32 @@ function formatAddress(address: string, addressNumber?: string): string {
     return firstPart
 }
 
+const liveLocationCache: Map<string, string> = new Map()
+
+// Endereço da posição ao vivo (GPS), pra mostrar no cabeçalho no lugar do
+// endereço salvo enquanto "Sincronização para motorista" está ativada.
+async function reverseGeocodeLiveLocation(lat: number, lng: number): Promise<string | null> {
+    const key = `${lat.toFixed(4)},${lng.toFixed(4)}`
+    if (liveLocationCache.has(key)) return liveLocationCache.get(key)!
+
+    try {
+        const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1`,
+            { headers: { 'User-Agent': 'iUserApp/1.0', 'Accept-Language': 'pt-BR' } }
+        )
+        if (!res.ok) throw new Error('Erro')
+        const data = await res.json()
+        const address = data?.address
+        const street = address?.road || address?.street || ''
+        const number = address?.house_number || ''
+        const formatted = street ? (number ? `${street}, ${number}` : street) : (data.display_name || null)
+        if (formatted) liveLocationCache.set(key, formatted)
+        return formatted
+    } catch {
+        return null
+    }
+}
+
 function relativeTime(iso: string): string {
     const minutes = Math.floor((Date.now() - new Date(iso).getTime()) / 60000)
     if (minutes < 1) return 'agora'
@@ -199,6 +225,8 @@ export default function AceitarCorridasPage() {
     const [customPriceValue, setCustomPriceValue] = useState('')
     const [driverCoords, setDriverCoords] = useState<[number, number] | null>(null)
     const [liveLocationSync, setLiveLocationSync] = useState(false)
+    const [liveLocationLabel, setLiveLocationLabel] = useState<string | null>(null)
+    const liveLocationDebounceRef = useRef<NodeJS.Timeout | null>(null)
     const [mapDialogRideId, setMapDialogRideId] = useState<string | null>(null)
 
     const [savedLocation, setSavedLocation] = useState<{ lat: number; lng: number; address: string; addressNumber?: string; addressComplement?: string } | null>(null)
@@ -224,6 +252,26 @@ export default function AceitarCorridasPage() {
 
         return () => navigator.geolocation.clearWatch(watchId)
     }, [liveLocationSync])
+
+    // Nome exibido no cabeçalho enquanto sincronizado: o do local ao vivo
+    // (GPS), não o do local salvo — só busca de novo quando a posição muda.
+    useEffect(() => {
+        if (!liveLocationSync || !driverCoords) {
+            setLiveLocationLabel(null)
+            return
+        }
+
+        if (liveLocationDebounceRef.current) clearTimeout(liveLocationDebounceRef.current)
+        liveLocationDebounceRef.current = setTimeout(async () => {
+            const [lng, lat] = driverCoords
+            const label = await reverseGeocodeLiveLocation(lat, lng)
+            if (label) setLiveLocationLabel(label)
+        }, 800)
+
+        return () => {
+            if (liveLocationDebounceRef.current) clearTimeout(liveLocationDebounceRef.current)
+        }
+    }, [liveLocationSync, driverCoords])
 
     const load = useCallback(async () => {
         const { data: { user } } = await supabase.auth.getUser()
@@ -804,9 +852,11 @@ export default function AceitarCorridasPage() {
                             {liveLocationSync ? <Car size={14} /> : null}
                             {isSavingLocation
                                 ? 'Salvando...'
-                                : savedLocation
-                                    ? formatAddress(savedLocation.address, savedLocation.addressNumber)
-                                    : 'Definir local'
+                                : liveLocationSync
+                                    ? (liveLocationLabel ? formatAddress(liveLocationLabel) : 'Localizando...')
+                                    : savedLocation
+                                        ? formatAddress(savedLocation.address, savedLocation.addressNumber)
+                                        : 'Definir local'
                             }
                         </button>
                     }

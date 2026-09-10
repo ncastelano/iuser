@@ -293,23 +293,31 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
                 setSelectedPosition(newPos)
 
                 if (movableMarkerRef.current && mapInstanceRef.current) {
+                    const map = mapInstanceRef.current
                     movableMarkerRef.current.setLatLng([newPos.lat, newPos.lng])
-                    mapInstanceRef.current.panTo([newPos.lat, newPos.lng], { animate: true })
-                    updatePolyline(mapInstanceRef.current, savedPosition, newPos)
+                    // Só recentraliza se a posição saiu da área visível — evita o
+                    // mapa ficando se mexendo a cada atualização de GPS. Marca
+                    // isMovingRef antes: sem isso o listener "moveend" (feito pra
+                    // arraste manual) trata esse pan programático como manual e
+                    // reaciona o estado de "carregando endereço" e a linha
+                    // pontilhada a cada correção de posição.
+                    if (!map.getBounds().contains([newPos.lat, newPos.lng])) {
+                        isMovingRef.current = true
+                        map.panTo([newPos.lat, newPos.lng], { animate: true })
+                    }
                 }
 
                 if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
-                setResolvingAddress(true)
                 setError('')
                 debounceTimerRef.current = setTimeout(async () => {
-                    try {
-                        const result = await reverseGeocode(newPos.lat, newPos.lng)
-                        setNewAddress(result.fullAddress)
-                        if (result.extractedNumber && !newNumber) {
-                            setNewNumber(result.extractedNumber)
-                        }
-                    } finally {
-                        setResolvingAddress(false)
+                    // Sem setResolvingAddress aqui: no modo ao vivo o endereço só
+                    // troca de texto quando o novo já está pronto, sem o estado de
+                    // "carregando" piscando e desmontando os campos de número/
+                    // complemento a cada atualização.
+                    const result = await reverseGeocode(newPos.lat, newPos.lng)
+                    setNewAddress(result.fullAddress)
+                    if (result.extractedNumber && !newNumber) {
+                        setNewNumber(result.extractedNumber)
                     }
                 }, 500)
             },
@@ -323,7 +331,30 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
                 liveWatchIdRef.current = null
             }
         }
-    }, [liveLocationSync, mapReady, savedPosition, updatePolyline, newNumber])
+    }, [liveLocationSync, mapReady, newNumber])
+
+    // Enquanto sincronizado, esconde o marcador/linha da localização salva —
+    // o mapa mostra só a posição atual. Os dados salvos continuam intactos
+    // (savedPosition/savedAddress), só a exibição é que some; ao desligar a
+    // sincronização, eles voltam a aparecer.
+    useEffect(() => {
+        const map = mapInstanceRef.current
+        if (!mapReady || !map) return
+
+        if (savedMarkerRef.current) {
+            if (liveLocationSync) {
+                map.removeLayer(savedMarkerRef.current)
+            } else if (!map.hasLayer(savedMarkerRef.current)) {
+                savedMarkerRef.current.addTo(map)
+            }
+        }
+        if (polylineRef.current) {
+            if (liveLocationSync) {
+                map.removeLayer(polylineRef.current)
+                polylineRef.current = null
+            }
+        }
+    }, [liveLocationSync, mapReady])
 
     // ===== FLY TO =====
     const flyTo = useCallback((lat: number, lng: number) => {
@@ -794,7 +825,7 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
                     )}
 
                     <div className="space-y-2 mb-3">
-                        {savedPosition && (
+                        {savedPosition && !liveLocationSync && (
                             <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-xl"
                                 style={{
                                     background: `${colors.surface}88`,
@@ -840,7 +871,7 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
                             </div>
                             <div className="flex-1 min-w-0">
                                 <span className="text-[10px] font-semibold uppercase tracking-wider opacity-50" style={{ color: colors.textPrimary }}>
-                                    Nova localização
+                                    {liveLocationSync ? 'Localização atual (ao vivo)' : 'Nova localização'}
                                 </span>
                                 {resolvingAddress ? (
                                     <p className="text-xs mt-0.5 opacity-50" style={{ color: colors.textPrimary }}>
