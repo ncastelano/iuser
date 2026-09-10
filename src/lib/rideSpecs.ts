@@ -32,7 +32,7 @@ export interface RideSpecFields {
     special_needs_wheelchair_type?: 'dobravel' | 'grande' | null
     special_needs_visual_impairment?: boolean
     has_guide_dog?: boolean
-    payment_method?: 'dinheiro' | 'pix' | null
+    payment_method?: 'dinheiro' | 'pix' | 'cartao' | null
     cash_change_for?: number | null
 }
 
@@ -116,7 +116,8 @@ export function buildRideSpecRows(ride: RideSpecFields): RideSpecRow[] {
 
     if (ride.payment_method) {
         const changeText = ride.payment_method === 'dinheiro' && ride.cash_change_for != null ? ` (troco para R$ ${ride.cash_change_for.toFixed(2)})` : ''
-        rows.push({ label: 'Pagamento', value: `${ride.payment_method === 'dinheiro' ? 'Dinheiro' : 'Pix'}${changeText}` })
+        const label = ride.payment_method === 'dinheiro' ? 'Dinheiro' : ride.payment_method === 'pix' ? 'Pix' : 'Cartão'
+        rows.push({ label: 'Pagamento', value: `${label}${changeText}` })
     }
 
     if ((ride.origin_complement || '').trim()) {

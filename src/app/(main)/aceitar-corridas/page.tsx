@@ -95,7 +95,7 @@ interface RideRow {
     object_description: string | null
     object_is_sensitive: boolean
     delivery_location: 'portaria' | 'area_interna' | 'apartamento' | null
-    payment_method: 'dinheiro' | 'pix' | null
+    payment_method: 'dinheiro' | 'pix' | 'cartao' | null
     cash_change_for: number | null
     pet_description: string | null
     has_child: boolean

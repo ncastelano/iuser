@@ -368,7 +368,7 @@ export default function PedirMotoristaPage() {
     const [deliveryLocation, setDeliveryLocation] = useState<'portaria' | 'area_interna' | 'apartamento' | null>(null)
 
     // ===== PAGAMENTO =====
-    const [paymentMethod, setPaymentMethod] = useState<'dinheiro' | 'pix' | null>(null)
+    const [paymentMethod, setPaymentMethod] = useState<'dinheiro' | 'pix' | 'cartao' | null>(null)
     const [cashChangeFor, setCashChangeFor] = useState('')
 
     // ===== NECESSIDADE ESPECIAL =====
@@ -885,7 +885,8 @@ export default function PedirMotoristaPage() {
 
         if (paymentMethod) {
             const changeText = paymentMethod === 'dinheiro' && cashChangeFor.trim() ? ` (troco para R$ ${cashChangeFor})` : ''
-            rows.push({ label: 'Pagamento', value: `${paymentMethod === 'dinheiro' ? 'Dinheiro' : 'Pix'}${changeText}` })
+            const paymentLabel = paymentMethod === 'dinheiro' ? 'Dinheiro' : paymentMethod === 'pix' ? 'Pix' : 'Cartão'
+            rows.push({ label: 'Pagamento', value: `${paymentLabel}${changeText}` })
         }
 
         rows.push({ label: 'Quando', value: isScheduled ? formatScheduledFor(new Date(scheduledFor).toISOString()) : 'Agora' })
@@ -2022,6 +2023,13 @@ export default function PedirMotoristaPage() {
                                         style={paymentMethod === 'pix' ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
                                     >
                                         Pix
+                                    </button>
+                                    <button
+                                        onClick={() => { setPaymentMethod('cartao'); setCashChangeFor('') }}
+                                        className="flex-1 py-2.5 rounded-xl text-xs font-bold transition-all"
+                                        style={paymentMethod === 'cartao' ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                                    >
+                                        Cartão
                                     </button>
                                 </div>
                                 {paymentMethod === 'dinheiro' && (

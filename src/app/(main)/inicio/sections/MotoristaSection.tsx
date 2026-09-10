@@ -55,7 +55,7 @@ interface ActiveOrder {
     object_description: string | null
     object_is_sensitive: boolean
     delivery_location: 'portaria' | 'area_interna' | 'apartamento' | null
-    payment_method: 'dinheiro' | 'pix' | null
+    payment_method: 'dinheiro' | 'pix' | 'cartao' | null
     cash_change_for: number | null
     has_special_needs: boolean
     special_needs_description: string | null
