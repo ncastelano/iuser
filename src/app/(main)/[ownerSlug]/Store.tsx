@@ -847,24 +847,6 @@ export function Store({
                     </div>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2">
-                    <button
-                        onClick={() => setShowFollowers(true)}
-                        className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] transition-all hover:scale-105"
-                        style={{ background: glassBg, color: colors.textSecondary }}
-                    >
-                        <Users size={12} />
-                        <span className="font-bold" style={{ color: colors.textPrimary }}>{followersCount}</span>
-                        <span>seguidores</span>
-                    </button>
-
-                    <div className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px]" style={{ background: glassBg, color: colors.textSecondary }}>
-                        <Eye size={12} />
-                        <span className="font-bold" style={{ color: colors.textPrimary }}>{totalVisitors}</span>
-                        <span>visitantes</span>
-                    </div>
-                </div>
-
                 {owner.description && (
                     <div className="text-sm leading-relaxed" style={{ color: colors.textSecondary }}>
                         {expandedDesc || owner.description.length <= DESC_LIMIT
@@ -916,24 +898,6 @@ export function Store({
                         </button>
                     )}
 
-                    {currentUserId && currentUserId !== owner.id && (
-                        <button
-                            onClick={handleFollowToggle}
-                            className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold transition-all hover:scale-105 ${isFollowing ? 'border-2' : ''}`}
-                            style={isFollowing ? {
-                                borderColor: '#f97316',
-                                color: '#f97316',
-                                background: 'transparent'
-                            } : {
-                                background: GRADIENT,
-                                color: '#fff'
-                            }}
-                        >
-                            {isFollowing ? <UserCheck size={14} /> : <UserPlus size={14} />}
-                            {isFollowing ? 'Seguindo' : 'Seguir'}
-                        </button>
-                    )}
-
                     {whatsappLink && (
                         <a
                             href={whatsappLink}
@@ -962,6 +926,42 @@ export function Store({
                         <Share2 className="w-4 h-4" />
                         <span>Compartilhar</span>
                     </button>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                    <button
+                        onClick={() => setShowFollowers(true)}
+                        className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] transition-all hover:scale-105"
+                        style={{ background: glassBg, color: colors.textSecondary }}
+                    >
+                        <Users size={12} />
+                        <span className="font-bold" style={{ color: colors.textPrimary }}>{followersCount}</span>
+                        <span>seguidores</span>
+                    </button>
+
+                    {currentUserId && currentUserId !== owner.id && (
+                        <button
+                            onClick={handleFollowToggle}
+                            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold transition-all hover:scale-105 ${isFollowing ? 'border-2' : ''}`}
+                            style={isFollowing ? {
+                                borderColor: '#f97316',
+                                color: '#f97316',
+                                background: 'transparent'
+                            } : {
+                                background: GRADIENT,
+                                color: '#fff'
+                            }}
+                        >
+                            {isFollowing ? <UserCheck size={12} /> : <UserPlus size={12} />}
+                            {isFollowing ? 'Seguindo' : 'Seguir'}
+                        </button>
+                    )}
+
+                    <div className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px]" style={{ background: glassBg, color: colors.textSecondary }}>
+                        <Eye size={12} />
+                        <span className="font-bold" style={{ color: colors.textPrimary }}>{totalVisitors}</span>
+                        <span>visitantes</span>
+                    </div>
                 </div>
 
                 {!isStoreOpen && (
