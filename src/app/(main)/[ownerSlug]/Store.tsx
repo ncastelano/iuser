@@ -32,6 +32,9 @@ import {
     AlertCircle,
     Info,
     Share2,
+    Users,
+    UserCheck,
+    UserPlus,
 } from 'lucide-react'
 import { RatingStars } from '@/components/ratings/RatingStars'
 import { isStoreOpenNow, getStoreStatusText, getNextOpeningInfo, type BusinessHours } from '@/lib/storeHours'
@@ -41,6 +44,7 @@ import { usePublicationsStore } from '@/store/usePublicationStore'
 import StoreSchedule from '../StoreSchedule'
 import { generateUniqueGlobalSlug } from '@/lib/slugUtils'
 import { handleShareLink } from '@/lib/share'
+import { Follows } from './Follows'
 
 interface StoreProps {
     ownerSlug: string
@@ -117,6 +121,7 @@ export function Store({
     const [isOwner, setIsOwner] = useState(false)
     const [currentUserId, setCurrentUserId] = useState<string | null>(null)
     const [followersCount, setFollowersCount] = useState(0)
+    const [showFollowers, setShowFollowers] = useState(false)
     const [isFollowing, setIsFollowing] = useState(false)
     const [totalVisitors, setTotalVisitors] = useState(0)
     const [products, setProducts] = useState<any[]>([])
@@ -141,10 +146,10 @@ export function Store({
     // cheia está aberto, pra ele esconder os botões flutuantes ("Ver
     // Catálogo" / Home) que senão ficam por cima do dialog.
     useEffect(() => {
-        onDialogOpenChange?.(showAllHours || showScheduleModal || showProductModal)
+        onDialogOpenChange?.(showAllHours || showScheduleModal || showProductModal || showFollowers)
         return () => { onDialogOpenChange?.(false) }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [showAllHours, showScheduleModal, showProductModal])
+    }, [showAllHours, showScheduleModal, showProductModal, showFollowers])
 
     // States para Publicações
     const [isCreatingPublication, setIsCreatingPublication] = useState(false)
@@ -816,10 +821,6 @@ export function Store({
                     <div className="flex-1 min-w-0">
                         <h2 className="text-xl font-black tracking-tight" style={{ color: colors.textPrimary }}>{owner.name}</h2>
                         <div className="flex flex-col gap-1 mt-0.5 text-xs" style={{ color: colors.textSecondary }}>
-                            <div className="flex items-center gap-1">
-                                <Eye size={12} />
-                                <span className="font-bold">{totalVisitors} visitantes</span>
-                            </div>
                             <button
                                 onClick={() => {
                                     if (owner.business_hours && Object.keys(owner.business_hours).length > 0) {
@@ -843,6 +844,24 @@ export function Store({
                                 </span>
                             )}
                         </div>
+                    </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                    <button
+                        onClick={() => setShowFollowers(true)}
+                        className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] transition-all hover:scale-105"
+                        style={{ background: glassBg, color: colors.textSecondary }}
+                    >
+                        <Users size={12} />
+                        <span className="font-bold" style={{ color: colors.textPrimary }}>{followersCount}</span>
+                        <span>seguidores</span>
+                    </button>
+
+                    <div className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px]" style={{ background: glassBg, color: colors.textSecondary }}>
+                        <Eye size={12} />
+                        <span className="font-bold" style={{ color: colors.textPrimary }}>{totalVisitors}</span>
+                        <span>visitantes</span>
                     </div>
                 </div>
 
@@ -900,7 +919,7 @@ export function Store({
                     {currentUserId && currentUserId !== owner.id && (
                         <button
                             onClick={handleFollowToggle}
-                            className={`px-4 py-2 rounded-full text-xs font-bold transition-all hover:scale-105 ${isFollowing ? 'border-2' : ''}`}
+                            className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold transition-all hover:scale-105 ${isFollowing ? 'border-2' : ''}`}
                             style={isFollowing ? {
                                 borderColor: '#f97316',
                                 color: '#f97316',
@@ -910,6 +929,7 @@ export function Store({
                                 color: '#fff'
                             }}
                         >
+                            {isFollowing ? <UserCheck size={14} /> : <UserPlus size={14} />}
                             {isFollowing ? 'Seguindo' : 'Seguir'}
                         </button>
                     )}
@@ -1584,6 +1604,17 @@ export function Store({
                         </div>
                     </div>
                 </div>
+            )}
+
+            {showFollowers && owner && (
+                <Follows
+                    profileId={owner.id}
+                    profileSlug={ownerSlug}
+                    currentUserId={currentUserId}
+                    colors={colors}
+                    type="followers"
+                    onClose={() => setShowFollowers(false)}
+                />
             )}
         </div>
     )
