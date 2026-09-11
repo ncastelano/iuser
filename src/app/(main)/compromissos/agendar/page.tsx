@@ -4,7 +4,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Store, User, Lock, CalendarDays } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { useTheme } from '@/app/theme'
+import { useTheme } from '@/app/contexts/theme'
 import Header from '../../../Header'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { supabase } from '@/lib/supabase/client'

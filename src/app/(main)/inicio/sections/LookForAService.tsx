@@ -5,7 +5,7 @@ import { ReactNode, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
 import { Briefcase, MapPin, Settings2 } from 'lucide-react'
-import { useTheme } from '@/app/theme'
+import { useTheme } from '@/app/contexts/theme'
 import { supabase } from '@/lib/supabase/client'
 import { hexToRgb } from '@/lib/color'
 import {

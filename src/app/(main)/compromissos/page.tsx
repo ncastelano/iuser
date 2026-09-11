@@ -38,7 +38,7 @@ import {
 import { supabase } from '@/lib/supabase/client'
 import HorarioEDisponibilidade from './HorarioEDisponibilidade'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
-import { useTheme } from '@/app/theme'
+import { useTheme } from '@/app/contexts/theme'
 import Header from '../../Header' // ajuste o caminho conforme necessário
 
 type BgMode = 'animated' | 'black' | 'custom'

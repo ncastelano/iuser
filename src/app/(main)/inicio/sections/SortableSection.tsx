@@ -4,7 +4,7 @@
 
 import { ReactElement, cloneElement } from 'react'
 import { ChevronUp, ChevronDown } from 'lucide-react'
-import { useTheme } from '@/app/theme'
+import { useTheme } from '@/app/contexts/theme'
 
 interface SortableSectionProps {
     id: string

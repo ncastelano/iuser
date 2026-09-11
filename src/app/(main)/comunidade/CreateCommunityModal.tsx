@@ -3,7 +3,7 @@
 
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase/client'
-import { useTheme } from '@/app/theme'
+import { useTheme } from '@/app/contexts/theme'
 import { sanitizeSlug } from '@/lib/slugUtils'
 import { toast } from 'sonner'
 import { X, MessageCircle } from 'lucide-react'

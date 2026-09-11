@@ -4,7 +4,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Clock, X, History, User, Store, Package, Search } from 'lucide-react'
-import { useTheme } from '@/app/theme'
+import { useTheme } from '@/app/contexts/theme'
 
 // ---------- Tipos e funções do histórico ----------
 export interface RecentClickItem {

@@ -3,7 +3,7 @@
 
 import { useRef, useState, useEffect } from 'react'
 import { Camera, Store, Link, ChevronDown, ChevronUp, ImageIcon, AlertCircle, Tag, CheckCircle2 } from 'lucide-react'
-import { useTheme } from '@/app/theme'
+import { useTheme } from '@/app/contexts/theme'
 import { toast } from 'sonner'
 import { categorias } from '@/lib/categorias'
 import { hexToRgb } from '@/lib/color'

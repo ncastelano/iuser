@@ -2,7 +2,7 @@
 'use client'
 
 import { Paintbrush, Check } from 'lucide-react'
-import { useTheme, type ThemeName } from '@/app/theme'
+import { useTheme, type ThemeName } from '@/app/contexts/theme'
 
 const themeOptions: { id: ThemeName; label: string; preview: { bg: string; text: string; accent: string } }[] = [
     {

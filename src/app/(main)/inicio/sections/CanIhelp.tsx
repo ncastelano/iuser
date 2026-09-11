@@ -3,7 +3,7 @@
 
 import Link from 'next/link'
 import { ReactNode, useEffect, useState } from 'react'
-import { useTheme } from '@/app/theme'
+import { useTheme } from '@/app/contexts/theme'
 import { categorias, type Categoria } from '@/lib/categorias'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
 import { hexToRgb } from '@/lib/color'

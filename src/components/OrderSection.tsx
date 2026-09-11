@@ -3,7 +3,7 @@
 
 import { ReactNode, useState, useEffect } from 'react'
 import { Settings2, Save, RotateCcw, X, Layout } from 'lucide-react'
-import { useTheme } from '@/app/theme'
+import { useTheme } from '@/app/contexts/theme'
 import { hexToRgb } from '@/lib/color'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====

@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import mapboxgl from 'mapbox-gl'
 import { supabase } from '@/lib/supabase/client'
-import { useTheme, type ThemeColors } from '@/app/theme'
+import { useTheme, type ThemeColors } from '@/app/contexts/theme'
 import { toast } from 'sonner'
 import { shortAddress } from '@/lib/serviceBoard'
 import { getAvatarUrl } from '@/lib/avatar'

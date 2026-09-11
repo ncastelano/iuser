@@ -2,7 +2,7 @@
 'use client'
 
 import { Search, X } from 'lucide-react'
-import { useTheme } from '@/app/theme'
+import { useTheme } from '@/app/contexts/theme'
 import { useEffect, useRef, useState } from 'react'
 
 interface HeaderSearchInputProps {

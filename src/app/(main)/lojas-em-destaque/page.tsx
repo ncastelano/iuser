@@ -19,7 +19,7 @@ import {
     Search,
 } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
-import { useTheme } from '@/app/theme'
+import { useTheme } from '@/app/contexts/theme'
 import { RatingStars } from '@/components/ratings/RatingStars'
 import {
     isStoreOpenNow,

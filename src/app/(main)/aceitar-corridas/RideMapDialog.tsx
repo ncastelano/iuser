@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { X } from 'lucide-react'
-import { useTheme } from '@/app/theme'
+import { useTheme } from '@/app/contexts/theme'
 import { Spinner } from '@/components/Spinner'
 import { fetchRoute } from '@/lib/mapboxRoute'
 

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
-import { useTheme } from '@/app/theme'
+import { useTheme } from '@/app/contexts/theme'
 import { toast } from 'sonner'
 import { Car, Navigation, X, Radio, Ban } from 'lucide-react'
 import { shortAddress } from '@/lib/serviceBoard'

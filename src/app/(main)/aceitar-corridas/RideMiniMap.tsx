@@ -2,7 +2,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useTheme } from '@/app/theme'
+import { useTheme } from '@/app/contexts/theme'
 import { Expand } from 'lucide-react'
 import { fetchRoute, offsetPolyline } from '@/lib/mapboxRoute'
 

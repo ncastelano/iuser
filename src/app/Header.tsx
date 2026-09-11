@@ -3,7 +3,7 @@
 
 import { usePathname, useRouter } from 'next/navigation'
 import { ArrowLeft, Search, ShoppingCart, X, type LucideIcon } from 'lucide-react'
-import { useTheme } from '@/app/theme'
+import { useTheme } from '@/app/contexts/theme'
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { hexToRgb } from '@/lib/color'
 import { useCartStore } from '@/store/useCartStore'

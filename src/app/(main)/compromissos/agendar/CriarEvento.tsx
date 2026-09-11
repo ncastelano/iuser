@@ -18,7 +18,7 @@ import {
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useAppointments } from '../dadosDoCompromisso'
-import { useTheme } from '@/app/theme'
+import { useTheme } from '@/app/contexts/theme'
 import Header from '@/app/Header'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 

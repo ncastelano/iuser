@@ -3,7 +3,7 @@
 
 import { ReactNode } from 'react'
 import { Tag, ChevronRight } from 'lucide-react'
-import { useTheme } from '@/app/theme'
+import { useTheme } from '@/app/contexts/theme'
 
 interface PromocoesSectionProps {
     dragHandle?: ReactNode

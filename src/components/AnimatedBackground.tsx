@@ -1,7 +1,7 @@
 // components/AnimatedBackgroundiUser.tsx
 'use client'
 
-import { useTheme } from '@/app/theme'
+import { useTheme } from '@/app/contexts/theme'
 import { useEffect, useRef, useCallback } from 'react'
 
 type BgMode = 'animated' | 'black' | 'white' | 'custom'

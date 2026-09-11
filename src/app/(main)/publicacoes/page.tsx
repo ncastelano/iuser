@@ -27,7 +27,7 @@ import {
     MessageSquare,
 } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
-import { useTheme } from '@/app/theme'
+import { useTheme } from '@/app/contexts/theme'
 import { toast } from 'sonner'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { useProfile } from '@/app/contexts/ProfileContext'

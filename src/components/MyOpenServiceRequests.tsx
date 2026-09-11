@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react'
 import { Check, X, MapPin, Users } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
-import { useTheme } from '@/app/theme'
+import { useTheme } from '@/app/contexts/theme'
 import { supabase } from '@/lib/supabase/client'
 import { getAvatarUrl } from '@/lib/avatar'
 import { getServiceIcon, getServiceLabel } from '@/lib/serviceTypes'

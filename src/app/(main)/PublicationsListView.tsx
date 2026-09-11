@@ -2,7 +2,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { useTheme } from '@/app/theme'
+import { useTheme } from '@/app/contexts/theme'
 import { ChevronLeft, ChevronRight, X, Pause, MessageCircle } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import { usePublicationsStore } from '@/store/usePublicationStore'

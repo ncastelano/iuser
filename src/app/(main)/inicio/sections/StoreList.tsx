@@ -20,7 +20,7 @@ import {
     Megaphone,
     ArrowRight,
 } from 'lucide-react'
-import { useTheme } from '@/app/theme'
+import { useTheme } from '@/app/contexts/theme'
 import { RatingStars } from '@/components/ratings/RatingStars'
 import {
     isStoreOpenNow,

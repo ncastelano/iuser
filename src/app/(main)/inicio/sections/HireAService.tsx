@@ -5,7 +5,7 @@ import { ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
 import { Wrench } from 'lucide-react'
-import { useTheme } from '@/app/theme'
+import { useTheme } from '@/app/contexts/theme'
 import MyOpenServiceRequests from '@/components/MyOpenServiceRequests'
 import { hexToRgb } from '@/lib/color'
 
