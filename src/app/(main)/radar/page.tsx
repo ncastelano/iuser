@@ -12,6 +12,8 @@ import { useAppModeStore } from '@/store/useAppModeStore'
 import { toast } from 'sonner'
 import { Spinner } from '@/components/Spinner'
 import { isStoreOpenNow, getStoreStatusText, getNextOpeningInfo } from '@/lib/storeHours'
+import { useProfile } from '@/app/contexts/ProfileContext'
+import Header, { type Tab } from '@/app/Header'
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
 
@@ -81,6 +83,7 @@ async function reverseGeocode(lng: number, lat: number): Promise<string> {
 }
 
 export default function MapPage() {
+    const { profileSlug, avatarUrl, loading: profileLoading } = useProfile()
     const mapRef = useRef<mapboxgl.Map | null>(null)
     const mapContainerRef = useRef<HTMLDivElement | null>(null)
     const markersRef = useRef<mapboxgl.Marker[]>([])
@@ -1008,6 +1011,18 @@ export default function MapPage() {
         }
     }
 
+    // ===== TABS DO HEADER = FILTROS DO RADAR (lojas/serviços/produtos) =====
+    const selectMode = (m: Mode) => {
+        setMode(m)
+        setSelectedItem(null)
+        setOverrideList(null)
+    }
+    const radarTabs: Tab[] = [
+        { id: 'lojas', label: 'Lojas', icon: Store, onClick: () => selectMode('lojas'), isActive: mode === 'lojas' },
+        { id: 'servicos', label: 'Serviços', icon: Briefcase, onClick: () => selectMode('servicos'), isActive: mode === 'servicos' },
+        { id: 'produtos', label: 'Produtos', icon: ShoppingBag, onClick: () => selectMode('produtos'), isActive: mode === 'produtos' },
+    ]
+
     return (
         <div className="fixed inset-0" style={{ zIndex: 0 }}>
             <style>{`
@@ -1068,71 +1083,23 @@ export default function MapPage() {
                 </div>
             )}
 
-            {/* TOP BAR UI */}
-            <div className="absolute top-6 left-1/2 -translate-x-1/2 w-[95%] max-w-2xl z-20">
-                <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 flex-shrink-0 bg-gradient-to-br from-orange-500 to-red-500 rounded-full flex items-center justify-center shadow-xl border-2 border-white/50 cursor-pointer hover:scale-110 transition-transform" onClick={() => router.push('/')}>
-                        <img src="/logo.png" alt="iUser" className="h-7 w-7 object-contain rounded-full" />
-                    </div>
-
-                    <div
-                        className="relative flex-1 flex items-center"
-                        style={{
-                            height: 48,
-                            borderRadius: 999,
-                            padding: '0 4px',
-                            background: 'rgba(255,255,255,0.9)',
-                            backdropFilter: 'blur(16px) saturate(180%)',
-                            WebkitBackdropFilter: 'blur(16px) saturate(180%)',
-                            border: '1.5px solid #f97316',
-                            boxShadow: '0 0 0 1px #f97316, 0 0 5px #f9731640, 0 0 10px #fb923c30, 0 0 15px #f59e0b20',
-                            transition: 'border-color 0.3s ease-in-out',
-                        }}
-                    >
-                        <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ color: '#f97316' }}>
-                            <Search size={18} strokeWidth={2} />
-                        </div>
-                        <input
-                            type="text"
-                            placeholder={mode === 'lojas' ? "Procurar lojas" : mode === 'servicos' ? "Procurar serviços" : "Procurar produtos"}
-                            value={search}
-                            onChange={(e) => { setSearch(e.target.value); setOverrideList(null) }}
-                            className="flex-1 h-full bg-transparent border-none outline-none text-sm text-gray-800 placeholder:text-gray-500 min-w-0"
-                        />
-                        {search && (
-                            <button
-                                onClick={() => setSearch('')}
-                                className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mr-0.5 text-gray-400 hover:text-gray-600 transition-colors"
-                            >
-                                <X className="w-4 h-4" />
-                            </button>
-                        )}
-                    </div>
-                </div>
-
-                {/* Filtros (lojas / serviços / produtos) como tabs, em vez de modal */}
-                <div
-                    className="flex items-center gap-1 mt-3 w-fit mx-auto p-1 rounded-full"
-                    style={{
-                        background: 'rgba(255,255,255,0.9)',
-                        backdropFilter: 'blur(16px) saturate(180%)',
-                        WebkitBackdropFilter: 'blur(16px) saturate(180%)',
-                        boxShadow: '0 4px 15px rgba(0,0,0,0.15)',
-                    }}
-                >
-                    {(['lojas', 'servicos', 'produtos'] as Mode[]).map(m => (
-                        <button
-                            key={m}
-                            onClick={() => { setMode(m); setSelectedItem(null); setOverrideList(null) }}
-                            className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wide transition-all ${mode === m ? 'shadow-md' : 'text-gray-600 hover:bg-black/5'
-                                }`}
-                            style={mode === m ? { background: 'linear-gradient(135deg, #f97316, #dc2626)', color: '#ffffff' } : undefined}
-                        >
-                            {m === 'lojas' ? <Store size={14} /> : m === 'servicos' ? <Briefcase size={14} /> : <ShoppingBag size={14} />}
-                            <span className="lowercase first-letter:uppercase">{m}</span>
-                        </button>
-                    ))}
-                </div>
+            {/* HEADER - mesmo componente do homepage, com os filtros do radar nas tabs.
+                Em posição absoluta (não relativa ao fluxo normal) porque o Mapbox GL
+                força position:relative no próprio container do mapa via JS, o que
+                empurraria um Header "sticky" pra fora da tela se ele viesse depois
+                dele no DOM. */}
+            <div className="absolute top-0 left-0 right-0 z-20">
+                <Header
+                    showBack={false}
+                    greeting={`Olá, ${profileLoading ? '...' : profileSlug ? `@${profileSlug}` : 'Visitante'}`}
+                    avatarUrl={avatarUrl}
+                    loading={profileLoading}
+                    tabs={radarTabs}
+                    showSearch={true}
+                    searchPlaceholder={mode === 'lojas' ? 'Procurar lojas' : mode === 'servicos' ? 'Procurar serviços' : 'Procurar produtos'}
+                    searchValue={search}
+                    onSearch={(q) => { setSearch(q); setOverrideList(null) }}
+                />
             </div>
 
             {/* Location Banner */}
@@ -1316,7 +1283,7 @@ export default function MapPage() {
 
             {/* Cluster Header */}
             {clusterItems && clusterLocation && (
-                <div className="absolute top-36 left-1/2 -translate-x-1/2 w-[95%] max-w-2xl z-30">
+                <div className="absolute top-[210px] left-1/2 -translate-x-1/2 w-[95%] max-w-2xl z-30">
                     <div className="bg-yellow-500 rounded-2xl px-4 py-3 shadow-lg flex items-center justify-between">
                         <div className="flex items-center gap-2">
                             <Building2 className="w-5 h-5 text-white" />
@@ -1382,7 +1349,7 @@ export default function MapPage() {
 
             {/* Horizontal List */}
             {filtered.length > 0 && !clusterItems && (
-                <div className="absolute top-[150px] left-1/2 -translate-x-1/2 w-[95%] max-w-2xl z-20">
+                <div className="absolute top-[210px] left-1/2 -translate-x-1/2 w-[95%] max-w-2xl z-20">
                     <div className="flex gap-2 overflow-x-auto pt-3 pb-3 scrollbar-hide snap-x">
                         {filtered.map(item => (
                             <button

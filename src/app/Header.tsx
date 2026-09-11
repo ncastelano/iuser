@@ -578,7 +578,7 @@ export default function Header({
                             )}
                         </div>
 
-                        {pathname !== '/sacola' && (
+                        {pathname !== '/sacola' && pathname !== '/radar' && (
                             <button
                                 onClick={() => router.push('/sacola')}
                                 className="relative flex items-center justify-center rounded-full flex-shrink-0 hover:scale-105 active:scale-95"
