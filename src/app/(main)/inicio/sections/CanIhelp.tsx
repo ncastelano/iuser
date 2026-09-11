@@ -2,11 +2,12 @@
 'use client'
 
 import Link from 'next/link'
-import { ReactNode, useEffect, useRef, useState } from 'react'
+import { ReactNode, useEffect, useState } from 'react'
 import { useTheme } from '@/app/theme'
 import { categorias, type Categoria } from '@/lib/categorias'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
 import { hexToRgb } from '@/lib/color'
+import { supabase } from '@/lib/supabase/client'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -38,6 +39,33 @@ function bumpClickCount(slug: string) {
     }
 }
 
+// ===== Badges de contagem já dispensados, salvo no navegador =====
+// Uma vez que a pessoa clica no número (já viu quantas lojas tem ali), o
+// badge some daquela categoria pra sempre nesse aparelho — só serve pra
+// chamar atenção na primeira vez.
+const DISMISSED_BADGES_KEY = 'iuser-category-badges-dismissed'
+
+function getDismissedBadges(): Set<string> {
+    if (typeof window === 'undefined') return new Set()
+    try {
+        const raw = JSON.parse(localStorage.getItem(DISMISSED_BADGES_KEY) || '[]')
+        return new Set(Array.isArray(raw) ? raw : [])
+    } catch {
+        return new Set()
+    }
+}
+
+function dismissBadge(slug: string) {
+    if (typeof window === 'undefined') return
+    try {
+        const dismissed = getDismissedBadges()
+        dismissed.add(slug)
+        localStorage.setItem(DISMISSED_BADGES_KEY, JSON.stringify(Array.from(dismissed)))
+    } catch {
+        // localStorage indisponível (modo privado, etc.) - ignora
+    }
+}
+
 export default function CanIhelp({ dragHandle }: CanIhelpProps) {
     const { colors } = useTheme()
     const startNavProgress = useNavProgressStore((s) => s.start)
@@ -56,43 +84,33 @@ export default function CanIhelp({ dragHandle }: CanIhelpProps) {
         setOrderedCategorias(sorted)
     }, [])
 
-    // Só centraliza a lista quando ela cabe inteira no card; caso contrário
-    // (ex: mobile) mantém alinhada ao início, senão o justify-center corta o
-    // primeiro item porque o overflow negativo do flex vira inacessível.
-    const scrollRef = useRef<HTMLDivElement>(null)
-    const [fitsWithoutScroll, setFitsWithoutScroll] = useState(true)
+    // ===== Contagem de lojas por categoria (badge) =====
+    const [categoryCounts, setCategoryCounts] = useState<Record<string, number>>({})
+    const [dismissedBadges, setDismissedBadges] = useState<Set<string>>(new Set())
 
     useEffect(() => {
-        const el = scrollRef.current
-        if (!el) return
+        setDismissedBadges(getDismissedBadges())
 
-        const checkFit = () => setFitsWithoutScroll(el.scrollWidth <= el.clientWidth + 1)
-        checkFit()
+        supabase
+            .from('stores')
+            .select('category')
+            .eq('is_active', true)
+            .then(({ data }) => {
+                if (!data) return
+                const counts: Record<string, number> = {}
+                for (const row of data as { category: string | null }[]) {
+                    if (!row.category) continue
+                    counts[row.category] = (counts[row.category] || 0) + 1
+                }
+                setCategoryCounts(counts)
+            })
+    }, [])
 
-        const resizeObserver = new ResizeObserver(checkFit)
-        resizeObserver.observe(el)
-        return () => resizeObserver.disconnect()
-    }, [orderedCategorias])
-
-    // Permite arrastar a lista com o mouse no PC, como um swipe de dedo
-    const dragRef = useRef({ isDown: false, startX: 0, startScrollLeft: 0, moved: false })
-
-    const handleDragStart = (clientX: number) => {
-        const el = scrollRef.current
-        if (!el) return
-        dragRef.current = { isDown: true, startX: clientX, startScrollLeft: el.scrollLeft, moved: false }
-    }
-
-    const handleDragMove = (clientX: number) => {
-        const el = scrollRef.current
-        if (!el || !dragRef.current.isDown) return
-        const walk = clientX - dragRef.current.startX
-        if (Math.abs(walk) > 5) dragRef.current.moved = true
-        el.scrollLeft = dragRef.current.startScrollLeft - walk
-    }
-
-    const handleDragEnd = () => {
-        dragRef.current.isDown = false
+    const handleDismissBadge = (e: React.MouseEvent, slug: string) => {
+        e.preventDefault()
+        e.stopPropagation()
+        dismissBadge(slug)
+        setDismissedBadges((prev) => new Set(prev).add(slug))
     }
 
     return (
@@ -116,52 +134,55 @@ export default function CanIhelp({ dragHandle }: CanIhelpProps) {
                     willChange: 'transform',
                 }}
             >
-                {/* Lista de categorias em scroll horizontal - a mais clicada fica à esquerda */}
-                <div
-                    ref={scrollRef}
-                    className={`flex gap-3 overflow-x-auto pb-1 px-1 scrollbar-hide cursor-grab active:cursor-grabbing select-none ${fitsWithoutScroll ? 'justify-center' : 'justify-start'
-                        }`}
-                    onMouseDown={(e) => handleDragStart(e.pageX)}
-                    onMouseMove={(e) => handleDragMove(e.pageX)}
-                    onMouseUp={handleDragEnd}
-                    onMouseLeave={handleDragEnd}
-                >
+                {/* Lista de categorias em wrap - a mais clicada fica primeiro */}
+                <div className="flex flex-wrap gap-3 justify-center">
                     {orderedCategorias.map((cat) => {
                         const Icon = cat.icone
                         const iconColor = cat.color || '#f97316'
 
                         const href = cat.slug === 'social' ? '/social' : cat.slug === 'comunidades' ? '/comunidade' : `/lojas/${cat.slug}`
 
+                        const count = categoryCounts[cat.nome] || 0
+                        const showBadge = count > 0 && !dismissedBadges.has(cat.slug)
+
                         return (
                             <Link
                                 key={cat.slug}
                                 href={href}
-                                draggable={false}
-                                onClick={(e) => {
-                                    if (dragRef.current.moved) {
-                                        e.preventDefault()
-                                        return
-                                    }
+                                onClick={() => {
                                     bumpClickCount(cat.slug)
                                     startNavProgress()
                                 }}
-                                className="flex flex-col items-center justify-center p-3 rounded-xl transition-all duration-200 hover:scale-105 active:scale-95 group flex-shrink-0 w-20"
+                                className="relative flex flex-col items-center justify-center p-3 rounded-xl transition-all duration-200 hover:scale-105 active:scale-95 group flex-shrink-0 w-20"
                                 style={{
                                     background: 'transparent',
                                     border: 'none',
                                 }}
                             >
-                                <div
-                                    className="w-14 h-14 flex items-center justify-center rounded-full transition-all duration-200 group-hover:shadow-lg"
-                                    style={{
-                                        background: `${iconColor}20`,
-                                    }}
-                                >
-                                    <Icon
-                                        className="w-7 h-7"
-                                        style={{ color: iconColor }}
-                                        strokeWidth={1.5}
-                                    />
+                                <div className="relative">
+                                    <div
+                                        className="w-14 h-14 flex items-center justify-center rounded-full transition-all duration-200 group-hover:shadow-lg"
+                                        style={{
+                                            background: `${iconColor}20`,
+                                        }}
+                                    >
+                                        <Icon
+                                            className="w-7 h-7"
+                                            style={{ color: iconColor }}
+                                            strokeWidth={1.5}
+                                        />
+                                    </div>
+
+                                    {showBadge && (
+                                        <button
+                                            onClick={(e) => handleDismissBadge(e, cat.slug)}
+                                            className="absolute -top-1 -right-1 min-w-[20px] h-5 px-1 rounded-full flex items-center justify-center gap-0.5 text-white text-[10px] font-black leading-none animate-badge-pop"
+                                            style={{ background: GRADIENT, border: `2px solid ${colors.surface}` }}
+                                            title="Marcar como visto"
+                                        >
+                                            {count}
+                                        </button>
+                                    )}
                                 </div>
                                 <span
                                     className="text-[10px] font-bold text-center leading-tight mt-2"
@@ -184,6 +205,17 @@ export default function CanIhelp({ dragHandle }: CanIhelpProps) {
                     })}
                 </div>
             </div>
+
+            <style jsx>{`
+                @keyframes badge-pop {
+                    0% { transform: scale(0.6); opacity: 0; }
+                    60% { transform: scale(1.15); opacity: 1; }
+                    100% { transform: scale(1); opacity: 1; }
+                }
+                .animate-badge-pop {
+                    animation: badge-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+                }
+            `}</style>
         </section>
     )
 }
