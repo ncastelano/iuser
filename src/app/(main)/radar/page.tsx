@@ -181,6 +181,9 @@ export default function MapPage() {
 
                     if (profile) {
                         setProfileData(profile)
+                        setUserAvatar(profile.avatar_url || null)
+                        const displayName = profile.name || profile.full_name || 'Usuário'
+                        setUserName(displayName)
 
                         if (profile.store_lat && profile.store_lng) {
                             console.log('[MapPage] 📍 Localização encontrada no perfil:', profile.store_lat, profile.store_lng)
@@ -188,30 +191,32 @@ export default function MapPage() {
                             setUserAddress(profile.address || 'Local salvo')
                             setAddressNumber(profile.address_number || '')
                             setAddressComplement(profile.address_complement || '')
-                        } else {
-                            console.log('[MapPage] 📍 Nenhuma localização salva no perfil')
-                            setProfileLocation(null)
-                            setUserAddress(null)
-                            setAddressNumber('')
-                            setAddressComplement('')
+                            // Já tem localização salva - não precisa de geolocalização do
+                            // dispositivo, o mapa centraliza nela.
+                            setLoadingLocation(false)
+                            return
                         }
 
-                        setUserAvatar(profile.avatar_url || null)
-                        const displayName = profile.name || profile.full_name || 'Usuário'
-                        setUserName(displayName)
-
-                        setLoadingLocation(false)
-                        return
+                        console.log('[MapPage] 📍 Nenhuma localização salva no perfil - cai pra geolocalização do dispositivo')
+                        setProfileLocation(null)
+                        setUserAddress(null)
+                        setAddressNumber('')
+                        setAddressComplement('')
+                        // sem return: continua pro fallback de geolocalização abaixo
                     } else {
                         console.warn('[MapPage] ⚠️ Perfil não encontrado para o usuário')
                         setProfileLocation(null)
                         setUserAddress(null)
                     }
                 } else {
-                    console.log('[MapPage] 👤 Usuário não está logado')
+                    console.log('[MapPage] 👤 Usuário não está logado (visitante)')
                 }
 
-                // Fallback para geolocalização do dispositivo
+                // Fallback para geolocalização do dispositivo - roda tanto pra
+                // visitante quanto pra usuário logado sem localização salva, pra
+                // sempre centralizar o mapa perto de onde a pessoa está (sem
+                // mostrar o avatar dela no mapa, já que isso só aparece quando
+                // ela tem uma localização salva no perfil).
                 console.log('[MapPage] 📱 Tentando geolocalização do dispositivo...')
                 if (navigator.geolocation) {
                     navigator.geolocation.getCurrentPosition(
@@ -1056,28 +1061,28 @@ export default function MapPage() {
                     searchValue={search}
                     onSearch={(q) => { setSearch(q); setOverrideList(null) }}
                     locationElement={
-                        isLoggedIn && (
-                            <button
-                                onClick={() => setShowLocationDialog(true)}
-                                disabled={isSavingLocation}
-                                className="flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full bg-black/10 hover:bg-black/20 transition disabled:opacity-50"
-                                style={{ color: '#fff' }}
-                            >
-                                <MapPin size={14} />
-                                {isSavingLocation
-                                    ? 'Salvando...'
-                                    : userAddress
-                                        ? userAddress.split(',').slice(0, 2).join(',')
-                                        : 'Definir local'
-                                }
-                            </button>
-                        )
+                        <button
+                            onClick={() => setShowLocationDialog(true)}
+                            disabled={isSavingLocation}
+                            className="flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full bg-black/10 hover:bg-black/20 transition disabled:opacity-50"
+                            style={{ color: '#fff' }}
+                        >
+                            <MapPin size={14} />
+                            {isSavingLocation
+                                ? 'Salvando...'
+                                : userAddress
+                                    ? userAddress.split(',').slice(0, 2).join(',')
+                                    : 'Definir local'
+                            }
+                        </button>
                     }
                 />
             </div>
 
-            {/* Location Picker - mesmo componente compartilhado do homepage */}
-            {isLoggedIn && showLocationDialog && (
+            {/* Location Picker - mesmo componente compartilhado do homepage.
+                Disponível pra visitante também: o próprio LocationPicker manda
+                pro /login se a pessoa não estiver autenticada. */}
+            {showLocationDialog && (
                 <LocationPicker
                     initialLocation={profileLocation ? {
                         lat: profileLocation.lat,
