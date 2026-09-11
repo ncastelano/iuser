@@ -134,7 +134,7 @@ export default function StoreDashboard({
         }
         const check = async () => {
             setSlugStatus('checking')
-            const result = await checkSlugAvailability(storeSlugState, { excludeStoreId: store?.id })
+            const result = await checkSlugAvailability(storeSlugState, { excludeStoreId: store?.id, skipProductCheck: true })
             setSlugStatus(result.available ? 'available' : 'taken')
         }
         const timer = setTimeout(check, 600)

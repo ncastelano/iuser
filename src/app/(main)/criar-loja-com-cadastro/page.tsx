@@ -94,7 +94,7 @@ export default function CriarLojaComCadastro() {
         }
         const check = async () => {
             setSlugStatus('checking')
-            const result = await checkSlugAvailability(storeSlug)
+            const result = await checkSlugAvailability(storeSlug, { skipProductCheck: true })
             if (!result.available) {
                 setSlugStatus('taken')
             } else {
@@ -212,16 +212,16 @@ export default function CriarLojaComCadastro() {
         }
 
         try {
-            // 1. Verificar disponibilidade global do profileSlug
-            const profileCheck = await checkSlugAvailability(profileSlug)
+            // 1. Verificar disponibilidade do profileSlug
+            const profileCheck = await checkSlugAvailability(profileSlug, { skipProductCheck: true })
             if (!profileCheck.available) {
                 setAccountError(profileCheck.message || 'Este link de perfil já está em uso')
                 setLoading(false)
                 return
             }
 
-            // 1.1 Verificar disponibilidade global do storeSlug
-            const storeCheck = await checkSlugAvailability(storeSlug)
+            // 1.1 Verificar disponibilidade do storeSlug
+            const storeCheck = await checkSlugAvailability(storeSlug, { skipProductCheck: true })
             if (!storeCheck.available) {
                 setAccountError(storeCheck.message || 'Este link de loja já está em uso')
                 setLoading(false)

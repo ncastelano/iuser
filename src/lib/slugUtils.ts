@@ -82,14 +82,21 @@ export interface SlugCheckOptions {
     excludeProfileId?: string | null
     excludeStoreId?: string | null
     excludeProductId?: string | null
+    // Perfis e lojas moram na mesma URL de topo (iuser.com.br/<slug>), então
+    // só podem colidir entre si. Produtos e publicações vivem sempre
+    // aninhados sob um dono (iuser.com.br/<ownerSlug>/<slug>) — o mesmo
+    // texto ali nunca conflita com uma URL de topo. Use skipProductCheck
+    // ao checar um slug de perfil/loja (conta), pra não bloquear por causa
+    // de um produto ou publicação de outra conta.
+    skipProductCheck?: boolean
 }
 
 /**
- * Verifica se um slug está disponível globalmente:
+ * Verifica se um slug está disponível:
  * - Não pode ser uma rota reservada do sistema
  * - Não pode existir em profiles (profileSlug)
  * - Não pode existir em stores (storeSlug)
- * - Não pode existir em products (slug)
+ * - Não pode existir em products (slug) — a menos que skipProductCheck esteja ativo
  */
 export async function checkSlugAvailability(
     slug: string,
@@ -151,26 +158,30 @@ export async function checkSlugAvailability(
             }
         }
 
-        // 4. Verificar na tabela products (slug)
-        let productQuery = supabase
-            .from('products')
-            .select('id, listing_type')
-            .eq('slug', clean)
-            .limit(1)
+        // 4. Verificar na tabela products (slug) — pulado para checagem de
+        // slug de conta (perfil/loja), já que produtos e publicações vivem
+        // aninhados sob um dono e não competem pela URL de topo.
+        if (!options?.skipProductCheck) {
+            let productQuery = supabase
+                .from('products')
+                .select('id, listing_type')
+                .eq('slug', clean)
+                .limit(1)
 
-        if (options?.excludeProductId) {
-            productQuery = productQuery.neq('id', options.excludeProductId)
-        }
+            if (options?.excludeProductId) {
+                productQuery = productQuery.neq('id', options.excludeProductId)
+            }
 
-        const { data: productData } = await productQuery.maybeSingle()
-        if (productData) {
-            const isPublication = productData.listing_type === 'publication'
-            return {
-                available: false,
-                conflictType: isPublication ? 'publication' : 'product',
-                message: isPublication
-                    ? 'Este link já está em uso por uma publicação.'
-                    : 'Este link já está em uso por um produto.',
+            const { data: productData } = await productQuery.maybeSingle()
+            if (productData) {
+                const isPublication = productData.listing_type === 'publication'
+                return {
+                    available: false,
+                    conflictType: isPublication ? 'publication' : 'product',
+                    message: isPublication
+                        ? 'Este link já está em uso por uma publicação.'
+                        : 'Este link já está em uso por um produto.',
+                }
             }
         }
 

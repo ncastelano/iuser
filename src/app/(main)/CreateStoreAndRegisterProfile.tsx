@@ -232,10 +232,10 @@ export default function CreateStoreAndRegisterProfile({
         }
         const check = async () => {
             setSlugStatus('checking')
-            const result = await checkSlugAvailability(storeSlug)
+            const result = await checkSlugAvailability(storeSlug, { skipProductCheck: true })
             if (!result.available) {
                 setSlugStatus('taken')
-                const sugs = await getSlugSuggestions(storeSlug, 3)
+                const sugs = await getSlugSuggestions(storeSlug, 3, { skipProductCheck: true })
                 setStoreSlugSuggestions(sugs)
             } else {
                 setSlugStatus('available')
@@ -253,9 +253,9 @@ export default function CreateStoreAndRegisterProfile({
             return
         }
         const check = async () => {
-            const result = await checkSlugAvailability(profileSlug)
+            const result = await checkSlugAvailability(profileSlug, { skipProductCheck: true })
             if (!result.available) {
-                const sugs = await getSlugSuggestions(profileSlug, 3)
+                const sugs = await getSlugSuggestions(profileSlug, 3, { skipProductCheck: true })
                 setProfileSlugSuggestions(sugs)
             } else {
                 setProfileSlugSuggestions([])
@@ -558,16 +558,16 @@ export default function CreateStoreAndRegisterProfile({
         }
 
         try {
-            // 1. Verificar disponibilidade global do profileSlug
-            const profileCheck = await checkSlugAvailability(profileSlug)
+            // 1. Verificar disponibilidade do profileSlug
+            const profileCheck = await checkSlugAvailability(profileSlug, { skipProductCheck: true })
             if (!profileCheck.available) {
                 setAccountError(profileCheck.message || 'Este link de perfil já está em uso')
                 setLoading(false)
                 return
             }
 
-            // 1.1 Verificar disponibilidade global do storeSlug
-            const storeCheck = await checkSlugAvailability(storeSlug)
+            // 1.1 Verificar disponibilidade do storeSlug
+            const storeCheck = await checkSlugAvailability(storeSlug, { skipProductCheck: true })
             if (!storeCheck.available) {
                 setAccountError(storeCheck.message || 'Este link de loja já está em uso')
                 setLoading(false)

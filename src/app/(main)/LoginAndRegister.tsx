@@ -136,8 +136,9 @@ function LoginAndRegisterContent({ onLoginSuccess }: LoginAndRegisterProps) {
         }
 
         try {
-            // Verificar disponibilidade global do slug (perfis, lojas, produtos, publicações, rotas reservadas)
-            const slugCheck = await checkSlugAvailability(profileSlug)
+            // Verificar disponibilidade do slug de conta (perfis, lojas, rotas reservadas —
+            // produtos/publicações são ignorados, pois vivem numa URL aninhada e não competem)
+            const slugCheck = await checkSlugAvailability(profileSlug, { skipProductCheck: true })
             if (!slugCheck.available) {
                 setRegisterError(slugCheck.message || 'Este link já está em uso.')
                 setRegisterLoading(false)

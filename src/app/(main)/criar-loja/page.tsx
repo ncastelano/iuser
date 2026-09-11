@@ -247,10 +247,10 @@ export default function CriarLoja() {
 
     const check = async () => {
       setSlugStatus("checking");
-      const result = await checkSlugAvailability(storeSlug);
+      const result = await checkSlugAvailability(storeSlug, { skipProductCheck: true });
       if (!result.available) {
         setSlugStatus("taken");
-        const sugs = await getSlugSuggestions(storeSlug, 3);
+        const sugs = await getSlugSuggestions(storeSlug, 3, { skipProductCheck: true });
         setStoreSlugSuggestions(sugs);
       } else {
         setSlugStatus("available");
@@ -574,7 +574,7 @@ export default function CriarLoja() {
       }
     }
 
-    const slugCheck = await checkSlugAvailability(storeSlug);
+    const slugCheck = await checkSlugAvailability(storeSlug, { skipProductCheck: true });
     if (!slugCheck.available) {
       toast.error(slugCheck.message || "Este link já está em uso.");
       setLoading(false);
