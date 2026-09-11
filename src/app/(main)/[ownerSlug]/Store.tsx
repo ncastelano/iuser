@@ -1045,7 +1045,11 @@ export function Store({
 
             {/* ===== PUBLICAÇÕES (círculos estilo stories, acima das tabs) ===== */}
             {(publications.length > 0 || isOwner) && (
-                <div className="rounded-2xl p-4" style={cardStyle}>
+                <div>
+                    <h3 className="text-xs font-black uppercase tracking-widest mb-2" style={{ color: colors.textPrimary }}>
+                        Publicações
+                    </h3>
+
                     {pubLoading ? (
                         <div className="flex justify-center py-4">
                             <Spinner size={20} color="#f97316" />
