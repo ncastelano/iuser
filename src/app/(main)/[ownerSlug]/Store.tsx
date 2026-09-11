@@ -1055,7 +1055,7 @@ export function Store({
                             <Spinner size={20} color="#f97316" />
                         </div>
                     ) : (
-                        <div className="flex items-start gap-3 overflow-x-auto pb-1 scrollbar-hide">
+                        <div className={`flex items-start gap-3 overflow-x-auto pb-1 scrollbar-hide ${publications.length + (isOwner ? 1 : 0) <= 4 ? 'justify-center' : ''}`}>
                             {isOwner && (
                                 <button
                                     onClick={() => setIsCreatingPublication(true)}
