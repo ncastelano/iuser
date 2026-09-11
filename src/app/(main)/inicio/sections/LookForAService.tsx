@@ -92,7 +92,7 @@ export default function LookForAService({ dragHandle, onBreveStatusChange }: Loo
                                 Candidatar-se a um Serviço
                             </h3>
                             <p className="text-sm mt-1" style={{ color: colors.textPrimary }}>
-                                Candidate-se e comece a ganhar dinheiro
+                                Encontre oportunidades perto de você e comece a ganhar dinheiro
                             </p>
                         </div>
                     </div>
