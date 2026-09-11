@@ -13,7 +13,7 @@ import { Plus, X, Info, Search, Clock, Tag, Package, Calendar, MapPin, Truck, St
 import Image from 'next/image'
 import { isStoreOpenNow, getNextOpeningInfo, type BusinessHours } from '@/lib/storeHours'
 import { toast } from 'sonner'
-import HeaderSearchInput from '@/app/HeaderSearchInput'
+import HeaderSearchInput from './HeaderSearchInput'
 import CatalogBag, { type CartItemWithComment } from './CatalogBag'
 import { hexToRgb } from '@/lib/color'
 

@@ -18,7 +18,7 @@ import StoreDashboard from '../StoreDashboard'
 import { Profile } from './Profile'
 import { Store } from './Store'
 import { usePublicationsStore } from '@/store/usePublicationStore'
-import { PublicationsListView } from '../PublicationsListView'
+import { PublicationsListView } from './PublicationsListView'
 import { isStoreOpenNow, type BusinessHours } from '@/lib/storeHours'
 import { isProfileOpenNow } from '@/lib/profileHours'
 

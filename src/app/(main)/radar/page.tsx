@@ -14,7 +14,7 @@ import { Spinner } from '@/components/Spinner'
 import { isStoreOpenNow, getStoreStatusText, getNextOpeningInfo } from '@/lib/storeHours'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import Header, { type Tab } from '@/app/Header'
-import LocationPicker from '../LocationPicker'
+import LocationPicker from '@/components/LocationPicker'
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
 

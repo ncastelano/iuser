@@ -11,7 +11,7 @@ import Header from '@/app/Header'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { getCityFromCoords } from '@/lib/geo'
 import CreateCommunityModal, { generateUniqueCommunitySlug } from './CreateCommunityModal'
-import LocationPicker from '../LocationPicker'
+import LocationPicker from '@/components/LocationPicker'
 import { hexToRgb } from '@/lib/color'
 import {
     MessageCircle,
