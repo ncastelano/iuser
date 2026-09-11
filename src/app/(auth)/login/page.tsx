@@ -10,7 +10,6 @@ import {
   ShoppingBag
 } from 'lucide-react'
 import { useTheme } from '@/app/theme'
-import Header from '@/app/Header'
 import { Spinner } from '@/components/Spinner'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
@@ -96,8 +95,6 @@ function LoginContent() {
 
   return (
     <div className="relative flex flex-col min-h-screen" style={{ background: colors.background }}>
-      <Header title="iUser" showBack={false} />
-
       {success === 'account_created' && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] animate-in slide-in-from-top duration-500 max-w-sm mx-auto">
           <div className="px-5 py-3 text-xs font-bold rounded-full shadow-lg border text-center"
@@ -109,6 +106,27 @@ function LoginContent() {
 
       <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-4 py-8">
         <form onSubmit={handleLogin} className="w-full max-w-md">
+          {/* Logo - mesma logo/título centralizado do modal de login embutido
+              (LoginAndRegister.tsx), em vez do Header genérico do app com
+              busca/abas que essa página não usa. */}
+          <div className="text-center mb-6">
+            <div
+              className="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4"
+              style={{
+                background: GRADIENT,
+                color: '#ffffff',
+              }}
+            >
+              <img src="/logotransparente.png" alt="iUser" className="w-12 h-12 object-contain" />
+            </div>
+            <h1 className="text-2xl font-black" style={{ color: colors.textPrimary }}>
+              Acesse sua conta
+            </h1>
+            <p className="text-sm" style={{ color: colors.textSecondary }}>
+              Entre e mostre o que você tem de melhor!
+            </p>
+          </div>
+
           {error && (
             <div className="mb-6 p-3 text-xs font-bold rounded-full border"
               style={{ background: '#f9731622', borderColor: '#f9731644', color: '#f97316' }}>
