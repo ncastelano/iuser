@@ -588,18 +588,25 @@ export default function Header({
                                     width: isExpanded ? 0 : 48,
                                     height: 48,
                                     opacity: isExpanded ? 0 : 1,
-                                    overflow: 'hidden',
                                     pointerEvents: isExpanded ? 'none' : 'auto',
                                     transition: 'width 0.3s ease-in-out, opacity 0.2s ease-in-out, transform 0.2s ease-in-out',
                                 }}
                                 aria-label="Ver sacola"
                                 title="Ver sacola"
                             >
-                                <ShoppingCart size={20} strokeWidth={2} />
+                                {/* overflow:hidden só no ícone (não no botão inteiro) - o
+                                    badge fica parcialmente fora da caixa de 48x48 (-top-1
+                                    -right-1) e ficava cortado, sobrando só um arco branco
+                                    sem cor visível quando estava no botão. */}
+                                <div
+                                    className="absolute inset-0 flex items-center justify-center rounded-full overflow-hidden"
+                                >
+                                    <ShoppingCart size={20} strokeWidth={2} />
+                                </div>
                                 {cartCount > 0 && (
                                     <span
                                         className="absolute -top-1 -right-1 w-5 h-5 rounded-full text-white text-[9px] flex items-center justify-center font-black leading-none"
-                                        style={{ backgroundColor: '#ef4444', border: '2px solid #ffffff' }}
+                                        style={{ background: 'linear-gradient(135deg, #f97316, #dc2626)', border: '2px solid #ffffff' }}
                                     >
                                         {cartCount}
                                     </span>
