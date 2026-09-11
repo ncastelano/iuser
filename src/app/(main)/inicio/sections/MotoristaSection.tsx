@@ -346,7 +346,7 @@ export default function MotoristaSection({ dragHandle, onBreveStatusChange, onUr
                                 Motorista Particular
                             </h3>
                             <p className="text-sm mt-1" style={{ color: colors.textPrimary }}>
-                                Chame um motorista para te levar aonde quiser
+                                Peça uma corrida particular e vá para onde precisar
                             </p>
                         </div>
                     </div>
