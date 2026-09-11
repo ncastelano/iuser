@@ -326,7 +326,12 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
     }
 
     const goToPainel = () => { startNavProgress(); router.push('/painel-motorista') }
-    const goToCorridas = () => { startNavProgress(); router.push('/aceitar-corridas') }
+    // Só entra direto na corrida com o modo motorista ativado — senão manda
+    // pro painel pra ativar primeiro (mesmo card, mesmo destino do botão).
+    const goToCorridas = () => {
+        startNavProgress()
+        router.push(driverModeActive ? '/aceitar-corridas' : '/painel-motorista')
+    }
 
     return (
         <section>
@@ -392,10 +397,10 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
                             ) : (
                                 <button
                                     onClick={goToPainel}
-                                    className="flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-3 rounded-full font-bold text-xs sm:text-sm transition-all whitespace-nowrap hover:scale-105 active:scale-95 flex-1 sm:flex-none min-w-0"
+                                    className="flex items-center justify-center gap-2 px-6 py-3 rounded-full font-bold text-sm transition-all shadow-lg whitespace-nowrap hover:scale-105 active:scale-95"
                                     style={buttonStyle}
                                 >
-                                    <Settings2 size={16} className="flex-shrink-0" />
+                                    <Settings2 size={16} />
                                     Ativar modo motorista
                                 </button>
                             )}
