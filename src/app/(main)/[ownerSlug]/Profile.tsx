@@ -62,6 +62,7 @@ interface OwnerData {
     description?: string | null
     address?: string | null
     whatsapp?: string | null
+    instagram?: string | null
     view_count?: number
     ratings_avg?: number
     ratings_count?: number
@@ -239,6 +240,7 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
     const [followingCount, setFollowingCount] = useState(0)
     const [isFollowing, setIsFollowing] = useState(false)
     const [totalVisitors, setTotalVisitors] = useState(0)
+    const [shareCount, setShareCount] = useState(0)
     const [publications, setPublications] = useState<any[]>([])
     const [ratings, setRatings] = useState<RatingRow[]>([])
     const [imageUrl, setImageUrl] = useState<string | null>(null)
@@ -339,6 +341,7 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                 description: profile.description,
                 address: profile.address,
                 whatsapp: profile.whatsapp,
+                instagram: profile.instagram,
                 view_count: profile.view_count || 0,
                 ratings_avg: avg,
                 ratings_count: count,
@@ -348,6 +351,7 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
 
             setOwner(ownerData)
             setTotalVisitors(profile.view_count || 0)
+            setShareCount(profile.share_count || 0)
 
             if (profile.avatar_url) {
                 const avatarUrl = getAvatarUrl(supabase, profile.avatar_url)
@@ -1034,13 +1038,22 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
         return `https://wa.me/${cleaned}?text=${encodeURIComponent(`Olá! Vi seu perfil no iUser e tenho interesse nos seus produtos/serviços.`)}`
     }, [owner])
 
-    // ========== FORMAT SHORT ADDRESS ==========
-    const formatShortAddress = (addr: string) => {
-        if (!addr) return ''
-        const parts = addr.split(',')
-        const street = parts[0]?.trim() || ''
-        const city = parts[2]?.trim()?.split('-')[0] || ''
-        return `${street}${city ? `, ${city}` : ''}`
+    // ========== INSTAGRAM ==========
+    const instagramLink = useMemo(() => {
+        if (!owner?.instagram) return null
+        const handle = owner.instagram.trim().replace(/^@/, '').replace(/^https?:\/\/(www\.)?instagram\.com\//i, '').replace(/\/$/, '')
+        return handle ? `https://instagram.com/${handle}` : null
+    }, [owner])
+
+    const handleShareProfile = async () => {
+        if (!owner) return
+        handleShareLink({
+            title: owner.name,
+            text: owner.description || `Confira o perfil de ${owner.name} no iUser!`
+        })
+        setShareCount(prev => prev + 1)
+        const { data } = await supabase.rpc('increment_profile_share_count', { profile_id: owner.id })
+        if (typeof data === 'number') setShareCount(data)
     }
 
     // ========== RENDER COMENTÁRIO ==========
@@ -1312,7 +1325,25 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
             `}</style>
 
             {/* ===== HEADER DO PERFIL ===== */}
-            <div className="rounded-2xl p-5" style={cardStyle}>
+            <div className="relative rounded-2xl p-5" style={cardStyle}>
+                <button
+                    onClick={handleShareProfile}
+                    className="absolute top-4 right-4 w-10 h-10 rounded-full flex items-center justify-center transition-all hover:scale-110"
+                    style={{ background: glassBg, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                    aria-label="Compartilhar"
+                    title="Compartilhar"
+                >
+                    <Share2 size={16} />
+                    {shareCount > 0 && (
+                        <span
+                            className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full text-white text-[9px] flex items-center justify-center font-black leading-none"
+                            style={{ backgroundColor: '#ef4444', border: `2px solid ${colors.surface}` }}
+                        >
+                            {shareCount}
+                        </span>
+                    )}
+                </button>
+
                 <div className="flex flex-col items-center text-center">
                     <div className="relative">
                         <div
@@ -1347,40 +1378,6 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                         {owner.name}
                     </h1>
 
-                    <div className="flex flex-wrap items-center justify-center gap-3 mt-3">
-                        <button
-                            onClick={() => {
-                                setFollowType('followers')
-                                setShowFollows(true)
-                            }}
-                            className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] transition-all hover:scale-105 hover:bg-white/10"
-                            style={{ background: glassBg, color: colors.textSecondary }}
-                        >
-                            <Users size={12} />
-                            <span className="font-bold" style={{ color: colors.textPrimary }}>{followersCount}</span>
-                            <span>seguidores</span>
-                        </button>
-
-                        <button
-                            onClick={() => {
-                                setFollowType('following')
-                                setShowFollows(true)
-                            }}
-                            className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] transition-all hover:scale-105 hover:bg-white/10"
-                            style={{ background: glassBg, color: colors.textSecondary }}
-                        >
-                            <UserCheck size={12} />
-                            <span className="font-bold" style={{ color: colors.textPrimary }}>{followingCount}</span>
-                            <span>seguindo</span>
-                        </button>
-
-                        <div className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px]" style={{ background: glassBg, color: colors.textSecondary }}>
-                            <Eye size={12} />
-                            <span className="font-bold" style={{ color: colors.textPrimary }}>{totalVisitors}</span>
-                            <span>visitas</span>
-                        </div>
-                    </div>
-
                     {owner.description && (
                         <div className="mt-3 text-sm leading-relaxed max-w-lg mx-auto" style={{ color: colors.textSecondary }}>
                             {expandedDesc || owner.description.length <= DESC_LIMIT
@@ -1397,33 +1394,122 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                             )}
                         </div>
                     )}
+                </div>
 
-                    <div className="flex flex-wrap items-center justify-center gap-2 mt-4">
-                        {currentUserId && currentUserId !== owner.id && (
-                            <button
-                                onClick={handleFollowToggle}
-                                className="flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold transition-all hover:scale-105"
-                                style={isFollowing ? {
-                                    background: 'transparent',
-                                    color: '#f97316',
-                                    border: `2px solid ${GRADIENT}`,
-                                } : {
-                                    background: GRADIENT,
-                                    color: '#ffffff',
-                                    boxShadow: '0 4px 14px rgba(249, 115, 22, 0.4)',
-                                    border: 'none',
-                                }}
-                            >
-                                {isFollowing ? <UserCheck size={14} /> : <UserPlus size={14} />}
-                                {isFollowing ? 'Seguindo' : 'Seguir'}
-                            </button>
-                        )}
-
+                <div className="mt-4 space-y-3">
+                    {owner.address && (
                         <button
-                            onClick={() => handleShareLink({
-                                title: owner.name,
-                                text: owner.description || `Confira o perfil de ${owner.name} no iUser!`
-                            })}
+                            onClick={() => {
+                                const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(owner.address!)}`
+                                window.open(url, '_blank')
+                            }}
+                            className="w-full flex items-center gap-3 p-3 rounded-xl text-left transition-all hover:scale-[1.01]"
+                            style={{ background: glassBg, border: `1px solid ${colors.border}` }}
+                        >
+                            <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: LOCATION_GRADIENT, color: '#fff' }}>
+                                <MapPin size={18} />
+                            </div>
+                            <div className="min-w-0">
+                                <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>Estamos localizados</p>
+                                <p className="text-xs mt-0.5 truncate" style={{ color: colors.textSecondary }}>{owner.address}</p>
+                            </div>
+                        </button>
+                    )}
+
+                    {whatsappLink && (
+                        <a
+                            href={whatsappLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="w-full flex items-center gap-3 p-3 rounded-xl transition-all hover:scale-[1.01]"
+                            style={{ background: glassBg, border: `1px solid ${colors.border}` }}
+                        >
+                            <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: WHATSAPP_GRADIENT, color: '#fff' }}>
+                                <MessageCircle size={18} />
+                            </div>
+                            <div className="min-w-0">
+                                <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>WhatsApp</p>
+                                <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>{formatBrazilianPhone(owner.whatsapp!)}</p>
+                            </div>
+                        </a>
+                    )}
+
+                    {instagramLink && (
+                        <a
+                            href={instagramLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="w-full flex items-center gap-3 p-3 rounded-xl transition-all hover:scale-[1.01]"
+                            style={{ background: glassBg, border: `1px solid ${colors.border}` }}
+                        >
+                            <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'linear-gradient(135deg, #f09433, #dc2743, #bc1888)', color: '#fff' }}>
+                                <Camera size={18} />
+                            </div>
+                            <div className="min-w-0">
+                                <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>Instagram</p>
+                                <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>{owner.instagram}</p>
+                            </div>
+                        </a>
+                    )}
+                </div>
+
+                <div className="flex flex-wrap items-center justify-center gap-2 mt-4">
+                    <button
+                        onClick={() => {
+                            setFollowType('followers')
+                            setShowFollows(true)
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] transition-all hover:scale-105 hover:bg-white/10"
+                        style={{ background: glassBg, color: colors.textSecondary }}
+                    >
+                        <Users size={12} />
+                        <span className="font-bold" style={{ color: colors.textPrimary }}>{followersCount}</span>
+                        <span>seguidores</span>
+                    </button>
+
+                    <button
+                        onClick={() => {
+                            setFollowType('following')
+                            setShowFollows(true)
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] transition-all hover:scale-105 hover:bg-white/10"
+                        style={{ background: glassBg, color: colors.textSecondary }}
+                    >
+                        <UserCheck size={12} />
+                        <span className="font-bold" style={{ color: colors.textPrimary }}>{followingCount}</span>
+                        <span>seguindo</span>
+                    </button>
+
+                    {currentUserId && currentUserId !== owner.id && (
+                        <button
+                            onClick={handleFollowToggle}
+                            className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold transition-all hover:scale-105"
+                            style={isFollowing ? {
+                                background: 'transparent',
+                                color: '#f97316',
+                                border: `2px solid ${GRADIENT}`,
+                            } : {
+                                background: GRADIENT,
+                                color: '#ffffff',
+                                border: 'none',
+                            }}
+                        >
+                            {isFollowing ? <UserCheck size={12} /> : <UserPlus size={12} />}
+                            {isFollowing ? 'Seguindo' : 'Seguir'}
+                        </button>
+                    )}
+
+                    <div className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px]" style={{ background: glassBg, color: colors.textSecondary }}>
+                        <Eye size={12} />
+                        <span className="font-bold" style={{ color: colors.textPrimary }}>{totalVisitors}</span>
+                        <span>visitas</span>
+                    </div>
+                </div>
+
+                {isOwner && (
+                    <div className="flex justify-center mt-3">
+                        <button
+                            onClick={() => setShowEditDialog(true)}
                             className="flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold transition-all hover:scale-105"
                             style={{
                                 background: GRADIENT,
@@ -1432,64 +1518,11 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                                 border: 'none',
                             }}
                         >
-                            <Share2 size={14} />
-                            Compartilhar
+                            <Pencil size={14} />
+                            Editar Perfil
                         </button>
-
-                        {owner.address && (
-                            <button
-                                onClick={() => {
-                                    const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(owner.address!)}`
-                                    window.open(url, '_blank')
-                                }}
-                                className="flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold transition-all hover:scale-105"
-                                style={{
-                                    background: LOCATION_GRADIENT,
-                                    color: '#ffffff',
-                                    boxShadow: '0 4px 14px rgba(220, 38, 38, 0.4)',
-                                    border: 'none',
-                                }}
-                            >
-                                <MapPin size={14} />
-                                <span>{formatShortAddress(owner.address)}</span>
-                            </button>
-                        )}
-
-                        {whatsappLink && (
-                            <a
-                                href={whatsappLink}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold transition-all hover:scale-105"
-                                style={{
-                                    background: WHATSAPP_GRADIENT,
-                                    color: '#ffffff',
-                                    boxShadow: '0 4px 14px rgba(37, 211, 102, 0.4)',
-                                    border: 'none',
-                                }}
-                            >
-                                <MessageCircle size={14} />
-                                WhatsApp
-                            </a>
-                        )}
-
-                        {isOwner && (
-                            <button
-                                onClick={() => setShowEditDialog(true)}
-                                className="flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold transition-all hover:scale-105"
-                                style={{
-                                    background: GRADIENT,
-                                    color: '#ffffff',
-                                    boxShadow: '0 4px 14px rgba(249, 115, 22, 0.4)',
-                                    border: 'none',
-                                }}
-                            >
-                                <Pencil size={14} />
-                                Editar Perfil
-                            </button>
-                        )}
                     </div>
-                </div>
+                )}
 
                 {stores.length > 0 && (
                     <div className="mt-4 pt-4 border-t" style={{ borderColor: colors.border }}>
