@@ -165,8 +165,12 @@ export default function MapPage() {
 
                 console.log('[MapPage] 👤 Usuário autenticado:', user ? 'Sim' : 'Não', user?.id)
 
-                if (userError) {
-                    console.error('[MapPage] ❌ Erro ao obter usuário:', userError)
+                // AuthSessionMissingError só significa "visitante não logado" -
+                // caso normal e já tratado abaixo (isLoggedIn=false), não é erro
+                // de verdade. console.error aqui disparava o overlay de dev do
+                // Next mesmo sem nada quebrado.
+                if (userError && userError.name !== 'AuthSessionMissingError') {
+                    console.warn('[MapPage] ⚠️ Erro ao obter usuário:', userError.message)
                 }
 
                 setIsLoggedIn(!!user)
