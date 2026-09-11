@@ -74,7 +74,7 @@ export default function HireAService({ dragHandle }: HireAServiceProps) {
                                 Solicitar um serviço
                             </h3>
                             <p className="text-sm mt-1" style={{ color: colors.textPrimary }}>
-                                Pintor, encanador, jardineiro e mais
+                                Encontre pintor, encanador, jardineiro e outros profissionais perto de você
                             </p>
                         </div>
                     </div>
