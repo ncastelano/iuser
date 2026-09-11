@@ -7,7 +7,7 @@ import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
-import { Store, ShoppingBag, X, MapPin, Star, Briefcase, Layers, Flame, Navigation, Crosshair, Home, Save, XCircle, Building2, ChevronRight, CheckCircle2, Users, Calendar, MessageCircle, Eye } from 'lucide-react'
+import { Store, ShoppingBag, X, MapPin, Star, Briefcase, Layers, Flame, Navigation, Crosshair, Home, Save, XCircle, Building2, ChevronRight, CheckCircle2, Users, Calendar, MessageCircle, Eye, Clock } from 'lucide-react'
 import { useAppModeStore } from '@/store/useAppModeStore'
 import { toast } from 'sonner'
 import { Spinner } from '@/components/Spinner'
@@ -875,6 +875,10 @@ export default function MapPage() {
         ? getNextOpeningInfo(selectedItem.business_hours)
         : null
 
+    const selectedStoreStatusText = mode === 'lojas' && selectedItem?.business_hours
+        ? getStoreStatusText(selectedItem.business_hours)
+        : null
+
     const openStoreInMaps = () => {
         if (!selectedItem) return
         const coords = parseCoords(selectedItem.location)
@@ -923,6 +927,22 @@ export default function MapPage() {
                 .mapboxgl-ctrl-bottom-left,
                 .mapboxgl-ctrl-bottom-right {
                     z-index: 2000 !important;
+                }
+                /* Anel pulsante do logo no card de detalhes - mesmo efeito da
+                   página da loja (Store.tsx), pra manter o cabeçalho consistente. */
+                @keyframes radarPulseGlowOpen {
+                    0%, 100% { box-shadow: 0 8px 24px rgba(16, 185, 129, 0.4), 0 0 0 6px rgba(16, 185, 129, 0.1); }
+                    50% { box-shadow: 0 8px 24px rgba(16, 185, 129, 0.6), 0 0 0 12px rgba(16, 185, 129, 0); }
+                }
+                @keyframes radarPulseGlowClosed {
+                    0%, 100% { box-shadow: 0 8px 24px rgba(239, 68, 68, 0.4), 0 0 0 6px rgba(239, 68, 68, 0.1); }
+                    50% { box-shadow: 0 8px 24px rgba(239, 68, 68, 0.6), 0 0 0 12px rgba(239, 68, 68, 0); }
+                }
+                .animate-radar-pulse-glow-open {
+                    animation: radarPulseGlowOpen 2s ease-in-out infinite;
+                }
+                .animate-radar-pulse-glow-closed {
+                    animation: radarPulseGlowClosed 2s ease-in-out infinite;
                 }
             `}</style>
 
@@ -1146,22 +1166,38 @@ export default function MapPage() {
                         </button>
                         <div className="overflow-y-auto">
                             <div className="p-4">
-                                <div className="flex gap-4 items-center">
-                                    <div className={`w-20 h-20 rounded-2xl overflow-hidden bg-gradient-to-br from-orange-100 to-red-100 p-0.5 border-2 flex-shrink-0 shadow-lg ${mode === 'lojas' ? (selectedItem.is_open ? 'border-green-500' : 'border-red-500') : 'border-orange-500'}`}>
-                                        {(mode === 'lojas' ? selectedItem.logo_url : selectedItem.image_url) ? (
-                                            <img src={mode === 'lojas' ? selectedItem.logo_url : selectedItem.image_url} className="w-full h-full object-cover rounded-xl" alt="" />
-                                        ) : (
-                                            <div className="w-full h-full flex items-center justify-center text-2xl font-black italic text-orange-300">?</div>
-                                        )}
+                                {/* Cabeçalho no mesmo estilo da página da loja (Store.tsx): logo
+                                    com anel pulsante aberto/fechado + status com ícone de relógio. */}
+                                <div className="flex items-center gap-4">
+                                    <div className="flex-shrink-0">
+                                        <div
+                                            className={`w-20 h-20 rounded-2xl p-[4px] ${mode === 'lojas' ? (selectedItem.is_open ? 'animate-radar-pulse-glow-open' : 'animate-radar-pulse-glow-closed') : ''}`}
+                                            style={{
+                                                background: mode === 'lojas'
+                                                    ? (selectedItem.is_open
+                                                        ? 'linear-gradient(135deg, #10b981, #059669, #34d399)'
+                                                        : 'linear-gradient(135deg, #ef4444, #dc2626, #f87171)')
+                                                    : 'linear-gradient(135deg, #f97316, #dc2626)',
+                                            }}
+                                        >
+                                            <div className="w-full h-full rounded-2xl overflow-hidden bg-white flex items-center justify-center">
+                                                {(mode === 'lojas' ? selectedItem.logo_url : selectedItem.image_url) ? (
+                                                    <img src={mode === 'lojas' ? selectedItem.logo_url : selectedItem.image_url} className="w-full h-full object-cover" alt="" />
+                                                ) : (
+                                                    <span className="text-2xl font-black italic text-orange-300">?</span>
+                                                )}
+                                            </div>
+                                        </div>
                                     </div>
                                     <div className="flex-1 min-w-0 space-y-1">
                                         <h3 className="text-lg font-black text-gray-900 truncate">{selectedItem.name}</h3>
+                                        {mode === 'lojas' && selectedStoreStatusText && (
+                                            <span className={`flex items-center gap-1 font-bold text-xs w-fit ${selectedItem.is_open ? 'text-green-600' : 'text-red-600'}`}>
+                                                <Clock className="w-3.5 h-3.5" />
+                                                <span className="truncate max-w-[160px]">{selectedStoreStatusText}</span>
+                                            </span>
+                                        )}
                                         <div className="flex items-center gap-2 flex-wrap">
-                                            {mode === 'lojas' && (
-                                                <span className={`text-[8px] font-black uppercase px-2 py-1 rounded-full ${selectedItem.is_open ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
-                                                    {selectedItem.is_open ? 'Aberto' : 'Fechado'}
-                                                </span>
-                                            )}
                                             {distanceFormatted && (
                                                 <span className="text-[10px] font-black uppercase text-gray-500 flex items-center gap-1">
                                                     <MapPin className="w-3 h-3 text-orange-500" />
@@ -1282,18 +1318,24 @@ export default function MapPage() {
                                 </div>
                             )}
                         </div>
-                        <button
-                            onClick={() => {
-                                if (mode === 'lojas') router.push(`/${selectedItem.profileSlug}/${selectedItem.storeSlug}`)
-                                else {
-                                    const store = stores.find(s => s.id === selectedItem.store_id)
-                                    if (store) router.push(`/${store.profileSlug}/${store.storeSlug}/${selectedItem.slug || selectedItem.id}`)
-                                }
-                            }}
-                            className="w-full py-3.5 bg-gradient-to-r from-orange-500 to-red-500 text-white font-black uppercase text-xs tracking-wider transition-all hover:shadow-lg active:scale-95 flex-shrink-0"
-                        >
-                            Visitar Loja →
-                        </button>
+                        {/* Botão redondo (pill), mesmo estilo usado no resto do iUser
+                            (ex: "Fechar" do modal de produto em Store.tsx) em vez da
+                            barra reta que ocupava a borda inteira do card. */}
+                        <div className="p-4 pt-0 flex-shrink-0">
+                            <button
+                                onClick={() => {
+                                    if (mode === 'lojas') router.push(`/${selectedItem.profileSlug}/${selectedItem.storeSlug}`)
+                                    else {
+                                        const store = stores.find(s => s.id === selectedItem.store_id)
+                                        if (store) router.push(`/${store.profileSlug}/${store.storeSlug}/${selectedItem.slug || selectedItem.id}`)
+                                    }
+                                }}
+                                className="w-full py-3.5 rounded-full bg-gradient-to-r from-orange-500 to-red-500 text-white font-black uppercase text-xs tracking-wider shadow-lg transition-all hover:shadow-xl hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-1.5"
+                            >
+                                Visitar Loja
+                                <ChevronRight className="w-4 h-4" />
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
