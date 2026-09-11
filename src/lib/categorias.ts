@@ -98,3 +98,15 @@ export const categorias: Categoria[] = [
 export const categoriasMap = Object.fromEntries(
     categorias.map(cat => [cat.slug, cat])
 )
+
+// stores.category às vezes foi salvo como slug ("servicos") e às vezes como
+// nome de exibição ("Serviços"), dependendo de qual tela criou a loja. Usar
+// só categoriasMap[store.category] falha silenciosamente pra metade dos
+// casos — isso resolve os dois formatos pra sempre cair na mesma Categoria
+// canônica (essencial pra deduplicar filtros e badges).
+export function resolveCategoria(value?: string | null): Categoria | undefined {
+    if (!value) return undefined
+    if (categoriasMap[value]) return categoriasMap[value]
+    const normalized = value.trim().toLowerCase()
+    return categorias.find(cat => cat.nome.toLowerCase() === normalized)
+}

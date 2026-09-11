@@ -30,7 +30,7 @@ import { toast } from 'sonner'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import Header from '@/app/Header'
-import { categoriasMap } from '@/lib/categorias'
+import { resolveCategoria } from '@/lib/categorias'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -124,7 +124,7 @@ function StoreCard({
         return product.listing_type === 'publication'
     }
 
-    const categoryInfo = store.category ? categoriasMap[store.category] : null
+    const categoryInfo = resolveCategoria(store.category)
     const categoryColor = categoryInfo?.color || '#f97316'
     const categoryName = categoryInfo?.nome || store.category || 'Categoria'
 
@@ -555,7 +555,11 @@ export default function AllStoreList() {
         }
 
         if (selectedCategory) {
-            filtered = filtered.filter(s => s.category === selectedCategory)
+            filtered = filtered.filter(s => {
+                const resolved = resolveCategoria(s.category)
+                const key = resolved?.slug || s.category
+                return key === selectedCategory
+            })
         }
 
         // ✅ ORDENAÇÃO FINAL: Lojas abertas primeiro, depois por view_count (maior para menor)
@@ -634,13 +638,24 @@ export default function AllStoreList() {
     }
 
     // ===== CATEGORIAS PARA FILTRO =====
+    // stores.category vem ora como slug ("servicos"), ora como nome de
+    // exibição ("Serviços") — dedupa pela Categoria resolvida (canônica),
+    // não pelo texto bruto, senão a mesma categoria vira dois chips.
     const categories = useMemo(() => {
-        const uniqueCategories = new Set(allStores.map(s => s.category).filter(Boolean))
-        return Array.from(uniqueCategories).map(cat => ({
-            slug: cat as string,
-            name: categoriasMap[cat as string]?.nome || cat as string,
-            color: categoriasMap[cat as string]?.color || '#f97316',
-        }))
+        const byKey = new Map<string, { slug: string; name: string; color: string }>()
+        for (const store of allStores) {
+            if (!store.category) continue
+            const resolved = resolveCategoria(store.category)
+            const key = resolved?.slug || store.category
+            if (!byKey.has(key)) {
+                byKey.set(key, {
+                    slug: key,
+                    name: resolved?.nome || store.category,
+                    color: resolved?.color || '#f97316',
+                })
+            }
+        }
+        return Array.from(byKey.values())
     }, [allStores])
 
     // ===== RENDER =====
