@@ -76,6 +76,7 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
     const router = useRouter()
     const startNavProgress = useNavProgressStore((s) => s.start)
     const [hasPricing, setHasPricing] = useState<boolean | null>(null)
+    const [driverModeActive, setDriverModeActive] = useState(false)
     const [acceptedRide, setAcceptedRide] = useState<AcceptedRideStatus | null>(null)
     const [openRides, setOpenRides] = useState<OpenRidePreview[]>([])
     const [myCandidacies, setMyCandidacies] = useState<CandidacyPreview[]>([])
@@ -262,11 +263,12 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
 
             const { data: pricing } = await supabase
                 .from('driver_pricing')
-                .select('id')
+                .select('id, driver_mode_active')
                 .eq('driver_id', user.id)
                 .maybeSingle()
             if (!active) return
             setHasPricing(!!pricing)
+            setDriverModeActive(!!pricing?.driver_mode_active)
 
             await loadRide()
             await loadOpenRides()
@@ -367,36 +369,37 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
 
                     <div className="flex flex-col items-stretch sm:items-end gap-2 w-full sm:w-auto">
                         <div className="flex flex-row flex-nowrap gap-2 justify-center sm:justify-end">
-                            <button
-                                onClick={goToPainel}
-                                className="flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-3 rounded-full font-bold text-xs sm:text-sm transition-all whitespace-nowrap hover:scale-105 active:scale-95 flex-1 sm:flex-none min-w-0"
-                                style={buttonStyle}
-                            >
-                                <Settings2 size={16} className="flex-shrink-0" />
-                                painel do motorista
-                            </button>
+                            {driverModeActive ? (
+                                <>
+                                    <button
+                                        onClick={goToPainel}
+                                        className="flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-3 rounded-full font-bold text-xs sm:text-sm transition-all whitespace-nowrap hover:scale-105 active:scale-95 flex-1 sm:flex-none min-w-0"
+                                        style={buttonStyle}
+                                    >
+                                        <Settings2 size={16} className="flex-shrink-0" />
+                                        painel do motorista
+                                    </button>
 
-                            {hasPricing && (
+                                    <button
+                                        onClick={goToCorridas}
+                                        className="flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-6 py-3 rounded-full font-bold text-xs sm:text-sm transition-all shadow-lg whitespace-nowrap hover:scale-105 active:scale-95 flex-1 sm:flex-none min-w-0"
+                                        style={buttonStyle}
+                                    >
+                                        <Car size={16} className="flex-shrink-0" />
+                                        ver corridas
+                                    </button>
+                                </>
+                            ) : (
                                 <button
-                                    onClick={goToCorridas}
-                                    className="flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-6 py-3 rounded-full font-bold text-xs sm:text-sm transition-all shadow-lg whitespace-nowrap hover:scale-105 active:scale-95 flex-1 sm:flex-none min-w-0"
+                                    onClick={goToPainel}
+                                    className="flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-3 rounded-full font-bold text-xs sm:text-sm transition-all whitespace-nowrap hover:scale-105 active:scale-95 flex-1 sm:flex-none min-w-0"
                                     style={buttonStyle}
                                 >
-                                    <Car size={16} className="flex-shrink-0" />
-                                    ver corridas
+                                    <Settings2 size={16} className="flex-shrink-0" />
+                                    Ativar modo motorista
                                 </button>
                             )}
                         </div>
-
-                        {hasPricing === false && (
-                            <button
-                                onClick={goToPainel}
-                                className="text-xs font-bold text-right"
-                                style={{ color: '#f97316' }}
-                            >
-                                Habilite seu valor de corrida para ver corridas
-                            </button>
-                        )}
                     </div>
                 </div>
 

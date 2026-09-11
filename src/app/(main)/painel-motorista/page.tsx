@@ -40,6 +40,10 @@ function PainelMotoristaContent() {
     const [baseFee, setBaseFee] = useState('7')
     const [pricePerKmAfterBase, setPricePerKmAfterBase] = useState('2')
 
+    // ===== MODO MOTORISTA (liga/desliga) =====
+    const [driverModeActive, setDriverModeActive] = useState(false)
+    const [togglingMode, setTogglingMode] = useState(false)
+
     // ===== MEU CARRO =====
     const [carModel, setCarModel] = useState('')
     const [carColor, setCarColor] = useState('')
@@ -77,7 +81,7 @@ function PainelMotoristaContent() {
 
         const { data } = await supabase
             .from('driver_pricing')
-            .select('pricing_mode, base_distance_km, base_fee, price_per_km_after_base')
+            .select('pricing_mode, base_distance_km, base_fee, price_per_km_after_base, driver_mode_active')
             .eq('driver_id', user.id)
             .maybeSingle()
 
@@ -86,6 +90,7 @@ function PainelMotoristaContent() {
             if (data.base_distance_km != null) setBaseDistanceKm(String(data.base_distance_km))
             if (data.base_fee != null) setBaseFee(String(data.base_fee))
             if (data.price_per_km_after_base != null) setPricePerKmAfterBase(String(data.price_per_km_after_base))
+            setDriverModeActive(!!data.driver_mode_active)
         }
 
         const { data: vehicle } = await supabase
@@ -221,6 +226,38 @@ function PainelMotoristaContent() {
         }
     }
 
+    const handleToggleDriverMode = async () => {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) {
+            setShowLogin(true)
+            return
+        }
+
+        setTogglingMode(true)
+        const next = !driverModeActive
+        try {
+            const { error } = await supabase.from('driver_pricing').upsert(
+                {
+                    driver_id: user.id,
+                    pricing_mode: pricingMode,
+                    base_distance_km: pricingMode === 'custom' ? (parseFloat(baseDistanceKm) || 0) : null,
+                    base_fee: pricingMode === 'custom' ? (parseFloat(baseFee) || 0) : null,
+                    price_per_km_after_base: pricingMode === 'custom' ? (parseFloat(pricePerKmAfterBase) || 0) : null,
+                    driver_mode_active: next,
+                },
+                { onConflict: 'driver_id' }
+            )
+            if (error) throw error
+
+            setDriverModeActive(next)
+            toast.success(next ? 'Modo motorista ativado!' : 'Modo motorista desativado.')
+        } catch (err: any) {
+            toast.error('Erro ao atualizar modo motorista: ' + (err.message || 'tente novamente'))
+        } finally {
+            setTogglingMode(false)
+        }
+    }
+
     const previewDistance = 10
     const activePricing = pricingMode === 'platform'
         ? PLATFORM_DEFAULT_PRICING
@@ -274,6 +311,42 @@ function PainelMotoristaContent() {
 
                     {!loading && !showLogin && (
                         <div className="flex flex-col gap-5">
+                            <button
+                                onClick={handleToggleDriverMode}
+                                disabled={togglingMode}
+                                className="w-full flex items-center gap-3 p-4 rounded-2xl transition-all hover:scale-[1.01] disabled:opacity-60"
+                                style={{
+                                    background: driverModeActive ? '#22c55e20' : colors.surface,
+                                    border: `1px solid ${driverModeActive ? '#22c55e60' : colors.border}`,
+                                }}
+                            >
+                                <div
+                                    className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
+                                    style={{ background: driverModeActive ? '#22c55e' : GRADIENT, color: '#ffffff' }}
+                                >
+                                    {togglingMode ? <Spinner size={18} color="#ffffff" /> : <Car size={24} />}
+                                </div>
+                                <div className="flex-1 min-w-0 text-left">
+                                    <span className="text-sm font-black" style={{ color: colors.textPrimary }}>
+                                        {driverModeActive ? 'Desativar modo motorista' : 'Ativar modo motorista'}
+                                    </span>
+                                    <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>
+                                        {driverModeActive
+                                            ? 'Ativado — você aparece pronto pra aceitar corridas'
+                                            : 'Ative para aparecer disponível e aceitar corridas'}
+                                    </p>
+                                </div>
+                                <div
+                                    className="flex-shrink-0 w-11 h-6 rounded-full relative transition-all"
+                                    style={{ background: driverModeActive ? '#22c55e' : colors.border }}
+                                >
+                                    <div
+                                        className="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all"
+                                        style={{ left: driverModeActive ? 20 : 2 }}
+                                    />
+                                </div>
+                            </button>
+
                             <div className="flex items-center gap-3">
                                 <div
                                     className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
