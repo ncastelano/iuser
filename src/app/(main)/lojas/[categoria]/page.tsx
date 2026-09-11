@@ -62,6 +62,15 @@ interface StoreCardData {
     }[]
 }
 
+// ===== PUBLICAÇÃO (das lojas desta categoria) =====
+interface CategoryPublication {
+    id: string
+    name: string
+    slug: string
+    image_url: string | null
+    storeSlug: string
+}
+
 // ===== COMPONENTE DE STATUS =====
 function StoreStatus({ businessHours }: { businessHours: BusinessHours | null | undefined }) {
     const [statusText, setStatusText] = useState('')
@@ -327,6 +336,8 @@ export default function ListaCategoriaPage() {
     const [stores, setStores] = useState<StoreCardData[]>([])
     const [loadingData, setLoadingData] = useState(false)
     const [error, setError] = useState<string | null>(null)
+    const [publications, setPublications] = useState<CategoryPublication[]>([])
+    const [loadingPublications, setLoadingPublications] = useState(false)
     const [currentPage, setCurrentPage] = useState(0)
     const itemsPerPage = 4
 
@@ -457,6 +468,62 @@ export default function ListaCategoriaPage() {
 
     useEffect(() => { loadStores() }, [loadStores])
 
+    // ===== CARREGAR PUBLICAÇÕES DAS LOJAS DESTA CATEGORIA =====
+    // Mesmo conceito de "Publicações" do Store.tsx (círculos estilo stories),
+    // só que aqui juntando as publicações de todas as lojas da categoria.
+    useEffect(() => {
+        if (stores.length === 0) {
+            setPublications([])
+            return
+        }
+
+        let cancelled = false
+
+        const loadPublications = async () => {
+            setLoadingPublications(true)
+            try {
+                const storeById = new Map(stores.map(s => [s.id, s]))
+                const { data, error: pubError } = await supabase
+                    .from('products')
+                    .select('id, name, slug, image_url, store_id')
+                    .in('store_id', stores.map(s => s.id))
+                    .eq('listing_type', 'publication')
+                    .order('created_at', { ascending: false })
+                    .limit(20)
+
+                if (pubError) throw pubError
+                if (cancelled) return
+
+                const mapped: CategoryPublication[] = (data || [])
+                    .map((p: any) => {
+                        const store = storeById.get(p.store_id)
+                        if (!store) return null
+                        return {
+                            id: p.id,
+                            name: p.name,
+                            slug: p.slug,
+                            image_url: p.image_url
+                                ? supabase.storage.from('product-images').getPublicUrl(p.image_url).data.publicUrl
+                                : null,
+                            storeSlug: store.storeSlug,
+                        }
+                    })
+                    .filter((p): p is CategoryPublication => p !== null)
+
+                setPublications(mapped)
+            } catch (err) {
+                console.error('Erro ao carregar publicações da categoria:', err)
+                if (!cancelled) setPublications([])
+            } finally {
+                if (!cancelled) setLoadingPublications(false)
+            }
+        }
+
+        loadPublications()
+
+        return () => { cancelled = true }
+    }, [stores])
+
     // ===== FILTRO LOCAL =====
     const filteredStores = useMemo(() => {
         if (!searchQuery.trim()) return stores
@@ -549,6 +616,45 @@ export default function ListaCategoriaPage() {
 
                     {!loadingData && !error && (
                         <>
+                            {/* Publicações das lojas desta categoria - mesmo estilo
+                                "stories" usado em Store.tsx, acima do "Lojas em X". */}
+                            {(publications.length > 0 || loadingPublications) && (
+                                <div className="mt-4">
+                                    <h3 className="text-xs font-black uppercase tracking-widest mb-2" style={{ color: colors.textPrimary }}>
+                                        Publicações
+                                    </h3>
+
+                                    {loadingPublications ? (
+                                        <div className="flex justify-center py-4">
+                                            <Spinner size={20} color={colors.accent} />
+                                        </div>
+                                    ) : (
+                                        <div className={`flex items-start gap-3 overflow-x-auto pb-1 scrollbar-hide ${publications.length <= 4 ? 'justify-center' : ''}`}>
+                                            {publications.map((pub) => (
+                                                <button
+                                                    key={pub.id}
+                                                    onClick={() => router.push(`/${pub.storeSlug}/${pub.slug || pub.id}`)}
+                                                    className="flex flex-col items-center gap-1 flex-shrink-0 w-16"
+                                                >
+                                                    <div className="w-16 h-16 rounded-full p-[2px]" style={{ background: GRADIENT }}>
+                                                        <div className="w-full h-full rounded-full overflow-hidden bg-white flex items-center justify-center">
+                                                            {pub.image_url ? (
+                                                                <img src={pub.image_url} className="w-full h-full object-cover" alt={pub.name} />
+                                                            ) : (
+                                                                <Megaphone size={20} style={{ color: '#f97316' }} />
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    <span className="text-[10px] font-medium truncate w-full text-center" style={{ color: colors.textSecondary }}>
+                                                        {pub.name}
+                                                    </span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
                             {filteredStores.length === 0 ? (
                                 <div className="mt-4">
                                     <div className="flex items-center justify-between mb-4">
