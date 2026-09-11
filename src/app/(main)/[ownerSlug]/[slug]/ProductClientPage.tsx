@@ -21,7 +21,7 @@ import {
 } from 'lucide-react'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { useProfile } from '@/app/contexts/ProfileContext'
-import Header from '@/app/Header'
+import Header from '@/components/Header'
 import { handleShareLink } from '@/lib/share'
 import { toast } from 'sonner'
 import { useCartStore } from '@/store/useCartStore'

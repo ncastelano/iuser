@@ -42,7 +42,7 @@ import { isStoreOpenNow, getStoreStatusText, getNextOpeningInfo, type BusinessHo
 import { toast } from 'sonner'
 import { getAvatarUrl } from '@/lib/avatar'
 import { usePublicationsStore } from '@/store/usePublicationStore'
-import StoreSchedule from '../StoreSchedule'
+import StoreSchedule from '@/components/StoreSchedule'
 import { generateUniqueGlobalSlug } from '@/lib/slugUtils'
 import { handleShareLink } from '@/lib/share'
 import { Follows } from './Follows'

@@ -31,7 +31,7 @@ import { useTheme } from '@/app/contexts/theme'
 import { toast } from 'sonner'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { useProfile } from '@/app/contexts/ProfileContext'
-import Header from '@/app/Header'
+import Header from '@/components/Header'
 import { getAvatarUrl } from '@/lib/avatar'
 import { handleShareLink } from '@/lib/share'
 

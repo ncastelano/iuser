@@ -22,7 +22,7 @@ import { supabase } from '@/lib/supabase/client'
 import { useAppointments } from '../dadosDoCompromisso'
 import { useTheme } from '@/app/contexts/theme'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
-import Header from '@/app/Header'
+import Header from '@/components/Header'
 
 /* ============= HELPERS ============= */
 function toMinutes(timeStr: string): number { const [h, m] = timeStr.split(':').map(Number); return h * 60 + m }

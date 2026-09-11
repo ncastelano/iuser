@@ -31,7 +31,7 @@ import { toast } from "sonner";
 import AnimatedBackground from "@/components/AnimatedBackground";
 import { createSquareImage } from "@/lib/image";
 import { useProfile } from "@/app/contexts/ProfileContext";
-import Header from "@/app/Header";
+import Header from '@/components/Header';
 import { categorias } from "@/lib/categorias";
 import { checkSlugAvailability, getSlugSuggestions, sanitizeSlug } from "@/lib/slugUtils";
 

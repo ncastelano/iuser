@@ -39,7 +39,7 @@ import { ReviewModal } from '@/components/ratings/ReviewModal'
 import { Spinner } from '@/components/Spinner'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
-import Header from '@/app/Header'
+import Header from '@/components/Header'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { isStoreOpenNow, getStoreStatusText, getNextOpeningInfo, type BusinessHours } from '@/lib/storeHours'
 

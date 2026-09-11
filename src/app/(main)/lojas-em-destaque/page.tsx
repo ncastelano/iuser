@@ -29,7 +29,7 @@ import {
 import { toast } from 'sonner'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { useProfile } from '@/app/contexts/ProfileContext'
-import Header from '@/app/Header'
+import Header from '@/components/Header'
 import { resolveCategoria } from '@/lib/categorias'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====

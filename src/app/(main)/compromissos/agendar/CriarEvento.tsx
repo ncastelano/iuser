@@ -19,7 +19,7 @@ import {
 import { supabase } from '@/lib/supabase/client'
 import { useAppointments } from '../dadosDoCompromisso'
 import { useTheme } from '@/app/contexts/theme'
-import Header from '@/app/Header'
+import Header from '@/components/Header'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 
 /* ============= HELPERS ============= */

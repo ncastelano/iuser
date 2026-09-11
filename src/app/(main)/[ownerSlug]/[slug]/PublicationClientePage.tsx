@@ -24,7 +24,7 @@ import {
 } from 'lucide-react'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { useProfile } from '@/app/contexts/ProfileContext'
-import Header from '@/app/Header'
+import Header from '@/components/Header'
 import { handleShareLink } from '@/lib/share'
 import { getAvatarUrl } from '@/lib/avatar'
 import { formatDistanceToNow } from 'date-fns'

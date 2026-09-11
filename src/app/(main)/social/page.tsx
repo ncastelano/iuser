@@ -22,7 +22,7 @@ import { Spinner } from '@/components/Spinner'
 import Link from 'next/link'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { useTheme } from '@/app/contexts/theme'
-import Header from '@/app/Header'
+import Header from '@/components/Header'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 
 interface ProfileWithDetails {

@@ -29,7 +29,7 @@ import {
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { toast } from 'sonner'
-import { useAppointments } from './compromissos/dadosDoCompromisso'
+import { useAppointments } from '@/app/(main)/compromissos/dadosDoCompromisso'
 
 /* ============= HELPERS ============= */
 function toMinutes(timeStr: string): number {

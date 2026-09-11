@@ -17,7 +17,7 @@ import {
     CheckCircle
 } from 'lucide-react'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
-import Header from '@/app/Header'
+import Header from '@/components/Header'
 import { generateUniqueGlobalSlug } from '@/lib/slugUtils'
 
 interface EditProductClientProps {

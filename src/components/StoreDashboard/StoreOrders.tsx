@@ -19,7 +19,7 @@ import {
     Package,
     Truck,
 } from 'lucide-react'
-import { OrderModal } from '../../components/OrderModal'
+import { OrderModal } from '@/components/OrderModal'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
