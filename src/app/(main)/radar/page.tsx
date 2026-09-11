@@ -696,10 +696,14 @@ export default function MapPage() {
         if (profileLocation && isLoggedIn && (userAvatar || userName)) {
             // Criar container principal
             const el = document.createElement('div')
-            el.style.cssText = `
+            // z-index bem acima do máximo usado pelos marcadores de loja/produto
+            // (100 em repouso, 999 no hover) pra que meu avatar sempre apareça
+            // por cima das marcações, nunca embaixo delas.
+            el.style.zIndex = '1000'
+            el.style.cssText += `
             position: relative;
-            width: 44px;
-            height: 44px;
+            width: 34px;
+            height: 34px;
         `
 
             // Criar o círculo pulsante (efeito de onda)
@@ -709,8 +713,8 @@ export default function MapPage() {
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            width: 44px;
-            height: 44px;
+            width: 34px;
+            height: 34px;
             border-radius: 50%;
             border: 3px solid #f97316;
             animation: profilePulse 2s cubic-bezier(0.25, 0.46, 0.45, 0.94) infinite;
@@ -724,8 +728,8 @@ export default function MapPage() {
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            width: 44px;
-            height: 44px;
+            width: 34px;
+            height: 34px;
             border-radius: 50%;
             overflow: hidden;
             background: white;
@@ -764,8 +768,8 @@ export default function MapPage() {
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            width: 44px;
-            height: 44px;
+            width: 34px;
+            height: 34px;
             border-radius: 50%;
             border: 3px solid #f97316;
             animation: profilePulse 2s cubic-bezier(0.25, 0.46, 0.45, 0.94) 0.5s infinite;
@@ -910,12 +914,28 @@ export default function MapPage() {
                     overflow: hidden;
                     box-shadow: 0 4px 15px rgba(0,0,0,0.2) !important;
                 }
+                /* Os marcadores do mapa recebem z-index alto (até 999 no hover) pra
+                   se empilharem entre si, mas isso é interno ao mapa: os controles
+                   nativos do Mapbox (zoom/bússola) precisam ficar sempre acima de
+                   qualquer marcador, mesmo em hover. */
+                .mapboxgl-ctrl-top-left,
+                .mapboxgl-ctrl-top-right,
+                .mapboxgl-ctrl-bottom-left,
+                .mapboxgl-ctrl-bottom-right {
+                    z-index: 2000 !important;
+                }
             `}</style>
 
+            {/* O container do mapa isola seu próprio contexto de empilhamento
+                (marcadores usam z-index de até 999 internamente pra se ordenar
+                entre si) pra que esse z-index nunca vaze e apareça por cima do
+                header, dos controles de zoom ou dos cards/diálogos da página -
+                todos esses ficam de fora deste container, então continuam por
+                cima independente do que acontece dentro do mapa. */}
             <div
                 ref={mapContainerRef}
                 className="absolute inset-0 w-full h-full"
-                style={{ background: '#111' }}
+                style={{ background: '#111', isolation: 'isolate' }}
             />
 
             {/* BOTÃO HOME - VOLTAR PARA O INÍCIO (CANTO INFERIOR DIREITO) */}
@@ -961,6 +981,7 @@ export default function MapPage() {
                 dele no DOM. */}
             <div className="absolute top-0 left-0 right-0 z-20">
                 <Header
+                    title="iUser"
                     showBack={false}
                     greeting={`Olá, ${profileLoading ? '...' : profileSlug ? `@${profileSlug}` : 'Visitante'}`}
                     avatarUrl={avatarUrl}
@@ -1287,18 +1308,22 @@ export default function MapPage() {
                 </div>
             </div>
 
-            {/* Map Style Toggle */}
+            {/* Map Style Toggle - mesmo visual dos controles nativos do Mapbox
+                (grupo branco arredondado com sombra), posicionado logo acima
+                deles pra parecer um botão a mais do mesmo conjunto. */}
             {mapReady && (
-                <div className="absolute z-50" style={{ bottom: '150px', left: '0px' }}>
-                    <button
-                        onClick={toggleMapStyle}
-                        className="group relative flex items-center gap-2 px-4 py-2.5 bg-white rounded-2xl shadow-2xl transition-all duration-300 hover:scale-105 hover:shadow-xl active:scale-95 border-2 border-orange-200"
-                    >
-                        <Layers className="w-4 h-4 text-orange-500 transition-all duration-300 group-hover:rotate-180" />
-                        <span className="text-[10px] font-black uppercase tracking-wider text-gray-700">
-                            {mapStyle === 'streets' ? 'Mapa' : 'Satélite'}
-                        </span>
-                    </button>
+                <div className="absolute z-30" style={{ bottom: '267px', right: '10px' }}>
+                    <div className="bg-white rounded-2xl shadow-[0_4px_15px_rgba(0,0,0,0.2)] overflow-hidden">
+                        <button
+                            onClick={toggleMapStyle}
+                            className="flex items-center justify-center hover:bg-gray-50 active:bg-gray-100 transition-colors"
+                            style={{ width: 32, height: 32, margin: 4 }}
+                            title={mapStyle === 'streets' ? 'Ver satélite' : 'Ver mapa'}
+                            aria-label={mapStyle === 'streets' ? 'Ver satélite' : 'Ver mapa'}
+                        >
+                            <Layers className="w-4 h-4 text-gray-700" />
+                        </button>
+                    </div>
                 </div>
             )}
 
