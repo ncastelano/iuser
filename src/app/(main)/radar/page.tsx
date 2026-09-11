@@ -7,7 +7,7 @@ import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
-import { Store, ShoppingBag, X, MapPin, Star, Briefcase, Layers, Flame, Navigation, Crosshair, Home, Save, XCircle, Building2, ChevronRight, CheckCircle2, Users, Calendar, MessageCircle, Eye, Clock } from 'lucide-react'
+import { Store, ShoppingBag, X, MapPin, Star, Briefcase, Layers, Flame, Navigation, Crosshair, Home, Save, XCircle, Building2, ChevronRight, CheckCircle2, Users, Calendar, MessageCircle, Eye, Clock, AlertCircle, UserCheck, UserPlus, Camera } from 'lucide-react'
 import { useAppModeStore } from '@/store/useAppModeStore'
 import { toast } from 'sonner'
 import { Spinner } from '@/components/Spinner'
@@ -119,6 +119,8 @@ export default function MapPage() {
     const [mapInitialized, setMapInitialized] = useState(false)
     const [storeDetails, setStoreDetails] = useState<any | null>(null)
     const [loadingStoreDetails, setLoadingStoreDetails] = useState(false)
+    const [expandedSelectedDesc, setExpandedSelectedDesc] = useState(false)
+    const SELECTED_DESC_LIMIT = 80
 
     const router = useRouter()
     const { mode: appMode } = useAppModeStore()
@@ -402,8 +404,11 @@ export default function MapPage() {
         console.log('[MapPage] 🎯 Filtrados:', { mode, count: result.length, search: q })
     }, [search, mode, stores, products, overrideList])
 
-    // Buscar detalhes extras da loja selecionada (seguidores, whatsapp, produtos mais vistos, comentários)
+    // Buscar detalhes extras da loja selecionada (seguidores, whatsapp, instagram,
+    // se já sigo, produtos mais vistos, comentários)
     useEffect(() => {
+        setExpandedSelectedDesc(false)
+
         if (!selectedItem || mode !== 'lojas') {
             setStoreDetails(null)
             return
@@ -417,16 +422,18 @@ export default function MapPage() {
                 const storeId = selectedItem.id
 
                 let whatsapp = selectedItem.whatsapp || null
-                if (!whatsapp && selectedItem.owner_id) {
+                let instagram = selectedItem.instagram || null
+                if ((!whatsapp || !instagram) && selectedItem.owner_id) {
                     const { data: ownerProfile } = await supabase
                         .from('profiles')
-                        .select('whatsapp')
+                        .select('whatsapp, instagram')
                         .eq('id', selectedItem.owner_id)
                         .single()
-                    whatsapp = ownerProfile?.whatsapp || null
+                    whatsapp = whatsapp || ownerProfile?.whatsapp || null
+                    instagram = instagram || ownerProfile?.instagram || null
                 }
 
-                const [{ count: followersCount }, { data: topProducts }, { data: reviewsData }] = await Promise.all([
+                const [{ count: followersCount }, { data: topProducts }, { data: reviewsData }, { data: followData }] = await Promise.all([
                     supabase.from('follows').select('*', { count: 'exact', head: true }).eq('following_id', storeId),
                     supabase
                         .from('products')
@@ -442,6 +449,9 @@ export default function MapPage() {
                         .not('comment', 'is', null)
                         .order('created_at', { ascending: false })
                         .limit(3),
+                    userId
+                        ? supabase.from('follows').select('*').eq('follower_id', userId).eq('following_id', storeId).maybeSingle()
+                        : Promise.resolve({ data: null }),
                 ])
 
                 if (cancelled) return
@@ -461,6 +471,8 @@ export default function MapPage() {
                 setStoreDetails({
                     followersCount: followersCount || 0,
                     whatsapp,
+                    instagram,
+                    isFollowing: !!followData,
                     topProducts: mappedProducts,
                     reviews: mappedReviews,
                 })
@@ -475,7 +487,7 @@ export default function MapPage() {
         loadStoreDetails()
 
         return () => { cancelled = true }
-    }, [selectedItem, mode])
+    }, [selectedItem, mode, userId])
 
     // Salvar localização no perfil (mesmo LocationPicker compartilhado do homepage,
     // gravando nos mesmos campos store_lat/store_lng/address*)
@@ -879,6 +891,13 @@ export default function MapPage() {
         ? getStoreStatusText(selectedItem.business_hours)
         : null
 
+    const selectedInstagramLink = storeDetails?.instagram
+        ? (() => {
+            const handle = storeDetails.instagram.trim().replace(/^@/, '').replace(/^https?:\/\/(www\.)?instagram\.com\//i, '').replace(/\/$/, '')
+            return handle ? `https://instagram.com/${handle}` : null
+        })()
+        : null
+
     const openStoreInMaps = () => {
         if (!selectedItem) return
         const coords = parseCoords(selectedItem.location)
@@ -886,6 +905,23 @@ export default function MapPage() {
             window.open(`https://www.google.com/maps/dir/?api=1&destination=${coords[1]},${coords[0]}`, '_blank')
         } else if (selectedItem.address) {
             window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(selectedItem.address)}`, '_blank')
+        }
+    }
+
+    // Seguir/deixar de seguir a loja aberta no card de detalhes do radar
+    const handleToggleFollowSelectedStore = async () => {
+        if (!userId || !selectedItem || !storeDetails) return
+        const wasFollowing = storeDetails.isFollowing
+        setStoreDetails((prev: any) => prev ? {
+            ...prev,
+            isFollowing: !wasFollowing,
+            followersCount: prev.followersCount + (wasFollowing ? -1 : 1),
+        } : prev)
+
+        if (wasFollowing) {
+            await supabase.from('follows').delete().eq('follower_id', userId).eq('following_id', selectedItem.id)
+        } else {
+            await supabase.from('follows').insert({ follower_id: userId, following_id: selectedItem.id })
         }
     }
 
@@ -1218,46 +1254,134 @@ export default function MapPage() {
                                         <p className="text-xl font-black text-orange-600">R$ {selectedItem.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
                                     </div>
                                 )}
+                                {/* Descrição, cards de contato e status - mesmo estilo/conteúdo
+                                    da página da loja (Store.tsx), só que compacto pro dialog. */}
                                 {mode === 'lojas' && selectedItem.description && (
-                                    <p className="mt-2 text-xs text-gray-600 line-clamp-2">{selectedItem.description}</p>
+                                    <p className="mt-2 text-xs text-gray-600 leading-relaxed">
+                                        {expandedSelectedDesc || selectedItem.description.length <= SELECTED_DESC_LIMIT
+                                            ? selectedItem.description
+                                            : `${selectedItem.description.slice(0, SELECTED_DESC_LIMIT)}...`}
+                                        {selectedItem.description.length > SELECTED_DESC_LIMIT && (
+                                            <button
+                                                onClick={() => setExpandedSelectedDesc(!expandedSelectedDesc)}
+                                                className="ml-1 font-bold text-[10px] uppercase text-orange-500 hover:underline"
+                                            >
+                                                {expandedSelectedDesc ? 'ver menos' : 'ver mais'}
+                                            </button>
+                                        )}
+                                    </p>
                                 )}
 
-                                {/* Pills de destaque (seguidores, agenda, whatsapp, localização) */}
                                 {mode === 'lojas' && (
-                                    <div className="flex flex-wrap items-center gap-2 mt-3">
-                                        <span className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-[10px] font-bold bg-gray-100 text-gray-700">
-                                            <Users className="w-3 h-3 text-orange-500" />
-                                            {loadingStoreDetails ? '···' : storeDetails?.followersCount ?? 0} seguidores
-                                        </span>
-                                        {selectedItem.allow_scheduling && (
-                                            <span className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-[10px] font-bold bg-orange-50 text-orange-600">
-                                                <Calendar className="w-3 h-3" />
-                                                {selectedStoreNextAvailable
-                                                    ? `Agenda · ${selectedStoreNextAvailable.dayLabel} ${selectedStoreNextAvailable.time}`
-                                                    : 'Agenda disponível'}
-                                            </span>
-                                        )}
+                                    <div className="mt-3 space-y-2">
                                         {(selectedItem.address || parseCoords(selectedItem.location)) && (
                                             <button
                                                 onClick={openStoreInMaps}
-                                                className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-[10px] font-bold bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
+                                                className="w-full flex items-center gap-3 p-2.5 rounded-xl text-left bg-gray-50 hover:bg-gray-100 transition-colors"
                                             >
-                                                <MapPin className="w-3 h-3 text-orange-500" />
-                                                Localização
+                                                <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 bg-gradient-to-r from-orange-500 to-red-500 text-white">
+                                                    <MapPin size={16} />
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <p className="text-xs font-bold text-gray-900">Localização</p>
+                                                    {selectedItem.address && (
+                                                        <p className="text-[10px] mt-0.5 truncate text-gray-500">{selectedItem.address}</p>
+                                                    )}
+                                                </div>
                                             </button>
                                         )}
+
+                                        {selectedItem.allow_scheduling && (
+                                            <div className="w-full flex items-center gap-3 p-2.5 rounded-xl bg-gray-50">
+                                                <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 bg-gradient-to-r from-orange-500 to-red-500 text-white">
+                                                    <Calendar size={16} />
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <p className="text-xs font-bold text-gray-900">Agendar Atendimento</p>
+                                                    <p className="text-[10px] mt-0.5 text-gray-500">
+                                                        {selectedStoreNextAvailable
+                                                            ? `Próximo horário disponível: ${selectedStoreNextAvailable.dayLabel} ${selectedStoreNextAvailable.time}`
+                                                            : 'Ver horários disponíveis'}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        )}
+
                                         {storeDetails?.whatsapp && (
                                             <a
                                                 href={`https://wa.me/${storeDetails.whatsapp.replace(/\D/g, '')}`}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
                                                 onClick={(e) => e.stopPropagation()}
-                                                className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-[10px] font-bold text-white"
-                                                style={{ background: '#25D366' }}
+                                                className="w-full flex items-center gap-3 p-2.5 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors"
                                             >
-                                                <MessageCircle className="w-3 h-3" />
-                                                WhatsApp
+                                                <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: '#25D366', color: '#fff' }}>
+                                                    <MessageCircle size={16} />
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <p className="text-xs font-bold text-gray-900">WhatsApp</p>
+                                                    <p className="text-[10px] mt-0.5 text-gray-500">{storeDetails.whatsapp}</p>
+                                                </div>
                                             </a>
+                                        )}
+
+                                        {selectedInstagramLink && (
+                                            <a
+                                                href={selectedInstagramLink}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                onClick={(e) => e.stopPropagation()}
+                                                className="w-full flex items-center gap-3 p-2.5 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors"
+                                            >
+                                                <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'linear-gradient(135deg, #f09433, #dc2743, #bc1888)', color: '#fff' }}>
+                                                    <Camera size={16} />
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <p className="text-xs font-bold text-gray-900">Instagram</p>
+                                                    <p className="text-[10px] mt-0.5 text-gray-500">{storeDetails.instagram}</p>
+                                                </div>
+                                            </a>
+                                        )}
+                                    </div>
+                                )}
+
+                                {mode === 'lojas' && (
+                                    <div className="flex flex-wrap items-center gap-2 mt-3">
+                                        <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] bg-gray-100 text-gray-500">
+                                            <Eye size={12} />
+                                            <span className="font-bold text-gray-900">{selectedItem.view_count ?? 0}</span>
+                                            visitantes
+                                        </span>
+                                        <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] bg-gray-100 text-gray-500">
+                                            <Users size={12} />
+                                            <span className="font-bold text-gray-900">{loadingStoreDetails ? '···' : storeDetails?.followersCount ?? 0}</span>
+                                            seguidores
+                                        </span>
+                                        {userId && userId !== selectedItem.owner_id && (
+                                            <button
+                                                onClick={handleToggleFollowSelectedStore}
+                                                className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold transition-all ${storeDetails?.isFollowing ? 'border-2 border-orange-500 text-orange-500 bg-transparent' : 'text-white bg-gradient-to-r from-orange-500 to-red-500'}`}
+                                            >
+                                                {storeDetails?.isFollowing ? <UserCheck size={12} /> : <UserPlus size={12} />}
+                                                {storeDetails?.isFollowing ? 'Seguindo' : 'Seguir'}
+                                            </button>
+                                        )}
+                                    </div>
+                                )}
+
+                                {mode === 'lojas' && !selectedItem.is_open && (
+                                    <div className="mt-3 rounded-xl p-3 text-center bg-red-50 border border-dashed border-red-400">
+                                        <AlertCircle size={16} className="mx-auto mb-1 text-red-500" />
+                                        <p className="text-xs font-bold text-red-500">Loja fechada no momento</p>
+                                        {storeDetails?.topProducts?.length > 0 ? (
+                                            <p className="text-[10px] mt-0.5 text-gray-500">Clique em um produto para ver mais detalhes</p>
+                                        ) : (
+                                            <p className="text-[10px] mt-0.5 text-gray-500">Essa loja ainda não possui produtos</p>
+                                        )}
+                                        {selectedStoreNextAvailable && (
+                                            <p className="text-[10px] font-bold mt-1 text-orange-500">
+                                                Abre {selectedStoreNextAvailable.dayLabel} às {selectedStoreNextAvailable.time}
+                                            </p>
                                         )}
                                     </div>
                                 )}
@@ -1273,7 +1397,7 @@ export default function MapPage() {
                                         {storeDetails.topProducts.map((product: any) => (
                                             <button
                                                 key={product.id}
-                                                onClick={() => router.push(`/${selectedItem.profileSlug}/${selectedItem.storeSlug}/${product.slug || product.id}`)}
+                                                onClick={() => router.push(`/${selectedItem.storeSlug}/${product.slug || product.id}`)}
                                                 className="flex-shrink-0 w-24 text-left rounded-xl overflow-hidden border border-gray-200 hover:border-orange-300 transition-colors"
                                             >
                                                 <div className="w-full h-16 bg-gray-100">
@@ -1324,10 +1448,10 @@ export default function MapPage() {
                         <div className="p-4 pt-0 flex-shrink-0">
                             <button
                                 onClick={() => {
-                                    if (mode === 'lojas') router.push(`/${selectedItem.profileSlug}/${selectedItem.storeSlug}`)
+                                    if (mode === 'lojas') router.push(`/${selectedItem.storeSlug}`)
                                     else {
                                         const store = stores.find(s => s.id === selectedItem.store_id)
-                                        if (store) router.push(`/${store.profileSlug}/${store.storeSlug}/${selectedItem.slug || selectedItem.id}`)
+                                        if (store) router.push(`/${store.storeSlug}/${selectedItem.slug || selectedItem.id}`)
                                     }
                                 }}
                                 className="w-full py-3.5 rounded-full bg-gradient-to-r from-orange-500 to-red-500 text-white font-black uppercase text-xs tracking-wider shadow-lg transition-all hover:shadow-xl hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-1.5"
