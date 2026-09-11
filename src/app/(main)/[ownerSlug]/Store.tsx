@@ -103,7 +103,7 @@ type Publication = {
     created_at: string
 }
 
-type TabType = 'products' | 'publications' | 'reviews'
+type TabType = 'products' | 'reviews'
 
 export function Store({
     ownerSlug,
@@ -917,7 +917,7 @@ export function Store({
                             <MapPin size={18} />
                         </div>
                         <div className="min-w-0">
-                            <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>Estamos localizados</p>
+                            <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>Localização</p>
                             <p className="text-xs mt-0.5 truncate" style={{ color: colors.textSecondary }}>{owner.address}</p>
                         </div>
                     </button>
@@ -978,6 +978,12 @@ export function Store({
                 )}
 
                 <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px]" style={{ background: glassBg, color: colors.textSecondary }}>
+                        <Eye size={12} />
+                        <span className="font-bold" style={{ color: colors.textPrimary }}>{totalVisitors}</span>
+                        <span>visitantes</span>
+                    </div>
+
                     <button
                         onClick={() => setShowFollowers(true)}
                         className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] transition-all hover:scale-105"
@@ -1005,12 +1011,6 @@ export function Store({
                             {isFollowing ? 'Seguindo' : 'Seguir'}
                         </button>
                     )}
-
-                    <div className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px]" style={{ background: glassBg, color: colors.textSecondary }}>
-                        <Eye size={12} />
-                        <span className="font-bold" style={{ color: colors.textPrimary }}>{totalVisitors}</span>
-                        <span>visitantes</span>
-                    </div>
                 </div>
 
                 {!isStoreOpen && (
@@ -1043,11 +1043,191 @@ export function Store({
                 )}
             </div>
 
+            {/* ===== PUBLICAÇÕES (círculos estilo stories, acima das tabs) ===== */}
+            {(publications.length > 0 || isOwner) && (
+                <div className="rounded-2xl p-4" style={cardStyle}>
+                    {pubLoading ? (
+                        <div className="flex justify-center py-4">
+                            <Spinner size={20} color="#f97316" />
+                        </div>
+                    ) : (
+                        <div className="flex items-start gap-3 overflow-x-auto pb-1 scrollbar-hide">
+                            {isOwner && (
+                                <button
+                                    onClick={() => setIsCreatingPublication(true)}
+                                    className="flex flex-col items-center gap-1 flex-shrink-0 w-16"
+                                >
+                                    <div
+                                        className="w-16 h-16 rounded-full border-2 border-dashed flex items-center justify-center transition-all hover:scale-105"
+                                        style={{ borderColor: colors.border }}
+                                    >
+                                        <Plus size={20} style={{ color: '#f97316' }} />
+                                    </div>
+                                    <span className="text-[10px] font-bold truncate w-full text-center" style={{ color: colors.textSecondary }}>
+                                        Nova
+                                    </span>
+                                </button>
+                            )}
+
+                            {publications.map((pub) => {
+                                const imgUrl = getImageUrl(pub.image_url)
+                                return (
+                                    <div key={pub.id} className="relative flex flex-col items-center gap-1 flex-shrink-0 w-16">
+                                        <button onClick={() => handleOpenPub(pub)} className="w-16 h-16 rounded-full p-[2px]" style={{ background: GRADIENT }}>
+                                            <div className="w-full h-full rounded-full overflow-hidden bg-white flex items-center justify-center">
+                                                {imgUrl ? (
+                                                    <img src={imgUrl} className="w-full h-full object-cover" alt={pub.name} />
+                                                ) : (
+                                                    <Megaphone size={20} style={{ color: '#f97316' }} />
+                                                )}
+                                            </div>
+                                        </button>
+                                        <span className="text-[10px] font-medium truncate w-full text-center" style={{ color: colors.textSecondary }}>
+                                            {pub.name}
+                                        </span>
+                                        {isOwner && (
+                                            <button
+                                                onClick={() => handleDeletePublication(pub.id)}
+                                                className="absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center transition-all hover:scale-110"
+                                                style={{ background: '#ef4444', color: '#fff', border: `2px solid ${colors.surface}` }}
+                                                title="Excluir publicação"
+                                            >
+                                                <Trash2 size={10} />
+                                            </button>
+                                        )}
+                                    </div>
+                                )
+                            })}
+                        </div>
+                    )}
+
+                    {isCreatingPublication && isOwner && (
+                        <div
+                            className="rounded-xl p-4 border space-y-4 animate-in slide-in-from-top-2 duration-200 mt-3"
+                            style={{
+                                background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
+                                borderColor: colors.border,
+                            }}
+                        >
+                            <h4 className="text-sm font-black flex items-center gap-2" style={{ color: colors.textPrimary }}>
+                                <Megaphone size={16} style={{ color: '#f97316' }} />
+                                Nova Publicação
+                            </h4>
+
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-bold uppercase" style={{ color: colors.textSecondary }}>
+                                    Imagem (opcional)
+                                </label>
+                                <div
+                                    onClick={() => fileInputRef.current?.click()}
+                                    className="w-24 h-24 rounded-xl bg-gradient-to-br from-orange-100 to-red-100 border-2 border-orange-200 hover:border-orange-400 flex items-center justify-center cursor-pointer overflow-hidden transition-all group"
+                                >
+                                    {pubPreview ? (
+                                        <img src={pubPreview} className="w-full h-full object-cover" alt="" />
+                                    ) : (
+                                        <ImageIcon className="text-orange-400 group-hover:scale-110 transition-transform" size={24} />
+                                    )}
+                                </div>
+                                <input
+                                    ref={fileInputRef}
+                                    type="file"
+                                    accept="image/*"
+                                    className="hidden"
+                                    onChange={(e) => {
+                                        const file = e.target.files?.[0]
+                                        if (file) setPubImageFile(file)
+                                    }}
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-bold uppercase" style={{ color: colors.textSecondary }}>
+                                    Título da publicação
+                                </label>
+                                <input
+                                    type="text"
+                                    placeholder="Ex: Promoção de verão!"
+                                    value={pubName}
+                                    onChange={(e) => setPubName(e.target.value)}
+                                    className="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none"
+                                    style={{
+                                        background: colors.surface,
+                                        borderColor: colors.border,
+                                        color: colors.textPrimary,
+                                    }}
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-bold uppercase" style={{ color: colors.textSecondary }}>
+                                    Descrição
+                                </label>
+                                <textarea
+                                    placeholder="Descreva sua novidade..."
+                                    value={pubDescription}
+                                    onChange={(e) => setPubDescription(e.target.value)}
+                                    rows={3}
+                                    className="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none resize-none"
+                                    style={{
+                                        background: colors.surface,
+                                        borderColor: colors.border,
+                                        color: colors.textPrimary,
+                                    }}
+                                />
+                            </div>
+
+                            {storeWhatsapp && (
+                                <div className="flex items-center gap-2 text-xs text-green-700 bg-green-50/50 px-3 py-2 rounded-lg">
+                                    <MessageCircle size={14} />
+                                    <span>O cliente será direcionado para o WhatsApp da loja: <strong>{storeWhatsapp}</strong></span>
+                                </div>
+                            )}
+
+                            <div className="flex gap-2 pt-2">
+                                <button
+                                    onClick={() => {
+                                        setIsCreatingPublication(false)
+                                        setPubName('')
+                                        setPubDescription('')
+                                        setPubImageFile(null)
+                                        setPubPreview(null)
+                                    }}
+                                    className="flex-1 py-2.5 rounded-lg font-bold text-sm border transition-colors"
+                                    style={{
+                                        borderColor: colors.border,
+                                        color: colors.textSecondary,
+                                    }}
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    onClick={handleCreatePublication}
+                                    disabled={pubSaving || !pubName.trim()}
+                                    className="flex-1 py-2.5 rounded-lg font-bold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                                    style={{
+                                        background: 'linear-gradient(135deg, #22c55e, #16a34a)',
+                                        color: '#ffffff',
+                                    }}
+                                >
+                                    {pubSaving ? (
+                                        <Spinner size={16} color="#ffffff" />
+                                    ) : (
+                                        <>
+                                            <Send size={14} />
+                                            Publicar
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
+
             {/* ===== TABS ===== */}
             <div className="flex rounded-2xl p-1.5 gap-1" style={cardStyle}>
                 {[
                     { id: 'products', label: 'Produtos', count: products.length },
-                    { id: 'publications', label: 'Publicações', count: publications.length },
                     { id: 'reviews', label: 'Avaliações', count: ratings.length },
                 ].map(tab => {
                     const isActive = activeTab === tab.id
@@ -1265,241 +1445,6 @@ export function Store({
                                     </div>
                                 </div>
                             ))
-                        )}
-                    </div>
-                )}
-
-                {/* TAB PUBLICAÇÕES - MODIFICADA PARA USAR O OVERLAY */}
-                {activeTab === 'publications' && (
-                    <div className="rounded-2xl p-4" style={cardStyle}>
-                        <div className="flex items-center gap-2 mb-3">
-                            <Megaphone size={16} style={{ color: '#f97316' }} />
-                            <h3 className="text-xs font-black uppercase tracking-widest" style={{ color: colors.textPrimary }}>
-                                Publicações
-                            </h3>
-                        </div>
-
-                        {pubLoading ? (
-                            <div className="flex justify-center py-8">
-                                <Spinner size={24} color="#f97316" />
-                            </div>
-                        ) : publications.length === 0 ? (
-                            <div className="py-8 text-center rounded-xl" style={{
-                                background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
-                                border: `1px dashed ${colors.border}`,
-                            }}>
-                                <Megaphone className="w-8 h-8 mx-auto mb-2" style={{ color: colors.textSecondary }} />
-                                <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>
-                                    Nenhuma publicação ainda
-                                </p>
-                                {isOwner && (
-                                    <button
-                                        onClick={() => setIsCreatingPublication(true)}
-                                        className="mt-3 w-full"
-                                        style={primaryButtonStyle}
-                                    >
-                                        <Megaphone size={16} /> Criar Publicação
-                                    </button>
-                                )}
-                            </div>
-                        ) : (
-                            <>
-                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                                    {publications.map((pub, index) => {
-                                        const imgUrl = getImageUrl(pub.image_url)
-
-                                        return (
-                                            <div
-                                                key={pub.id}
-                                                className="rounded-xl border p-2 flex flex-col gap-2 cursor-pointer hover:opacity-90 transition-all hover:scale-[1.02]"
-                                                style={{
-                                                    background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
-                                                    borderColor: colors.border,
-                                                }}
-                                                onClick={() => handleOpenPub(pub)}
-                                            >
-                                                <div className="w-full aspect-square rounded-lg overflow-hidden bg-gray-100">
-                                                    {imgUrl ? (
-                                                        <img src={imgUrl} className="w-full h-full object-cover" alt={pub.name} />
-                                                    ) : (
-                                                        <div className="w-full h-full flex items-center justify-center text-xs font-medium" style={{ color: colors.textSecondary }}>
-                                                            Sem imagem
-                                                        </div>
-                                                    )}
-                                                </div>
-                                                <p className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>
-                                                    {pub.name}
-                                                </p>
-                                                <p className="text-[10px] truncate opacity-70" style={{ color: colors.textSecondary }}>
-                                                    {new Date(pub.created_at).toLocaleDateString('pt-BR', {
-                                                        day: '2-digit',
-                                                        month: 'short',
-                                                        year: 'numeric'
-                                                    })}
-                                                </p>
-                                                {isOwner && (
-                                                    <div className="flex items-center justify-between mt-1" onClick={e => e.stopPropagation()}>
-                                                        <button
-                                                            onClick={() => {
-                                                                const editIdentifier = pub.slug || pub.id
-                                                                if (editIdentifier) {
-                                                                    router.push(`/${ownerSlug}/${editIdentifier}/editar-produto`)
-                                                                }
-                                                            }}
-                                                            className="p-1 rounded hover:bg-white/10 transition-colors"
-                                                            title="Editar"
-                                                        >
-                                                            <ExternalLink size={12} style={{ color: colors.textSecondary }} />
-                                                        </button>
-                                                        <button
-                                                            onClick={() => handleDeletePublication(pub.id)}
-                                                            className="p-1 rounded hover:bg-red-50 transition-colors"
-                                                            title="Excluir"
-                                                        >
-                                                            <Trash2 size={12} style={{ color: '#ef4444' }} />
-                                                        </button>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )
-                                    })}
-                                </div>
-
-                                {isOwner && !isCreatingPublication && (
-                                    <button
-                                        onClick={() => setIsCreatingPublication(true)}
-                                        className="w-full py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all hover:bg-white/5 mt-3"
-                                        style={{
-                                            border: `1px dashed ${colors.border}`,
-                                            color: '#f97316',
-                                        }}
-                                    >
-                                        <Plus size={16} />
-                                        Nova publicação
-                                    </button>
-                                )}
-                            </>
-                        )}
-
-                        {isCreatingPublication && isOwner && (
-                            <div
-                                className="rounded-xl p-4 border space-y-4 animate-in slide-in-from-top-2 duration-200 mt-3"
-                                style={{
-                                    background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
-                                    borderColor: colors.border,
-                                }}
-                            >
-                                <h4 className="text-sm font-black flex items-center gap-2" style={{ color: colors.textPrimary }}>
-                                    <Megaphone size={16} style={{ color: '#f97316' }} />
-                                    Nova Publicação
-                                </h4>
-
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-bold uppercase" style={{ color: colors.textSecondary }}>
-                                        Imagem (opcional)
-                                    </label>
-                                    <div
-                                        onClick={() => fileInputRef.current?.click()}
-                                        className="w-24 h-24 rounded-xl bg-gradient-to-br from-orange-100 to-red-100 border-2 border-orange-200 hover:border-orange-400 flex items-center justify-center cursor-pointer overflow-hidden transition-all group"
-                                    >
-                                        {pubPreview ? (
-                                            <img src={pubPreview} className="w-full h-full object-cover" alt="" />
-                                        ) : (
-                                            <ImageIcon className="text-orange-400 group-hover:scale-110 transition-transform" size={24} />
-                                        )}
-                                    </div>
-                                    <input
-                                        ref={fileInputRef}
-                                        type="file"
-                                        accept="image/*"
-                                        className="hidden"
-                                        onChange={(e) => {
-                                            const file = e.target.files?.[0]
-                                            if (file) setPubImageFile(file)
-                                        }}
-                                    />
-                                </div>
-
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-bold uppercase" style={{ color: colors.textSecondary }}>
-                                        Título da publicação
-                                    </label>
-                                    <input
-                                        type="text"
-                                        placeholder="Ex: Promoção de verão!"
-                                        value={pubName}
-                                        onChange={(e) => setPubName(e.target.value)}
-                                        className="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none"
-                                        style={{
-                                            background: colors.surface,
-                                            borderColor: colors.border,
-                                            color: colors.textPrimary,
-                                        }}
-                                    />
-                                </div>
-
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-bold uppercase" style={{ color: colors.textSecondary }}>
-                                        Descrição
-                                    </label>
-                                    <textarea
-                                        placeholder="Descreva sua novidade..."
-                                        value={pubDescription}
-                                        onChange={(e) => setPubDescription(e.target.value)}
-                                        rows={3}
-                                        className="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none resize-none"
-                                        style={{
-                                            background: colors.surface,
-                                            borderColor: colors.border,
-                                            color: colors.textPrimary,
-                                        }}
-                                    />
-                                </div>
-
-                                {storeWhatsapp && (
-                                    <div className="flex items-center gap-2 text-xs text-green-700 bg-green-50/50 px-3 py-2 rounded-lg">
-                                        <MessageCircle size={14} />
-                                        <span>O cliente será direcionado para o WhatsApp da loja: <strong>{storeWhatsapp}</strong></span>
-                                    </div>
-                                )}
-
-                                <div className="flex gap-2 pt-2">
-                                    <button
-                                        onClick={() => {
-                                            setIsCreatingPublication(false)
-                                            setPubName('')
-                                            setPubDescription('')
-                                            setPubImageFile(null)
-                                            setPubPreview(null)
-                                        }}
-                                        className="flex-1 py-2.5 rounded-lg font-bold text-sm border transition-colors"
-                                        style={{
-                                            borderColor: colors.border,
-                                            color: colors.textSecondary,
-                                        }}
-                                    >
-                                        Cancelar
-                                    </button>
-                                    <button
-                                        onClick={handleCreatePublication}
-                                        disabled={pubSaving || !pubName.trim()}
-                                        className="flex-1 py-2.5 rounded-lg font-bold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50"
-                                        style={{
-                                            background: 'linear-gradient(135deg, #22c55e, #16a34a)',
-                                            color: '#ffffff',
-                                        }}
-                                    >
-                                        {pubSaving ? (
-                                            <Spinner size={16} color="#ffffff" />
-                                        ) : (
-                                            <>
-                                                <Send size={14} />
-                                                Publicar
-                                            </>
-                                        )}
-                                    </button>
-                                </div>
-                            </div>
                         )}
                     </div>
                 )}

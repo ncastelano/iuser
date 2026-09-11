@@ -23,7 +23,6 @@ import {
     Share2,
     Users,
     Heart,
-    MoreHorizontal,
     UserPlus,
     UserCheck,
 
@@ -112,7 +111,7 @@ interface Comment {
     is_liked?: boolean
 }
 
-type ProfileTab = 'publications' | 'profile_comments' | 'about'
+type ProfileTab = 'publications' | 'profile_comments'
 
 // Função para formatar telefone brasileiro
 export const formatBrazilianPhone = (value: string) => {
@@ -1410,7 +1409,7 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                                 <MapPin size={18} />
                             </div>
                             <div className="min-w-0">
-                                <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>Estamos localizados</p>
+                                <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>Localização</p>
                                 <p className="text-xs mt-0.5 truncate" style={{ color: colors.textSecondary }}>{owner.address}</p>
                             </div>
                         </button>
@@ -1454,6 +1453,12 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                 </div>
 
                 <div className="flex flex-wrap items-center justify-center gap-2 mt-4">
+                    <div className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px]" style={{ background: glassBg, color: colors.textSecondary }}>
+                        <Eye size={12} />
+                        <span className="font-bold" style={{ color: colors.textPrimary }}>{totalVisitors}</span>
+                        <span>visitas</span>
+                    </div>
+
                     <button
                         onClick={() => {
                             setFollowType('followers')
@@ -1498,12 +1503,6 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                             {isFollowing ? 'Seguindo' : 'Seguir'}
                         </button>
                     )}
-
-                    <div className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px]" style={{ background: glassBg, color: colors.textSecondary }}>
-                        <Eye size={12} />
-                        <span className="font-bold" style={{ color: colors.textPrimary }}>{totalVisitors}</span>
-                        <span>visitas</span>
-                    </div>
                 </div>
 
                 {isOwner && (
@@ -1569,7 +1568,6 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                 {[
                     { id: 'publications', label: 'Publicações', icon: Megaphone, count: publications.length },
                     { id: 'profile_comments', label: 'Comentários', icon: MessageCircle, count: profileComments.length },
-                    { id: 'about', label: 'Sobre', icon: MoreHorizontal, count: 0 },
                 ].map(tab => {
                     const Icon = tab.icon
                     const isActive = activeTab === tab.id
@@ -1933,117 +1931,6 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                     </div>
                 )}
 
-                {/* TAB SOBRE */}
-                {activeTab === 'about' && (
-                    <div className="rounded-2xl p-4" style={cardStyle}>
-                        <div className="space-y-4">
-                            <div className="flex items-center gap-2 mb-2">
-                                <MoreHorizontal size={16} style={{ color: '#f97316' }} />
-                                <h3 className="text-xs font-black uppercase tracking-widest" style={{ color: colors.textPrimary }}>
-                                    Sobre
-                                </h3>
-                            </div>
-
-                            <div className="space-y-3">
-                                {owner.description && (
-                                    <div className="p-3 rounded-xl" style={{ background: glassBg }}>
-                                        <p className="text-xs font-medium" style={{ color: colors.textSecondary }}>Descrição</p>
-                                        <p className="text-sm mt-1 leading-relaxed" style={{ color: colors.textPrimary }}>
-                                            {owner.description}
-                                        </p>
-                                    </div>
-                                )}
-
-                                {owner.address && (
-                                    <div className="p-3 rounded-xl" style={{ background: glassBg }}>
-                                        <p className="text-xs font-medium" style={{ color: colors.textSecondary }}>Localização</p>
-                                        <button
-                                            onClick={() => {
-                                                const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(owner.address!)}`
-                                                window.open(url, '_blank')
-                                            }}
-                                            className="flex items-center gap-2 text-sm mt-1 font-bold hover:underline"
-                                            style={{ color: '#f97316' }}
-                                        >
-                                            <MapPin size={14} />
-                                            {owner.address}
-                                        </button>
-                                    </div>
-                                )}
-
-                                {owner.whatsapp && (
-                                    <div className="p-3 rounded-xl" style={{ background: glassBg }}>
-                                        <p className="text-xs font-medium" style={{ color: colors.textSecondary }}>Contato</p>
-                                        <a
-                                            href={whatsappLink!}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="flex items-center gap-2 text-sm mt-1 font-bold hover:underline"
-                                            style={{ color: '#25D366' }}
-                                        >
-                                            <MessageCircle size={14} />
-                                            {formatBrazilianPhone(owner.whatsapp)}
-                                        </a>
-                                    </div>
-                                )}
-
-                                <div className="p-3 rounded-xl" style={{ background: glassBg }}>
-                                    <p className="text-xs font-medium" style={{ color: colors.textSecondary }}>Estatísticas</p>
-                                    <div className="flex gap-4 mt-1 flex-wrap">
-                                        <button
-                                            onClick={() => {
-                                                setFollowType('followers')
-                                                setShowFollows(true)
-                                            }}
-                                            className="text-left hover:scale-105 transition-transform"
-                                        >
-                                            <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>{followersCount}</p>
-                                            <p className="text-[10px]" style={{ color: colors.textSecondary }}>Seguidores</p>
-                                        </button>
-                                        <button
-                                            onClick={() => {
-                                                setFollowType('following')
-                                                setShowFollows(true)
-                                            }}
-                                            className="text-left hover:scale-105 transition-transform"
-                                        >
-                                            <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>{followingCount}</p>
-                                            <p className="text-[10px]" style={{ color: colors.textSecondary }}>Seguindo</p>
-                                        </button>
-                                        <div>
-                                            <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>{totalVisitors}</p>
-                                            <p className="text-[10px]" style={{ color: colors.textSecondary }}>Visitas</p>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {stores.length > 0 && (
-                                    <div className="p-3 rounded-xl" style={{ background: glassBg }}>
-                                        <p className="text-xs font-medium" style={{ color: colors.textSecondary }}>Lojas</p>
-                                        <div className="flex flex-wrap gap-2 mt-1">
-                                            {stores.map(store => (
-                                                <button
-                                                    key={store.id}
-                                                    onClick={() => router.push(`/${store.storeSlug}`)}
-                                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all hover:scale-105"
-                                                    style={{
-                                                        background: GRADIENT,
-                                                        color: '#ffffff',
-                                                        boxShadow: '0 2px 10px rgba(249, 115, 22, 0.3)',
-                                                        border: 'none',
-                                                    }}
-                                                >
-                                                    <Store size={12} />
-                                                    {store.name}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                )}
             </div>
 
             {/* ===== EDIT PROFILE DIALOG ===== */}
