@@ -20,7 +20,6 @@ import {
     LogIn,
     X,
     Trash2,
-    UserCircle
 } from 'lucide-react'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { useProfile } from '@/app/contexts/ProfileContext'
@@ -40,12 +39,12 @@ interface PublicationWithOwner {
     image_url: string | null
     view_count: number | null
     created_at: string
-    owner_id: string
-    profile?: {
+    store_id: string
+    store?: {
         id: string
         name: string
-        avatar_url: string | null
-        profileSlug: string
+        storeSlug: string
+        logo_url: string | null
     } | null
 }
 
@@ -136,7 +135,7 @@ export function PublicationClientPage({
                         image_url,
                         view_count,
                         created_at,
-                        owner_id
+                        store_id
                     `)
                     .eq('slug', slug)
                     .eq('listing_type', 'publication')
@@ -153,7 +152,7 @@ export function PublicationClientPage({
                             image_url,
                             view_count,
                             created_at,
-                            owner_id
+                            store_id
                         `)
                         .eq('id', slug)
                         .eq('listing_type', 'publication')
@@ -166,20 +165,27 @@ export function PublicationClientPage({
                     pubData = pubById
                 }
 
-                // Buscar dados do perfil do owner
-                let profileData = null
-                if (pubData?.owner_id) {
-                    const { data: profile } = await supabase
-                        .from('profiles')
-                        .select('id, name, avatar_url, profileSlug')
-                        .eq('id', pubData.owner_id)
+                // Buscar dados da loja dona da publicação
+                let storeData = null
+                if (pubData?.store_id) {
+                    const { data: store } = await supabase
+                        .from('stores')
+                        .select('id, name, "storeSlug", logo_url')
+                        .eq('id', pubData.store_id)
                         .maybeSingle()
-                    profileData = profile
+                    storeData = store
+                        ? {
+                            ...store,
+                            logo_url: store.logo_url
+                                ? supabase.storage.from('store-logos').getPublicUrl(store.logo_url).data.publicUrl
+                                : null,
+                        }
+                        : null
                 }
 
                 const publicationWithOwner = {
                     ...pubData,
-                    profile: profileData || null
+                    store: storeData
                 }
 
                 setPublication(publicationWithOwner)
@@ -618,33 +624,33 @@ export function PublicationClientPage({
         })
     }
 
-    // ===== FUNÇÃO PARA IR PARA O PERFIL =====
-    const goToProfile = () => {
-        if (!publication?.profile?.profileSlug) return
-        router.push(`/${publication.profile.profileSlug}`)
+    // ===== FUNÇÃO PARA IR PARA A LOJA =====
+    const goToStore = () => {
+        if (!publication?.store?.storeSlug) return
+        router.push(`/${publication.store.storeSlug}`)
     }
 
     // ===== DETERMINA O NOME E IMAGEM PARA EXIBIR =====
+    // Sempre os dados da própria loja - uma publicação é sempre de uma loja,
+    // não de um perfil pessoal.
     const getOwnerDisplay = () => {
-        if (!publication?.profile) {
+        if (!publication?.store) {
             return {
-                name: 'Usuário',
+                name: 'Loja',
                 imageUrl: null,
                 type: 'unknown'
             }
         }
 
         return {
-            name: publication.profile.name || 'Usuário',
-            imageUrl: publication.profile.avatar_url,
-            type: 'profile'
+            name: publication.store.name,
+            imageUrl: publication.store.logo_url,
+            type: 'store'
         }
     }
 
     const ownerDisplay = getOwnerDisplay()
     const finalOwnerImage = ownerDisplay.imageUrl
-        ? getAvatarUrl(supabase, ownerDisplay.imageUrl)
-        : null
 
     if (loading) {
         return (
@@ -673,7 +679,7 @@ export function PublicationClientPage({
                         className="flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition hover:scale-105"
                         style={{ background: colors.accent, color: '#fff' }}
                     >
-                        Voltar para o perfil
+                        Voltar para a loja
                     </button>
                 </div>
             </div>
@@ -733,7 +739,7 @@ export function PublicationClientPage({
                             {/* Cabeçalho - Dono da publicação */}
                             <div
                                 className="flex items-center gap-3 cursor-pointer group"
-                                onClick={goToProfile}
+                                onClick={goToStore}
                             >
                                 <div
                                     className="w-12 h-12 rounded-full overflow-hidden border-2 flex-shrink-0 transition-all duration-300 group-hover:scale-105"
@@ -747,7 +753,7 @@ export function PublicationClientPage({
                                         />
                                     ) : (
                                         <div className="w-full h-full flex items-center justify-center" style={{ background: colors.border }}>
-                                            <UserCircle size={20} style={{ color: colors.textSecondary }} />
+                                            <Store size={20} style={{ color: colors.textSecondary }} />
                                         </div>
                                     )}
                                 </div>
@@ -762,7 +768,7 @@ export function PublicationClientPage({
                                             background: 'rgba(249, 115, 22, 0.15)',
                                             color: '#f97316'
                                         }}>
-                                            Perfil
+                                            Loja
                                         </span>
                                         <span className="ml-1 text-xs opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                                             →
@@ -804,15 +810,15 @@ export function PublicationClientPage({
                             {/* Botões de ação */}
                             <div className="pt-4 flex flex-wrap gap-3">
                                 <button
-                                    onClick={goToProfile}
+                                    onClick={goToStore}
                                     className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-medium transition hover:scale-105"
                                     style={{
                                         background: colors.accent,
                                         color: '#fff',
                                     }}
                                 >
-                                    <UserCircle size={18} />
-                                    Visitar Perfil
+                                    <Store size={18} />
+                                    Visitar Loja
                                 </button>
 
                                 <button
