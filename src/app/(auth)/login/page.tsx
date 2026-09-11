@@ -3,7 +3,7 @@
 
 import { Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import LoginAndRegister from '@/app/(main)/LoginAndRegister'
+import LoginAndRegister from '@/components/LoginAndRegister/LoginAndRegister'
 import { Spinner } from '@/components/Spinner'
 
 export const dynamic = 'force-dynamic'

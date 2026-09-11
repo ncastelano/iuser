@@ -43,7 +43,7 @@ import {
     Camera,
     Palette,
 } from 'lucide-react'
-import AtalhoCompromissosPessoal from './compromissos/AtalhoCompromissosPessoal'
+import AtalhoCompromissosPessoal from '@/app/(main)/compromissos/AtalhoCompromissosPessoal'
 import ProfileVisitors from './ProfileVisitors'
 import PublicationProfile from './ProfilePublication'
 import Commission from './Commission'
