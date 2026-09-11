@@ -10,7 +10,8 @@ import { useTheme } from '@/app/theme'
 import Header from '@/app/Header'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { getCityFromCoords } from '@/lib/geo'
-import CreateCommunityModal from './CreateCommunityModal'
+import CreateCommunityModal, { generateUniqueCommunitySlug } from './CreateCommunityModal'
+import LocationPicker from '../LocationPicker'
 import { hexToRgb } from '@/lib/color'
 import {
     MessageCircle,
@@ -45,15 +46,146 @@ export default function ComunidadePage() {
     const [loadingData, setLoadingData] = useState(true)
     const [error, setError] = useState<string | null>(null)
     const [searchQuery, setSearchQuery] = useState('')
-    const [userCity, setUserCity] = useState<string | null>(null)
-    const [locatingCity, setLocatingCity] = useState(false)
     const [showCreateModal, setShowCreateModal] = useState(false)
+
+    // ===== LOCALIZAÇÃO SALVA (mesmo LocationPicker do header/radar/homepage) =====
+    const [savedLocation, setSavedLocation] = useState<{
+        lat: number
+        lng: number
+        address: string
+        addressNumber: string
+        addressComplement: string
+    } | null>(null)
+    const [showLocationDialog, setShowLocationDialog] = useState(false)
+    const [isSavingLocation, setIsSavingLocation] = useState(false)
+    const [userCity, setUserCity] = useState<string | null>(null)
+    const [resolvingCity, setResolvingCity] = useState(false)
+
+    // ===== USUÁRIO + LOCALIZAÇÃO SALVA NO PERFIL =====
+    const fetchProfileLocation = useCallback(async (uid: string) => {
+        const { data: profile } = await supabase
+            .from('profiles')
+            .select('address, address_number, address_complement, store_lat, store_lng')
+            .eq('id', uid)
+            .maybeSingle()
+
+        if (profile?.store_lat && profile?.store_lng) {
+            setSavedLocation({
+                lat: profile.store_lat,
+                lng: profile.store_lng,
+                address: profile.address || 'Local salvo',
+                addressNumber: profile.address_number || '',
+                addressComplement: profile.address_complement || '',
+            })
+        } else {
+            setSavedLocation(null)
+        }
+    }, [])
 
     useEffect(() => {
         supabase.auth.getSession().then(({ data: { session } }) => {
-            if (session?.user) setUserId(session.user.id)
+            if (session?.user) {
+                setUserId(session.user.id)
+                fetchProfileLocation(session.user.id)
+            }
         })
-    }, [])
+    }, [fetchProfileLocation])
+
+    // Reativo: qualquer alteração na localização salva do perfil (feita aqui,
+    // no header do radar, do homepage etc.) atualiza a cidade aqui também.
+    useEffect(() => {
+        if (!userId) return
+
+        const channel = supabase
+            .channel('profile-location-comunidade')
+            .on(
+                'postgres_changes',
+                { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${userId}` },
+                (payload) => {
+                    const p = payload.new as any
+                    if (p.store_lat && p.store_lng) {
+                        setSavedLocation({
+                            lat: p.store_lat,
+                            lng: p.store_lng,
+                            address: p.address || 'Local salvo',
+                            addressNumber: p.address_number || '',
+                            addressComplement: p.address_complement || '',
+                        })
+                    } else {
+                        setSavedLocation(null)
+                    }
+                }
+            )
+            .subscribe()
+
+        return () => {
+            supabase.removeChannel(channel)
+        }
+    }, [userId])
+
+    // ===== CIDADE A PARTIR DA LOCALIZAÇÃO SALVA (reverse geocoding) =====
+    useEffect(() => {
+        if (!savedLocation) {
+            setUserCity(null)
+            return
+        }
+
+        let cancelled = false
+        setResolvingCity(true)
+        getCityFromCoords(savedLocation.lat, savedLocation.lng)
+            .then((city) => {
+                if (!cancelled) setUserCity(city)
+            })
+            .finally(() => {
+                if (!cancelled) setResolvingCity(false)
+            })
+
+        return () => { cancelled = true }
+    }, [savedLocation?.lat, savedLocation?.lng])
+
+    const handleLocationSave = async (location: {
+        lat: number
+        lng: number
+        address: string
+        addressNumber?: string
+        addressComplement?: string
+    }) => {
+        setIsSavingLocation(true)
+        try {
+            const { data: { user } } = await supabase.auth.getUser()
+            if (!user) {
+                setShowLocationDialog(false)
+                setIsSavingLocation(false)
+                return
+            }
+
+            const { error } = await supabase
+                .from('profiles')
+                .upsert({
+                    id: user.id,
+                    address: location.address,
+                    address_number: location.addressNumber || null,
+                    address_complement: location.addressComplement || null,
+                    store_lat: location.lat,
+                    store_lng: location.lng,
+                }, { onConflict: 'id' })
+
+            if (error) {
+                console.error('[Comunidade] Erro ao salvar localização:', error)
+            } else {
+                setSavedLocation({
+                    lat: location.lat,
+                    lng: location.lng,
+                    address: location.address,
+                    addressNumber: location.addressNumber || '',
+                    addressComplement: location.addressComplement || '',
+                })
+            }
+        } finally {
+            setShowLocationDialog(false)
+            setIsSavingLocation(false)
+        }
+    }
 
     // ===== CARREGAR COMUNIDADES =====
     const loadCommunities = useCallback(async () => {
@@ -78,9 +210,11 @@ export default function ComunidadePage() {
             )
 
             setCommunities(withCounts)
+            return withCounts
         } catch (err) {
             console.error('[Comunidade] Erro ao carregar comunidades:', err)
             setError('Erro ao carregar comunidades')
+            return []
         } finally {
             setLoadingData(false)
         }
@@ -90,26 +224,66 @@ export default function ComunidadePage() {
         loadCommunities()
     }, [loadCommunities])
 
-    // ===== DETECTAR CIDADE (pede permissão de localização) =====
-    const detectCity = useCallback(() => {
-        if (!navigator.geolocation) return
-        setLocatingCity(true)
-        navigator.geolocation.getCurrentPosition(
-            async (pos) => {
-                const city = await getCityFromCoords(pos.coords.latitude, pos.coords.longitude)
-                setUserCity(city)
-                setLocatingCity(false)
-            },
-            () => {
-                setLocatingCity(false)
-            },
-            { enableHighAccuracy: true, timeout: 10000, maximumAge: 300000 }
-        )
-    }, [])
-
+    // ===== GARANTIR O CHAT DA CIDADE (auto-cria se ainda não existir) =====
+    // Reativo à localização salva: assim que a cidade da pessoa é conhecida,
+    // a comunidade daquela cidade aparece - criando-a automaticamente na
+    // primeira vez que alguém de lá abre a página, sem precisar que ninguém
+    // clique em "Criar Comunidade" manualmente.
     useEffect(() => {
-        detectCity()
-    }, [detectCity])
+        if (!userId || !userCity) return
+
+        let cancelled = false
+
+        const ensureCityCommunity = async () => {
+            const cityLower = userCity.toLowerCase()
+            const alreadyHasOne = communities.some((c) => c.city.toLowerCase() === cityLower)
+            if (alreadyHasOne) return
+
+            try {
+                const { data: existing } = await supabase
+                    .from('communities')
+                    .select('id')
+                    .ilike('city', userCity)
+                    .order('created_at', { ascending: true })
+                    .limit(1)
+                    .maybeSingle()
+
+                if (existing || cancelled) return
+
+                const slug = await generateUniqueCommunitySlug(userCity)
+                const { data: created, error: createError } = await supabase
+                    .from('communities')
+                    .insert({
+                        slug,
+                        name: userCity,
+                        city: userCity,
+                        description: `Chat da cidade de ${userCity}. Converse com quem está por perto!`,
+                        creator_id: userId,
+                    })
+                    .select('id')
+                    .single()
+
+                if (createError) {
+                    // Corrida com outra aba/usuário criando ao mesmo tempo - ignora,
+                    // o próximo loadCommunities já traz a que foi criada.
+                    console.warn('[Comunidade] Não foi possível criar o chat da cidade:', createError.message)
+                } else if (created) {
+                    await supabase.from('community_members').insert({
+                        community_id: created.id,
+                        profile_id: userId,
+                    })
+                }
+
+                if (!cancelled) await loadCommunities()
+            } catch (err) {
+                console.error('[Comunidade] Erro ao garantir o chat da cidade:', err)
+            }
+        }
+
+        ensureCityCommunity()
+
+        return () => { cancelled = true }
+    }, [userId, userCity, communities, loadCommunities])
 
     // ===== FILTRO + ORDENAÇÃO (cidade do usuário primeiro) =====
     const filteredCommunities = useMemo(() => {
@@ -154,10 +328,28 @@ export default function ComunidadePage() {
                     onSearch={setSearchQuery}
                     searchValue={searchQuery}
                     searchRef={searchInputRef}
+                    locationElement={
+                        <button
+                            onClick={() => userId ? setShowLocationDialog(true) : router.push('/login')}
+                            disabled={isSavingLocation}
+                            className="flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full transition disabled:opacity-50"
+                            style={{ background: `${colors.textPrimary}15`, color: colors.textPrimary }}
+                        >
+                            <MapPin size={14} />
+                            {isSavingLocation
+                                ? 'Salvando...'
+                                : savedLocation
+                                    ? savedLocation.address.split(',').slice(0, 2).join(',')
+                                    : 'Definir local'
+                            }
+                        </button>
+                    }
                 />
 
                 <section className="px-4 md:px-6 mt-2 pb-28">
-                    {/* Banner de localização */}
+                    {/* Banner de localização - reativo ao LocationPicker: a cidade vem
+                        da localização salva no perfil (mesma usada no radar e no
+                        homepage), não de uma permissão de geolocalização separada. */}
                     <div
                         className="rounded-2xl p-4 mb-4 border flex items-center gap-3"
                         style={{ background: cardBg, backdropFilter: 'blur(12px)', borderColor: colors.border, boxShadow: colors.shadow }}
@@ -169,25 +361,25 @@ export default function ComunidadePage() {
                             <Compass size={18} />
                         </div>
                         <div className="flex-1 min-w-0">
-                            {locatingCity ? (
+                            {resolvingCity ? (
                                 <p className="text-xs font-bold" style={{ color: colors.textSecondary }}>Detectando sua cidade...</p>
                             ) : userCity ? (
                                 <p className="text-xs font-bold" style={{ color: colors.textPrimary }}>
-                                    Mostrando primeiro comunidades de <span style={{ color: colors.accent }}>{userCity}</span>
+                                    Mostrando primeiro o chat de <span style={{ color: colors.accent }}>{userCity}</span>
                                 </p>
                             ) : (
                                 <p className="text-xs font-bold" style={{ color: colors.textSecondary }}>
-                                    Não conseguimos detectar sua cidade
+                                    Defina sua localização para ver o chat da sua cidade
                                 </p>
                             )}
                         </div>
-                        {!locatingCity && (
+                        {!resolvingCity && (
                             <button
-                                onClick={detectCity}
+                                onClick={() => userId ? setShowLocationDialog(true) : router.push('/login')}
                                 className="text-[10px] font-bold uppercase px-3 py-1.5 rounded-full flex-shrink-0"
                                 style={{ background: `${colors.accent}20`, color: colors.accent }}
                             >
-                                {userCity ? 'Atualizar' : 'Detectar'}
+                                {userCity ? 'Alterar' : 'Definir local'}
                             </button>
                         )}
                     </div>
@@ -300,6 +492,15 @@ export default function ComunidadePage() {
                             setShowCreateModal(false)
                             router.push(`/comunidade/${slug}`)
                         }}
+                    />
+                )}
+
+                {/* Location Picker - mesmo componente compartilhado do header/radar/homepage */}
+                {showLocationDialog && (
+                    <LocationPicker
+                        initialLocation={savedLocation}
+                        onSave={handleLocationSave}
+                        onClose={() => setShowLocationDialog(false)}
                     />
                 )}
             </main>

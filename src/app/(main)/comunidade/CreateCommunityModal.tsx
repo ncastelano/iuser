@@ -19,7 +19,7 @@ interface CreateCommunityModalProps {
     onCreated: (slug: string) => void
 }
 
-async function generateUniqueCommunitySlug(name: string): Promise<string> {
+export async function generateUniqueCommunitySlug(name: string): Promise<string> {
     const base = sanitizeSlug(name) || 'comunidade'
 
     for (let attempt = 0; attempt < 20; attempt++) {
