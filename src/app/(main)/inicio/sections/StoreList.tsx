@@ -21,6 +21,7 @@ import {
     ArrowRight,
 } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
+import { resolveCategoria } from '@/lib/categorias'
 import { RatingStars } from '@/components/ratings/RatingStars'
 import {
     isStoreOpenNow,
@@ -40,6 +41,7 @@ export type StoreCardData = {
     description?: string | null
     address?: string | null
     logo_url?: string | null
+    category?: string | null
     ratings_avg?: number | null
     ratings_count?: number | null
     owner_id: string
@@ -155,6 +157,10 @@ function StoreCard({
         return product.listing_type === 'publication'
     }
 
+    const categoryInfo = resolveCategoria(store.category)
+    const categoryColor = categoryInfo?.color || '#f97316'
+    const categoryName = categoryInfo?.nome || store.category || 'Categoria'
+
     return (
         <div
             onClick={onClick}
@@ -203,6 +209,21 @@ function StoreCard({
                     >
                         <Eye className="w-3 h-3" />
                         {store.view_count}
+                    </div>
+                )}
+
+                {store.category && (
+                    <div className="absolute bottom-3 right-3">
+                        <span
+                            className="px-2.5 py-1 rounded-full text-[8px] font-black uppercase tracking-wider backdrop-blur-sm"
+                            style={{
+                                background: `${categoryColor}dd`,
+                                color: '#fff',
+                                boxShadow: `0 2px 8px ${categoryColor}40`,
+                            }}
+                        >
+                            {categoryName}
+                        </span>
                     </div>
                 )}
             </div>
@@ -468,6 +489,7 @@ export function StoreList({
                     description,
                     address,
                     logo_url,
+                    category,
                     ratings_avg,
                     ratings_count,
                     owner_id,
