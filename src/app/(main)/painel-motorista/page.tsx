@@ -292,7 +292,6 @@ function PainelMotoristaContent() {
                 <Header
                     title="Painel do Motorista"
                     showBack={true}
-                    onBack={() => router.push('/procurar-servico')}
                     greeting={`Olá, ${profileLoading ? '...' : profileSlug ? `@${profileSlug}` : 'Visitante'}`}
                     avatarUrl={avatarUrl}
                     loading={profileLoading}

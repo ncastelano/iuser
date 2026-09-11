@@ -35,6 +35,7 @@ const IGNORED_ROUTES = [
     '/procurar-servico',
     '/aceitar-corridas',
     '/painel-motorista',
+    '/painel-prestador',
     '/minhas-corridas',
 ]
 

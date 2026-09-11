@@ -4,8 +4,9 @@
 import { ReactNode, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
-import { Briefcase, MapPin } from 'lucide-react'
+import { Briefcase, MapPin, Settings2 } from 'lucide-react'
 import { useTheme } from '@/app/theme'
+import { supabase } from '@/lib/supabase/client'
 import { hexToRgb } from '@/lib/color'
 import {
     BoardItem,
@@ -30,6 +31,7 @@ export default function LookForAService({ dragHandle, onBreveStatusChange }: Loo
     const router = useRouter()
     const startNavProgress = useNavProgressStore((s) => s.start)
     const [openItems, setOpenItems] = useState<BoardItem[]>([])
+    const [serviceModeActive, setServiceModeActive] = useState(false)
 
     useEffect(() => {
         onBreveStatusChange?.(false)
@@ -37,6 +39,22 @@ export default function LookForAService({ dragHandle, onBreveStatusChange }: Loo
 
     useEffect(() => {
         fetchOpenBoardItems(10).then(setOpenItems).catch(() => setOpenItems([]))
+    }, [])
+
+    useEffect(() => {
+        let active = true
+        supabase.auth.getUser().then(({ data: { user } }) => {
+            if (!active || !user) return
+            supabase
+                .from('profiles')
+                .select('service_mode_active')
+                .eq('id', user.id)
+                .maybeSingle()
+                .then(({ data }) => {
+                    if (active) setServiceModeActive(!!data?.service_mode_active)
+                })
+        })
+        return () => { active = false }
     }, [])
 
     const surfaceRgb = hexToRgb(colors.surface)
@@ -89,22 +107,46 @@ export default function LookForAService({ dragHandle, onBreveStatusChange }: Loo
 
                         <div>
                             <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
-                                Candidatar-se a um Serviço
+                                Canal do Prestador de Serviço
                             </h3>
                             <p className="text-sm mt-1" style={{ color: colors.textPrimary }}>
-                                Encontre oportunidades perto de você e comece a ganhar dinheiro
+                                Ative seu modo prestador e candidate-se aos serviços disponíveis
                             </p>
                         </div>
                     </div>
 
-                    <button
-                        onClick={() => { startNavProgress(); router.push('/procurar-servico') }}
-                        className="flex items-center justify-center gap-2 px-6 py-3 rounded-full font-bold text-sm transition-all shadow-lg whitespace-nowrap hover:scale-105 active:scale-95"
-                        style={buttonStyle}
-                    >
-                        <Briefcase size={16} />
-                        ver serviços
-                    </button>
+                    <div className="flex flex-row flex-nowrap gap-2 justify-center sm:justify-end">
+                        {serviceModeActive ? (
+                            <>
+                                <button
+                                    onClick={() => { startNavProgress(); router.push('/painel-prestador') }}
+                                    className="flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-3 rounded-full font-bold text-xs sm:text-sm transition-all whitespace-nowrap hover:scale-105 active:scale-95 flex-1 sm:flex-none min-w-0"
+                                    style={buttonStyle}
+                                >
+                                    <Settings2 size={16} className="flex-shrink-0" />
+                                    painel do prestador
+                                </button>
+
+                                <button
+                                    onClick={() => { startNavProgress(); router.push('/procurar-servico') }}
+                                    className="flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-6 py-3 rounded-full font-bold text-xs sm:text-sm transition-all shadow-lg whitespace-nowrap hover:scale-105 active:scale-95 flex-1 sm:flex-none min-w-0"
+                                    style={buttonStyle}
+                                >
+                                    <Briefcase size={16} className="flex-shrink-0" />
+                                    ver serviços
+                                </button>
+                            </>
+                        ) : (
+                            <button
+                                onClick={() => { startNavProgress(); router.push('/painel-prestador') }}
+                                className="flex items-center justify-center gap-2 px-6 py-3 rounded-full font-bold text-sm transition-all shadow-lg whitespace-nowrap hover:scale-105 active:scale-95"
+                                style={buttonStyle}
+                            >
+                                <Settings2 size={16} />
+                                Ativar modo prestador
+                            </button>
+                        )}
+                    </div>
                 </div>
 
                 {openItems.length > 0 && (
