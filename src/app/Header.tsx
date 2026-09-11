@@ -457,11 +457,12 @@ export default function Header({
                 {/* ButtonSearch com brilho sempre ativo */}
                 {showSearch && (
                     <div
-                        className="w-full flex items-center gap-2"
+                        className="w-full flex items-center"
                         style={{
                             marginTop: isExpanded ? 0 : 12,
                             paddingBottom: isExpanded ? 0 : 16,
-                            transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
+                            gap: isExpanded ? 0 : 8,
+                            transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1), gap 0.3s ease-in-out',
                         }}
                     >
                         <div
@@ -580,10 +581,16 @@ export default function Header({
                         {pathname !== '/sacola' && (
                             <button
                                 onClick={() => router.push('/sacola')}
-                                className="relative flex items-center justify-center rounded-full flex-shrink-0 h-12 w-12 transition-transform hover:scale-105 active:scale-95"
+                                className="relative flex items-center justify-center rounded-full flex-shrink-0 hover:scale-105 active:scale-95"
                                 style={{
                                     background: 'linear-gradient(135deg, #f97316, #dc2626)',
                                     color: '#ffffff',
+                                    width: isExpanded ? 0 : 48,
+                                    height: 48,
+                                    opacity: isExpanded ? 0 : 1,
+                                    overflow: 'hidden',
+                                    pointerEvents: isExpanded ? 'none' : 'auto',
+                                    transition: 'width 0.3s ease-in-out, opacity 0.2s ease-in-out, transform 0.2s ease-in-out',
                                 }}
                                 aria-label="Ver sacola"
                                 title="Ver sacola"

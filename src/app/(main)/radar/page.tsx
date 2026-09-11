@@ -98,7 +98,6 @@ export default function MapPage() {
     const [deviceLocation, setDeviceLocation] = useState<{ lat: number; lng: number } | null>(null)
     const [profileLocation, setProfileLocation] = useState<{ lat: number; lng: number } | null>(null)
     const [overrideList, setOverrideList] = useState<any[] | null>(null)
-    const [showFilters, setShowFilters] = useState(false)
     const [mapStyle, setMapStyle] = useState<'streets' | 'satellite'>('streets')
     const [loadingLocation, setLoadingLocation] = useState(true)
     const [userAddress, setUserAddress] = useState<string | null>(null)
@@ -1076,28 +1075,63 @@ export default function MapPage() {
                         <img src="/logo.png" alt="iUser" className="h-7 w-7 object-contain rounded-full" />
                     </div>
 
-                    <div className="relative group flex-1">
+                    <div
+                        className="relative flex-1 flex items-center"
+                        style={{
+                            height: 48,
+                            borderRadius: 999,
+                            padding: '0 4px',
+                            background: 'rgba(255,255,255,0.9)',
+                            backdropFilter: 'blur(16px) saturate(180%)',
+                            WebkitBackdropFilter: 'blur(16px) saturate(180%)',
+                            border: '1.5px solid #f97316',
+                            boxShadow: '0 0 0 1px #f97316, 0 0 5px #f9731640, 0 0 10px #fb923c30, 0 0 15px #f59e0b20',
+                            transition: 'border-color 0.3s ease-in-out',
+                        }}
+                    >
+                        <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ color: '#f97316' }}>
+                            <Search size={18} strokeWidth={2} />
+                        </div>
                         <input
                             type="text"
                             placeholder={mode === 'lojas' ? "Procurar lojas" : mode === 'servicos' ? "Procurar serviços" : "Procurar produtos"}
                             value={search}
                             onChange={(e) => { setSearch(e.target.value); setOverrideList(null) }}
-                            className="w-full pl-4 pr-10 py-3.5 bg-white/95 backdrop-blur-xl border-2 border-orange-200 focus:border-orange-500 rounded-2xl text-gray-700 placeholder:text-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 transition-all duration-300 shadow-2xl"
+                            className="flex-1 h-full bg-transparent border-none outline-none text-sm text-gray-800 placeholder:text-gray-500 min-w-0"
                         />
                         {search && (
-                            <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors">
+                            <button
+                                onClick={() => setSearch('')}
+                                className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mr-0.5 text-gray-400 hover:text-gray-600 transition-colors"
+                            >
                                 <X className="w-4 h-4" />
                             </button>
                         )}
                     </div>
+                </div>
 
-                    <button
-                        onClick={() => setShowFilters(true)}
-                        className="flex-shrink-0 flex items-center gap-2 px-5 py-3.5 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-2xl text-xs font-bold uppercase tracking-wider shadow-lg hover:shadow-xl hover:scale-105 transition-all"
-                    >
-                        {mode === 'lojas' ? <Store className="w-4 h-4" /> : mode === 'servicos' ? <Briefcase className="w-4 h-4" /> : <ShoppingBag className="w-4 h-4" />}
-                        <span className="hidden sm:inline lowercase first-letter:uppercase">{mode}</span>
-                    </button>
+                {/* Filtros (lojas / serviços / produtos) como tabs, em vez de modal */}
+                <div
+                    className="flex items-center gap-1 mt-3 w-fit mx-auto p-1 rounded-full"
+                    style={{
+                        background: 'rgba(255,255,255,0.9)',
+                        backdropFilter: 'blur(16px) saturate(180%)',
+                        WebkitBackdropFilter: 'blur(16px) saturate(180%)',
+                        boxShadow: '0 4px 15px rgba(0,0,0,0.15)',
+                    }}
+                >
+                    {(['lojas', 'servicos', 'produtos'] as Mode[]).map(m => (
+                        <button
+                            key={m}
+                            onClick={() => { setMode(m); setSelectedItem(null); setOverrideList(null) }}
+                            className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wide transition-all ${mode === m ? 'shadow-md' : 'text-gray-600 hover:bg-black/5'
+                                }`}
+                            style={mode === m ? { background: 'linear-gradient(135deg, #f97316, #dc2626)', color: '#ffffff' } : undefined}
+                        >
+                            {m === 'lojas' ? <Store size={14} /> : m === 'servicos' ? <Briefcase size={14} /> : <ShoppingBag size={14} />}
+                            <span className="lowercase first-letter:uppercase">{m}</span>
+                        </button>
+                    ))}
                 </div>
             </div>
 
@@ -1348,7 +1382,7 @@ export default function MapPage() {
 
             {/* Horizontal List */}
             {filtered.length > 0 && !clusterItems && (
-                <div className="absolute top-[90px] left-1/2 -translate-x-1/2 w-[95%] max-w-2xl z-20">
+                <div className="absolute top-[150px] left-1/2 -translate-x-1/2 w-[95%] max-w-2xl z-20">
                     <div className="flex gap-2 overflow-x-auto pt-3 pb-3 scrollbar-hide snap-x">
                         {filtered.map(item => (
                             <button
@@ -1576,50 +1610,6 @@ export default function MapPage() {
                 </div>
             )}
 
-            {/* Filter Modal */}
-            {showFilters && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity" onClick={() => setShowFilters(false)} />
-                    <div className="relative bg-white rounded-2xl w-full sm:max-w-md shadow-2xl transform transition-all duration-300 animate-in zoom-in-95 overflow-hidden">
-                        <div className="bg-gradient-to-r from-orange-500 to-red-500 p-5">
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                    <Compass className="w-5 h-5 text-white" />
-                                    <h3 className="text-xl font-bold text-white">Explorar</h3>
-                                </div>
-                                <button onClick={() => setShowFilters(false)} className="p-1 rounded-lg bg-white/20 hover:bg-white/30 transition-colors">
-                                    <X className="w-5 h-5 text-white" />
-                                </button>
-                            </div>
-                        </div>
-                        <div className="p-3 space-y-1">
-                            {(['lojas', 'servicos', 'produtos'] as Mode[]).map(m => (
-                                <button
-                                    key={m}
-                                    onClick={() => {
-                                        setMode(m)
-                                        setShowFilters(false)
-                                        setSelectedItem(null)
-                                        setOverrideList(null)
-                                    }}
-                                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${mode === m
-                                        ? 'bg-gradient-to-r from-orange-50 to-red-50 border-2 border-orange-500'
-                                        : 'text-gray-700 hover:bg-gray-50'
-                                        }`}
-                                >
-                                    <div className={`p-2 rounded-lg ${mode === m ? 'bg-gradient-to-br from-orange-500 to-red-500 text-white' : 'bg-gray-100 text-gray-500'}`}>
-                                        {m === 'lojas' ? <Store size={18} /> : m === 'servicos' ? <Briefcase size={18} /> : <ShoppingBag size={18} />}
-                                    </div>
-                                    <span className="flex-1 text-left font-bold text-sm lowercase first-letter:uppercase">{m}</span>
-                                    {mode === m && (
-                                        <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse" />
-                                    )}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-            )}
         </div>
     )
 }
