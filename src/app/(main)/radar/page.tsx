@@ -7,13 +7,14 @@ import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
-import { Search, Store, ShoppingBag, X, MapPin, Star, Briefcase, Layers, Flame, Navigation, Crosshair, Home, Compass, Plus, Edit2, Save, XCircle, Building2, Map as MapIcon, ChevronRight, CheckCircle2, Users, Calendar, MessageCircle, Eye } from 'lucide-react'
+import { Store, ShoppingBag, X, MapPin, Star, Briefcase, Layers, Flame, Navigation, Crosshair, Home, Save, XCircle, Building2, ChevronRight, CheckCircle2, Users, Calendar, MessageCircle, Eye } from 'lucide-react'
 import { useAppModeStore } from '@/store/useAppModeStore'
 import { toast } from 'sonner'
 import { Spinner } from '@/components/Spinner'
 import { isStoreOpenNow, getStoreStatusText, getNextOpeningInfo } from '@/lib/storeHours'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import Header, { type Tab } from '@/app/Header'
+import LocationPicker from '../LocationPicker'
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
 
@@ -104,11 +105,10 @@ export default function MapPage() {
     const [mapStyle, setMapStyle] = useState<'streets' | 'satellite'>('streets')
     const [loadingLocation, setLoadingLocation] = useState(true)
     const [userAddress, setUserAddress] = useState<string | null>(null)
+    const [addressNumber, setAddressNumber] = useState('')
+    const [addressComplement, setAddressComplement] = useState('')
     const [showLocationDialog, setShowLocationDialog] = useState(false)
-    const [searchAddress, setSearchAddress] = useState('')
-    const [searchingAddress, setSearchingAddress] = useState(false)
-    const [addressSuggestions, setAddressSuggestions] = useState<any[]>([])
-    const [editingLocation, setEditingLocation] = useState(false)
+    const [isSavingLocation, setIsSavingLocation] = useState(false)
     const [clusterItems, setClusterItems] = useState<any[] | null>(null)
     const [clusterLocation, setClusterLocation] = useState<{ lng: number; lat: number; name: string } | null>(null)
     const [isLoggedIn, setIsLoggedIn] = useState(false)
@@ -176,39 +176,18 @@ export default function MapPage() {
                     if (profile) {
                         setProfileData(profile)
 
-                        if (profile.location) {
-                            console.log('[MapPage] 📍 Localização encontrada no perfil:', profile.location)
-                            const coords = parseCoords(profile.location)
-
-                            if (coords) {
-                                const [lng, lat] = coords
-                                console.log('[MapPage] 🗺️ Coordenadas parseadas:', { lng, lat })
-
-                                setProfileLocation({ lat, lng })
-
-                                if (profile.address) {
-                                    console.log('[MapPage] 📝 Endereço do perfil:', profile.address)
-                                    setUserAddress(profile.address)
-                                } else {
-                                    console.log('[MapPage] 🔄 Buscando endereço por coordenadas...')
-                                    const address = await reverseGeocode(lng, lat)
-                                    console.log('[MapPage] 📝 Endereço obtido:', address)
-                                    setUserAddress(address)
-
-                                    await supabase
-                                        .from('profiles')
-                                        .update({ address })
-                                        .eq('id', user.id)
-                                }
-                            } else {
-                                console.warn('[MapPage] ⚠️ Não foi possível parsear as coordenadas:', profile.location)
-                                setProfileLocation(null)
-                                setUserAddress(null)
-                            }
+                        if (profile.store_lat && profile.store_lng) {
+                            console.log('[MapPage] 📍 Localização encontrada no perfil:', profile.store_lat, profile.store_lng)
+                            setProfileLocation({ lat: profile.store_lat, lng: profile.store_lng })
+                            setUserAddress(profile.address || 'Local salvo')
+                            setAddressNumber(profile.address_number || '')
+                            setAddressComplement(profile.address_complement || '')
                         } else {
                             console.log('[MapPage] 📍 Nenhuma localização salva no perfil')
                             setProfileLocation(null)
                             setUserAddress(null)
+                            setAddressNumber('')
+                            setAddressComplement('')
                         }
 
                         setUserAvatar(profile.avatar_url || null)
@@ -282,34 +261,18 @@ export default function MapPage() {
                     setUserAvatar(newProfile.avatar_url || null)
                     setUserName(newProfile.name || newProfile.full_name || 'Usuário')
 
-                    if (newProfile.location) {
-                        const coords = parseCoords(newProfile.location)
-                        if (coords) {
-                            const [lng, lat] = coords
-                            console.log('[MapPage] 📡 Atualizando localização via Realtime:', { lng, lat })
-                            setProfileLocation({ lat, lng })
-
-                            const address = newProfile.address || await reverseGeocode(lng, lat)
-                            setUserAddress(address)
-
-                            if (mapRef.current && mapInitialized) {
-                                mapRef.current.flyTo({
-                                    center: [lng, lat],
-                                    zoom: 15,
-                                    duration: 1000
-                                })
-                            }
-
-                            toast.success('📍 Localização atualizada!', {
-                                description: address.split(',')[0],
-                                duration: 3000,
-                            })
-                        }
+                    if (newProfile.store_lat && newProfile.store_lng) {
+                        console.log('[MapPage] 📡 Atualizando localização via Realtime:', { lat: newProfile.store_lat, lng: newProfile.store_lng })
+                        setProfileLocation({ lat: newProfile.store_lat, lng: newProfile.store_lng })
+                        setUserAddress(newProfile.address || 'Local salvo')
+                        setAddressNumber(newProfile.address_number || '')
+                        setAddressComplement(newProfile.address_complement || '')
                     } else {
                         console.log('[MapPage] 📡 Localização removida via Realtime')
                         setProfileLocation(null)
                         setUserAddress(null)
-                        toast.info('Localização removida do perfil')
+                        setAddressNumber('')
+                        setAddressComplement('')
 
                         if (profileMarkerRef.current) {
                             profileMarkerRef.current.remove()
@@ -514,154 +477,63 @@ export default function MapPage() {
         return () => { cancelled = true }
     }, [selectedItem, mode])
 
-    // Buscar endereço
-    const searchAddressHandler = async () => {
-        if (!searchAddress.trim()) return
-        setSearchingAddress(true)
+    // Salvar localização no perfil (mesmo LocationPicker compartilhado do homepage,
+    // gravando nos mesmos campos store_lat/store_lng/address*)
+    const handleLocationSave = async (location: {
+        lat: number
+        lng: number
+        address: string
+        addressNumber?: string
+        addressComplement?: string
+    }) => {
+        setIsSavingLocation(true)
         try {
-            const response = await fetch(
-                `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(searchAddress)}.json?access_token=${mapboxgl.accessToken}&language=pt&limit=5`
-            )
-            const data = await response.json()
-            setAddressSuggestions(data.features || [])
-        } catch (error) {
-            console.error('Erro na busca:', error)
-            toast.error('Erro ao buscar endereço')
-        } finally {
-            setSearchingAddress(false)
-        }
-    }
-
-    // Salvar localização no perfil
-    const saveLocationToProfile = async (lng: number, lat: number, address: string) => {
-        try {
-
             const { data: { user } } = await supabase.auth.getUser()
-
             if (!user) {
                 toast.error('Você precisa estar logado para salvar uma localização.')
-                return false
-            }
-
-            const locationWKT = `POINT(${lng} ${lat})`
-
-            console.log('[MapPage] 💾 Salvando localização:', { locationWKT, address, userId: user.id })
-
-            const { error: updateError } = await supabase
-                .from('profiles')
-                .update({
-                    location: locationWKT,
-                    address: address,
-                })
-                .eq('id', user.id)
-
-            if (updateError) {
-                console.error('[MapPage] ❌ Erro no UPDATE:', updateError)
-
-                const { data: existingProfile } = await supabase
-                    .from('profiles')
-                    .select('id')
-                    .eq('id', user.id)
-                    .single()
-
-                if (!existingProfile) {
-                    const { error: insertError } = await supabase
-                        .from('profiles')
-                        .insert({
-                            id: user.id,
-                            location: locationWKT,
-                            address: address,
-                        })
-
-                    if (insertError) {
-                        console.error('[MapPage] ❌ Erro no INSERT:', insertError)
-                        toast.error(`Erro ao salvar: ${insertError.message}`)
-                        return false
-                    } else {
-                        console.log('[MapPage] ✅ Perfil criado com sucesso!')
-                    }
-                } else {
-                    toast.error(`Erro ao atualizar: ${updateError.message}`)
-                    return false
-                }
-            } else {
-                console.log('[MapPage] ✅ Localização atualizada com sucesso!')
-            }
-
-            setProfileLocation({ lat, lng })
-            setUserAddress(address)
-
-            if (user.id) {
-                const freshProfile = await loadUserProfile(user.id)
-                if (freshProfile) {
-                    setProfileData(freshProfile)
-                    setUserAvatar(freshProfile.avatar_url || null)
-                    setUserName(freshProfile.name || freshProfile.full_name || 'Usuário')
-                }
-            }
-
-            setShowLocationDialog(false)
-            setEditingLocation(false)
-            setSearchAddress('')
-            setAddressSuggestions([])
-
-            if (mapRef.current && mapInitialized) {
-                mapRef.current.flyTo({ center: [lng, lat], zoom: 15, duration: 1000 })
-            }
-
-            toast.success('Localização salva com sucesso!', {
-                description: address.split(',')[0],
-                duration: 3000,
-            })
-
-            return true
-        } catch (error) {
-            console.error('[MapPage] ❌ Erro inesperado:', error)
-            toast.error('Ocorreu um erro inesperado ao salvar a localização.')
-            return false
-        }
-    }
-
-    // Remover localização do perfil
-    const removeLocation = async () => {
-        try {
-
-            const { data: { user } } = await supabase.auth.getUser()
-
-            if (!user) {
-                toast.error('Você precisa estar logado para remover a localização.')
+                setShowLocationDialog(false)
+                setIsSavingLocation(false)
                 return
             }
 
-            console.log('[MapPage] 🗑️ Removendo localização do perfil')
-
-            const { error } = await supabase
+            const { data, error } = await supabase
                 .from('profiles')
-                .update({ location: null, address: null })
-                .eq('id', user.id)
+                .upsert({
+                    id: user.id,
+                    address: location.address,
+                    address_number: location.addressNumber || null,
+                    address_complement: location.addressComplement || null,
+                    store_lat: location.lat,
+                    store_lng: location.lng,
+                }, {
+                    onConflict: 'id',
+                    ignoreDuplicates: false
+                })
+                .select('address, address_number, address_complement, store_lat, store_lng')
+                .single()
 
             if (error) {
-                console.error('[MapPage] ❌ Erro ao remover localização:', error)
-                toast.error('Erro ao remover localização')
-                return
+                toast.error('Erro ao salvar: ' + error.message)
+            } else if (data) {
+                setProfileLocation({ lat: data.store_lat, lng: data.store_lng })
+                setUserAddress(data.address || 'Local salvo')
+                setAddressNumber(data.address_number || '')
+                setAddressComplement(data.address_complement || '')
+
+                if (mapRef.current && mapInitialized) {
+                    mapRef.current.flyTo({ center: [data.store_lng, data.store_lat], zoom: 15, duration: 1000 })
+                }
+
+                toast.success('Localização salva com sucesso!', {
+                    description: data.address?.split(',')[0],
+                    duration: 3000,
+                })
             }
-
-            console.log('[MapPage] ✅ Localização removida com sucesso')
-
-            // Apenas remove o estado da localização, sem mover o mapa
-            setProfileLocation(null)
-            setUserAddress(null)
-
-            // Remove o marcador do perfil
-            if (profileMarkerRef.current) {
-                profileMarkerRef.current.remove()
-                profileMarkerRef.current = null
-            }
-
-            toast.success('Localização removida com sucesso!')
-        } catch (error) {
-            console.error('[MapPage] ❌ Erro ao remover:', error)
-            toast.error('Erro ao remover localização')
+        } catch (err) {
+            toast.error('Erro: ' + (err as Error).message)
+        } finally {
+            setShowLocationDialog(false)
+            setIsSavingLocation(false)
         }
     }
 
@@ -925,8 +797,6 @@ export default function MapPage() {
                         duration: 800
                     })
                     setShowLocationDialog(true)
-                    setEditingLocation(true)
-                    setSearchAddress(userAddress || '')
                 }
             })
 
@@ -1083,7 +953,8 @@ export default function MapPage() {
                 </div>
             )}
 
-            {/* HEADER - mesmo componente do homepage, com os filtros do radar nas tabs.
+            {/* HEADER - mesmo componente do homepage, com os filtros do radar nas tabs
+                e a localização salva (LocationPicker compartilhado) no lugar do cart.
                 Em posição absoluta (não relativa ao fluxo normal) porque o Mapbox GL
                 força position:relative no próprio container do mapa via JS, o que
                 empurraria um Header "sticky" pra fora da tela se ele viesse depois
@@ -1099,186 +970,40 @@ export default function MapPage() {
                     searchPlaceholder={mode === 'lojas' ? 'Procurar lojas' : mode === 'servicos' ? 'Procurar serviços' : 'Procurar produtos'}
                     searchValue={search}
                     onSearch={(q) => { setSearch(q); setOverrideList(null) }}
+                    locationElement={
+                        isLoggedIn && (
+                            <button
+                                onClick={() => setShowLocationDialog(true)}
+                                disabled={isSavingLocation}
+                                className="flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full bg-black/10 hover:bg-black/20 transition disabled:opacity-50"
+                                style={{ color: '#fff' }}
+                            >
+                                <MapPin size={14} />
+                                {isSavingLocation
+                                    ? 'Salvando...'
+                                    : userAddress
+                                        ? userAddress.split(',').slice(0, 2).join(',')
+                                        : 'Definir local'
+                                }
+                            </button>
+                        )
+                    }
                 />
             </div>
 
-            {/* Location Banner */}
-            {mapReady && (
-                <div className="absolute left-0 z-20" style={{ bottom: '90px', maxWidth: 'calc(100vw - 80px)' }}>
-                    <div className={`${profileLocation ? 'bg-gradient-to-r from-orange-500 to-red-500' : (isLoggedIn ? 'bg-orange-500' : 'bg-gray-500')} rounded-2xl px-4 py-2.5 shadow-xl flex items-center gap-2 backdrop-blur-md border border-white/20 w-fit`}>
-                        {isLoggedIn ? (
-                            profileLocation ? (
-                                <>
-                                    <MapPin className="w-4 h-4 text-white" />
-                                    <span
-                                        className="text-xs font-black text-white tracking-tight cursor-pointer hover:underline"
-                                        onClick={() => {
-                                            setEditingLocation(true)
-                                            setShowLocationDialog(true)
-                                            setSearchAddress(userAddress || '')
-                                        }}
-                                    >
-                                        {userAddress?.split(',').slice(0, 2).join(',') || 'Localização salva'}
-                                    </span>
-                                    <button
-                                        onClick={() => {
-                                            setEditingLocation(true)
-                                            setShowLocationDialog(true)
-                                            setSearchAddress(userAddress || '')
-                                        }}
-                                        className="ml-2 p-1 bg-transparent rounded-lg hover:bg-white/30 transition-colors"
-                                        title="Editar localização"
-                                    >
-                                        <Edit2 className="w-3 h-3 text-white" />
-                                    </button>
-                                    <button
-                                        onClick={removeLocation}
-                                        className="ml-1 p-1 bg-transparent rounded-lg hover:bg-red-300/30 transition-colors"
-                                        title="Remover localização"
-                                    >
-                                        <XCircle className="w-3 h-3 text-white" />
-                                    </button>
-                                </>
-                            ) : (
-                                <>
-                                    <Compass className="w-4 h-4 text-white" />
-                                    <span
-                                        className="text-xs font-bold text-white cursor-pointer hover:underline"
-                                        onClick={() => {
-                                            setEditingLocation(false)
-                                            setShowLocationDialog(true)
-                                            setSearchAddress('')
-                                        }}
-                                    >
-                                        Localização não definida
-                                    </span>
-                                    <button
-                                        onClick={() => {
-                                            setEditingLocation(false)
-                                            setShowLocationDialog(true)
-                                            setSearchAddress('')
-                                        }}
-                                        className="ml-2 px-2 py-1 bg-transparent rounded-lg hover:bg-white/30 transition-colors flex items-center gap-1"
-                                    >
-                                        <Plus className="w-3 h-3 text-white" />
-                                        <span className="text-[10px] font-bold text-white">Adicionar</span>
-                                    </button>
-                                </>
-                            )
-                        ) : (
-                            <>
-                                <XCircle className="w-4 h-4 text-white" />
-                                <span
-                                    className="text-xs font-bold text-white cursor-pointer hover:underline"
-                                    onClick={() => router.push('/login')}
-                                >
-                                    Você não está logado
-                                </span>
-                                <button
-                                    onClick={() => router.push('/login')}
-                                    className="ml-2 px-2 py-1 bg-transparent rounded-lg hover:bg-white/30 transition-colors"
-                                >
-                                    Entrar
-                                </button>
-                            </>
-                        )}
-                    </div>
-                </div>
-            )}
-
-            {/* Location Dialog */}
-            {showLocationDialog && (
-                <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
-                    <div className="absolute inset-0 bg-black/70 backdrop-blur-sm transition-opacity" onClick={() => {
-                        setShowLocationDialog(false)
-                        setAddressSuggestions([])
-                        setSearchAddress('')
-                    }} />
-                    <div className="relative bg-white rounded-2xl w-full max-w-md shadow-2xl transform transition-all duration-300 animate-in zoom-in-95 overflow-hidden">
-                        <div className="bg-gradient-to-r from-orange-500 to-red-500 p-5">
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                    <MapPin className="w-5 h-5 text-white" />
-                                    <h3 className="text-xl font-bold text-white">
-                                        {editingLocation ? 'Editar endereço' : 'Adicionar localização'}
-                                    </h3>
-                                </div>
-                                <button onClick={() => {
-                                    setShowLocationDialog(false)
-                                    setAddressSuggestions([])
-                                    setSearchAddress('')
-                                }} className="p-1 rounded-lg bg-white/20 hover:bg-white/30 transition-colors">
-                                    <X className="w-5 h-5 text-white" />
-                                </button>
-                            </div>
-                        </div>
-
-                        <div className="p-5">
-                            <div className="relative mb-4">
-                                <input
-                                    type="text"
-                                    placeholder="Digite seu endereço, rua, cidade..."
-                                    value={searchAddress}
-                                    onChange={(e) => setSearchAddress(e.target.value)}
-                                    onKeyPress={(e) => e.key === 'Enter' && searchAddressHandler()}
-                                    className="w-full pl-4 pr-12 py-3 border-2 border-orange-200 rounded-xl text-gray-700 placeholder:text-gray-400 text-sm focus:outline-none focus:border-orange-500 transition-all"
-                                />
-                                <button
-                                    onClick={searchAddressHandler}
-                                    disabled={searchingAddress}
-                                    className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-lg hover:opacity-90 transition-all disabled:opacity-50"
-                                >
-                                    {searchingAddress ? (
-                                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                    ) : (
-                                        <Search className="w-4 h-4" />
-                                    )}
-                                </button>
-                            </div>
-
-                            {addressSuggestions.length > 0 && (
-                                <div className="space-y-2 max-h-64 overflow-y-auto">
-                                    {addressSuggestions.map((suggestion, idx) => (
-                                        <button
-                                            key={idx}
-                                            onClick={() => {
-                                                const [lng, lat] = suggestion.center
-                                                saveLocationToProfile(lng, lat, suggestion.place_name)
-                                            }}
-                                            className="w-full text-left p-3 rounded-xl hover:bg-orange-50 transition-all border border-transparent hover:border-orange-200"
-                                        >
-                                            <div className="flex items-start gap-3">
-                                                <MapPin className="w-4 h-4 text-orange-500 mt-0.5 flex-shrink-0" />
-                                                <div>
-                                                    <p className="text-sm font-medium text-gray-900">{suggestion.text}</p>
-                                                    <p className="text-xs text-gray-500">{suggestion.place_name}</p>
-                                                </div>
-                                            </div>
-                                        </button>
-                                    ))}
-                                </div>
-                            )}
-
-                            {addressSuggestions.length === 0 && searchAddress && !searchingAddress && (
-                                <div className="text-center py-8">
-                                    <MapIcon className="w-12 h-12 text-gray-300 mx-auto mb-2" />
-                                    <p className="text-gray-500 text-sm">Digite um endereço para buscar</p>
-                                </div>
-                            )}
-
-                            <button
-                                onClick={() => {
-                                    setShowLocationDialog(false)
-                                    setAddressSuggestions([])
-                                    setSearchAddress('')
-                                }}
-                                className="w-full mt-4 py-3 bg-gray-100 text-gray-600 rounded-xl font-medium hover:bg-gray-200 transition-all"
-                            >
-                                Cancelar
-                            </button>
-                        </div>
-                    </div>
-                </div>
+            {/* Location Picker - mesmo componente compartilhado do homepage */}
+            {isLoggedIn && showLocationDialog && (
+                <LocationPicker
+                    initialLocation={profileLocation ? {
+                        lat: profileLocation.lat,
+                        lng: profileLocation.lng,
+                        address: userAddress || '',
+                        addressNumber,
+                        addressComplement,
+                    } : null}
+                    onSave={handleLocationSave}
+                    onClose={() => setShowLocationDialog(false)}
+                />
             )}
 
             {/* Cluster Header */}
@@ -1348,8 +1073,8 @@ export default function MapPage() {
             )}
 
             {/* Horizontal List */}
-            {filtered.length > 0 && !clusterItems && (
-                <div className="absolute top-[210px] left-1/2 -translate-x-1/2 w-[95%] max-w-2xl z-20">
+            {filtered.length > 0 && !clusterItems && !selectedItem && (
+                <div className="absolute top-[190px] left-1/2 -translate-x-1/2 w-[95%] max-w-2xl z-20">
                     <div className="flex gap-2 overflow-x-auto pt-3 pb-3 scrollbar-hide snap-x">
                         {filtered.map(item => (
                             <button
