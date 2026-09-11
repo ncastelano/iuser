@@ -222,20 +222,14 @@ export function ProductClientPage({
     }
 
     // ===== DETERMINA O NOME E IMAGEM PARA EXIBIR =====
+    // Sempre os dados da própria loja (nome/logo) - o perfil do dono é só
+    // metadado interno, não o que deve aparecer como "de onde é esse produto".
     const getStoreDisplay = () => {
         if (!product?.store) {
             return {
                 name: 'Loja',
                 imageUrl: null,
                 type: 'unknown'
-            }
-        }
-
-        if (product.store.profile) {
-            return {
-                name: product.store.profile.name || product.store.name,
-                imageUrl: product.store.profile.avatar_url || product.store.logo_url,
-                type: 'store'
             }
         }
 
@@ -248,11 +242,9 @@ export function ProductClientPage({
 
     const storeDisplay = getStoreDisplay()
 
-    const storeImageUrl = storeDisplay.imageUrl
+    const finalStoreImage = storeDisplay.imageUrl
         ? supabase.storage.from('store-logos').getPublicUrl(storeDisplay.imageUrl).data.publicUrl
         : null
-
-    const finalStoreImage = storeImageUrl || storeDisplay.imageUrl || null
 
     // ===== FUNÇÕES DO CARRINHO =====
     const handleAddToCart = () => {
