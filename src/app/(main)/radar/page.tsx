@@ -218,7 +218,11 @@ export default function MapPage() {
                             setLoadingLocation(false)
                         },
                         (error) => {
-                            console.error('[MapPage] ❌ Erro na geolocalização:', error)
+                            // GeolocationPositionError não serializa como objeto normal
+                            // (console.error mostrava "{}"); usa warn (não trava o overlay
+                            // de dev do Next) e lê message/code direto - fallback abaixo já
+                            // cobre o caso, isso é só diagnóstico.
+                            console.warn('[MapPage] ⚠️ Geolocalização indisponível:', error.message || `código ${error.code}`)
                             setLoadingLocation(false)
                             setDeviceLocation({ lat: -15.7939, lng: -47.8828 })
                         },
