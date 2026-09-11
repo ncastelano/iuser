@@ -622,7 +622,7 @@ export default function CriarLoja() {
     {
       id: "criando",
       label: "Criando loja",
-      icon: Sparkles as React.ComponentType<{ size?: number; color?: string }>,
+      icon: Sparkles,
       onClick: () => { },
       isActive: true,
     },

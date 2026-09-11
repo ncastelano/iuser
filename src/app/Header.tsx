@@ -2,7 +2,7 @@
 'use client'
 
 import { usePathname, useRouter } from 'next/navigation'
-import { ArrowLeft, Search, ShoppingCart, X } from 'lucide-react'
+import { ArrowLeft, Search, ShoppingCart, X, type LucideIcon } from 'lucide-react'
 import { useTheme } from '@/app/theme'
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { hexToRgb } from '@/lib/color'
@@ -11,7 +11,7 @@ import { useCartStore } from '@/store/useCartStore'
 export interface Tab {
     id: string
     label: string
-    icon: React.ComponentType<{ size?: number; color?: string }>
+    icon: LucideIcon
     imageUrl?: string | null
     onClick: () => void
     isActive: boolean
