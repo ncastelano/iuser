@@ -21,6 +21,7 @@ import {
 import { supabase } from '@/lib/supabase/client'
 import { useAppointments } from '../dadosDoCompromisso'
 import { useTheme } from '@/app/contexts/theme'
+import { useProfile } from '@/app/contexts/ProfileContext'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import Header from '@/components/Header'
 
@@ -55,6 +56,7 @@ interface Props {
 export default function CriarCompromissoLoja({ onBack, context, storeId, activeFlow, myStores }: Props) {
     const { colors } = useTheme()
     const { appointments, refetch } = useAppointments()
+    const { userId } = useProfile()
 
     const [bgMode, setBgMode] = useState<'animated' | 'black' | 'custom'>('black')
     const [customBgUrl, setCustomBgUrl] = useState<string | null>(null)
@@ -71,7 +73,6 @@ export default function CriarCompromissoLoja({ onBack, context, storeId, activeF
 
     const [selectedDuration, setSelectedDuration] = useState<number>(60)
     const [scheduleConfig, setScheduleConfig] = useState<any>(null)
-    const [userId, setUserId] = useState<string | null>(null)
 
     const [searchQuery, setSearchQuery] = useState('')
     const [results, setResults] = useState<SearchTarget[]>([])
@@ -94,25 +95,21 @@ export default function CriarCompromissoLoja({ onBack, context, storeId, activeF
     const todayStr = `${hoje.getFullYear()}-${pad(hoje.getMonth() + 1)}-${pad(hoje.getDate())}`
 
     useEffect(() => {
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            if (session?.user) {
-                setUserId(session.user.id)
-                supabase
-                    .from('profiles')
-                    .select('avatar_url, profileSlug, background_mode, background_image_url')
-                    .eq('id', session.user.id)
-                    .single()
-                    .then(({ data }) => {
-                        if (data) {
-                            if (data.avatar_url) setUserAvatarUrl(data.avatar_url)
-                            if (data.profileSlug) setUserProfileSlug(data.profileSlug)
-                            if (data.background_mode) setBgMode(data.background_mode)
-                            if (data.background_image_url) setCustomBgUrl(data.background_image_url)
-                        }
-                    })
-            }
-        })
-    }, [])
+        if (!userId) return
+        supabase
+            .from('profiles')
+            .select('avatar_url, profileSlug, background_mode, background_image_url')
+            .eq('id', userId)
+            .single()
+            .then(({ data }) => {
+                if (data) {
+                    if (data.avatar_url) setUserAvatarUrl(data.avatar_url)
+                    if (data.profileSlug) setUserProfileSlug(data.profileSlug)
+                    if (data.background_mode) setBgMode(data.background_mode)
+                    if (data.background_image_url) setCustomBgUrl(data.background_image_url)
+                }
+            })
+    }, [userId])
 
     useEffect(() => {
         if (target) {
