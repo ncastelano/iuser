@@ -49,7 +49,7 @@ const DEFAULT_CENTER: [number, number] = [-63.9039, -8.7612] // Porto Velho
 const ROUTE_COLOR = '#3b82f6'
 const AVERAGE_SPEED_KMH = 40
 
-type Step = 'type' | 'where' | 'details'
+type Step = 'type' | 'where' | 'access' | 'details'
 type RequestFor = 'pessoa' | 'objeto' | 'animal'
 type ActiveField = 'origin' | 'destination' | null
 type ObjectSize = 'pequeno' | 'medio' | 'grande'
@@ -65,7 +65,7 @@ interface RouteOption {
     durationMin: number
 }
 
-const STEPS: Step[] = ['type', 'where', 'details']
+const STEPS: Step[] = ['type', 'where', 'access', 'details']
 
 async function reverseGeocode(lng: number, lat: number): Promise<string | null> {
     try {
@@ -798,7 +798,8 @@ export default function PedirMotoristaPage() {
     }
 
     const handleBack = () => {
-        if (step === 'details') setStep('where')
+        if (step === 'details') setStep('access')
+        else if (step === 'access') setStep('where')
         else if (step === 'where') setStep('type')
         else router.push('/')
     }
@@ -1359,8 +1360,41 @@ export default function PedirMotoristaPage() {
                                 </div>
                             )}
 
+                            {/* Rota (uma só, sem alternativas) — a distância/tempo aparece no mapa, no marcador de chegada */}
+                            {loadingRoutes && (
+                                <div className="flex items-center gap-2 mt-3 text-xs" style={{ color: colors.textSecondary }}>
+                                    <Spinner size={14} />
+                                    Calculando rota...
+                                </div>
+                            )}
+
+                            <div className="flex items-center gap-2 mt-4">
+                                <button
+                                    onClick={() => setStep('type')}
+                                    className="py-3.5 px-5 rounded-xl font-black uppercase text-sm tracking-wider transition-all active:scale-95"
+                                    style={{ background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                                >
+                                    Voltar
+                                </button>
+                                <button
+                                    onClick={() => setStep('access')}
+                                    disabled={!origin.address.trim() || !destination.address.trim()}
+                                    className="flex-1 py-3.5 rounded-xl font-black uppercase text-sm tracking-wider transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:hover:scale-100"
+                                    style={{ background: GRADIENT, color: '#fff' }}
+                                >
+                                    Continuar
+                                </button>
+                            </div>
+                        </>
+                    )}
+
+                    {/* ===== ETAPA 3: ACESSO E HORÁRIO ===== */}
+                    {step === 'access' && (
+                        <>
+                            <h2 className="text-lg font-black mb-3" style={{ color: colors.textPrimary }}>Acesso e horário</h2>
+
                             {/* Condomínio fechado — precisa de nº/apto/quadra pra achar? */}
-                            <div className="flex flex-col gap-2 mt-3">
+                            <div className="flex flex-col gap-2">
                                 <div className="rounded-xl px-3 py-2.5" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
                                     <div className="flex items-center justify-between gap-2 flex-wrap">
                                         <span className="flex items-center gap-1.5 text-xs font-bold" style={{ color: colors.textPrimary }}>
@@ -1472,14 +1506,6 @@ export default function PedirMotoristaPage() {
                                     </div>
                                 )}
                             </div>
-
-                            {/* Rota (uma só, sem alternativas) — a distância/tempo aparece no mapa, no marcador de chegada */}
-                            {loadingRoutes && (
-                                <div className="flex items-center gap-2 mt-3 text-xs" style={{ color: colors.textSecondary }}>
-                                    <Spinner size={14} />
-                                    Calculando rota...
-                                </div>
-                            )}
 
                             {/* Necessidade especial */}
                             <div className="rounded-xl px-3 py-2.5 mt-3" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
@@ -1629,7 +1655,7 @@ export default function PedirMotoristaPage() {
 
                             <div className="flex items-center gap-2 mt-4">
                                 <button
-                                    onClick={() => setStep('type')}
+                                    onClick={() => setStep('where')}
                                     className="py-3.5 px-5 rounded-xl font-black uppercase text-sm tracking-wider transition-all active:scale-95"
                                     style={{ background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
                                 >
@@ -1637,8 +1663,7 @@ export default function PedirMotoristaPage() {
                                 </button>
                                 <button
                                     onClick={() => setStep('details')}
-                                    disabled={!origin.address.trim() || !destination.address.trim()}
-                                    className="flex-1 py-3.5 rounded-xl font-black uppercase text-sm tracking-wider transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:hover:scale-100"
+                                    className="flex-1 py-3.5 rounded-xl font-black uppercase text-sm tracking-wider transition-all hover:scale-[1.02] active:scale-95"
                                     style={{ background: GRADIENT, color: '#fff' }}
                                 >
                                     Continuar
@@ -1647,7 +1672,7 @@ export default function PedirMotoristaPage() {
                         </>
                     )}
 
-                    {/* ===== ETAPA 3: DETALHES ===== */}
+                    {/* ===== ETAPA 4: DETALHES ===== */}
                     {step === 'details' && requestFor && (
                         <>
                             <h2 className="text-lg font-black mb-3" style={{ color: colors.textPrimary }}>
@@ -2079,7 +2104,7 @@ export default function PedirMotoristaPage() {
 
                             <div className="flex items-center gap-2 mt-4">
                                 <button
-                                    onClick={() => setStep('type')}
+                                    onClick={() => setStep('access')}
                                     className="py-3.5 px-5 rounded-xl font-black uppercase text-sm tracking-wider transition-all active:scale-95"
                                     style={{ background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
                                 >
