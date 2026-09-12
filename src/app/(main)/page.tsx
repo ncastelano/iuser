@@ -98,6 +98,7 @@ export default function HomePage() {
     const router = useRouter()
     const startNavProgress = useNavProgressStore((s) => s.start)
     const {
+        userId,
         profileSlug,
         avatarUrl,
         bgMode,
@@ -190,17 +191,16 @@ export default function HomePage() {
     // ---------- CARREGAR LOCALIZAÇÃO DO PERFIL ----------
     useEffect(() => {
         const fetchLocationFromProfile = async () => {
-            try {
-                const { data: { user }, error: authError } = await supabase.auth.getUser()
-                if (authError || !user) {
-                    setSavedLocation(null)
-                    return
-                }
+            if (!userId) {
+                setSavedLocation(null)
+                return
+            }
 
+            try {
                 const { data: profile, error } = await supabase
                     .from('profiles')
                     .select('address, address_number, address_complement, store_lat, store_lng')
-                    .eq('id', user.id)
+                    .eq('id', userId)
                     .maybeSingle()
 
                 if (error) {
@@ -230,7 +230,7 @@ export default function HomePage() {
         }
 
         fetchLocationFromProfile()
-    }, [profileSlug])
+    }, [userId])
 
     // Convites de compromisso pendentes (badge da aba de perfil) vêm de
     // useMerchantStore.pendingInvitesCount — uma única subscrição global em
@@ -238,29 +238,26 @@ export default function HomePage() {
 
     // ---------- STATUS ABERTO/FECHADO DO PERFIL (cor da aba de perfil) ----------
     useEffect(() => {
-        if (!profileSlug) {
+        if (!userId) {
             setProfileOpenNow(false)
             return
         }
 
-        supabase.auth.getUser().then(async ({ data: { user } }) => {
-            if (!user) return
-            const { data } = await supabase
-                .from('profiles')
-                .select('business_hours')
-                .eq('id', user.id)
-                .single()
-
-            setProfileOpenNow(isProfileOpenNow(data?.business_hours))
-        })
-    }, [profileSlug])
+        supabase
+            .from('profiles')
+            .select('business_hours')
+            .eq('id', userId)
+            .single()
+            .then(({ data }) => {
+                setProfileOpenNow(isProfileOpenNow(data?.business_hours))
+            })
+    }, [userId])
 
     // ---------- LOJAS DO USUÁRIO ----------
     useEffect(() => {
         async function loadStores() {
             setLoadingStores(true)
-            const { data: { session } } = await supabase.auth.getSession()
-            if (!session?.user || !profileSlug) {
+            if (!userId) {
                 setStores([])
                 setLoadingStores(false)
                 return
@@ -269,7 +266,7 @@ export default function HomePage() {
             const { data: fetchedStores } = await supabase
                 .from('stores')
                 .select('id, name, storeSlug, logo_url, business_hours')
-                .eq('owner_id', session.user.id)
+                .eq('owner_id', userId)
                 .order('created_at', { ascending: true })
 
             if (fetchedStores) {
@@ -296,7 +293,7 @@ export default function HomePage() {
             setLoadingStores(false)
         }
         loadStores()
-    }, [profileSlug])
+    }, [userId])
 
     // ===== FUNÇÃO PARA ATUALIZAR OS BADGES EM TEMPO REAL =====
     // As contagens em si vêm do OrderNotification (montado globalmente em providers.tsx),
