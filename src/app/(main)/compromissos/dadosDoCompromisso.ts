@@ -1,6 +1,7 @@
 // app/(main)/compromissos/dadosDoCompromisso.ts
 import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '@/lib/supabase/client'
+import { useProfile } from '@/app/contexts/ProfileContext'
 
 export type AppointmentStatus = 'confirmed' | 'pending' | 'cancelled' | 'completed'
 export type AppointmentDirection = 'outgoing' | 'incoming' | 'other'
@@ -33,6 +34,7 @@ export interface Appointment {
 }
 
 export function useAppointments() {
+    const { userId, loading: profileLoading } = useProfile()
     const [appointments, setAppointments] = useState<Appointment[]>([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
@@ -40,10 +42,7 @@ export function useAppointments() {
     const fetchAppointments = useCallback(async () => {
         try {
             setLoading(true)
-            const { data: session } = await supabase.auth.getSession()
-            if (!session.session?.user) throw new Error('Usuário não autenticado')
-
-            const userId = session.session.user.id
+            if (!userId) throw new Error('Usuário não autenticado')
 
             // Busca compromissos onde o usuário é:
             // - customer_id (compromissos que ele criou)
@@ -58,19 +57,21 @@ export function useAppointments() {
 
             if (error) throw error
 
+            setError(null)
             setAppointments(data as Appointment[])
         } catch (err: any) {
             setError(err.message)
         } finally {
             setLoading(false)
         }
-    }, [])
+    }, [userId])
 
     useEffect(() => {
+        if (profileLoading) return
         fetchAppointments()
-    }, [fetchAppointments])
+    }, [profileLoading, fetchAppointments])
 
-    return { appointments, loading, error, refetch: fetchAppointments }
+    return { appointments, loading: loading || profileLoading, error, refetch: fetchAppointments }
 }
 
 // ... (useUpdateAppointmentStatus e useDeleteAppointment permanecem iguais) ...

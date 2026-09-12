@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { Clock3, MapPin, Plus, Check, X, Info, Calendar, Store, User } from 'lucide-react'
 import { useAppointments, useDeleteAppointment } from '@/app/(main)/compromissos/dadosDoCompromisso'
 import { supabase } from '@/lib/supabase/client'
+import { useProfile } from '@/app/contexts/ProfileContext'
 
 interface AgendamentosSectionProps {
     dragHandle?: ReactNode
@@ -83,27 +84,27 @@ function AppointmentAvatar({
 export default function AgendamentosSection({ dragHandle }: AgendamentosSectionProps) {
     const { appointments, loading, refetch } = useAppointments()
     const { deleteAppointment } = useDeleteAppointment()
+    const { userId } = useProfile()
 
-    const [userId, setUserId] = useState<string | null>(null)
     const [storeIds, setStoreIds] = useState<string[]>([])
     const [showPending, setShowPending] = useState(true)
 
     useEffect(() => {
-        supabase.auth.getSession().then(async ({ data: { session } }) => {
-            if (session?.user) {
-                setUserId(session.user.id)
+        if (!userId) {
+            setStoreIds([])
+            return
+        }
 
-                const { data: ownedStores } = await supabase
-                    .from('stores')
-                    .select('id')
-                    .eq('owner_id', session.user.id)
-
+        supabase
+            .from('stores')
+            .select('id')
+            .eq('owner_id', userId)
+            .then(({ data: ownedStores }) => {
                 const ids = new Set<string>()
                 ownedStores?.forEach(s => ids.add(s.id))
                 setStoreIds(Array.from(ids))
-            }
-        })
-    }, [])
+            })
+    }, [userId])
 
     const combinedAppointments = useMemo(() => {
         if (!userId) return []

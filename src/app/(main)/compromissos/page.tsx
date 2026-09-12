@@ -39,6 +39,7 @@ import { supabase } from '@/lib/supabase/client'
 import HorarioEDisponibilidade from './HorarioEDisponibilidade'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { useTheme } from '@/app/contexts/theme'
+import { useProfile } from '@/app/contexts/ProfileContext'
 import Header from '@/components/Header' // ajuste o caminho conforme necessário
 
 type BgMode = 'animated' | 'black' | 'custom'
@@ -224,6 +225,7 @@ export default function CompromissosPage() {
     const router = useRouter()
     const hoje = new Date()
     const { colors } = useTheme()
+    const { userId } = useProfile()
 
     // Movida para antes do uso
 
@@ -249,7 +251,6 @@ export default function CompromissosPage() {
     const [showAllAcceptedModal, setShowAllAcceptedModal] = useState(false)
     const [acceptedSearch, setAcceptedSearch] = useState('')
 
-    const [userId, setUserId] = useState<string | null>(null)
     const [userAvatarUrl, setUserAvatarUrl] = useState<string | null>(null)
     const [userProfileSlug, setUserProfileSlug] = useState<string | null>(null)
 
@@ -266,33 +267,29 @@ export default function CompromissosPage() {
     const [customBgUrl, setCustomBgUrl] = useState<string | null>(null)
 
     useEffect(() => {
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            if (session?.user) {
-                setUserId(session.user.id)
-                supabase
-                    .from('profiles')
-                    .select('avatar_url, profileSlug, background_mode, background_image_url')
-                    .eq('id', session.user.id)
-                    .single()
-                    .then(({ data }) => {
-                        if (data) {
-                            if (data.avatar_url) setUserAvatarUrl(data.avatar_url)
-                            if (data.profileSlug) setUserProfileSlug(data.profileSlug)
-                            if (data.background_mode) setBgMode(data.background_mode)
-                            if (data.background_image_url) setCustomBgUrl(data.background_image_url)
-                        }
-                    })
-                supabase
-                    .from('stores')
-                    .select('id, name, storeSlug, logo_url')
-                    .eq('owner_id', session.user.id)
-                    .neq('name', 'Meus compromissos')
-                    .then(({ data }) => {
-                        if (data) setMyStores(data)
-                    })
-            }
-        })
-    }, [])
+        if (!userId) return
+        supabase
+            .from('profiles')
+            .select('avatar_url, profileSlug, background_mode, background_image_url')
+            .eq('id', userId)
+            .single()
+            .then(({ data }) => {
+                if (data) {
+                    if (data.avatar_url) setUserAvatarUrl(data.avatar_url)
+                    if (data.profileSlug) setUserProfileSlug(data.profileSlug)
+                    if (data.background_mode) setBgMode(data.background_mode)
+                    if (data.background_image_url) setCustomBgUrl(data.background_image_url)
+                }
+            })
+        supabase
+            .from('stores')
+            .select('id, name, storeSlug, logo_url')
+            .eq('owner_id', userId)
+            .neq('name', 'Meus compromissos')
+            .then(({ data }) => {
+                if (data) setMyStores(data)
+            })
+    }, [userId])
 
     function formatDate(date: Date) {
         const year = date.getFullYear()

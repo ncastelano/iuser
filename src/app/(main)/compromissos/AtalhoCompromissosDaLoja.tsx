@@ -7,6 +7,7 @@ import { Plus, X, Earth, Lock, User, Store, Check, Eye, EyeOff, Clock, Calendar,
 import { useAppointments, useDeleteAppointment } from '@/app/(main)/compromissos/dadosDoCompromisso'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
+import { useProfile } from '@/app/contexts/ProfileContext'
 import { hexToRgb } from '@/lib/color'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
@@ -97,16 +98,10 @@ export default function AtalhoCompromissosDaLoja({
     const { colors } = useTheme()
     const { appointments, loading, refetch } = useAppointments()
     const { deleteAppointment } = useDeleteAppointment()
+    const { userId } = useProfile()
 
-    const [userId, setUserId] = useState<string | null>(null)
     const [showPending, setShowPending] = useState(true)
     const [isExpanded, setIsExpanded] = useState(false)
-
-    useEffect(() => {
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            if (session?.user) setUserId(session.user.id)
-        })
-    }, [])
 
     // Filtra apenas compromissos da loja (com store_id)
     const storeAppointments = useMemo(() => {

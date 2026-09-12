@@ -8,6 +8,7 @@ import { useTheme } from '@/app/contexts/theme'
 import Header from '@/components/Header'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { supabase } from '@/lib/supabase/client'
+import { useProfile } from '@/app/contexts/ProfileContext'
 import CriarCompromissoLoja from './CriarCompromissoLoja'
 import CriarCompromissoComAlguem from './CriarCompromissoComAlguem'
 import CriarCompromissoPessoal from './CriarCompromissoPessoal'
@@ -26,6 +27,7 @@ type FlowType =
 export default function AgendarPage() {
     const router = useRouter()
     const { colors } = useTheme()
+    const { userId } = useProfile()
     const [activeFlow, setActiveFlow] = useState<FlowType>('none')
 
     // Estados do fundo
@@ -39,35 +41,31 @@ export default function AgendarPage() {
     const [activeTab, setActiveTab] = useState<string>('pessoal') // 'pessoal' ou id da loja
 
     useEffect(() => {
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            if (session?.user) {
-                const uid = session.user.id
-                // Busca perfil
-                supabase
-                    .from('profiles')
-                    .select('avatar_url, profileSlug, background_mode, background_image_url')
-                    .eq('id', uid)
-                    .single()
-                    .then(({ data }) => {
-                        if (data) {
-                            if (data.avatar_url) setUserAvatarUrl(data.avatar_url)
-                            if (data.profileSlug) setUserProfileSlug(data.profileSlug)
-                            if (data.background_mode) setBgMode(data.background_mode)
-                            if (data.background_image_url) setCustomBgUrl(data.background_image_url)
-                        }
-                    })
-                // Busca lojas
-                supabase
-                    .from('stores')
-                    .select('id, name, storeSlug, logo_url')
-                    .eq('owner_id', uid)
-                    .neq('name', 'Meus compromissos')
-                    .then(({ data }) => {
-                        if (data) setMyStores(data)
-                    })
-            }
-        })
-    }, [])
+        if (!userId) return
+        // Busca perfil
+        supabase
+            .from('profiles')
+            .select('avatar_url, profileSlug, background_mode, background_image_url')
+            .eq('id', userId)
+            .single()
+            .then(({ data }) => {
+                if (data) {
+                    if (data.avatar_url) setUserAvatarUrl(data.avatar_url)
+                    if (data.profileSlug) setUserProfileSlug(data.profileSlug)
+                    if (data.background_mode) setBgMode(data.background_mode)
+                    if (data.background_image_url) setCustomBgUrl(data.background_image_url)
+                }
+            })
+        // Busca lojas
+        supabase
+            .from('stores')
+            .select('id, name, storeSlug, logo_url')
+            .eq('owner_id', userId)
+            .neq('name', 'Meus compromissos')
+            .then(({ data }) => {
+                if (data) setMyStores(data)
+            })
+    }, [userId])
 
     // Helper para obter URL pública de avatar/logo
     const getPublicUrl = (path: string | null, bucket: 'avatars' | 'store-logos') => {

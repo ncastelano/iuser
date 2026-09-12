@@ -7,6 +7,7 @@ import { Plus, Check, X, Calendar, User, Lock, Earth, Eye, EyeOff, Clock, Chevro
 import { useAppointments, useDeleteAppointment } from '@/app/(main)/compromissos/dadosDoCompromisso'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
+import { useProfile } from '@/app/contexts/ProfileContext'
 import { hexToRgb } from '@/lib/color'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
@@ -130,8 +131,8 @@ export default function AtalhoCompromissosPessoal({
     const { colors } = useTheme()
     const { appointments, loading, refetch } = useAppointments()
     const { deleteAppointment } = useDeleteAppointment()
+    const { userId } = useProfile()
 
-    const [userId, setUserId] = useState<string | null>(null)
     const [showPending, setShowPending] = useState(true)
     const [isExpanded, setIsExpanded] = useState(true)
 
@@ -142,12 +143,6 @@ export default function AtalhoCompromissosPessoal({
     const [blockedDateInput, setBlockedDateInput] = useState('')
     const [hoursLoading, setHoursLoading] = useState(true)
     const [hoursSaving, setHoursSaving] = useState(false)
-
-    useEffect(() => {
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            if (session?.user) setUserId(session.user.id)
-        })
-    }, [])
 
     const loadHoursConfig = useCallback(async () => {
         if (!profileId) return
