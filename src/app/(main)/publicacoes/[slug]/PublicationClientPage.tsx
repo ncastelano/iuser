@@ -47,13 +47,6 @@ interface PublicationWithStore {
         name: string
         storeSlug: string
         logo_url: string | null
-        owner_id: string
-        profile?: {
-            id: string
-            name: string
-            avatar_url: string | null
-            profileSlug: string
-        } | null
     } | null
     profile?: {
         id: string
@@ -181,29 +174,15 @@ export default function PublicationClientPage() {
                             id,
                             name,
                             storeSlug,
-                            logo_url,
-                            owner_id
+                            logo_url
                         `)
                         .eq('id', pubData.store_id)
                         .maybeSingle()
 
                     if (!storeErr && storeData) {
-                        let profileData = null
-                        if (storeData.owner_id) {
-                            const { data: profile } = await supabase
-                                .from('profiles')
-                                .select('id, name, avatar_url, profileSlug')
-                                .eq('id', storeData.owner_id)
-                                .maybeSingle()
-                            profileData = profile
-                        }
-
                         publicationWithData = {
                             ...pubData,
-                            store: {
-                                ...storeData,
-                                profile: profileData
-                            },
+                            store: storeData,
                             profile: null
                         }
                     }
@@ -668,14 +647,10 @@ export default function PublicationClientPage() {
                 router.push(`/${publication.store.storeSlug}`)
                 return
             }
-            if (publication.store.profile?.profileSlug) {
-                router.push(`/${publication.store.profile.profileSlug}`)
-                return
-            }
             if (publication.store.id) {
                 router.push(`/loja/${publication.store.id}`)
-                return
             }
+            return
         }
 
         if (publication.profile?.profileSlug) {
@@ -689,30 +664,22 @@ export default function PublicationClientPage() {
     }
 
     // ===== DETERMINA O NOME E IMAGEM PARA EXIBIR =====
+    // Sempre os dados da própria loja (nome/logo) quando há loja - o perfil do
+    // dono é só metadado interno, não o que deve aparecer como "de onde é essa publicação".
     const getOwnerDisplayInfo = () => {
         if (!publication) {
             return {
                 name: 'Carregando...',
                 imageUrl: null,
-                slug: null,
-                type: 'unknown'
+                type: 'unknown',
+                isProfileAvatar: false
             }
         }
 
         if (publication.store) {
-            if (publication.store.profile) {
-                return {
-                    name: publication.store.profile.name || publication.store.name,
-                    imageUrl: publication.store.profile.avatar_url || publication.store.logo_url,
-                    slug: publication.store.profile.profileSlug || publication.store.storeSlug,
-                    type: 'store',
-                    isProfileAvatar: !!publication.store.profile.avatar_url
-                }
-            }
             return {
                 name: publication.store.name,
                 imageUrl: publication.store.logo_url,
-                slug: publication.store.storeSlug,
                 type: 'store',
                 isProfileAvatar: false
             }
@@ -722,7 +689,6 @@ export default function PublicationClientPage() {
             return {
                 name: publication.profile.name || 'Usuário',
                 imageUrl: publication.profile.avatar_url,
-                slug: publication.profile.profileSlug,
                 type: 'profile',
                 isProfileAvatar: true
             }
@@ -731,7 +697,6 @@ export default function PublicationClientPage() {
         return {
             name: 'Usuário desconhecido',
             imageUrl: null,
-            slug: null,
             type: 'unknown',
             isProfileAvatar: false
         }
