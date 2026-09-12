@@ -1,7 +1,7 @@
 // app/(main)/lojas/[categoria]/page.tsx
 'use client'
 
-import { useMemo, useState, useEffect, useCallback } from 'react'
+import { useMemo, useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { hexToRgb } from '@/lib/color'
@@ -337,12 +337,19 @@ export default function ListaCategoriaPage() {
     const [currentPage, setCurrentPage] = useState(0)
     const itemsPerPage = 4
 
+    // Identifica a chamada mais recente de loadStores, pra descartar
+    // respostas atrasadas de uma categoria anterior (evita flash de dados
+    // errados se o usuário trocar de categoria rápido).
+    const loadIdRef = useRef(0)
+
     // ===== CARREGAR LOJAS =====
     const loadStores = useCallback(async () => {
         if (!categoria) return
+        const requestId = ++loadIdRef.current
 
         setLoadingData(true)
         setError(null)
+        setPublications([])
 
         try {
             const info = categoriasMap[categoria]
@@ -398,127 +405,133 @@ export default function ListaCategoriaPage() {
                 if (fallbackData) finalStores = fallbackData
             }
 
-            const storesWithDetails = await Promise.all(
-                finalStores.map(async (store: any) => {
-                    try {
-                        const [productsResult, reviewsResult] = await Promise.all([
-                            supabase.from('products').select('id, name, image_url, price, listing_type').eq('store_id', store.id).order('created_at', { ascending: false }).limit(2),
-                            supabase.from('product_reviews').select(`id, rating, comment, is_anonymous, profiles!inner (name)`).eq('store_id', store.id).order('created_at', { ascending: false }).limit(2)
-                        ])
+            if (requestId !== loadIdRef.current) return
 
-                        const mappedReviews = (reviewsResult.data || []).map((review: any) => ({
-                            ...review,
-                            profile_name: review.is_anonymous ? 'Anônimo' : review.profiles?.[0]?.name || 'Usuário',
-                        }))
+            const storeIds = finalStores.map((s: any) => s.id)
 
-                        const mappedProducts = (productsResult.data || []).map((p: any) => ({
-                            ...p,
-                            image_url: p.image_url ? supabase.storage.from('product-images').getPublicUrl(p.image_url).data.publicUrl : null,
-                            listing_type: p.listing_type || 'sale',
-                        }))
-
-                        return {
-                            id: store.id,
-                            name: store.name,
-                            storeSlug: store.storeSlug,
-                            description: store.description,
-                            address: store.address,
-                            logo_url: store.logo_url ? supabase.storage.from('store-logos').getPublicUrl(store.logo_url).data.publicUrl : null,
-                            ratings_avg: store.ratings_avg,
-                            ratings_count: store.ratings_count,
-                            owner_id: store.owner_id,
-                            business_hours: convertBusinessHours(store.business_hours),
-                            view_count: store.view_count || 0,
-                            top_products: mappedProducts,
-                            recent_reviews: mappedReviews,
-                        }
-                    } catch {
-                        return {
-                            id: store.id,
-                            name: store.name,
-                            storeSlug: store.storeSlug,
-                            description: store.description,
-                            address: store.address,
-                            logo_url: store.logo_url ? supabase.storage.from('store-logos').getPublicUrl(store.logo_url).data.publicUrl : null,
-                            ratings_avg: store.ratings_avg,
-                            ratings_count: store.ratings_count,
-                            owner_id: store.owner_id,
-                            business_hours: convertBusinessHours(store.business_hours),
-                            view_count: store.view_count || 0,
-                            top_products: [],
-                            recent_reviews: [],
-                        }
-                    }
-                })
-            )
-
-            setStores(storesWithDetails)
-        } catch (err) {
-            console.error('Erro ao carregar lojas:', err)
-            setError('Erro ao carregar lojas')
-            setStores([])
-        }
-
-        setLoadingData(false)
-    }, [categoria])
-
-    useEffect(() => { loadStores() }, [loadStores])
-
-    // ===== CARREGAR PUBLICAÇÕES DAS LOJAS DESTA CATEGORIA =====
-    // Mesmo conceito de "Publicações" do Store.tsx (círculos estilo stories),
-    // só que aqui juntando as publicações de todas as lojas da categoria.
-    useEffect(() => {
-        if (stores.length === 0) {
-            setPublications([])
-            return
-        }
-
-        let cancelled = false
-
-        const loadPublications = async () => {
-            setLoadingPublications(true)
-            try {
-                const storeById = new Map(stores.map(s => [s.id, s]))
-                const { data, error: pubError } = await supabase
+            // Publicações das lojas da categoria: dispara em paralelo com os
+            // detalhes de cada loja logo abaixo, em vez de esperar eles
+            // terminarem primeiro (eram 2 estágios em série antes).
+            if (storeIds.length > 0) {
+                setLoadingPublications(true)
+                const storeSlugById = new Map(finalStores.map((s: any) => [s.id, s.storeSlug]))
+                supabase
                     .from('products')
                     .select('id, name, slug, image_url, store_id')
-                    .in('store_id', stores.map(s => s.id))
+                    .in('store_id', storeIds)
                     .eq('listing_type', 'publication')
                     .order('created_at', { ascending: false })
                     .limit(20)
-
-                if (pubError) throw pubError
-                if (cancelled) return
-
-                const mapped: CategoryPublication[] = (data || [])
-                    .map((p: any) => {
-                        const store = storeById.get(p.store_id)
-                        if (!store) return null
-                        return {
-                            id: p.id,
-                            name: p.name,
-                            slug: p.slug,
-                            image_url: p.image_url
-                                ? supabase.storage.from('product-images').getPublicUrl(p.image_url).data.publicUrl
-                                : null,
-                            storeSlug: store.storeSlug,
+                    .then(({ data, error: pubError }) => {
+                        if (requestId !== loadIdRef.current) return
+                        if (pubError) {
+                            console.error('Erro ao carregar publicações da categoria:', pubError)
+                            setPublications([])
+                            setLoadingPublications(false)
+                            return
                         }
+                        const mapped: CategoryPublication[] = (data || [])
+                            .map((p: any) => {
+                                const storeSlug = storeSlugById.get(p.store_id)
+                                if (!storeSlug) return null
+                                return {
+                                    id: p.id,
+                                    name: p.name,
+                                    slug: p.slug,
+                                    image_url: p.image_url
+                                        ? supabase.storage.from('product-images').getPublicUrl(p.image_url).data.publicUrl
+                                        : null,
+                                    storeSlug,
+                                }
+                            })
+                            .filter((p): p is CategoryPublication => p !== null)
+                        setPublications(mapped)
+                        setLoadingPublications(false)
                     })
-                    .filter((p): p is CategoryPublication => p !== null)
-
-                setPublications(mapped)
-            } catch (err) {
-                console.error('Erro ao carregar publicações da categoria:', err)
-                if (!cancelled) setPublications([])
-            } finally {
-                if (!cancelled) setLoadingPublications(false)
             }
+
+            if (storeIds.length === 0) {
+                setStores([])
+                return
+            }
+
+            // Detalhes (top 2 produtos + top 2 avaliações) de todas as lojas
+            // em 2 consultas em lote, em vez de 2 consultas por loja (N+1) -
+            // antes eram até ~100 requisições pra uma categoria com 50 lojas.
+            const [productsResult, reviewsResult] = await Promise.all([
+                supabase
+                    .from('products')
+                    .select('id, name, image_url, price, listing_type, store_id')
+                    .in('store_id', storeIds)
+                    .order('created_at', { ascending: false }),
+                supabase
+                    .from('product_reviews')
+                    .select('id, rating, comment, is_anonymous, store_id, profiles!inner (name)')
+                    .in('store_id', storeIds)
+                    .order('created_at', { ascending: false }),
+            ])
+
+            if (requestId !== loadIdRef.current) return
+
+            const productsByStore = new Map<string, any[]>()
+            for (const p of productsResult.data || []) {
+                const list = productsByStore.get(p.store_id)
+                if (!list) productsByStore.set(p.store_id, [p])
+                else if (list.length < 2) list.push(p)
+            }
+
+            const reviewsByStore = new Map<string, any[]>()
+            for (const r of reviewsResult.data || []) {
+                const list = reviewsByStore.get(r.store_id)
+                if (!list) reviewsByStore.set(r.store_id, [r])
+                else if (list.length < 2) list.push(r)
+            }
+
+            const storesWithDetails: StoreCardData[] = finalStores.map((store: any) => {
+                const mappedProducts = (productsByStore.get(store.id) || []).map((p: any) => ({
+                    id: p.id,
+                    name: p.name,
+                    image_url: p.image_url ? supabase.storage.from('product-images').getPublicUrl(p.image_url).data.publicUrl : null,
+                    price: p.price,
+                    listing_type: p.listing_type || 'sale',
+                }))
+
+                const mappedReviews = (reviewsByStore.get(store.id) || []).map((review: any) => ({
+                    id: review.id,
+                    rating: review.rating,
+                    comment: review.comment,
+                    profile_name: review.is_anonymous ? 'Anônimo' : review.profiles?.[0]?.name || 'Usuário',
+                }))
+
+                return {
+                    id: store.id,
+                    name: store.name,
+                    storeSlug: store.storeSlug,
+                    description: store.description,
+                    address: store.address,
+                    logo_url: store.logo_url ? supabase.storage.from('store-logos').getPublicUrl(store.logo_url).data.publicUrl : null,
+                    ratings_avg: store.ratings_avg,
+                    ratings_count: store.ratings_count,
+                    owner_id: store.owner_id,
+                    business_hours: convertBusinessHours(store.business_hours),
+                    view_count: store.view_count || 0,
+                    top_products: mappedProducts,
+                    recent_reviews: mappedReviews,
+                }
+            })
+
+            setStores(storesWithDetails)
+        } catch (err) {
+            if (requestId !== loadIdRef.current) return
+            console.error('Erro ao carregar lojas:', err)
+            setError('Erro ao carregar lojas')
+            setStores([])
+        } finally {
+            if (requestId === loadIdRef.current) setLoadingData(false)
         }
+    }, [categoria])
 
-        loadPublications()
-
-        return () => { cancelled = true }
-    }, [stores])
+    useEffect(() => { loadStores() }, [loadStores])
 
     // ===== FILTRO LOCAL =====
     const filteredStores = useMemo(() => {
