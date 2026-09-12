@@ -116,12 +116,12 @@ export function Store({
 }: StoreProps) {
     const router = useRouter()
     const fileInputRef = useRef<HTMLInputElement>(null)
+    const { userId: currentUserId } = useProfile()
 
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
     const [owner, setOwner] = useState<OwnerData | null>(null)
     const [isOwner, setIsOwner] = useState(false)
-    const [currentUserId, setCurrentUserId] = useState<string | null>(null)
     const [followersCount, setFollowersCount] = useState(0)
     const [shareCount, setShareCount] = useState(0)
     const [showFollowers, setShowFollowers] = useState(false)
@@ -519,9 +519,7 @@ export function Store({
             setImageUrl(logoUrl)
             setStoreWhatsapp(storeWhatsapp)
 
-            const { data: { user } } = await supabase.auth.getUser()
-            setCurrentUserId(user?.id || null)
-            setIsOwner(user?.id === store.owner_id)
+            setIsOwner(currentUserId === store.owner_id)
 
             const { count: followers } = await supabase
                 .from('follows')
@@ -530,11 +528,11 @@ export function Store({
 
             setFollowersCount(followers || 0)
 
-            if (user) {
+            if (currentUserId) {
                 const { data: followData } = await supabase
                     .from('follows')
                     .select('*')
-                    .eq('follower_id', user.id)
+                    .eq('follower_id', currentUserId)
                     .eq('following_id', store.id)
                     .maybeSingle()
                 setIsFollowing(!!followData)
@@ -578,7 +576,7 @@ export function Store({
         } finally {
             setLoading(false)
         }
-    }, [ownerSlug, loadPublications])
+    }, [ownerSlug, loadPublications, currentUserId])
 
     useEffect(() => {
         loadStoreData()

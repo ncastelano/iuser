@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useState, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
+import { useProfile } from '@/app/contexts/ProfileContext'
 import { hexToRgb } from '@/lib/color'
 import {
     AlertTriangle,
@@ -229,12 +230,12 @@ export function extractStreetDisplay(fullAddress: string): string {
 export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug }: ProfileProps) {
     const router = useRouter()
     const fileInputRef = useRef<HTMLInputElement>(null)
+    const { userId: currentUserId } = useProfile()
 
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
     const [owner, setOwner] = useState<OwnerData | null>(null)
     const [isOwner, setIsOwner] = useState(false)
-    const [currentUserId, setCurrentUserId] = useState<string | null>(null)
     const [followersCount, setFollowersCount] = useState(0)
     const [followingCount, setFollowingCount] = useState(0)
     const [isFollowing, setIsFollowing] = useState(false)
@@ -357,14 +358,12 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                 setImageUrl(avatarUrl || null)
             }
 
-            const { data: { user } } = await supabase.auth.getUser()
-            setCurrentUserId(user?.id || null)
-            setIsOwner(user?.id === profile.id)
+            setIsOwner(currentUserId === profile.id)
 
             const [followersRes, followingRes, checkFollowRes] = await Promise.all([
                 supabase.from('follows').select('*', { count: 'exact', head: true }).eq('following_id', profile.id),
                 supabase.from('follows').select('*', { count: 'exact', head: true }).eq('follower_id', profile.id),
-                user ? supabase.from('follows').select('*').eq('follower_id', user.id).eq('following_id', profile.id).maybeSingle() : Promise.resolve({ data: null, error: null }),
+                currentUserId ? supabase.from('follows').select('*').eq('follower_id', currentUserId).eq('following_id', profile.id).maybeSingle() : Promise.resolve({ data: null, error: null }),
             ])
 
             setFollowersCount(followersRes.count || 0)
@@ -403,13 +402,13 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
             setPublications(mappedPublications)
 
             // Carregar curtidas do usuário para cada publicação
-            if (user) {
+            if (currentUserId) {
                 const pubIds = mappedPublications.map((p: any) => p.id)
                 if (pubIds.length > 0) {
                     const { data: likesData } = await supabase
                         .from('likes')
                         .select('publication_id')
-                        .eq('profile_id', user.id)
+                        .eq('profile_id', currentUserId)
                         .in('publication_id', pubIds)
 
                     const likedIds = new Set(likesData?.map((l: any) => l.publication_id) || [])
@@ -446,7 +445,7 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
         } finally {
             setLoading(false)
         }
-    }, [ownerSlug])
+    }, [ownerSlug, currentUserId])
 
     // ========== CARREGAR COMENTÁRIOS DO PERFIL ==========
     const loadProfileComments = async (profileId: string) => {

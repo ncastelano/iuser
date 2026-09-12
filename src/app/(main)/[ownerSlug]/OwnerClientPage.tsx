@@ -41,6 +41,7 @@ export default function OwnerClientPage() {
     const pathname = usePathname()
     const { colors } = useTheme()
     const {
+        userId,
         bgMode,
         customBgUrl,
         profileSlug: loggedUserSlug,
@@ -117,8 +118,7 @@ export default function OwnerClientPage() {
     useEffect(() => {
         async function loadStores() {
             setLoadingStores(true)
-            const { data: { session } } = await supabase.auth.getSession()
-            if (!session?.user || !loggedUserSlug) {
+            if (!userId || !loggedUserSlug) {
                 setStores([])
                 setLoadingStores(false)
                 return
@@ -127,7 +127,7 @@ export default function OwnerClientPage() {
             const { data: fetchedStores } = await supabase
                 .from('stores')
                 .select('id, name, storeSlug, logo_url, business_hours')
-                .eq('owner_id', session.user.id)
+                .eq('owner_id', userId)
                 .order('created_at', { ascending: true })
 
             if (fetchedStores) {
@@ -154,7 +154,7 @@ export default function OwnerClientPage() {
             setLoadingStores(false)
         }
         loadStores()
-    }, [loggedUserSlug])
+    }, [loggedUserSlug, userId])
 
     // As contagens de pedidos por loja vêm do OrderNotification (montado globalmente em
     // providers.tsx), que mantém uma assinatura realtime confiável em useMerchantStore.
@@ -165,22 +165,20 @@ export default function OwnerClientPage() {
 
     // ========== STATUS ABERTO/FECHADO DO PERFIL LOGADO (cor da aba de perfil) ==========
     useEffect(() => {
-        if (!loggedUserSlug) {
+        if (!loggedUserSlug || !userId) {
             setProfileOpenNow(false)
             return
         }
 
-        supabase.auth.getUser().then(async ({ data: { user } }) => {
-            if (!user) return
-            const { data } = await supabase
-                .from('profiles')
-                .select('business_hours')
-                .eq('id', user.id)
-                .single()
-
-            setProfileOpenNow(isProfileOpenNow(data?.business_hours))
-        })
-    }, [loggedUserSlug])
+        supabase
+            .from('profiles')
+            .select('business_hours')
+            .eq('id', userId)
+            .single()
+            .then(({ data }) => {
+                setProfileOpenNow(isProfileOpenNow(data?.business_hours))
+            })
+    }, [loggedUserSlug, userId])
 
     // ========== TABS DO HEADER ==========
     const handleProfileClick = () => {
