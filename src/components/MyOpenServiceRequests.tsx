@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 import { Check, X, MapPin, Users } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import { useTheme } from '@/app/contexts/theme'
+import { useProfile } from '@/app/contexts/ProfileContext'
 import { supabase } from '@/lib/supabase/client'
 import { getAvatarUrl } from '@/lib/avatar'
 import { getServiceIcon, getServiceLabel } from '@/lib/serviceTypes'
@@ -53,14 +54,14 @@ interface MyOpenServiceRequestsProps {
 
 export default function MyOpenServiceRequests({ limit = 5, title }: MyOpenServiceRequestsProps) {
     const { colors } = useTheme()
+    const { userId, loading: profileLoading } = useProfile()
     const [loading, setLoading] = useState(true)
     const [requests, setRequests] = useState<OpenRequest[]>([])
     const [decidingId, setDecidingId] = useState<string | null>(null)
 
     const load = async () => {
         setLoading(true)
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) {
+        if (!userId) {
             setRequests([])
             setLoading(false)
             return
@@ -69,7 +70,7 @@ export default function MyOpenServiceRequests({ limit = 5, title }: MyOpenServic
         const { data: myRequests } = await supabase
             .from('service_requests')
             .select('id, service_type, custom_service, location_address, created_at')
-            .eq('requester_id', user.id)
+            .eq('requester_id', userId)
             .eq('status', 'pending')
             .order('created_at', { ascending: false })
             .limit(limit)
@@ -126,9 +127,10 @@ export default function MyOpenServiceRequests({ limit = 5, title }: MyOpenServic
     }
 
     useEffect(() => {
+        if (profileLoading) return
         load()
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [])
+    }, [profileLoading, userId])
 
     const decide = async (applicationId: string, status: 'accepted' | 'rejected') => {
         setDecidingId(applicationId)

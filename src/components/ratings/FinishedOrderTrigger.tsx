@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase/client'
+import { useProfile } from '@/app/contexts/ProfileContext'
 import { Star, X, ShoppingBag, ArrowRight, Sparkles, MessageSquareHeart } from 'lucide-react'
 import { ReviewModal } from './ReviewModal'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -9,6 +10,7 @@ import { useMerchantStore } from '@/store/useMerchantStore'
 import { toast } from 'sonner'
 
 export function FinishedOrderTrigger() {
+    const { userId, loading: profileLoading } = useProfile()
     const [unreviewedOrders, setUnreviewedOrders] = useState<any[]>([])
     const [reviewOrder, setReviewOrder] = useState<any>(null)
     const [showPrompt, setShowPrompt] = useState(false)
@@ -16,8 +18,7 @@ export function FinishedOrderTrigger() {
     const notifiedRef = useRef<Record<string, string>>({})
 
     const checkOrders = async () => {
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) return
+        if (!userId) return
 
         // Buscar apenas pedidos pagos com seus itens e nome da loja
         const { data: paidOrders, error: ordersError } = await supabase
@@ -31,7 +32,7 @@ export function FinishedOrderTrigger() {
                 stores(name),
                 order_items(product_id, product_name)
             `)
-            .eq('buyer_id', user.id)
+            .eq('buyer_id', userId)
             .eq('status', 'paid')
             .order('created_at', { ascending: false })
 
@@ -57,7 +58,7 @@ export function FinishedOrderTrigger() {
             const { data: reviews } = await supabase
                 .from('product_reviews')
                 .select('order_id')
-                .eq('profile_id', user.id)
+                .eq('profile_id', userId)
 
             const reviewedOrderIds = new Set(reviews?.map(r => r.order_id) || [])
             const dismissedOrderIds = new Set(JSON.parse(localStorage.getItem('dismissed_reviews') || '[]'))
@@ -75,12 +76,12 @@ export function FinishedOrderTrigger() {
     }
 
     useEffect(() => {
+        if (profileLoading) return
         let isMounted = true
         let channel: any
 
         async function setupRealtime() {
-            const { data: { user } } = await supabase.auth.getUser()
-            if (!user || !isMounted) return
+            if (!userId || !isMounted) return
 
             const handlePayload = (payload: any) => {
                 const newStatus = payload.new?.status
@@ -141,8 +142,8 @@ export function FinishedOrderTrigger() {
             }
 
             // Apenas canal de orders (não usamos store_sales)
-            const channelOrders = supabase.channel(`finished-orders-${user.id}-${Date.now()}`)
-                .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `buyer_id=eq.${user.id}` }, handlePayload)
+            const channelOrders = supabase.channel(`finished-orders-${userId}-${Date.now()}`)
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `buyer_id=eq.${userId}` }, handlePayload)
                 .subscribe()
 
             channel = {
@@ -159,7 +160,8 @@ export function FinishedOrderTrigger() {
             isMounted = false
             if (channel) channel.unsubscribe()
         }
-    }, [supabase])
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [profileLoading, userId])
 
     const handleClose = () => {
         const currentOrder = unreviewedOrders[0]

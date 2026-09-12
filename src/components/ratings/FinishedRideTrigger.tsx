@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase/client'
+import { useProfile } from '@/app/contexts/ProfileContext'
 import { Star, X, Car, ArrowRight } from 'lucide-react'
 import { RideReviewModal } from './RideReviewModal'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -13,18 +14,18 @@ interface PendingRideReview {
 }
 
 export function FinishedRideTrigger() {
+    const { userId, loading: profileLoading } = useProfile()
     const [pending, setPending] = useState<PendingRideReview[]>([])
     const [reviewTarget, setReviewTarget] = useState<PendingRideReview | null>(null)
     const [showPrompt, setShowPrompt] = useState(false)
 
     const checkRides = async () => {
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) return
+        if (!userId) return
 
         const { data: completedRides } = await supabase
             .from('ride_requests')
             .select('id, requester_id, driver_id')
-            .or(`requester_id.eq.${user.id},driver_id.eq.${user.id}`)
+            .or(`requester_id.eq.${userId},driver_id.eq.${userId}`)
             .eq('status', 'completed')
 
         if (!completedRides || completedRides.length === 0) {
@@ -36,7 +37,7 @@ export function FinishedRideTrigger() {
         const { data: myReviews } = await supabase
             .from('ride_reviews')
             .select('ride_request_id')
-            .eq('reviewer_id', user.id)
+            .eq('reviewer_id', userId)
 
         const reviewedIds = new Set((myReviews || []).map((r) => r.ride_request_id))
         const dismissedIds = new Set(JSON.parse(localStorage.getItem('dismissed_ride_reviews') || '[]'))
@@ -50,13 +51,13 @@ export function FinishedRideTrigger() {
         }
 
         const counterpartIds = Array.from(
-            new Set(unreviewed.map((r) => (r.requester_id === user.id ? r.driver_id : r.requester_id)))
+            new Set(unreviewed.map((r) => (r.requester_id === userId ? r.driver_id : r.requester_id)))
         ) as string[]
         const { data: profiles } = await supabase.from('profiles').select('id, name, profileSlug').in('id', counterpartIds)
         const profilesById = new Map((profiles || []).map((p) => [p.id, p]))
 
         const list: PendingRideReview[] = unreviewed.map((r) => {
-            const counterpartId = (r.requester_id === user.id ? r.driver_id : r.requester_id) as string
+            const counterpartId = (r.requester_id === userId ? r.driver_id : r.requester_id) as string
             const p = profilesById.get(counterpartId)
             return {
                 rideRequestId: r.id,
@@ -70,8 +71,10 @@ export function FinishedRideTrigger() {
     }
 
     useEffect(() => {
+        if (profileLoading) return
         checkRides()
-    }, [])
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [profileLoading, userId])
 
     const handleClose = () => {
         const current = pending[0]

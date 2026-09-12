@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
+import { useProfile } from '@/app/contexts/ProfileContext'
 import { Send, MessageCircle } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import { getAvatarUrl } from '@/lib/avatar'
@@ -57,17 +58,9 @@ export default function RideChat({ rideId, quickReplies }: RideChatProps) {
     const [text, setText] = useState('')
     const [sending, setSending] = useState(false)
     const [loading, setLoading] = useState(true)
-    const [userId, setUserId] = useState<string | null>(null)
+    const { userId } = useProfile()
     const [, forceTick] = useState(0)
     const bottomRef = useRef<HTMLDivElement>(null)
-
-    useEffect(() => {
-        let active = true
-        supabase.auth.getUser().then(({ data: { user } }) => {
-            if (active) setUserId(user?.id ?? null)
-        })
-        return () => { active = false }
-    }, [])
 
     // Papel (motorista/passageiro) e avatar de cada participante — pra
     // colorir e ilustrar as mensagens sem precisar que quem chama o

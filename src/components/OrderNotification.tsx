@@ -2,12 +2,14 @@
 
 import { useEffect, useRef, useCallback } from 'react'
 import { supabase } from '@/lib/supabase/client'
+import { useProfile } from '@/app/contexts/ProfileContext'
 import { useMerchantStore, type StoreOrderCounts } from '@/store/useMerchantStore'
 
 // Este componente só mantém contagens/badges em tempo real.
 // Notificações de verdade (novo pedido, mudança de status) vão só pela
 // barra de notificação do celular via push real (veja src/app/api/push/*).
 export function OrderNotification() {
+    const { userId } = useProfile()
     const setPendingOrdersCount = useMerchantStore(s => s.setPendingOrdersCount)
     const setCustomerOrderStatuses = useMerchantStore(s => s.setCustomerOrderStatuses)
     const setStoreOrderCounts = useMerchantStore(s => s.setStoreOrderCounts)
@@ -176,21 +178,15 @@ export function OrderNotification() {
     }, [cleanup, reloadMerchant, reloadCustomer, reloadInvites, setPendingOrdersCount, setStoreOrderCounts])
 
     useEffect(() => {
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-            if (session?.user) {
-                setup(session.user.id)
-            } else if (event === 'SIGNED_OUT') {
-                cleanup()
-                setPendingOrdersCount(0)
-                setStoreOrderCounts({})
-                setCustomerOrderStatuses([])
-                setPendingInvitesCount(0)
-            }
-        })
-
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            if (session?.user) setup(session.user.id)
-        })
+        if (userId) {
+            setup(userId)
+        } else {
+            cleanup()
+            setPendingOrdersCount(0)
+            setStoreOrderCounts({})
+            setCustomerOrderStatuses([])
+            setPendingInvitesCount(0)
+        }
 
         const onVisible = () => {
             if (document.visibilityState === 'visible' && userIdRef.current) {
@@ -203,10 +199,10 @@ export function OrderNotification() {
 
         return () => {
             document.removeEventListener('visibilitychange', onVisible)
-            subscription.unsubscribe()
             cleanup()
         }
-    }, []) // executa apenas na montagem
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [userId])
 
     return null
 }

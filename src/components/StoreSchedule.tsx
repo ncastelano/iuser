@@ -28,6 +28,7 @@ import {
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
+import { useProfile } from '@/app/contexts/ProfileContext'
 import { toast } from 'sonner'
 import { useAppointments } from '@/app/(main)/compromissos/dadosDoCompromisso'
 
@@ -111,6 +112,7 @@ export default function StoreSchedule({
 }: Props) {
     const { colors } = useTheme()
     const { appointments, refetch } = useAppointments()
+    const { userId: contextUserId, loading: profileLoading } = useProfile()
 
     // ---------- Estados ----------
     const [step, setStep] = useState<'search' | 'datetime' | 'confirm'>(
@@ -183,16 +185,16 @@ export default function StoreSchedule({
 
     // ===== VERIFICAR AUTENTICAÇÃO =====
     useEffect(() => {
+        if (profileLoading) return
         const checkAuth = async () => {
-            const { data: { user } } = await supabase.auth.getUser()
-            if (user) {
-                setCurrentUserId(user.id)
+            if (contextUserId) {
+                setCurrentUserId(contextUserId)
                 setIsAuthenticated(true)
 
                 const { data: profile } = await supabase
                     .from('profiles')
                     .select('profileSlug, avatar_url, name')
-                    .eq('id', user.id)
+                    .eq('id', contextUserId)
                     .single()
 
                 if (profile) {
@@ -207,7 +209,7 @@ export default function StoreSchedule({
             setAuthInitialized(true)
         }
         checkAuth()
-    }, [])
+    }, [profileLoading, contextUserId])
 
     // ===== VERIFICAR DISPONIBILIDADE DO SLUG =====
     useEffect(() => {

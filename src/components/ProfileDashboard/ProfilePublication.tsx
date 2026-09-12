@@ -4,6 +4,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
+import { useProfile } from '@/app/contexts/ProfileContext'
 import { toast } from 'sonner'
 import { hexToRgb } from '@/lib/color'
 import {
@@ -85,16 +86,14 @@ export default function ProfilePublication({ profileId, profileSlug, isOwner = t
     const [profileWhatsapp, setProfileWhatsapp] = useState<string | null>(null)
     const [ownerName, setOwnerName] = useState<string>('')
     const [ownerAvatar, setOwnerAvatar] = useState<string | null>(null)
-    const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+    const { userId: currentUserId } = useProfile()
 
     // ===== Carrega curtidas e comentarios das publicacoes em duas queries =====
     const attachEngagement = async (pubs: Publication[]): Promise<Publication[]> => {
         if (pubs.length === 0) return pubs
         const ids = pubs.map(p => p.id)
 
-        const { data: { user } } = await supabase.auth.getUser()
-        const userId = user?.id ?? null
-        setCurrentUserId(userId)
+        const userId = currentUserId
 
         const [{ data: likeRows }, { data: commentRows }] = await Promise.all([
             supabase.from('likes').select('publication_id, profile_id').in('publication_id', ids),

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
+import { useProfile } from '@/app/contexts/ProfileContext'
 import { toast } from 'sonner'
 import { Car, Navigation, X, Radio, Ban } from 'lucide-react'
 import { shortAddress } from '@/lib/serviceBoard'
@@ -25,6 +26,7 @@ interface AcceptedRide {
 export function RideAcceptedDialog() {
     const { colors } = useTheme()
     const router = useRouter()
+    const { userId: contextUserId } = useProfile()
     const [pending, setPending] = useState<AcceptedRide[]>([])
     const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set())
     const [departing, setDeparting] = useState(false)
@@ -105,33 +107,28 @@ export function RideAcceptedDialog() {
         channelRef.current = channel
     }, [checkAccepted])
 
-    // Evita mais um listener global de auth (onAuthStateChange) disputando o
-    // lock do token junto com ProfileContext/OrderNotification/PushNotification
-    // — em vez disso, cada ciclo de poll confere o usuário atual via getUser()
-    // e só reconecta o canal realtime se a conta tiver mudado.
+    // userId vem do ProfileContext (já mantido fresco via onAuthStateChange),
+    // então só reconecta o canal realtime quando ele muda — não precisamos
+    // mais de um getUser() a cada ciclo de poll só pra saber se a conta mudou.
     useEffect(() => {
+        if (!contextUserId) {
+            userIdRef.current = null
+            setPending([])
+            cleanup()
+            return
+        }
+
         let cancelled = false
+        userIdRef.current = contextUserId
+        connectChannel(contextUserId)
 
         const tick = async () => {
-            const { data: { user } } = await supabase.auth.getUser()
-            if (cancelled) return
-
-            if (!user) {
-                userIdRef.current = null
-                setPending([])
-                return
-            }
-
-            if (userIdRef.current !== user.id) {
-                userIdRef.current = user.id
-                connectChannel(user.id)
-            }
             checkAccepted()
 
             const { data: pricing } = await supabase
                 .from('driver_pricing')
                 .select('live_location_sync')
-                .eq('driver_id', user.id)
+                .eq('driver_id', contextUserId)
                 .maybeSingle()
             if (!cancelled) setSyncOn(!!pricing?.live_location_sync)
         }
@@ -143,8 +140,7 @@ export function RideAcceptedDialog() {
             cancelled = true
             cleanup()
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [])
+    }, [contextUserId, connectChannel, checkAccepted, cleanup])
 
     const current = pending.find((r) => !dismissedIds.has(r.id))
 
