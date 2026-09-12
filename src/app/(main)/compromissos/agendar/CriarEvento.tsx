@@ -22,6 +22,7 @@ import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import Header from '@/components/Header'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
+import { Spinner } from '@/components/Spinner'
 
 /* ============= HELPERS ============= */
 const meses = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
@@ -217,88 +218,73 @@ export default function CriarEvento({ onBack, context, storeId, activeFlow, mySt
                     onHomeClick={() => onBack()}
                 />
 
-                <div style={{ padding: '20px 20px 0' }}>
+                <div className="px-5 pt-0">
                     {step === 'details' && (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                        <div className="flex flex-col gap-6">
                             {/* FORMULÁRIO DE DETALHES */}
-                            <div style={{ ...cardStyle, borderRadius: 28, padding: 24 }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
-                                    <div style={{
-                                        width: 52, height: 52, borderRadius: 16,
-                                        background: `linear-gradient(135deg, ${colors.accent}, ${colors.accent}dd)`,
-                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                        color: colors.accentText,
-                                    }}>
-                                        <Megaphone size={24} />
+                            <div className="rounded-2xl p-6" style={cardStyle}>
+                                <div className="flex items-center gap-4 mb-6">
+                                    <div
+                                        className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
+                                        style={{
+                                            background: `linear-gradient(135deg, ${colors.accent}, ${colors.accent}dd)`,
+                                            color: colors.accentText,
+                                        }}
+                                    >
+                                        <Megaphone size={18} />
                                     </div>
                                     <div>
-                                        <p style={{ fontWeight: 800, fontSize: 18, color: colors.textPrimary }}>Novo Evento</p>
-                                        <p style={{ color: colors.textSecondary, fontSize: 14 }}>
+                                        <p className="text-lg font-black" style={{ color: colors.textPrimary }}>Novo Evento</p>
+                                        <p className="text-sm" style={{ color: colors.textSecondary }}>
                                             {activeFlow === 'evento-loja' ? 'Evento hospedado pela sua loja' : 'Evento no seu perfil'}
                                         </p>
                                     </div>
                                 </div>
 
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                                <div className="flex flex-col gap-4">
                                     <div>
-                                        <label style={{ fontWeight: 700, fontSize: 14, color: colors.textSecondary, display: 'block', marginBottom: 8 }}>Nome do Evento</label>
+                                        <label className="text-[10px] font-bold uppercase block mb-2" style={{ color: colors.textSecondary }}>Nome do Evento</label>
                                         <input
                                             type="text"
                                             value={eventTitle}
                                             onChange={(e) => setEventTitle(e.target.value)}
                                             placeholder="Ex: Inauguração, Workshop, Show..."
-                                            style={{
-                                                width: '100%', padding: '14px 18px', borderRadius: 16,
-                                                border: `1px solid ${colors.border}`, fontSize: 15,
-                                                outline: 'none', background: `rgba(${hexToRgb(colors.surface).r}, ${hexToRgb(colors.surface).g}, ${hexToRgb(colors.surface).b}, 0.4)`,
-                                                color: colors.textPrimary,
-                                            }}
+                                            className="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none"
+                                            style={{ background: colors.surface, borderColor: colors.border, color: colors.textPrimary }}
                                         />
                                     </div>
 
                                     <div>
-                                        <label style={{ fontWeight: 700, fontSize: 14, color: colors.textSecondary, display: 'block', marginBottom: 8 }}>Descrição / Informações</label>
+                                        <label className="text-[10px] font-bold uppercase block mb-2" style={{ color: colors.textSecondary }}>Descrição / Informações</label>
                                         <textarea
                                             value={eventDescription}
                                             onChange={(e) => setEventDescription(e.target.value)}
                                             placeholder="Detalhes sobre o evento, atrações, requisitos..."
                                             rows={3}
-                                            style={{
-                                                width: '100%', padding: '14px 18px', borderRadius: 16,
-                                                border: `1px solid ${colors.border}`, fontSize: 15,
-                                                outline: 'none', background: `rgba(${hexToRgb(colors.surface).r}, ${hexToRgb(colors.surface).g}, ${hexToRgb(colors.surface).b}, 0.4)`,
-                                                color: colors.textPrimary, resize: 'none', fontFamily: 'inherit'
-                                            }}
+                                            className="w-full px-3 py-2 rounded-lg border text-sm resize-none focus:outline-none"
+                                            style={{ background: colors.surface, borderColor: colors.border, color: colors.textPrimary, fontFamily: 'inherit' }}
                                         />
                                     </div>
 
-                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                                    <div className="grid grid-cols-2 gap-3">
                                         <div>
-                                            <label style={{ fontWeight: 700, fontSize: 14, color: colors.textSecondary, display: 'block', marginBottom: 8 }}>Horário de Início</label>
+                                            <label className="text-[10px] font-bold uppercase block mb-2" style={{ color: colors.textSecondary }}>Horário de Início</label>
                                             <input
                                                 type="time"
                                                 value={selectedTime}
                                                 onChange={(e) => setSelectedTime(e.target.value)}
-                                                style={{
-                                                    width: '100%', padding: '12px 16px', borderRadius: 14,
-                                                    border: `1px solid ${colors.border}`, fontSize: 15,
-                                                    outline: 'none', background: `rgba(${hexToRgb(colors.surface).r}, ${hexToRgb(colors.surface).g}, ${hexToRgb(colors.surface).b}, 0.4)`,
-                                                    color: colors.textPrimary,
-                                                }}
+                                                className="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none"
+                                                style={{ background: colors.surface, borderColor: colors.border, color: colors.textPrimary }}
                                             />
                                         </div>
 
                                         <div>
-                                            <label style={{ fontWeight: 700, fontSize: 14, color: colors.textSecondary, display: 'block', marginBottom: 8 }}>Duração</label>
+                                            <label className="text-[10px] font-bold uppercase block mb-2" style={{ color: colors.textSecondary }}>Duração</label>
                                             <select
                                                 value={selectedDuration}
                                                 onChange={(e) => setSelectedDuration(Number(e.target.value))}
-                                                style={{
-                                                    width: '100%', padding: '12px 16px', borderRadius: 14,
-                                                    border: `1px solid ${colors.border}`, fontSize: 15,
-                                                    outline: 'none', background: `rgba(${hexToRgb(colors.surface).r}, ${hexToRgb(colors.surface).g}, ${hexToRgb(colors.surface).b}, 0.4)`,
-                                                    color: colors.textPrimary,
-                                                }}
+                                                className="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none"
+                                                style={{ background: colors.surface, borderColor: colors.border, color: colors.textPrimary }}
                                             >
                                                 <option value={30}>30 min</option>
                                                 <option value={60}>1 hora</option>
@@ -312,38 +298,40 @@ export default function CriarEvento({ onBack, context, storeId, activeFlow, mySt
                                         </div>
                                     </div>
 
-                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 12 }}>
-                                        <div>
-                                            <label style={{ fontWeight: 700, fontSize: 14, color: colors.textSecondary, display: 'block', marginBottom: 8 }}>Capacidade Máxima (Pessoas)</label>
-                                            <div style={{ position: 'relative' }}>
-                                                <input
-                                                    type="number"
-                                                    value={capacity}
-                                                    onChange={(e) => setCapacity(Number(e.target.value))}
-                                                    placeholder="Sem limite"
-                                                    style={{
-                                                        width: '100%', padding: '12px 16px 12px 42px', borderRadius: 14,
-                                                        border: `1px solid ${colors.border}`, fontSize: 15,
-                                                        outline: 'none', background: `rgba(${hexToRgb(colors.surface).r}, ${hexToRgb(colors.surface).g}, ${hexToRgb(colors.surface).b}, 0.4)`,
-                                                        color: colors.textPrimary,
-                                                    }}
-                                                />
-                                                <Users size={16} style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)', color: colors.textSecondary }} />
-                                            </div>
+                                    <div>
+                                        <label className="text-[10px] font-bold uppercase block mb-2" style={{ color: colors.textSecondary }}>Capacidade Máxima (Pessoas)</label>
+                                        <div className="relative">
+                                            <input
+                                                type="number"
+                                                value={capacity}
+                                                onChange={(e) => setCapacity(Number(e.target.value))}
+                                                placeholder="Sem limite"
+                                                className="w-full py-2 pl-9 pr-3 rounded-lg border text-sm focus:outline-none"
+                                                style={{ background: colors.surface, borderColor: colors.border, color: colors.textPrimary }}
+                                            />
+                                            <Users size={16} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: colors.textSecondary }} />
                                         </div>
                                     </div>
                                 </div>
                             </div>
 
                             {/* CALENDÁRIO */}
-                            <div style={{ ...cardStyle, borderRadius: 28, padding: 24 }}>
-                                <h4 style={{ fontWeight: 800, fontSize: 17, color: colors.textPrimary, marginBottom: 16 }}>Selecione a Data</h4>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-                                    <button onClick={() => { if (calendarMonth === 0) { setCalendarMonth(11); setCalendarYear(y => y - 1) } else setCalendarMonth(m => m - 1) }} style={{ border: 'none', background: `rgba(${hexToRgb(colors.surface).r}, ${hexToRgb(colors.surface).g}, ${hexToRgb(colors.surface).b}, 0.4)`, borderRadius: 14, width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                            <div className="rounded-2xl p-6" style={cardStyle}>
+                                <h4 className="text-xs font-black uppercase tracking-widest mb-4" style={{ color: colors.textPrimary }}>Selecione a Data</h4>
+                                <div className="flex justify-between items-center mb-5">
+                                    <button
+                                        onClick={() => { if (calendarMonth === 0) { setCalendarMonth(11); setCalendarYear(y => y - 1) } else setCalendarMonth(m => m - 1) }}
+                                        className="w-10 h-10 rounded-full flex items-center justify-center cursor-pointer"
+                                        style={{ border: 'none', background: `rgba(${hexToRgb(colors.surface).r}, ${hexToRgb(colors.surface).g}, ${hexToRgb(colors.surface).b}, 0.4)` }}
+                                    >
                                         <ChevronLeft size={20} color={colors.textPrimary} />
                                     </button>
-                                    <strong style={{ fontSize: 19, color: colors.textPrimary, fontWeight: 800 }}>{meses[calendarMonth]} {calendarYear}</strong>
-                                    <button onClick={() => { if (calendarMonth === 11) { setCalendarMonth(0); setCalendarYear(y => y + 1) } else setCalendarMonth(m => m + 1) }} style={{ border: 'none', background: `rgba(${hexToRgb(colors.surface).r}, ${hexToRgb(colors.surface).g}, ${hexToRgb(colors.surface).b}, 0.4)`, borderRadius: 14, width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                                    <strong className="text-lg font-black" style={{ color: colors.textPrimary }}>{meses[calendarMonth]} {calendarYear}</strong>
+                                    <button
+                                        onClick={() => { if (calendarMonth === 11) { setCalendarMonth(0); setCalendarYear(y => y + 1) } else setCalendarMonth(m => m + 1) }}
+                                        className="w-10 h-10 rounded-full flex items-center justify-center cursor-pointer"
+                                        style={{ border: 'none', background: `rgba(${hexToRgb(colors.surface).r}, ${hexToRgb(colors.surface).g}, ${hexToRgb(colors.surface).b}, 0.4)` }}
+                                    >
                                         <ChevronRight size={20} color={colors.textPrimary} />
                                     </button>
                                 </div>
@@ -363,14 +351,12 @@ export default function CriarEvento({ onBack, context, storeId, activeFlow, mySt
                                                 key={dia}
                                                 disabled={isPast}
                                                 onClick={() => setSelectedDate(date)}
+                                                className="h-[42px] rounded-xl font-semibold text-sm"
                                                 style={{
-                                                    height: 42,
                                                     border: isSelected ? `2px solid ${colors.accent}` : 'none',
-                                                    borderRadius: 14,
                                                     background: isSelected ? colors.accent : isPast ? 'transparent' : `rgba(${hexToRgb(colors.surface).r}, ${hexToRgb(colors.surface).g}, ${hexToRgb(colors.surface).b}, 0.4)`,
                                                     color: isSelected ? colors.accentText : isPast ? colors.textSecondary : colors.textPrimary,
                                                     cursor: isPast ? 'default' : 'pointer',
-                                                    fontWeight: 600, fontSize: 15,
                                                 }}
                                             >
                                                 {dia}
@@ -387,18 +373,11 @@ export default function CriarEvento({ onBack, context, storeId, activeFlow, mySt
                                     if (!selectedDate) { alert('Por favor, selecione uma data.'); return }
                                     setStep('confirm')
                                 }}
+                                className="w-full rounded-full font-black uppercase text-sm tracking-wider py-4 flex items-center justify-center gap-2 cursor-pointer transition hover:scale-105 active:scale-95 border-none"
                                 style={{
-                                    width: '100%',
                                     background: `linear-gradient(135deg, ${colors.accent}, ${colors.accent}dd)`,
                                     color: colors.accentText,
-                                    border: 'none',
-                                    borderRadius: 20,
-                                    padding: '18px 20px',
-                                    fontWeight: 800,
-                                    fontSize: 17,
-                                    cursor: 'pointer',
-                                    boxShadow: `0 12px 35px ${colors.accent}40`,
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
+                                    boxShadow: `0 4px 14px ${colors.accent}60`,
                                 }}
                             >
                                 Avançar <ChevronRight size={20} />
@@ -408,85 +387,77 @@ export default function CriarEvento({ onBack, context, storeId, activeFlow, mySt
 
                     {/* CONFIRMAÇÃO */}
                     {step === 'confirm' && selectedDate && (
-                        <div style={{ ...cardStyle, borderRadius: 28, padding: 28 }}>
-                            <div style={{
-                                width: 72, height: 72, borderRadius: 20,
-                                background: `linear-gradient(135deg, ${colors.accent}, ${colors.accent}dd)`,
-                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                margin: '0 auto 24px', boxShadow: `0 10px 30px ${colors.accent}40`,
-                            }}>
-                                <Megaphone size={34} color={colors.accentText} />
+                        <div className="rounded-2xl p-7" style={cardStyle}>
+                            <div
+                                className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6"
+                                style={{
+                                    background: `linear-gradient(135deg, ${colors.accent}, ${colors.accent}dd)`,
+                                    boxShadow: `0 10px 30px ${colors.accent}40`,
+                                }}
+                            >
+                                <Megaphone size={28} color={colors.accentText} />
                             </div>
-                            <h2 style={{ textAlign: 'center', fontWeight: 800, fontSize: 24, color: colors.textPrimary, marginBottom: 12 }}>
+                            <h2 className="text-center text-xl font-black tracking-tight mb-3" style={{ color: colors.textPrimary }}>
                                 {eventTitle}
                             </h2>
                             {eventDescription && (
-                                <p style={{ textAlign: 'center', color: colors.textSecondary, fontSize: 15, marginBottom: 24 }}>
+                                <p className="text-center text-sm mb-6" style={{ color: colors.textSecondary }}>
                                     {eventDescription}
                                 </p>
                             )}
 
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 28 }}>
-                                <div style={{
-                                    display: 'flex', alignItems: 'center', gap: 14,
-                                    background: `rgba(${hexToRgb(colors.surface).r}, ${hexToRgb(colors.surface).g}, ${hexToRgb(colors.surface).b}, 0.4)`,
-                                    borderRadius: 18, padding: 18, border: `1px solid ${colors.border}`,
-                                }}>
+                            <div className="flex flex-col gap-3 mb-7">
+                                <div className="flex items-center gap-3 rounded-xl p-4" style={{ background: 'rgba(255,255,255,0.08)', border: `1px solid ${colors.border}` }}>
                                     <Calendar size={22} color={colors.accent} />
                                     <div>
-                                        <p style={{ fontWeight: 700, color: colors.textPrimary, fontSize: 15 }}>Data</p>
-                                        <p style={{ color: colors.textSecondary, fontSize: 14 }}>
+                                        <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>Data</p>
+                                        <p className="text-sm" style={{ color: colors.textSecondary }}>
                                             {selectedDate.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}
                                         </p>
                                     </div>
                                 </div>
-                                <div style={{
-                                    display: 'flex', alignItems: 'center', gap: 14,
-                                    background: `rgba(${hexToRgb(colors.surface).r}, ${hexToRgb(colors.surface).g}, ${hexToRgb(colors.surface).b}, 0.4)`,
-                                    borderRadius: 18, padding: 18, border: `1px solid ${colors.border}`,
-                                }}>
+                                <div className="flex items-center gap-3 rounded-xl p-4" style={{ background: 'rgba(255,255,255,0.08)', border: `1px solid ${colors.border}` }}>
                                     <Clock size={22} color={colors.accent} />
                                     <div>
-                                        <p style={{ fontWeight: 700, color: colors.textPrimary, fontSize: 15 }}>Horário & Duração</p>
-                                        <p style={{ color: colors.textSecondary, fontSize: 14 }}>{selectedTime} • {selectedDuration} min ({selectedDuration / 60}h)</p>
+                                        <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>Horário & Duração</p>
+                                        <p className="text-sm" style={{ color: colors.textSecondary }}>{selectedTime} • {selectedDuration} min ({selectedDuration / 60}h)</p>
                                     </div>
                                 </div>
-                                <div style={{
-                                    display: 'flex', alignItems: 'center', gap: 14,
-                                    background: `rgba(${hexToRgb(colors.surface).r}, ${hexToRgb(colors.surface).g}, ${hexToRgb(colors.surface).b}, 0.4)`,
-                                    borderRadius: 18, padding: 18, border: `1px solid ${colors.border}`,
-                                }}>
+                                <div className="flex items-center gap-3 rounded-xl p-4" style={{ background: 'rgba(255,255,255,0.08)', border: `1px solid ${colors.border}` }}>
                                     <Users size={22} color={colors.accent} />
                                     <div>
-                                        <p style={{ fontWeight: 700, color: colors.textPrimary, fontSize: 15 }}>Capacidade Máxima</p>
-                                        <p style={{ color: colors.textSecondary, fontSize: 14 }}>{capacity} pessoas</p>
+                                        <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>Capacidade Máxima</p>
+                                        <p className="text-sm" style={{ color: colors.textSecondary }}>{capacity} pessoas</p>
                                     </div>
                                 </div>
 
                                 {/* Toggle público/privado */}
-                                <div style={{
-                                    background: `rgba(${hexToRgb(colors.surface).r}, ${hexToRgb(colors.surface).g}, ${hexToRgb(colors.surface).b}, 0.4)`,
-                                    borderRadius: 18, padding: '10px 14px', border: `1px solid ${colors.border}`,
-                                }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                        <span style={{ fontWeight: 600, color: colors.textPrimary, fontSize: 15 }}>
+                                <div className="rounded-xl px-3.5 py-2.5" style={{ background: 'rgba(255,255,255,0.08)', border: `1px solid ${colors.border}` }}>
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-sm font-semibold" style={{ color: colors.textPrimary }}>
                                             {isPublic ? 'Evento público' : 'Evento privado'}
                                         </span>
-                                        <div style={{ display: 'flex', gap: 4, background: `rgba(${hexToRgb(colors.surface).r}, ${hexToRgb(colors.surface).g}, ${hexToRgb(colors.surface).b}, 0.6)`, borderRadius: 16, padding: 3 }}>
-                                            <button onClick={() => setIsPublic(false)} style={{
-                                                display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px',
-                                                borderRadius: 14, border: 'none',
-                                                background: !isPublic ? `linear-gradient(135deg, ${colors.accent}, ${colors.accent}dd)` : 'transparent',
-                                                color: !isPublic ? colors.accentText : colors.textSecondary,
-                                                fontWeight: 700, fontSize: 13, cursor: 'pointer', transition: 'all 0.2s',
-                                            }}><Lock size={14} /><span>Privado</span></button>
-                                            <button onClick={() => setIsPublic(true)} style={{
-                                                display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px',
-                                                borderRadius: 14, border: 'none',
-                                                background: isPublic ? `linear-gradient(135deg, ${colors.accent}, ${colors.accent}dd)` : 'transparent',
-                                                color: isPublic ? colors.accentText : colors.textSecondary,
-                                                fontWeight: 700, fontSize: 13, cursor: 'pointer', transition: 'all 0.2s',
-                                            }}><Earth size={14} /><span>Público</span></button>
+                                        <div className="flex gap-1 rounded-full p-1" style={{ background: `rgba(${hexToRgb(colors.surface).r}, ${hexToRgb(colors.surface).g}, ${hexToRgb(colors.surface).b}, 0.6)` }}>
+                                            <button
+                                                onClick={() => setIsPublic(false)}
+                                                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border-none text-xs font-bold uppercase tracking-wide cursor-pointer transition"
+                                                style={{
+                                                    background: !isPublic ? `linear-gradient(135deg, ${colors.accent}, ${colors.accent}dd)` : 'transparent',
+                                                    color: !isPublic ? colors.accentText : colors.textSecondary,
+                                                    boxShadow: !isPublic ? `0 4px 14px ${colors.accent}60` : 'none',
+                                                    transform: !isPublic ? 'scale(1.02)' : 'scale(1)',
+                                                }}
+                                            ><Lock size={14} /><span>Privado</span></button>
+                                            <button
+                                                onClick={() => setIsPublic(true)}
+                                                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border-none text-xs font-bold uppercase tracking-wide cursor-pointer transition"
+                                                style={{
+                                                    background: isPublic ? `linear-gradient(135deg, ${colors.accent}, ${colors.accent}dd)` : 'transparent',
+                                                    color: isPublic ? colors.accentText : colors.textSecondary,
+                                                    boxShadow: isPublic ? `0 4px 14px ${colors.accent}60` : 'none',
+                                                    transform: isPublic ? 'scale(1.02)' : 'scale(1)',
+                                                }}
+                                            ><Earth size={14} /><span>Público</span></button>
                                         </div>
                                     </div>
                                 </div>
@@ -494,25 +465,15 @@ export default function CriarEvento({ onBack, context, storeId, activeFlow, mySt
                             <button
                                 onClick={handleConfirm}
                                 disabled={submitting}
+                                className="w-full rounded-full font-black uppercase text-sm tracking-wider py-4 flex items-center justify-center gap-2.5 cursor-pointer transition hover:scale-105 active:scale-95 disabled:opacity-50 border-none"
                                 style={{
-                                    width: '100%',
                                     background: `linear-gradient(135deg, ${colors.accent}, ${colors.accent}dd)`,
                                     color: colors.accentText,
-                                    border: 'none',
-                                    borderRadius: 20,
-                                    padding: '18px 20px',
-                                    fontWeight: 800,
-                                    fontSize: 17,
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    gap: 10,
-                                    opacity: submitting ? 0.7 : 1,
-                                    boxShadow: `0 12px 35px ${colors.accent}60`,
+                                    boxShadow: `0 4px 14px ${colors.accent}60`,
                                 }}
                             >
-                                <Check size={22} />{submitting ? 'Divulgando evento...' : 'Confirmar Evento'}
+                                {submitting ? <Spinner size={18} color={colors.accentText} /> : <Check size={20} />}
+                                {submitting ? 'Divulgando evento...' : 'Confirmar Evento'}
                             </button>
                         </div>
                     )}

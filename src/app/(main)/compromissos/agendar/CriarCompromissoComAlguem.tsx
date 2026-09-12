@@ -21,6 +21,7 @@ import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import Header from '@/components/Header'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
+import { Spinner } from '@/components/Spinner'
 
 /* ============= HELPERS ============= */
 function toMinutes(timeStr: string): number { const [h, m] = timeStr.split(':').map(Number); return h * 60 + m }
@@ -383,35 +384,30 @@ export default function CriarCompromissoComAlguem({ onBack }: Props) {
                     onHomeClick={() => onBack()}
                 />
 
-                <div style={{ padding: '20px 20px 0' }}>
+                <div className="px-5 pt-0">
                     {/* ETAPA BUSCA */}
                     {step === 'search' && (
-                        <div style={{ marginBottom: 24 }}>
-                            <div style={{ ...cardStyle, borderRadius: 28, padding: 24 }}>
-                                <div style={{ position: 'relative' }}>
+                        <div className="mb-6">
+                            <div className="rounded-2xl p-6" style={cardStyle}>
+                                <div className="relative">
+                                    <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: colors.textSecondary }} />
                                     <input
                                         ref={searchInputRef}
                                         type="text"
                                         value={searchQuery}
                                         onChange={(e) => setSearchQuery(e.target.value)}
                                         placeholder="Nome ou @usuario..."
+                                        className="w-full py-2 pl-9 pr-9 rounded-xl border text-sm focus:outline-none focus:ring-2"
                                         style={{
-                                            width: '100%', padding: '16px 20px', borderRadius: 18,
-                                            border: `1px solid ${colors.border}`, fontSize: 16,
-                                            outline: 'none', background: `rgba(${hexToRgb(colors.surface).r}, ${hexToRgb(colors.surface).g}, ${hexToRgb(colors.surface).b}, 0.4)`,
-                                            color: colors.textPrimary,
+                                            background: `rgba(${hexToRgb(colors.surface).r}, ${hexToRgb(colors.surface).g}, ${hexToRgb(colors.surface).b}, 0.4)`,
+                                            borderColor: colors.border, color: colors.textPrimary,
+                                            ['--tw-ring-color' as any]: colors.accent,
                                         }}
                                         autoFocus
                                     />
-                                    {searching && <Search size={18} style={{ position: 'absolute', right: 16, top: '50%', transform: 'translateY(-50%)', color: colors.textSecondary }} />}
+                                    {searching && <Spinner size={16} color={colors.textSecondary} className="absolute right-3 top-1/2 -translate-y-1/2" />}
                                     {showDropdown && results.length > 0 && (
-                                        <div style={{
-                                            position: 'absolute', top: '100%', left: 0, right: 0,
-                                            background: colors.background,
-                                            borderRadius: 16, boxShadow: colors.shadow,
-                                            marginTop: 8, zIndex: 10, maxHeight: 260, overflowY: 'auto',
-                                            border: `1px solid ${colors.border}`,
-                                        }}>
+                                        <div className="absolute top-full left-0 right-0 rounded-xl mt-2 z-10 max-h-[260px] overflow-y-auto" style={{ background: colors.surface, boxShadow: colors.shadow, border: `1px solid ${colors.border}` }}>
                                             {results.map((item) => {
                                                 const avatarUrl = getPublicAvatarUrl(item.avatar_url)
                                                 const isBroken = brokenImgIds.has(item.id)
@@ -419,34 +415,31 @@ export default function CriarCompromissoComAlguem({ onBack }: Props) {
                                                     <button
                                                         key={item.id}
                                                         onClick={() => selectTarget(item)}
-                                                        style={{
-                                                            width: '100%', padding: '14px 18px',
-                                                            display: 'flex', alignItems: 'center', gap: 12,
-                                                            border: 'none', background: 'transparent',
-                                                            cursor: 'pointer', textAlign: 'left',
-                                                            color: colors.textPrimary,
-                                                        }}
+                                                        className="w-full py-3.5 px-4 flex items-center gap-3 border-none bg-transparent cursor-pointer text-left"
+                                                        style={{ color: colors.textPrimary }}
                                                     >
                                                         {avatarUrl && !isBroken ? (
                                                             <img
                                                                 src={avatarUrl}
                                                                 alt={item.name}
-                                                                style={{ width: 42, height: 42, borderRadius: '50%', objectFit: 'cover', border: `2px solid ${colors.border}` }}
+                                                                className="w-10 h-10 rounded-full object-cover"
+                                                                style={{ border: `2px solid ${colors.border}` }}
                                                                 onError={() => setBrokenImgIds(prev => new Set(prev).add(item.id))}
                                                             />
                                                         ) : (
-                                                            <div style={{
-                                                                width: 42, height: 42, borderRadius: '50%',
-                                                                background: `linear-gradient(135deg, ${colors.accent}, ${colors.accent}dd)`,
-                                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                                color: colors.accentText, fontWeight: 800,
-                                                            }}>
-                                                                <User size={20} />
+                                                            <div
+                                                                className="w-10 h-10 rounded-full flex items-center justify-center"
+                                                                style={{
+                                                                    background: `linear-gradient(135deg, ${colors.accent}, ${colors.accent}dd)`,
+                                                                    color: colors.accentText,
+                                                                }}
+                                                            >
+                                                                <User size={18} />
                                                             </div>
                                                         )}
                                                         <div>
-                                                            <p style={{ fontWeight: 700, color: colors.textPrimary, margin: 0 }}>{item.name}</p>
-                                                            <p style={{ color: colors.textSecondary, fontSize: 13, margin: 0 }}>@{item.slug}</p>
+                                                            <p className="text-sm font-bold m-0" style={{ color: colors.textPrimary }}>{item.name}</p>
+                                                            <p className="text-xs m-0" style={{ color: colors.textSecondary }}>@{item.slug}</p>
                                                         </div>
                                                     </button>
                                                 )
@@ -461,30 +454,32 @@ export default function CriarCompromissoComAlguem({ onBack }: Props) {
                     {/* ETAPA DATA/HORA */}
                     {step === 'datetime' && target && (
                         <>
-                            <div style={{ ...cardStyle, borderRadius: 28, padding: 24, marginBottom: 24 }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
+                            <div className="rounded-2xl p-6 mb-6" style={cardStyle}>
+                                <div className="flex items-center gap-4 mb-5">
                                     {targetImgError || !getPublicAvatarUrl(target.avatar_url) ? (
-                                        <div style={{
-                                            width: 52, height: 52, borderRadius: 16,
-                                            background: `linear-gradient(135deg, ${colors.accent}, ${colors.accent}dd)`,
-                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                            color: colors.accentText,
-                                        }}>
-                                            <User size={24} />
+                                        <div
+                                            className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
+                                            style={{
+                                                background: `linear-gradient(135deg, ${colors.accent}, ${colors.accent}dd)`,
+                                                color: colors.accentText,
+                                            }}
+                                        >
+                                            <User size={20} />
                                         </div>
                                     ) : (
                                         <img
                                             src={getPublicAvatarUrl(target.avatar_url)!}
                                             alt={target.name}
-                                            style={{ width: 52, height: 52, borderRadius: 16, objectFit: 'cover', border: `2px solid ${colors.border}` }}
+                                            className="w-12 h-12 rounded-full object-cover flex-shrink-0"
+                                            style={{ border: `2px solid ${colors.border}` }}
                                             onError={() => setTargetImgError(true)}
                                         />
                                     )}
-                                    <div style={{ flex: 1 }}>
-                                        <p style={{ fontWeight: 800, fontSize: 18, color: colors.textPrimary }}>{target.name}</p>
-                                        <p style={{ color: colors.textSecondary, fontSize: 14 }}>Convite pessoal</p>
+                                    <div className="flex-1">
+                                        <p className="text-lg font-black" style={{ color: colors.textPrimary }}>{target.name}</p>
+                                        <p className="text-sm" style={{ color: colors.textSecondary }}>Convite pessoal</p>
                                     </div>
-                                    <button onClick={() => { setTarget(null); setStep('search') }} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: colors.textSecondary }}>
+                                    <button onClick={() => { setTarget(null); setStep('search') }} className="bg-transparent border-none cursor-pointer" style={{ color: colors.textSecondary }}>
                                         <X size={20} />
                                     </button>
                                 </div>
@@ -493,24 +488,16 @@ export default function CriarCompromissoComAlguem({ onBack }: Props) {
                                     value={appointmentNote}
                                     onChange={(e) => setAppointmentNote(e.target.value)}
                                     placeholder="Descrição do convite (opcional)"
-                                    style={{
-                                        width: '100%', padding: '14px 18px', borderRadius: 16,
-                                        border: `1px solid ${colors.border}`, fontSize: 15,
-                                        outline: 'none', background: `rgba(${hexToRgb(colors.surface).r}, ${hexToRgb(colors.surface).g}, ${hexToRgb(colors.surface).b}, 0.4)`,
-                                        color: colors.textPrimary,
-                                    }}
+                                    className="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none"
+                                    style={{ background: colors.surface, borderColor: colors.border, color: colors.textPrimary }}
                                 />
-                                <div style={{ marginTop: 16 }}>
-                                    <label style={{ fontWeight: 700, fontSize: 14, color: colors.textSecondary, display: 'block', marginBottom: 8 }}>Duração</label>
+                                <div className="mt-4">
+                                    <label className="text-[10px] font-bold uppercase block mb-2" style={{ color: colors.textSecondary }}>Duração</label>
                                     <select
                                         value={selectedDuration}
                                         onChange={(e) => setSelectedDuration(Number(e.target.value))}
-                                        style={{
-                                            width: '100%', padding: '12px 16px', borderRadius: 14,
-                                            border: `1px solid ${colors.border}`, fontSize: 15,
-                                            outline: 'none', background: `rgba(${hexToRgb(colors.surface).r}, ${hexToRgb(colors.surface).g}, ${hexToRgb(colors.surface).b}, 0.4)`,
-                                            color: colors.textPrimary,
-                                        }}
+                                        className="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none"
+                                        style={{ background: colors.surface, borderColor: colors.border, color: colors.textPrimary }}
                                     >
                                         <option value={15}>15 min</option>
                                         <option value={30}>30 min</option>
@@ -525,13 +512,21 @@ export default function CriarCompromissoComAlguem({ onBack }: Props) {
                             </div>
 
                             {/* CALENDÁRIO */}
-                            <div style={{ ...cardStyle, borderRadius: 28, padding: 24, marginBottom: 24 }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-                                    <button onClick={() => { if (calendarMonth === 0) { setCalendarMonth(11); setCalendarYear(y => y - 1) } else setCalendarMonth(m => m - 1) }} style={{ border: 'none', background: `rgba(${hexToRgb(colors.surface).r}, ${hexToRgb(colors.surface).g}, ${hexToRgb(colors.surface).b}, 0.4)`, borderRadius: 14, width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                            <div className="rounded-2xl p-6 mb-6" style={cardStyle}>
+                                <div className="flex justify-between items-center mb-5">
+                                    <button
+                                        onClick={() => { if (calendarMonth === 0) { setCalendarMonth(11); setCalendarYear(y => y - 1) } else setCalendarMonth(m => m - 1) }}
+                                        className="w-10 h-10 rounded-full flex items-center justify-center cursor-pointer"
+                                        style={{ border: 'none', background: `rgba(${hexToRgb(colors.surface).r}, ${hexToRgb(colors.surface).g}, ${hexToRgb(colors.surface).b}, 0.4)` }}
+                                    >
                                         <ChevronLeft size={20} color={colors.textPrimary} />
                                     </button>
-                                    <strong style={{ fontSize: 19, color: colors.textPrimary, fontWeight: 800 }}>{meses[calendarMonth]} {calendarYear}</strong>
-                                    <button onClick={() => { if (calendarMonth === 11) { setCalendarMonth(0); setCalendarYear(y => y + 1) } else setCalendarMonth(m => m + 1) }} style={{ border: 'none', background: `rgba(${hexToRgb(colors.surface).r}, ${hexToRgb(colors.surface).g}, ${hexToRgb(colors.surface).b}, 0.4)`, borderRadius: 14, width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                                    <strong className="text-lg font-black" style={{ color: colors.textPrimary }}>{meses[calendarMonth]} {calendarYear}</strong>
+                                    <button
+                                        onClick={() => { if (calendarMonth === 11) { setCalendarMonth(0); setCalendarYear(y => y + 1) } else setCalendarMonth(m => m + 1) }}
+                                        className="w-10 h-10 rounded-full flex items-center justify-center cursor-pointer"
+                                        style={{ border: 'none', background: `rgba(${hexToRgb(colors.surface).r}, ${hexToRgb(colors.surface).g}, ${hexToRgb(colors.surface).b}, 0.4)` }}
+                                    >
                                         <ChevronRight size={20} color={colors.textPrimary} />
                                     </button>
                                 </div>
@@ -571,14 +566,12 @@ export default function CriarCompromissoComAlguem({ onBack }: Props) {
                                                 key={dia}
                                                 disabled={isPast}
                                                 onClick={() => { setSelectedDate(date); setSelectedTime(null) }}
+                                                className="h-[42px] rounded-xl relative font-semibold text-sm"
                                                 style={{
-                                                    height: 42,
                                                     border: isSelected ? `2px solid ${colors.accent}` : 'none',
-                                                    borderRadius: 14,
                                                     background: bgStyle,
                                                     color: textColorStyle,
                                                     cursor: isPast ? 'default' : 'pointer',
-                                                    position: 'relative', fontWeight: 600, fontSize: 15,
                                                 }}
                                             >
                                                 {dia}
@@ -595,23 +588,22 @@ export default function CriarCompromissoComAlguem({ onBack }: Props) {
 
                             {selectedDate && (
                                 <div>
-                                    <h3 style={{ fontWeight: 800, fontSize: 20, marginBottom: 16, color: colors.textPrimary }}>Horários disponíveis</h3>
+                                    <h3 className="text-xs font-black uppercase tracking-widest mb-4" style={{ color: colors.textPrimary }}>Horários disponíveis</h3>
                                     {slotsLivres.length === 0 ? (
-                                        <div style={{ ...cardStyle, borderRadius: 20, padding: 28, textAlign: 'center', color: colors.textSecondary, border: `1px dashed ${colors.border}` }}>
+                                        <div className="rounded-xl p-7 text-center" style={{ ...cardStyle, color: colors.textSecondary, border: `1px dashed ${colors.border}` }}>
                                             Nenhum horário livre.
                                         </div>
                                     ) : (
-                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: 10 }}>
+                                        <div className="grid gap-2.5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))' }}>
                                             {slotsLivres.map((time) => (
                                                 <button
                                                     key={time}
                                                     onClick={() => { setSelectedTime(time); setStep('confirm') }}
+                                                    className="py-3 px-3 rounded-full font-bold cursor-pointer text-sm"
                                                     style={{
-                                                        padding: '16px 12px', borderRadius: 18,
                                                         border: selectedTime === time ? `2px solid ${colors.accent}` : `1px solid ${colors.border}`,
                                                         background: selectedTime === time ? colors.accent : `rgba(${hexToRgb(colors.surface).r}, ${hexToRgb(colors.surface).g}, ${hexToRgb(colors.surface).b}, 0.4)`,
-                                                        fontWeight: 700, cursor: 'pointer', color: selectedTime === time ? colors.accentText : colors.textPrimary,
-                                                        fontSize: 15,
+                                                        color: selectedTime === time ? colors.accentText : colors.textPrimary,
                                                     }}
                                                 >
                                                     {time}
@@ -626,91 +618,89 @@ export default function CriarCompromissoComAlguem({ onBack }: Props) {
 
                     {/* CONFIRMAÇÃO */}
                     {step === 'confirm' && selectedDate && selectedTime && target && (
-                        <div style={{ ...cardStyle, borderRadius: 28, padding: 28 }}>
+                        <div className="rounded-2xl p-7" style={cardStyle}>
                             {targetImgError || !getPublicAvatarUrl(target.avatar_url) ? (
-                                <div style={{
-                                    width: 72, height: 72, borderRadius: 20,
-                                    background: `linear-gradient(135deg, ${colors.accent}, ${colors.accent}dd)`,
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    margin: '0 auto 24px', boxShadow: `0 10px 30px ${colors.accent}40`,
-                                }}>
-                                    <User size={34} color={colors.accentText} />
+                                <div
+                                    className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6"
+                                    style={{
+                                        background: `linear-gradient(135deg, ${colors.accent}, ${colors.accent}dd)`,
+                                        boxShadow: `0 10px 30px ${colors.accent}40`,
+                                    }}
+                                >
+                                    <User size={28} color={colors.accentText} />
                                 </div>
                             ) : (
                                 <img
                                     src={getPublicAvatarUrl(target.avatar_url)!}
                                     alt={target.name}
-                                    style={{ width: 72, height: 72, borderRadius: 20, objectFit: 'cover', margin: '0 auto 24px', display: 'block', boxShadow: `0 10px 30px ${colors.accent}40` }}
+                                    className="w-16 h-16 rounded-full object-cover mx-auto mb-6 block"
+                                    style={{ boxShadow: `0 10px 30px ${colors.accent}40` }}
                                     onError={() => setTargetImgError(true)}
                                 />
                             )}
-                            <h2 style={{ textAlign: 'center', fontWeight: 800, fontSize: 24, color: colors.textPrimary, marginBottom: 12 }}>{appointmentNote || 'Convite'}</h2>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 24 }}>
-                                <span style={{ fontWeight: 600, color: colors.textSecondary }}>Com</span>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: `${colors.accent}20`, borderRadius: 20, padding: '8px 16px' }}>
+                            <h2 className="text-center text-xl font-black tracking-tight mb-3" style={{ color: colors.textPrimary }}>{appointmentNote || 'Convite'}</h2>
+                            <div className="flex items-center justify-center gap-2.5 mb-6">
+                                <span className="font-semibold" style={{ color: colors.textSecondary }}>Com</span>
+                                <div className="flex items-center gap-2 rounded-full py-2 px-4" style={{ background: `${colors.accent}20` }}>
                                     {targetImgError || !getPublicAvatarUrl(target.avatar_url) ? (
-                                        <div style={{
-                                            width: 32, height: 32, borderRadius: '50%',
-                                            background: `linear-gradient(135deg, ${colors.accent}, ${colors.accent}dd)`,
-                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                            color: colors.accentText, fontWeight: 700,
-                                        }}>
+                                        <div
+                                            className="w-8 h-8 rounded-full flex items-center justify-center"
+                                            style={{
+                                                background: `linear-gradient(135deg, ${colors.accent}, ${colors.accent}dd)`,
+                                                color: colors.accentText,
+                                            }}
+                                        >
                                             <User size={16} />
                                         </div>
                                     ) : (
-                                        <img src={getPublicAvatarUrl(target.avatar_url)!} alt={target.name} style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover' }} />
+                                        <img src={getPublicAvatarUrl(target.avatar_url)!} alt={target.name} className="w-8 h-8 rounded-full object-cover" />
                                     )}
-                                    <span style={{ fontWeight: 700, color: colors.textPrimary }}>{target.name}</span>
+                                    <span className="font-bold" style={{ color: colors.textPrimary }}>{target.name}</span>
                                 </div>
                             </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 28 }}>
-                                <div style={{
-                                    display: 'flex', alignItems: 'center', gap: 14,
-                                    background: `rgba(${hexToRgb(colors.surface).r}, ${hexToRgb(colors.surface).g}, ${hexToRgb(colors.surface).b}, 0.4)`,
-                                    borderRadius: 18, padding: 18, border: `1px solid ${colors.border}`,
-                                }}>
+                            <div className="flex flex-col gap-3 mb-7">
+                                <div className="flex items-center gap-3 rounded-xl p-4" style={{ background: 'rgba(255,255,255,0.08)', border: `1px solid ${colors.border}` }}>
                                     <Calendar size={22} color={colors.accent} />
                                     <div>
-                                        <p style={{ fontWeight: 700, color: colors.textPrimary, fontSize: 15 }}>Data</p>
-                                        <p style={{ color: colors.textSecondary, fontSize: 14 }}>{selectedDate.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
+                                        <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>Data</p>
+                                        <p className="text-sm" style={{ color: colors.textSecondary }}>{selectedDate.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
                                     </div>
                                 </div>
-                                <div style={{
-                                    display: 'flex', alignItems: 'center', gap: 14,
-                                    background: `rgba(${hexToRgb(colors.surface).r}, ${hexToRgb(colors.surface).g}, ${hexToRgb(colors.surface).b}, 0.4)`,
-                                    borderRadius: 18, padding: 18, border: `1px solid ${colors.border}`,
-                                }}>
+                                <div className="flex items-center gap-3 rounded-xl p-4" style={{ background: 'rgba(255,255,255,0.08)', border: `1px solid ${colors.border}` }}>
                                     <Clock size={22} color={colors.accent} />
                                     <div>
-                                        <p style={{ fontWeight: 700, color: colors.textPrimary, fontSize: 15 }}>Horário</p>
-                                        <p style={{ color: colors.textSecondary, fontSize: 14 }}>{selectedTime}</p>
+                                        <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>Horário</p>
+                                        <p className="text-sm" style={{ color: colors.textSecondary }}>{selectedTime}</p>
                                     </div>
                                 </div>
 
                                 {/* Toggle público/privado */}
-                                <div style={{
-                                    background: `rgba(${hexToRgb(colors.surface).r}, ${hexToRgb(colors.surface).g}, ${hexToRgb(colors.surface).b}, 0.4)`,
-                                    borderRadius: 18, padding: '10px 14px', border: `1px solid ${colors.border}`,
-                                }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                        <span style={{ fontWeight: 600, color: colors.textPrimary, fontSize: 15 }}>
+                                <div className="rounded-xl px-3.5 py-2.5" style={{ background: 'rgba(255,255,255,0.08)', border: `1px solid ${colors.border}` }}>
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-sm font-semibold" style={{ color: colors.textPrimary }}>
                                             {isPublic ? 'Compromisso público' : 'Compromisso privado'}
                                         </span>
-                                        <div style={{ display: 'flex', gap: 4, background: `rgba(${hexToRgb(colors.surface).r}, ${hexToRgb(colors.surface).g}, ${hexToRgb(colors.surface).b}, 0.6)`, borderRadius: 16, padding: 3 }}>
-                                            <button onClick={() => setIsPublic(false)} style={{
-                                                display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px',
-                                                borderRadius: 14, border: 'none',
-                                                background: !isPublic ? `linear-gradient(135deg, ${colors.accent}, ${colors.accent}dd)` : 'transparent',
-                                                color: !isPublic ? colors.accentText : colors.textSecondary,
-                                                fontWeight: 700, fontSize: 13, cursor: 'pointer', transition: 'all 0.2s',
-                                            }}><Lock size={14} /><span>Privado</span></button>
-                                            <button onClick={() => setIsPublic(true)} style={{
-                                                display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px',
-                                                borderRadius: 14, border: 'none',
-                                                background: isPublic ? `linear-gradient(135deg, ${colors.accent}, ${colors.accent}dd)` : 'transparent',
-                                                color: isPublic ? colors.accentText : colors.textSecondary,
-                                                fontWeight: 700, fontSize: 13, cursor: 'pointer', transition: 'all 0.2s',
-                                            }}><Earth size={14} /><span>Público</span></button>
+                                        <div className="flex gap-1 rounded-full p-1" style={{ background: `rgba(${hexToRgb(colors.surface).r}, ${hexToRgb(colors.surface).g}, ${hexToRgb(colors.surface).b}, 0.6)` }}>
+                                            <button
+                                                onClick={() => setIsPublic(false)}
+                                                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border-none text-xs font-bold uppercase tracking-wide cursor-pointer transition"
+                                                style={{
+                                                    background: !isPublic ? `linear-gradient(135deg, ${colors.accent}, ${colors.accent}dd)` : 'transparent',
+                                                    color: !isPublic ? colors.accentText : colors.textSecondary,
+                                                    boxShadow: !isPublic ? `0 4px 14px ${colors.accent}60` : 'none',
+                                                    transform: !isPublic ? 'scale(1.02)' : 'scale(1)',
+                                                }}
+                                            ><Lock size={14} /><span>Privado</span></button>
+                                            <button
+                                                onClick={() => setIsPublic(true)}
+                                                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border-none text-xs font-bold uppercase tracking-wide cursor-pointer transition"
+                                                style={{
+                                                    background: isPublic ? `linear-gradient(135deg, ${colors.accent}, ${colors.accent}dd)` : 'transparent',
+                                                    color: isPublic ? colors.accentText : colors.textSecondary,
+                                                    boxShadow: isPublic ? `0 4px 14px ${colors.accent}60` : 'none',
+                                                    transform: isPublic ? 'scale(1.02)' : 'scale(1)',
+                                                }}
+                                            ><Earth size={14} /><span>Público</span></button>
                                         </div>
                                     </div>
                                 </div>
@@ -718,25 +708,15 @@ export default function CriarCompromissoComAlguem({ onBack }: Props) {
                             <button
                                 onClick={handleConfirm}
                                 disabled={submitting}
+                                className="w-full rounded-full font-black uppercase text-sm tracking-wider py-4 flex items-center justify-center gap-2.5 cursor-pointer transition hover:scale-105 active:scale-95 disabled:opacity-50 border-none"
                                 style={{
-                                    width: '100%',
                                     background: `linear-gradient(135deg, ${colors.accent}, ${colors.accent}dd)`,
                                     color: colors.accentText,
-                                    border: 'none',
-                                    borderRadius: 20,
-                                    padding: '18px 20px',
-                                    fontWeight: 800,
-                                    fontSize: 17,
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    gap: 10,
-                                    opacity: submitting ? 0.7 : 1,
-                                    boxShadow: `0 12px 35px ${colors.accent}60`,
+                                    boxShadow: `0 4px 14px ${colors.accent}60`,
                                 }}
                             >
-                                <Check size={22} />{submitting ? 'Salvando...' : 'Confirmar'}
+                                {submitting ? <Spinner size={18} color={colors.accentText} /> : <Check size={20} />}
+                                {submitting ? 'Salvando...' : 'Confirmar'}
                             </button>
                         </div>
                     )}
