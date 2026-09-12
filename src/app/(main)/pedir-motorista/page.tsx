@@ -359,6 +359,8 @@ export default function PedirMotoristaPage() {
     // ===== COMPLEMENTO DO ENDEREÇO (referência pra achar o local) =====
     const [originComplement, setOriginComplement] = useState('')
     const [destinationComplement, setDestinationComplement] = useState('')
+    const [showOriginComplement, setShowOriginComplement] = useState(false)
+    const [showDestinationComplement, setShowDestinationComplement] = useState(false)
 
     // ===== ACESSO AO LOCAL =====
     const [originNeedsAccess, setOriginNeedsAccess] = useState(false)
@@ -600,8 +602,14 @@ export default function PedirMotoristaPage() {
         if (typeof draft.senderWhatsapp === 'string') setSenderWhatsapp(draft.senderWhatsapp)
         if (typeof draft.recipientName === 'string') setRecipientName(draft.recipientName)
         if (typeof draft.recipientWhatsapp === 'string') setRecipientWhatsapp(draft.recipientWhatsapp)
-        if (typeof draft.originComplement === 'string') setOriginComplement(draft.originComplement)
-        if (typeof draft.destinationComplement === 'string') setDestinationComplement(draft.destinationComplement)
+        if (typeof draft.originComplement === 'string') {
+            setOriginComplement(draft.originComplement)
+            if (draft.originComplement.trim()) setShowOriginComplement(true)
+        }
+        if (typeof draft.destinationComplement === 'string') {
+            setDestinationComplement(draft.destinationComplement)
+            if (draft.destinationComplement.trim()) setShowDestinationComplement(true)
+        }
         if (typeof draft.originNeedsAccess === 'boolean') setOriginNeedsAccess(draft.originNeedsAccess)
         if (typeof draft.originAccessNotes === 'string') setOriginAccessNotes(draft.originAccessNotes)
         if (typeof draft.destinationNeedsAccess === 'boolean') setDestinationNeedsAccess(draft.destinationNeedsAccess)
@@ -1264,14 +1272,25 @@ export default function PedirMotoristaPage() {
                                     {locatingOrigin ? <Spinner size={16} /> : <MapPinPlus size={16} />}
                                 </button>
                             </div>
-                            <input
-                                type="text"
-                                value={originComplement}
-                                onChange={(e) => setOriginComplement(e.target.value)}
-                                placeholder="Complemento (opcional): casa amarela, portão de ferro, perto de..."
-                                className="w-full mt-2 px-3 py-2 rounded-lg text-xs focus:outline-none"
-                                style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
-                            />
+                            {showOriginComplement ? (
+                                <input
+                                    type="text"
+                                    value={originComplement}
+                                    onChange={(e) => setOriginComplement(e.target.value)}
+                                    autoFocus
+                                    placeholder="Complemento (opcional): casa amarela, portão de ferro, perto de..."
+                                    className="w-full mt-2 px-3 py-2 rounded-lg text-xs focus:outline-none"
+                                    style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                                />
+                            ) : (
+                                <button
+                                    onClick={() => setShowOriginComplement(true)}
+                                    className="text-xs font-bold mt-2"
+                                    style={{ color: colors.accent }}
+                                >
+                                    + Adicionar complemento
+                                </button>
+                            )}
 
                             {/* Locais de partida já usados */}
                             {recentOrigins.length > 0 && (
@@ -1303,14 +1322,25 @@ export default function PedirMotoristaPage() {
                                     style={inputStyle}
                                 />
                             </div>
-                            <input
-                                type="text"
-                                value={destinationComplement}
-                                onChange={(e) => setDestinationComplement(e.target.value)}
-                                placeholder="Complemento (opcional): casa amarela, portão de ferro, perto de..."
-                                className="w-full mt-2 px-3 py-2 rounded-lg text-xs focus:outline-none"
-                                style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
-                            />
+                            {showDestinationComplement ? (
+                                <input
+                                    type="text"
+                                    value={destinationComplement}
+                                    onChange={(e) => setDestinationComplement(e.target.value)}
+                                    autoFocus
+                                    placeholder="Complemento (opcional): casa amarela, portão de ferro, perto de..."
+                                    className="w-full mt-2 px-3 py-2 rounded-lg text-xs focus:outline-none"
+                                    style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                                />
+                            ) : (
+                                <button
+                                    onClick={() => setShowDestinationComplement(true)}
+                                    className="text-xs font-bold mt-2"
+                                    style={{ color: colors.accent }}
+                                >
+                                    + Adicionar complemento
+                                </button>
+                            )}
 
                             {/* Locais de chegada já usados */}
                             {recentDestinations.length > 0 && (
