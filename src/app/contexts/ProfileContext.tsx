@@ -9,6 +9,8 @@ import { useFontStore } from '@/store/useFontStore'
 type BgMode = 'animated' | 'black' | 'custom'
 
 interface ProfileContextType {
+    userId: string | null
+    isLoggedIn: boolean
     profileSlug: string | null
     avatarUrl: string | null
     bgMode: BgMode
@@ -20,6 +22,8 @@ interface ProfileContextType {
 }
 
 const ProfileContext = createContext<ProfileContextType>({
+    userId: null,
+    isLoggedIn: false,
     profileSlug: null,
     avatarUrl: null,
     bgMode: 'black',
@@ -31,6 +35,7 @@ const ProfileContext = createContext<ProfileContextType>({
 })
 
 export function ProfileProvider({ children }: { children: React.ReactNode }) {
+    const [userId, setUserId] = useState<string | null>(null)
     const [profileSlug, setProfileSlug] = useState<string | null>(null)
     const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
     const [bgMode, setBgMode] = useState<BgMode>('black')
@@ -99,17 +104,21 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
     useEffect(() => {
         supabase.auth.getSession().then(({ data: { session } }) => {
             if (session?.user) {
+                setUserId(session.user.id)
                 fetchProfile(session.user.id)
             } else {
+                setUserId(null)
                 setLoading(false)
             }
         })
 
         const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
             if (session?.user) {
+                setUserId(session.user.id)
                 fetchProfile(session.user.id)
             } else {
                 // Reset ao deslogar
+                setUserId(null)
                 setProfileSlug(null)
                 setAvatarUrl(null)
                 setBgMode('black')
@@ -129,13 +138,18 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
     const refreshProfile = useCallback(async () => {
         const { data: { session } } = await supabase.auth.getSession()
         if (session?.user) {
+            setUserId(session.user.id)
             await fetchProfile(session.user.id)
+        } else {
+            setUserId(null)
         }
     }, [fetchProfile])
 
     return (
         <ProfileContext.Provider
             value={{
+                userId,
+                isLoggedIn: userId !== null,
                 profileSlug,
                 avatarUrl,
                 bgMode,
