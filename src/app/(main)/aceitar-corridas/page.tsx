@@ -199,7 +199,7 @@ interface AcceptedRideDetail {
 
 export default function AceitarCorridasPage() {
     const router = useRouter()
-    const { avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
+    const { userId: contextUserId, avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
     const { colors } = useTheme()
 
     const [loading, setLoading] = useState(true)
@@ -282,9 +282,8 @@ export default function AceitarCorridasPage() {
     }, [liveLocationSync, driverCoords])
 
     const load = useCallback(async () => {
-        const { data: { user } } = await supabase.auth.getUser()
-        userIdRef.current = user?.id ?? null
-        if (!user) {
+        userIdRef.current = contextUserId
+        if (!contextUserId) {
             setShowLogin(true)
             setLoading(false)
             return
@@ -295,12 +294,12 @@ export default function AceitarCorridasPage() {
             supabase
                 .from('driver_pricing')
                 .select('pricing_mode, base_distance_km, base_fee, price_per_km_after_base')
-                .eq('driver_id', user.id)
+                .eq('driver_id', contextUserId)
                 .maybeSingle(),
             supabase
                 .from('profiles')
                 .select('address, address_number, address_complement, store_lat, store_lng')
-                .eq('id', user.id)
+                .eq('id', contextUserId)
                 .maybeSingle(),
         ])
 
@@ -314,7 +313,7 @@ export default function AceitarCorridasPage() {
         supabase
             .from('driver_pricing')
             .select('live_location_sync')
-            .eq('driver_id', user.id)
+            .eq('driver_id', contextUserId)
             .maybeSingle()
             .then(({ data }) => {
                 const syncOn = !!data?.live_location_sync
@@ -350,7 +349,7 @@ export default function AceitarCorridasPage() {
         const { data: myApplicationRows } = await supabase
             .from('ride_applications')
             .select('id, ride_request_id, proposed_price')
-            .eq('applicant_id', user.id)
+            .eq('applicant_id', contextUserId)
             .eq('status', 'pending')
         const myApplications = myApplicationRows || []
         const appliedIds = new Set(myApplications.map((a) => a.ride_request_id))
@@ -359,7 +358,7 @@ export default function AceitarCorridasPage() {
             .from('ride_requests')
             .select('id, requester_id, ride_type, origin_address, destination_address, origin_complement, destination_complement, notes, passenger_count, vehicle_type, object_description, object_is_sensitive, pet_description, has_child, children_count, child_age, child_needs_car_seat, has_shopping, bag_count, has_extra_object, extra_object_description, has_pet, pet_weight_range, pet_has_carrier, has_special_needs, special_needs_description, special_needs_wheelchair, special_needs_wheelchair_type, special_needs_visual_impairment, has_guide_dog, delivery_location, payment_method, cash_change_for, distance_km, duration_min, scheduled_for, created_at, origin_lat, origin_lng, destination_lat, destination_lng')
             .eq('status', 'pending')
-            .neq('requester_id', user.id)
+            .neq('requester_id', contextUserId)
             .order('scheduled_for', { ascending: true, nullsFirst: true })
             .order('created_at', { ascending: false })
 
@@ -450,7 +449,7 @@ export default function AceitarCorridasPage() {
         const { data: acceptedRow } = await supabase
             .from('ride_requests')
             .select('id, requester_id, origin_address, destination_address, origin_complement, destination_complement, origin_lat, origin_lng, destination_lat, destination_lng, distance_km, duration_min, driver_en_route, driver_arrived_at, extra_task_minutes, extra_task_fee, extra_task_description')
-            .eq('driver_id', user.id)
+            .eq('driver_id', contextUserId)
             .eq('status', 'accepted')
             .order('created_at', { ascending: false })
             .limit(1)
@@ -460,7 +459,7 @@ export default function AceitarCorridasPage() {
         if (acceptedRow) {
             const [{ data: reqProfile }, { data: acceptedApp }, requesterRatings] = await Promise.all([
                 supabase.from('profiles').select('name, profileSlug, avatar_url').eq('id', acceptedRow.requester_id).maybeSingle(),
-                supabase.from('ride_applications').select('proposed_price').eq('ride_request_id', acceptedRow.id).eq('applicant_id', user.id).eq('status', 'accepted').maybeSingle(),
+                supabase.from('ride_applications').select('proposed_price').eq('ride_request_id', acceptedRow.id).eq('applicant_id', contextUserId).eq('status', 'accepted').maybeSingle(),
                 getProfileRideRatingsBatch(supabase, [acceptedRow.requester_id]),
             ])
             acceptedDetail = {
@@ -501,11 +500,12 @@ export default function AceitarCorridasPage() {
         setAcceptedRide(acceptedDetail)
 
         setLoading(false)
-    }, [router])
+    }, [router, contextUserId])
 
     useEffect(() => {
+        if (profileLoading) return
         load()
-    }, [load])
+    }, [profileLoading, load])
 
     useEffect(() => {
         const poll = setInterval(load, REFRESH_INTERVAL_MS)

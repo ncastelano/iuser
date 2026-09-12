@@ -7,6 +7,7 @@ import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme, ThemeColors } from '@/app/contexts/theme'
+import { useProfile } from '@/app/contexts/ProfileContext'
 import { toast } from 'sonner'
 import { addRecentRideDestination, getRecentRideDestinations, RecentRideDestination } from '@/lib/recentRideDestinations'
 import { addRecentRideOrigin, getRecentRideOrigins, RecentRideOrigin } from '@/lib/recentRideOrigins'
@@ -289,6 +290,7 @@ function clearDraft() {
 export default function PedirMotoristaPage() {
     const router = useRouter()
     const { colors } = useTheme()
+    const { userId: contextUserId, loading: profileLoading } = useProfile()
     const mapContainerRef = useRef<HTMLDivElement | null>(null)
     const mapRef = useRef<mapboxgl.Map | null>(null)
     const originMarkerRef = useRef<mapboxgl.Marker | null>(null)
@@ -426,16 +428,16 @@ export default function PedirMotoristaPage() {
 
     // ===== SE JÁ HOUVER UM PEDIDO EM ANDAMENTO, VOLTA DIRETO PRO ACOMPANHAMENTO =====
     useEffect(() => {
+        if (profileLoading) return
         const checkActiveRide = async () => {
-            const { data: { user } } = await supabase.auth.getUser()
-            if (!user) {
+            if (!contextUserId) {
                 setCheckingActiveRide(false)
                 return
             }
             const { data } = await supabase
                 .from('ride_requests')
                 .select('id, origin_address, origin_lat, origin_lng, destination_address, destination_lat, destination_lng')
-                .eq('requester_id', user.id)
+                .eq('requester_id', contextUserId)
                 .in('status', ['pending', 'accepted'])
                 .order('created_at', { ascending: false })
                 .limit(1)
@@ -457,7 +459,7 @@ export default function PedirMotoristaPage() {
             setCheckingActiveRide(false)
         }
         checkActiveRide()
-    }, [])
+    }, [profileLoading, contextUserId])
 
     // ===== INIT MAP =====
     useEffect(() => {

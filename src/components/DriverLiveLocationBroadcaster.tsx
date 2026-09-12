@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase/client'
+import { useProfile } from '@/app/contexts/ProfileContext'
 
 // Global, montado em providers.tsx: mantém a localização ao vivo do motorista
 // sendo enviada pro banco (driver_pricing.live_lat/lng) sempre que
@@ -9,6 +10,7 @@ import { supabase } from '@/lib/supabase/client'
 // do app ele esteja (Definir local, o dialog de corrida aceita, ou qualquer
 // outra), o comportamento é sempre o mesmo.
 export function DriverLiveLocationBroadcaster() {
+    const { userId: contextUserId } = useProfile()
     const userIdRef = useRef<string | null>(null)
     const syncOnRef = useRef(false)
     const watchIdRef = useRef<number | null>(null)
@@ -42,29 +44,26 @@ export function DriverLiveLocationBroadcaster() {
             )
         }
 
+        if (!contextUserId) {
+            userIdRef.current = null
+            syncOnRef.current = false
+            stopWatch()
+            return
+        }
+        userIdRef.current = contextUserId
+
         const tick = async () => {
-            const { data: { user } } = await supabase.auth.getUser()
-            if (cancelled) return
-
-            if (!user) {
-                userIdRef.current = null
-                syncOnRef.current = false
-                stopWatch()
-                return
-            }
-            userIdRef.current = user.id
-
             const { data } = await supabase
                 .from('driver_pricing')
                 .select('live_location_sync')
-                .eq('driver_id', user.id)
+                .eq('driver_id', contextUserId)
                 .maybeSingle()
             if (cancelled) return
 
             const syncOn = !!data?.live_location_sync
             if (syncOn !== syncOnRef.current) {
                 syncOnRef.current = syncOn
-                if (syncOn) startWatch(user.id)
+                if (syncOn) startWatch(contextUserId)
                 else stopWatch()
             }
         }
@@ -77,7 +76,7 @@ export function DriverLiveLocationBroadcaster() {
             clearInterval(poll)
             stopWatch()
         }
-    }, [])
+    }, [contextUserId])
 
     return null
 }

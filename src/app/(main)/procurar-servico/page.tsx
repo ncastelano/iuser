@@ -28,12 +28,11 @@ const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
 export default function SerParceiroPage() {
     const router = useRouter()
-    const { avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
+    const { userId, avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
     const { colors } = useTheme()
 
     const [loading, setLoading] = useState(true)
     const [showLogin, setShowLogin] = useState(false)
-    const [myUserId, setMyUserId] = useState<string | null>(null)
     const [jobs, setJobs] = useState<BoardItem[]>([])
     const [appliedKeys, setAppliedKeys] = useState<Set<string>>(new Set())
     const [applyingKey, setApplyingKey] = useState<string | null>(null)
@@ -41,24 +40,21 @@ export default function SerParceiroPage() {
 
     const load = async () => {
         setLoading(true)
-        const { data: { user } } = await supabase.auth.getUser()
 
         // Os pedidos abertos são públicos: qualquer visitante pode ver a lista,
         // só precisa estar logado para se candidatar (checado em handleApply).
         setJobs(await fetchOpenBoardItems())
 
-        if (!user) {
-            setMyUserId(null)
+        if (!userId) {
             setAppliedKeys(new Set())
             setLoading(false)
             return
         }
-        setMyUserId(user.id)
 
         const { data: myServiceApplications } = await supabase
             .from('service_applications')
             .select('service_request_id')
-            .eq('applicant_id', user.id)
+            .eq('applicant_id', userId)
 
         const applied = new Set<string>()
         for (const a of myServiceApplications || []) applied.add(`service:${a.service_request_id}`)
@@ -68,9 +64,10 @@ export default function SerParceiroPage() {
     }
 
     useEffect(() => {
+        if (profileLoading) return
         load()
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [])
+    }, [profileLoading, userId])
 
     const handleLoginSuccess = () => {
         setShowLogin(false)
@@ -165,7 +162,7 @@ export default function SerParceiroPage() {
                                 const detail = getItemDetail(job)
                                 const key = itemKey(job)
                                 const applied = appliedKeys.has(key)
-                                const isMine = job.requester_id === myUserId
+                                const isMine = job.requester_id === userId
                                 return (
                                     <div
                                         key={key}
