@@ -18,6 +18,7 @@ import {
 import { supabase } from '@/lib/supabase/client'
 import { useAppointments } from '../dadosDoCompromisso'
 import { useTheme } from '@/app/contexts/theme'
+import { useProfile } from '@/app/contexts/ProfileContext'
 import Header from '@/components/Header'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 
@@ -49,6 +50,7 @@ interface Props {
 export default function CriarCompromissoComAlguem({ onBack }: Props) {
     const { colors } = useTheme()
     const { appointments, refetch } = useAppointments()
+    const { userId } = useProfile()
 
     // Estados do tema/fundo
     const [bgMode, setBgMode] = useState<'animated' | 'black' | 'custom'>('black')
@@ -66,7 +68,6 @@ export default function CriarCompromissoComAlguem({ onBack }: Props) {
 
     const [selectedDuration, setSelectedDuration] = useState<number>(60)
     const [scheduleConfig, setScheduleConfig] = useState<any>(null)
-    const [userId, setUserId] = useState<string | null>(null)
 
     const [searchQuery, setSearchQuery] = useState('')
     const [results, setResults] = useState<SearchTarget[]>([])
@@ -84,27 +85,22 @@ export default function CriarCompromissoComAlguem({ onBack }: Props) {
 
     // Carrega dados do perfil e fundo
     useEffect(() => {
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            if (session?.user) {
-                const uid = session.user.id
-                setUserId(uid)
-                supabase
-                    .from('profiles')
-                    .select('avatar_url, profileSlug, background_mode, background_image_url, working_hours')
-                    .eq('id', uid)
-                    .single()
-                    .then(({ data }) => {
-                        if (data) {
-                            if (data.avatar_url) setUserAvatarUrl(data.avatar_url)
-                            if (data.profileSlug) setUserProfileSlug(data.profileSlug)
-                            if (data.background_mode) setBgMode(data.background_mode)
-                            if (data.background_image_url) setCustomBgUrl(data.background_image_url)
-                            if (data.working_hours) setScheduleConfig(data.working_hours)
-                        }
-                    })
-            }
-        })
-    }, [])
+        if (!userId) return
+        supabase
+            .from('profiles')
+            .select('avatar_url, profileSlug, background_mode, background_image_url, working_hours')
+            .eq('id', userId)
+            .single()
+            .then(({ data }) => {
+                if (data) {
+                    if (data.avatar_url) setUserAvatarUrl(data.avatar_url)
+                    if (data.profileSlug) setUserProfileSlug(data.profileSlug)
+                    if (data.background_mode) setBgMode(data.background_mode)
+                    if (data.background_image_url) setCustomBgUrl(data.background_image_url)
+                    if (data.working_hours) setScheduleConfig(data.working_hours)
+                }
+            })
+    }, [userId])
 
     // Busca pessoas
     useEffect(() => {
@@ -112,14 +108,12 @@ export default function CriarCompromissoComAlguem({ onBack }: Props) {
         const timer = setTimeout(async () => {
             setSearching(true)
             const query = searchQuery.trim()
-            const { data: session } = await supabase.auth.getSession()
-            const currentUserId = session?.session?.user?.id
             let queryBuilder = supabase
                 .from('profiles')
                 .select('id, name, profileSlug, avatar_url')
                 .or(`profileSlug.ilike.%${query}%,name.ilike.%${query}%`)
                 .limit(5)
-            if (currentUserId) queryBuilder = queryBuilder.neq('id', currentUserId)
+            if (userId) queryBuilder = queryBuilder.neq('id', userId)
             const { data: profiles } = await queryBuilder
             const merged: SearchTarget[] = (profiles || []).map(p => ({
                 id: p.id,
@@ -133,7 +127,7 @@ export default function CriarCompromissoComAlguem({ onBack }: Props) {
             setSearching(false)
         }, 300)
         return () => clearTimeout(timer)
-    }, [searchQuery])
+    }, [searchQuery, userId])
 
     // Horários livres
     const slotsLivres = useMemo(() => {
