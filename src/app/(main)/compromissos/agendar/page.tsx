@@ -159,18 +159,18 @@ export default function AgendarPage() {
                     onHomeClick={() => router.push('/')}
                 />
 
-                <div style={{ padding: '20px 20px 0' }}>
-                    <div style={{ marginTop: 24, ...cardStyle, borderRadius: 28, padding: 28 }}>
-                        <h3 style={{ fontWeight: 800, fontSize: 22, color: colors.textPrimary, marginBottom: 24, textAlign: 'center' }}>
+                <div className="px-5 pt-0">
+                    <div className="mt-6 rounded-2xl p-7" style={cardStyle}>
+                        <h3 className="text-xs font-black uppercase tracking-widest mb-6" style={{ color: colors.textPrimary }}>
                             Escolha o tipo
                         </h3>
 
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                        <div className="flex flex-col gap-3">
                             {!isStore ? (
                                 <>
                                     {/* Opções para perfil pessoal */}
                                     <OptionButton
-                                        icon={<Store size={24} />}
+                                        icon={<Store size={18} />}
                                         title="Agendar em loja"
                                         description="Barbearia, clínica, restaurante..."
                                         color={colors.accent}
@@ -178,7 +178,7 @@ export default function AgendarPage() {
                                         colors={colors}
                                     />
                                     <OptionButton
-                                        icon={<User size={24} />}
+                                        icon={<User size={18} />}
                                         title="Convidar pessoa"
                                         description="Amigo, colega, profissional..."
                                         color="#7c3aed"
@@ -186,7 +186,7 @@ export default function AgendarPage() {
                                         colors={colors}
                                     />
                                     <OptionButton
-                                        icon={<Lock size={24} />}
+                                        icon={<Lock size={18} />}
                                         title="Somente eu"
                                         description="Compromisso pessoal e privado"
                                         color="#10b981"
@@ -194,7 +194,7 @@ export default function AgendarPage() {
                                         colors={colors}
                                     />
                                     <OptionButton
-                                        icon={<CalendarDays size={24} />}
+                                        icon={<CalendarDays size={18} />}
                                         title="Promover evento"
                                         description="Crie um evento público ou privado"
                                         color="#f59e0b"
@@ -206,7 +206,7 @@ export default function AgendarPage() {
                                 <>
                                     {/* Opções para loja */}
                                     <OptionButton
-                                        icon={<User size={24} />}
+                                        icon={<User size={18} />}
                                         title="Convidar perfis"
                                         description="Envie convites para clientes ou parceiros"
                                         color={colors.accent}
@@ -214,7 +214,7 @@ export default function AgendarPage() {
                                         colors={colors}
                                     />
                                     <OptionButton
-                                        icon={<CalendarDays size={24} />}
+                                        icon={<CalendarDays size={18} />}
                                         title="Promover evento"
                                         description="Divulgue um evento da sua loja"
                                         color="#f59e0b"
@@ -250,38 +250,25 @@ function OptionButton({
     return (
         <button
             onClick={onClick}
+            className="flex items-center gap-4 p-4 rounded-2xl text-left cursor-pointer transition hover:scale-[1.02] active:scale-95"
             style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 16,
-                padding: 18,
-                borderRadius: 20,
                 border: `1px solid ${colors.border}`,
-                background: `rgba(0,0,0,0.2)`,
-                backdropFilter: 'blur(10px)',
-                cursor: 'pointer',
-                textAlign: 'left',
+                background: 'rgba(255,255,255,0.08)',
                 color: colors.textPrimary,
-                transition: 'all 0.2s',
             }}
         >
             <div
+                className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
                 style={{
-                    width: 48,
-                    height: 48,
-                    borderRadius: 14,
                     background: `linear-gradient(135deg, ${color}, ${color}dd)`,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
                     color: '#fff',
                 }}
             >
                 {icon}
             </div>
             <div>
-                <p style={{ fontWeight: 700, fontSize: 17, margin: 0 }}>{title}</p>
-                <p style={{ color: colors.textSecondary, fontSize: 14, margin: '4px 0 0' }}>{description}</p>
+                <p className="text-sm font-bold m-0">{title}</p>
+                <p className="text-xs mt-1 m-0" style={{ color: colors.textSecondary }}>{description}</p>
             </div>
         </button>
     )
