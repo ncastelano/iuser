@@ -200,6 +200,11 @@ export default function MotoristaSection({ dragHandle, onBreveStatusChange, onUr
         const init = async () => {
             if (!active || !userId) return
             await load()
+            // Reconfere depois do await: se o efeito já foi limpo (Strict Mode
+            // remonta em dev, ou as deps mudaram de novo) nesse meio tempo,
+            // não cria um canal novo — senão o mesmo tópico fica duplicado e o
+            // realtime-js rejeita o .on() no canal que já tinha dado subscribe().
+            if (!active) return
 
             // Tempo real: candidato se candidatando bate applicant_count (via
             // trigger em ride_applications) num UPDATE nesta própria linha, e
