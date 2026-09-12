@@ -28,7 +28,7 @@ function PainelMotoristaContent() {
     const router = useRouter()
     const searchParams = useSearchParams()
     const nextUrl = searchParams.get('next')
-    const { avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
+    const { userId, avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
     const { colors } = useTheme()
 
     const [loading, setLoading] = useState(true)
@@ -71,8 +71,7 @@ function PainelMotoristaContent() {
 
     const load = async () => {
         setLoading(true)
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) {
+        if (!userId) {
             setShowLogin(true)
             setLoading(false)
             return
@@ -82,7 +81,7 @@ function PainelMotoristaContent() {
         const { data } = await supabase
             .from('driver_pricing')
             .select('pricing_mode, base_distance_km, base_fee, price_per_km_after_base, driver_mode_active')
-            .eq('driver_id', user.id)
+            .eq('driver_id', userId)
             .maybeSingle()
 
         if (data) {
@@ -96,7 +95,7 @@ function PainelMotoristaContent() {
         const { data: vehicle } = await supabase
             .from('driver_vehicles')
             .select('car_model, car_color, car_plate, car_photo_url, services')
-            .eq('driver_id', user.id)
+            .eq('driver_id', userId)
             .maybeSingle()
 
         if (vehicle) {
@@ -110,7 +109,7 @@ function PainelMotoristaContent() {
         const { data: reviewRows } = await supabase
             .from('ride_reviews')
             .select('rating, comment, created_at, reviewer_id')
-            .eq('reviewee_id', user.id)
+            .eq('reviewee_id', userId)
             .order('created_at', { ascending: false })
             .limit(20)
 
@@ -131,7 +130,7 @@ function PainelMotoristaContent() {
         const { data: historyRows } = await supabase
             .from('ride_requests')
             .select('id, origin_address, destination_address, created_at, distance_km')
-            .eq('driver_id', user.id)
+            .eq('driver_id', userId)
             .eq('status', 'completed')
             .order('created_at', { ascending: false })
             .limit(20)
@@ -185,9 +184,10 @@ function PainelMotoristaContent() {
     const reviewsAvg = reviews.length > 0 ? reviews.reduce((s, r) => s + r.rating, 0) / reviews.length : null
 
     useEffect(() => {
+        if (profileLoading) return
         load()
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [])
+    }, [profileLoading, userId])
 
     const handleLoginSuccess = () => {
         setShowLogin(false)
