@@ -51,12 +51,11 @@ export default function CommunityRoomClient() {
     const params = useParams()
     const router = useRouter()
     const { colors } = useTheme()
-    const { avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
+    const { userId: currentUserId, avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
     const bottomRef = useRef<HTMLDivElement>(null)
 
     const communitySlug = Array.isArray(params.communitySlug) ? params.communitySlug[0] : params.communitySlug
 
-    const [currentUserId, setCurrentUserId] = useState<string | null>(null)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
     const [community, setCommunity] = useState<Community | null>(null)
@@ -66,14 +65,6 @@ export default function CommunityRoomClient() {
     const [messages, setMessages] = useState<CommunityMessage[]>([])
     const [messageInput, setMessageInput] = useState('')
     const [sending, setSending] = useState(false)
-
-    useEffect(() => {
-        const getUser = async () => {
-            const { data: { user } } = await supabase.auth.getUser()
-            setCurrentUserId(user?.id || null)
-        }
-        getUser()
-    }, [])
 
     const loadRoom = useCallback(async () => {
         if (!communitySlug) return
@@ -98,13 +89,12 @@ export default function CommunityRoomClient() {
                 .eq('community_id', communityData.id)
             setMemberCount(count || 0)
 
-            const { data: { user } } = await supabase.auth.getUser()
-            if (user) {
+            if (currentUserId) {
                 const { data: membership } = await supabase
                     .from('community_members')
                     .select('id')
                     .eq('community_id', communityData.id)
-                    .eq('profile_id', user.id)
+                    .eq('profile_id', currentUserId)
                     .maybeSingle()
                 setIsMember(!!membership)
             }
@@ -129,7 +119,7 @@ export default function CommunityRoomClient() {
         } finally {
             setLoading(false)
         }
-    }, [communitySlug])
+    }, [communitySlug, currentUserId])
 
     useEffect(() => {
         loadRoom()

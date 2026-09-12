@@ -6,6 +6,7 @@ import { useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
+import { useProfile } from '@/app/contexts/ProfileContext'
 import { hexToRgb } from '@/lib/color'
 import {
     Users,
@@ -35,6 +36,7 @@ function ConviteContent() {
     const router = useRouter()
     const searchParams = useSearchParams()
     const { colors } = useTheme()
+    const { userId, loading: profileLoading } = useProfile()
     const profileSlug = searchParams.get('ref')
 
     const surfaceRgb = hexToRgb(colors.surface)
@@ -55,6 +57,8 @@ function ConviteContent() {
     const darkerAccent = colors.accentLight || accentColor
 
     useEffect(() => {
+        if (profileLoading) return
+
         const loadPageData = async () => {
             console.log('🔍 Carregando página de convite...')
             console.log('📝 ProfileSlug da URL:', profileSlug)
@@ -93,15 +97,13 @@ function ConviteContent() {
                 setInviter(inviterData)
 
                 // Verificar se o usuário está logado
-                const { data: { user } } = await supabase.auth.getUser()
-
-                if (user) {
-                    console.log('👤 Usuário logado:', user.id)
+                if (userId) {
+                    console.log('👤 Usuário logado:', userId)
 
                     const { data: currentProfile, error: profileError } = await supabase
                         .from('profiles')
                         .select('*')
-                        .eq('id', user.id)
+                        .eq('id', userId)
                         .maybeSingle()
 
                     if (profileError) {
@@ -112,7 +114,7 @@ function ConviteContent() {
                         console.log('✅ Perfil do usuário encontrado:', currentProfile.name)
                         setCurrentUser(currentProfile)
                     } else {
-                        console.warn('⚠️ Perfil do usuário não encontrado para o ID:', user.id)
+                        console.warn('⚠️ Perfil do usuário não encontrado para o ID:', userId)
                         setCurrentUser(null)
                     }
                 } else {
@@ -128,7 +130,7 @@ function ConviteContent() {
         }
 
         loadPageData()
-    }, [profileSlug])
+    }, [profileSlug, userId, profileLoading])
 
     // 🔥 FUNÇÃO ATUALIZADA: Salvar cookie antes de redirecionar
     const handleJoinNotLogged = async () => {

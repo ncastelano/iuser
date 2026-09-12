@@ -157,7 +157,7 @@ function formatWhatsApp(number: string): string {
 
 export default function CriarLoja() {
   const router = useRouter();
-  const { bgMode, customBgUrl, loading: profileLoading, avatarUrl: contextAvatarUrl } = useProfile();
+  const { userId, bgMode, customBgUrl, loading: profileLoading, avatarUrl: contextAvatarUrl } = useProfile();
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -204,25 +204,23 @@ export default function CriarLoja() {
   const [currentUserAvatar, setCurrentUserAvatar] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!userId) return;
     const loadUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("profileSlug, avatar_url")
-          .eq("id", user.id)
-          .single();
-        if (profile) {
-          setCurrentUserSlug(profile.profileSlug);
-          if (profile.avatar_url) {
-            const { data } = supabase.storage.from("avatars").getPublicUrl(profile.avatar_url);
-            setCurrentUserAvatar(data.publicUrl);
-          }
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("profileSlug, avatar_url")
+        .eq("id", userId)
+        .single();
+      if (profile) {
+        setCurrentUserSlug(profile.profileSlug);
+        if (profile.avatar_url) {
+          const { data } = supabase.storage.from("avatars").getPublicUrl(profile.avatar_url);
+          setCurrentUserAvatar(data.publicUrl);
         }
       }
     };
     loadUser();
-  }, []);
+  }, [userId]);
 
   useEffect(() => {
     if (contextAvatarUrl && !currentUserAvatar) {

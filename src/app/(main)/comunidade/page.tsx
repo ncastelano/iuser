@@ -37,11 +37,10 @@ interface CommunityCard {
 
 export default function ComunidadePage() {
     const router = useRouter()
-    const { avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
+    const { userId, avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
     const { colors } = useTheme()
     const searchInputRef = useRef<HTMLInputElement>(null)
 
-    const [userId, setUserId] = useState<string | null>(null)
     const [communities, setCommunities] = useState<CommunityCard[]>([])
     const [loadingData, setLoadingData] = useState(true)
     const [error, setError] = useState<string | null>(null)
@@ -83,13 +82,9 @@ export default function ComunidadePage() {
     }, [])
 
     useEffect(() => {
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            if (session?.user) {
-                setUserId(session.user.id)
-                fetchProfileLocation(session.user.id)
-            }
-        })
-    }, [fetchProfileLocation])
+        if (!userId) return
+        fetchProfileLocation(userId)
+    }, [userId, fetchProfileLocation])
 
     // Reativo: qualquer alteração na localização salva do perfil (feita aqui,
     // no header do radar, do homepage etc.) atualiza a cidade aqui também.
