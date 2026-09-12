@@ -91,11 +91,11 @@ export function PublicationClientPage({
     profileLoading = false
 }: PublicationClientPageProps) {
     const router = useRouter()
+    const { userId: currentUserId } = useProfile()
 
     const [loading, setLoading] = useState(true)
     const [publication, setPublication] = useState<PublicationWithOwner | null>(null)
     const [error, setError] = useState<string | null>(null)
-    const [currentUserId, setCurrentUserId] = useState<string | null>(null)
 
     // ===== COMMENT STATES =====
     const [comments, setComments] = useState<Comment[]>([])
@@ -106,15 +106,6 @@ export function PublicationClientPage({
     const [expandedComments, setExpandedComments] = useState<Set<string>>(new Set())
 
     const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
-
-    // ========== CARREGAR USUÁRIO ==========
-    useEffect(() => {
-        const getUser = async () => {
-            const { data: { user } } = await supabase.auth.getUser()
-            setCurrentUserId(user?.id || null)
-        }
-        getUser()
-    }, [])
 
     // ========== CARREGAR PUBLICAÇÃO ==========
     useEffect(() => {

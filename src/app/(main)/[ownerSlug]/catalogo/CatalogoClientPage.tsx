@@ -49,6 +49,7 @@ export default function CatalogoClientPage() {
     const router = useRouter()
     const { colors } = useTheme()
     const {
+        userId,
         bgMode,
         customBgUrl,
         profileSlug: loggedUserSlug,
@@ -287,31 +288,31 @@ export default function CatalogoClientPage() {
 
     useEffect(() => {
         setMounted(true)
-        loadUserData()
     }, [])
 
     // ========== FUNÇÕES DO USUÁRIO ==========
-    const loadUserData = useCallback(async () => {
-        const { data: { user } } = await supabase.auth.getUser()
-        if (user) {
-            setCurrentUserId(user.id)
-            const { data: profile } = await supabase
-                .from('profiles')
-                .select('profileSlug, avatar_url, name, address, store_lat, store_lng')
-                .eq('id', user.id)
-                .single()
-            if (profile) {
-                setCurrentUserSlug(profile.profileSlug)
-                setCurrentUserAvatar(profile.avatar_url)
-                setCurrentUserName(profile.name)
-                setUserAddress(profile.address)
-                setAddressInput(profile.address || '')
-                if (profile.store_lat && profile.store_lng) {
-                    setUserLocation({ lat: profile.store_lat, lng: profile.store_lng })
-                }
+    const loadUserData = useCallback(async (uid: string) => {
+        setCurrentUserId(uid)
+        const { data: profile } = await supabase
+            .from('profiles')
+            .select('profileSlug, avatar_url, name, address, store_lat, store_lng')
+            .eq('id', uid)
+            .single()
+        if (profile) {
+            setCurrentUserSlug(profile.profileSlug)
+            setCurrentUserAvatar(profile.avatar_url)
+            setCurrentUserName(profile.name)
+            setUserAddress(profile.address)
+            setAddressInput(profile.address || '')
+            if (profile.store_lat && profile.store_lng) {
+                setUserLocation({ lat: profile.store_lat, lng: profile.store_lng })
             }
         }
     }, [supabase])
+
+    useEffect(() => {
+        if (userId) loadUserData(userId)
+    }, [userId, loadUserData])
 
     // ===== VERIFICA SLUG DISPONÍVEL =====
     useEffect(() => {
@@ -523,8 +524,7 @@ export default function CatalogoClientPage() {
             return
         }
         if (data.user) {
-            setCurrentUserId(data.user.id)
-            await loadUserData()
+            await loadUserData(data.user.id)
             setCheckoutStep('delivery')
             setIsBagExpanded(true)
             toast.success('Login realizado com sucesso!')
@@ -593,8 +593,7 @@ export default function CatalogoClientPage() {
                 profileSlug: authProfileSlug,
                 avatar_url: avatarUrl,
             })
-            setCurrentUserId(data.user.id)
-            await loadUserData()
+            await loadUserData(data.user.id)
             setCheckoutStep('delivery')
             setIsBagExpanded(true)
             toast.success('Conta criada com sucesso!')
