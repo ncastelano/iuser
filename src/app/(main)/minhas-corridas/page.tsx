@@ -33,7 +33,7 @@ interface AcceptedRide {
 
 export default function MinhasCorridasPage() {
     const router = useRouter()
-    const { avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
+    const { userId, avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
     const { colors } = useTheme()
 
     const [loading, setLoading] = useState(true)
@@ -43,8 +43,7 @@ export default function MinhasCorridasPage() {
 
     const load = useCallback(async () => {
         setLoading(true)
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) {
+        if (!userId) {
             setShowLogin(true)
             setLoading(false)
             return
@@ -54,7 +53,7 @@ export default function MinhasCorridasPage() {
         const { data: myRides } = await supabase
             .from('ride_requests')
             .select('id, requester_id, origin_address, destination_address, destination_lat, destination_lng')
-            .eq('driver_id', user.id)
+            .eq('driver_id', userId)
             .eq('status', 'accepted')
             .order('created_at', { ascending: false })
 
@@ -87,11 +86,12 @@ export default function MinhasCorridasPage() {
             })
         )
         setLoading(false)
-    }, [])
+    }, [userId])
 
     useEffect(() => {
+        if (profileLoading) return
         load()
-    }, [load])
+    }, [profileLoading, load])
 
     const handleLoginSuccess = () => {
         setShowLogin(false)

@@ -102,7 +102,7 @@ export default function SacolaPage() {
 
     const router = useRouter()
     const { colors } = useTheme()
-    const { bgMode, customBgUrl } = useProfile()
+    const { userId: contextUserId, loading: profileLoading, bgMode, customBgUrl } = useProfile()
 
     const [mounted, setMounted] = useState(false)
     const [globalLoading, setGlobalLoading] = useState(true)
@@ -401,15 +401,18 @@ export default function SacolaPage() {
 
     useEffect(() => {
         setMounted(true)
+    }, [])
+
+    useEffect(() => {
+        if (profileLoading) return
         const checkUser = async () => {
-            const { data: { user } } = await supabase.auth.getUser()
-            if (user) {
-                await loadUserData(user.id)
+            if (contextUserId) {
+                await loadUserData(contextUserId)
             }
             setGlobalLoading(false)
         }
         checkUser()
-    }, [supabase, loadUserData])
+    }, [profileLoading, contextUserId, loadUserData])
 
     useEffect(() => {
         if (!currentUserId) return

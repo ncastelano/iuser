@@ -4,9 +4,11 @@ import { useRouter } from 'next/navigation'
 import { ArrowLeft, Package, User } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase/client'
+import { useProfile } from '@/app/contexts/ProfileContext'
 
 export default function PedidosPage() {
     const router = useRouter()
+    const { userId: contextUserId, loading: profileLoading } = useProfile()
     const [mounted, setMounted] = useState(false)
 
     const [currentUserId, setCurrentUserId] = useState<string | null>(null)
@@ -67,16 +69,16 @@ export default function PedidosPage() {
 
     useEffect(() => {
         setMounted(true)
-        const checkUser = async () => {
-            const { data: { user } } = await supabase.auth.getUser()
-            if (user) {
-                await loadUserData(user.id)
-            } else {
-                setLoading(false)
-            }
+    }, [])
+
+    useEffect(() => {
+        if (profileLoading) return
+        if (contextUserId) {
+            loadUserData(contextUserId)
+        } else {
+            setLoading(false)
         }
-        checkUser()
-    }, [supabase])
+    }, [profileLoading, contextUserId])
 
     // Real-time apenas para orders
     useEffect(() => {

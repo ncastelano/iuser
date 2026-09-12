@@ -84,7 +84,7 @@ async function reverseGeocode(lng: number, lat: number): Promise<string> {
 }
 
 export default function MapPage() {
-    const { profileSlug, avatarUrl, loading: profileLoading } = useProfile()
+    const { userId: contextUserId, profileSlug, avatarUrl, loading: profileLoading } = useProfile()
     const mapRef = useRef<mapboxgl.Map | null>(null)
     const mapContainerRef = useRef<HTMLDivElement | null>(null)
     const markersRef = useRef<mapboxgl.Marker[]>([])
@@ -156,28 +156,19 @@ export default function MapPage() {
 
     // GET USER AND PROFILE LOCATION (inicial)
     useEffect(() => {
+        if (profileLoading) return
         const getUserAndLocation = async () => {
             setLoadingLocation(true)
             console.log('[MapPage] 🚀 Iniciando carregamento de localização...')
 
             try {
-                const { data: { user }, error: userError } = await supabase.auth.getUser()
+                console.log('[MapPage] 👤 Usuário autenticado:', contextUserId ? 'Sim' : 'Não', contextUserId)
 
-                console.log('[MapPage] 👤 Usuário autenticado:', user ? 'Sim' : 'Não', user?.id)
+                setIsLoggedIn(!!contextUserId)
+                setUserId(contextUserId)
 
-                // AuthSessionMissingError só significa "visitante não logado" -
-                // caso normal e já tratado abaixo (isLoggedIn=false), não é erro
-                // de verdade. console.error aqui disparava o overlay de dev do
-                // Next mesmo sem nada quebrado.
-                if (userError && userError.name !== 'AuthSessionMissingError') {
-                    console.warn('[MapPage] ⚠️ Erro ao obter usuário:', userError.message)
-                }
-
-                setIsLoggedIn(!!user)
-                setUserId(user?.id || null)
-
-                if (user) {
-                    const profile = await loadUserProfile(user.id)
+                if (contextUserId) {
+                    const profile = await loadUserProfile(contextUserId)
 
                     if (profile) {
                         setProfileData(profile)
@@ -250,7 +241,7 @@ export default function MapPage() {
         }
 
         getUserAndLocation()
-    }, [])
+    }, [contextUserId, profileLoading])
 
     // REALTIME: escuta mudanças no perfil do usuário logado
     useEffect(() => {

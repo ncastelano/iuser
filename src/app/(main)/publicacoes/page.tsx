@@ -366,7 +366,7 @@ function PublicationCardSkeleton({ colors }: { colors: any }) {
 export default function AllPublicationsPage() {
     const router = useRouter()
     const { colors } = useTheme()
-    const { avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
+    const { userId: currentUserId, avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
 
     const observerRef = useRef<IntersectionObserver | null>(null)
     const loadMoreRef = useRef<HTMLDivElement>(null)
@@ -377,20 +377,10 @@ export default function AllPublicationsPage() {
     const [loadingMore, setLoadingMore] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [searchQuery, setSearchQuery] = useState('')
-    const [currentUserId, setCurrentUserId] = useState<string | null>(null)
     const [hasMore, setHasMore] = useState(true)
     const [page, setPage] = useState(0)
 
     const ITEMS_PER_LOAD = 10
-
-    // ===== CARREGAR USUÁRIO =====
-    useEffect(() => {
-        const getUser = async () => {
-            const { data: { user } } = await supabase.auth.getUser()
-            setCurrentUserId(user?.id || null)
-        }
-        getUser()
-    }, [])
 
     // ===== CARREGAR PUBLICAÇÕES =====
     const loadPublications = useCallback(async () => {

@@ -19,7 +19,7 @@ function PainelPrestadorContent() {
     const router = useRouter()
     const searchParams = useSearchParams()
     const nextUrl = searchParams.get('next')
-    const { avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
+    const { userId, avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
     const { colors } = useTheme()
 
     const [loading, setLoading] = useState(true)
@@ -29,8 +29,7 @@ function PainelPrestadorContent() {
 
     const load = async () => {
         setLoading(true)
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) {
+        if (!userId) {
             setShowLogin(true)
             setLoading(false)
             return
@@ -40,7 +39,7 @@ function PainelPrestadorContent() {
         const { data } = await supabase
             .from('profiles')
             .select('service_mode_active')
-            .eq('id', user.id)
+            .eq('id', userId)
             .maybeSingle()
 
         setServiceModeActive(!!data?.service_mode_active)
@@ -48,9 +47,10 @@ function PainelPrestadorContent() {
     }
 
     useEffect(() => {
+        if (profileLoading) return
         load()
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [])
+    }, [profileLoading, userId])
 
     const handleLoginSuccess = () => {
         setShowLogin(false)
