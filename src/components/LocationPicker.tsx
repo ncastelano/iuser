@@ -7,6 +7,7 @@ import { MapPin, X, Check, Navigation, Search, Home, MoveVertical, Hash, FileTex
 import { Spinner } from '@/components/Spinner'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
+import { useProfile } from '@/app/contexts/ProfileContext'
 
 interface LocationPickerProps {
     initialLocation: {
@@ -128,8 +129,8 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
     const { colors } = useTheme()
     const router = useRouter()
 
-    const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false)
-    const [authChecked, setAuthChecked] = useState(false)
+    const { userId, isLoggedIn: isAuthenticated, loading: profileLoading } = useProfile()
+    const authChecked = !profileLoading
 
     const mapContainerRef = useRef<HTMLDivElement>(null)
     const mapInstanceRef = useRef<any>(null)
@@ -172,13 +173,12 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
         if (!isAuthenticated) return
 
         const loadDriverSync = async () => {
-            const { data: { user } } = await supabase.auth.getUser()
-            if (!user) return
+            if (!userId) return
 
             const { data } = await supabase
                 .from('driver_pricing')
                 .select('live_location_sync')
-                .eq('driver_id', user.id)
+                .eq('driver_id', userId)
                 .maybeSingle()
 
             if (data) {
@@ -188,7 +188,7 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
         }
 
         loadDriverSync()
-    }, [isAuthenticated])
+    }, [isAuthenticated, userId])
 
     const toggleLiveLocationSync = useCallback(async () => {
         setSavingSync(true)
@@ -220,22 +220,6 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
         addressNumber: string;
         addressComplement: string;
     } | null>(null)
-
-    useEffect(() => {
-        const checkAuth = async () => {
-            try {
-                const { data: { user } } = await supabase.auth.getUser()
-                setIsAuthenticated(!!user)
-            } catch (err) {
-                console.error('Erro ao verificar autenticação:', err)
-                setIsAuthenticated(false)
-            } finally {
-                setAuthChecked(true)
-            }
-        }
-
-        checkAuth()
-    }, [])
 
     // Resolver endereço salvo
     useEffect(() => {
