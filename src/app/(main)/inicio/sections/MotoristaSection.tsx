@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
 import { Car, MapPin, Search, CheckCircle2, CalendarClock, Navigation } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
+import { useProfile } from '@/app/contexts/ProfileContext'
 import { supabase } from '@/lib/supabase/client'
 import { hexToRgb } from '@/lib/color'
 import { getAvatarUrl } from '@/lib/avatar'
@@ -107,6 +108,7 @@ export default function MotoristaSection({ dragHandle, onBreveStatusChange, onUr
     const { colors } = useTheme()
     const router = useRouter()
     const startNavProgress = useNavProgressStore((s) => s.start)
+    const { userId: contextUserId, loading: profileLoading } = useProfile()
     const [recentTrips, setRecentTrips] = useState<RecentRideTrip[]>([])
     const [activeOrder, setActiveOrder] = useState<ActiveOrder | null>(null)
     const [driverInfo, setDriverInfo] = useState<DriverInfo | null>(null)
@@ -118,9 +120,10 @@ export default function MotoristaSection({ dragHandle, onBreveStatusChange, onUr
     }, [onBreveStatusChange])
 
     useEffect(() => {
+        if (profileLoading) return
         let active = true
         let channel: ReturnType<typeof supabase.channel> | null = null
-        let userId: string | null = null
+        const userId: string | null = contextUserId
 
         const load = async () => {
             if (!userId) return
@@ -195,19 +198,17 @@ export default function MotoristaSection({ dragHandle, onBreveStatusChange, onUr
         }
 
         const init = async () => {
-            const { data: { user } } = await supabase.auth.getUser()
-            if (!active || !user) return
-            userId = user.id
+            if (!active || !userId) return
             await load()
 
             // Tempo real: candidato se candidatando bate applicant_count (via
             // trigger em ride_applications) num UPDATE nesta própria linha, e
             // aceite/"a caminho" também são UPDATE — um único canal cobre tudo.
             channel = supabase
-                .channel(`motorista-section-${user.id}`)
+                .channel(`motorista-section-${userId}`)
                 .on(
                     'postgres_changes',
-                    { event: '*', schema: 'public', table: 'ride_requests', filter: `requester_id=eq.${user.id}` },
+                    { event: '*', schema: 'public', table: 'ride_requests', filter: `requester_id=eq.${userId}` },
                     () => load()
                 )
                 .subscribe()
@@ -220,7 +221,7 @@ export default function MotoristaSection({ dragHandle, onBreveStatusChange, onUr
             clearInterval(poll)
             if (channel) supabase.removeChannel(channel)
         }
-    }, [])
+    }, [contextUserId, profileLoading])
 
     // Distância/tempo em tempo real até o motorista chegar no ponto de
     // partida — lida de driver_pricing.live_lat/lng (preenchida globalmente

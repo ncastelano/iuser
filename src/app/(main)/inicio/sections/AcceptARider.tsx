@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
 import { Car, Settings2, CheckCircle2, Navigation, MapPin, Users, Package, PawPrint } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
+import { useProfile } from '@/app/contexts/ProfileContext'
 import { supabase } from '@/lib/supabase/client'
 import { hexToRgb } from '@/lib/color'
 import { getAvatarUrl } from '@/lib/avatar'
@@ -75,6 +76,7 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
     const { colors } = useTheme()
     const router = useRouter()
     const startNavProgress = useNavProgressStore((s) => s.start)
+    const { userId: contextUserId, loading: profileLoading } = useProfile()
     const [hasPricing, setHasPricing] = useState<boolean | null>(null)
     const [driverModeActive, setDriverModeActive] = useState(false)
     const [acceptedRide, setAcceptedRide] = useState<AcceptedRideStatus | null>(null)
@@ -82,9 +84,10 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
     const [myCandidacies, setMyCandidacies] = useState<CandidacyPreview[]>([])
 
     useEffect(() => {
+        if (profileLoading) return
         let active = true
         let channel: ReturnType<typeof supabase.channel> | null = null
-        let userId: string | null = null
+        const userId: string | null = contextUserId
 
         const loadRide = async () => {
             if (!userId) return
@@ -253,18 +256,16 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
         }
 
         const init = async () => {
-            const { data: { user } } = await supabase.auth.getUser()
             if (!active) return
-            if (!user) {
+            if (!userId) {
                 setHasPricing(false)
                 return
             }
-            userId = user.id
 
             const { data: pricing } = await supabase
                 .from('driver_pricing')
                 .select('id, driver_mode_active')
-                .eq('driver_id', user.id)
+                .eq('driver_id', userId)
                 .maybeSingle()
             if (!active) return
             setHasPricing(!!pricing)
@@ -277,15 +278,15 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
             // Tempo real: aceite, "a caminho" e finalização/cancelamento são
             // todos UPDATE nesta própria linha — um canal cobre tudo.
             channel = supabase
-                .channel(`canal-motorista-${user.id}`)
+                .channel(`canal-motorista-${userId}`)
                 .on(
                     'postgres_changes',
-                    { event: '*', schema: 'public', table: 'ride_requests', filter: `driver_id=eq.${user.id}` },
+                    { event: '*', schema: 'public', table: 'ride_requests', filter: `driver_id=eq.${userId}` },
                     () => loadRide()
                 )
                 .on(
                     'postgres_changes',
-                    { event: '*', schema: 'public', table: 'ride_applications', filter: `applicant_id=eq.${user.id}` },
+                    { event: '*', schema: 'public', table: 'ride_applications', filter: `applicant_id=eq.${userId}` },
                     () => { loadCandidacies(); loadOpenRides() }
                 )
                 .subscribe()
@@ -298,7 +299,7 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
             clearInterval(poll)
             if (channel) supabase.removeChannel(channel)
         }
-    }, [])
+    }, [contextUserId, profileLoading])
 
     useEffect(() => {
         onUrgentChange?.(!!acceptedRide || myCandidacies.length > 0)

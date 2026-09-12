@@ -241,21 +241,17 @@ function StoreCard({ store, onClick, colors }: { store: StoreCardData; onClick: 
 // ===== COMPONENTE CARD PARA CRIAR LOJA =====
 function CreateStoreCard({ colors, category }: { colors: any; category: string }) {
     const router = useRouter()
+    const { userId } = useProfile()
 
     const surfaceRgb = hexToRgb(colors.surface)
     const cardBg = `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`
 
     const handleCreateStore = () => {
-        // Verifica se o usuário está logado
-        const checkUser = async () => {
-            const { data: { user } } = await supabase.auth.getUser()
-            if (user) {
-                router.push('/criar-loja')
-            } else {
-                router.push(`/login?redirect=/criar-loja&category=${encodeURIComponent(category)}`)
-            }
+        if (userId) {
+            router.push('/criar-loja')
+        } else {
+            router.push(`/login?redirect=/criar-loja&category=${encodeURIComponent(category)}`)
         }
-        checkUser()
     }
 
     return (
@@ -329,7 +325,7 @@ export default function ListaCategoriaPage() {
     const categoriaRaw = params.categoria
     const categoria: string | undefined = Array.isArray(categoriaRaw) ? categoriaRaw[0] : categoriaRaw
 
-    const { avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
+    const { userId, avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
     const { colors } = useTheme()
 
     const [searchQuery, setSearchQuery] = useState('')
@@ -698,15 +694,11 @@ export default function ListaCategoriaPage() {
 
                                         <button
                                             onClick={() => {
-                                                const checkUser = async () => {
-                                                    const { data: { user } } = await supabase.auth.getUser()
-                                                    if (user) {
-                                                        router.push('/criar-loja')
-                                                    } else {
-                                                        router.push(`/login?redirect=/criar-loja&category=${encodeURIComponent(categoria)}`)
-                                                    }
+                                                if (userId) {
+                                                    router.push('/criar-loja')
+                                                } else {
+                                                    router.push(`/login?redirect=/criar-loja&category=${encodeURIComponent(categoria)}`)
                                                 }
-                                                checkUser()
                                             }}
                                             className="px-8 py-4 rounded-full font-bold text-sm flex items-center gap-3 transition-all hover:scale-105 active:scale-95 shadow-xl"
                                             style={{

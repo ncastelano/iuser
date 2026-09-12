@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
 import { Briefcase, MapPin, Settings2 } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
+import { useProfile } from '@/app/contexts/ProfileContext'
 import { supabase } from '@/lib/supabase/client'
 import { hexToRgb } from '@/lib/color'
 import {
@@ -30,6 +31,7 @@ export default function LookForAService({ dragHandle, onBreveStatusChange }: Loo
     const { colors } = useTheme()
     const router = useRouter()
     const startNavProgress = useNavProgressStore((s) => s.start)
+    const { userId } = useProfile()
     const [openItems, setOpenItems] = useState<BoardItem[]>([])
     const [serviceModeActive, setServiceModeActive] = useState(false)
 
@@ -42,20 +44,18 @@ export default function LookForAService({ dragHandle, onBreveStatusChange }: Loo
     }, [])
 
     useEffect(() => {
+        if (!userId) return
         let active = true
-        supabase.auth.getUser().then(({ data: { user } }) => {
-            if (!active || !user) return
-            supabase
-                .from('profiles')
-                .select('service_mode_active')
-                .eq('id', user.id)
-                .maybeSingle()
-                .then(({ data }) => {
-                    if (active) setServiceModeActive(!!data?.service_mode_active)
-                })
-        })
+        supabase
+            .from('profiles')
+            .select('service_mode_active')
+            .eq('id', userId)
+            .maybeSingle()
+            .then(({ data }) => {
+                if (active) setServiceModeActive(!!data?.service_mode_active)
+            })
         return () => { active = false }
-    }, [])
+    }, [userId])
 
     const surfaceRgb = hexToRgb(colors.surface)
 

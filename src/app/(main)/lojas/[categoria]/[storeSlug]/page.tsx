@@ -19,6 +19,7 @@ import { dadosMockados, type Store } from '@/app/(main)/inicio/dadoDeLojas'
 import { dadosDosProdutos, type Product } from '@/app/(main)/inicio/dadoDeProdutos'
 import { agendamentosMockados, type Appointment } from '@/app/(main)/inicio/dadosDeAgendamentos'
 import { supabase } from '@/lib/supabase/client'
+import { useProfile } from '@/app/contexts/ProfileContext'
 import { isStoreOpenNow } from '@/lib/storeHours'
 
 type BgMode = 'animated' | 'black' | 'custom'
@@ -51,34 +52,32 @@ export default function CategoriaPage() {
     const storeAppointments = appointments.filter((a) => a.store_slug === storeSlug)
 
     // Fundo e avatar do usuário logado
+    const { userId } = useProfile()
     const [bgMode, setBgMode] = useState<BgMode>('black')
     const [customBgUrl, setCustomBgUrl] = useState<string | null>(null)
     const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
 
     useEffect(() => {
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            if (session?.user) {
-                supabase
-                    .from('profiles')
-                    .select('avatar_url, background_mode, background_image_url')
-                    .eq('id', session.user.id)
-                    .single()
-                    .then(({ data }) => {
-                        if (data) {
-                            if (data.avatar_url) {
-                                // URL pública
-                                const publicUrl = data.avatar_url.startsWith('http')
-                                    ? data.avatar_url
-                                    : supabase.storage.from('avatars').getPublicUrl(data.avatar_url).data.publicUrl
-                                setAvatarUrl(publicUrl)
-                            }
-                            if (data.background_mode) setBgMode(data.background_mode)
-                            if (data.background_image_url) setCustomBgUrl(data.background_image_url)
-                        }
-                    })
-            }
-        })
-    }, [])
+        if (!userId) return
+        supabase
+            .from('profiles')
+            .select('avatar_url, background_mode, background_image_url')
+            .eq('id', userId)
+            .single()
+            .then(({ data }) => {
+                if (data) {
+                    if (data.avatar_url) {
+                        // URL pública
+                        const publicUrl = data.avatar_url.startsWith('http')
+                            ? data.avatar_url
+                            : supabase.storage.from('avatars').getPublicUrl(data.avatar_url).data.publicUrl
+                        setAvatarUrl(publicUrl)
+                    }
+                    if (data.background_mode) setBgMode(data.background_mode)
+                    if (data.background_image_url) setCustomBgUrl(data.background_image_url)
+                }
+            })
+    }, [userId])
 
     if (!store || !info) {
         return (
