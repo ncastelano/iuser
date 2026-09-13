@@ -35,37 +35,20 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
             })
         }
 
-        // 2. Buscar lojas com o profileSlug do dono (duas queries para evitar dependência de FK naming)
+        // 2. Buscar lojas — a página da loja vive em /{storeSlug} (rota
+        // [ownerSlug] de um único segmento, igual à de perfil), não em
+        // /{profileSlug}/{storeSlug} como o código anterior gerava aqui.
         const { data: stores } = await supabase
             .from('stores')
-            .select('storeSlug, created_at, owner_id')
+            .select('storeSlug, created_at')
             .eq('is_active', true)
 
-        if (stores && stores.length > 0) {
-            // Coletar os owner_ids únicos
-            const ownerIds = [...new Set(stores.map((s) => s.owner_id).filter(Boolean))]
-
-            // Buscar os profileSlugs dos donos
-            const { data: storeOwners } = await supabase
-                .from('profiles')
-                .select('id, profileSlug')
-                .in('id', ownerIds)
-
-            // Criar mapa owner_id → profileSlug
-            const profileSlugMap: Record<string, string> = Object.fromEntries(
-                (storeOwners || [])
-                    .filter((p) => p.profileSlug)
-                    .map((p) => [p.id, p.profileSlug])
-            )
-
+        if (stores) {
             stores.forEach((s) => {
-                const profileSlug = profileSlugMap[s.owner_id]
-
-                // Só inclui no sitemap se tiver o profileSlug correto
-                if (!profileSlug) return
+                if (!s.storeSlug) return
 
                 sitemaps.push({
-                    url: `${baseUrl}/${profileSlug}/${s.storeSlug}`,
+                    url: `${baseUrl}/${s.storeSlug}`,
                     lastModified: s.created_at ? new Date(s.created_at) : new Date(),
                     changeFrequency: 'weekly',
                     priority: 0.9,
