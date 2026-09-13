@@ -53,6 +53,8 @@
   body {
     @apply bg-background text-foreground antialiased transition-colors duration-300;
     font-family: 'Microsoft PhagsPa', sans-serif;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
   }
 }
 
