@@ -36,6 +36,8 @@ import { handleShareLink } from '@/lib/share'
 import { toast } from 'sonner'
 import { useCartStore } from '@/store/useCartStore'
 import { useStoreCheckout } from './useStoreCheckout'
+import { RatingStars } from '@/components/ratings/RatingStars'
+import { getAvatarUrl } from '@/lib/avatar'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -131,6 +133,15 @@ export function ProductClientPage({
         image_url: string | null
         price: number | null
     }[]>([])
+    const [productReviews, setProductReviews] = useState<{
+        id: string
+        rating: number
+        comment: string | null
+        is_anonymous: boolean
+        created_at: string
+        profiles: { name: string | null; avatar_url: string | null } | null
+    }[]>([])
+    const [showReviews, setShowReviews] = useState(false)
 
     // ========== CARREGAR PRODUTO ==========
     // O produto e a loja já vêm prontos do SlugClientPage (que os buscou pra
@@ -215,6 +226,33 @@ export function ProductClientPage({
 
         return () => { isMounted = false }
     }, [product?.store_id, product?.id])
+
+    // ===== AVALIAÇÕES DO PRODUTO =====
+    useEffect(() => {
+        const productId = product?.id
+        if (!productId) {
+            setProductReviews([])
+            return
+        }
+
+        let isMounted = true
+
+        supabase
+            .from('product_reviews')
+            .select('id, rating, comment, is_anonymous, created_at, profiles(name, avatar_url)')
+            .eq('product_id', productId)
+            .order('created_at', { ascending: false })
+            .then(({ data }) => {
+                if (!isMounted) return
+                const rows = (data || []).map((r: any) => ({
+                    ...r,
+                    profiles: Array.isArray(r.profiles) ? r.profiles[0] : r.profiles,
+                }))
+                setProductReviews(rows)
+            })
+
+        return () => { isMounted = false }
+    }, [product?.id])
 
     // ===== FUNÇÃO PARA IR PARA A LOJA =====
     const goToStore = () => {
@@ -362,6 +400,10 @@ export function ProductClientPage({
     const totalPrice = product.price !== null && product.price !== undefined
         ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(product.price * quantity)
         : null
+
+    const avgRating = productReviews.length > 0
+        ? productReviews.reduce((sum, r) => sum + r.rating, 0) / productReviews.length
+        : 0
 
     const cartControls = (
         <>
@@ -902,23 +944,30 @@ export function ProductClientPage({
 
     return (
         <div className="relative min-h-dvh" style={{ background: colors.background }}>
-            {/* Header flutuante sobre a imagem (mobile) */}
-            <div className="md:hidden absolute top-0 inset-x-0 z-20 flex items-center justify-between px-4 pt-4">
+            {/* Header flutuante sobre a imagem (mobile) - nome do produto aqui, embaixo do
+                botão de voltar, já que o título saiu do topo do sheet de conteúdo. */}
+            <div className="md:hidden absolute top-0 inset-x-0 z-20 flex items-center gap-2 px-4 pt-4">
                 <button
                     onClick={() => router.back()}
                     aria-label="Voltar"
-                    className="w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-md transition hover:scale-105"
+                    className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 backdrop-blur-md transition hover:scale-105"
                     style={{ background: 'rgba(17,17,17,0.4)' }}
                 >
                     <ArrowLeft size={20} color="#ffffff" />
                 </button>
+                <h1
+                    className="flex-1 min-w-0 truncate text-center text-xs font-bold px-3 py-2 rounded-full backdrop-blur-md"
+                    style={{ background: 'rgba(17,17,17,0.4)', color: '#ffffff' }}
+                >
+                    {product.name || 'Sem título'}
+                </h1>
                 <button
                     onClick={() => handleShareLink({
                         title: `${product.name || 'Produto'} | ${storeDisplay.name}`,
                         text: product.description || 'Confira no iUser!'
                     })}
                     aria-label="Compartilhar"
-                    className="w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-md transition hover:scale-105"
+                    className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 backdrop-blur-md transition hover:scale-105"
                     style={{ background: 'rgba(17,17,17,0.4)' }}
                 >
                     <Share2 size={18} color="#ffffff" />
@@ -930,18 +979,21 @@ export function ProductClientPage({
                 <button
                     onClick={() => router.back()}
                     aria-label="Voltar"
-                    className="flex items-center gap-2 pl-3 pr-4 py-2 rounded-full text-sm font-medium transition hover:scale-105"
+                    className="flex items-center gap-2 pl-3 pr-4 py-2 rounded-full text-sm font-medium flex-shrink-0 transition hover:scale-105"
                     style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
                 >
                     <ArrowLeft size={16} />
                     Voltar
                 </button>
+                <h1 className="flex-1 min-w-0 truncate text-lg font-black" style={{ color: colors.textPrimary }}>
+                    {product.name || 'Sem título'}
+                </h1>
             </div>
 
             <div className={`${storeCartBar ? 'pb-48' : 'pb-32'} md:pb-0 md:max-w-6xl md:mx-auto md:px-6 md:pt-6`}>
                 <div className="md:grid md:grid-cols-2 md:gap-10 md:items-start">
                     {/* Imagem em destaque, tipo capa de produto */}
-                    <div className="relative w-full h-[38vh] min-h-[260px] max-h-[400px] md:h-auto md:aspect-square md:rounded-3xl md:overflow-hidden md:sticky md:top-6">
+                    <div className="relative w-full h-[27vh] min-h-[200px] max-h-[320px] md:h-auto md:aspect-square md:rounded-3xl md:overflow-hidden md:sticky md:top-6">
                         {(imageUrl || finalStoreImage) ? (
                             <img
                                 src={imageUrl || finalStoreImage || ''}
@@ -967,6 +1019,38 @@ export function ProductClientPage({
                         >
                             <Share2 size={18} color="#ffffff" />
                         </button>
+
+                        {/* Loja + data - flutua no rodapé da foto, na divisa com o sheet de
+                            conteúdo (mobile e web) - lugar do cartão de loja que antes ficava
+                            solto no meio do texto. */}
+                        <button
+                            onClick={goToStore}
+                            className="absolute bottom-0 inset-x-0 flex items-center gap-2 px-4 pb-3 pt-8 text-left transition hover:opacity-90"
+                            style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.72), transparent)' }}
+                        >
+                            <div
+                                className="w-8 h-8 rounded-full overflow-hidden border flex-shrink-0"
+                                style={{ borderColor: 'rgba(255,255,255,0.6)', background: 'rgba(255,255,255,0.15)' }}
+                            >
+                                {finalStoreImage ? (
+                                    <img src={finalStoreImage} alt={storeDisplay.name} className="w-full h-full object-cover" />
+                                ) : (
+                                    <div className="w-full h-full flex items-center justify-center">
+                                        <Store size={14} color="#ffffff" />
+                                    </div>
+                                )}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                                <p className="text-xs font-bold truncate" style={{ color: '#ffffff' }}>
+                                    {storeDisplay.name}
+                                </p>
+                                <p className="flex items-center gap-1 text-[10px]" style={{ color: 'rgba(255,255,255,0.8)' }}>
+                                    <Calendar size={9} />
+                                    {formattedDate}
+                                </p>
+                            </div>
+                            <ChevronRight size={16} style={{ color: 'rgba(255,255,255,0.7)' }} />
+                        </button>
                     </div>
 
                     {/* Sheet de conteúdo (mobile: sobreposto à imagem / web: coluna ao lado) */}
@@ -975,72 +1059,100 @@ export function ProductClientPage({
                             <div className="w-10 h-1 rounded-full" style={{ background: colors.border }} />
                         </div>
 
-                        <div className="px-5 pt-3 md:px-0 md:pt-0 space-y-5">
-                            {/* Título e preço */}
-                            <div>
-                                <h1 className="text-[26px] md:text-3xl leading-tight font-black" style={{ color: colors.textPrimary }}>
-                                    {product.name || 'Sem título'}
-                                </h1>
-                                <div className="flex items-center gap-3 mt-2">
-                                    <span className="text-2xl md:text-3xl font-black" style={{ color: colors.accent }}>
-                                        {formattedPrice}
+                        <div className="px-5 pt-2 md:px-0 md:pt-0 space-y-2.5">
+                            {/* Preço - o nome do produto já está no cabeçalho flutuante */}
+                            <div className="flex items-center gap-3">
+                                <span className="text-2xl md:text-3xl font-black" style={{ color: colors.accent }}>
+                                    {formattedPrice}
+                                </span>
+                                {product.view_count !== null && product.view_count !== undefined && product.view_count > 0 && (
+                                    <span className="flex items-center gap-1 text-xs font-medium" style={{ color: colors.textSecondary, opacity: 0.7 }}>
+                                        <Eye size={13} />
+                                        {product.view_count}
                                     </span>
-                                    {product.view_count !== null && product.view_count !== undefined && product.view_count > 0 && (
-                                        <span className="flex items-center gap-1 text-xs font-medium" style={{ color: colors.textSecondary, opacity: 0.7 }}>
-                                            <Eye size={13} />
-                                            {product.view_count}
-                                        </span>
-                                    )}
-                                </div>
+                                )}
                             </div>
 
-                            {/* Cabeçalho - Loja */}
-                            <button
-                                className="w-full flex items-center gap-3 p-3 rounded-2xl transition hover:scale-[1.01]"
-                                style={{ background: colors.surface, border: `1px solid ${colors.border}` }}
-                                onClick={goToStore}
-                            >
-                                <div
-                                    className="w-11 h-11 rounded-full overflow-hidden border-2 flex-shrink-0"
-                                    style={{ borderColor: colors.background }}
-                                >
-                                    {finalStoreImage ? (
-                                        <img
-                                            src={finalStoreImage}
-                                            alt={storeDisplay.name}
-                                            className="w-full h-full object-cover"
-                                        />
-                                    ) : (
-                                        <div className="w-full h-full flex items-center justify-center" style={{ background: colors.border }}>
-                                            <Store size={18} style={{ color: colors.textSecondary }} />
-                                        </div>
-                                    )}
-                                </div>
-
-                                <div className="min-w-0 flex-1 text-left">
-                                    <p className="text-sm font-bold truncate" style={{ color: colors.textPrimary }}>
-                                        {storeDisplay.name}
-                                    </p>
-                                    <div className="flex items-center gap-2 text-[11px]" style={{ color: colors.textSecondary, opacity: 0.75 }}>
-                                        <span className="flex items-center gap-1">
-                                            <Calendar size={11} />
-                                            {formattedDate}
-                                        </span>
-                                    </div>
-                                </div>
-
-                                <ChevronRight size={18} style={{ color: colors.textSecondary, opacity: 0.5 }} />
-                            </button>
-
-                            {/* Descrição */}
+                            {/* Descrição - assume o lugar de destaque que era do título */}
                             {product.description && (
                                 <div>
-                                    <h2 className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: colors.textSecondary, opacity: 0.6 }}>
+                                    <h2 className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: colors.textSecondary, opacity: 0.6 }}>
                                         Sobre o produto
                                     </h2>
-                                    <p style={{ color: colors.textSecondary, lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
+                                    <p className="text-sm" style={{ color: colors.textSecondary, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>
                                         {product.description}
                                     </p>
+                                </div>
+                            )}
+
+                            {/* Avaliações - resumo compacto, expande sob demanda */}
+                            {productReviews.length > 0 && (
+                                <div className="border-t pt-2" style={{ borderColor: colors.border }}>
+                                    <button
+                                        onClick={() => setShowReviews((v) => !v)}
+                                        className="w-full flex items-center justify-between gap-2"
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            <RatingStars value={avgRating} size={14} />
+                                            <span className="text-xs font-black" style={{ color: colors.textPrimary }}>
+                                                {avgRating.toFixed(1)}
+                                            </span>
+                                            <span className="text-xs" style={{ color: colors.textSecondary, opacity: 0.75 }}>
+                                                ({productReviews.length} avaliaç{productReviews.length === 1 ? 'ão' : 'ões'})
+                                            </span>
+                                        </div>
+                                        <ChevronRight
+                                            size={16}
+                                            style={{
+                                                color: colors.textSecondary,
+                                                opacity: 0.6,
+                                                transform: showReviews ? 'rotate(90deg)' : undefined,
+                                                transition: 'transform 0.2s',
+                                            }}
+                                        />
+                                    </button>
+
+                                    {showReviews && (
+                                        <div className="space-y-2 mt-2 max-h-56 overflow-y-auto pr-0.5">
+                                            {productReviews.map((r) => {
+                                                const reviewerAvatar = getAvatarUrl(supabase, r.profiles?.avatar_url)
+                                                const reviewerName = r.is_anonymous ? 'Anônimo' : (r.profiles?.name || 'Usuário')
+                                                return (
+                                                    <div
+                                                        key={r.id}
+                                                        className="flex gap-2 p-2.5 rounded-xl"
+                                                        style={{ background: `${colors.surface}66` }}
+                                                    >
+                                                        <div className="w-7 h-7 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center" style={{ background: colors.border }}>
+                                                            {reviewerAvatar ? (
+                                                                <img src={reviewerAvatar} alt="" className="w-full h-full object-cover" />
+                                                            ) : (
+                                                                <span className="text-[10px] font-bold" style={{ color: colors.textSecondary }}>
+                                                                    {reviewerName.slice(0, 1).toUpperCase()}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="flex items-center justify-between gap-2">
+                                                                <p className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>
+                                                                    {reviewerName}
+                                                                </p>
+                                                                <span className="text-[9px] flex-shrink-0" style={{ color: colors.textSecondary, opacity: 0.75 }}>
+                                                                    {new Date(r.created_at).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short' })}
+                                                                </span>
+                                                            </div>
+                                                            <RatingStars value={r.rating} size={10} />
+                                                            {r.comment && (
+                                                                <p className="text-xs mt-0.5" style={{ color: colors.textSecondary, lineHeight: 1.4 }}>
+                                                                    {r.comment}
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                )
+                                            })}
+                                        </div>
+                                    )}
                                 </div>
                             )}
 
@@ -1061,9 +1173,9 @@ export function ProductClientPage({
 
                 {/* Outros produtos da loja */}
                 {otherProducts.length > 0 && (
-                    <div className="px-5 md:px-0 mt-5 md:mt-10">
-                        <h2 className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: colors.textSecondary, opacity: 0.6 }}>
-                            Você também pode gostar
+                    <div className="px-5 md:px-0 mt-3 md:mt-6">
+                        <h2 className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: colors.textSecondary, opacity: 0.6 }}>
+                            Outras pessoas pediram
                         </h2>
                         <div className="flex gap-3 overflow-x-auto pb-1 -mx-5 px-5 md:mx-0 md:px-0 scrollbar-hide">
                             {otherProducts.map((other) => {
