@@ -12,7 +12,7 @@ import LoginAndRegister from '@/components/LoginAndRegister/LoginAndRegister'
 import { toast } from 'sonner'
 import { TrendingUp, Car, Camera, Star, MessageSquare, Clock } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
-import { computeSuggestedPrice, PLATFORM_DEFAULT_PRICING, PricingMode } from '@/lib/driverPricing'
+import { computeSuggestedPrice, PLATFORM_DEFAULT_PRICING, PLATFORM_DEFAULT_EXTRA_FEES, PricingMode } from '@/lib/driverPricing'
 import { createSquareImage } from '@/lib/image'
 import { DRIVER_SERVICE_OPTIONS } from '@/lib/driverServices'
 import { getAvatarUrl } from '@/lib/avatar'
@@ -39,6 +39,9 @@ function PainelMotoristaContent() {
     const [baseDistanceKm, setBaseDistanceKm] = useState('5')
     const [baseFee, setBaseFee] = useState('7')
     const [pricePerKmAfterBase, setPricePerKmAfterBase] = useState('2')
+    const [extraFeePessoa, setExtraFeePessoa] = useState(String(PLATFORM_DEFAULT_EXTRA_FEES.pessoa))
+    const [extraFeeAnimal, setExtraFeeAnimal] = useState(String(PLATFORM_DEFAULT_EXTRA_FEES.animal))
+    const [extraFeeObjeto, setExtraFeeObjeto] = useState(String(PLATFORM_DEFAULT_EXTRA_FEES.objeto))
 
     // ===== MODO MOTORISTA (liga/desliga) =====
     const [driverModeActive, setDriverModeActive] = useState(false)
@@ -80,7 +83,7 @@ function PainelMotoristaContent() {
 
         const { data } = await supabase
             .from('driver_pricing')
-            .select('pricing_mode, base_distance_km, base_fee, price_per_km_after_base, driver_mode_active')
+            .select('pricing_mode, base_distance_km, base_fee, price_per_km_after_base, extra_fee_pessoa, extra_fee_animal, extra_fee_objeto, driver_mode_active')
             .eq('driver_id', userId)
             .maybeSingle()
 
@@ -89,6 +92,9 @@ function PainelMotoristaContent() {
             if (data.base_distance_km != null) setBaseDistanceKm(String(data.base_distance_km))
             if (data.base_fee != null) setBaseFee(String(data.base_fee))
             if (data.price_per_km_after_base != null) setPricePerKmAfterBase(String(data.price_per_km_after_base))
+            if (data.extra_fee_pessoa != null) setExtraFeePessoa(String(data.extra_fee_pessoa))
+            if (data.extra_fee_animal != null) setExtraFeeAnimal(String(data.extra_fee_animal))
+            if (data.extra_fee_objeto != null) setExtraFeeObjeto(String(data.extra_fee_objeto))
             setDriverModeActive(!!data.driver_mode_active)
         }
 
@@ -210,6 +216,9 @@ function PainelMotoristaContent() {
                     base_distance_km: pricingMode === 'custom' ? (parseFloat(baseDistanceKm) || 0) : null,
                     base_fee: pricingMode === 'custom' ? (parseFloat(baseFee) || 0) : null,
                     price_per_km_after_base: pricingMode === 'custom' ? (parseFloat(pricePerKmAfterBase) || 0) : null,
+                    extra_fee_pessoa: pricingMode === 'custom' ? (parseFloat(extraFeePessoa) || 0) : null,
+                    extra_fee_animal: pricingMode === 'custom' ? (parseFloat(extraFeeAnimal) || 0) : null,
+                    extra_fee_objeto: pricingMode === 'custom' ? (parseFloat(extraFeeObjeto) || 0) : null,
                 },
                 { onConflict: 'driver_id' }
             )
@@ -243,6 +252,9 @@ function PainelMotoristaContent() {
                     base_distance_km: pricingMode === 'custom' ? (parseFloat(baseDistanceKm) || 0) : null,
                     base_fee: pricingMode === 'custom' ? (parseFloat(baseFee) || 0) : null,
                     price_per_km_after_base: pricingMode === 'custom' ? (parseFloat(pricePerKmAfterBase) || 0) : null,
+                    extra_fee_pessoa: pricingMode === 'custom' ? (parseFloat(extraFeePessoa) || 0) : null,
+                    extra_fee_animal: pricingMode === 'custom' ? (parseFloat(extraFeeAnimal) || 0) : null,
+                    extra_fee_objeto: pricingMode === 'custom' ? (parseFloat(extraFeeObjeto) || 0) : null,
                     driver_mode_active: next,
                 },
                 { onConflict: 'driver_id' }
@@ -265,6 +277,11 @@ function PainelMotoristaContent() {
             baseDistanceKm: parseFloat(baseDistanceKm) || 0,
             baseFee: parseFloat(baseFee) || 0,
             pricePerKmAfterBase: parseFloat(pricePerKmAfterBase) || 0,
+            extraFees: {
+                pessoa: parseFloat(extraFeePessoa) || 0,
+                animal: parseFloat(extraFeeAnimal) || 0,
+                objeto: parseFloat(extraFeeObjeto) || 0,
+            },
         }
     const previewPrice = computeSuggestedPrice(previewDistance, activePricing)
 
@@ -452,6 +469,73 @@ function PainelMotoristaContent() {
                                     </p>
                                 </div>
                             )}
+
+                            <div
+                                className="p-4 rounded-2xl border"
+                                style={{ background: colors.surface, borderColor: colors.border }}
+                            >
+                                <div className="flex items-center gap-2 mb-1">
+                                    <TrendingUp size={16} style={{ color: '#f97316' }} />
+                                    <p className="text-[10px] font-black" style={{ color: '#f97316' }}>
+                                        Valor extra por tipo de corrida
+                                    </p>
+                                </div>
+                                <p className="text-[10px] mb-3" style={{ color: colors.textSecondary }}>
+                                    Somado à tarifa base, conforme o tipo do pedido
+                                </p>
+                                {pricingMode === 'platform' ? (
+                                    <div className="grid grid-cols-3 gap-2 text-center">
+                                        <div>
+                                            <p className="text-[9px] font-bold" style={{ color: colors.textSecondary }}>Pessoa</p>
+                                            <p className="text-xs font-black" style={{ color: colors.textPrimary }}>+ R$ {PLATFORM_DEFAULT_EXTRA_FEES.pessoa.toFixed(2)}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-[9px] font-bold" style={{ color: colors.textSecondary }}>Animal</p>
+                                            <p className="text-xs font-black" style={{ color: colors.textPrimary }}>+ R$ {PLATFORM_DEFAULT_EXTRA_FEES.animal.toFixed(2)}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-[9px] font-bold" style={{ color: colors.textSecondary }}>Objeto</p>
+                                            <p className="text-xs font-black" style={{ color: colors.textPrimary }}>+ R$ {PLATFORM_DEFAULT_EXTRA_FEES.objeto.toFixed(2)}</p>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="grid grid-cols-3 gap-2">
+                                        <div>
+                                            <label className="text-[9px] font-bold block mb-1" style={{ color: colors.textSecondary }}>Pessoa (R$)</label>
+                                            <input
+                                                type="number"
+                                                value={extraFeePessoa}
+                                                onChange={(e) => setExtraFeePessoa(e.target.value)}
+                                                placeholder="0"
+                                                className="w-full p-2 rounded-full border text-sm"
+                                                style={{ background: colors.background, borderColor: colors.border, color: colors.textPrimary }}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-[9px] font-bold block mb-1" style={{ color: colors.textSecondary }}>Animal (R$)</label>
+                                            <input
+                                                type="number"
+                                                value={extraFeeAnimal}
+                                                onChange={(e) => setExtraFeeAnimal(e.target.value)}
+                                                placeholder="5"
+                                                className="w-full p-2 rounded-full border text-sm"
+                                                style={{ background: colors.background, borderColor: colors.border, color: colors.textPrimary }}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-[9px] font-bold block mb-1" style={{ color: colors.textSecondary }}>Objeto (R$)</label>
+                                            <input
+                                                type="number"
+                                                value={extraFeeObjeto}
+                                                onChange={(e) => setExtraFeeObjeto(e.target.value)}
+                                                placeholder="3"
+                                                className="w-full p-2 rounded-full border text-sm"
+                                                style={{ background: colors.background, borderColor: colors.border, color: colors.textPrimary }}
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
 
                             <button
                                 onClick={handleSave}

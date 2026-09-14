@@ -17,6 +17,7 @@ export interface RideSpecFields {
     child_needs_car_seat: boolean | null
     has_shopping: boolean
     bag_count: number | null
+    grocery_bag_size?: 'pequeno' | 'medio' | 'grande' | null
     has_extra_object: boolean
     extra_object_description: string | null
     has_pet: boolean
@@ -34,6 +35,17 @@ export interface RideSpecFields {
     has_guide_dog?: boolean
     payment_method?: 'dinheiro' | 'pix' | 'cartao' | null
     cash_change_for?: number | null
+    card_is_contactless?: boolean | null
+    origin_needs_access?: boolean | null
+    origin_access_notes?: string | null
+    destination_needs_access?: boolean | null
+    destination_access_notes?: string | null
+}
+
+const OBJECT_SIZE_LABELS: Record<string, string> = {
+    pequeno: 'pequena',
+    medio: 'média',
+    grande: 'grande',
 }
 
 const PET_WEIGHT_LABELS: Record<string, string> = {
@@ -73,7 +85,8 @@ export function buildRideSpecRows(ride: RideSpecFields): RideSpecRow[] {
         }
 
         if (ride.has_shopping) {
-            rows.push({ label: 'Compras', value: `de mercado${ride.bag_count ? ` (${ride.bag_count} ${ride.bag_count === 1 ? 'sacola' : 'sacolas'})` : ''}` })
+            const sizeText = ride.grocery_bag_size ? `, compra ${OBJECT_SIZE_LABELS[ride.grocery_bag_size]}` : ''
+            rows.push({ label: 'Compras', value: `de mercado${ride.bag_count ? ` (${ride.bag_count} ${ride.bag_count === 1 ? 'sacola' : 'sacolas'})` : ''}${sizeText}` })
         }
 
         if (ride.has_extra_object) {
@@ -116,8 +129,11 @@ export function buildRideSpecRows(ride: RideSpecFields): RideSpecRow[] {
 
     if (ride.payment_method) {
         const changeText = ride.payment_method === 'dinheiro' && ride.cash_change_for != null ? ` (troco para R$ ${ride.cash_change_for.toFixed(2)})` : ''
+        const cardText = ride.payment_method === 'cartao' && ride.card_is_contactless != null
+            ? (ride.card_is_contactless ? ' (com aproximação)' : ' (sem aproximação, precisa inserir/passar)')
+            : ''
         const label = ride.payment_method === 'dinheiro' ? 'Dinheiro' : ride.payment_method === 'pix' ? 'Pix' : 'Cartão'
-        rows.push({ label: 'Pagamento', value: `${label}${changeText}` })
+        rows.push({ label: 'Pagamento', value: `${label}${changeText}${cardText}` })
     }
 
     if ((ride.origin_complement || '').trim()) {
@@ -125,6 +141,13 @@ export function buildRideSpecRows(ride: RideSpecFields): RideSpecRow[] {
     }
     if ((ride.destination_complement || '').trim()) {
         rows.push({ label: 'Complemento (destino)', value: (ride.destination_complement as string).trim() })
+    }
+
+    if (ride.origin_needs_access) {
+        rows.push({ label: 'Acesso na retirada', value: (ride.origin_access_notes || '').trim() || 'precisa de acesso (condomínio/portaria)' })
+    }
+    if (ride.destination_needs_access && ride.ride_type !== 'objeto') {
+        rows.push({ label: 'Acesso no destino', value: (ride.destination_access_notes || '').trim() || 'precisa de acesso (condomínio/portaria)' })
     }
 
     return rows

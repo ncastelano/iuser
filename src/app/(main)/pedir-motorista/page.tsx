@@ -333,6 +333,7 @@ export default function PedirMotoristaPage() {
     const [childAge, setChildAge] = useState('')
     const [childNeedsCarSeat, setChildNeedsCarSeat] = useState<boolean | null>(null)
     const [bagCount, setBagCount] = useState(0)
+    const [groceryBagSize, setGroceryBagSize] = useState<ObjectSize | null>(null)
     const [extraObjectCount, setExtraObjectCount] = useState(0)
     const [extraObjectDescription, setExtraObjectDescription] = useState('')
     const [extraObjectPhotoFile, setExtraObjectPhotoFile] = useState<File | null>(null)
@@ -375,6 +376,7 @@ export default function PedirMotoristaPage() {
     // ===== PAGAMENTO =====
     const [paymentMethod, setPaymentMethod] = useState<'dinheiro' | 'pix' | 'cartao' | null>(null)
     const [cashChangeFor, setCashChangeFor] = useState('')
+    const [cardIsContactless, setCardIsContactless] = useState<boolean | null>(null)
 
     // ===== NECESSIDADE ESPECIAL =====
     const [hasSpecialNeeds, setHasSpecialNeeds] = useState(false)
@@ -581,6 +583,7 @@ export default function PedirMotoristaPage() {
         if (typeof draft.childAge === 'string') setChildAge(draft.childAge)
         if (draft.childNeedsCarSeat !== undefined) setChildNeedsCarSeat(draft.childNeedsCarSeat)
         if (typeof draft.bagCount === 'number') setBagCount(draft.bagCount)
+        if (draft.groceryBagSize !== undefined) setGroceryBagSize(draft.groceryBagSize)
         if (typeof draft.extraObjectCount === 'number') setExtraObjectCount(draft.extraObjectCount)
         if (typeof draft.extraObjectDescription === 'string') setExtraObjectDescription(draft.extraObjectDescription)
         if (typeof draft.petCount === 'number') setPetCount(draft.petCount)
@@ -595,6 +598,7 @@ export default function PedirMotoristaPage() {
         if (typeof draft.hasGuideDog === 'boolean') setHasGuideDog(draft.hasGuideDog)
         if (draft.paymentMethod !== undefined) setPaymentMethod(draft.paymentMethod)
         if (typeof draft.cashChangeFor === 'string') setCashChangeFor(draft.cashChangeFor)
+        if (draft.cardIsContactless !== undefined) setCardIsContactless(draft.cardIsContactless)
         if (typeof draft.objectDescription === 'string') setObjectDescription(draft.objectDescription)
         if (typeof draft.objectIsSensitive === 'boolean') setObjectIsSensitive(draft.objectIsSensitive)
         if (draft.objectSize !== undefined) setObjectSize(draft.objectSize)
@@ -854,7 +858,8 @@ export default function PedirMotoristaPage() {
             rows.push({ label: 'Para', value: to })
             if (destinationComplement.trim()) rows.push({ label: 'Complemento (destino)', value: destinationComplement.trim() })
             if (hasShopping) {
-                rows.push({ label: 'Compras', value: `de mercado (${bagCount} ${bagCount === 1 ? 'sacola' : 'sacolas'})` })
+                const sizeText = groceryBagSize ? `, compra ${groceryBagSize === 'pequeno' ? 'pequena' : groceryBagSize === 'medio' ? 'média' : 'grande'}` : ''
+                rows.push({ label: 'Compras', value: `de mercado (${bagCount} ${bagCount === 1 ? 'sacola' : 'sacolas'})${sizeText}` })
             }
             if (hasExtraObject) rows.push({ label: 'Objeto', value: extraObjectDescription || 'não especificado' })
             if (hasPet) rows.push({ label: 'Pet', value: petDescription || 'não especificado' })
@@ -896,8 +901,9 @@ export default function PedirMotoristaPage() {
 
         if (paymentMethod) {
             const changeText = paymentMethod === 'dinheiro' && cashChangeFor.trim() ? ` (troco para R$ ${cashChangeFor})` : ''
+            const cardText = paymentMethod === 'cartao' && cardIsContactless != null ? (cardIsContactless ? ' (com aproximação)' : ' (sem aproximação)') : ''
             const paymentLabel = paymentMethod === 'dinheiro' ? 'Dinheiro' : paymentMethod === 'pix' ? 'Pix' : 'Cartão'
-            rows.push({ label: 'Pagamento', value: `${paymentLabel}${changeText}` })
+            rows.push({ label: 'Pagamento', value: `${paymentLabel}${changeText}${cardText}` })
         }
 
         rows.push({ label: 'Quando', value: isScheduled ? formatScheduledFor(new Date(scheduledFor).toISOString()) : 'Agora' })
@@ -919,7 +925,7 @@ export default function PedirMotoristaPage() {
         if (!user) {
             saveDraft({
                 step, requestFor, origin, destination, notes, scheduledFor,
-                extraPeopleCount, childrenCount, childAge, childNeedsCarSeat, bagCount,
+                extraPeopleCount, childrenCount, childAge, childNeedsCarSeat, bagCount, groceryBagSize,
                 extraObjectCount, extraObjectDescription,
                 petCount, petDescription, petWeightRange, petHasCarrier,
                 objectDescription, objectIsSensitive, objectSize,
@@ -929,7 +935,7 @@ export default function PedirMotoristaPage() {
                 deliveryLocation,
                 hasSpecialNeeds, specialNeedsDescription,
                 specialNeedsWheelchair, specialNeedsWheelchairType, specialNeedsVisualImpairment, hasGuideDog,
-                paymentMethod, cashChangeFor,
+                paymentMethod, cashChangeFor, cardIsContactless,
             })
             router.push(`/login?redirect=${encodeURIComponent('/pedir-motorista')}`)
             return
@@ -972,6 +978,7 @@ export default function PedirMotoristaPage() {
                 has_shopping: requestFor === 'pessoa' ? hasShopping : false,
                 is_grocery_shopping: requestFor === 'pessoa' && hasShopping ? true : null,
                 bag_count: requestFor === 'pessoa' && hasShopping ? bagCount : null,
+                grocery_bag_size: requestFor === 'pessoa' && hasShopping ? groceryBagSize : null,
                 has_extra_object: requestFor === 'pessoa' ? hasExtraObject : false,
                 extra_object_count: requestFor === 'pessoa' && hasExtraObject ? extraObjectCount : null,
                 extra_object_description: requestFor === 'pessoa' && hasExtraObject ? extraObjectDescription.trim() || null : null,
@@ -998,6 +1005,7 @@ export default function PedirMotoristaPage() {
                 has_guide_dog: hasSpecialNeeds && specialNeedsVisualImpairment ? hasGuideDog : false,
                 payment_method: paymentMethod,
                 cash_change_for: paymentMethod === 'dinheiro' && cashChangeFor.trim() ? Number(cashChangeFor.replace(',', '.')) : null,
+                card_is_contactless: paymentMethod === 'cartao' ? cardIsContactless : null,
                 origin_lat: origin.coords ? origin.coords[1] : null,
                 origin_lng: origin.coords ? origin.coords[0] : null,
                 destination_lat: destination.coords ? destination.coords[1] : null,
@@ -1737,6 +1745,31 @@ export default function PedirMotoristaPage() {
                                         )}
 
                                         <CounterRow label="Compras de mercado" icon={ShoppingBag} value={bagCount} onChange={setBagCount} max={20} colors={colors} />
+                                        {hasShopping && (
+                                            <div className="rounded-xl px-3 py-2.5" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
+                                                <span className="text-xs font-bold block mb-1.5" style={{ color: colors.textSecondary }}>Tamanho da compra</span>
+                                                <div className="flex gap-2">
+                                                    {(['pequeno', 'medio', 'grande'] as ObjectSize[]).map((size) => {
+                                                        const active = groceryBagSize === size
+                                                        const label = size === 'pequeno' ? 'Pequena' : size === 'medio' ? 'Média' : 'Grande'
+                                                        return (
+                                                            <button
+                                                                key={size}
+                                                                onClick={() => setGroceryBagSize(size)}
+                                                                className="flex-1 py-2 rounded-xl text-xs font-bold transition-all"
+                                                                style={
+                                                                    active
+                                                                        ? { background: GRADIENT, color: '#fff' }
+                                                                        : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }
+                                                                }
+                                                            >
+                                                                {label}
+                                                            </button>
+                                                        )
+                                                    })}
+                                                </div>
+                                            </div>
+                                        )}
 
                                         <CounterRow label="Objeto" icon={PackagePlus} value={extraObjectCount} onChange={setExtraObjectCount} max={10} colors={colors} />
                                         {hasExtraObject && (
@@ -2068,14 +2101,14 @@ export default function PedirMotoristaPage() {
                                 <span className="text-xs font-bold block mb-2" style={{ color: colors.textPrimary }}>Forma de pagamento</span>
                                 <div className="flex gap-2">
                                     <button
-                                        onClick={() => { setPaymentMethod('dinheiro') }}
+                                        onClick={() => { setPaymentMethod('dinheiro'); setCardIsContactless(null) }}
                                         className="flex-1 py-2.5 rounded-xl text-xs font-bold transition-all"
                                         style={paymentMethod === 'dinheiro' ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
                                     >
                                         Dinheiro
                                     </button>
                                     <button
-                                        onClick={() => { setPaymentMethod('pix'); setCashChangeFor('') }}
+                                        onClick={() => { setPaymentMethod('pix'); setCashChangeFor(''); setCardIsContactless(null) }}
                                         className="flex-1 py-2.5 rounded-xl text-xs font-bold transition-all"
                                         style={paymentMethod === 'pix' ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
                                     >
@@ -2099,6 +2132,27 @@ export default function PedirMotoristaPage() {
                                         className="w-full mt-2 px-3 py-2 rounded-lg text-sm focus:outline-none"
                                         style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
                                     />
+                                )}
+                                {paymentMethod === 'cartao' && (
+                                    <div className="mt-2">
+                                        <span className="text-xs font-bold block mb-1.5" style={{ color: colors.textSecondary }}>Seu cartão tem aproximação?</span>
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => setCardIsContactless(true)}
+                                                className="flex-1 py-2 rounded-xl text-xs font-bold transition-all"
+                                                style={cardIsContactless === true ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                                            >
+                                                Sim
+                                            </button>
+                                            <button
+                                                onClick={() => setCardIsContactless(false)}
+                                                className="flex-1 py-2 rounded-xl text-xs font-bold transition-all"
+                                                style={cardIsContactless === false ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                                            >
+                                                Não
+                                            </button>
+                                        </div>
+                                    </div>
                                 )}
                             </div>
 

@@ -177,8 +177,8 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
                 top.map((r) => {
                     const p = profilesById.get(r.requester_id)
                     const suggestedPrice = r.distance_km != null
-                        ? computeSuggestedPrice(r.distance_km, pricingShape)
-                        : pricingShape.baseFee
+                        ? computeSuggestedPrice(r.distance_km, pricingShape, r.ride_type)
+                        : pricingShape.baseFee + pricingShape.extraFees[r.ride_type as 'pessoa' | 'animal' | 'objeto']
                     return {
                         id: r.id,
                         ride_type: r.ride_type,
