@@ -109,7 +109,7 @@ export default function CatalogBag({
 
                     <div className="ml-auto flex items-center">
                         <svg
-                            className={`w-4 h-4 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}
+                            className={`w-4 h-4 transition-transform duration-300 ${isExpanded ? '' : 'rotate-180'}`}
                             style={{ color: colors.textSecondary }}
                             fill="none"
                             stroke="currentColor"
@@ -218,9 +218,25 @@ export default function CatalogBag({
 
                                 <div className="pt-2 border-t" style={{ borderColor: colors.border }}>
                                     <div className="flex items-center justify-between">
-                                        <span className="text-xs font-bold" style={{ color: textColor }}>
-                                            Total: {formatPrice(totalValue)}
-                                        </span>
+                                        <div className="flex items-center gap-2">
+                                            <div
+                                                className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
+                                                style={{ background: GRADIENT }}
+                                            >
+                                                <ShoppingBag size={13} color="#ffffff" />
+                                            </div>
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="font-bold text-sm" style={{ color: textColor }}>
+                                                    {totalItems}
+                                                </span>
+                                                <span className="text-xs font-medium" style={{ color: colors.textSecondary }}>
+                                                    {totalItems === 1 ? 'item' : 'itens'}
+                                                </span>
+                                                <span className="text-xs font-bold" style={{ color: '#f97316' }}>
+                                                    {formatPrice(totalValue)}
+                                                </span>
+                                            </div>
+                                        </div>
                                         {!isStoreOpen ? (
                                             <span
                                                 className="px-4 py-1.5 rounded-full text-xs font-bold"
