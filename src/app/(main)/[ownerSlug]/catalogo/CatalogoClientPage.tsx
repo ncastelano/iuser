@@ -1475,21 +1475,25 @@ export default function CatalogoClientPage() {
                                         <p className="text-[10px] font-bold uppercase mb-2" style={{ color: colors.textSecondary }}>Endereço de Entrega</p>
 
                                         {deliveryAddress && !isEditingAddress ? (
-                                            /* Já tem endereço escolhido: mostra ele no lugar da busca, com opção de trocar */
+                                            /* Já tem endereço escolhido: mesmo cartão de recap usado na etapa 2 (Alterar) */
                                             <div
-                                                className="w-full p-2.5 rounded-xl flex items-center gap-2"
-                                                style={{ background: `${colors.accent}10`, border: `1px solid ${colors.accent}30` }}
+                                                className="flex items-center gap-3 p-2.5 rounded-xl"
+                                                style={{ background: `${colors.surface}44`, border: `1px solid ${colors.border}` }}
                                             >
-                                                <MapPin size={14} style={{ color: colors.accent, flexShrink: 0 }} />
-                                                <span className="flex-1 text-xs font-bold truncate" style={{ color: colors.textPrimary }}>
-                                                    {deliveryAddress}
-                                                </span>
+                                                <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#ffffff' }}>
+                                                    <MapPin size={14} />
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>
+                                                        {deliveryAddress}
+                                                    </p>
+                                                </div>
                                                 <button
                                                     onClick={() => setIsEditingAddress(true)}
                                                     className="text-[10px] font-bold underline flex-shrink-0"
-                                                    style={{ color: colors.accent }}
+                                                    style={{ color: '#f97316' }}
                                                 >
-                                                    Trocar
+                                                    Alterar
                                                 </button>
                                             </div>
                                         ) : (
