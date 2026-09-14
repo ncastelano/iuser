@@ -319,7 +319,9 @@ export function ProductClientPage({
         try {
             const storeDetails = {
                 name: product.store?.name || ownerSlug,
-                logo_url: product.store?.logo_url || null,
+                // finalStoreImage já é a URL pública resolvida (product.store.logo_url
+                // sozinho é só o caminho no storage e não abre como imagem direto).
+                logo_url: finalStoreImage,
             }
             const cartProduct = {
                 id: product.id,
@@ -1268,6 +1270,7 @@ export function ProductClientPage({
                 <AddToCartModal
                     product={{ id: product.id, name: product.name, price: product.price || 0, image_url: product.image_url, has_addons: product.has_addons }}
                     colors={colors}
+                    storeImageUrl={finalStoreImage}
                     onClose={() => setShowAddModal(false)}
                     onConfirm={confirmAddToCart}
                 />

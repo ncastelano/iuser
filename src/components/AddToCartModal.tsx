@@ -33,9 +33,11 @@ interface AddToCartModalProps {
     onClose: () => void
     onConfirm: (comment: string | undefined, addons: CartAddon[]) => void
     colors: any
+    /** Foto da loja: usada como imagem de fallback quando o produto não tem foto própria. */
+    storeImageUrl?: string | null
 }
 
-export default function AddToCartModal({ product, onClose, onConfirm, colors }: AddToCartModalProps) {
+export default function AddToCartModal({ product, onClose, onConfirm, colors, storeImageUrl = null }: AddToCartModalProps) {
     const [step, setStep] = useState<'observacao' | 'adicionais'>('observacao')
     const [commentText, setCommentText] = useState('')
     const [productAddons, setProductAddons] = useState<ProductAddonRow[]>([])
@@ -117,6 +119,8 @@ export default function AddToCartModal({ product, onClose, onConfirm, colors }: 
                     <div className="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0 bg-gray-100">
                         {product.image_url ? (
                             <img src={product.image_url} alt={product.name} className="w-full h-full object-cover" />
+                        ) : storeImageUrl ? (
+                            <img src={storeImageUrl} alt={product.name} className="w-full h-full object-cover" />
                         ) : (
                             <div className="w-full h-full flex items-center justify-center text-xl">📦</div>
                         )}

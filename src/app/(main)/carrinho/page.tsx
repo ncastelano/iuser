@@ -204,6 +204,12 @@ export default function CarrinhoPage() {
     // mas pode ser recolhido individualmente (útil com várias lojas na sacola).
     const [expandedStoreBags, setExpandedStoreBags] = useState<Record<string, boolean>>({})
 
+    // Etapa de checkout por loja - mesmo padrão em 2 etapas (Recebimento,
+    // Pagamento) usado no CatalogBag do catálogo e da página de produto:
+    // começa mostrando só os itens, e só troca pra etapa de checkout quando
+    // a pessoa clica em "Finalizar" naquela loja específica.
+    const [checkoutStepByStore, setCheckoutStepByStore] = useState<Record<string, 'delivery' | 'payment' | null>>({})
+
     // Cache dos dados de entrega da loja
     const [storeDeliveryInfo, setStoreDeliveryInfo] = useState<Record<string, StoreDeliveryInfo>>({})
 
@@ -1445,53 +1451,191 @@ export default function CarrinhoPage() {
 
 
                                         const isBagExpanded = expandedStoreBags[slug] !== false
+                                        const checkoutStep = checkoutStepByStore[slug] || null
 
-                                        return (
-                                            <div key={slug} className="rounded-2xl p-5 mb-4 border" style={{ borderColor: colors.border, background: colors.surface }}>
+                                        // Igual ao CatalogBag do catálogo e da página de produto: em vez de
+                                        // mostrar recebimento/pagamento sempre juntos com os itens, cada loja
+                                        // só troca pra essas etapas quando a pessoa clica em "Finalizar" -
+                                        // assim a sacola com várias lojas fica menos poluída, e o fluxo de
+                                        // checkout fica idêntico em qualquer lugar do app.
+                                        const checkoutContent = !currentUserId ? null : checkoutStep === 'delivery' ? (
+                                            <>
                                                 <div className="flex items-center justify-between mb-3">
-                                                    <h3 className="text-sm font-black uppercase tracking-wide" style={{ color: colors.textPrimary }}>{details?.name || slug}</h3>
-                                                    <span className="text-lg font-black" style={{ color: '#f97316' }}>R$ {itemsTotal.toFixed(2)}</span>
+                                                    <p className="text-[10px] font-black uppercase tracking-wider" style={{ color: '#f97316' }}>
+                                                        Etapa 1 de 2 · Recebimento
+                                                    </p>
+                                                    <button
+                                                        onClick={() => setCheckoutStepByStore(prev => ({ ...prev, [slug]: null }))}
+                                                        className="p-1 rounded-full hover:bg-black/5 transition"
+                                                        style={{ color: colors.textSecondary }}
+                                                    >
+                                                        <X size={16} />
+                                                    </button>
                                                 </div>
 
-                                                {/* ===== STATUS DA LOJA ===== */}
-                                                <div
-                                                    className="flex items-center gap-2 px-3 py-1.5 rounded-full mb-3 text-xs font-bold"
-                                                    style={{
-                                                        background: isStoreOpen ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
-                                                        color: statusColor,
-                                                        border: `1px solid ${statusColor}30`,
-                                                    }}
-                                                >
-                                                    <Clock size={14} />
-                                                    <span>{statusIcon} {statusText}</span>
-                                                    {!isStoreOpen && nextOpening && (
-                                                        <span style={{ opacity: 0.7 }}>
-                                                            • Abre {nextOpening.dayLabel} às {nextOpening.time}
-                                                        </span>
+                                                <div className="mb-3">
+                                                    <p className="text-sm font-black mb-3" style={{ color: colors.textPrimary }}>
+                                                        Como você quer receber seu pedido?
+                                                    </p>
+                                                    <div className="flex gap-2">
+                                                        {canDelivery && (
+                                                            <button
+                                                                onClick={() => setDeliveryOptionByStore(prev => ({ ...prev, [slug]: 'entrega' }))}
+                                                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition ${deliveryOpt === 'entrega' ? 'text-white' : ''}`}
+                                                                style={deliveryOpt === 'entrega' ? { background: GRADIENT, color: '#ffffff' } : { background: 'transparent', border: `1px solid ${colors.border}`, color: colors.textSecondary }}
+                                                            >
+                                                                <Truck size={14} /> Entrega
+                                                            </button>
+                                                        )}
+                                                        {canPickup && (
+                                                            <button
+                                                                onClick={() => setDeliveryOptionByStore(prev => ({ ...prev, [slug]: 'retirada' }))}
+                                                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition ${deliveryOpt === 'retirada' ? 'text-white' : ''}`}
+                                                                style={deliveryOpt === 'retirada' ? { background: GRADIENT, color: '#ffffff' } : { background: 'transparent', border: `1px solid ${colors.border}`, color: colors.textSecondary }}
+                                                            >
+                                                                <Store size={14} /> Retirada
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                    {deliveryOpt === 'entrega' && (
+                                                        <div className="mt-2">
+                                                            {deliveryLoc ? (
+                                                                <div className="flex items-center justify-between gap-2 text-xs p-2 rounded-xl" style={{ background: '#f9731610', color: colors.textPrimary }}>
+                                                                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                                                                        <MapPin size={14} style={{ color: '#f97316' }} />
+                                                                        <span className="truncate">{deliveryLoc.address}</span>
+                                                                        {deliveryLoc.isSaved && (
+                                                                            <span className="text-[8px] font-bold px-1.5 py-0.5 rounded bg-green-500/20 text-green-600 flex-shrink-0">Salvo</span>
+                                                                        )}
+                                                                    </div>
+                                                                    <div className="flex gap-1 flex-shrink-0">
+                                                                        {!deliveryLoc.isSaved && userLocation && userAddress && (
+                                                                            <button
+                                                                                onClick={() => useSavedLocation(slug)}
+                                                                                className="text-[9px] font-bold px-2 py-0.5 rounded bg-blue-500/20 text-blue-600 hover:bg-blue-500/30 transition"
+                                                                            >
+                                                                                Usar salvo
+                                                                            </button>
+                                                                        )}
+                                                                        <button
+                                                                            onClick={() => openLocationModal(slug)}
+                                                                            className="text-[9px] font-bold px-2 py-0.5 rounded bg-orange-500/20 text-orange-600 hover:bg-orange-500/30 transition"
+                                                                        >
+                                                                            Alterar
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
+                                                            ) : (
+                                                                <button
+                                                                    onClick={() => openLocationModal(slug)}
+                                                                    className="w-full text-xs font-bold p-2 rounded-xl border-2 border-dashed border-orange-300 text-orange-600 hover:bg-orange-50 transition flex items-center justify-center gap-2"
+                                                                >
+                                                                    <MapPin size={14} />
+                                                                    Selecionar endereço de entrega
+                                                                </button>
+                                                            )}
+                                                        </div>
                                                     )}
                                                 </div>
 
-                                                {/* Cada loja da sacola é o mesmo CatalogBag usado no catálogo - com a
-                                                    foto da loja no lugar do ícone de carrinho (esse card já é o carrinho) */}
-                                                <CatalogBag
-                                                    bagItems={items}
-                                                    isExpanded={isBagExpanded}
-                                                    onToggleExpanded={() => setExpandedStoreBags(prev => ({ ...prev, [slug]: !isBagExpanded }))}
-                                                    onIncrease={(product, comment, addons) => updateQuantity(slug, product.id, 1, comment, addons)}
-                                                    onDecrease={(productId, comment, addons) => updateQuantity(slug, productId, -1, comment, addons)}
-                                                    onRemove={(productId, comment, addons) => removeItem(slug, productId, comment, addons)}
-                                                    onCheckout={() => { }}
-                                                    colors={colors}
-                                                    isStoreOpen={isStoreOpen}
-                                                    storeImageUrl={details?.logo_url ?? null}
-                                                    useStoreIconInBadge
-                                                    hideFooterAction
-                                                    bare
-                                                    fullWidth
-                                                />
-                                                <div className="mb-4" />
+                                                <div className="flex gap-2 mt-3">
+                                                    <button
+                                                        onClick={() => setCheckoutStepByStore(prev => ({ ...prev, [slug]: null }))}
+                                                        className="flex-1 py-2.5 rounded-xl font-bold text-xs transition hover:scale-105 active:scale-95"
+                                                        style={{ background: 'transparent', border: `2px solid ${colors.border}`, color: colors.textSecondary }}
+                                                    >
+                                                        Voltar
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setCheckoutStepByStore(prev => ({ ...prev, [slug]: 'payment' }))}
+                                                        disabled={deliveryOpt === 'entrega' && !deliveryLoc}
+                                                        className="flex-1 py-2.5 rounded-xl font-bold text-xs transition hover:scale-105 active:scale-95 disabled:opacity-50"
+                                                        style={{ background: GRADIENT, color: '#ffffff', boxShadow: `0 4px 14px #f9731660` }}
+                                                    >
+                                                        {(deliveryOpt === 'entrega' && !deliveryLoc) ? 'Selecione o endereço' : 'Continuar'}
+                                                    </button>
+                                                </div>
+                                            </>
+                                        ) : checkoutStep === 'payment' ? (
+                                            <>
+                                                <div className="flex items-center justify-between mb-3">
+                                                    <p className="text-[10px] font-black uppercase tracking-wider" style={{ color: '#f97316' }}>
+                                                        Etapa 2 de 2 · Pagamento
+                                                    </p>
+                                                    <button
+                                                        onClick={() => setCheckoutStepByStore(prev => ({ ...prev, [slug]: null }))}
+                                                        className="p-1 rounded-full hover:bg-black/5 transition"
+                                                        style={{ color: colors.textSecondary }}
+                                                    >
+                                                        <X size={16} />
+                                                    </button>
+                                                </div>
 
-                                                <div className="border-t pt-3 space-y-1 text-xs" style={{ borderColor: colors.border }}>
+                                                <div className="mb-3 rounded-xl overflow-hidden" style={{ border: `1px solid ${colors.border}` }}>
+                                                    <div className="max-h-36 overflow-y-auto divide-y" style={{ borderColor: colors.border }}>
+                                                        {items.map((item) => (
+                                                            <div
+                                                                key={`${item.product.id}::${item.comment || ''}::${(item.addons || []).map(a => a.id).sort().join(',')}`}
+                                                                className="flex items-center justify-between gap-2 px-3 py-2"
+                                                                style={{ borderColor: colors.border }}
+                                                            >
+                                                                <div className="min-w-0">
+                                                                    <p className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>
+                                                                        {item.product.name}
+                                                                    </p>
+                                                                    <p className="text-[10px]" style={{ color: colors.textSecondary }}>
+                                                                        {item.quantity}x R$ {cartItemUnitPrice(item).toFixed(2)}
+                                                                    </p>
+                                                                    {item.addons && item.addons.length > 0 && (
+                                                                        <p className="text-[9px] truncate" style={{ color: colors.textSecondary, opacity: 0.8 }}>
+                                                                            + {item.addons.map(a => a.name).join(', ')}
+                                                                        </p>
+                                                                    )}
+                                                                </div>
+                                                                <span className="text-xs font-black flex-shrink-0" style={{ color: '#f97316' }}>
+                                                                    R$ {cartItemLineTotal(item).toFixed(2)}
+                                                                </span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+
+                                                <div className="mb-3">
+                                                    <p className="text-sm font-black mb-3" style={{ color: colors.textPrimary }}>
+                                                        Como você quer pagar?
+                                                    </p>
+                                                    <div className="flex gap-2 flex-wrap">
+                                                        {canPix && (
+                                                            <button
+                                                                onClick={() => setPaymentMethodByStore(prev => ({ ...prev, [slug]: 'pix' }))}
+                                                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition ${paymentOpt === 'pix' ? 'text-white' : ''}`}
+                                                                style={paymentOpt === 'pix' ? { background: GRADIENT, color: '#ffffff' } : { background: 'transparent', border: `1px solid ${colors.border}`, color: colors.textSecondary }}
+                                                            >
+                                                                <QrCode size={14} /> Pix
+                                                            </button>
+                                                        )}
+                                                        {canCard && (
+                                                            <button
+                                                                onClick={() => setPaymentMethodByStore(prev => ({ ...prev, [slug]: 'cartao' }))}
+                                                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition ${paymentOpt === 'cartao' ? 'text-white' : ''}`}
+                                                                style={paymentOpt === 'cartao' ? { background: GRADIENT, color: '#ffffff' } : { background: 'transparent', border: `1px solid ${colors.border}`, color: colors.textSecondary }}
+                                                            >
+                                                                <CreditCard size={14} /> Cartão
+                                                            </button>
+                                                        )}
+                                                        {canCash && (
+                                                            <button
+                                                                onClick={() => setPaymentMethodByStore(prev => ({ ...prev, [slug]: 'dinheiro' }))}
+                                                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition ${paymentOpt === 'dinheiro' ? 'text-white' : ''}`}
+                                                                style={paymentOpt === 'dinheiro' ? { background: GRADIENT, color: '#ffffff' } : { background: 'transparent', border: `1px solid ${colors.border}`, color: colors.textSecondary }}
+                                                            >
+                                                                <Banknote size={14} /> Dinheiro
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                <div className="border-t pt-2.5 space-y-1 text-xs" style={{ borderColor: colors.border }}>
                                                     <div className="flex justify-between">
                                                         <span style={{ color: colors.textSecondary }}>Subtotal</span>
                                                         <span className="font-bold" style={{ color: colors.textPrimary }}>R$ {itemsTotal.toFixed(2)}</span>
@@ -1520,126 +1664,87 @@ export default function CarrinhoPage() {
                                                     </div>
                                                 </div>
 
-                                                {currentUserId && (
-                                                    <div className="mt-4 space-y-3">
-                                                        <div>
-                                                            <p className="text-[10px] font-bold uppercase mb-2" style={{ color: colors.textSecondary }}>Recebimento</p>
-                                                            <div className="flex gap-2">
-                                                                {canDelivery && (
-                                                                    <button
-                                                                        onClick={() => setDeliveryOptionByStore(prev => ({ ...prev, [slug]: 'entrega' }))}
-                                                                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition ${deliveryOpt === 'entrega' ? 'text-white' : ''}`}
-                                                                        style={deliveryOpt === 'entrega' ? { background: GRADIENT, color: '#ffffff' } : { background: 'transparent', border: `1px solid ${colors.border}`, color: colors.textSecondary }}
-                                                                    >
-                                                                        <Truck size={14} /> Entrega
-                                                                    </button>
-                                                                )}
-                                                                {canPickup && (
-                                                                    <button
-                                                                        onClick={() => setDeliveryOptionByStore(prev => ({ ...prev, [slug]: 'retirada' }))}
-                                                                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition ${deliveryOpt === 'retirada' ? 'text-white' : ''}`}
-                                                                        style={deliveryOpt === 'retirada' ? { background: GRADIENT, color: '#ffffff' } : { background: 'transparent', border: `1px solid ${colors.border}`, color: colors.textSecondary }}
-                                                                    >
-                                                                        <Store size={14} /> Retirada
-                                                                    </button>
-                                                                )}
-                                                            </div>
-                                                            {deliveryOpt === 'entrega' && (
-                                                                <div className="mt-2">
-                                                                    {deliveryLoc ? (
-                                                                        <div className="flex items-center justify-between gap-2 text-xs p-2 rounded-xl" style={{ background: '#f9731610', color: colors.textPrimary }}>
-                                                                            <div className="flex items-center gap-2 flex-1 min-w-0">
-                                                                                <MapPin size={14} style={{ color: '#f97316' }} />
-                                                                                <span className="truncate">{deliveryLoc.address}</span>
-                                                                                {deliveryLoc.isSaved && (
-                                                                                    <span className="text-[8px] font-bold px-1.5 py-0.5 rounded bg-green-500/20 text-green-600 flex-shrink-0">Salvo</span>
-                                                                                )}
-                                                                            </div>
-                                                                            <div className="flex gap-1 flex-shrink-0">
-                                                                                {!deliveryLoc.isSaved && userLocation && userAddress && (
-                                                                                    <button
-                                                                                        onClick={() => useSavedLocation(slug)}
-                                                                                        className="text-[9px] font-bold px-2 py-0.5 rounded bg-blue-500/20 text-blue-600 hover:bg-blue-500/30 transition"
-                                                                                    >
-                                                                                        Usar salvo
-                                                                                    </button>
-                                                                                )}
-                                                                                <button
-                                                                                    onClick={() => openLocationModal(slug)}
-                                                                                    className="text-[9px] font-bold px-2 py-0.5 rounded bg-orange-500/20 text-orange-600 hover:bg-orange-500/30 transition"
-                                                                                >
-                                                                                    Alterar
-                                                                                </button>
-                                                                            </div>
-                                                                        </div>
-                                                                    ) : (
-                                                                        <button
-                                                                            onClick={() => openLocationModal(slug)}
-                                                                            className="w-full text-xs font-bold p-2 rounded-xl border-2 border-dashed border-orange-300 text-orange-600 hover:bg-orange-50 transition flex items-center justify-center gap-2"
-                                                                        >
-                                                                            <MapPin size={14} />
-                                                                            Selecionar endereço de entrega
-                                                                        </button>
-                                                                    )}
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                        <div>
-                                                            <p className="text-[10px] font-bold uppercase mb-2" style={{ color: colors.textSecondary }}>Pagamento</p>
-                                                            <div className="flex gap-2 flex-wrap">
-                                                                {canPix && (
-                                                                    <button
-                                                                        onClick={() => setPaymentMethodByStore(prev => ({ ...prev, [slug]: 'pix' }))}
-                                                                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition ${paymentOpt === 'pix' ? 'text-white' : ''}`}
-                                                                        style={paymentOpt === 'pix' ? { background: GRADIENT, color: '#ffffff' } : { background: 'transparent', border: `1px solid ${colors.border}`, color: colors.textSecondary }}
-                                                                    >
-                                                                        <QrCode size={14} /> Pix
-                                                                    </button>
-                                                                )}
-                                                                {canCard && (
-                                                                    <button
-                                                                        onClick={() => setPaymentMethodByStore(prev => ({ ...prev, [slug]: 'cartao' }))}
-                                                                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition ${paymentOpt === 'cartao' ? 'text-white' : ''}`}
-                                                                        style={paymentOpt === 'cartao' ? { background: GRADIENT, color: '#ffffff' } : { background: 'transparent', border: `1px solid ${colors.border}`, color: colors.textSecondary }}
-                                                                    >
-                                                                        <CreditCard size={14} /> Cartão
-                                                                    </button>
-                                                                )}
-                                                                {canCash && (
-                                                                    <button
-                                                                        onClick={() => setPaymentMethodByStore(prev => ({ ...prev, [slug]: 'dinheiro' }))}
-                                                                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition ${paymentOpt === 'dinheiro' ? 'text-white' : ''}`}
-                                                                        style={paymentOpt === 'dinheiro' ? { background: GRADIENT, color: '#ffffff' } : { background: 'transparent', border: `1px solid ${colors.border}`, color: colors.textSecondary }}
-                                                                    >
-                                                                        <Banknote size={14} /> Dinheiro
-                                                                    </button>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                        <button
-                                                            onClick={() => handleFinalizarLoja(slug)}
-                                                            disabled={checkoutLoading === slug || isCalculating || (deliveryOpt === 'entrega' && !deliveryLoc) || !isStoreOpen}
-                                                            className="w-full py-3 rounded-full font-black uppercase text-sm tracking-wider transition shadow-lg hover:scale-105 active:scale-95 disabled:opacity-50"
-                                                            style={{
-                                                                background: isStoreOpen ? GRADIENT : colors.border,
-                                                                color: isStoreOpen ? '#ffffff' : colors.textSecondary,
-                                                                cursor: isStoreOpen ? 'pointer' : 'not-allowed',
-                                                            }}
-                                                        >
-                                                            {checkoutLoading === slug ? 'Finalizando...' :
-                                                                isCalculating ? 'Calculando frete...' :
-                                                                    (deliveryOpt === 'entrega' && !deliveryLoc) ? 'Selecione o endereço' :
-                                                                        !isStoreOpen ? '🕐 Loja fechada' :
-                                                                            `Finalizar Pedido (R$ ${finalTotal.toFixed(2)})`}
-                                                        </button>
-                                                        {!isStoreOpen && nextOpening && (
-                                                            <p className="text-[10px] text-center mt-1" style={{ color: '#ef4444' }}>
-                                                                <Clock size={12} className="inline mr-1" />
-                                                                Abre {nextOpening.dayLabel} às {nextOpening.time}
-                                                            </p>
-                                                        )}
-                                                    </div>
+                                                {!isStoreOpen && nextOpening && (
+                                                    <p className="text-[10px] text-center mt-2" style={{ color: '#ef4444' }}>
+                                                        <Clock size={12} className="inline mr-1" />
+                                                        Abre {nextOpening.dayLabel} às {nextOpening.time}
+                                                    </p>
                                                 )}
+
+                                                <div className="flex gap-2 mt-3">
+                                                    <button
+                                                        onClick={() => setCheckoutStepByStore(prev => ({ ...prev, [slug]: 'delivery' }))}
+                                                        className="flex-1 py-2.5 rounded-xl font-bold text-xs transition hover:scale-105 active:scale-95"
+                                                        style={{ background: 'transparent', border: `2px solid ${colors.border}`, color: colors.textSecondary }}
+                                                    >
+                                                        Voltar
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleFinalizarLoja(slug)}
+                                                        disabled={checkoutLoading === slug || isCalculating || !isStoreOpen}
+                                                        className="flex-1 py-2.5 rounded-xl font-bold text-xs transition hover:scale-105 active:scale-95 disabled:opacity-50"
+                                                        style={{ background: GRADIENT, color: '#ffffff', boxShadow: `0 4px 14px #f9731660` }}
+                                                    >
+                                                        {checkoutLoading === slug ? 'Finalizando...' :
+                                                            isCalculating ? 'Calculando...' :
+                                                                !isStoreOpen ? 'Loja fechada' :
+                                                                    'Confirmar Pedido'}
+                                                    </button>
+                                                </div>
+                                            </>
+                                        ) : null
+
+                                        return (
+                                            <div key={slug} className="rounded-2xl p-5 mb-4 border" style={{ borderColor: colors.border, background: colors.surface }}>
+                                                <div className="flex items-center justify-between mb-3">
+                                                    <h3 className="text-sm font-black uppercase tracking-wide" style={{ color: colors.textPrimary }}>{details?.name || slug}</h3>
+                                                    <span className="text-lg font-black" style={{ color: '#f97316' }}>R$ {itemsTotal.toFixed(2)}</span>
+                                                </div>
+
+                                                {/* ===== STATUS DA LOJA ===== */}
+                                                <div
+                                                    className="flex items-center gap-2 px-3 py-1.5 rounded-full mb-3 text-xs font-bold"
+                                                    style={{
+                                                        background: isStoreOpen ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
+                                                        color: statusColor,
+                                                        border: `1px solid ${statusColor}30`,
+                                                    }}
+                                                >
+                                                    <Clock size={14} />
+                                                    <span>{statusIcon} {statusText}</span>
+                                                    {!isStoreOpen && nextOpening && (
+                                                        <span style={{ opacity: 0.7 }}>
+                                                            • Abre {nextOpening.dayLabel} às {nextOpening.time}
+                                                        </span>
+                                                    )}
+                                                </div>
+
+                                                {/* Cada loja da sacola é o mesmo CatalogBag usado no catálogo e na
+                                                    página de produto - com a foto da loja no lugar do ícone de
+                                                    carrinho (esse cartão já é o carrinho daquela loja), e as
+                                                    mesmas etapas de Recebimento/Pagamento ao clicar em Finalizar. */}
+                                                <CatalogBag
+                                                    bagItems={items}
+                                                    isExpanded={isBagExpanded}
+                                                    onToggleExpanded={() => setExpandedStoreBags(prev => ({ ...prev, [slug]: !isBagExpanded }))}
+                                                    onIncrease={(product, comment, addons) => updateQuantity(slug, product.id, 1, comment, addons)}
+                                                    onDecrease={(productId, comment, addons) => updateQuantity(slug, productId, -1, comment, addons)}
+                                                    onRemove={(productId, comment, addons) => removeItem(slug, productId, comment, addons)}
+                                                    onCheckout={() => {
+                                                        if (!currentUserId) {
+                                                            toast.info('Identifique-se para continuar')
+                                                            return
+                                                        }
+                                                        setCheckoutStepByStore(prev => ({ ...prev, [slug]: 'delivery' }))
+                                                    }}
+                                                    colors={colors}
+                                                    isStoreOpen={isStoreOpen}
+                                                    storeImageUrl={details?.logo_url ?? null}
+                                                    useStoreIconInBadge
+                                                    bare
+                                                    fullWidth
+                                                    checkoutContent={checkoutContent}
+                                                />
                                             </div>
                                         )
                                     })}

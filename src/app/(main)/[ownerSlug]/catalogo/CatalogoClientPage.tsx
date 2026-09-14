@@ -1776,6 +1776,7 @@ export default function CatalogoClientPage() {
                     <AddToCartModal
                         product={pendingProduct}
                         colors={colors}
+                        storeImageUrl={storeInfo?.logo_url ?? null}
                         onClose={() => {
                             setShowAddCommentModal(false)
                             setPendingProduct(null)
