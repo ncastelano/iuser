@@ -126,6 +126,10 @@ export default function CatalogoClientPage() {
     // quando a pessoa pede pra trocar explicitamente - senão fica sempre
     // visível junto do endereço já escolhido, o que é redundante.
     const [isEditingAddress, setIsEditingAddress] = useState(false)
+    // Enquanto escolhendo/trocando endereço: começa mostrando a escolha entre
+    // usar o salvo ou alterar - só revela o campo de busca se a pessoa pedir
+    // pra alterar (evita jogar tudo na tela de uma vez).
+    const [showAddressSearch, setShowAddressSearch] = useState(false)
     const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
     const [userAddress, setUserAddress] = useState<string | null>(null)
     const [addressInput, setAddressInput] = useState('')
@@ -508,6 +512,7 @@ export default function CatalogoClientPage() {
             setDeliveryLat(result.lat)
             setDeliveryLng(result.lng)
             setIsEditingAddress(false)
+            setShowAddressSearch(false)
             toast.success('Endereço localizado!')
         } else {
             toast.error('Endereço não encontrado')
@@ -1490,70 +1495,79 @@ export default function CatalogoClientPage() {
                                                     </p>
                                                 </div>
                                                 <button
-                                                    onClick={() => setIsEditingAddress(true)}
+                                                    onClick={() => { setIsEditingAddress(true); setShowAddressSearch(false) }}
                                                     className="text-[10px] font-bold underline flex-shrink-0"
                                                     style={{ color: '#f97316' }}
                                                 >
                                                     Alterar
                                                 </button>
                                             </div>
+                                        ) : userAddress && userLocation && !showAddressSearch ? (
+                                            /* Tem endereço salvo no perfil: escolhe entre usar ele ou digitar outro - nunca os dois juntos */
+                                            <div className="flex flex-col gap-2">
+                                                <button
+                                                    onClick={() => {
+                                                        setDeliveryAddress(userAddress)
+                                                        setDeliveryLat(userLocation.lat)
+                                                        setDeliveryLng(userLocation.lng)
+                                                        setSelectedLocation({
+                                                            lat: userLocation.lat,
+                                                            lng: userLocation.lng,
+                                                            address: userAddress
+                                                        })
+                                                        setIsEditingAddress(false)
+                                                        setShowAddressSearch(false)
+                                                        toast.success('Endereço do perfil selecionado!')
+                                                    }}
+                                                    className="w-full p-3 rounded-xl border-2 border-green-500/30 hover:bg-green-50 transition flex items-center gap-2.5 text-left"
+                                                    style={{ background: 'rgba(16,185,129,0.05)' }}
+                                                >
+                                                    <Home size={16} style={{ color: '#10b981', flexShrink: 0 }} />
+                                                    <span className="flex-1 text-xs min-w-0" style={{ color: colors.textPrimary }}>
+                                                        <span className="font-bold">Usar endereço salvo:</span> {userAddress}
+                                                    </span>
+                                                    <CheckCircle2 size={14} style={{ color: '#10b981', flexShrink: 0 }} />
+                                                </button>
+                                                <button
+                                                    onClick={() => setShowAddressSearch(true)}
+                                                    className="w-full py-2 rounded-xl border-2 text-xs font-bold transition hover:scale-[1.01]"
+                                                    style={{ borderColor: colors.border, color: colors.textSecondary }}
+                                                >
+                                                    Alterar
+                                                </button>
+                                            </div>
                                         ) : (
-                                            <>
-                                                {userAddress && userLocation && (
+                                            <div className="flex gap-2">
+                                                <div className="flex-1 flex items-center gap-2 px-3 py-1.5 rounded-full border" style={{ borderColor: colors.border }}>
+                                                    <Search size={14} style={{ color: colors.textSecondary }} />
+                                                    <input
+                                                        type="text"
+                                                        value={locationSearchQuery}
+                                                        onChange={(e) => setLocationSearchQuery(e.target.value)}
+                                                        placeholder="Buscar endereço..."
+                                                        className="flex-1 bg-transparent outline-none text-sm min-w-0"
+                                                        style={{ color: colors.textPrimary }}
+                                                        onKeyDown={(e) => { if (e.key === 'Enter') searchLocation() }}
+                                                    />
+                                                </div>
+                                                <button
+                                                    onClick={searchLocation}
+                                                    disabled={isSearchingLocation}
+                                                    className="px-3 py-1.5 rounded-full text-xs font-bold text-white disabled:opacity-50 flex-shrink-0"
+                                                    style={{ background: GRADIENT }}
+                                                >
+                                                    {isSearchingLocation ? '...' : 'Buscar'}
+                                                </button>
+                                                {(deliveryAddress || (userAddress && userLocation)) && (
                                                     <button
-                                                        onClick={() => {
-                                                            setDeliveryAddress(userAddress)
-                                                            setDeliveryLat(userLocation.lat)
-                                                            setDeliveryLng(userLocation.lng)
-                                                            setSelectedLocation({
-                                                                lat: userLocation.lat,
-                                                                lng: userLocation.lng,
-                                                                address: userAddress
-                                                            })
-                                                            setIsEditingAddress(false)
-                                                            toast.success('Endereço do perfil selecionado!')
-                                                        }}
-                                                        className="w-full p-2 rounded-xl mb-2 border-2 border-green-500/30 hover:bg-green-50 transition flex items-center gap-2 text-xs"
-                                                        style={{ background: 'rgba(16,185,129,0.05)' }}
+                                                        onClick={() => { setIsEditingAddress(false); setShowAddressSearch(false) }}
+                                                        className="px-3 py-1.5 rounded-full text-xs font-bold flex-shrink-0"
+                                                        style={{ border: `1px solid ${colors.border}`, color: colors.textSecondary }}
                                                     >
-                                                        <Home size={14} style={{ color: '#10b981' }} />
-                                                        <span className="flex-1 truncate" style={{ color: colors.textPrimary }}>{userAddress}</span>
-                                                        <CheckCircle2 size={12} style={{ color: '#10b981' }} />
+                                                        Cancelar
                                                     </button>
                                                 )}
-
-                                                <div className="flex gap-2">
-                                                    <div className="flex-1 flex items-center gap-2 px-3 py-1.5 rounded-full border" style={{ borderColor: colors.border }}>
-                                                        <Search size={14} style={{ color: colors.textSecondary }} />
-                                                        <input
-                                                            type="text"
-                                                            value={locationSearchQuery}
-                                                            onChange={(e) => setLocationSearchQuery(e.target.value)}
-                                                            placeholder="Buscar endereço..."
-                                                            className="flex-1 bg-transparent outline-none text-sm min-w-0"
-                                                            style={{ color: colors.textPrimary }}
-                                                            onKeyDown={(e) => { if (e.key === 'Enter') searchLocation() }}
-                                                        />
-                                                    </div>
-                                                    <button
-                                                        onClick={searchLocation}
-                                                        disabled={isSearchingLocation}
-                                                        className="px-3 py-1.5 rounded-full text-xs font-bold text-white disabled:opacity-50 flex-shrink-0"
-                                                        style={{ background: GRADIENT }}
-                                                    >
-                                                        {isSearchingLocation ? '...' : 'Buscar'}
-                                                    </button>
-                                                    {deliveryAddress && (
-                                                        <button
-                                                            onClick={() => setIsEditingAddress(false)}
-                                                            className="px-3 py-1.5 rounded-full text-xs font-bold flex-shrink-0"
-                                                            style={{ border: `1px solid ${colors.border}`, color: colors.textSecondary }}
-                                                        >
-                                                            Cancelar
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            </>
+                                            </div>
                                         )}
                                     </div>
                                 )}
