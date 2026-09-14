@@ -4,6 +4,7 @@
 import { useCartStore } from '@/store/useCartStore'
 import { useRouter } from 'next/navigation'
 import { hexToRgb } from '@/lib/color'
+import { pickImageFile, isNativePlatform } from '@/lib/nativeCamera'
 import {
     Store,
     ChevronRight,
@@ -149,13 +150,26 @@ export default function SacolaPage() {
     const [authAvatarPreview, setAuthAvatarPreview] = useState<string | null>(null)
     const authAvatarInputRef = useRef<HTMLInputElement>(null)
 
-    const handleAuthAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0]
-        if (!file) return
+    const applyAuthAvatarFile = (file: File) => {
         setAuthAvatarFile(file)
         const reader = new FileReader()
         reader.onloadend = () => setAuthAvatarPreview(reader.result as string)
         reader.readAsDataURL(file)
+    }
+
+    const handleAuthAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+        applyAuthAvatarFile(file)
+    }
+
+    const handleAuthAvatarButtonClick = async () => {
+        if (isNativePlatform()) {
+            const file = await pickImageFile('avatar')
+            if (file) applyAuthAvatarFile(file)
+        } else {
+            authAvatarInputRef.current?.click()
+        }
     }
     const [showPassword, setShowPassword] = useState(false)
     const [isSlugAvailable, setIsSlugAvailable] = useState<boolean | null>(null)
@@ -1688,7 +1702,7 @@ export default function SacolaPage() {
                                                                 </div>
                                                             </div>
                                                             <input type="file" ref={authAvatarInputRef} onChange={handleAuthAvatarChange} accept="image/*" style={{ display: 'none' }} />
-                                                            <button type="button" onClick={() => authAvatarInputRef.current?.click()} disabled={authLoading} className="absolute -bottom-1 -right-1 p-1.5 rounded-full transition-all hover:scale-110" style={{ background: GRADIENT, color: '#fff' }}>
+                                                            <button type="button" onClick={handleAuthAvatarButtonClick} disabled={authLoading} className="absolute -bottom-1 -right-1 p-1.5 rounded-full transition-all hover:scale-110" style={{ background: GRADIENT, color: '#fff' }}>
                                                                 <Camera size={12} />
                                                             </button>
                                                         </div>

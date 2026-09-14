@@ -12,6 +12,7 @@ import { RatingStars } from '@/components/ratings/RatingStars'
 import ColloriUser from '@/components/ColloriUser'
 import { toast } from 'sonner'
 import { hexToRgb } from '@/lib/color'
+import { pickImageFile, isNativePlatform } from '@/lib/nativeCamera'
 import {
     Eye,
     Settings,
@@ -237,9 +238,7 @@ export default function ProfileDashboard({
         setTimeout(() => { window.location.href = '/' }, 100)
     }
 
-    const handleCfgBgUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0]
-        if (!file) return
+    const uploadCfgBgFile = async (file: File) => {
         setCfgUploadingBg(true)
         try {
             const fileExt = file.name.split('.').pop()
@@ -257,6 +256,21 @@ export default function ProfileDashboard({
         } finally {
             setCfgUploadingBg(false)
             if (cfgFileInputRef.current) cfgFileInputRef.current.value = ''
+        }
+    }
+
+    const handleCfgBgUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+        uploadCfgBgFile(file)
+    }
+
+    const handleCfgBgButtonClick = async () => {
+        if (isNativePlatform()) {
+            const file = await pickImageFile('bg')
+            if (file) uploadCfgBgFile(file)
+        } else {
+            cfgFileInputRef.current?.click()
         }
     }
 
@@ -1775,7 +1789,7 @@ export default function ProfileDashboard({
                                 <div className="flex gap-2 flex-shrink-0">
                                     <input type="file" ref={cfgFileInputRef} onChange={handleCfgBgUpload} accept="image/*" style={{ display: 'none' }} />
                                     <button
-                                        onClick={() => cfgFileInputRef.current?.click()}
+                                        onClick={handleCfgBgButtonClick}
                                         disabled={cfgUploadingBg}
                                         className="px-6 py-3 rounded-full font-bold text-sm flex items-center gap-2 transition-all hover:scale-105 active:scale-95 shadow-lg disabled:opacity-50"
                                         style={{ background: GRADIENT, color: '#ffffff', boxShadow: `0 4px 14px #f9731660` }}

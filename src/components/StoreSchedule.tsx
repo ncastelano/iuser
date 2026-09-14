@@ -3,6 +3,7 @@
 
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { hexToRgb } from '@/lib/color'
+import { pickImageFile, isNativePlatform } from '@/lib/nativeCamera'
 import {
     Calendar,
     Clock,
@@ -160,13 +161,26 @@ export default function StoreSchedule({
     const [authAvatarPreview, setAuthAvatarPreview] = useState<string | null>(null)
     const authAvatarInputRef = useRef<HTMLInputElement>(null)
 
-    const handleAuthAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0]
-        if (!file) return
+    const applyAuthAvatarFile = (file: File) => {
         setAuthAvatarFile(file)
         const reader = new FileReader()
         reader.onloadend = () => setAuthAvatarPreview(reader.result as string)
         reader.readAsDataURL(file)
+    }
+
+    const handleAuthAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+        applyAuthAvatarFile(file)
+    }
+
+    const handleAuthAvatarButtonClick = async () => {
+        if (isNativePlatform()) {
+            const file = await pickImageFile('avatar')
+            if (file) applyAuthAvatarFile(file)
+        } else {
+            authAvatarInputRef.current?.click()
+        }
     }
     const [authMode, setAuthMode] = useState<'login' | 'register'>('login')
     const [authEmail, setAuthEmail] = useState('')
@@ -1915,7 +1929,7 @@ export default function StoreSchedule({
                                                     </div>
                                                 </div>
                                                 <input type="file" ref={authAvatarInputRef} onChange={handleAuthAvatarChange} accept="image/*" style={{ display: 'none' }} />
-                                                <button type="button" onClick={() => authAvatarInputRef.current?.click()} disabled={authLoading} className="absolute -bottom-1 -right-1 p-1.5 rounded-full transition-all hover:scale-110" style={{ background: GRADIENT, color: '#fff' }}>
+                                                <button type="button" onClick={handleAuthAvatarButtonClick} disabled={authLoading} className="absolute -bottom-1 -right-1 p-1.5 rounded-full transition-all hover:scale-110" style={{ background: GRADIENT, color: '#fff' }}>
                                                     <Camera size={12} />
                                                 </button>
                                             </div>

@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { hexToRgb } from '@/lib/color'
+import { pickImageFile, isNativePlatform } from '@/lib/nativeCamera'
 import {
     AlertTriangle,
     ArrowLeft,
@@ -647,9 +648,8 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
     }
 
     // ========== AVATAR ==========
-    const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0]
-        if (!file || !owner) return
+    const uploadAvatarFile = async (file: File) => {
+        if (!owner) return
         setUploadingAvatar(true)
         try {
             const fileExt = file.name.split('.').pop()
@@ -673,6 +673,21 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
         } finally {
             setUploadingAvatar(false)
             if (fileInputRef.current) fileInputRef.current.value = ''
+        }
+    }
+
+    const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+        uploadAvatarFile(file)
+    }
+
+    const handleAvatarButtonClick = async () => {
+        if (isNativePlatform()) {
+            const file = await pickImageFile('avatar')
+            if (file) uploadAvatarFile(file)
+        } else {
+            fileInputRef.current?.click()
         }
     }
 
@@ -1362,7 +1377,7 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                             <>
                                 <input type="file" ref={fileInputRef} onChange={handleAvatarChange} accept="image/*" style={{ display: 'none' }} />
                                 <button
-                                    onClick={() => fileInputRef.current?.click()}
+                                    onClick={handleAvatarButtonClick}
                                     className="absolute -bottom-1 -right-1 p-1.5 rounded-full transition-all hover:scale-110"
                                     style={{ background: GRADIENT, color: '#fff' }}
                                 >
