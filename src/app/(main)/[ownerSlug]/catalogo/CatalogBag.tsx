@@ -2,9 +2,10 @@
 'use client'
 
 import { ReactNode } from 'react'
-import { ShoppingCart, Minus, Plus, Trash2, MessageCircle, ChevronUp, Store } from 'lucide-react'
+import { ShoppingCart, Minus, Plus, Trash2, MessageCircle, ChevronUp } from 'lucide-react'
 import { toast } from 'sonner'
 import { cartItemUnitPrice, cartItemLineTotal, type CartAddon } from '@/store/useCartStore'
+import FallbackImage from '@/components/FallbackImage'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -37,6 +38,10 @@ interface CatalogBagProps {
     fullWidth?: boolean
     /** Quando true, esconde o botão "Finalizar" (e o aviso de loja fechada) da barra de baixo - para quando a finalização já tem seu próprio botão fora do CatalogBag. */
     hideFooterAction?: boolean
+    /** Nome da loja - usado pra mostrar a inicial dela quando não há foto do produto nem logo da loja. */
+    storeName?: string
+    /** Quando true, esconde os controles de recolher (seta acima da lista e clique no ícone de baixo) - para quando os produtos devem ficar sempre visíveis, sem opção de recolher. */
+    hideCollapseControls?: boolean
 }
 
 // ===== Carrinho flutuante do catálogo: mostra os produtos adicionados =====
@@ -59,18 +64,37 @@ export default function CatalogBag({
     bare = false,
     fullWidth = false,
     hideFooterAction = false,
+    storeName = '',
+    hideCollapseControls = false,
 }: CatalogBagProps) {
     const totalItems = bagItems.reduce((sum, item) => sum + item.quantity, 0)
     const totalValue = bagItems.reduce((sum, item) => sum + cartItemLineTotal(item), 0)
 
-    const badgeIcon =
-        useStoreIconInBadge && storeImageUrl ? (
-            <img src={storeImageUrl} alt="" className="w-full h-full object-cover rounded-full" />
-        ) : useStoreIconInBadge ? (
-            <Store size={18} />
-        ) : (
-            <ShoppingCart size={18} />
-        )
+    const badgeIcon = useStoreIconInBadge ? (
+        <FallbackImage
+            srcs={[storeImageUrl]}
+            alt=""
+            name={storeName}
+            className="w-full h-full object-cover rounded-full"
+            initialClassName="text-sm"
+        />
+    ) : (
+        <ShoppingCart size={18} />
+    )
+
+    // Foto do item: a do produto em si, senão a da loja, senão a inicial da
+    // loja num círculo - nunca um ícone genérico, sempre algo identificável.
+    // Se a URL guardada estiver quebrada (ex.: carrinho antigo com caminho de
+    // storage não resolvido), o FallbackImage detecta o erro de carregamento
+    // e passa pra próxima opção sozinho.
+    const itemThumb = (item: CartItemWithComment) => (
+        <FallbackImage
+            srcs={[item.product.image_url, storeImageUrl]}
+            alt={item.product.name}
+            name={storeName}
+            className="w-full h-full object-cover"
+        />
+    )
 
     const textColor = colors.textPrimary
     const cardBackground = colors.surface
@@ -166,13 +190,15 @@ export default function CatalogBag({
                             </p>
                         ) : (
                             <div className="space-y-2">
-                                <button
-                                    onClick={onToggleExpanded}
-                                    className="w-full flex items-center justify-center py-1 rounded-lg hover:opacity-70 transition-opacity"
-                                    aria-label="Recolher carrinho"
-                                >
-                                    <ChevronUp size={16} style={{ color: colors.textSecondary }} />
-                                </button>
+                                {!hideCollapseControls && (
+                                    <button
+                                        onClick={onToggleExpanded}
+                                        className="w-full flex items-center justify-center py-1 rounded-lg hover:opacity-70 transition-opacity"
+                                        aria-label="Recolher carrinho"
+                                    >
+                                        <ChevronUp size={16} style={{ color: colors.textSecondary }} />
+                                    </button>
+                                )}
                                 {bagItems.map((item) => (
                                     <div
                                         key={`${item.product.id}::${item.comment || ''}::${(item.addons || []).map(a => a.id).sort().join(',')}`}
@@ -180,21 +206,7 @@ export default function CatalogBag({
                                         style={{ background: `${colors.surface}66` }}
                                     >
                                         <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-gray-100">
-                                            {item.product.image_url ? (
-                                                <img
-                                                    src={item.product.image_url}
-                                                    alt={item.product.name}
-                                                    className="w-full h-full object-cover"
-                                                />
-                                            ) : storeImageUrl ? (
-                                                <img
-                                                    src={storeImageUrl}
-                                                    alt={item.product.name}
-                                                    className="w-full h-full object-cover"
-                                                />
-                                            ) : (
-                                                <div className="w-full h-full flex items-center justify-center text-lg">📦</div>
-                                            )}
+                                            {itemThumb(item)}
                                         </div>
 
                                         <div className="flex-1 min-w-0">
@@ -268,7 +280,10 @@ export default function CatalogBag({
 
                                 <div className="pt-2 border-t" style={{ borderColor: colors.border }}>
                                     <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-2 cursor-pointer" onClick={onToggleExpanded}>
+                                        <div
+                                            className={`flex items-center gap-2 ${hideCollapseControls ? '' : 'cursor-pointer'}`}
+                                            onClick={hideCollapseControls ? undefined : onToggleExpanded}
+                                        >
                                             <div
                                                 className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden"
                                                 style={{ background: GRADIENT, color: '#ffffff' }}

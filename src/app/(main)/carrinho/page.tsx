@@ -200,10 +200,6 @@ export default function CarrinhoPage() {
     const [deliveryOptionByStore, setDeliveryOptionByStore] = useState<Record<string, 'entrega' | 'retirada'>>({})
     const [paymentMethodByStore, setPaymentMethodByStore] = useState<Record<string, 'pix' | 'cartao' | 'dinheiro'>>({})
 
-    // Cada loja no carrinho vira um CatalogBag próprio - por padrão expandido,
-    // mas pode ser recolhido individualmente (útil com várias lojas na sacola).
-    const [expandedStoreBags, setExpandedStoreBags] = useState<Record<string, boolean>>({})
-
     // Etapa de checkout por loja - mesmo padrão em 2 etapas (Recebimento,
     // Pagamento) usado no CatalogBag do catálogo e da página de produto:
     // começa mostrando só os itens, e só troca pra etapa de checkout quando
@@ -1450,7 +1446,6 @@ export default function CarrinhoPage() {
                                         const canCash = config.accepts_cash
 
 
-                                        const isBagExpanded = expandedStoreBags[slug] !== false
                                         const checkoutStep = checkoutStepByStore[slug] || null
 
                                         // Igual ao CatalogBag do catálogo e da página de produto: em vez de
@@ -1725,8 +1720,8 @@ export default function CarrinhoPage() {
                                                     mesmas etapas de Recebimento/Pagamento ao clicar em Finalizar. */}
                                                 <CatalogBag
                                                     bagItems={items}
-                                                    isExpanded={isBagExpanded}
-                                                    onToggleExpanded={() => setExpandedStoreBags(prev => ({ ...prev, [slug]: !isBagExpanded }))}
+                                                    isExpanded
+                                                    onToggleExpanded={() => { }}
                                                     onIncrease={(product, comment, addons) => updateQuantity(slug, product.id, 1, comment, addons)}
                                                     onDecrease={(productId, comment, addons) => updateQuantity(slug, productId, -1, comment, addons)}
                                                     onRemove={(productId, comment, addons) => removeItem(slug, productId, comment, addons)}
@@ -1740,7 +1735,9 @@ export default function CarrinhoPage() {
                                                     colors={colors}
                                                     isStoreOpen={isStoreOpen}
                                                     storeImageUrl={details?.logo_url ?? null}
+                                                    storeName={details?.name || slug}
                                                     useStoreIconInBadge
+                                                    hideCollapseControls
                                                     bare
                                                     fullWidth
                                                     checkoutContent={checkoutContent}

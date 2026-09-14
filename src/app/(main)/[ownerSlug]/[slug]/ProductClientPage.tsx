@@ -39,6 +39,7 @@ import { useStoreCheckout } from './useStoreCheckout'
 import { RatingStars } from '@/components/ratings/RatingStars'
 import { getAvatarUrl } from '@/lib/avatar'
 import AddToCartModal from '@/components/AddToCartModal'
+import FallbackImage from '@/components/FallbackImage'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -327,7 +328,9 @@ export function ProductClientPage({
                 id: product.id,
                 name: product.name,
                 price: product.price || 0,
-                image_url: product.image_url,
+                // imageUrl já é a URL pública resolvida - product.image_url sozinho
+                // é só o caminho no storage e não abre como imagem direto.
+                image_url: imageUrl,
                 slug: product.slug,
             }
             for (let i = 0; i < quantity; i++) {
@@ -881,9 +884,6 @@ export function ProductClientPage({
             {showStoreCart && !checkout.checkoutStep && (
                 <div className="px-4 pb-3 space-y-2 max-h-64 overflow-y-auto">
                     {storeCartItems.map((item) => {
-                        const itemImageUrl = item.product.image_url
-                            ? supabase.storage.from('product-images').getPublicUrl(item.product.image_url).data.publicUrl
-                            : null
                         return (
                             <div
                                 key={`${item.product.id}::${item.comment || ''}::${(item.addons || []).map(a => a.id).sort().join(',')}`}
@@ -891,13 +891,13 @@ export function ProductClientPage({
                                 style={{ background: colors.surface }}
                             >
                                 <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0" style={{ background: `${colors.accentLight}20` }}>
-                                    {itemImageUrl ? (
-                                        <img src={itemImageUrl} alt={item.product.name} className="w-full h-full object-cover" />
-                                    ) : (
-                                        <div className="w-full h-full flex items-center justify-center">
-                                            <Store size={16} style={{ color: colors.textSecondary }} />
-                                        </div>
-                                    )}
+                                    <FallbackImage
+                                        srcs={[item.product.image_url, finalStoreImage]}
+                                        alt={item.product.name}
+                                        name={storeDisplay.name}
+                                        className="w-full h-full object-cover"
+                                        initialClassName="text-sm"
+                                    />
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <p className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>
@@ -1268,9 +1268,10 @@ export function ProductClientPage({
             {/* ===== MODAL DE ADICIONAR (observação sempre; adicionais se a loja habilitar) ===== */}
             {showAddModal && product && (
                 <AddToCartModal
-                    product={{ id: product.id, name: product.name, price: product.price || 0, image_url: product.image_url, has_addons: product.has_addons }}
+                    product={{ id: product.id, name: product.name, price: product.price || 0, image_url: imageUrl, has_addons: product.has_addons }}
                     colors={colors}
                     storeImageUrl={finalStoreImage}
+                    storeName={storeDisplay.name}
                     onClose={() => setShowAddModal(false)}
                     onConfirm={confirmAddToCart}
                 />

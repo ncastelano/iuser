@@ -11,6 +11,7 @@ import { X, CheckCircle2 } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import { supabase } from '@/lib/supabase/client'
 import type { CartAddon } from '@/store/useCartStore'
+import FallbackImage from '@/components/FallbackImage'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -35,9 +36,11 @@ interface AddToCartModalProps {
     colors: any
     /** Foto da loja: usada como imagem de fallback quando o produto não tem foto própria. */
     storeImageUrl?: string | null
+    /** Nome da loja: usado pra mostrar a inicial dela quando não há foto do produto nem logo da loja. */
+    storeName?: string
 }
 
-export default function AddToCartModal({ product, onClose, onConfirm, colors, storeImageUrl = null }: AddToCartModalProps) {
+export default function AddToCartModal({ product, onClose, onConfirm, colors, storeImageUrl = null, storeName = '' }: AddToCartModalProps) {
     const [step, setStep] = useState<'observacao' | 'adicionais'>('observacao')
     const [commentText, setCommentText] = useState('')
     const [productAddons, setProductAddons] = useState<ProductAddonRow[]>([])
@@ -117,13 +120,12 @@ export default function AddToCartModal({ product, onClose, onConfirm, colors, st
 
                 <div className="flex items-center gap-3 p-3 rounded-xl mb-4" style={{ background: `${colors.surface}44`, border: `1px solid ${colors.border}` }}>
                     <div className="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0 bg-gray-100">
-                        {product.image_url ? (
-                            <img src={product.image_url} alt={product.name} className="w-full h-full object-cover" />
-                        ) : storeImageUrl ? (
-                            <img src={storeImageUrl} alt={product.name} className="w-full h-full object-cover" />
-                        ) : (
-                            <div className="w-full h-full flex items-center justify-center text-xl">📦</div>
-                        )}
+                        <FallbackImage
+                            srcs={[product.image_url, storeImageUrl]}
+                            alt={product.name}
+                            name={storeName}
+                            className="w-full h-full object-cover"
+                        />
                     </div>
                     <div className="flex-1 min-w-0">
                         <p className="font-medium text-sm truncate" style={{ color: textColor }}>

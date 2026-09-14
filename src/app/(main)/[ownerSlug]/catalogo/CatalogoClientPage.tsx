@@ -17,6 +17,7 @@ import HeaderSearchInput from './HeaderSearchInput'
 import CatalogBag, { type CartItemWithComment } from './CatalogBag'
 import { hexToRgb } from '@/lib/color'
 import AddToCartModal from '@/components/AddToCartModal'
+import FallbackImage from '@/components/FallbackImage'
 
 interface Product {
     id: string
@@ -1224,8 +1225,8 @@ export default function CatalogoClientPage() {
                                                     style={{ minHeight: '140px' }}
                                                 />
                                             ) : (
-                                                <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200" style={{ minHeight: '140px' }}>
-                                                    <span className="text-3xl opacity-50">📦</span>
+                                                <div className="w-full h-full flex items-center justify-center font-black text-4xl" style={{ minHeight: '140px', background: GRADIENT, color: '#ffffff' }}>
+                                                    {storeInfo?.name?.trim() ? storeInfo.name.trim().charAt(0).toUpperCase() : '?'}
                                                 </div>
                                             )}
                                             {product.type && (
@@ -1370,6 +1371,7 @@ export default function CatalogoClientPage() {
                         colors={colors}
                         isStoreOpen={isStoreOpen}
                         storeImageUrl={storeInfo?.logo_url ?? null}
+                        storeName={storeInfo?.name}
                         checkoutContent={checkoutStep === 'delivery' ? (
                             <>
                                 <div className="flex items-center justify-between mb-3">
@@ -1777,6 +1779,7 @@ export default function CatalogoClientPage() {
                         product={pendingProduct}
                         colors={colors}
                         storeImageUrl={storeInfo?.logo_url ?? null}
+                        storeName={storeInfo?.name}
                         onClose={() => {
                             setShowAddCommentModal(false)
                             setPendingProduct(null)
