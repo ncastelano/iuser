@@ -2,7 +2,7 @@
 'use client'
 
 import { ReactNode } from 'react'
-import { ShoppingBag, Minus, Plus, Trash2, MessageCircle, MapPin } from 'lucide-react'
+import { ShoppingBag, Minus, Plus, Trash2, MessageCircle } from 'lucide-react'
 import { toast } from 'sonner'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -23,25 +23,14 @@ interface CatalogBagProps {
     onCheckout: () => void
     colors: any
     isStoreOpen?: boolean
-    deliveryFeeType?: 'free' | 'fixed' | 'distance' | 'none'
-    deliveryFee?: number
-    deliveryFeeIsEstimate?: boolean
-    deliveryDistanceKm?: number | null
-    deliveryOrigin?: string | null
-    deliveryDestination?: string | null
-    deliveryBaseDistanceKm?: number | null
-    deliveryBaseFee?: number | null
-    deliveryFeePerKm?: number | null
     /** Quando presente, substitui a lista de itens pelo passo de finalização (recebimento/pagamento) embutido na sacola. */
     checkoutContent?: ReactNode | null
 }
 
-function shortAddress(address: string): string {
-    const firstPart = address.split(',')[0].trim()
-    return firstPart.length > 28 ? firstPart.substring(0, 26) + '...' : firstPart
-}
-
 // ===== Sacola flutuante do catálogo: mostra os produtos adicionados ao carrinho =====
+// O frete não aparece aqui de propósito - só é decidido (e mostrado) na
+// Etapa 1 do checkout, quando a pessoa escolhe retirar ou receber em casa.
+// Antes disso, o valor da sacola é só a soma dos itens.
 export default function CatalogBag({
     bagItems,
     isExpanded,
@@ -52,25 +41,10 @@ export default function CatalogBag({
     onCheckout,
     colors,
     isStoreOpen = true,
-    deliveryFeeType = 'none',
-    deliveryFee = 0,
-    deliveryFeeIsEstimate = false,
-    deliveryDistanceKm = null,
-    deliveryOrigin = null,
-    deliveryDestination = null,
-    deliveryBaseDistanceKm = null,
-    deliveryBaseFee = null,
-    deliveryFeePerKm = null,
     checkoutContent = null,
 }: CatalogBagProps) {
     const totalItems = bagItems.reduce((sum, item) => sum + item.quantity, 0)
     const totalValue = bagItems.reduce((sum, item) => sum + (item.product.price * item.quantity), 0)
-    const showDelivery = deliveryFeeType !== 'none'
-    // Por distância sem endereço conhecido: não dá pra calcular o frete de
-    // verdade, então pede a localização em vez de chutar um valor.
-    const needsLocation = deliveryFeeType === 'distance' && deliveryFeeIsEstimate
-    const showRoute = showDelivery && !!deliveryOrigin && !!deliveryDestination
-    const finalTotal = totalValue + (showDelivery && !needsLocation ? deliveryFee : 0)
 
     const textColor = colors.textPrimary
     const cardBackground = colors.surface
@@ -81,21 +55,6 @@ export default function CatalogBag({
             currency: 'BRL'
         }).format(price)
     }
-
-    // Explica como cada loja calculou o frete, pra pessoa entender e poder
-    // comparar o valor real cobrado por serviço em serviço.
-    const deliveryBreakdown = (() => {
-        if (deliveryFeeType === 'fixed') return 'valor fixo da loja'
-        if (deliveryFeeType !== 'distance' || needsLocation || deliveryDistanceKm == null || deliveryBaseDistanceKm == null || deliveryBaseFee == null || deliveryFeePerKm == null) {
-            return null
-        }
-        const distTxt = `${deliveryDistanceKm.toFixed(1)} km`
-        if (deliveryDistanceKm <= deliveryBaseDistanceKm) {
-            return `${distTxt}, dentro dos ${deliveryBaseDistanceKm}km por ${formatPrice(deliveryBaseFee)}`
-        }
-        const extraKm = deliveryDistanceKm - deliveryBaseDistanceKm
-        return `${distTxt}: ${formatPrice(deliveryBaseFee)} (até ${deliveryBaseDistanceKm}km) + ${extraKm.toFixed(1)}km × ${formatPrice(deliveryFeePerKm)}/km`
-    })()
 
     const handleCheckout = () => {
         if (totalItems === 0) {
@@ -257,49 +216,10 @@ export default function CatalogBag({
                                     </div>
                                 ))}
 
-                                <div className="pt-2 border-t space-y-1" style={{ borderColor: colors.border }}>
-                                    {showDelivery && (
-                                        needsLocation ? (
-                                            <button
-                                                type="button"
-                                                onClick={(e) => {
-                                                    e.stopPropagation()
-                                                    onCheckout()
-                                                }}
-                                                className="w-full flex items-center gap-1.5 text-[11px] font-bold underline text-left"
-                                                style={{ color: '#f97316' }}
-                                            >
-                                                <MapPin size={11} className="flex-shrink-0" />
-                                                Adicionar localização para calcular o frete
-                                            </button>
-                                        ) : (
-                                            <div>
-                                                <div className="flex items-center justify-between text-[11px]" style={{ color: colors.textSecondary }}>
-                                                    <span>Frete</span>
-                                                    <span className="font-bold" style={{ color: deliveryFee === 0 ? '#22c55e' : colors.textSecondary }}>
-                                                        {deliveryFee === 0 ? 'Grátis' : formatPrice(deliveryFee)}
-                                                    </span>
-                                                </div>
-                                                {deliveryBreakdown && (
-                                                    <p className="text-[9px] leading-tight mt-0.5" style={{ color: colors.textSecondary, opacity: 0.75 }}>
-                                                        {deliveryBreakdown}
-                                                    </p>
-                                                )}
-                                            </div>
-                                        )
-                                    )}
-                                    {showRoute && (
-                                        <div className="flex items-center gap-1 text-[10px]" style={{ color: colors.textSecondary }}>
-                                            <MapPin size={10} className="flex-shrink-0" />
-                                            <span className="truncate">
-                                                {shortAddress(deliveryOrigin!)} → {shortAddress(deliveryDestination!)}
-                                                {deliveryDistanceKm != null && ` · ${deliveryDistanceKm.toFixed(1)} km`}
-                                            </span>
-                                        </div>
-                                    )}
+                                <div className="pt-2 border-t" style={{ borderColor: colors.border }}>
                                     <div className="flex items-center justify-between">
                                         <span className="text-xs font-bold" style={{ color: textColor }}>
-                                            Total: {formatPrice(finalTotal)}{needsLocation ? ' + frete' : ''}
+                                            Total: {formatPrice(totalValue)}
                                         </span>
                                         {!isStoreOpen ? (
                                             <span

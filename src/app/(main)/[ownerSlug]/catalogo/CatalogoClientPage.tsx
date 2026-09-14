@@ -1356,15 +1356,6 @@ export default function CatalogoClientPage() {
                         }}
                         colors={colors}
                         isStoreOpen={isStoreOpen}
-                        deliveryFeeType={bagDeliveryEstimate.type}
-                        deliveryFee={bagDeliveryEstimate.fee}
-                        deliveryFeeIsEstimate={bagDeliveryEstimate.isEstimate}
-                        deliveryDistanceKm={bagDeliveryEstimate.distanceKm}
-                        deliveryOrigin={bagDeliveryEstimate.originAddress}
-                        deliveryDestination={bagDeliveryEstimate.destinationAddress}
-                        deliveryBaseDistanceKm={bagDeliveryEstimate.baseDistanceKm}
-                        deliveryBaseFee={bagDeliveryEstimate.baseFee}
-                        deliveryFeePerKm={bagDeliveryEstimate.feePerKm}
                         checkoutContent={checkoutStep === 'delivery' ? (
                             <>
                                 <div className="flex items-center justify-between mb-3">
