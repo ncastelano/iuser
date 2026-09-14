@@ -1219,7 +1219,7 @@ export default function PedirMotoristaPage() {
                                     </div>
                                     <span className="text-xs font-black" style={{ color: colors.textPrimary }}>Pessoa</span>
                                     <span className="text-[10px] text-center leading-tight" style={{ color: colors.textSecondary }}>
-                                        Te levar, buscar alguém, ou os dois
+                                        Uma corrida pra te levar, buscar alguém ou os dois juntos
                                     </span>
                                 </button>
 
@@ -1233,7 +1233,7 @@ export default function PedirMotoristaPage() {
                                     </div>
                                     <span className="text-xs font-black" style={{ color: colors.textPrimary }}>Animal</span>
                                     <span className="text-[10px] text-center leading-tight" style={{ color: colors.textSecondary }}>
-                                        Levar só o bicho, sem você junto
+                                        Transporte cuidadoso do seu animal, mesmo sem você junto
                                     </span>
                                 </button>
 
@@ -1247,7 +1247,7 @@ export default function PedirMotoristaPage() {
                                     </div>
                                     <span className="text-xs font-black" style={{ color: colors.textPrimary }}>Objeto</span>
                                     <span className="text-[10px] text-center leading-tight" style={{ color: colors.textSecondary }}>
-                                        Buscar ou entregar algo
+                                        Retirada ou entrega de algo, sem você precisar sair de casa
                                     </span>
                                 </button>
                             </div>
