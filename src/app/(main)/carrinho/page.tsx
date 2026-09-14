@@ -31,6 +31,7 @@ import {
     AlertCircle,
     User,
     Camera,
+    MessageCircle,
 } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useState, useRef, useMemo, useCallback } from 'react'
@@ -1446,7 +1447,12 @@ export default function CarrinhoPage() {
                                             <div key={slug} className="rounded-2xl p-5 mb-4 border" style={{ borderColor: colors.border, background: colors.surface }}>
                                                 <div className="flex items-center justify-between mb-4">
                                                     <div className="flex items-center gap-2">
-                                                        <Store size={18} style={{ color: '#f97316' }} />
+                                                        <div
+                                                            className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+                                                            style={{ background: GRADIENT }}
+                                                        >
+                                                            <Store size={16} color="#ffffff" />
+                                                        </div>
                                                         <h3 className="text-sm font-black uppercase tracking-wide" style={{ color: colors.textPrimary }}>{details?.name || slug}</h3>
                                                     </div>
                                                     <span className="text-lg font-black" style={{ color: '#f97316' }}>R$ {itemsTotal.toFixed(2)}</span>
@@ -1470,55 +1476,80 @@ export default function CarrinhoPage() {
                                                     )}
                                                 </div>
 
-                                                <div className="space-y-3 mb-4">
+                                                <div className="space-y-2 mb-4">
                                                     {items.map((item) => (
-                                                        <div key={`${item.product.id}::${item.comment || ''}::${(item.addons || []).map(a => a.id).sort().join(',')}`} className="flex gap-3 items-center">
-                                                            <div className="w-12 h-12 rounded-xl overflow-hidden bg-gray-100 flex-shrink-0">
+                                                        <div
+                                                            key={`${item.product.id}::${item.comment || ''}::${(item.addons || []).map(a => a.id).sort().join(',')}`}
+                                                            className="flex items-center gap-2 p-1.5 rounded-lg"
+                                                            style={{ background: `${colors.border}20` }}
+                                                        >
+                                                            <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-gray-100">
                                                                 {item.product.image_url ? (
                                                                     <img src={item.product.image_url} alt="" className="w-full h-full object-cover" />
                                                                 ) : (
-                                                                    <div className="w-full h-full flex items-center justify-center text-lg font-bold text-gray-400">?</div>
+                                                                    <div className="w-full h-full flex items-center justify-center text-lg">📦</div>
                                                                 )}
                                                             </div>
+
                                                             <div className="flex-1 min-w-0">
-                                                                <p className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>{item.product.name}</p>
-                                                                <p className="text-[10px] mt-0.5" style={{ color: colors.textSecondary }}>
-                                                                    R$ {cartItemUnitPrice(item).toFixed(2)} cada
+                                                                <p className="text-xs font-medium truncate" style={{ color: colors.textPrimary }}>
+                                                                    {item.product.name}
                                                                 </p>
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="text-xs font-bold" style={{ color: '#f97316' }}>
+                                                                        R$ {cartItemUnitPrice(item).toFixed(2)}
+                                                                    </span>
+                                                                    <span className="text-[10px]" style={{ color: colors.textSecondary }}>
+                                                                        x{item.quantity}
+                                                                    </span>
+                                                                </div>
                                                                 {item.addons && item.addons.length > 0 && (
-                                                                    <p className="text-[9px] truncate" style={{ color: colors.textSecondary, opacity: 0.8 }}>
+                                                                    <p className="text-[9px] truncate" style={{ color: colors.textSecondary, opacity: 0.85 }}>
                                                                         + {item.addons.map(a => a.name).join(', ')}
                                                                     </p>
                                                                 )}
                                                                 {item.comment && (
-                                                                    <p className="text-[9px] italic truncate" style={{ color: colors.textSecondary, opacity: 0.8 }}>
-                                                                        {item.comment}
-                                                                    </p>
-                                                                )}
-                                                                <div className="flex items-center gap-2 mt-1">
-                                                                    <div className="flex items-center rounded-full overflow-hidden" style={{ border: `1px solid ${colors.border}` }}>
-                                                                        <button
-                                                                            onClick={() => updateQuantity(slug, item.product.id, -1, item.comment, item.addons)}
-                                                                            className="w-7 h-7 flex items-center justify-center transition-all hover:scale-110"
-                                                                            style={{ background: GRADIENT, color: '#ffffff' }}
-                                                                        >
-                                                                            <Minus size={12} />
-                                                                        </button>
-                                                                        <span className="w-8 text-center text-xs font-bold" style={{ color: colors.textPrimary }}>{item.quantity}</span>
-                                                                        <button
-                                                                            onClick={() => updateQuantity(slug, item.product.id, 1, item.comment, item.addons)}
-                                                                            className="w-7 h-7 flex items-center justify-center transition-all hover:scale-110"
-                                                                            style={{ background: GRADIENT, color: '#ffffff' }}
-                                                                        >
-                                                                            <Plus size={12} />
-                                                                        </button>
+                                                                    <div className="flex items-center gap-1 mt-0.5">
+                                                                        <MessageCircle size={10} style={{ color: colors.textSecondary }} />
+                                                                        <span className="text-[9px] italic truncate" style={{ color: colors.textSecondary }}>
+                                                                            {item.comment}
+                                                                        </span>
                                                                     </div>
-                                                                    <button onClick={() => removeItem(slug, item.product.id, item.comment, item.addons)} className="text-red-400 hover:text-red-600"><Trash2 size={14} /></button>
-                                                                </div>
+                                                                )}
                                                             </div>
-                                                            <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>
-                                                                R$ {cartItemLineTotal(item).toFixed(2)}
-                                                            </p>
+
+                                                            <div className="flex items-center gap-1 flex-shrink-0">
+                                                                <button
+                                                                    onClick={() => {
+                                                                        if (item.quantity <= 1) {
+                                                                            removeItem(slug, item.product.id, item.comment, item.addons)
+                                                                        } else {
+                                                                            updateQuantity(slug, item.product.id, -1, item.comment, item.addons)
+                                                                        }
+                                                                    }}
+                                                                    className="w-6 h-6 rounded-full flex items-center justify-center hover:scale-110 transition-transform"
+                                                                    style={{ background: GRADIENT, color: '#ffffff' }}
+                                                                >
+                                                                    <Minus size={10} />
+                                                                </button>
+                                                                <span className="text-xs font-bold min-w-[16px] text-center" style={{ color: '#f97316' }}>
+                                                                    {item.quantity}
+                                                                </span>
+                                                                <button
+                                                                    onClick={() => updateQuantity(slug, item.product.id, 1, item.comment, item.addons)}
+                                                                    className="w-6 h-6 rounded-full flex items-center justify-center hover:scale-110 transition-transform"
+                                                                    style={{ background: GRADIENT, color: '#ffffff' }}
+                                                                >
+                                                                    <Plus size={10} />
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => removeItem(slug, item.product.id, item.comment, item.addons)}
+                                                                    className="w-6 h-6 rounded-full flex items-center justify-center hover:scale-110 transition-transform"
+                                                                    style={{ background: '#ef4444', color: '#ffffff' }}
+                                                                >
+                                                                    <Trash2 size={10} />
+                                                                </button>
+                                                            </div>
                                                         </div>
                                                     ))}
                                                 </div>
