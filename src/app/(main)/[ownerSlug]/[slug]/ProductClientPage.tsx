@@ -993,7 +993,7 @@ export function ProductClientPage({
             <div className={`${storeCartBar ? 'pb-48' : 'pb-32'} md:pb-0 md:max-w-6xl md:mx-auto md:px-6 md:pt-6`}>
                 <div className="md:grid md:grid-cols-2 md:gap-10 md:items-start">
                     {/* Imagem em destaque, tipo capa de produto */}
-                    <div className="relative w-full h-[27vh] min-h-[200px] max-h-[320px] md:h-auto md:aspect-square md:rounded-3xl md:overflow-hidden md:sticky md:top-6">
+                    <div className="relative w-full h-[24vh] min-h-[185px] max-h-[300px] md:h-auto md:aspect-square md:rounded-3xl md:overflow-hidden md:sticky md:top-6">
                         {(imageUrl || finalStoreImage) ? (
                             <img
                                 src={imageUrl || finalStoreImage || ''}
@@ -1025,7 +1025,7 @@ export function ProductClientPage({
                             solto no meio do texto. */}
                         <button
                             onClick={goToStore}
-                            className="absolute bottom-0 inset-x-0 flex items-center gap-2 px-4 pb-3 pt-8 text-left transition hover:opacity-90"
+                            className="absolute bottom-0 inset-x-0 flex items-center gap-2 px-4 pb-4 pt-8 text-left transition hover:opacity-90"
                             style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.72), transparent)' }}
                         >
                             <div
@@ -1054,7 +1054,7 @@ export function ProductClientPage({
                     </div>
 
                     {/* Sheet de conteúdo (mobile: sobreposto à imagem / web: coluna ao lado) */}
-                    <main className="relative z-10 -mt-5 rounded-t-[28px] md:mt-0 md:rounded-none" style={{ background: colors.background }}>
+                    <main className="relative z-10" style={{ background: colors.background }}>
                         <div className="flex justify-center pt-2.5 pb-1 md:hidden">
                             <div className="w-10 h-1 rounded-full" style={{ background: colors.border }} />
                         </div>
