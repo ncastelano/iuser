@@ -14,10 +14,12 @@ import {
     Eye,
     Share2,
     ShoppingCart,
+    ShoppingBag,
     Plus,
     Minus,
     Check,
-    ChevronRight
+    ChevronRight,
+    Trash2
 } from 'lucide-react'
 import { handleShareLink } from '@/lib/share'
 import { toast } from 'sonner'
@@ -99,7 +101,8 @@ export function ProductClientPage({
 }: ProductClientPageProps) {
     const router = useRouter()
 
-    const { itemsByStore, addItem, updateQuantity } = useCartStore()
+    const { itemsByStore, addItem, updateQuantity, removeItem } = useCartStore()
+    const [showStoreCart, setShowStoreCart] = useState(false)
 
     const [loading, setLoading] = useState(true)
     const [product, setProduct] = useState<ProductWithStore | null>(null)
@@ -403,6 +406,117 @@ export function ProductClientPage({
         </>
     )
 
+    // ===== SACOLA DA LOJA =====
+    // Só os itens desta loja (cada loja tem sua própria sacola) - some
+    // quando o último item dela é removido, e aparece (com animação) assim
+    // que o primeiro item é adicionado.
+    const storeCartItems = itemsByStore[ownerSlug] || []
+    const storeCartCount = storeCartItems.reduce((sum, item) => sum + item.quantity, 0)
+    const storeCartTotal = storeCartItems.reduce((sum, item) => sum + item.product.price * item.quantity, 0)
+    const formattedStoreCartTotal = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(storeCartTotal)
+
+    const storeCartBar = storeCartCount > 0 ? (
+        <div className="animate-slide-in" style={{ borderTop: `1px solid ${colors.border}` }}>
+            <button
+                onClick={() => setShowStoreCart((v) => !v)}
+                className="w-full flex items-center gap-3 px-4 py-3 transition hover:opacity-80"
+            >
+                <div
+                    className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
+                    style={{ background: GRADIENT }}
+                >
+                    <ShoppingBag size={16} color="#ffffff" />
+                </div>
+                <div className="flex-1 text-left min-w-0">
+                    <p className="text-sm font-bold truncate" style={{ color: colors.textPrimary }}>
+                        Sacola de {storeDisplay.name}
+                    </p>
+                    <p className="text-xs" style={{ color: colors.textSecondary, opacity: 0.75 }}>
+                        {storeCartCount} {storeCartCount === 1 ? 'item' : 'itens'} · {formattedStoreCartTotal}
+                    </p>
+                </div>
+                <ChevronRight
+                    size={18}
+                    style={{
+                        color: colors.textSecondary,
+                        opacity: 0.5,
+                        transform: showStoreCart ? 'rotate(90deg)' : undefined,
+                        transition: 'transform 0.2s',
+                    }}
+                />
+            </button>
+
+            {showStoreCart && (
+                <div className="px-4 pb-3 space-y-2 max-h-64 overflow-y-auto">
+                    {storeCartItems.map((item) => {
+                        const itemImageUrl = item.product.image_url
+                            ? supabase.storage.from('product-images').getPublicUrl(item.product.image_url).data.publicUrl
+                            : null
+                        return (
+                            <div
+                                key={`${item.product.id}::${item.comment || ''}`}
+                                className="flex items-center gap-2 p-2 rounded-xl"
+                                style={{ background: colors.surface }}
+                            >
+                                <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0" style={{ background: `${colors.accentLight}20` }}>
+                                    {itemImageUrl ? (
+                                        <img src={itemImageUrl} alt={item.product.name} className="w-full h-full object-cover" />
+                                    ) : (
+                                        <div className="w-full h-full flex items-center justify-center">
+                                            <Store size={16} style={{ color: colors.textSecondary }} />
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>
+                                        {item.product.name}
+                                    </p>
+                                    <p className="text-xs font-bold" style={{ color: colors.accent }}>
+                                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.product.price)}
+                                    </p>
+                                </div>
+                                <div className="flex items-center gap-1 flex-shrink-0">
+                                    <button
+                                        onClick={() => updateQuantity(ownerSlug, item.product.id, -1, item.comment)}
+                                        className="w-6 h-6 rounded-full flex items-center justify-center hover:scale-110 transition-transform"
+                                        style={{ background: GRADIENT, color: '#ffffff' }}
+                                    >
+                                        <Minus size={10} />
+                                    </button>
+                                    <span className="text-xs font-bold min-w-[16px] text-center" style={{ color: colors.textPrimary }}>
+                                        {item.quantity}
+                                    </span>
+                                    <button
+                                        onClick={() => updateQuantity(ownerSlug, item.product.id, 1, item.comment)}
+                                        className="w-6 h-6 rounded-full flex items-center justify-center hover:scale-110 transition-transform"
+                                        style={{ background: GRADIENT, color: '#ffffff' }}
+                                    >
+                                        <Plus size={10} />
+                                    </button>
+                                    <button
+                                        onClick={() => removeItem(ownerSlug, item.product.id, item.comment)}
+                                        className="w-6 h-6 rounded-full flex items-center justify-center hover:scale-110 transition-transform"
+                                        style={{ background: '#ef4444', color: '#ffffff' }}
+                                    >
+                                        <Trash2 size={10} />
+                                    </button>
+                                </div>
+                            </div>
+                        )
+                    })}
+
+                    <button
+                        onClick={() => router.push('/sacola')}
+                        className="w-full py-2.5 rounded-xl font-bold text-sm transition hover:scale-[1.01]"
+                        style={{ background: GRADIENT, color: '#ffffff' }}
+                    >
+                        Ver sacola completa
+                    </button>
+                </div>
+            )}
+        </div>
+    ) : null
+
     return (
         <div className="relative min-h-dvh" style={{ background: colors.background }}>
             {/* Header flutuante sobre a imagem (mobile) */}
@@ -441,7 +555,7 @@ export function ProductClientPage({
                 </button>
             </div>
 
-            <div className="pb-32 md:pb-0 md:max-w-6xl md:mx-auto md:px-6 md:pt-6">
+            <div className={`${storeCartBar ? 'pb-48' : 'pb-32'} md:pb-0 md:max-w-6xl md:mx-auto md:px-6 md:pt-6`}>
                 <div className="md:grid md:grid-cols-2 md:gap-10 md:items-start">
                     {/* Imagem em destaque, tipo capa de produto */}
                     <div className="relative w-full h-[38vh] min-h-[260px] max-h-[400px] md:h-auto md:aspect-square md:rounded-3xl md:overflow-hidden md:sticky md:top-6">
@@ -551,6 +665,13 @@ export function ProductClientPage({
                             <div className="hidden md:flex items-center gap-3 pt-2">
                                 {cartControls}
                             </div>
+
+                            {/* Sacola da loja (web: cartão abaixo dos controles) */}
+                            {storeCartBar && (
+                                <div className="hidden md:block rounded-2xl overflow-hidden" style={{ border: `1px solid ${colors.border}` }}>
+                                    {storeCartBar}
+                                </div>
+                            )}
                         </div>
                     </main>
                 </div>
@@ -611,19 +732,29 @@ export function ProductClientPage({
                 )}
             </div>
 
-            {/* Barra fixa: quantidade + adicionar ao carrinho (mobile) */}
+            {/* Barra fixa (mobile): controles de quantidade em cima, sacola da loja
+                embaixo — ao adicionar o primeiro item, a sacola aparece por baixo
+                e "empurra" os controles de quantidade pra cima. */}
             <div
-                className="md:hidden fixed bottom-0 inset-x-0 z-20 px-4 pt-3"
+                className="md:hidden fixed bottom-0 inset-x-0 z-20"
                 style={{
                     background: colors.background,
                     borderTop: `1px solid ${colors.border}`,
                     boxShadow: '0 -8px 24px rgba(0,0,0,0.08)',
-                    paddingBottom: 'calc(env(safe-area-inset-bottom) + 12px)',
                 }}
             >
-                <div className="flex items-center gap-3">
+                <div
+                    className="flex items-center gap-3 px-4 pt-3"
+                    style={{ paddingBottom: storeCartBar ? 12 : 'calc(env(safe-area-inset-bottom) + 12px)' }}
+                >
                     {cartControls}
                 </div>
+
+                {storeCartBar && (
+                    <div style={{ paddingBottom: 'calc(env(safe-area-inset-bottom))' }}>
+                        {storeCartBar}
+                    </div>
+                )}
             </div>
         </div>
     )
