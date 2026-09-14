@@ -1380,28 +1380,6 @@ export default function CatalogoClientPage() {
                                     </button>
                                 </div>
 
-                                <p className="text-xs font-bold mb-3" style={{ color: colors.textSecondary }}>
-                                    {bagItems.reduce((sum, item) => sum + item.quantity, 0)} {bagItems.reduce((sum, item) => sum + item.quantity, 0) === 1 ? 'item' : 'itens'} · Subtotal {formatPrice(getStoreTotals().itemsTotal)}
-                                </p>
-
-                                {/* Status da loja */}
-                                <div
-                                    className="flex items-center gap-2 px-3 py-1.5 rounded-full mb-3 text-xs font-bold"
-                                    style={{
-                                        background: isStoreOpen ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
-                                        color: isStoreOpen ? '#22c55e' : '#ef4444',
-                                        border: `1px solid ${isStoreOpen ? '#22c55e30' : '#ef444430'}`,
-                                    }}
-                                >
-                                    <Clock size={14} />
-                                    <span>{isStoreOpen ? '🟢 Aberto' : '🔴 Fechado'}</span>
-                                    {!isStoreOpen && nextAvailable && (
-                                        <span style={{ opacity: 0.7 }}>
-                                            • Abre {nextAvailable.day} às {nextAvailable.open}
-                                        </span>
-                                    )}
-                                </div>
-
                                 {/* Pergunta de recebimento */}
                                 <div className="mb-3">
                                     <p className="text-sm font-black mb-3" style={{ color: colors.textPrimary }}>
@@ -1411,8 +1389,37 @@ export default function CatalogoClientPage() {
                                     {canChooseReceivingMethod ? (
                                         <div className="grid grid-cols-2 gap-3">
                                             {([
-                                                { value: 'retirada' as const, icon: Store, label: 'Retirar na loja', desc: 'Busque no balcão' },
-                                                { value: 'entrega' as const, icon: Truck, label: 'Receber em casa', desc: 'Entregamos no endereço' },
+                                                {
+                                                    value: 'retirada' as const,
+                                                    icon: Store,
+                                                    label: 'Retirar na loja',
+                                                    desc: 'Busque no balcão',
+                                                    priceLine: (
+                                                        <span className="text-sm font-black" style={{ color: colors.textPrimary }}>
+                                                            {formatPrice(getStoreTotals().itemsTotal)}
+                                                        </span>
+                                                    ),
+                                                },
+                                                {
+                                                    value: 'entrega' as const,
+                                                    icon: Truck,
+                                                    label: 'Receber em casa',
+                                                    desc: 'Entregamos no endereço',
+                                                    priceLine: bagDeliveryEstimate.isEstimate ? (
+                                                        <span className="text-[10px] font-medium" style={{ color: colors.textSecondary, opacity: 0.7 }}>
+                                                            Frete a calcular
+                                                        </span>
+                                                    ) : (
+                                                        <>
+                                                            <span className="text-[9px] font-bold" style={{ color: bagDeliveryEstimate.fee === 0 ? '#22c55e' : colors.textSecondary }}>
+                                                                {bagDeliveryEstimate.fee === 0 ? 'Frete grátis' : `+ ${formatPrice(bagDeliveryEstimate.fee)} frete`}
+                                                            </span>
+                                                            <span className="text-sm font-black" style={{ color: colors.textPrimary }}>
+                                                                {formatPrice(getStoreTotals().itemsTotal + bagDeliveryEstimate.fee)}
+                                                            </span>
+                                                        </>
+                                                    ),
+                                                },
                                             ]).map((opt) => {
                                                 const selected = deliveryOption === opt.value
                                                 return (
@@ -1436,6 +1443,9 @@ export default function CatalogoClientPage() {
                                                         <span className="text-[9px]" style={{ color: colors.textSecondary }}>
                                                             {opt.desc}
                                                         </span>
+                                                        <div className="w-full flex flex-col items-center gap-0.5 pt-1.5 mt-0.5 border-t" style={{ borderColor: colors.border }}>
+                                                            {opt.priceLine}
+                                                        </div>
                                                     </button>
                                                 )
                                             })}
