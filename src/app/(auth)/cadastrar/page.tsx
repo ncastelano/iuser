@@ -19,7 +19,6 @@ import {
   Sparkles,
   Eye,
   EyeOff,
-  ShoppingBag,
   Briefcase,
   BookOpen,
   ShoppingCart,
@@ -151,7 +150,7 @@ function RegisterContent() {
 
   // Words e ícones originais para os badges
   const storeWords = ['sua loja', 'seu produto', 'seu serviço', 'sua publicação']
-  const storeIcons = [Store, ShoppingBag, Briefcase, BookOpen]
+  const storeIcons = [Store, ShoppingCart, Briefcase, BookOpen]
 
   const actionWords = ['venda', 'compre', 'compartilhe']
   const actionIcons = [TrendingUp, ShoppingCart, Share2]

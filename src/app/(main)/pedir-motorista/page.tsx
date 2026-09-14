@@ -29,7 +29,7 @@ import {
     Building2,
     Phone,
     Bus,
-    ShoppingBag,
+    ShoppingCart,
     PackagePlus,
     Baby,
     PawPrint,
@@ -1744,7 +1744,7 @@ export default function PedirMotoristaPage() {
                                             </div>
                                         )}
 
-                                        <CounterRow label="Compras de mercado" icon={ShoppingBag} value={bagCount} onChange={setBagCount} max={20} colors={colors} />
+                                        <CounterRow label="Compras de mercado" icon={ShoppingCart} value={bagCount} onChange={setBagCount} max={20} colors={colors} />
                                         {hasShopping && (
                                             <div className="rounded-xl px-3 py-2.5" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
                                                 <span className="text-xs font-bold block mb-1.5" style={{ color: colors.textSecondary }}>Tamanho da compra</span>

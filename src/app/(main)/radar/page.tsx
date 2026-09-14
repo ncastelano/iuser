@@ -7,7 +7,7 @@ import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
-import { Store, ShoppingBag, X, MapPin, Star, Briefcase, Layers, Flame, Navigation, Crosshair, Home, Save, XCircle, Building2, ChevronRight, CheckCircle2, Users, Calendar, MessageCircle, Eye, Clock, AlertCircle, UserCheck, UserPlus, Camera } from 'lucide-react'
+import { Store, ShoppingCart, X, MapPin, Star, Briefcase, Layers, Flame, Navigation, Crosshair, Home, Save, XCircle, Building2, ChevronRight, CheckCircle2, Users, Calendar, MessageCircle, Eye, Clock, AlertCircle, UserCheck, UserPlus, Camera } from 'lucide-react'
 import { useAppModeStore } from '@/store/useAppModeStore'
 import { toast } from 'sonner'
 import { Spinner } from '@/components/Spinner'
@@ -933,7 +933,7 @@ export default function MapPage() {
     const radarTabs: Tab[] = [
         { id: 'lojas', label: 'Lojas', icon: Store, onClick: () => selectMode('lojas'), isActive: mode === 'lojas' },
         { id: 'servicos', label: 'Serviços', icon: Briefcase, onClick: () => selectMode('servicos'), isActive: mode === 'servicos' },
-        { id: 'produtos', label: 'Produtos', icon: ShoppingBag, onClick: () => selectMode('produtos'), isActive: mode === 'produtos' },
+        { id: 'produtos', label: 'Produtos', icon: ShoppingCart, onClick: () => selectMode('produtos'), isActive: mode === 'produtos' },
     ]
 
     return (
@@ -1404,7 +1404,7 @@ export default function MapPage() {
                                                         <img src={product.image_url} className="w-full h-full object-cover" alt="" />
                                                     ) : (
                                                         <div className="w-full h-full flex items-center justify-center text-gray-300">
-                                                            <ShoppingBag className="w-5 h-5" />
+                                                            <ShoppingCart className="w-5 h-5" />
                                                         </div>
                                                     )}
                                                 </div>

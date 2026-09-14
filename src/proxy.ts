@@ -11,7 +11,7 @@ const supabaseAdmin = createClient(
 // ===== ROTAS QUE DEVEM SER IGNORADAS PELO PROXY =====
 const IGNORED_ROUTES = [
     '/',
-    '/sacola',
+    '/carrinho',
     '/criar-loja',
     '/criar-loja-com-cadastro',
     '/login',

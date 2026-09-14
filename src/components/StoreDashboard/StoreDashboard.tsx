@@ -645,7 +645,7 @@ export default function StoreDashboard({
                                                     <p className="text-xs font-bold mt-1" style={{ color: '#f97316' }}>R$ {Number(prod.price).toFixed(2)}</p>
                                                     <div className="flex flex-col text-[10px] mt-1 space-y-0.5" style={{ color: colors.textSecondary }}>
                                                         <span>👁 {prod.viewsToday} hoje</span>
-                                                        <span>🛒 {prod.inCart} na sacola</span>
+                                                        <span>🛒 {prod.inCart} no carrinho</span>
                                                         <span>📊 {prod.viewsTotal} views</span>
                                                         <span>💰 {prod.salesCount} vendas</span>
                                                     </div>

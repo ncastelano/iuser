@@ -7,7 +7,7 @@ import {
     ArrowLeft,
     Star,
     Clock,
-    ShoppingBag,
+    ShoppingCart,
     MessageCircle,
     Share2,
     MapPin,
@@ -193,7 +193,7 @@ export default function CategoriaPage() {
                                     </div>
                                     <p className="text-sm opacity-90 mt-2">{store.description}</p>
                                 </div>
-                                <ShoppingBag className="w-8 h-8 opacity-80 hidden sm:block" />
+                                <ShoppingCart className="w-8 h-8 opacity-80 hidden sm:block" />
                             </div>
 
                             {/* Botões de ação */}
@@ -242,7 +242,7 @@ export default function CategoriaPage() {
                             className="rounded-2xl p-4 text-center border"
                             style={{ background: 'rgba(255,255,255,0.06)', backdropFilter: 'blur(12px)', borderColor: 'rgba(255,255,255,0.1)' }}
                         >
-                            <ShoppingBag size={20} className="mx-auto text-green-400" />
+                            <ShoppingCart size={20} className="mx-auto text-green-400" />
                             <p className="text-lg font-black text-white mt-1">
                                 R$ {store.price_min?.toFixed(0) ?? '?'}+
                             </p>
@@ -253,7 +253,7 @@ export default function CategoriaPage() {
                     {/* PRODUTOS */}
                     <section>
                         <h2 className="text-lg font-black text-white mb-4 flex items-center gap-2">
-                            <ShoppingBag size={20} className="text-purple-400" />
+                            <ShoppingCart size={20} className="text-purple-400" />
                             Produtos
                         </h2>
                         {products.length === 0 ? (

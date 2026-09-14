@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { useProfile } from '@/app/contexts/ProfileContext'
-import { Star, X, ShoppingBag, ArrowRight, Sparkles, MessageSquareHeart } from 'lucide-react'
+import { Star, X, ShoppingCart, ArrowRight, Sparkles, MessageSquareHeart } from 'lucide-react'
 import { ReviewModal } from './ReviewModal'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useMerchantStore } from '@/store/useMerchantStore'
@@ -202,7 +202,7 @@ export function FinishedOrderTrigger() {
                             <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-br from-orange-500 to-red-600" />
                             <div className="absolute top-0 left-0 w-full h-32 overflow-hidden opacity-20">
                                 <Sparkles className="absolute top-4 left-4 text-white w-12 h-12 rotate-12" />
-                                <ShoppingBag className="absolute top-8 right-8 text-white w-16 h-16 -rotate-12" />
+                                <ShoppingCart className="absolute top-8 right-8 text-white w-16 h-16 -rotate-12" />
                             </div>
 
                             <button

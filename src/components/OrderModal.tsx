@@ -1,7 +1,7 @@
 // components/OrderModal.tsx
 'use client'
 
-import { X, CheckCircle2, ChevronRight, Package, Clock, ChefHat, CheckCircle, Ban, MapPin, Truck, Globe, Store, ShoppingBag, CreditCard, Coins, Calendar, User, Phone } from 'lucide-react'
+import { X, CheckCircle2, ChevronRight, Package, Clock, ChefHat, CheckCircle, Ban, MapPin, Truck, Globe, Store, ShoppingCart, CreditCard, Coins, Calendar, User, Phone } from 'lucide-react'
 
 export interface GroupedOrder {
     id?: string
@@ -300,7 +300,7 @@ export function OrderModal({ order, onClose, onAction, storeLat, storeLng, assig
                         {/* Items */}
                         <div>
                             <div className="flex items-center gap-2 mb-3">
-                                <ShoppingBag size={14} className="text-gray-400" />
+                                <ShoppingCart size={14} className="text-gray-400" />
                                 <p className="text-[10px] font-black uppercase tracking-wider text-gray-400">
                                     Itens do Pedido
                                 </p>

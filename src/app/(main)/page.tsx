@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { User, Store, Home, MapPin, LayoutDashboard, ShoppingBag, X, Radar } from 'lucide-react'
+import { User, Store, Home, MapPin, LayoutDashboard, X, Radar } from 'lucide-react'
 
 import CategoriasSection from './inicio/sections/CanIhelp'
 import LookForAService from './inicio/sections/LookForAService'
@@ -543,7 +543,7 @@ export default function HomePage() {
     }, [profileSlug, loading, avatarUrl, showCreateStore, showLogin, showProfile, showStoreDashboard, stores, loadingStores, storeOrderCounts, pendingInvitesCount, profileOpenNow, router])
 
     const showFab = showCreateStore || showLogin || showProfile || showStoreDashboard
-    const shouldShowSacola = !showProfile && !showStoreDashboard && !showLogin
+    const shouldShowCarrinho = !showProfile && !showStoreDashboard && !showLogin
 
     // ===== VERIFICAR SE ESTÁ EM TELA DE LOGIN =====
     const isLoginScreen = showLogin || showCreateStore
@@ -725,12 +725,12 @@ export default function HomePage() {
                     </div>
                 )}
 
-                {/* ===== BOTÃO FLUTUANTE - RADAR (independente, não disputa espaço com a sacola) ===== */}
+                {/* ===== BOTÃO FLUTUANTE - RADAR (independente, não disputa espaço com o carrinho) ===== */}
                 {/* z-index baixo (40) de propósito: qualquer dialog/modal do app usa
                     z-50 ou mais (LocationPicker, RideAcceptedDialog, chat da corrida,
                     avaliação, login...), então esse botão sempre fica atrás deles em
                     vez de flutuar por cima — sem precisar de um flag por dialog. */}
-                {shouldShowSacola && (
+                {shouldShowCarrinho && (
                     <div style={{ position: 'fixed', bottom: 32, left: 24, zIndex: 40 }}>
                         <button
                             onClick={() => { startNavProgress(); router.push('/radar') }}

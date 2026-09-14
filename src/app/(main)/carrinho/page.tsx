@@ -1,4 +1,4 @@
-// src/app/(app)/sacola/page.tsx
+// src/app/(main)/carrinho/page.tsx
 'use client'
 
 import { useCartStore } from '@/store/useCartStore'
@@ -15,7 +15,7 @@ import {
     Eye,
     EyeOff,
     Package,
-    ShoppingBag,
+    ShoppingCart,
     MapPin,
     ArrowLeft,
     Home,
@@ -90,7 +90,7 @@ async function geocodeAddress(query: string): Promise<{ lat: number; lng: number
     }
 }
 
-export default function SacolaPage() {
+export default function CarrinhoPage() {
     const {
         itemsByStore,
         storeDetails,
@@ -1226,9 +1226,9 @@ export default function SacolaPage() {
         }> = [
                 {
                     id: 'carrinho',
-                    label: 'Sacola',
-                    icon: ShoppingBag,
-                    sectionId: 'section-sacola',
+                    label: 'Carrinho',
+                    icon: ShoppingCart,
+                    sectionId: 'section-carrinho',
                     indicator: null,
                     isActive: activeTab === 'carrinho',
                     onClick: () => setActiveTab('carrinho'),
@@ -1357,7 +1357,7 @@ export default function SacolaPage() {
         <div className="min-h-screen flex items-center justify-center" style={{ background: colors.background }}>
             <div className="text-center">
                 <Spinner size={48} color={colors.accent} className="mx-auto mb-4" />
-                <p className="text-sm font-bold" style={{ color: colors.textSecondary }}>Carregando sacola...</p>
+                <p className="text-sm font-bold" style={{ color: colors.textSecondary }}>Carregando carrinho...</p>
             </div>
         </div>
     )
@@ -1385,15 +1385,15 @@ export default function SacolaPage() {
                 />
 
                 <div className="px-4 pt-4 pb-24 space-y-10">
-                    {/* Seção Sacola - visível apenas quando activeTab === 'carrinho' */}
+                    {/* Seção Carrinho - visível apenas quando activeTab === 'carrinho' */}
                     {activeTab === 'carrinho' && (
-                        <section id="section-sacola" className="scroll-mt-24">
+                        <section id="section-carrinho" className="scroll-mt-24">
                             <div className="flex items-center gap-2 mb-4">
                                 <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: GRADIENT, color: '#ffffff' }}>
-                                    <ShoppingBag size={16} />
+                                    <ShoppingCart size={16} />
                                 </div>
                                 <h2 className="text-base font-black italic uppercase tracking-tighter" style={{ color: colors.textPrimary }}>
-                                    Sacola
+                                    Carrinho
                                 </h2>
                                 {storeSlugs.length > 0 && (
                                     <span className="text-[8px] font-black px-2 py-0.5 rounded-full" style={{ background: '#f9731620', color: '#f97316' }}>
@@ -1404,10 +1404,10 @@ export default function SacolaPage() {
                             {filteredCartSlugs.length === 0 ? (
                                 <div className="flex items-center gap-4 p-4 rounded-2xl" style={cardStyle}>
                                     <div className="w-14 h-14 rounded-full flex items-center justify-center shrink-0" style={{ background: '#f9731620' }}>
-                                        <ShoppingBag className="w-7 h-7" style={{ color: '#f97316' }} />
+                                        <ShoppingCart className="w-7 h-7" style={{ color: '#f97316' }} />
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                        <h2 className="text-sm font-black" style={{ color: colors.textPrimary }}>Sua sacola está vazia</h2>
+                                        <h2 className="text-sm font-black" style={{ color: colors.textPrimary }}>Seu carrinho está vazio</h2>
                                         <p className="text-xs" style={{ color: colors.textSecondary }}>Explore as lojas e encontre o que você procura</p>
                                     </div>
                                     <Link href="/" className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full font-black uppercase text-[10px] tracking-wider transition-all shrink-0" style={{ background: GRADIENT, color: '#ffffff' }}>

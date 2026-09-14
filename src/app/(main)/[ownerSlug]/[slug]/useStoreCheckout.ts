@@ -1,9 +1,9 @@
 // app/(main)/[ownerSlug]/[slug]/useStoreCheckout.ts
 //
-// Mesmas etapas de finalização de pedido da sacola do catálogo
+// Mesmas etapas de finalização de pedido do carrinho do catálogo
 // (CatalogoClientPage.tsx + CatalogBag.tsx: escolher retirada/entrega,
 // endereço, forma de pagamento, criar o pedido) só que reutilizável fora
-// da página de catálogo — usado pela sacola da loja na página de produto.
+// da página de catálogo — usado pelo carrinho da loja na página de produto.
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -380,7 +380,7 @@ export function useStoreCheckout(ownerSlug: string | undefined, cartItems: CartI
             return
         }
         if (cartItems.length === 0) {
-            toast.error('Sua sacola está vazia')
+            toast.error('Seu carrinho está vazio')
             return
         }
         if (!deliveryOption) {

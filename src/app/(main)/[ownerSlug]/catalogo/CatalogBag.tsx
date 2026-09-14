@@ -2,7 +2,7 @@
 'use client'
 
 import { ReactNode } from 'react'
-import { ShoppingBag, Minus, Plus, Trash2, MessageCircle } from 'lucide-react'
+import { ShoppingCart, Minus, Plus, Trash2, MessageCircle } from 'lucide-react'
 import { toast } from 'sonner'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -23,14 +23,14 @@ interface CatalogBagProps {
     onCheckout: () => void
     colors: any
     isStoreOpen?: boolean
-    /** Quando presente, substitui a lista de itens pelo passo de finalização (recebimento/pagamento) embutido na sacola. */
+    /** Quando presente, substitui a lista de itens pelo passo de finalização (recebimento/pagamento) embutido no carrinho. */
     checkoutContent?: ReactNode | null
 }
 
-// ===== Sacola flutuante do catálogo: mostra os produtos adicionados ao carrinho =====
+// ===== Carrinho flutuante do catálogo: mostra os produtos adicionados =====
 // O frete não aparece aqui de propósito - só é decidido (e mostrado) na
 // Etapa 1 do checkout, quando a pessoa escolhe retirar ou receber em casa.
-// Antes disso, o valor da sacola é só a soma dos itens.
+// Antes disso, o valor do carrinho é só a soma dos itens.
 export default function CatalogBag({
     bagItems,
     isExpanded,
@@ -58,7 +58,7 @@ export default function CatalogBag({
 
     const handleCheckout = () => {
         if (totalItems === 0) {
-            toast.info('Sua sacola está vazia')
+            toast.info('Seu carrinho está vazio')
             return
         }
         onCheckout()
@@ -84,7 +84,7 @@ export default function CatalogBag({
                         className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
                         style={{ background: totalItems > 0 ? GRADIENT : `${colors.border}50`, color: totalItems > 0 ? '#ffffff' : colors.textSecondary }}
                     >
-                        <ShoppingBag size={18} />
+                        <ShoppingCart size={18} />
                     </div>
 
                     <div className="flex items-center gap-2">
@@ -130,7 +130,7 @@ export default function CatalogBag({
                     <div className="border-t px-2 py-2 max-h-64 overflow-y-auto" style={{ borderColor: colors.border }}>
                         {bagItems.length === 0 ? (
                             <p className="text-xs text-center py-4" style={{ color: colors.textSecondary }}>
-                                Nenhum item na sacola
+                                Nenhum item no carrinho
                             </p>
                         ) : (
                             <div className="space-y-2">
@@ -223,7 +223,7 @@ export default function CatalogBag({
                                                 className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
                                                 style={{ background: GRADIENT }}
                                             >
-                                                <ShoppingBag size={13} color="#ffffff" />
+                                                <ShoppingCart size={13} color="#ffffff" />
                                             </div>
                                             <div className="flex items-center gap-1.5">
                                                 <span className="font-bold text-sm" style={{ color: textColor }}>

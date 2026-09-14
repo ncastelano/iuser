@@ -578,9 +578,9 @@ export default function Header({
                             )}
                         </div>
 
-                        {pathname !== '/sacola' && pathname !== '/radar' && (
+                        {pathname !== '/carrinho' && pathname !== '/radar' && (
                             <button
-                                onClick={() => router.push('/sacola')}
+                                onClick={() => router.push('/carrinho')}
                                 className="relative flex items-center justify-center rounded-full flex-shrink-0 hover:scale-105 active:scale-95"
                                 style={{
                                     background: 'linear-gradient(135deg, #f97316, #dc2626)',
@@ -591,8 +591,8 @@ export default function Header({
                                     pointerEvents: isExpanded ? 'none' : 'auto',
                                     transition: 'width 0.3s ease-in-out, opacity 0.2s ease-in-out, transform 0.2s ease-in-out',
                                 }}
-                                aria-label="Ver sacola"
-                                title="Ver sacola"
+                                aria-label="Ver carrinho"
+                                title="Ver carrinho"
                             >
                                 {/* overflow:hidden só no ícone (não no botão inteiro) - o
                                     badge fica parcialmente fora da caixa de 48x48 (-top-1

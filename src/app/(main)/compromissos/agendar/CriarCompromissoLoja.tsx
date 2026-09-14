@@ -12,7 +12,7 @@ import {
     Search,
     X,
     Store,
-    ShoppingBag,
+    ShoppingCart,
     Edit3,
     Lock,
     Earth,
@@ -657,7 +657,7 @@ export default function CriarCompromissoLoja({ onBack, context, storeId, activeF
                                             color: showProducts ? colors.accent : colors.textSecondary,
                                         }}
                                     >
-                                        <ShoppingBag size={18} /> {showProducts ? 'Ocultar produtos' : 'Escolher produto/serviço'}
+                                        <ShoppingCart size={18} /> {showProducts ? 'Ocultar produtos' : 'Escolher produto/serviço'}
                                     </button>
                                     {showProducts && (
                                         <div className="mt-3 rounded-xl max-h-[200px] overflow-y-auto" style={{ background: `rgba(${hexToRgb(colors.surface).r}, ${hexToRgb(colors.surface).g}, ${hexToRgb(colors.surface).b}, 0.4)`, border: `1px solid ${colors.border}` }}>

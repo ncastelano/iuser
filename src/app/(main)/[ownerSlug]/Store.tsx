@@ -20,7 +20,7 @@ import {
     Plus,
     Shield,
     Eye,
-    ShoppingBag,
+    ShoppingCart,
     Home,
     Store as StoreIcon,
     MapPin,
@@ -1268,7 +1268,7 @@ export function Store({
                 {activeTab === 'products' && (
                     <div className="rounded-2xl p-4" style={cardStyle}>
                         <div className="flex items-center gap-2 mb-3">
-                            <ShoppingBag size={16} style={{ color: '#f97316' }} />
+                            <ShoppingCart size={16} style={{ color: '#f97316' }} />
                             <h3 className="text-xs font-black uppercase tracking-widest" style={{ color: colors.textPrimary }}>
                                 Produtos
                             </h3>

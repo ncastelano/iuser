@@ -163,7 +163,7 @@ export default function PedidosPage() {
                     <div className="text-center p-8 border border-border bg-secondary/10">
                         <p className="text-xs font-black uppercase text-muted-foreground">Você precisa estar logado para ver seus pedidos.</p>
                         <button
-                            onClick={() => router.push('/sacola')}
+                            onClick={() => router.push('/carrinho')}
                             className="mt-4 px-6 py-2 bg-foreground text-background font-black uppercase text-[9px] tracking-wider"
                         >
                             Fazer Login

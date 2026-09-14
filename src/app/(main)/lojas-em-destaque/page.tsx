@@ -12,7 +12,7 @@ import {
     ChevronRight,
     TrendingUp,
     Eye,
-    ShoppingBag,
+    ShoppingCart,
     Coffee,
     AlertCircle,
     Megaphone,
@@ -264,7 +264,7 @@ function StoreCard({
                                                     className="w-5 h-5 rounded object-cover flex-shrink-0"
                                                 />
                                             ) : (
-                                                <ShoppingBag className="w-3 h-3 flex-shrink-0 opacity-40" style={{ color: colors.textSecondary }} />
+                                                <ShoppingCart className="w-3 h-3 flex-shrink-0 opacity-40" style={{ color: colors.textSecondary }} />
                                             )}
                                             <span className="text-[9px] font-medium truncate flex-1" style={{ color: colors.textPrimary }}>
                                                 {product.name}

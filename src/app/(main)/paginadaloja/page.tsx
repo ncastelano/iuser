@@ -12,7 +12,7 @@ import {
     Clock,
     Calendar,
     Search,
-    ShoppingBag,
+    ShoppingCart,
     Plus,
     Star,
     X,
@@ -230,7 +230,7 @@ export default function StorePage() {
             )
     }
     const handleSchedule = () => alert('Agendamento ainda não implementado')
-    const handleAddToCart = (product: Product) => alert(`${product.name} adicionado à sacola`)
+    const handleAddToCart = (product: Product) => alert(`${product.name} adicionado ao carrinho`)
     const handleEditProduct = (product: Product) => alert(`Editar produto ${product.name}`)
     const handleAddProduct = () => alert('Adicionar produto (modo edição)')
     const handleEditStore = () => alert('Editar loja (modo edição)')
@@ -363,7 +363,7 @@ export default function StorePage() {
 
                         {products.length === 0 ? (
                             <div className="text-center py-16 text-gray-500">
-                                <ShoppingBag size={48} className="mx-auto opacity-30" />
+                                <ShoppingCart size={48} className="mx-auto opacity-30" />
                                 <p className="mt-4">Nenhum produto cadastrado</p>
                                 {isOwner && (
                                     <button
@@ -521,7 +521,7 @@ export default function StorePage() {
             {/* ----- Botões flutuantes ----- */}
             <div className="fixed bottom-6 right-6 flex gap-3 z-50">
                 <button className="w-14 h-14 rounded-full bg-amber-600 text-white shadow-2xl shadow-amber-600/30 flex items-center justify-center hover:scale-105 transition-transform">
-                    <ShoppingBag size={24} />
+                    <ShoppingCart size={24} />
                 </button>
                 <button className="w-14 h-14 rounded-full bg-white/80 dark:bg-black/50 backdrop-blur-md border border-white/30 flex items-center justify-center shadow-lg hover:scale-105 transition-transform">
                     <MessageCircle size={24} />

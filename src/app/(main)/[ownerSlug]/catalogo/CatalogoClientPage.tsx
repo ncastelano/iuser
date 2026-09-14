@@ -427,7 +427,7 @@ export default function CatalogoClientPage() {
         }
 
         // Duas adições do mesmo produto com observações diferentes viram
-        // linhas separadas na sacola (ver useCartStore.addItem) — assim a
+        // linhas separadas no carrinho (ver useCartStore.addItem) — assim a
         // observação de cada uma não se perde nem sobrescreve a outra.
         addItem(ownerSlug, storeDetails, cartProduct as any, commentText.trim() || undefined)
 
@@ -665,7 +665,7 @@ export default function CatalogoClientPage() {
         return { itemsTotal, deliveryFee, finalTotal, isCalculating }
     }, [cartItems, calculateDeliveryFee])
 
-    // ===== ESTIMATIVA DE FRETE PARA A SACOLA FLUTUANTE (antes de escolher entrega/retirada no checkout) =====
+    // ===== ESTIMATIVA DE FRETE PARA O CARRINHO FLUTUANTE (antes de escolher entrega/retirada no checkout) =====
     const bagDeliveryEstimate = useMemo((): {
         type: 'free' | 'fixed' | 'distance' | 'none'
         fee: number
@@ -741,7 +741,7 @@ export default function CatalogoClientPage() {
         }
 
         if (cartItems.length === 0) {
-            toast.error('Sua sacola está vazia')
+            toast.error('Seu carrinho está vazio')
             return
         }
 
@@ -1351,7 +1351,7 @@ export default function CatalogoClientPage() {
                     </button>
                 </div>
 
-                {/* ===== BOTÃO FLUTUANTE - SACOLA (busca agora vive no header, igual à home) ===== */}
+                {/* ===== BOTÃO FLUTUANTE - CARRINHO (busca agora vive no header, igual à home) ===== */}
                 <div style={{ position: 'fixed', bottom: 32, right: 24, zIndex: 998 }}>
                     <CatalogBag
                         bagItems={bagItems}
@@ -1778,7 +1778,7 @@ export default function CatalogoClientPage() {
                         >
                             <div className="flex items-center justify-between mb-4">
                                 <h3 className="text-lg font-black" style={{ color: textColor }}>
-                                    Adicionar à Sacola
+                                    Adicionar ao Carrinho
                                 </h3>
                                 <button
                                     onClick={() => {

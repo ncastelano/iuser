@@ -61,7 +61,7 @@ export async function POST(req: Request) {
         const { sent } = await sendPushToUser(order.buyer_id, {
             title: store.name || 'Atualização do Pedido',
             body,
-            url: '/sacola',
+            url: '/carrinho',
             tag: `order-status-${checkoutId}`,
         })
 

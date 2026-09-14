@@ -15,7 +15,6 @@ import {
     EyeOff,
     Share2,
     ShoppingCart,
-    ShoppingBag,
     Plus,
     Minus,
     Check,
@@ -421,8 +420,8 @@ export function ProductClientPage({
         </>
     )
 
-    // ===== SACOLA DA LOJA =====
-    // Só os itens desta loja (cada loja tem sua própria sacola) - some
+    // ===== CARRINHO DA LOJA =====
+    // Só os itens desta loja (cada loja tem seu próprio carrinho) - some
     // quando o último item dela é removido, e aparece (com animação) assim
     // que o primeiro item é adicionado.
     const formatPrice = (price: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(price)
@@ -440,11 +439,11 @@ export function ProductClientPage({
                     className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
                     style={{ background: GRADIENT }}
                 >
-                    <ShoppingBag size={16} color="#ffffff" />
+                    <ShoppingCart size={16} color="#ffffff" />
                 </div>
                 <div className="flex-1 text-left min-w-0">
                     <p className="text-sm font-bold truncate" style={{ color: colors.textPrimary }}>
-                        Sacola de {storeDisplay.name}
+                        Carrinho de {storeDisplay.name}
                     </p>
                     <p className="text-xs" style={{ color: colors.textSecondary, opacity: 0.75 }}>
                         {storeCartCount} {storeCartCount === 1 ? 'item' : 'itens'} · {formattedStoreCartTotal}
@@ -1050,7 +1049,7 @@ export function ProductClientPage({
                                 {cartControls}
                             </div>
 
-                            {/* Sacola da loja (web: cartão abaixo dos controles) */}
+                            {/* Carrinho da loja (web: cartão abaixo dos controles) */}
                             {storeCartBar && (
                                 <div className="hidden md:block rounded-2xl overflow-hidden" style={{ border: `1px solid ${colors.border}` }}>
                                     {storeCartBar}
@@ -1116,8 +1115,8 @@ export function ProductClientPage({
                 )}
             </div>
 
-            {/* Barra fixa (mobile): controles de quantidade em cima, sacola da loja
-                embaixo — ao adicionar o primeiro item, a sacola aparece por baixo
+            {/* Barra fixa (mobile): controles de quantidade em cima, carrinho da loja
+                embaixo — ao adicionar o primeiro item, o carrinho aparece por baixo
                 e "empurra" os controles de quantidade pra cima. */}
             <div
                 className="md:hidden fixed bottom-0 inset-x-0 z-20"
