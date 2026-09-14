@@ -28,6 +28,7 @@ interface ActiveOrder {
     scheduled_for: string | null
     driver_en_route: boolean
     driver_arrived_at: string | null
+    ride_started_at: string | null
     extra_task_minutes: number | null
     extra_task_fee: number | null
     extra_task_description: string | null
@@ -76,7 +77,7 @@ interface DriverInfo {
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
 const ORDER_FIELDS = `
-    id, status, applicant_count, scheduled_for, driver_en_route, driver_arrived_at, extra_task_minutes, extra_task_fee, extra_task_description, driver_id,
+    id, status, applicant_count, scheduled_for, driver_en_route, driver_arrived_at, ride_started_at, extra_task_minutes, extra_task_fee, extra_task_description, driver_id,
     origin_address, destination_address, origin_complement, destination_complement, origin_lat, origin_lng,
     ride_type, passenger_count, has_child, children_count, child_age, child_needs_car_seat,
     has_shopping, bag_count, has_extra_object, extra_object_description,
@@ -380,7 +381,7 @@ export default function MotoristaSection({ dragHandle, onBreveStatusChange, onUr
                             >
                                 {activeOrder.status === 'accepted' ? <CheckCircle2 size={13} /> : <Search size={13} />}
                                 {activeOrder.status === 'accepted'
-                                    ? (activeOrder.driver_arrived_at ? 'Motorista chegou!' : activeOrder.driver_en_route ? 'Motorista a caminho!' : 'Motorista aceito, aguardando ele sair')
+                                    ? (activeOrder.ride_started_at ? 'Corrida em andamento!' : activeOrder.driver_arrived_at ? 'Motorista chegou!' : activeOrder.driver_en_route ? 'Motorista a caminho!' : 'Motorista aceito, aguardando ele sair')
                                     : 'Buscando motorista...'}
                             </span>
                             {activeOrder.status === 'pending' ? (

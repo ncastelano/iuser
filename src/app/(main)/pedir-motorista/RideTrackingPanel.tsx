@@ -49,6 +49,7 @@ interface RideRow {
     duration_min: number | null
     driver_en_route: boolean
     driver_arrived_at: string | null
+    ride_started_at: string | null
     extra_task_minutes: number | null
     extra_task_fee: number | null
     extra_task_description: string | null
@@ -114,7 +115,7 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady }: Rid
     const load = useCallback(async () => {
         const { data: rideRow } = await supabase
             .from('ride_requests')
-            .select('id, origin_address, destination_address, origin_complement, destination_complement, status, driver_id, created_at, scheduled_for, origin_lat, origin_lng, destination_lat, destination_lng, duration_min, driver_en_route, driver_arrived_at, extra_task_minutes, extra_task_fee, extra_task_description')
+            .select('id, origin_address, destination_address, origin_complement, destination_complement, status, driver_id, created_at, scheduled_for, origin_lat, origin_lng, destination_lat, destination_lng, duration_min, driver_en_route, driver_arrived_at, ride_started_at, extra_task_minutes, extra_task_fee, extra_task_description')
             .eq('id', rideId)
             .single()
 
@@ -713,10 +714,12 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady }: Rid
                         <p className="text-sm font-black truncate" style={{ color: colors.textPrimary }}>
                             {driver.name || (driver.profileSlug ? `@${driver.profileSlug}` : 'Motorista')}
                         </p>
-                        <p className="text-[11px] font-bold" style={{ color: (ride.driver_en_route || ride.driver_arrived_at) ? '#22c55e' : colors.textSecondary }}>
-                            {ride.driver_arrived_at ? 'Chegou ao local de partida' : ride.driver_en_route ? 'A caminho do ponto de partida' : 'Aguardando ele sair para buscar você'}
+                        <p className="text-[11px] font-bold" style={{ color: (ride.driver_en_route || ride.driver_arrived_at || ride.ride_started_at) ? '#22c55e' : colors.textSecondary }}>
+                            {ride.ride_started_at ? 'Corrida em andamento' : ride.driver_arrived_at ? 'Chegou ao local de partida' : ride.driver_en_route ? 'A caminho do ponto de partida' : 'Aguardando ele sair para buscar você'}
                         </p>
-                        <p className="text-[11px]" style={{ color: colors.textSecondary }}>Confira a placa e a cor do carro antes de entrar.</p>
+                        <p className="text-[11px]" style={{ color: colors.textSecondary }}>
+                            {ride.ride_started_at ? 'Aproveite a viagem!' : 'Confira a placa e a cor do carro antes de entrar.'}
+                        </p>
                     </div>
                 </div>
             )}

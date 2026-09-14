@@ -11,7 +11,7 @@ import Header from '@/components/Header'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import LoginAndRegister from '@/components/LoginAndRegister/LoginAndRegister'
 import { toast } from 'sonner'
-import { MapPin, CheckCircle2 } from 'lucide-react'
+import { MapPin, CheckCircle2, Navigation } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import { shortAddress } from '@/lib/serviceBoard'
 import { notifyRideStatus } from '@/lib/notifyRideStatus'
@@ -27,6 +27,7 @@ interface AcceptedRide {
     destination_address: string
     destination_lat: number | null
     destination_lng: number | null
+    ride_started_at: string | null
     requesterName: string | null
     requesterSlug: string | null
     requesterAvatarUrl: string | undefined
@@ -41,6 +42,7 @@ export default function MinhasCorridasPage() {
     const [showLogin, setShowLogin] = useState(false)
     const [rides, setRides] = useState<AcceptedRide[]>([])
     const [finishingId, setFinishingId] = useState<string | null>(null)
+    const [startingId, setStartingId] = useState<string | null>(null)
 
     const load = useCallback(async () => {
         setLoading(true)
@@ -53,7 +55,7 @@ export default function MinhasCorridasPage() {
 
         const { data: myRides } = await supabase
             .from('ride_requests')
-            .select('id, requester_id, origin_address, destination_address, destination_lat, destination_lng')
+            .select('id, requester_id, origin_address, destination_address, destination_lat, destination_lng, ride_started_at')
             .eq('driver_id', userId)
             .eq('status', 'accepted')
             .order('created_at', { ascending: false })
@@ -80,6 +82,7 @@ export default function MinhasCorridasPage() {
                     destination_address: r.destination_address,
                     destination_lat: r.destination_lat,
                     destination_lng: r.destination_lng,
+                    ride_started_at: r.ride_started_at,
                     requesterName: p?.name || null,
                     requesterSlug: p?.profileSlug || null,
                     requesterAvatarUrl: getAvatarUrl(supabase, p?.avatar_url),
@@ -99,7 +102,28 @@ export default function MinhasCorridasPage() {
         load()
     }
 
+    const startRide = async (ride: AcceptedRide) => {
+        setStartingId(ride.id)
+        try {
+            const { error } = await supabase
+                .from('ride_requests')
+                .update({ ride_started_at: new Date().toISOString() })
+                .eq('id', ride.id)
+            if (error) throw error
+            notifyRideStatus(ride.id, 'started')
+            setRides((prev) => prev.map((r) => (r.id === ride.id ? { ...r, ride_started_at: new Date().toISOString() } : r)))
+        } catch (err: any) {
+            toast.error('Erro ao iniciar corrida: ' + (err.message || 'tente novamente'))
+        } finally {
+            setStartingId(null)
+        }
+    }
+
     const finalizeRide = async (ride: AcceptedRide) => {
+        if (!ride.ride_started_at) {
+            toast.error('Inicie a corrida antes de concluir.')
+            return
+        }
         if (ride.destination_lat == null || ride.destination_lng == null) {
             toast.error('Não dá pra confirmar a chegada: esse pedido não tem coordenadas de destino.')
             return
@@ -205,14 +229,25 @@ export default function MinhasCorridasPage() {
                                         <MapPin size={12} className="flex-shrink-0 mt-0.5" />
                                         <span>{shortAddress(ride.origin_address)} → {shortAddress(ride.destination_address)}</span>
                                     </div>
-                                    <button
-                                        onClick={() => finalizeRide(ride)}
-                                        disabled={finishingId === ride.id}
-                                        className="w-full py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all disabled:opacity-70 flex items-center justify-center gap-2"
-                                        style={{ background: GRADIENT, color: '#fff' }}
-                                    >
-                                        {finishingId === ride.id ? <Spinner size={14} /> : (<><CheckCircle2 size={14} /> Finalizar corrida</>)}
-                                    </button>
+                                    {ride.ride_started_at ? (
+                                        <button
+                                            onClick={() => finalizeRide(ride)}
+                                            disabled={finishingId === ride.id}
+                                            className="w-full py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all disabled:opacity-70 flex items-center justify-center gap-2"
+                                            style={{ background: GRADIENT, color: '#fff' }}
+                                        >
+                                            {finishingId === ride.id ? <Spinner size={14} /> : (<><CheckCircle2 size={14} /> Cheguei ao destino</>)}
+                                        </button>
+                                    ) : (
+                                        <button
+                                            onClick={() => startRide(ride)}
+                                            disabled={startingId === ride.id}
+                                            className="w-full py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all disabled:opacity-70 flex items-center justify-center gap-2"
+                                            style={{ background: GRADIENT, color: '#fff' }}
+                                        >
+                                            {startingId === ride.id ? <Spinner size={14} /> : (<><Navigation size={14} /> Iniciar corrida</>)}
+                                        </button>
+                                    )}
                                 </div>
                             ))}
                         </div>

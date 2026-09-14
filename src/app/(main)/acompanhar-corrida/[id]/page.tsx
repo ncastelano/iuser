@@ -25,6 +25,7 @@ interface RideShareData {
     durationMin: number | null
     driverEnRoute: boolean
     driverArrivedAt: string | null
+    rideStartedAt: string | null
     createdAt: string
     driver: {
         name: string | null
@@ -93,6 +94,7 @@ export default function AcompanharCorridaPage() {
         if (data.status === 'cancelled') return { label: 'Corrida cancelada', color: '#ef4444', icon: XCircle }
         if (data.status === 'completed') return { label: 'Corrida concluída', color: '#22c55e', icon: CheckCircle2 }
         if (data.status === 'pending') return { label: 'Buscando motorista', color: '#f97316', icon: Clock }
+        if (data.rideStartedAt) return { label: 'Corrida em andamento', color: '#22c55e', icon: Car }
         if (data.driverArrivedAt) return { label: 'Motorista chegou ao local de partida', color: '#22c55e', icon: MapPin }
         if (data.driverEnRoute) return { label: 'Motorista a caminho', color: '#22c55e', icon: Navigation }
         return { label: 'Motorista aceito, aguardando ele sair', color: '#f97316', icon: CheckCircle2 }

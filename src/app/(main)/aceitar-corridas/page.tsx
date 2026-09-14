@@ -188,6 +188,7 @@ interface AcceptedRideDetail {
     duration_min: number | null
     driver_en_route: boolean
     driver_arrived_at: string | null
+    ride_started_at: string | null
     requesterName: string | null
     requesterSlug: string | null
     requesterAvatarUrl: string | undefined
@@ -212,6 +213,7 @@ export default function AceitarCorridasPage() {
     const [acceptedRide, setAcceptedRide] = useState<AcceptedRideDetail | null>(null)
     const [departing, setDeparting] = useState(false)
     const [arriving, setArriving] = useState(false)
+    const [starting, setStarting] = useState(false)
     const [showExtraTaskForm, setShowExtraTaskForm] = useState(false)
     const [extraTaskMinutesInput, setExtraTaskMinutesInput] = useState('')
     const [extraTaskDescriptionInput, setExtraTaskDescriptionInput] = useState('')
@@ -449,7 +451,7 @@ export default function AceitarCorridasPage() {
         // definido no momento em que o pedido dele vira "accepted".
         const { data: acceptedRow } = await supabase
             .from('ride_requests')
-            .select('id, requester_id, origin_address, destination_address, origin_complement, destination_complement, origin_lat, origin_lng, destination_lat, destination_lng, distance_km, duration_min, driver_en_route, driver_arrived_at, extra_task_minutes, extra_task_fee, extra_task_description')
+            .select('id, requester_id, origin_address, destination_address, origin_complement, destination_complement, origin_lat, origin_lng, destination_lat, destination_lng, distance_km, duration_min, driver_en_route, driver_arrived_at, ride_started_at, extra_task_minutes, extra_task_fee, extra_task_description')
             .eq('driver_id', contextUserId)
             .eq('status', 'accepted')
             .order('created_at', { ascending: false })
@@ -477,6 +479,7 @@ export default function AceitarCorridasPage() {
                 duration_min: acceptedRow.duration_min,
                 driver_en_route: acceptedRow.driver_en_route,
                 driver_arrived_at: acceptedRow.driver_arrived_at,
+                ride_started_at: acceptedRow.ride_started_at,
                 requesterName: reqProfile?.name || null,
                 requesterSlug: reqProfile?.profileSlug || null,
                 requesterAvatarUrl: getAvatarUrl(supabase, reqProfile?.avatar_url),
@@ -707,6 +710,24 @@ export default function AceitarCorridasPage() {
         }
     }
 
+    const startRide = async () => {
+        if (!acceptedRide) return
+        setStarting(true)
+        try {
+            const { error } = await supabase
+                .from('ride_requests')
+                .update({ ride_started_at: new Date().toISOString() })
+                .eq('id', acceptedRide.id)
+            if (error) throw error
+            notifyRideStatus(acceptedRide.id, 'started')
+            setAcceptedRide((prev) => (prev ? { ...prev, ride_started_at: new Date().toISOString() } : prev))
+        } catch (err: any) {
+            toast.error('Erro ao iniciar corrida: ' + (err.message || 'tente novamente'))
+        } finally {
+            setStarting(false)
+        }
+    }
+
     const saveExtraTask = async () => {
         if (!acceptedRide) return
         const minutes = parseInt(extraTaskMinutesInput, 10)
@@ -761,6 +782,10 @@ export default function AceitarCorridasPage() {
 
     const finishAcceptedRide = async () => {
         if (!acceptedRide) return
+        if (!acceptedRide.ride_started_at) {
+            toast.error('Inicie a corrida antes de concluir.')
+            return
+        }
         if (acceptedRide.destination_lat == null || acceptedRide.destination_lng == null) {
             toast.error('Não dá pra confirmar a chegada: esse pedido não tem coordenadas de destino.')
             return
@@ -1202,7 +1227,7 @@ export default function AceitarCorridasPage() {
                                     style={{ background: '#22c55e15', color: '#22c55e' }}
                                 >
                                     <CheckCircle2 size={11} />
-                                    {acceptedRide.driver_arrived_at ? 'Chegou' : acceptedRide.driver_en_route ? 'A caminho' : 'Aceita'}
+                                    {acceptedRide.ride_started_at ? 'Em andamento' : acceptedRide.driver_arrived_at ? 'Chegou' : acceptedRide.driver_en_route ? 'A caminho' : 'Aceita'}
                                 </span>
                                 <button
                                     onClick={() => handleShareLink({
@@ -1365,14 +1390,27 @@ export default function AceitarCorridasPage() {
                                 </button>
                             )}
 
-                            <button
-                                onClick={finishAcceptedRide}
-                                disabled={finishing}
-                                className="w-full mt-2 py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all disabled:opacity-70 flex items-center justify-center gap-2"
-                                style={{ background: '#22c55e', color: '#fff' }}
-                            >
-                                {finishing ? <Spinner size={14} /> : <><Flag size={14} /> Concluir corrida</>}
-                            </button>
+                            {acceptedRide.driver_arrived_at && !acceptedRide.ride_started_at && (
+                                <button
+                                    onClick={startRide}
+                                    disabled={starting}
+                                    className="w-full py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all disabled:opacity-70 flex items-center justify-center gap-2"
+                                    style={{ background: GRADIENT, color: '#fff' }}
+                                >
+                                    {starting ? <Spinner size={14} /> : <><Navigation size={14} /> Iniciar corrida</>}
+                                </button>
+                            )}
+
+                            {acceptedRide.ride_started_at && (
+                                <button
+                                    onClick={finishAcceptedRide}
+                                    disabled={finishing}
+                                    className="w-full mt-2 py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all disabled:opacity-70 flex items-center justify-center gap-2"
+                                    style={{ background: '#22c55e', color: '#fff' }}
+                                >
+                                    {finishing ? <Spinner size={14} /> : <><Flag size={14} /> Cheguei ao destino</>}
+                                </button>
+                            )}
 
                             <button
                                 onClick={cancelAcceptedRide}

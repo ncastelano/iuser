@@ -16,7 +16,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 
     const { data: ride, error } = await supabaseAdmin
         .from('ride_requests')
-        .select('id, status, ride_type, requester_id, driver_id, origin_address, destination_address, origin_complement, destination_complement, distance_km, duration_min, driver_en_route, driver_arrived_at, created_at')
+        .select('id, status, ride_type, requester_id, driver_id, origin_address, destination_address, origin_complement, destination_complement, distance_km, duration_min, driver_en_route, driver_arrived_at, ride_started_at, created_at')
         .eq('id', id)
         .maybeSingle()
 
@@ -72,6 +72,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
         durationMin: ride.duration_min,
         driverEnRoute: ride.driver_en_route,
         driverArrivedAt: ride.driver_arrived_at,
+        rideStartedAt: ride.ride_started_at,
         createdAt: ride.created_at,
         driver,
     })

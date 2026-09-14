@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { sendPushToUser } from '@/lib/serverPush'
 
-type RideStatusEvent = 'en_route' | 'arrived' | 'completed' | 'cancelled'
+type RideStatusEvent = 'en_route' | 'arrived' | 'started' | 'completed' | 'cancelled'
 
 export async function POST(req: Request) {
     try {
@@ -47,21 +47,24 @@ export async function POST(req: Request) {
         let body = ''
         let url = '/'
 
-        if (status === 'en_route' || status === 'arrived' || status === 'completed') {
+        if (status === 'en_route' || status === 'arrived' || status === 'started' || status === 'completed') {
             if (!isDriver || !ride.driver_id) {
                 return NextResponse.json({ success: true, skipped: true })
             }
             recipientId = ride.requester_id
             url = '/pedir-motorista'
-            if (status === 'en_route' || status === 'arrived') {
+            if (status === 'en_route' || status === 'arrived' || status === 'started') {
                 const { data: driver } = await supabaseAdmin.from('profiles').select('name, profileSlug').eq('id', ride.driver_id).single()
                 const driverName = driver?.name || (driver?.profileSlug ? `@${driver.profileSlug}` : 'O motorista')
                 if (status === 'en_route') {
                     title = 'Motorista a caminho!'
                     body = `${driverName} está a caminho do local de partida.`
-                } else {
+                } else if (status === 'arrived') {
                     title = 'Motorista chegou!'
                     body = `${driverName} chegou ao local de partida.`
+                } else {
+                    title = 'Corrida iniciada!'
+                    body = `${driverName} iniciou a corrida.`
                 }
             } else {
                 title = 'Corrida concluída!'
