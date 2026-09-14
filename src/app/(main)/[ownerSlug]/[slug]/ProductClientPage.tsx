@@ -684,25 +684,28 @@ export function ProductClientPage({
                         </button>
                     </div>
 
-                    <div className="flex items-center gap-3 mb-3 p-2.5 rounded-xl" style={{ background: `${colors.surface}44`, border: `1px solid ${colors.border}` }}>
-                        <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#ffffff' }}>
-                            {checkout.deliveryOption === 'entrega' ? <Truck size={14} /> : <Store size={14} />}
+                    <div className="mb-3 rounded-xl overflow-hidden" style={{ border: `1px solid ${colors.border}` }}>
+                        <div className="max-h-36 overflow-y-auto divide-y" style={{ borderColor: colors.border }}>
+                            {storeCartItems.map((item) => (
+                                <div
+                                    key={`${item.product.id}::${item.comment || ''}`}
+                                    className="flex items-center justify-between gap-2 px-3 py-2"
+                                    style={{ borderColor: colors.border }}
+                                >
+                                    <div className="min-w-0">
+                                        <p className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>
+                                            {item.product.name}
+                                        </p>
+                                        <p className="text-[10px]" style={{ color: colors.textSecondary }}>
+                                            {item.quantity}x {formatPrice(item.product.price)}
+                                        </p>
+                                    </div>
+                                    <span className="text-xs font-black flex-shrink-0" style={{ color: '#f97316' }}>
+                                        {formatPrice(item.product.price * item.quantity)}
+                                    </span>
+                                </div>
+                            ))}
                         </div>
-                        <div className="flex-1 min-w-0">
-                            <p className="text-xs font-bold" style={{ color: colors.textPrimary }}>
-                                {checkout.deliveryOption === 'entrega' ? 'Entrega' : 'Retirada na loja'}
-                            </p>
-                            {checkout.deliveryOption === 'entrega' && (
-                                <p className="text-[10px] truncate" style={{ color: colors.textSecondary }}>{checkout.deliveryAddress}</p>
-                            )}
-                        </div>
-                        <button
-                            onClick={() => checkout.setCheckoutStep('delivery')}
-                            className="text-[10px] font-bold underline flex-shrink-0"
-                            style={{ color: '#f97316' }}
-                        >
-                            Alterar
-                        </button>
                     </div>
 
                     <div className="mb-3">
@@ -719,7 +722,11 @@ export function ProductClientPage({
                                 return (
                                     <button
                                         key={opt.value}
-                                        onClick={() => checkout.setPaymentMethod(opt.value)}
+                                        onClick={() => {
+                                            checkout.setPaymentMethod(opt.value)
+                                            if (opt.value !== 'dinheiro') checkout.setCashChangeFor('')
+                                            if (opt.value !== 'cartao') checkout.setCardIsContactless(null)
+                                        }}
                                         className="flex flex-col items-center gap-1.5 p-2.5 rounded-2xl border-2 text-center transition hover:scale-[1.02] active:scale-95"
                                         style={selected
                                             ? { borderColor: '#f97316', background: `${colors.accent}10` }
@@ -738,6 +745,40 @@ export function ProductClientPage({
                                 )
                             })}
                         </div>
+
+                        {checkout.paymentMethod === 'dinheiro' && (
+                            <input
+                                type="text"
+                                inputMode="decimal"
+                                value={checkout.cashChangeFor}
+                                onChange={(e) => checkout.setCashChangeFor(e.target.value.replace(/[^0-9,.]/g, ''))}
+                                placeholder="Precisa de troco para quanto? (opcional)"
+                                className="w-full mt-2 px-3 py-2 rounded-lg text-sm focus:outline-none"
+                                style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                            />
+                        )}
+
+                        {checkout.paymentMethod === 'cartao' && (
+                            <div className="mt-2">
+                                <span className="text-xs font-bold block mb-1.5" style={{ color: colors.textSecondary }}>Seu cartão tem aproximação?</span>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => checkout.setCardIsContactless(true)}
+                                        className="flex-1 py-2 rounded-xl text-xs font-bold transition-all"
+                                        style={checkout.cardIsContactless === true ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                                    >
+                                        Sim
+                                    </button>
+                                    <button
+                                        onClick={() => checkout.setCardIsContactless(false)}
+                                        className="flex-1 py-2 rounded-xl text-xs font-bold transition-all"
+                                        style={checkout.cardIsContactless === false ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                                    >
+                                        Não
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     <div className="border-t pt-2.5" style={{ borderColor: colors.border }}>

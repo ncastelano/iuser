@@ -116,6 +116,8 @@ export default function CatalogoClientPage() {
     // ===== DELIVERY =====
     const [deliveryOption, setDeliveryOption] = useState<'entrega' | 'retirada' | null>(null)
     const [paymentMethod, setPaymentMethod] = useState<'pix' | 'cartao' | 'dinheiro' | null>(null)
+    const [cashChangeFor, setCashChangeFor] = useState('')
+    const [cardIsContactless, setCardIsContactless] = useState<boolean | null>(null)
     const [deliveryAddress, setDeliveryAddress] = useState('')
     const [deliveryLat, setDeliveryLat] = useState<number | null>(null)
     const [deliveryLng, setDeliveryLng] = useState<number | null>(null)
@@ -782,6 +784,8 @@ export default function CatalogoClientPage() {
                     delivery_address: address,
                     delivery_lat: deliveryOption === 'entrega' ? deliveryLat : null,
                     delivery_lng: deliveryOption === 'entrega' ? deliveryLng : null,
+                    cash_change_for: paymentMethod === 'dinheiro' && cashChangeFor.trim() ? Number(cashChangeFor.replace(',', '.')) : null,
+                    card_is_contactless: paymentMethod === 'cartao' ? cardIsContactless : null,
                     status: 'pending',
                     checkout_id,
                 })
@@ -1607,29 +1611,29 @@ export default function CatalogoClientPage() {
                                     </button>
                                 </div>
 
-                                {/* Recap do recebimento escolhido */}
-                                <div
-                                    className="flex items-center gap-3 mb-3 p-2.5 rounded-xl"
-                                    style={{ background: `${colors.surface}44`, border: `1px solid ${colors.border}` }}
-                                >
-                                    <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#ffffff' }}>
-                                        {deliveryOption === 'entrega' ? <Truck size={14} /> : <Store size={14} />}
+                                {/* Itens do pedido e o valor de cada um */}
+                                <div className="mb-3 rounded-xl overflow-hidden" style={{ border: `1px solid ${colors.border}` }}>
+                                    <div className="max-h-36 overflow-y-auto divide-y" style={{ borderColor: colors.border }}>
+                                        {cartItems.map((item) => (
+                                            <div
+                                                key={`${item.product.id}::${(item as any).comment || ''}`}
+                                                className="flex items-center justify-between gap-2 px-3 py-2"
+                                                style={{ borderColor: colors.border }}
+                                            >
+                                                <div className="min-w-0">
+                                                    <p className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>
+                                                        {item.product.name}
+                                                    </p>
+                                                    <p className="text-[10px]" style={{ color: colors.textSecondary }}>
+                                                        {item.quantity}x {formatPrice(item.product.price)}
+                                                    </p>
+                                                </div>
+                                                <span className="text-xs font-black flex-shrink-0" style={{ color: '#f97316' }}>
+                                                    {formatPrice(item.product.price * item.quantity)}
+                                                </span>
+                                            </div>
+                                        ))}
                                     </div>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-xs font-bold" style={{ color: colors.textPrimary }}>
-                                            {deliveryOption === 'entrega' ? 'Entrega' : 'Retirada na loja'}
-                                        </p>
-                                        {deliveryOption === 'entrega' && (
-                                            <p className="text-[10px] truncate" style={{ color: colors.textSecondary }}>{deliveryAddress}</p>
-                                        )}
-                                    </div>
-                                    <button
-                                        onClick={() => setCheckoutStep('delivery')}
-                                        className="text-[10px] font-bold underline flex-shrink-0"
-                                        style={{ color: '#f97316' }}
-                                    >
-                                        Alterar
-                                    </button>
                                 </div>
 
                                 {/* Pergunta de pagamento */}
@@ -1647,7 +1651,11 @@ export default function CatalogoClientPage() {
                                             return (
                                                 <button
                                                     key={opt.value}
-                                                    onClick={() => setPaymentMethod(opt.value)}
+                                                    onClick={() => {
+                                                        setPaymentMethod(opt.value)
+                                                        if (opt.value !== 'dinheiro') setCashChangeFor('')
+                                                        if (opt.value !== 'cartao') setCardIsContactless(null)
+                                                    }}
                                                     className="flex flex-col items-center gap-1.5 p-2.5 rounded-2xl border-2 text-center transition hover:scale-[1.02] active:scale-95"
                                                     style={selected
                                                         ? { borderColor: '#f97316', background: `${colors.accent}10` }
@@ -1666,6 +1674,40 @@ export default function CatalogoClientPage() {
                                             )
                                         })}
                                     </div>
+
+                                    {paymentMethod === 'dinheiro' && (
+                                        <input
+                                            type="text"
+                                            inputMode="decimal"
+                                            value={cashChangeFor}
+                                            onChange={(e) => setCashChangeFor(e.target.value.replace(/[^0-9,.]/g, ''))}
+                                            placeholder="Precisa de troco para quanto? (opcional)"
+                                            className="w-full mt-2 px-3 py-2 rounded-lg text-sm focus:outline-none"
+                                            style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                                        />
+                                    )}
+
+                                    {paymentMethod === 'cartao' && (
+                                        <div className="mt-2">
+                                            <span className="text-xs font-bold block mb-1.5" style={{ color: colors.textSecondary }}>Seu cartão tem aproximação?</span>
+                                            <div className="flex gap-2">
+                                                <button
+                                                    onClick={() => setCardIsContactless(true)}
+                                                    className="flex-1 py-2 rounded-xl text-xs font-bold transition-all"
+                                                    style={cardIsContactless === true ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                                                >
+                                                    Sim
+                                                </button>
+                                                <button
+                                                    onClick={() => setCardIsContactless(false)}
+                                                    className="flex-1 py-2 rounded-xl text-xs font-bold transition-all"
+                                                    style={cardIsContactless === false ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                                                >
+                                                    Não
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* Total e finalizar */}

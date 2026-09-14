@@ -87,6 +87,8 @@ export function useStoreCheckout(ownerSlug: string | undefined, cartItems: CartI
     const [checkoutStep, setCheckoutStep] = useState<CheckoutStep>(null)
     const [deliveryOption, setDeliveryOption] = useState<'entrega' | 'retirada' | null>(null)
     const [paymentMethod, setPaymentMethod] = useState<'pix' | 'cartao' | 'dinheiro' | null>(null)
+    const [cashChangeFor, setCashChangeFor] = useState('')
+    const [cardIsContactless, setCardIsContactless] = useState<boolean | null>(null)
     const [deliveryAddress, setDeliveryAddress] = useState('')
     const [deliveryLat, setDeliveryLat] = useState<number | null>(null)
     const [deliveryLng, setDeliveryLng] = useState<number | null>(null)
@@ -417,6 +419,8 @@ export function useStoreCheckout(ownerSlug: string | undefined, cartItems: CartI
                     delivery_address: address,
                     delivery_lat: deliveryOption === 'entrega' ? deliveryLat : null,
                     delivery_lng: deliveryOption === 'entrega' ? deliveryLng : null,
+                    cash_change_for: paymentMethod === 'dinheiro' && cashChangeFor.trim() ? Number(cashChangeFor.replace(',', '.')) : null,
+                    card_is_contactless: paymentMethod === 'cartao' ? cardIsContactless : null,
                     status: 'pending',
                     checkout_id,
                 })
@@ -500,6 +504,7 @@ export function useStoreCheckout(ownerSlug: string | undefined, cartItems: CartI
         canChooseReceivingMethod, onlyPickupAvailable, onlyDeliveryAvailable,
         checkoutStep, setCheckoutStep, checkoutLoading, startCheckout,
         deliveryOption, setDeliveryOption, paymentMethod, setPaymentMethod,
+        cashChangeFor, setCashChangeFor, cardIsContactless, setCardIsContactless,
         deliveryAddress, isEditingAddress, setIsEditingAddress, showAddressSearch, setShowAddressSearch,
         locationSearchQuery, setLocationSearchQuery, isSearchingLocation, searchLocation,
         userAddress, userLocation, useSavedAddress,
