@@ -377,7 +377,27 @@ export default function StoreDashboard({
                 </div>
             )}
 
-            {/* ===== STORE OPERATING DAYS NO TOPO ===== */}
+            {/* ===== StoreOrders NO TOPO - é a primeira coisa que a loja precisa ver ===== */}
+            <div className="mb-6">
+                <StoreOrders
+                    storeId={store.id}
+                    storeName={store.name}
+                    onOrderCountsChange={onOrderCountsChange}
+                />
+            </div>
+
+            {/* ===== Venda Presencial (logo abaixo dos Pedidos) ===== */}
+            <div className="mb-6">
+                <ButtonInPersonSale
+                    storeId={store.id}
+                    storeName={store.name}
+                    storeSlug={storeSlug}
+                    profileSlug={profileSlug}
+                    onSaleCompleted={() => loadDashboard()}
+                />
+            </div>
+
+            {/* ===== STORE OPERATING DAYS ===== */}
             <div className="mb-4">
                 <StoreOperatingDays storeId={store.id} />
             </div>
@@ -481,26 +501,6 @@ export default function StoreDashboard({
                         </div>
                     </div>
                 </div>
-            </div>
-
-            {/* ===== Venda Presencial ===== */}
-            <div className="mb-6">
-                <ButtonInPersonSale
-                    storeId={store.id}
-                    storeName={store.name}
-                    storeSlug={storeSlug}
-                    profileSlug={profileSlug}
-                    onSaleCompleted={() => loadDashboard()}
-                />
-            </div>
-
-            {/* ===== StoreOrders ===== */}
-            <div className="mb-6">
-                <StoreOrders
-                    storeId={store.id}
-                    storeName={store.name}
-                    onOrderCountsChange={onOrderCountsChange}
-                />
             </div>
 
             {/* ===== Produtos ===== */}

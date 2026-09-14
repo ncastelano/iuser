@@ -687,26 +687,6 @@ export default function StoreOrders({
         }
     }
 
-    const getStatusLabel = (status: string) => {
-        switch (status) {
-            case 'pending': return 'Pendente'
-            case 'preparing': return 'Preparando'
-            case 'ready': return 'Pronto'
-            case 'paid': return 'Finalizado'
-            default: return status
-        }
-    }
-
-    const getStatusIcon = (status: string) => {
-        switch (status) {
-            case 'pending': return Clock
-            case 'preparing': return Package
-            case 'ready': return CheckCircle
-            case 'paid': return CheckCircle
-            default: return Clock
-        }
-    }
-
     // ===== ESTADO VISUAL DO CARD "PEDIDOS NA LOJA" =====
     const cardState = useMemo(() => {
         const hasPending = groupedOrders.some(order => order.status === 'pending')
@@ -1036,8 +1016,6 @@ export default function StoreOrders({
                                                     setSingleAssignOpen={setSingleAssignOpen}
                                                     getStatusColor={getStatusColor}
                                                     getStatusGradient={getStatusGradient}
-                                                    getStatusLabel={getStatusLabel}
-                                                    getStatusIcon={getStatusIcon}
                                                     formatAssignmentStatus={formatAssignmentStatus}
                                                     isInPerson={!order.buyer_profile_slug}
                                                     borderColor={colors.border}
@@ -1064,8 +1042,6 @@ export default function StoreOrders({
                                                     setSingleAssignOpen={setSingleAssignOpen}
                                                     getStatusColor={getStatusColor}
                                                     getStatusGradient={getStatusGradient}
-                                                    getStatusLabel={getStatusLabel}
-                                                    getStatusIcon={getStatusIcon}
                                                     formatAssignmentStatus={formatAssignmentStatus}
                                                     isInPerson={!order.buyer_profile_slug}
                                                     borderColor={colors.border}
@@ -1092,8 +1068,6 @@ export default function StoreOrders({
                                                     setSingleAssignOpen={setSingleAssignOpen}
                                                     getStatusColor={getStatusColor}
                                                     getStatusGradient={getStatusGradient}
-                                                    getStatusLabel={getStatusLabel}
-                                                    getStatusIcon={getStatusIcon}
                                                     formatAssignmentStatus={formatAssignmentStatus}
                                                     isInPerson={!order.buyer_profile_slug}
                                                     borderColor={colors.border}
@@ -1120,8 +1094,6 @@ export default function StoreOrders({
                                                     setSingleAssignOpen={setSingleAssignOpen}
                                                     getStatusColor={getStatusColor}
                                                     getStatusGradient={getStatusGradient}
-                                                    getStatusLabel={getStatusLabel}
-                                                    getStatusIcon={getStatusIcon}
                                                     formatAssignmentStatus={formatAssignmentStatus}
                                                     isInPerson={!order.buyer_profile_slug}
                                                     borderColor={colors.border}
@@ -1236,8 +1208,6 @@ function OrderButton({
     setSingleAssignOpen,
     getStatusColor,
     getStatusGradient,
-    getStatusLabel,
-    getStatusIcon,
     formatAssignmentStatus,
     isInPerson,
     borderColor,
@@ -1245,10 +1215,14 @@ function OrderButton({
 }: any) {
     const channelLabel = isInPerson ? 'Presencial' : 'Online'
     const statusColor = getStatusColor(order.status)
-    const StatusIcon = getStatusIcon(order.status)
     const isAssigned = assignmentMap.has(order.checkout_id)
     const assignment = isAssigned ? assignmentMap.get(order.checkout_id) : null
-    const statusLabel = getStatusLabel(order.status)
+    // O status já fica claro pela seção onde o pedido está agrupado (Novos,
+    // Em Preparo, Prontos, Finalizados) - repetir "Pendente"/"Preparando" no
+    // próprio card é redundante, então aqui mostramos o horário do pedido.
+    const orderTime = order.created_at
+        ? new Date(order.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+        : ''
 
     const handleAssignClick = (e: React.MouseEvent) => {
         e.stopPropagation()
@@ -1258,12 +1232,13 @@ function OrderButton({
 
     return (
         <div
-            className={`w-full rounded-full transition-all duration-200 hover:scale-[1.02] active:scale-95 hover:shadow-xl relative overflow-hidden will-change-transform ${isPaid ? 'opacity-80' : 'cursor-pointer'}`}
+            className={`w-full rounded-2xl transition-all duration-200 hover:scale-[1.01] active:scale-[0.99] hover:shadow-xl relative overflow-hidden will-change-transform ${isPaid ? 'opacity-80' : 'cursor-pointer'}`}
             style={{
                 background: getStatusGradient(order.status),
                 color: '#ffffff',
                 boxShadow: `0 4px 16px ${statusColor}40`,
-                border: `2px solid ${statusColor}`,
+                border: `1px solid ${statusColor}55`,
+                borderLeft: `4px solid ${statusColor}`,
             }}
             onClick={() => {
                 // AGORA PERMITE CLICAR EM TODOS OS PEDIDOS, inclusive finalizados
@@ -1272,7 +1247,7 @@ function OrderButton({
         >
             {!isPaid && (
                 <div className="absolute inset-0 pointer-events-none opacity-15">
-                    <div className="absolute inset-[-2px] rounded-full" style={{
+                    <div className="absolute inset-[-2px] rounded-2xl" style={{
                         background: `linear-gradient(90deg, transparent, ${statusColor}33, transparent)`,
                         animation: 'shimmer-order 4s ease-in-out infinite',
                         transform: 'translateX(-100%)',
@@ -1280,9 +1255,9 @@ function OrderButton({
                 </div>
             )}
 
-            <div className="flex items-center justify-between px-5 py-4 relative z-10">
+            <div className="flex items-center justify-between gap-3 px-4 py-3.5 relative z-10">
                 <div className="flex flex-col items-start min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
                         {isInPerson ? (
                             <>
                                 <Store size={14} className="text-white/80 flex-shrink-0" />
@@ -1291,23 +1266,19 @@ function OrderButton({
                                 </span>
                             </>
                         ) : (
-                            <span className="text-sm font-bold text-white">
+                            <span className="text-sm font-bold text-white truncate">
                                 @{order.buyer_profile_slug}
                             </span>
                         )}
                         <span
-                            className="px-2.5 py-0.5 rounded-full text-[10px] font-bold text-white/90 flex-shrink-0"
-                            style={{
-                                background: 'rgba(255,255,255,0.08)',
-                                backdropFilter: 'blur(4px)',
-                                border: '1px solid rgba(255,255,255,0.06)',
-                            }}
+                            className="px-2 py-0.5 rounded-md text-[9px] font-bold text-white/70 flex-shrink-0 uppercase tracking-wide"
+                            style={{ background: 'rgba(255,255,255,0.08)' }}
                         >
                             {channelLabel}
                         </span>
                     </div>
-                    <div className="flex items-center gap-3 text-xs mt-1 flex-wrap">
-                        <span className="text-white/90 font-bold">
+                    <div className="flex items-center gap-3 text-xs mt-1.5 flex-wrap">
+                        <span className="text-white font-black text-sm">
                             R$ {order.totalPrice.toFixed(2)}
                         </span>
                         {order.deliveryFee > 0 && (
@@ -1322,19 +1293,12 @@ function OrderButton({
                         )}
                     </div>
                 </div>
-                <div className="flex items-center gap-2 flex-shrink-0 ml-2">
-                    <span
-                        className="px-3 py-1 rounded-full text-[10px] font-bold flex items-center gap-1.5 flex-shrink-0"
-                        style={{
-                            background: 'rgba(255,255,255,0.08)',
-                            backdropFilter: 'blur(4px)',
-                            color: '#ffffff',
-                            border: '1px solid rgba(255,255,255,0.06)',
-                        }}
-                    >
-                        <StatusIcon size={12} />
-                        {statusLabel}
-                    </span>
+                <div className="flex items-center gap-1 flex-shrink-0">
+                    {orderTime && (
+                        <span className="text-[11px] font-medium text-white/50 flex-shrink-0 tabular-nums">
+                            {orderTime}
+                        </span>
+                    )}
                     {!isInPerson && !isPaid && (
                         <button
                             onClick={handleAssignClick}
