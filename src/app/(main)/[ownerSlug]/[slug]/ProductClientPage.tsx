@@ -12,6 +12,7 @@ import {
     Store,
     Calendar,
     Eye,
+    EyeOff,
     Share2,
     ShoppingCart,
     ShoppingBag,
@@ -19,11 +20,23 @@ import {
     Minus,
     Check,
     ChevronRight,
-    Trash2
+    Trash2,
+    X,
+    Truck,
+    Search,
+    MapPin,
+    Home,
+    CheckCircle2,
+    QrCode,
+    CreditCard,
+    Banknote,
+    User,
+    Camera,
 } from 'lucide-react'
 import { handleShareLink } from '@/lib/share'
 import { toast } from 'sonner'
 import { useCartStore } from '@/store/useCartStore'
+import { useStoreCheckout } from './useStoreCheckout'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -103,6 +116,8 @@ export function ProductClientPage({
 
     const { itemsByStore, addItem, updateQuantity, removeItem } = useCartStore()
     const [showStoreCart, setShowStoreCart] = useState(false)
+    const storeCartItems = itemsByStore[ownerSlug] || []
+    const checkout = useStoreCheckout(ownerSlug, storeCartItems)
 
     const [loading, setLoading] = useState(true)
     const [product, setProduct] = useState<ProductWithStore | null>(null)
@@ -410,7 +425,7 @@ export function ProductClientPage({
     // Só os itens desta loja (cada loja tem sua própria sacola) - some
     // quando o último item dela é removido, e aparece (com animação) assim
     // que o primeiro item é adicionado.
-    const storeCartItems = itemsByStore[ownerSlug] || []
+    const formatPrice = (price: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(price)
     const storeCartCount = storeCartItems.reduce((sum, item) => sum + item.quantity, 0)
     const storeCartTotal = storeCartItems.reduce((sum, item) => sum + item.product.price * item.quantity, 0)
     const formattedStoreCartTotal = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(storeCartTotal)
@@ -446,7 +461,334 @@ export function ProductClientPage({
                 />
             </button>
 
-            {showStoreCart && (
+            {showStoreCart && checkout.checkoutStep === 'delivery' && (
+                <div className="px-4 pb-3 max-h-[70vh] overflow-y-auto">
+                    <div className="flex items-center justify-between mb-3">
+                        <p className="text-[10px] font-black uppercase tracking-wider" style={{ color: '#f97316' }}>
+                            Etapa 1 de 2 · Recebimento
+                        </p>
+                        <button
+                            onClick={() => checkout.setCheckoutStep(null)}
+                            className="p-1 rounded-full hover:bg-black/5 transition"
+                            style={{ color: colors.textSecondary }}
+                        >
+                            <X size={16} />
+                        </button>
+                    </div>
+
+                    <div className="mb-3">
+                        <p className="text-sm font-black mb-3" style={{ color: colors.textPrimary }}>
+                            Como você quer receber seu pedido?
+                        </p>
+
+                        {checkout.canChooseReceivingMethod ? (
+                            <div className="grid grid-cols-2 gap-3">
+                                {([
+                                    {
+                                        value: 'retirada' as const,
+                                        icon: Store,
+                                        label: 'Retirar na loja',
+                                        desc: 'Busque no balcão',
+                                        priceLine: (
+                                            <span className="text-sm font-black" style={{ color: colors.textPrimary }}>
+                                                {formatPrice(checkout.getStoreTotals().itemsTotal)}
+                                            </span>
+                                        ),
+                                    },
+                                    {
+                                        value: 'entrega' as const,
+                                        icon: Truck,
+                                        label: 'Receber em casa',
+                                        desc: 'Entregamos no endereço',
+                                        priceLine: checkout.bagDeliveryEstimate.isEstimate ? (
+                                            <span className="text-[10px] font-medium" style={{ color: colors.textSecondary, opacity: 0.7 }}>
+                                                Frete a calcular
+                                            </span>
+                                        ) : (
+                                            <>
+                                                <span className="text-[9px] font-bold" style={{ color: checkout.bagDeliveryEstimate.fee === 0 ? '#22c55e' : colors.textSecondary }}>
+                                                    {checkout.bagDeliveryEstimate.fee === 0 ? 'Frete grátis' : `+ ${formatPrice(checkout.bagDeliveryEstimate.fee)} frete`}
+                                                </span>
+                                                <span className="text-sm font-black" style={{ color: colors.textPrimary }}>
+                                                    {formatPrice(checkout.getStoreTotals().itemsTotal + checkout.bagDeliveryEstimate.fee)}
+                                                </span>
+                                            </>
+                                        ),
+                                    },
+                                ]).map((opt) => {
+                                    const selected = checkout.deliveryOption === opt.value
+                                    return (
+                                        <button
+                                            key={opt.value}
+                                            onClick={() => checkout.setDeliveryOption(opt.value)}
+                                            className="flex flex-col items-center gap-1.5 p-3 rounded-2xl border-2 text-center transition hover:scale-[1.02] active:scale-95"
+                                            style={selected
+                                                ? { borderColor: '#f97316', background: `${colors.accent}10` }
+                                                : { borderColor: colors.border, background: 'transparent' }}
+                                        >
+                                            <div
+                                                className="w-10 h-10 rounded-full flex items-center justify-center"
+                                                style={selected ? { background: GRADIENT, color: '#ffffff' } : { background: `${colors.surface}88`, color: colors.textSecondary }}
+                                            >
+                                                <opt.icon size={18} />
+                                            </div>
+                                            <span className="text-xs font-bold" style={{ color: selected ? '#f97316' : colors.textPrimary }}>
+                                                {opt.label}
+                                            </span>
+                                            <span className="text-[9px]" style={{ color: colors.textSecondary }}>
+                                                {opt.desc}
+                                            </span>
+                                            <div className="w-full flex flex-col items-center gap-0.5 pt-1.5 mt-0.5 border-t" style={{ borderColor: colors.border }}>
+                                                {opt.priceLine}
+                                            </div>
+                                        </button>
+                                    )
+                                })}
+                            </div>
+                        ) : checkout.onlyPickupAvailable ? (
+                            <div className="flex items-center gap-3 p-3 rounded-2xl" style={{ background: `${colors.surface}66`, border: `1px dashed ${colors.border}` }}>
+                                <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#ffffff' }}>
+                                    <Store size={18} />
+                                </div>
+                                <div>
+                                    <p className="text-xs font-bold" style={{ color: colors.textPrimary }}>Essa loja não tem entrega</p>
+                                    <p className="text-[10px]" style={{ color: colors.textSecondary }}>Seu pedido será retirado no balcão</p>
+                                </div>
+                            </div>
+                        ) : checkout.onlyDeliveryAvailable ? (
+                            <div className="flex items-center gap-3 p-3 rounded-2xl" style={{ background: `${colors.surface}66`, border: `1px dashed ${colors.border}` }}>
+                                <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#ffffff' }}>
+                                    <Truck size={18} />
+                                </div>
+                                <div>
+                                    <p className="text-xs font-bold" style={{ color: colors.textPrimary }}>Essa loja não faz retirada no local</p>
+                                    <p className="text-[10px]" style={{ color: colors.textSecondary }}>Seu pedido será entregue no seu endereço</p>
+                                </div>
+                            </div>
+                        ) : null}
+                    </div>
+
+                    {checkout.deliveryOption === 'entrega' && (
+                        <div className="mb-3">
+                            <p className="text-[10px] font-bold uppercase mb-2" style={{ color: colors.textSecondary }}>Endereço de Entrega</p>
+
+                            {checkout.deliveryAddress && !checkout.isEditingAddress ? (
+                                <div className="flex items-center gap-3 p-2.5 rounded-xl" style={{ background: `${colors.surface}44`, border: `1px solid ${colors.border}` }}>
+                                    <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#ffffff' }}>
+                                        <MapPin size={14} />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>
+                                            {checkout.deliveryAddress}
+                                        </p>
+                                    </div>
+                                    <button
+                                        onClick={() => { checkout.setIsEditingAddress(true); checkout.setShowAddressSearch(false) }}
+                                        className="text-[10px] font-bold underline flex-shrink-0"
+                                        style={{ color: '#f97316' }}
+                                    >
+                                        Alterar
+                                    </button>
+                                </div>
+                            ) : checkout.userAddress && checkout.userLocation && !checkout.showAddressSearch ? (
+                                <div className="flex flex-col gap-2">
+                                    <button
+                                        onClick={checkout.useSavedAddress}
+                                        className="w-full p-3 rounded-xl border-2 border-green-500/30 hover:bg-green-50 transition flex items-center gap-2.5 text-left"
+                                        style={{ background: 'rgba(16,185,129,0.05)' }}
+                                    >
+                                        <Home size={16} style={{ color: '#10b981', flexShrink: 0 }} />
+                                        <span className="flex-1 text-xs min-w-0" style={{ color: colors.textPrimary }}>
+                                            <span className="font-bold">Usar endereço salvo:</span> {checkout.userAddress}
+                                        </span>
+                                        <CheckCircle2 size={14} style={{ color: '#10b981', flexShrink: 0 }} />
+                                    </button>
+                                    <button
+                                        onClick={() => checkout.setShowAddressSearch(true)}
+                                        className="w-full py-2 rounded-xl border-2 text-xs font-bold transition hover:scale-[1.01]"
+                                        style={{ borderColor: colors.border, color: colors.textSecondary }}
+                                    >
+                                        Alterar
+                                    </button>
+                                </div>
+                            ) : (
+                                <div className="flex gap-2">
+                                    <div className="flex-1 flex items-center gap-2 px-3 py-1.5 rounded-full border" style={{ borderColor: colors.border }}>
+                                        <Search size={14} style={{ color: colors.textSecondary }} />
+                                        <input
+                                            type="text"
+                                            value={checkout.locationSearchQuery}
+                                            onChange={(e) => checkout.setLocationSearchQuery(e.target.value)}
+                                            placeholder="Buscar endereço..."
+                                            className="flex-1 bg-transparent outline-none text-sm min-w-0"
+                                            style={{ color: colors.textPrimary }}
+                                            onKeyDown={(e) => { if (e.key === 'Enter') checkout.searchLocation() }}
+                                        />
+                                    </div>
+                                    <button
+                                        onClick={checkout.searchLocation}
+                                        disabled={checkout.isSearchingLocation}
+                                        className="px-3 py-1.5 rounded-full text-xs font-bold text-white disabled:opacity-50 flex-shrink-0"
+                                        style={{ background: GRADIENT }}
+                                    >
+                                        {checkout.isSearchingLocation ? '...' : 'Buscar'}
+                                    </button>
+                                    {(checkout.deliveryAddress || (checkout.userAddress && checkout.userLocation)) && (
+                                        <button
+                                            onClick={() => { checkout.setIsEditingAddress(false); checkout.setShowAddressSearch(false) }}
+                                            className="px-3 py-1.5 rounded-full text-xs font-bold flex-shrink-0"
+                                            style={{ border: `1px solid ${colors.border}`, color: colors.textSecondary }}
+                                        >
+                                            Cancelar
+                                        </button>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    <div className="flex gap-2 mt-3">
+                        <button
+                            onClick={() => checkout.setCheckoutStep(null)}
+                            className="flex-1 py-2.5 rounded-xl font-bold text-xs transition hover:scale-105 active:scale-95"
+                            style={{ background: 'transparent', border: `2px solid ${colors.border}`, color: colors.textSecondary }}
+                        >
+                            Voltar
+                        </button>
+                        <button
+                            onClick={() => checkout.setCheckoutStep('payment')}
+                            disabled={!checkout.deliveryOption || (checkout.deliveryOption === 'entrega' && !checkout.deliveryAddress.trim())}
+                            className="flex-1 py-2.5 rounded-xl font-bold text-xs transition hover:scale-105 active:scale-95 disabled:opacity-50"
+                            style={{ background: GRADIENT, color: '#ffffff', boxShadow: `0 4px 14px #f9731660` }}
+                        >
+                            {!checkout.deliveryOption ? 'Escolha como receber' :
+                                (checkout.deliveryOption === 'entrega' && !checkout.deliveryAddress.trim()) ? 'Informe o endereço' :
+                                    'Continuar'}
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {showStoreCart && checkout.checkoutStep === 'payment' && (
+                <div className="px-4 pb-3 max-h-[70vh] overflow-y-auto">
+                    <div className="flex items-center justify-between mb-3">
+                        <p className="text-[10px] font-black uppercase tracking-wider" style={{ color: '#f97316' }}>
+                            Etapa 2 de 2 · Pagamento
+                        </p>
+                        <button
+                            onClick={() => checkout.setCheckoutStep(null)}
+                            className="p-1 rounded-full hover:bg-black/5 transition"
+                            style={{ color: colors.textSecondary }}
+                        >
+                            <X size={16} />
+                        </button>
+                    </div>
+
+                    <div className="flex items-center gap-3 mb-3 p-2.5 rounded-xl" style={{ background: `${colors.surface}44`, border: `1px solid ${colors.border}` }}>
+                        <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#ffffff' }}>
+                            {checkout.deliveryOption === 'entrega' ? <Truck size={14} /> : <Store size={14} />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <p className="text-xs font-bold" style={{ color: colors.textPrimary }}>
+                                {checkout.deliveryOption === 'entrega' ? 'Entrega' : 'Retirada na loja'}
+                            </p>
+                            {checkout.deliveryOption === 'entrega' && (
+                                <p className="text-[10px] truncate" style={{ color: colors.textSecondary }}>{checkout.deliveryAddress}</p>
+                            )}
+                        </div>
+                        <button
+                            onClick={() => checkout.setCheckoutStep('delivery')}
+                            className="text-[10px] font-bold underline flex-shrink-0"
+                            style={{ color: '#f97316' }}
+                        >
+                            Alterar
+                        </button>
+                    </div>
+
+                    <div className="mb-3">
+                        <p className="text-sm font-black mb-3" style={{ color: colors.textPrimary }}>
+                            Como você quer pagar?
+                        </p>
+                        <div className="grid grid-cols-3 gap-2">
+                            {([
+                                { value: 'pix' as const, icon: QrCode, label: 'Pix', enabled: checkout.storeConfig?.accepts_pix },
+                                { value: 'cartao' as const, icon: CreditCard, label: 'Cartão', enabled: checkout.storeConfig?.accepts_card },
+                                { value: 'dinheiro' as const, icon: Banknote, label: 'Dinheiro', enabled: checkout.storeConfig?.accepts_cash },
+                            ]).filter(opt => opt.enabled).map((opt) => {
+                                const selected = checkout.paymentMethod === opt.value
+                                return (
+                                    <button
+                                        key={opt.value}
+                                        onClick={() => checkout.setPaymentMethod(opt.value)}
+                                        className="flex flex-col items-center gap-1.5 p-2.5 rounded-2xl border-2 text-center transition hover:scale-[1.02] active:scale-95"
+                                        style={selected
+                                            ? { borderColor: '#f97316', background: `${colors.accent}10` }
+                                            : { borderColor: colors.border, background: 'transparent' }}
+                                    >
+                                        <div
+                                            className="w-9 h-9 rounded-full flex items-center justify-center"
+                                            style={selected ? { background: GRADIENT, color: '#ffffff' } : { background: `${colors.surface}88`, color: colors.textSecondary }}
+                                        >
+                                            <opt.icon size={16} />
+                                        </div>
+                                        <span className="text-[11px] font-bold" style={{ color: selected ? '#f97316' : colors.textPrimary }}>
+                                            {opt.label}
+                                        </span>
+                                    </button>
+                                )
+                            })}
+                        </div>
+                    </div>
+
+                    <div className="border-t pt-2.5" style={{ borderColor: colors.border }}>
+                        {checkout.deliveryOption === 'entrega' && (
+                            <div className="flex justify-between text-xs mb-1">
+                                <span style={{ color: colors.textSecondary }}>Taxa de entrega</span>
+                                {checkout.getStoreTotals().isCalculating ? (
+                                    <span className="italic animate-pulse" style={{ color: colors.textSecondary }}>Calculando...</span>
+                                ) : checkout.getStoreTotals().deliveryFee === 0 ? (
+                                    <span className="font-bold text-green-500">Grátis</span>
+                                ) : (
+                                    <span className="font-bold" style={{ color: '#f97316' }}>
+                                        {formatPrice(checkout.getStoreTotals().deliveryFee)}
+                                    </span>
+                                )}
+                            </div>
+                        )}
+                        <div className="flex justify-between text-sm font-bold">
+                            <span style={{ color: colors.textPrimary }}>Total</span>
+                            {checkout.getStoreTotals().isCalculating ? (
+                                <span className="italic" style={{ color: colors.textSecondary }}>Calculando...</span>
+                            ) : (
+                                <span style={{ color: '#f97316' }}>{formatPrice(checkout.getStoreTotals().finalTotal)}</span>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="flex gap-2 mt-3">
+                        <button
+                            onClick={() => checkout.setCheckoutStep('delivery')}
+                            className="flex-1 py-2.5 rounded-xl font-bold text-xs transition hover:scale-105 active:scale-95"
+                            style={{ background: 'transparent', border: `2px solid ${colors.border}`, color: colors.textSecondary }}
+                        >
+                            Voltar
+                        </button>
+                        <button
+                            onClick={checkout.handleFinalizeOrder}
+                            disabled={checkout.checkoutLoading || checkout.getStoreTotals().isCalculating || !checkout.paymentMethod}
+                            className="flex-1 py-2.5 rounded-xl font-bold text-xs transition hover:scale-105 active:scale-95 disabled:opacity-50"
+                            style={{ background: GRADIENT, color: '#ffffff', boxShadow: `0 4px 14px #f9731660` }}
+                        >
+                            {checkout.checkoutLoading ? 'Finalizando...' :
+                                checkout.getStoreTotals().isCalculating ? 'Calculando...' :
+                                    !checkout.paymentMethod ? 'Escolha o pagamento' :
+                                        'Confirmar Pedido'}
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {showStoreCart && !checkout.checkoutStep && (
                 <div className="px-4 pb-3 space-y-2 max-h-64 overflow-y-auto">
                     {storeCartItems.map((item) => {
                         const itemImageUrl = item.product.image_url
@@ -506,11 +848,12 @@ export function ProductClientPage({
                     })}
 
                     <button
-                        onClick={() => router.push('/sacola')}
-                        className="w-full py-2.5 rounded-xl font-bold text-sm transition hover:scale-[1.01]"
+                        onClick={checkout.startCheckout}
+                        disabled={!checkout.isStoreOpen}
+                        className="w-full py-2.5 rounded-xl font-bold text-sm transition hover:scale-[1.01] disabled:opacity-60"
                         style={{ background: GRADIENT, color: '#ffffff' }}
                     >
-                        Ver sacola completa
+                        {checkout.isStoreOpen ? 'Finalizar' : 'Loja fechada no momento'}
                     </button>
                 </div>
             )}
@@ -756,6 +1099,205 @@ export function ProductClientPage({
                     </div>
                 )}
             </div>
+
+            {/* ===== MODAL DE AUTENTICAÇÃO (login/cadastro antes de finalizar) ===== */}
+            {checkout.checkoutStep === 'auth' && (
+                <div
+                    className="fixed inset-0 z-[999] bg-black/60 backdrop-blur-md flex items-center justify-center p-4"
+                    onClick={() => { if (!checkout.authLoading) checkout.setCheckoutStep(null) }}
+                >
+                    <div
+                        className="w-full max-w-md rounded-2xl p-6 animate-fade-in max-h-[90vh] overflow-y-auto"
+                        style={{ background: colors.surface }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
+                                {checkout.authMode === 'login' ? 'Entrar' : 'Criar Conta'}
+                            </h3>
+                            <button
+                                onClick={() => checkout.setCheckoutStep(null)}
+                                className="p-1.5 rounded-full hover:bg-black/5 transition"
+                                style={{ color: colors.textSecondary }}
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        <p className="text-xs mb-4" style={{ color: colors.textSecondary }}>
+                            {checkout.authMode === 'login' ? 'Entre para finalizar seu pedido' : 'Crie sua conta e finalize seu pedido'}
+                        </p>
+
+                        {checkout.authError && (
+                            <div className="p-3 border rounded-full text-[8px] font-black uppercase text-center mb-3"
+                                style={{ background: '#f9731620', borderColor: '#f97316', color: '#f97316' }}>
+                                ⚠️ {checkout.authError}
+                            </div>
+                        )}
+
+                        <div className="flex gap-2 mb-4">
+                            <button
+                                onClick={() => checkout.setAuthMode('login')}
+                                className={`flex-1 py-2.5 rounded-full text-xs font-black uppercase transition-all ${checkout.authMode === 'login' ? 'shadow-sm' : ''}`}
+                                style={checkout.authMode === 'login' ? { background: GRADIENT, color: '#ffffff' } : { background: colors.background, color: colors.textSecondary, border: `2px solid ${colors.border}` }}
+                            >
+                                Entrar
+                            </button>
+                            <button
+                                onClick={() => checkout.setAuthMode('register')}
+                                className={`flex-1 py-2.5 rounded-full text-xs font-black uppercase transition-all ${checkout.authMode === 'register' ? 'shadow-sm' : ''}`}
+                                style={checkout.authMode === 'register' ? { background: GRADIENT, color: '#ffffff' } : { background: colors.background, color: colors.textSecondary, border: `2px solid ${colors.border}` }}
+                            >
+                                Criar Conta
+                            </button>
+                        </div>
+
+                        {checkout.authMode === 'login' ? (
+                            <form onSubmit={checkout.handleLogin} className="space-y-3">
+                                <input
+                                    type="email"
+                                    placeholder="seu@email.com"
+                                    className="w-full border-2 rounded-full px-4 py-2.5 text-sm"
+                                    style={{ background: colors.background, borderColor: colors.border, color: colors.textPrimary }}
+                                    value={checkout.authEmail}
+                                    onChange={(e) => checkout.setAuthEmail(e.target.value)}
+                                    required
+                                    autoComplete="email"
+                                />
+                                <div className="relative">
+                                    <input
+                                        type={checkout.showPassword ? 'text' : 'password'}
+                                        placeholder="sua senha"
+                                        className="w-full border-2 rounded-full px-4 py-2.5 text-sm pr-10"
+                                        style={{ background: colors.background, borderColor: colors.border, color: colors.textPrimary }}
+                                        value={checkout.authPassword}
+                                        onChange={(e) => checkout.setAuthPassword(e.target.value)}
+                                        required
+                                        autoComplete="current-password"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => checkout.setShowPassword(!checkout.showPassword)}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2"
+                                        style={{ color: colors.textSecondary }}
+                                    >
+                                        {checkout.showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                                    </button>
+                                </div>
+                                <button
+                                    type="submit"
+                                    disabled={checkout.authLoading}
+                                    className="w-full py-2.5 rounded-full font-black uppercase text-[9px] tracking-wider transition-all disabled:opacity-50"
+                                    style={{ background: GRADIENT, color: '#ffffff' }}
+                                >
+                                    {checkout.authLoading ? 'Entrando...' : 'Entrar'}
+                                </button>
+                            </form>
+                        ) : (
+                            <form onSubmit={checkout.handleRegister} className="space-y-3">
+                                <div className="flex flex-col items-center gap-1.5 pb-1">
+                                    <div className="relative">
+                                        <div className="w-16 h-16 rounded-full p-[2px]" style={{ background: GRADIENT }}>
+                                            <div className="w-full h-full rounded-full overflow-hidden bg-white flex items-center justify-center">
+                                                {checkout.authAvatarPreview ? (
+                                                    <img src={checkout.authAvatarPreview} alt="Foto de perfil" className="w-full h-full object-cover" />
+                                                ) : (
+                                                    <User className="w-6 h-6" style={{ color: '#f97316', opacity: 0.4 }} />
+                                                )}
+                                            </div>
+                                        </div>
+                                        <input
+                                            type="file"
+                                            ref={checkout.authAvatarInputRef}
+                                            onChange={checkout.handleAuthAvatarChange}
+                                            accept="image/*"
+                                            style={{ display: 'none' }}
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => checkout.authAvatarInputRef.current?.click()}
+                                            disabled={checkout.authLoading}
+                                            className="absolute -bottom-1 -right-1 p-1.5 rounded-full transition-all hover:scale-110"
+                                            style={{ background: GRADIENT, color: '#fff' }}
+                                        >
+                                            <Camera size={12} />
+                                        </button>
+                                    </div>
+                                    <span className="text-[9px] font-bold" style={{ color: colors.textSecondary }}>
+                                        Foto de perfil (obrigatória)
+                                    </span>
+                                </div>
+                                <input
+                                    type="text"
+                                    placeholder="Nome Completo"
+                                    className="w-full border-2 rounded-full px-4 py-2.5 text-sm"
+                                    style={{ background: colors.background, borderColor: colors.border, color: colors.textPrimary }}
+                                    value={checkout.authName}
+                                    onChange={(e) => checkout.setAuthName(e.target.value)}
+                                    required
+                                    autoComplete="name"
+                                />
+                                <div className="flex items-center gap-1 border-2 rounded-full px-3" style={{ background: colors.background, borderColor: colors.border }}>
+                                    <span className="text-[9px] font-black" style={{ color: colors.textSecondary }}>iuser.com.br/</span>
+                                    <input
+                                        type="text"
+                                        placeholder="seu-perfil"
+                                        className="flex-1 py-2.5 bg-transparent text-sm outline-none"
+                                        style={{ color: colors.textPrimary }}
+                                        value={checkout.authProfileSlug}
+                                        onChange={(e) => checkout.setAuthProfileSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                                        required
+                                        autoComplete="off"
+                                    />
+                                    {checkout.isSlugAvailable !== null && (
+                                        <span className={`text-[9px] font-black ${checkout.isSlugAvailable ? 'text-green-500' : 'text-red-500'}`}>
+                                            {checkout.isSlugAvailable ? '✓' : '✗'}
+                                        </span>
+                                    )}
+                                </div>
+                                <input
+                                    type="email"
+                                    placeholder="seu@email.com"
+                                    className="w-full border-2 rounded-full px-4 py-2.5 text-sm"
+                                    style={{ background: colors.background, borderColor: colors.border, color: colors.textPrimary }}
+                                    value={checkout.authEmail}
+                                    onChange={(e) => checkout.setAuthEmail(e.target.value)}
+                                    required
+                                    autoComplete="email"
+                                />
+                                <input
+                                    type={checkout.showPassword ? 'text' : 'password'}
+                                    placeholder="Senha"
+                                    className="w-full border-2 rounded-full px-4 py-2.5 text-sm"
+                                    style={{ background: colors.background, borderColor: colors.border, color: colors.textPrimary }}
+                                    value={checkout.authPassword}
+                                    onChange={(e) => checkout.setAuthPassword(e.target.value)}
+                                    required
+                                    autoComplete="new-password"
+                                />
+                                <input
+                                    type={checkout.showPassword ? 'text' : 'password'}
+                                    placeholder="Confirmar senha"
+                                    className="w-full border-2 rounded-full px-4 py-2.5 text-sm"
+                                    style={{ background: colors.background, borderColor: colors.border, color: colors.textPrimary }}
+                                    value={checkout.authConfirmPassword}
+                                    onChange={(e) => checkout.setAuthConfirmPassword(e.target.value)}
+                                    required
+                                    autoComplete="new-password"
+                                />
+                                <button
+                                    type="submit"
+                                    disabled={checkout.authLoading || checkout.isSlugAvailable === false || !checkout.authAvatarFile}
+                                    className="w-full py-2.5 rounded-full font-black uppercase text-[9px] tracking-wider transition-all disabled:opacity-50"
+                                    style={{ background: GRADIENT, color: '#ffffff' }}
+                                >
+                                    {checkout.authLoading ? 'Criando...' : 'Criar Conta'}
+                                </button>
+                            </form>
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
     )
 }
