@@ -78,49 +78,54 @@ export default function CatalogBag({
                     maxWidth: isExpanded ? (checkoutContent ? 380 : 360) : 'auto',
                 }}
             >
-                <div
-                    className="flex items-center gap-2 p-2"
-                    onClick={onToggleExpanded}
-                >
+                {/* A barra de cima (ícone + total + seta) só aparece fechada ou durante
+                    o checkout - quando a lista de itens está expandida, ela vira redundante
+                    com a barra de baixo (ícone + total + Finalizar), então some daqui. */}
+                {!(isExpanded && !checkoutContent) && (
                     <div
-                        className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
-                        style={{ background: totalItems > 0 ? GRADIENT : `${colors.border}50`, color: totalItems > 0 ? '#ffffff' : colors.textSecondary }}
+                        className="flex items-center gap-2 p-2"
+                        onClick={onToggleExpanded}
                     >
-                        <ShoppingCart size={18} />
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                        {totalItems > 0 ? (
-                            <>
-                                <span className="font-bold text-sm" style={{ color: textColor }}>
-                                    {totalItems}
-                                </span>
-                                <span className="text-xs font-medium" style={{ color: colors.textSecondary }}>
-                                    {totalItems === 1 ? 'item' : 'itens'}
-                                </span>
-                                <span className="text-xs font-bold ml-1" style={{ color: '#f97316' }}>
-                                    {formatPrice(totalValue)}
-                                </span>
-                            </>
-                        ) : (
-                            <span className="text-xs font-medium" style={{ color: colors.textSecondary }}>
-                                Vazio
-                            </span>
-                        )}
-                    </div>
-
-                    <div className="ml-auto flex items-center">
-                        <svg
-                            className={`w-4 h-4 transition-transform duration-300 ${isExpanded ? '' : 'rotate-180'}`}
-                            style={{ color: colors.textSecondary }}
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
+                        <div
+                            className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
+                            style={{ background: totalItems > 0 ? GRADIENT : `${colors.border}50`, color: totalItems > 0 ? '#ffffff' : colors.textSecondary }}
                         >
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
+                            <ShoppingCart size={18} />
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                            {totalItems > 0 ? (
+                                <>
+                                    <span className="font-bold text-sm" style={{ color: textColor }}>
+                                        {totalItems}
+                                    </span>
+                                    <span className="text-xs font-medium" style={{ color: colors.textSecondary }}>
+                                        {totalItems === 1 ? 'item' : 'itens'}
+                                    </span>
+                                    <span className="text-xs font-bold ml-1" style={{ color: '#f97316' }}>
+                                        {formatPrice(totalValue)}
+                                    </span>
+                                </>
+                            ) : (
+                                <span className="text-xs font-medium" style={{ color: colors.textSecondary }}>
+                                    Vazio
+                                </span>
+                            )}
+                        </div>
+
+                        <div className="ml-auto flex items-center">
+                            <svg
+                                className={`w-4 h-4 transition-transform duration-300 ${isExpanded ? '' : 'rotate-180'}`}
+                                style={{ color: colors.textSecondary }}
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                            >
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </div>
                     </div>
-                </div>
+                )}
 
                 {isExpanded && checkoutContent && (
                     <div className="border-t p-3 max-h-[75vh] overflow-y-auto" style={{ borderColor: colors.border }}>
@@ -225,12 +230,12 @@ export default function CatalogBag({
 
                                 <div className="pt-2 border-t" style={{ borderColor: colors.border }}>
                                     <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-2">
+                                        <div className="flex items-center gap-2 cursor-pointer" onClick={onToggleExpanded}>
                                             <div
-                                                className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
+                                                className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
                                                 style={{ background: GRADIENT }}
                                             >
-                                                <ShoppingCart size={13} color="#ffffff" />
+                                                <ShoppingCart size={18} color="#ffffff" />
                                             </div>
                                             <div className="flex items-center gap-1.5">
                                                 <span className="font-bold text-sm" style={{ color: textColor }}>
