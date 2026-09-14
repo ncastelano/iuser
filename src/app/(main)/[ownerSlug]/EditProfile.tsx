@@ -3,6 +3,7 @@
 
 import { useCallback, useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase/client'
+import { getCurrentPosition as getNativeCurrentPosition } from '@/lib/nativeGeolocation'
 import { toast } from 'sonner'
 import {
     X,
@@ -268,16 +269,11 @@ export function EditProfile({ owner, imageUrl, colors, onClose, onUpdate }: Edit
     }, [pickerSavedPosition, updatePolyline])
 
     const handleGetCurrentLocation = useCallback(() => {
-        if (!navigator.geolocation) {
-            setLocationPickerError('Geolocalização não suportada')
-            return
-        }
-
         setPickerUsingGPS(true)
         setLocationPickerLoading(true)
         setLocationPickerError('')
 
-        navigator.geolocation.getCurrentPosition(
+        getNativeCurrentPosition(
             async (pos) => {
                 const newPos = {
                     lat: pos.coords.latitude,

@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { supabase } from '@/lib/supabase/client'
+import { getCurrentPosition as getNativeCurrentPosition } from '@/lib/nativeGeolocation'
 import { useTheme, ThemeColors } from '@/app/contexts/theme'
 import { toast } from 'sonner'
 import { addRecentServiceLocation, getRecentServiceLocations, RecentServiceLocation } from '@/lib/recentServiceLocations'
@@ -286,9 +287,8 @@ export default function PedirServicoPage() {
 
     // ===== LOCALIZAÇÃO ATUAL COMO PADRÃO =====
     const useMyLocation = useCallback(() => {
-        if (!navigator.geolocation) return
         setLocating(true)
-        navigator.geolocation.getCurrentPosition(
+        getNativeCurrentPosition(
             async (pos) => {
                 const coords: [number, number] = [pos.coords.longitude, pos.coords.latitude]
                 const address = await reverseGeocode(coords[0], coords[1])

@@ -13,6 +13,7 @@ import { toast } from 'sonner'
 import { Spinner } from '@/components/Spinner'
 import { isStoreOpenNow, getStoreStatusText, getNextOpeningInfo } from '@/lib/storeHours'
 import { useProfile } from '@/app/contexts/ProfileContext'
+import { getCurrentPosition as getNativeCurrentPosition } from '@/lib/nativeGeolocation'
 import Header, { type Tab } from '@/components/Header'
 import LocationPicker from '@/components/LocationPicker'
 
@@ -209,30 +210,24 @@ export default function MapPage() {
                 // mostrar o avatar dela no mapa, já que isso só aparece quando
                 // ela tem uma localização salva no perfil).
                 console.log('[MapPage] 📱 Tentando geolocalização do dispositivo...')
-                if (navigator.geolocation) {
-                    navigator.geolocation.getCurrentPosition(
-                        (pos) => {
-                            const location = { lat: pos.coords.latitude, lng: pos.coords.longitude }
-                            console.log('[MapPage] 📱 Localização do dispositivo:', location)
-                            setDeviceLocation(location)
-                            setLoadingLocation(false)
-                        },
-                        (error) => {
-                            // GeolocationPositionError não serializa como objeto normal
-                            // (console.error mostrava "{}"); usa warn (não trava o overlay
-                            // de dev do Next) e lê message/code direto - fallback abaixo já
-                            // cobre o caso, isso é só diagnóstico.
-                            console.warn('[MapPage] ⚠️ Geolocalização indisponível:', error.message || `código ${error.code}`)
-                            setLoadingLocation(false)
-                            setDeviceLocation({ lat: -15.7939, lng: -47.8828 })
-                        },
-                        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-                    )
-                } else {
-                    console.warn('[MapPage] ⚠️ Geolocalização não suportada')
-                    setLoadingLocation(false)
-                    setDeviceLocation({ lat: -15.7939, lng: -47.8828 })
-                }
+                getNativeCurrentPosition(
+                    (pos) => {
+                        const location = { lat: pos.coords.latitude, lng: pos.coords.longitude }
+                        console.log('[MapPage] 📱 Localização do dispositivo:', location)
+                        setDeviceLocation(location)
+                        setLoadingLocation(false)
+                    },
+                    (error) => {
+                        // GeolocationPositionError não serializa como objeto normal
+                        // (console.error mostrava "{}"); usa warn (não trava o overlay
+                        // de dev do Next) e lê message/code direto - fallback abaixo já
+                        // cobre o caso, isso é só diagnóstico.
+                        console.warn('[MapPage] ⚠️ Geolocalização indisponível:', error.message || `código ${error.code}`)
+                        setLoadingLocation(false)
+                        setDeviceLocation({ lat: -15.7939, lng: -47.8828 })
+                    },
+                    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+                )
             } catch (error) {
                 console.error('[MapPage] ❌ Erro geral:', error)
                 setLoadingLocation(false)

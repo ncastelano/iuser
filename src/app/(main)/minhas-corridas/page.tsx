@@ -4,6 +4,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
+import { getCurrentPosition as getNativeCurrentPosition } from '@/lib/nativeGeolocation'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { useTheme } from '@/app/contexts/theme'
 import Header from '@/components/Header'
@@ -103,13 +104,8 @@ export default function MinhasCorridasPage() {
             toast.error('Não dá pra confirmar a chegada: esse pedido não tem coordenadas de destino.')
             return
         }
-        if (!navigator.geolocation) {
-            toast.error('Geolocalização não disponível neste dispositivo.')
-            return
-        }
-
         setFinishingId(ride.id)
-        navigator.geolocation.getCurrentPosition(
+        getNativeCurrentPosition(
             async (pos) => {
                 const distanceMeters = haversineKm(
                     [pos.coords.longitude, pos.coords.latitude],

@@ -5,6 +5,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
+import { getCurrentPosition as getNativeCurrentPosition } from '@/lib/nativeGeolocation'
 import {
     Camera,
     MapPinned,
@@ -454,7 +455,7 @@ export default function CriarLojaComCadastro() {
                                     <button
                                         type="button"
                                         onClick={() => {
-                                            navigator.geolocation.getCurrentPosition(
+                                            getNativeCurrentPosition(
                                                 (pos) => {
                                                     setLocation({
                                                         lat: pos.coords.latitude,

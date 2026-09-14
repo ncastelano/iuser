@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { useProfile } from '@/app/contexts/ProfileContext'
+import { watchPosition as watchNativePosition, GeoWatchHandle } from '@/lib/nativeGeolocation'
 
 // Global, montado em providers.tsx: mantém a localização ao vivo do motorista
 // sendo enviada pro banco (driver_pricing.live_lat/lng) sempre que
@@ -13,21 +14,21 @@ export function DriverLiveLocationBroadcaster() {
     const { userId: contextUserId } = useProfile()
     const userIdRef = useRef<string | null>(null)
     const syncOnRef = useRef(false)
-    const watchIdRef = useRef<number | null>(null)
+    const watchIdRef = useRef<GeoWatchHandle | null>(null)
 
     useEffect(() => {
         let cancelled = false
 
         const stopWatch = () => {
             if (watchIdRef.current != null) {
-                navigator.geolocation.clearWatch(watchIdRef.current)
+                watchIdRef.current.clear()
                 watchIdRef.current = null
             }
         }
 
         const startWatch = (userId: string) => {
-            if (watchIdRef.current != null || !navigator.geolocation) return
-            watchIdRef.current = navigator.geolocation.watchPosition(
+            if (watchIdRef.current != null) return
+            watchIdRef.current = watchNativePosition(
                 (pos) => {
                     supabase
                         .from('driver_pricing')

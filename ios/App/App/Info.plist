@@ -24,6 +24,16 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>O iUser usa sua localização pra mostrar lojas, prestadores e corridas perto de você.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>O iUser usa sua localização pra acompanhar corridas em andamento, mesmo com o app em segundo plano.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>O iUser usa a câmera pra você tirar fotos de perfil, produtos e da sua loja.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>O iUser acessa suas fotos pra você escolher imagens de perfil, produtos e da sua loja.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>O iUser salva fotos na sua galeria quando você exporta imagens do app.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
@@ -50,6 +60,10 @@
 	<key>UIRequiredDeviceCapabilities</key>
 	<array>
 		<string>armv7</string>
+	</array>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
 	</array>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>

@@ -4,6 +4,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
+import { getCurrentPosition as getNativeCurrentPosition } from "@/lib/nativeGeolocation";
 import {
   Camera,
   MapPinned,
@@ -388,16 +389,11 @@ export default function CriarLoja() {
   }, []);
 
   const handleGetCurrentLocation = () => {
-    if (!navigator.geolocation) {
-      setLocationError('Geolocalização não suportada');
-      return;
-    }
-
     setUsingGPS(true);
     setLoadingLocation(true);
     setLocationError('');
 
-    navigator.geolocation.getCurrentPosition(
+    getNativeCurrentPosition(
       async (pos) => {
         const newPos = {
           lat: pos.coords.latitude,

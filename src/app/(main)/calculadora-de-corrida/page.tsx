@@ -8,6 +8,7 @@ import { useProfile } from '@/app/contexts/ProfileContext'
 import Header from '@/components/Header'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { hexToRgb } from '@/lib/color'
+import { getCurrentPosition as getNativeCurrentPosition } from '@/lib/nativeGeolocation'
 import {
     ArrowLeft,
     MapPin,
@@ -989,13 +990,8 @@ export default function CalculoDeCorridaPage() {
     // ===== USAR GPS ATUAL (ACIONADO MANUALMENTE) =====
     const useCurrentLocation = useCallback(
         async (type: 'origin' | string) => {
-            if (!navigator.geolocation) {
-                toast.error('Geolocalização não suportada no seu navegador')
-                return
-            }
-
             toast.info('Obtendo localização GPS...')
-            navigator.geolocation.getCurrentPosition(
+            getNativeCurrentPosition(
                 async (pos) => {
                     const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude }
                     const address = await reverseGeocode(coords.lat, coords.lng)

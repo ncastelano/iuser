@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
+import { getCurrentPosition as getNativeCurrentPosition, watchPosition as watchNativePosition } from '@/lib/nativeGeolocation'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { useTheme } from '@/app/contexts/theme'
 import Header, { type Tab } from '@/components/Header'
@@ -250,15 +251,15 @@ export default function AceitarCorridasPage() {
     // driver_pricing pro passageiro acompanhar é feita globalmente pelo
     // DriverLiveLocationBroadcaster, montado em providers.tsx).
     useEffect(() => {
-        if (!liveLocationSync || !navigator.geolocation) return
+        if (!liveLocationSync) return
 
-        const watchId = navigator.geolocation.watchPosition(
+        const watch = watchNativePosition(
             (pos) => setDriverCoords([pos.coords.longitude, pos.coords.latitude]),
             () => { /* sem permissão: mapa mostra só o trajeto partida → chegada */ },
             { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
         )
 
-        return () => navigator.geolocation.clearWatch(watchId)
+        return () => watch.clear()
     }, [liveLocationSync])
 
     // Nome exibido no cabeçalho enquanto sincronizado: o do local ao vivo
@@ -585,23 +586,21 @@ export default function AceitarCorridasPage() {
             // DriverLiveLocationBroadcaster global assume o watch contínuo
             // a partir daqui.
             supabase.from('driver_pricing').update({ live_location_sync: true }).eq('driver_id', user.id).then(() => {})
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(
-                    (pos) => {
-                        supabase
-                            .from('driver_pricing')
-                            .update({
-                                live_lat: pos.coords.latitude,
-                                live_lng: pos.coords.longitude,
-                                live_updated_at: new Date().toISOString(),
-                            })
-                            .eq('driver_id', user.id)
-                            .then(() => {})
-                    },
-                    () => { /* sem permissão ainda: o broadcaster global tenta de novo depois */ },
-                    { enableHighAccuracy: true, timeout: 10000 }
-                )
-            }
+            getNativeCurrentPosition(
+                (pos) => {
+                    supabase
+                        .from('driver_pricing')
+                        .update({
+                            live_lat: pos.coords.latitude,
+                            live_lng: pos.coords.longitude,
+                            live_updated_at: new Date().toISOString(),
+                        })
+                        .eq('driver_id', user.id)
+                        .then(() => {})
+                },
+                () => { /* sem permissão ainda: o broadcaster global tenta de novo depois */ },
+                { enableHighAccuracy: true, timeout: 10000 }
+            )
 
             toast.success('Candidatura enviada!')
             setCustomPriceFor(null)
@@ -766,13 +765,8 @@ export default function AceitarCorridasPage() {
             toast.error('Não dá pra confirmar a chegada: esse pedido não tem coordenadas de destino.')
             return
         }
-        if (!navigator.geolocation) {
-            toast.error('Geolocalização não disponível neste dispositivo.')
-            return
-        }
-
         setFinishing(true)
-        navigator.geolocation.getCurrentPosition(
+        getNativeCurrentPosition(
             async (pos) => {
                 const distanceMeters = haversineKm(
                     [pos.coords.longitude, pos.coords.latitude],

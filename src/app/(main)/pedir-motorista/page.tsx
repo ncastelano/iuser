@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { supabase } from '@/lib/supabase/client'
+import { getCurrentPosition as getNativeCurrentPosition } from '@/lib/nativeGeolocation'
 import { useTheme, ThemeColors } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { toast } from 'sonner'
@@ -486,9 +487,8 @@ export default function PedirMotoristaPage() {
 
     // ===== LOCALIZAÇÃO INICIAL (usada como origem padrão) =====
     const useMyLocationAsOrigin = useCallback((notifyApproximate = false) => {
-        if (!navigator.geolocation) return
         setLocatingOrigin(true)
-        navigator.geolocation.getCurrentPosition(
+        getNativeCurrentPosition(
             async (pos) => {
                 const coords: [number, number] = [pos.coords.longitude, pos.coords.latitude]
                 const address = await reverseGeocode(coords[0], coords[1])

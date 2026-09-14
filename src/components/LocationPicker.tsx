@@ -8,6 +8,7 @@ import { Spinner } from '@/components/Spinner'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { useProfile } from '@/app/contexts/ProfileContext'
+import { getCurrentPosition as getNativeCurrentPosition, watchPosition as watchNativePosition, GeoWatchHandle } from '@/lib/nativeGeolocation'
 
 interface LocationPickerProps {
     initialLocation: {
@@ -266,12 +267,12 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
     // feito globalmente pelo DriverLiveLocationBroadcaster) — sem isso aqui, o mapa
     // deste picker nunca se move sozinho. Mesmo padrão usado em
     // /aceitar-corridas (watchPosition contínuo) pra mostrar a posição em tempo real.
-    const liveWatchIdRef = useRef<number | null>(null)
+    const liveWatchIdRef = useRef<GeoWatchHandle | null>(null)
 
     useEffect(() => {
-        if (!liveLocationSync || !mapReady || !navigator.geolocation) return
+        if (!liveLocationSync || !mapReady) return
 
-        liveWatchIdRef.current = navigator.geolocation.watchPosition(
+        liveWatchIdRef.current = watchNativePosition(
             (pos) => {
                 const newPos = { lat: pos.coords.latitude, lng: pos.coords.longitude }
                 setSelectedPosition(newPos)
@@ -311,7 +312,7 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
 
         return () => {
             if (liveWatchIdRef.current != null) {
-                navigator.geolocation.clearWatch(liveWatchIdRef.current)
+                liveWatchIdRef.current.clear()
                 liveWatchIdRef.current = null
             }
         }
@@ -549,16 +550,11 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
     }, [authChecked, isAuthenticated, initializeMap])
 
     const handleGetCurrentLocation = useCallback(() => {
-        if (!navigator.geolocation) {
-            setError('Geolocalização não suportada')
-            return
-        }
-
         setUsingGPS(true)
         setLoading(true)
         setError('')
 
-        navigator.geolocation.getCurrentPosition(
+        getNativeCurrentPosition(
             async (pos) => {
                 const newPos = {
                     lat: pos.coords.latitude,
