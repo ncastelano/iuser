@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "593280826196",
+    "project_id": "iuser-app",
+    "storage_bucket": "iuser-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:593280826196:android:30313414e5db644bafa6c1",
+        "android_client_info": {
+          "package_name": "br.com.iuser"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBWu3g4DkxnK1ANzZCDmemasWyREUx8atw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

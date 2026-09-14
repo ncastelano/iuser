@@ -1,16 +1,7 @@
 // app/api/push/send-order-status-update/route.ts
 import { NextResponse } from 'next/server'
-import webpush from 'web-push'
 import { supabaseAdmin } from '@/lib/supabase/admin'
-
-const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
-const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY
-const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
-const vapidSubject = appUrl.startsWith('https://') ? appUrl : 'mailto:ncastelano@gmail.com'
-
-if (vapidPublicKey && vapidPrivateKey) {
-    webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey)
-}
+import { sendPushToUser } from '@/lib/serverPush'
 
 const STATUS_MESSAGES: Record<string, string> = {
     preparing: 'Seu pedido está em preparo!',
@@ -20,11 +11,6 @@ const STATUS_MESSAGES: Record<string, string> = {
 
 export async function POST(req: Request) {
     try {
-        if (!vapidPublicKey || !vapidPrivateKey) {
-            console.error('VAPID keys não configuradas')
-            return NextResponse.json({ error: 'Push não configurado' }, { status: 500 })
-        }
-
         const authHeader = req.headers.get('authorization') || ''
         const token = authHeader.replace('Bearer ', '')
         if (!token) {
@@ -72,38 +58,13 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'Sem permissão' }, { status: 403 })
         }
 
-        const { data: subscriptions, error: subsError } = await supabaseAdmin
-            .from('push_subscriptions')
-            .select('id, endpoint, p256dh, auth')
-            .eq('user_id', order.buyer_id)
-
-        if (subsError) throw subsError
-        if (!subscriptions || subscriptions.length === 0) {
-            return NextResponse.json({ success: true, sent: 0 })
-        }
-
-        const payload = JSON.stringify({
+        const { sent } = await sendPushToUser(order.buyer_id, {
             title: store.name || 'Atualização do Pedido',
             body,
             url: '/sacola',
             tag: `order-status-${checkoutId}`,
         })
 
-        const results = await Promise.allSettled(
-            subscriptions.map((sub) =>
-                webpush.sendNotification(
-                    { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-                    payload
-                ).catch((err) => {
-                    if (err?.statusCode === 404 || err?.statusCode === 410) {
-                        return supabaseAdmin.from('push_subscriptions').delete().eq('id', sub.id)
-                    }
-                    throw err
-                })
-            )
-        )
-
-        const sent = results.filter((r) => r.status === 'fulfilled').length
         return NextResponse.json({ success: true, sent })
     } catch (error: any) {
         console.error('Erro ao enviar push de status do pedido:', error)
