@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { useProfile } from '@/app/contexts/ProfileContext'
-import { useCartStore, type CartItem } from '@/store/useCartStore'
+import { useCartStore, type CartItem, cartItemUnitPrice, cartItemLineTotal } from '@/store/useCartStore'
 import { isStoreOpenNow, getNextOpeningInfo, type BusinessHours } from '@/lib/storeHours'
 import { toast } from 'sonner'
 
@@ -319,7 +319,7 @@ export function useStoreCheckout(ownerSlug: string | undefined, cartItems: CartI
     }, [deliveryOption, storeConfig, deliveryLat, deliveryLng])
 
     const getStoreTotals = useCallback(() => {
-        const itemsTotal = cartItems.reduce((acc, item) => acc + item.product.price * item.quantity, 0)
+        const itemsTotal = cartItems.reduce((acc, item) => acc + cartItemLineTotal(item), 0)
         const { fee: deliveryFee, isCalculating } = calculateDeliveryFee()
         const finalTotal = isCalculating ? itemsTotal : itemsTotal + deliveryFee
         return { itemsTotal, deliveryFee, finalTotal, isCalculating }
@@ -438,9 +438,10 @@ export function useStoreCheckout(ownerSlug: string | undefined, cartItems: CartI
                 product_id: item.product.id,
                 product_name: item.product.name,
                 quantity: item.quantity,
-                unit_price: item.product.price,
-                total_price: item.product.price * item.quantity,
-                comment: (item as any).comment || null,
+                unit_price: cartItemUnitPrice(item),
+                total_price: cartItemLineTotal(item),
+                comment: item.comment || null,
+                addons: item.addons && item.addons.length > 0 ? item.addons : null,
             }))
 
             const { error: itemsError } = await supabase.from('order_items').insert(orderItemsToInsert)
@@ -473,7 +474,7 @@ export function useStoreCheckout(ownerSlug: string | undefined, cartItems: CartI
                         `*Cliente:* @${currentUserSlug || 'cliente'}\n` +
                         `*Pagamento:* ${paymentLabel}\n` +
                         `*Entrega:* ${deliveryLabel}\n` +
-                        `*Itens:*\n${cartItems.map((i: any) => `- ${i.quantity}x ${i.product.name} (R$ ${(i.product.price * i.quantity).toFixed(2)})${i.comment ? ` - Obs: ${i.comment}` : ''}`).join('\n')}\n\n` +
+                        `*Itens:*\n${cartItems.map((i) => `- ${i.quantity}x ${i.product.name}${i.addons && i.addons.length > 0 ? ` (${i.addons.map(a => a.name).join(', ')})` : ''} (R$ ${cartItemLineTotal(i).toFixed(2)})${i.comment ? ` - Obs: ${i.comment}` : ''}`).join('\n')}\n\n` +
                         `*Subtotal: R$ ${itemsTotal.toFixed(2)}*\n` +
                         `*Taxa de entrega: R$ ${deliveryFee.toFixed(2)}*\n` +
                         `*Total: R$ ${finalTotal.toFixed(2)}*`

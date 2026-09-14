@@ -4,6 +4,7 @@
 import { ReactNode } from 'react'
 import { ShoppingCart, Minus, Plus, Trash2, MessageCircle } from 'lucide-react'
 import { toast } from 'sonner'
+import { cartItemUnitPrice, cartItemLineTotal, type CartAddon } from '@/store/useCartStore'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -11,15 +12,16 @@ export interface CartItemWithComment {
     product: any
     quantity: number
     comment?: string
+    addons?: CartAddon[]
 }
 
 interface CatalogBagProps {
     bagItems: CartItemWithComment[]
     isExpanded: boolean
     onToggleExpanded: () => void
-    onIncrease: (product: any, comment?: string) => void
-    onDecrease: (productId: string, comment?: string) => void
-    onRemove: (productId: string, comment?: string) => void
+    onIncrease: (product: any, comment?: string, addons?: CartAddon[]) => void
+    onDecrease: (productId: string, comment?: string, addons?: CartAddon[]) => void
+    onRemove: (productId: string, comment?: string, addons?: CartAddon[]) => void
     onCheckout: () => void
     colors: any
     isStoreOpen?: boolean
@@ -44,7 +46,7 @@ export default function CatalogBag({
     checkoutContent = null,
 }: CatalogBagProps) {
     const totalItems = bagItems.reduce((sum, item) => sum + item.quantity, 0)
-    const totalValue = bagItems.reduce((sum, item) => sum + (item.product.price * item.quantity), 0)
+    const totalValue = bagItems.reduce((sum, item) => sum + cartItemLineTotal(item), 0)
 
     const textColor = colors.textPrimary
     const cardBackground = colors.surface
@@ -136,7 +138,7 @@ export default function CatalogBag({
                             <div className="space-y-2">
                                 {bagItems.map((item) => (
                                     <div
-                                        key={`${item.product.id}::${item.comment || ''}`}
+                                        key={`${item.product.id}::${item.comment || ''}::${(item.addons || []).map(a => a.id).sort().join(',')}`}
                                         className="flex items-center gap-2 p-1.5 rounded-lg"
                                         style={{ background: `${colors.surface}66` }}
                                     >
@@ -158,12 +160,17 @@ export default function CatalogBag({
                                             </p>
                                             <div className="flex items-center gap-2">
                                                 <span className="text-xs font-bold" style={{ color: '#f97316' }}>
-                                                    {formatPrice(item.product.price)}
+                                                    {formatPrice(cartItemUnitPrice(item))}
                                                 </span>
                                                 <span className="text-[10px]" style={{ color: colors.textSecondary }}>
                                                     x{item.quantity}
                                                 </span>
                                             </div>
+                                            {item.addons && item.addons.length > 0 && (
+                                                <p className="text-[9px] truncate" style={{ color: colors.textSecondary, opacity: 0.85 }}>
+                                                    + {item.addons.map(a => a.name).join(', ')}
+                                                </p>
+                                            )}
                                             {item.comment && (
                                                 <div className="flex items-center gap-1 mt-0.5">
                                                     <MessageCircle size={10} style={{ color: colors.textSecondary }} />
@@ -179,9 +186,9 @@ export default function CatalogBag({
                                                 onClick={(e) => {
                                                     e.stopPropagation()
                                                     if (item.quantity <= 1) {
-                                                        onRemove(item.product.id, item.comment)
+                                                        onRemove(item.product.id, item.comment, item.addons)
                                                     } else {
-                                                        onDecrease(item.product.id, item.comment)
+                                                        onDecrease(item.product.id, item.comment, item.addons)
                                                     }
                                                 }}
                                                 className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold hover:scale-110 transition-transform"
@@ -195,7 +202,7 @@ export default function CatalogBag({
                                             <button
                                                 onClick={(e) => {
                                                     e.stopPropagation()
-                                                    onIncrease(item.product, item.comment)
+                                                    onIncrease(item.product, item.comment, item.addons)
                                                 }}
                                                 className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold hover:scale-110 transition-transform"
                                                 style={{ background: GRADIENT, color: '#ffffff' }}
@@ -205,7 +212,7 @@ export default function CatalogBag({
                                             <button
                                                 onClick={(e) => {
                                                     e.stopPropagation()
-                                                    onRemove(item.product.id, item.comment)
+                                                    onRemove(item.product.id, item.comment, item.addons)
                                                 }}
                                                 className="w-6 h-6 rounded-full flex items-center justify-center hover:scale-110 transition-transform"
                                                 style={{ background: '#ef4444', color: '#ffffff' }}

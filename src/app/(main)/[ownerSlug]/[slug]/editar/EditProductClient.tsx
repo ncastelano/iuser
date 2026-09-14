@@ -2,7 +2,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
@@ -13,48 +13,99 @@ import {
     X,
     ImageIcon,
     Trash2,
-    AlertCircle,
-    CheckCircle
 } from 'lucide-react'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import Header from '@/components/Header'
+import { Spinner } from '@/components/Spinner'
 import { generateUniqueGlobalSlug } from '@/lib/slugUtils'
+import ProductAddonsManager from '@/components/StoreDashboard/ProductAddonsManager'
 
-interface EditProductClientProps {
-    product: any
-    ownerSlug: string
-}
-
-export function EditProductClient({ product, ownerSlug }: EditProductClientProps) {
+export function EditProductClient() {
     const router = useRouter()
+    const params = useParams()
+    const ownerSlug = (Array.isArray(params.ownerSlug) ? params.ownerSlug[0] : params.ownerSlug) ?? ''
+    const slug = (Array.isArray(params.slug) ? params.slug[0] : params.slug) ?? ''
     const { colors } = useTheme()
-    const { avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
+    const { userId, avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
+
+    // ===== BUSCA O PRODUTO E CONFERE SE QUEM ESTÁ LOGADO É O DONO =====
+    const [loadingProduct, setLoadingProduct] = useState(true)
+    const [product, setProduct] = useState<any | null>(null)
+    const [authorized, setAuthorized] = useState(false)
+
+    useEffect(() => {
+        if (profileLoading || !slug || !ownerSlug) return
+        let isMounted = true
+
+        const load = async () => {
+            const { data: prod } = await supabase.from('products').select('*').eq('slug', slug).maybeSingle()
+            if (!isMounted) return
+            if (!prod) {
+                setLoadingProduct(false)
+                return
+            }
+
+            // O dono pode ser um perfil (produto pessoal) ou uma loja.
+            const { data: profile } = await supabase.from('profiles').select('id').eq('profileSlug', ownerSlug).maybeSingle()
+            let resolvedOwnerId = profile?.id
+            if (!resolvedOwnerId) {
+                const { data: store } = await supabase.from('stores').select('id, owner_id').eq('storeSlug', ownerSlug).maybeSingle()
+                resolvedOwnerId = store?.owner_id
+            }
+
+            if (!isMounted) return
+            setProduct(prod)
+            setAuthorized(!!userId && userId === resolvedOwnerId)
+            setLoadingProduct(false)
+        }
+        load()
+
+        return () => { isMounted = false }
+    }, [slug, ownerSlug, userId, profileLoading])
 
     const fileInputRef = useRef<HTMLInputElement>(null)
     const [loading, setLoading] = useState(false)
     const [imageFile, setImageFile] = useState<File | null>(null)
-    const [imagePreview, setImagePreview] = useState<string | null>(product.image_url || null)
-    const [currentImagePath, setCurrentImagePath] = useState<string | null>(product.image_url || null)
+    const [imagePreview, setImagePreview] = useState<string | null>(null)
+    const [currentImagePath, setCurrentImagePath] = useState<string | null>(null)
 
     // Form fields
-    const [name, setName] = useState(product.name || '')
-    const [description, setDescription] = useState(product.description || '')
-    const [price, setPrice] = useState(product.price?.toString() || '')
-    const [category, setCategory] = useState(product.category || '')
-    const [listingType, setListingType] = useState(product.listing_type || 'sale')
-    const [productType, setProductType] = useState(product.type || 'physical')
-    const [priceType, setPriceType] = useState(product.price_type || 'fixed')
-    const [durationMinutes, setDurationMinutes] = useState(product.duration_minutes?.toString() || '')
-    const [stockQuantity, setStockQuantity] = useState(product.stock_quantity?.toString() || '')
-    const [isActive, setIsActive] = useState(product.is_active !== false)
-    const [specifications, setSpecifications] = useState<Record<string, string>>(
-        product.specifications || {}
-    )
+    const [name, setName] = useState('')
+    const [description, setDescription] = useState('')
+    const [price, setPrice] = useState('')
+    const [category, setCategory] = useState('')
+    const [listingType, setListingType] = useState('sale')
+    const [productType, setProductType] = useState('physical')
+    const [priceType, setPriceType] = useState('fixed')
+    const [durationMinutes, setDurationMinutes] = useState('')
+    const [stockQuantity, setStockQuantity] = useState('')
+    const [isActive, setIsActive] = useState(true)
+    const [hasAddons, setHasAddons] = useState(false)
+    const [specifications, setSpecifications] = useState<Record<string, string>>({})
     const [newSpecKey, setNewSpecKey] = useState('')
     const [newSpecValue, setNewSpecValue] = useState('')
     const [deleting, setDeleting] = useState(false)
 
     const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
+
+    // Preenche o formulário assim que o produto chega.
+    useEffect(() => {
+        if (!product) return
+        setImagePreview(product.image_url || null)
+        setCurrentImagePath(product.image_url || null)
+        setName(product.name || '')
+        setDescription(product.description || '')
+        setPrice(product.price?.toString() || '')
+        setCategory(product.category || '')
+        setListingType(product.listing_type || 'sale')
+        setProductType(product.type || 'physical')
+        setPriceType(product.price_type || 'fixed')
+        setDurationMinutes(product.duration_minutes?.toString() || '')
+        setStockQuantity(product.stock_quantity?.toString() || '')
+        setIsActive(product.is_active !== false)
+        setHasAddons(product.has_addons === true)
+        setSpecifications(product.specifications || {})
+    }, [product])
 
     // Preview da imagem
     useEffect(() => {
@@ -78,6 +129,7 @@ export function EditProductClient({ product, ownerSlug }: EditProductClientProps
             toast.error('Nome do produto é obrigatório')
             return
         }
+        if (!product) return
 
         setLoading(true)
 
@@ -114,6 +166,7 @@ export function EditProductClient({ product, ownerSlug }: EditProductClientProps
                 duration_minutes: durationMinutes ? parseInt(durationMinutes) : null,
                 stock_quantity: stockQuantity ? parseInt(stockQuantity) : null,
                 is_active: isActive,
+                has_addons: hasAddons,
                 image_url: imagePath,
                 specifications: Object.keys(specifications).length > 0 ? specifications : null,
                 updated_at: new Date().toISOString(),
@@ -141,6 +194,7 @@ export function EditProductClient({ product, ownerSlug }: EditProductClientProps
 
     // Deletar produto
     const handleDelete = async () => {
+        if (!product) return
         if (!confirm('Tem certeza que deseja excluir este produto? Esta ação não pode ser desfeita.')) return
 
         setDeleting(true)
@@ -185,6 +239,27 @@ export function EditProductClient({ product, ownerSlug }: EditProductClientProps
         const newSpecs = { ...specifications }
         delete newSpecs[key]
         setSpecifications(newSpecs)
+    }
+
+    if (profileLoading || loadingProduct) {
+        return (
+            <div className="min-h-dvh flex items-center justify-center" style={{ background: colors.background }}>
+                <Spinner size={32} color={colors.accent} />
+            </div>
+        )
+    }
+
+    if (!product || !authorized) {
+        return (
+            <div className="min-h-dvh flex items-center justify-center px-4" style={{ background: colors.background }}>
+                <div className="text-center">
+                    <h1 className="text-xl font-black" style={{ color: '#ef4444' }}>Produto não encontrado ou não autorizado</h1>
+                    <p className="text-sm mt-2" style={{ color: colors.textSecondary }}>
+                        Você não tem permissão para editar este produto.
+                    </p>
+                </div>
+            </div>
+        )
     }
 
     return (
@@ -511,6 +586,33 @@ export function EditProductClient({ product, ownerSlug }: EditProductClientProps
                                 <span className="text-sm font-bold" style={{ color: colors.textPrimary }}>
                                     Produto ativo
                                 </span>
+                            </div>
+
+                            {/* Adicionais (ingredientes extras) */}
+                            <div className="space-y-3 pt-2 border-t" style={{ borderColor: colors.border }}>
+                                <div className="flex items-center gap-3">
+                                    <label className="relative inline-flex items-center cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={hasAddons}
+                                            onChange={(e) => setHasAddons(e.target.checked)}
+                                            className="sr-only peer"
+                                        />
+                                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-orange-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-500"></div>
+                                    </label>
+                                    <div>
+                                        <span className="text-sm font-bold block" style={{ color: colors.textPrimary }}>
+                                            Este produto tem adicionais?
+                                        </span>
+                                        <span className="text-xs" style={{ color: colors.textSecondary }}>
+                                            Ex: bacon extra, queijo a mais — o cliente escolhe e paga a mais ao adicionar no carrinho
+                                        </span>
+                                    </div>
+                                </div>
+
+                                {hasAddons && (
+                                    <ProductAddonsManager productId={product.id} storeId={product.store_id} colors={colors} />
+                                )}
                             </div>
 
                             {/* Especificações */}

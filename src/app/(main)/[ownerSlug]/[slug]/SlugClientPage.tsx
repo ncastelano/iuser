@@ -42,7 +42,7 @@ export default function SlugClientPage() {
             try {
                 // Busca já com todos os campos que o ProductClientPage precisa,
                 // pra não ter que refazer essa mesma query lá.
-                const columns = 'id, name, slug, description, image_url, price, view_count, created_at, store_id, owner_id, listing_type'
+                const columns = 'id, name, slug, description, image_url, price, view_count, created_at, store_id, owner_id, listing_type, has_addons'
 
                 // Primeiro, tenta buscar pelo slug
                 let { data: item, error: itemError } = await supabase

@@ -1,7 +1,7 @@
 // src/app/(main)/carrinho/page.tsx
 'use client'
 
-import { useCartStore } from '@/store/useCartStore'
+import { useCartStore, cartItemUnitPrice, cartItemLineTotal, lineKey } from '@/store/useCartStore'
 import { useRouter } from 'next/navigation'
 import { hexToRgb } from '@/lib/color'
 import { pickImageFile, isNativePlatform } from '@/lib/nativeCamera'
@@ -441,11 +441,13 @@ export default function CarrinhoPage() {
                 const currentStoreItems = state.itemsByStore[slug] || []
                 for (const localItem of localStoreItems) {
                     const exists = currentStoreItems.some(
-                        (item) => item.product.id === localItem.product.id
+                        (item) =>
+                            item.product.id === localItem.product.id &&
+                            lineKey(item.comment, item.addons) === lineKey(localItem.comment, localItem.addons)
                     )
                     if (!exists) {
-                        state.addItem(slug, localDetails[slug] || { name: '', logo_url: null }, localItem.product)
-                        state.updateQuantity(slug, localItem.product.id, localItem.quantity - 1)
+                        state.addItem(slug, localDetails[slug] || { name: '', logo_url: null }, localItem.product, localItem.comment, localItem.addons)
+                        state.updateQuantity(slug, localItem.product.id, localItem.quantity - 1, localItem.comment, localItem.addons)
                         changed = true
                     }
                 }
@@ -626,7 +628,7 @@ export default function CarrinhoPage() {
     // ===== FUNÇÃO PARA CALCULAR TOTAIS COM LOCALIZAÇÃO PERSONALIZADA =====
     const getStoreTotals = (slug: string) => {
         const items = itemsByStore[slug] || []
-        const itemsTotal = items.reduce((acc, item) => acc + item.product.price * item.quantity, 0)
+        const itemsTotal = items.reduce((acc, item) => acc + cartItemLineTotal(item), 0)
         const deliveryOpt = deliveryOptionByStore[slug] || 'retirada'
         let deliveryFee = 0
         let isCalculating = false
@@ -817,7 +819,7 @@ export default function CarrinhoPage() {
                 store_lng: null,
             }
 
-            const itemsTotal = items.reduce((acc, item) => acc + item.product.price * item.quantity, 0)
+            const itemsTotal = items.reduce((acc, item) => acc + cartItemLineTotal(item), 0)
 
             const { data: storeData } = await supabase
                 .from('stores')
@@ -922,8 +924,10 @@ export default function CarrinhoPage() {
                 product_id: item.product.id,
                 product_name: item.product.name,
                 quantity: item.quantity,
-                unit_price: item.product.price,
-                total_price: item.product.price * item.quantity,
+                unit_price: cartItemUnitPrice(item),
+                total_price: cartItemLineTotal(item),
+                comment: item.comment || null,
+                addons: item.addons && item.addons.length > 0 ? item.addons : null,
             }))
 
             const { error: itemsError } = await supabase
@@ -973,7 +977,7 @@ export default function CarrinhoPage() {
                             `*Cliente:* @${currentUserSlug || 'cliente'}\n` +
                             `*Pagamento:* ${paymentLabel}\n` +
                             `*Entrega:* ${deliveryLabel}\n` +
-                            `*Itens:*\n${items.map((i: any) => `- ${i.quantity}x ${i.product.name} (R$ ${i.product.price.toFixed(2)})`).join('\n')}\n\n` +
+                            `*Itens:*\n${items.map((i) => `- ${i.quantity}x ${i.product.name}${i.addons && i.addons.length > 0 ? ` (${i.addons.map(a => a.name).join(', ')})` : ''} (R$ ${cartItemLineTotal(i).toFixed(2)})`).join('\n')}\n\n` +
                             `*Subtotal: R$ ${itemsTotal.toFixed(2)}*\n` +
                             `*Taxa de entrega: R$ ${deliveryFee.toFixed(2)}*\n` +
                             `*Total: R$ ${finalTotal.toFixed(2)}*`
@@ -999,8 +1003,8 @@ export default function CarrinhoPage() {
                     product_id: item.product.id,
                     product_name: item.product.name,
                     quantity: item.quantity,
-                    unit_price: item.product.price,
-                    price: item.product.price * item.quantity,
+                    unit_price: cartItemUnitPrice(item),
+                    price: cartItemLineTotal(item),
                 })),
             }])
 
@@ -1437,10 +1441,6 @@ export default function CarrinhoPage() {
                                         const canCard = config.accepts_card
                                         const canCash = config.accepts_cash
 
-                                        const uniqueItems = items.filter(
-                                            (item: any, index: number, self: any[]) =>
-                                                index === self.findIndex((t: any) => t.product.id === item.product.id)
-                                        )
 
                                         return (
                                             <div key={slug} className="rounded-2xl p-5 mb-4 border" style={{ borderColor: colors.border, background: colors.surface }}>
@@ -1471,8 +1471,8 @@ export default function CarrinhoPage() {
                                                 </div>
 
                                                 <div className="space-y-3 mb-4">
-                                                    {uniqueItems.map((item) => (
-                                                        <div key={item.product.id} className="flex gap-3 items-center">
+                                                    {items.map((item) => (
+                                                        <div key={`${item.product.id}::${item.comment || ''}::${(item.addons || []).map(a => a.id).sort().join(',')}`} className="flex gap-3 items-center">
                                                             <div className="w-12 h-12 rounded-xl overflow-hidden bg-gray-100 flex-shrink-0">
                                                                 {item.product.image_url ? (
                                                                     <img src={item.product.image_url} alt="" className="w-full h-full object-cover" />
@@ -1483,12 +1483,22 @@ export default function CarrinhoPage() {
                                                             <div className="flex-1 min-w-0">
                                                                 <p className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>{item.product.name}</p>
                                                                 <p className="text-[10px] mt-0.5" style={{ color: colors.textSecondary }}>
-                                                                    R$ {item.product.price.toFixed(2)} cada
+                                                                    R$ {cartItemUnitPrice(item).toFixed(2)} cada
                                                                 </p>
+                                                                {item.addons && item.addons.length > 0 && (
+                                                                    <p className="text-[9px] truncate" style={{ color: colors.textSecondary, opacity: 0.8 }}>
+                                                                        + {item.addons.map(a => a.name).join(', ')}
+                                                                    </p>
+                                                                )}
+                                                                {item.comment && (
+                                                                    <p className="text-[9px] italic truncate" style={{ color: colors.textSecondary, opacity: 0.8 }}>
+                                                                        {item.comment}
+                                                                    </p>
+                                                                )}
                                                                 <div className="flex items-center gap-2 mt-1">
                                                                     <div className="flex items-center rounded-full overflow-hidden" style={{ border: `1px solid ${colors.border}` }}>
                                                                         <button
-                                                                            onClick={() => updateQuantity(slug, item.product.id, -1)}
+                                                                            onClick={() => updateQuantity(slug, item.product.id, -1, item.comment, item.addons)}
                                                                             className="w-7 h-7 flex items-center justify-center transition-all hover:scale-110"
                                                                             style={{ background: GRADIENT, color: '#ffffff' }}
                                                                         >
@@ -1496,18 +1506,18 @@ export default function CarrinhoPage() {
                                                                         </button>
                                                                         <span className="w-8 text-center text-xs font-bold" style={{ color: colors.textPrimary }}>{item.quantity}</span>
                                                                         <button
-                                                                            onClick={() => updateQuantity(slug, item.product.id, 1)}
+                                                                            onClick={() => updateQuantity(slug, item.product.id, 1, item.comment, item.addons)}
                                                                             className="w-7 h-7 flex items-center justify-center transition-all hover:scale-110"
                                                                             style={{ background: GRADIENT, color: '#ffffff' }}
                                                                         >
                                                                             <Plus size={12} />
                                                                         </button>
                                                                     </div>
-                                                                    <button onClick={() => removeItem(slug, item.product.id)} className="text-red-400 hover:text-red-600"><Trash2 size={14} /></button>
+                                                                    <button onClick={() => removeItem(slug, item.product.id, item.comment, item.addons)} className="text-red-400 hover:text-red-600"><Trash2 size={14} /></button>
                                                                 </div>
                                                             </div>
                                                             <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>
-                                                                R$ {(item.product.price * item.quantity).toFixed(2)}
+                                                                R$ {cartItemLineTotal(item).toFixed(2)}
                                                             </p>
                                                         </div>
                                                     ))}

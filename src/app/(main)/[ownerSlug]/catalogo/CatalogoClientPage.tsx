@@ -8,7 +8,7 @@ import { Spinner } from '@/components/Spinner'
 import { useTheme } from '@/app/contexts/theme'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { useProfile } from '@/app/contexts/ProfileContext'
-import { useCartStore } from '@/store/useCartStore'
+import { useCartStore, type CartAddon, cartItemUnitPrice, cartItemLineTotal } from '@/store/useCartStore'
 import { Plus, X, Info, Search, Clock, Tag, Package, Calendar, MapPin, Truck, Store, QrCode, CreditCard, Banknote, Navigation, Home, CheckCircle2, Eye, EyeOff, ArrowLeft, User, Camera } from 'lucide-react'
 import Image from 'next/image'
 import { isStoreOpenNow, getNextOpeningInfo, type BusinessHours } from '@/lib/storeHours'
@@ -16,6 +16,7 @@ import { toast } from 'sonner'
 import HeaderSearchInput from './HeaderSearchInput'
 import CatalogBag, { type CartItemWithComment } from './CatalogBag'
 import { hexToRgb } from '@/lib/color'
+import AddToCartModal from '@/components/AddToCartModal'
 
 interface Product {
     id: string
@@ -30,6 +31,7 @@ interface Product {
     price_type?: string
     slug?: string
     created_at?: string
+    has_addons?: boolean
 }
 
 interface StoreInfo {
@@ -77,7 +79,6 @@ export default function CatalogoClientPage() {
     const [isBagExpanded, setIsBagExpanded] = useState(false)
     const [bagItems, setBagItems] = useState<CartItemWithComment[]>([])
     const [showAddCommentModal, setShowAddCommentModal] = useState(false)
-    const [commentText, setCommentText] = useState('')
     const [pendingProduct, setPendingProduct] = useState<any | null>(null)
 
     // ===== STATES PARA FINALIZAÇÃO =====
@@ -359,7 +360,8 @@ export default function CatalogoClientPage() {
         const items = cartItems.map(item => ({
             product: item.product,
             quantity: item.quantity,
-            comment: (item as any).comment || ''
+            comment: item.comment || '',
+            addons: item.addons,
         }))
         setBagItems(items)
     }, [cartItems])
@@ -394,7 +396,9 @@ export default function CatalogoClientPage() {
         [itemsByStore, ownerSlug]
     )
 
-    // ===== FUNÇÃO: Adicionar com comentário =====
+    // ===== FUNÇÃO: Adicionar com etapas (observação sempre; adicionais só se a loja habilitar) =====
+    // Etapas em si (observação + adicionais) ficam no <AddToCartModal>,
+    // compartilhado com a página de produto.
     const handleAddWithComment = (product: any) => {
         if (!storeInfo || !ownerSlug) return
 
@@ -404,11 +408,10 @@ export default function CatalogoClientPage() {
         }
 
         setPendingProduct(product)
-        setCommentText('')
         setShowAddCommentModal(true)
     }
 
-    const confirmAddWithComment = () => {
+    const confirmAddWithComment = (comment: string | undefined, addons: CartAddon[]) => {
         if (!pendingProduct || !storeInfo || !ownerSlug) return
 
         const storeDetails = {
@@ -426,19 +429,19 @@ export default function CatalogoClientPage() {
             category: pendingProduct.category || undefined,
         }
 
-        // Duas adições do mesmo produto com observações diferentes viram
-        // linhas separadas no carrinho (ver useCartStore.addItem) — assim a
-        // observação de cada uma não se perde nem sobrescreve a outra.
-        addItem(ownerSlug, storeDetails, cartProduct as any, commentText.trim() || undefined)
+        // Duas adições do mesmo produto com observação e/ou adicionais
+        // diferentes viram linhas separadas no carrinho (ver
+        // useCartStore.addItem) — assim a personalização de cada uma não se
+        // perde nem sobrescreve a outra.
+        addItem(ownerSlug, storeDetails, cartProduct as any, comment, addons.length > 0 ? addons : undefined)
 
-        toast.success(`Produto adicionado${commentText.trim() ? ' com observação!' : '!'}`)
+        toast.success(`Produto adicionado${comment || addons.length > 0 ? ' com personalização!' : '!'}`)
         setShowAddCommentModal(false)
         setPendingProduct(null)
-        setCommentText('')
     }
 
     const increaseQuantity = useCallback(
-        (product: any, comment?: string) => {
+        (product: any, comment?: string, addons?: CartAddon[]) => {
             if (!storeInfo || !ownerSlug) return
 
             if (!isStoreOpen) {
@@ -446,23 +449,23 @@ export default function CatalogoClientPage() {
                 return
             }
 
-            addItem(ownerSlug, { name: storeInfo.name, logo_url: storeInfo.logo_url ?? null }, product, comment)
+            addItem(ownerSlug, { name: storeInfo.name, logo_url: storeInfo.logo_url ?? null }, product, comment, addons)
         },
         [storeInfo, ownerSlug, addItem, isStoreOpen]
     )
 
     const decreaseQuantity = useCallback(
-        (productId: string, comment?: string) => {
+        (productId: string, comment?: string, addons?: CartAddon[]) => {
             if (!ownerSlug) return
-            updateQuantity(ownerSlug, productId, -1, comment)
+            updateQuantity(ownerSlug, productId, -1, comment, addons)
         },
         [ownerSlug, updateQuantity]
     )
 
     const removeAllOfProduct = useCallback(
-        (productId: string, comment?: string) => {
+        (productId: string, comment?: string, addons?: CartAddon[]) => {
             if (!ownerSlug) return
-            removeItem(ownerSlug, productId, comment)
+            removeItem(ownerSlug, productId, comment, addons)
         },
         [ownerSlug, removeItem]
     )
@@ -659,7 +662,7 @@ export default function CatalogoClientPage() {
 
     const getStoreTotals = useCallback(() => {
         const items = cartItems
-        const itemsTotal = items.reduce((acc, item) => acc + item.product.price * item.quantity, 0)
+        const itemsTotal = items.reduce((acc, item) => acc + cartItemLineTotal(item), 0)
         const { fee: deliveryFee, isCalculating } = calculateDeliveryFee()
         const finalTotal = isCalculating ? itemsTotal : itemsTotal + deliveryFee
         return { itemsTotal, deliveryFee, finalTotal, isCalculating }
@@ -804,9 +807,10 @@ export default function CatalogoClientPage() {
                 product_id: item.product.id,
                 product_name: item.product.name,
                 quantity: item.quantity,
-                unit_price: item.product.price,
-                total_price: item.product.price * item.quantity,
-                comment: (item as any).comment || null,
+                unit_price: cartItemUnitPrice(item),
+                total_price: cartItemLineTotal(item),
+                comment: item.comment || null,
+                addons: item.addons && item.addons.length > 0 ? item.addons : null,
             }))
 
             const { error: itemsError } = await supabase
@@ -853,7 +857,7 @@ export default function CatalogoClientPage() {
                         `*Cliente:* @${currentUserSlug || 'cliente'}\n` +
                         `*Pagamento:* ${paymentLabel}\n` +
                         `*Entrega:* ${deliveryLabel}\n` +
-                        `*Itens:*\n${cartItems.map((i: any) => `- ${i.quantity}x ${i.product.name} (R$ ${(i.product.price * i.quantity).toFixed(2)})${(i as any).comment ? ` - Obs: ${(i as any).comment}` : ''}`).join('\n')}\n\n` +
+                        `*Itens:*\n${cartItems.map((i) => `- ${i.quantity}x ${i.product.name}${i.addons && i.addons.length > 0 ? ` (${i.addons.map(a => a.name).join(', ')})` : ''} (R$ ${cartItemLineTotal(i).toFixed(2)})${i.comment ? ` - Obs: ${i.comment}` : ''}`).join('\n')}\n\n` +
                         `*Subtotal: R$ ${itemsTotal.toFixed(2)}*\n` +
                         `*Taxa de entrega: R$ ${deliveryFee.toFixed(2)}*\n` +
                         `*Total: R$ ${finalTotal.toFixed(2)}*`
@@ -1616,7 +1620,7 @@ export default function CatalogoClientPage() {
                                     <div className="max-h-36 overflow-y-auto divide-y" style={{ borderColor: colors.border }}>
                                         {cartItems.map((item) => (
                                             <div
-                                                key={`${item.product.id}::${(item as any).comment || ''}`}
+                                                key={`${item.product.id}::${item.comment || ''}::${(item.addons || []).map(a => a.id).sort().join(',')}`}
                                                 className="flex items-center justify-between gap-2 px-3 py-2"
                                                 style={{ borderColor: colors.border }}
                                             >
@@ -1625,11 +1629,16 @@ export default function CatalogoClientPage() {
                                                         {item.product.name}
                                                     </p>
                                                     <p className="text-[10px]" style={{ color: colors.textSecondary }}>
-                                                        {item.quantity}x {formatPrice(item.product.price)}
+                                                        {item.quantity}x {formatPrice(cartItemUnitPrice(item))}
                                                     </p>
+                                                    {item.addons && item.addons.length > 0 && (
+                                                        <p className="text-[9px] truncate" style={{ color: colors.textSecondary, opacity: 0.8 }}>
+                                                            + {item.addons.map(a => a.name).join(', ')}
+                                                        </p>
+                                                    )}
                                                 </div>
                                                 <span className="text-xs font-black flex-shrink-0" style={{ color: '#f97316' }}>
-                                                    {formatPrice(item.product.price * item.quantity)}
+                                                    {formatPrice(cartItemLineTotal(item))}
                                                 </span>
                                             </div>
                                         ))}
@@ -1761,105 +1770,17 @@ export default function CatalogoClientPage() {
                     />
                 </div>
 
-                {/* ===== MODAL DE COMENTÁRIO ===== */}
+                {/* ===== MODAL DE ADICIONAR (observação sempre; adicionais se a loja habilitar) ===== */}
                 {showAddCommentModal && pendingProduct && (
-                    <div
-                        className="fixed inset-0 z-[300] bg-black/60 backdrop-blur-md flex items-center justify-center p-4"
-                        onClick={() => {
+                    <AddToCartModal
+                        product={pendingProduct}
+                        colors={colors}
+                        onClose={() => {
                             setShowAddCommentModal(false)
                             setPendingProduct(null)
-                            setCommentText('')
                         }}
-                    >
-                        <div
-                            className="w-full max-w-md rounded-2xl p-6 animate-fade-in"
-                            style={{ background: cardBackground }}
-                            onClick={(e) => e.stopPropagation()}
-                        >
-                            <div className="flex items-center justify-between mb-4">
-                                <h3 className="text-lg font-black" style={{ color: textColor }}>
-                                    Adicionar ao Carrinho
-                                </h3>
-                                <button
-                                    onClick={() => {
-                                        setShowAddCommentModal(false)
-                                        setPendingProduct(null)
-                                        setCommentText('')
-                                    }}
-                                    className="p-1.5 rounded-full hover:bg-black/5 transition"
-                                    style={{ color: colors.textSecondary }}
-                                >
-                                    <X size={20} />
-                                </button>
-                            </div>
-
-                            <div className="flex items-center gap-3 p-3 rounded-xl mb-4" style={{ background: `${colors.surface}44`, border: `1px solid ${colors.border}` }}>
-                                <div className="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0 bg-gray-100">
-                                    {pendingProduct.image_url ? (
-                                        <img src={pendingProduct.image_url} alt={pendingProduct.name} className="w-full h-full object-cover" />
-                                    ) : (
-                                        <div className="w-full h-full flex items-center justify-center text-xl">📦</div>
-                                    )}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                    <p className="font-medium text-sm truncate" style={{ color: textColor }}>
-                                        {pendingProduct.name}
-                                    </p>
-                                    <p className="text-sm font-bold" style={{ color: '#f97316' }}>
-                                        {formatPrice(pendingProduct.price)}
-                                    </p>
-                                </div>
-                            </div>
-
-                            <div className="mb-4">
-                                <label className="text-sm font-medium block mb-1" style={{ color: textColor }}>
-                                    Observação (opcional)
-                                </label>
-                                <textarea
-                                    value={commentText}
-                                    onChange={(e) => setCommentText(e.target.value)}
-                                    placeholder="Ex: Sem cebola, ponto da carne, etc..."
-                                    className="w-full p-3 rounded-xl resize-none text-sm"
-                                    style={{
-                                        background: `${colors.surface}44`,
-                                        border: `1px solid ${colors.border}`,
-                                        color: textColor,
-                                        minHeight: 80,
-                                        outline: 'none',
-                                    }}
-                                />
-                            </div>
-
-                            <div className="flex gap-3">
-                                <button
-                                    onClick={() => {
-                                        setShowAddCommentModal(false)
-                                        setPendingProduct(null)
-                                        setCommentText('')
-                                    }}
-                                    className="flex-1 py-3 rounded-xl font-bold text-sm transition hover:scale-105 active:scale-95"
-                                    style={{
-                                        background: 'transparent',
-                                        border: `2px solid ${colors.border}`,
-                                        color: colors.textSecondary
-                                    }}
-                                >
-                                    Cancelar
-                                </button>
-                                <button
-                                    onClick={confirmAddWithComment}
-                                    className="flex-1 py-3 rounded-xl font-bold text-sm transition hover:scale-105 active:scale-95"
-                                    style={{
-                                        background: GRADIENT,
-                                        color: '#ffffff',
-                                        boxShadow: `0 4px 14px #f9731660`,
-                                    }}
-                                >
-                                    Adicionar
-                                </button>
-                            </div>
-                        </div>
-                    </div>
+                        onConfirm={confirmAddWithComment}
+                    />
                 )}
 
                 {/* ===== MODAL DE AUTENTICAÇÃO (login/cadastro antes de finalizar) ===== */}

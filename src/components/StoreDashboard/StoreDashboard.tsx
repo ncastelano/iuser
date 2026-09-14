@@ -629,7 +629,7 @@ export default function StoreDashboard({
                                                 <button
                                                     onClick={(e) => {
                                                         e.stopPropagation()
-                                                        router.push(`/${storeSlug}/${prod.slug || prod.id}/editar-produto`)
+                                                        router.push(`/${storeSlug}/${prod.slug || prod.id}/editar`)
                                                     }}
                                                     className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center hover:bg-black/50 transition-colors z-10"
                                                     title="Editar produto"

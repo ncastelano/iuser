@@ -34,10 +34,11 @@ import {
 } from 'lucide-react'
 import { handleShareLink } from '@/lib/share'
 import { toast } from 'sonner'
-import { useCartStore } from '@/store/useCartStore'
+import { useCartStore, cartItemUnitPrice, cartItemLineTotal, type CartAddon } from '@/store/useCartStore'
 import { useStoreCheckout } from './useStoreCheckout'
 import { RatingStars } from '@/components/ratings/RatingStars'
 import { getAvatarUrl } from '@/lib/avatar'
+import AddToCartModal from '@/components/AddToCartModal'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -52,6 +53,7 @@ interface ProductWithStore {
     view_count: number | null
     created_at: string
     store_id: string
+    has_addons?: boolean
     store?: {
         id: string
         name: string
@@ -78,6 +80,7 @@ interface InitialProductRow {
     view_count: number | null
     created_at: string
     store_id: string
+    has_addons?: boolean
 }
 
 interface InitialStoreRow {
@@ -126,6 +129,7 @@ export function ProductClientPage({
     const [quantity, setQuantity] = useState(1)
     const [addingToCart, setAddingToCart] = useState(false)
     const [addedToCart, setAddedToCart] = useState(false)
+    const [showAddModal, setShowAddModal] = useState(false)
     const [otherProducts, setOtherProducts] = useState<{
         id: string
         name: string
@@ -299,39 +303,35 @@ export function ProductClientPage({
         : null
 
     // ===== FUNÇÕES DO CARRINHO =====
-    const handleAddToCart = () => {
+    // Adicionar sempre passa pelas etapas (observação/remover algo, e
+    // adicionais se a loja tiver habilitado pro produto) - mesmo modal
+    // compartilhado com o catálogo.
+    const openAddModal = () => {
+        if (!product) return
+        setShowAddModal(true)
+    }
+
+    const confirmAddToCart = (comment: string | undefined, addons: CartAddon[]) => {
         if (!product) return
 
         setAddingToCart(true)
 
         try {
-            // Verifica se já existe no carrinho
-            const existingItems = itemsByStore[ownerSlug] || []
-            const existingItem = existingItems.find(item => item.product.id === product.id)
-
             const storeDetails = {
                 name: product.store?.name || ownerSlug,
                 logo_url: product.store?.logo_url || null,
             }
-
-            if (existingItem) {
-                // Atualiza quantidade (updateQuantity usa delta)
-                updateQuantity(ownerSlug, product.id, quantity)
-                toast.success(`Quantidade atualizada no carrinho!`)
-            } else {
-                // Adiciona novo item
-                const cartProduct = {
-                    id: product.id,
-                    name: product.name,
-                    price: product.price || 0,
-                    image_url: product.image_url,
-                    slug: product.slug,
-                }
-                for (let i = 0; i < quantity; i++) {
-                    addItem(ownerSlug, storeDetails, cartProduct)
-                }
-                toast.success(`${product.name} adicionado ao carrinho!`)
+            const cartProduct = {
+                id: product.id,
+                name: product.name,
+                price: product.price || 0,
+                image_url: product.image_url,
+                slug: product.slug,
             }
+            for (let i = 0; i < quantity; i++) {
+                addItem(ownerSlug, storeDetails, cartProduct, comment, addons.length > 0 ? addons : undefined)
+            }
+            toast.success(`${product.name} adicionado ao carrinho!`)
 
             setAddedToCart(true)
             setTimeout(() => setAddedToCart(false), 3000)
@@ -339,6 +339,7 @@ export function ProductClientPage({
             toast.error('Erro ao adicionar ao carrinho: ' + error.message)
         } finally {
             setAddingToCart(false)
+            setShowAddModal(false)
         }
     }
 
@@ -433,7 +434,7 @@ export function ProductClientPage({
             </div>
 
             <button
-                onClick={handleAddToCart}
+                onClick={openAddModal}
                 disabled={addingToCart || addedToCart}
                 className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold transition-all hover:scale-[1.01] disabled:opacity-60"
                 style={{
@@ -468,7 +469,7 @@ export function ProductClientPage({
     // que o primeiro item é adicionado.
     const formatPrice = (price: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(price)
     const storeCartCount = storeCartItems.reduce((sum, item) => sum + item.quantity, 0)
-    const storeCartTotal = storeCartItems.reduce((sum, item) => sum + item.product.price * item.quantity, 0)
+    const storeCartTotal = storeCartItems.reduce((sum, item) => sum + cartItemLineTotal(item), 0)
     const formattedStoreCartTotal = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(storeCartTotal)
 
     const storeCartBar = storeCartCount > 0 ? (
@@ -729,7 +730,7 @@ export function ProductClientPage({
                         <div className="max-h-36 overflow-y-auto divide-y" style={{ borderColor: colors.border }}>
                             {storeCartItems.map((item) => (
                                 <div
-                                    key={`${item.product.id}::${item.comment || ''}`}
+                                    key={`${item.product.id}::${item.comment || ''}::${(item.addons || []).map(a => a.id).sort().join(',')}`}
                                     className="flex items-center justify-between gap-2 px-3 py-2"
                                     style={{ borderColor: colors.border }}
                                 >
@@ -738,11 +739,16 @@ export function ProductClientPage({
                                             {item.product.name}
                                         </p>
                                         <p className="text-[10px]" style={{ color: colors.textSecondary }}>
-                                            {item.quantity}x {formatPrice(item.product.price)}
+                                            {item.quantity}x {formatPrice(cartItemUnitPrice(item))}
                                         </p>
+                                        {item.addons && item.addons.length > 0 && (
+                                            <p className="text-[9px] truncate" style={{ color: colors.textSecondary, opacity: 0.8 }}>
+                                                + {item.addons.map(a => a.name).join(', ')}
+                                            </p>
+                                        )}
                                     </div>
                                     <span className="text-xs font-black flex-shrink-0" style={{ color: '#f97316' }}>
-                                        {formatPrice(item.product.price * item.quantity)}
+                                        {formatPrice(cartItemLineTotal(item))}
                                     </span>
                                 </div>
                             ))}
@@ -878,7 +884,7 @@ export function ProductClientPage({
                             : null
                         return (
                             <div
-                                key={`${item.product.id}::${item.comment || ''}`}
+                                key={`${item.product.id}::${item.comment || ''}::${(item.addons || []).map(a => a.id).sort().join(',')}`}
                                 className="flex items-center gap-2 p-2 rounded-xl"
                                 style={{ background: colors.surface }}
                             >
@@ -896,12 +902,17 @@ export function ProductClientPage({
                                         {item.product.name}
                                     </p>
                                     <p className="text-xs font-bold" style={{ color: colors.accent }}>
-                                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.product.price)}
+                                        {formatPrice(cartItemUnitPrice(item))}
                                     </p>
+                                    {item.addons && item.addons.length > 0 && (
+                                        <p className="text-[10px] truncate" style={{ color: colors.textSecondary }}>
+                                            + {item.addons.map(a => a.name).join(', ')}
+                                        </p>
+                                    )}
                                 </div>
                                 <div className="flex items-center gap-1 flex-shrink-0">
                                     <button
-                                        onClick={() => updateQuantity(ownerSlug, item.product.id, -1, item.comment)}
+                                        onClick={() => updateQuantity(ownerSlug, item.product.id, -1, item.comment, item.addons)}
                                         className="w-6 h-6 rounded-full flex items-center justify-center hover:scale-110 transition-transform"
                                         style={{ background: GRADIENT, color: '#ffffff' }}
                                     >
@@ -911,14 +922,14 @@ export function ProductClientPage({
                                         {item.quantity}
                                     </span>
                                     <button
-                                        onClick={() => updateQuantity(ownerSlug, item.product.id, 1, item.comment)}
+                                        onClick={() => updateQuantity(ownerSlug, item.product.id, 1, item.comment, item.addons)}
                                         className="w-6 h-6 rounded-full flex items-center justify-center hover:scale-110 transition-transform"
                                         style={{ background: GRADIENT, color: '#ffffff' }}
                                     >
                                         <Plus size={10} />
                                     </button>
                                     <button
-                                        onClick={() => removeItem(ownerSlug, item.product.id, item.comment)}
+                                        onClick={() => removeItem(ownerSlug, item.product.id, item.comment, item.addons)}
                                         className="w-6 h-6 rounded-full flex items-center justify-center hover:scale-110 transition-transform"
                                         style={{ background: '#ef4444', color: '#ffffff' }}
                                     >
@@ -1251,6 +1262,16 @@ export function ProductClientPage({
                     </div>
                 )}
             </div>
+
+            {/* ===== MODAL DE ADICIONAR (observação sempre; adicionais se a loja habilitar) ===== */}
+            {showAddModal && product && (
+                <AddToCartModal
+                    product={{ id: product.id, name: product.name, price: product.price || 0, image_url: product.image_url, has_addons: product.has_addons }}
+                    colors={colors}
+                    onClose={() => setShowAddModal(false)}
+                    onConfirm={confirmAddToCart}
+                />
+            )}
 
             {/* ===== MODAL DE AUTENTICAÇÃO (login/cadastro antes de finalizar) ===== */}
             {checkout.checkoutStep === 'auth' && (
