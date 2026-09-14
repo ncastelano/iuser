@@ -2,7 +2,7 @@
 'use client'
 
 import { ReactNode } from 'react'
-import { ShoppingCart, Minus, Plus, Trash2, MessageCircle } from 'lucide-react'
+import { ShoppingCart, Minus, Plus, Trash2, MessageCircle, ChevronUp, Store } from 'lucide-react'
 import { toast } from 'sonner'
 import { cartItemUnitPrice, cartItemLineTotal, type CartAddon } from '@/store/useCartStore'
 
@@ -27,6 +27,16 @@ interface CatalogBagProps {
     isStoreOpen?: boolean
     /** Quando presente, substitui a lista de itens pelo passo de finalização (recebimento/pagamento) embutido no carrinho. */
     checkoutContent?: ReactNode | null
+    /** Foto da loja: usada como imagem de fallback dos produtos sem foto própria. */
+    storeImageUrl?: string | null
+    /** Quando true, o ícone dos círculos (fechado/expandido) mostra a foto da loja em vez do carrinho - usado quando cada CatalogBag já representa uma loja específica (ex.: página /carrinho com várias lojas). */
+    useStoreIconInBadge?: boolean
+    /** Quando true, remove o cartão/borda/sombra próprios - para quando o CatalogBag é embutido dentro de outro cartão que já tem esse estilo. */
+    bare?: boolean
+    /** Quando true, ocupa 100% da largura do container em vez do tamanho fixo do widget flutuante. */
+    fullWidth?: boolean
+    /** Quando true, esconde o botão "Finalizar" (e o aviso de loja fechada) da barra de baixo - para quando a finalização já tem seu próprio botão fora do CatalogBag. */
+    hideFooterAction?: boolean
 }
 
 // ===== Carrinho flutuante do catálogo: mostra os produtos adicionados =====
@@ -44,9 +54,23 @@ export default function CatalogBag({
     colors,
     isStoreOpen = true,
     checkoutContent = null,
+    storeImageUrl = null,
+    useStoreIconInBadge = false,
+    bare = false,
+    fullWidth = false,
+    hideFooterAction = false,
 }: CatalogBagProps) {
     const totalItems = bagItems.reduce((sum, item) => sum + item.quantity, 0)
     const totalValue = bagItems.reduce((sum, item) => sum + cartItemLineTotal(item), 0)
+
+    const badgeIcon =
+        useStoreIconInBadge && storeImageUrl ? (
+            <img src={storeImageUrl} alt="" className="w-full h-full object-cover rounded-full" />
+        ) : useStoreIconInBadge ? (
+            <Store size={18} />
+        ) : (
+            <ShoppingCart size={18} />
+        )
 
     const textColor = colors.textPrimary
     const cardBackground = colors.surface
@@ -67,15 +91,16 @@ export default function CatalogBag({
     }
 
     return (
-        <div className="relative">
+        <div className="relative" style={fullWidth ? { width: '100%' } : undefined}>
             <div
-                className="rounded-2xl shadow-2xl transition-all duration-300 cursor-pointer overflow-hidden"
+                className={`transition-all duration-300 overflow-hidden ${bare ? '' : 'rounded-2xl shadow-2xl cursor-pointer'}`}
                 style={{
-                    background: cardBackground,
-                    border: `2px solid ${totalItems > 0 ? colors.accent : colors.border}`,
-                    boxShadow: totalItems > 0 ? `0 8px 32px rgba(0,0,0,0.15)` : `0 4px 16px rgba(0,0,0,0.08)`,
-                    minWidth: isExpanded ? 280 : 'auto',
-                    maxWidth: isExpanded ? (checkoutContent ? 380 : 360) : 'auto',
+                    background: bare ? 'transparent' : cardBackground,
+                    border: bare ? 'none' : `2px solid ${totalItems > 0 ? colors.accent : colors.border}`,
+                    boxShadow: bare ? 'none' : (totalItems > 0 ? `0 8px 32px rgba(0,0,0,0.15)` : `0 4px 16px rgba(0,0,0,0.08)`),
+                    minWidth: fullWidth ? undefined : (isExpanded ? 280 : 'auto'),
+                    maxWidth: fullWidth ? undefined : (isExpanded ? (checkoutContent ? 380 : 360) : 'auto'),
+                    width: fullWidth ? '100%' : undefined,
                 }}
             >
                 {/* A barra de cima (ícone + total + seta) só aparece fechada ou durante
@@ -87,10 +112,10 @@ export default function CatalogBag({
                         onClick={onToggleExpanded}
                     >
                         <div
-                            className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
+                            className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden"
                             style={{ background: totalItems > 0 ? GRADIENT : `${colors.border}50`, color: totalItems > 0 ? '#ffffff' : colors.textSecondary }}
                         >
-                            <ShoppingCart size={18} />
+                            {badgeIcon}
                         </div>
 
                         <div className="flex items-center gap-2">
@@ -141,6 +166,13 @@ export default function CatalogBag({
                             </p>
                         ) : (
                             <div className="space-y-2">
+                                <button
+                                    onClick={onToggleExpanded}
+                                    className="w-full flex items-center justify-center py-1 rounded-lg hover:opacity-70 transition-opacity"
+                                    aria-label="Recolher carrinho"
+                                >
+                                    <ChevronUp size={16} style={{ color: colors.textSecondary }} />
+                                </button>
                                 {bagItems.map((item) => (
                                     <div
                                         key={`${item.product.id}::${item.comment || ''}::${(item.addons || []).map(a => a.id).sort().join(',')}`}
@@ -151,6 +183,12 @@ export default function CatalogBag({
                                             {item.product.image_url ? (
                                                 <img
                                                     src={item.product.image_url}
+                                                    alt={item.product.name}
+                                                    className="w-full h-full object-cover"
+                                                />
+                                            ) : storeImageUrl ? (
+                                                <img
+                                                    src={storeImageUrl}
                                                     alt={item.product.name}
                                                     className="w-full h-full object-cover"
                                                 />
@@ -232,10 +270,10 @@ export default function CatalogBag({
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-2 cursor-pointer" onClick={onToggleExpanded}>
                                             <div
-                                                className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
-                                                style={{ background: GRADIENT }}
+                                                className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden"
+                                                style={{ background: GRADIENT, color: '#ffffff' }}
                                             >
-                                                <ShoppingCart size={18} color="#ffffff" />
+                                                {badgeIcon}
                                             </div>
                                             <div className="flex items-center gap-1.5">
                                                 <span className="font-bold text-sm" style={{ color: textColor }}>
@@ -249,7 +287,7 @@ export default function CatalogBag({
                                                 </span>
                                             </div>
                                         </div>
-                                        {!isStoreOpen ? (
+                                        {hideFooterAction ? null : !isStoreOpen ? (
                                             <span
                                                 className="px-4 py-1.5 rounded-full text-xs font-bold"
                                                 style={{ background: '#ef444422', color: '#ef4444' }}

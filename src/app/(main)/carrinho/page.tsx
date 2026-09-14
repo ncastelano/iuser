@@ -8,10 +8,7 @@ import { pickImageFile, isNativePlatform } from '@/lib/nativeCamera'
 import {
     Store,
     ChevronRight,
-    Trash2,
     CheckCircle2,
-    Minus,
-    Plus,
     Eye,
     EyeOff,
     Package,
@@ -31,7 +28,6 @@ import {
     AlertCircle,
     User,
     Camera,
-    MessageCircle,
 } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useState, useRef, useMemo, useCallback } from 'react'
@@ -44,6 +40,7 @@ import { useProfile } from '@/app/contexts/ProfileContext'
 import Header from '@/components/Header'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { isStoreOpenNow, getStoreStatusText, getNextOpeningInfo, type BusinessHours } from '@/lib/storeHours'
+import CatalogBag from '../[ownerSlug]/catalogo/CatalogBag'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -202,6 +199,10 @@ export default function CarrinhoPage() {
     // Opções selecionadas por loja
     const [deliveryOptionByStore, setDeliveryOptionByStore] = useState<Record<string, 'entrega' | 'retirada'>>({})
     const [paymentMethodByStore, setPaymentMethodByStore] = useState<Record<string, 'pix' | 'cartao' | 'dinheiro'>>({})
+
+    // Cada loja no carrinho vira um CatalogBag próprio - por padrão expandido,
+    // mas pode ser recolhido individualmente (útil com várias lojas na sacola).
+    const [expandedStoreBags, setExpandedStoreBags] = useState<Record<string, boolean>>({})
 
     // Cache dos dados de entrega da loja
     const [storeDeliveryInfo, setStoreDeliveryInfo] = useState<Record<string, StoreDeliveryInfo>>({})
@@ -1443,18 +1444,12 @@ export default function CarrinhoPage() {
                                         const canCash = config.accepts_cash
 
 
+                                        const isBagExpanded = expandedStoreBags[slug] !== false
+
                                         return (
                                             <div key={slug} className="rounded-2xl p-5 mb-4 border" style={{ borderColor: colors.border, background: colors.surface }}>
-                                                <div className="flex items-center justify-between mb-4">
-                                                    <div className="flex items-center gap-2">
-                                                        <div
-                                                            className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
-                                                            style={{ background: GRADIENT }}
-                                                        >
-                                                            <Store size={16} color="#ffffff" />
-                                                        </div>
-                                                        <h3 className="text-sm font-black uppercase tracking-wide" style={{ color: colors.textPrimary }}>{details?.name || slug}</h3>
-                                                    </div>
+                                                <div className="flex items-center justify-between mb-3">
+                                                    <h3 className="text-sm font-black uppercase tracking-wide" style={{ color: colors.textPrimary }}>{details?.name || slug}</h3>
                                                     <span className="text-lg font-black" style={{ color: '#f97316' }}>R$ {itemsTotal.toFixed(2)}</span>
                                                 </div>
 
@@ -1476,83 +1471,25 @@ export default function CarrinhoPage() {
                                                     )}
                                                 </div>
 
-                                                <div className="space-y-2 mb-4">
-                                                    {items.map((item) => (
-                                                        <div
-                                                            key={`${item.product.id}::${item.comment || ''}::${(item.addons || []).map(a => a.id).sort().join(',')}`}
-                                                            className="flex items-center gap-2 p-1.5 rounded-lg"
-                                                            style={{ background: `${colors.border}20` }}
-                                                        >
-                                                            <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-gray-100">
-                                                                {item.product.image_url ? (
-                                                                    <img src={item.product.image_url} alt="" className="w-full h-full object-cover" />
-                                                                ) : (
-                                                                    <div className="w-full h-full flex items-center justify-center text-lg">📦</div>
-                                                                )}
-                                                            </div>
-
-                                                            <div className="flex-1 min-w-0">
-                                                                <p className="text-xs font-medium truncate" style={{ color: colors.textPrimary }}>
-                                                                    {item.product.name}
-                                                                </p>
-                                                                <div className="flex items-center gap-2">
-                                                                    <span className="text-xs font-bold" style={{ color: '#f97316' }}>
-                                                                        R$ {cartItemUnitPrice(item).toFixed(2)}
-                                                                    </span>
-                                                                    <span className="text-[10px]" style={{ color: colors.textSecondary }}>
-                                                                        x{item.quantity}
-                                                                    </span>
-                                                                </div>
-                                                                {item.addons && item.addons.length > 0 && (
-                                                                    <p className="text-[9px] truncate" style={{ color: colors.textSecondary, opacity: 0.85 }}>
-                                                                        + {item.addons.map(a => a.name).join(', ')}
-                                                                    </p>
-                                                                )}
-                                                                {item.comment && (
-                                                                    <div className="flex items-center gap-1 mt-0.5">
-                                                                        <MessageCircle size={10} style={{ color: colors.textSecondary }} />
-                                                                        <span className="text-[9px] italic truncate" style={{ color: colors.textSecondary }}>
-                                                                            {item.comment}
-                                                                        </span>
-                                                                    </div>
-                                                                )}
-                                                            </div>
-
-                                                            <div className="flex items-center gap-1 flex-shrink-0">
-                                                                <button
-                                                                    onClick={() => {
-                                                                        if (item.quantity <= 1) {
-                                                                            removeItem(slug, item.product.id, item.comment, item.addons)
-                                                                        } else {
-                                                                            updateQuantity(slug, item.product.id, -1, item.comment, item.addons)
-                                                                        }
-                                                                    }}
-                                                                    className="w-6 h-6 rounded-full flex items-center justify-center hover:scale-110 transition-transform"
-                                                                    style={{ background: GRADIENT, color: '#ffffff' }}
-                                                                >
-                                                                    <Minus size={10} />
-                                                                </button>
-                                                                <span className="text-xs font-bold min-w-[16px] text-center" style={{ color: '#f97316' }}>
-                                                                    {item.quantity}
-                                                                </span>
-                                                                <button
-                                                                    onClick={() => updateQuantity(slug, item.product.id, 1, item.comment, item.addons)}
-                                                                    className="w-6 h-6 rounded-full flex items-center justify-center hover:scale-110 transition-transform"
-                                                                    style={{ background: GRADIENT, color: '#ffffff' }}
-                                                                >
-                                                                    <Plus size={10} />
-                                                                </button>
-                                                                <button
-                                                                    onClick={() => removeItem(slug, item.product.id, item.comment, item.addons)}
-                                                                    className="w-6 h-6 rounded-full flex items-center justify-center hover:scale-110 transition-transform"
-                                                                    style={{ background: '#ef4444', color: '#ffffff' }}
-                                                                >
-                                                                    <Trash2 size={10} />
-                                                                </button>
-                                                            </div>
-                                                        </div>
-                                                    ))}
-                                                </div>
+                                                {/* Cada loja da sacola é o mesmo CatalogBag usado no catálogo - com a
+                                                    foto da loja no lugar do ícone de carrinho (esse card já é o carrinho) */}
+                                                <CatalogBag
+                                                    bagItems={items}
+                                                    isExpanded={isBagExpanded}
+                                                    onToggleExpanded={() => setExpandedStoreBags(prev => ({ ...prev, [slug]: !isBagExpanded }))}
+                                                    onIncrease={(product, comment, addons) => updateQuantity(slug, product.id, 1, comment, addons)}
+                                                    onDecrease={(productId, comment, addons) => updateQuantity(slug, productId, -1, comment, addons)}
+                                                    onRemove={(productId, comment, addons) => removeItem(slug, productId, comment, addons)}
+                                                    onCheckout={() => { }}
+                                                    colors={colors}
+                                                    isStoreOpen={isStoreOpen}
+                                                    storeImageUrl={details?.logo_url ?? null}
+                                                    useStoreIconInBadge
+                                                    hideFooterAction
+                                                    bare
+                                                    fullWidth
+                                                />
+                                                <div className="mb-4" />
 
                                                 <div className="border-t pt-3 space-y-1 text-xs" style={{ borderColor: colors.border }}>
                                                     <div className="flex justify-between">

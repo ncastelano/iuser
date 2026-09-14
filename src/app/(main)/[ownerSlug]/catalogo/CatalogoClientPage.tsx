@@ -1369,6 +1369,7 @@ export default function CatalogoClientPage() {
                         }}
                         colors={colors}
                         isStoreOpen={isStoreOpen}
+                        storeImageUrl={storeInfo?.logo_url ?? null}
                         checkoutContent={checkoutStep === 'delivery' ? (
                             <>
                                 <div className="flex items-center justify-between mb-3">
