@@ -142,24 +142,31 @@ export default function CatalogBag({
                             {badgeIcon}
                         </div>
 
-                        <div className="flex items-center gap-2">
-                            {totalItems > 0 ? (
-                                <>
-                                    <span className="font-bold text-sm" style={{ color: textColor }}>
-                                        {totalItems}
-                                    </span>
-                                    <span className="text-xs font-medium" style={{ color: colors.textSecondary }}>
-                                        {totalItems === 1 ? 'item' : 'itens'}
-                                    </span>
-                                    <span className="text-xs font-bold ml-1" style={{ color: '#f97316' }}>
-                                        {formatPrice(totalValue)}
-                                    </span>
-                                </>
-                            ) : (
-                                <span className="text-xs font-medium" style={{ color: colors.textSecondary }}>
-                                    Vazio
+                        <div className="flex flex-col items-start min-w-0">
+                            {useStoreIconInBadge && storeName && (
+                                <span className="text-xs font-black truncate max-w-[140px]" style={{ color: textColor }}>
+                                    {storeName}
                                 </span>
                             )}
+                            <div className="flex items-center gap-2">
+                                {totalItems > 0 ? (
+                                    <>
+                                        <span className="font-bold text-sm" style={{ color: textColor }}>
+                                            {totalItems}
+                                        </span>
+                                        <span className="text-xs font-medium" style={{ color: colors.textSecondary }}>
+                                            {totalItems === 1 ? 'item' : 'itens'}
+                                        </span>
+                                        <span className="text-xs font-bold ml-1" style={{ color: '#f97316' }}>
+                                            {formatPrice(totalValue)}
+                                        </span>
+                                    </>
+                                ) : (
+                                    <span className="text-xs font-medium" style={{ color: colors.textSecondary }}>
+                                        Vazio
+                                    </span>
+                                )}
+                            </div>
                         </div>
 
                         <div className="ml-auto flex items-center">
@@ -290,16 +297,23 @@ export default function CatalogBag({
                                             >
                                                 {badgeIcon}
                                             </div>
-                                            <div className="flex items-center gap-1.5">
-                                                <span className="font-bold text-sm" style={{ color: textColor }}>
-                                                    {totalItems}
-                                                </span>
-                                                <span className="text-xs font-medium" style={{ color: colors.textSecondary }}>
-                                                    {totalItems === 1 ? 'item' : 'itens'}
-                                                </span>
-                                                <span className="text-xs font-bold" style={{ color: '#f97316' }}>
-                                                    {formatPrice(totalValue)}
-                                                </span>
+                                            <div className="flex flex-col items-start min-w-0">
+                                                {useStoreIconInBadge && storeName && (
+                                                    <span className="text-xs font-black truncate max-w-[140px]" style={{ color: textColor }}>
+                                                        {storeName}
+                                                    </span>
+                                                )}
+                                                <div className="flex items-center gap-1.5">
+                                                    <span className="font-bold text-sm" style={{ color: textColor }}>
+                                                        {totalItems}
+                                                    </span>
+                                                    <span className="text-xs font-medium" style={{ color: colors.textSecondary }}>
+                                                        {totalItems === 1 ? 'item' : 'itens'}
+                                                    </span>
+                                                    <span className="text-xs font-bold" style={{ color: '#f97316' }}>
+                                                        {formatPrice(totalValue)}
+                                                    </span>
+                                                </div>
                                             </div>
                                         </div>
                                         {hideFooterAction ? null : !isStoreOpen ? (

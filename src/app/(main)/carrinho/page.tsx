@@ -209,6 +209,8 @@ export default function CarrinhoPage() {
     // Opções selecionadas por loja
     const [deliveryOptionByStore, setDeliveryOptionByStore] = useState<Record<string, 'entrega' | 'retirada'>>({})
     const [paymentMethodByStore, setPaymentMethodByStore] = useState<Record<string, 'pix' | 'cartao' | 'dinheiro'>>({})
+    const [cashChangeByStore, setCashChangeByStore] = useState<Record<string, string>>({})
+    const [cardContactlessByStore, setCardContactlessByStore] = useState<Record<string, boolean | null>>({})
 
     // Etapa de checkout por loja - mesmo padrão em 2 etapas (Recebimento,
     // Pagamento) usado no CatalogBag do catálogo e da página de produto:
@@ -640,6 +642,43 @@ export default function CarrinhoPage() {
     }, [reviewOrder.isOpen, currentUserId, fetchPendingReviews, fetchUserReviews])
 
     // ===== FUNÇÃO PARA CALCULAR TOTAIS COM LOCALIZAÇÃO PERSONALIZADA =====
+    // Calcula o frete pro endereço informado, independente da opção de
+    // recebimento estar selecionada ou não - usado tanto pro total real
+    // (getStoreTotals) quanto pra pré-visualização de preço na Etapa 1
+    // (mostra a estimativa mesmo antes da pessoa escolher "Receber em casa").
+    const computeDeliveryFee = (
+        slug: string,
+        deliveryLoc: { lat: number; lng: number } | undefined
+    ): { fee: number; isCalculating: boolean } => {
+        const info = storeDeliveryInfo[slug]
+        if (!info || !deliveryLoc) {
+            return { fee: 0, isCalculating: true }
+        }
+        if (info.delivery_type === 'fixed') {
+            return { fee: Number(info.delivery_fee) || 0, isCalculating: false }
+        }
+        if (info.delivery_type === 'distance') {
+            const feePerKm = Number(info.delivery_fee_per_km) || 0
+            const storeLat = info.store_lat
+            const storeLng = info.store_lng
+            const userLat = deliveryLoc.lat
+            const userLng = deliveryLoc.lng
+
+            if (storeLat != null && storeLng != null && userLat != null && userLng != null) {
+                const dist = getDistanceKm(storeLat, storeLng, userLat, userLng)
+                if (info.delivery_base_distance != null && info.delivery_base_fee != null) {
+                    const baseDist = Number(info.delivery_base_distance) || 0
+                    const baseFee = Number(info.delivery_base_fee) || 0
+                    const fee = dist <= baseDist ? baseFee : baseFee + (dist - baseDist) * feePerKm
+                    return { fee, isCalculating: false }
+                }
+                return { fee: dist * feePerKm, isCalculating: false }
+            }
+            return { fee: 0, isCalculating: true }
+        }
+        return { fee: 0, isCalculating: false }
+    }
+
     const getStoreTotals = (slug: string) => {
         const items = itemsByStore[slug] || []
         const itemsTotal = items.reduce((acc, item) => acc + cartItemLineTotal(item), 0)
@@ -648,43 +687,9 @@ export default function CarrinhoPage() {
         let isCalculating = false
 
         if (deliveryOpt === 'entrega') {
-            const info = storeDeliveryInfo[slug]
-            const deliveryLoc = deliveryLocationByStore[slug]
-
-            if (info && deliveryLoc) {
-                if (info.delivery_type === 'fixed') {
-                    deliveryFee = Number(info.delivery_fee) || 0
-                } else if (info.delivery_type === 'distance') {
-                    const feePerKm = Number(info.delivery_fee_per_km) || 0
-                    const storeLat = info.store_lat
-                    const storeLng = info.store_lng
-                    const userLat = deliveryLoc.lat
-                    const userLng = deliveryLoc.lng
-
-                    if (storeLat != null && storeLng != null && userLat != null && userLng != null) {
-                        const dist = getDistanceKm(storeLat, storeLng, userLat, userLng)
-                        if (info.delivery_base_distance != null && info.delivery_base_fee != null) {
-                            const baseDist = Number(info.delivery_base_distance) || 0
-                            const baseFee = Number(info.delivery_base_fee) || 0
-                            if (dist <= baseDist) {
-                                deliveryFee = baseFee
-                            } else {
-                                const extraKm = dist - baseDist
-                                deliveryFee = baseFee + (extraKm * feePerKm)
-                            }
-                        } else {
-                            deliveryFee = dist * feePerKm
-                        }
-                        isCalculating = false
-                    } else {
-                        isCalculating = true
-                        deliveryFee = 0
-                    }
-                }
-            } else {
-                isCalculating = true
-                deliveryFee = 0
-            }
+            const result = computeDeliveryFee(slug, deliveryLocationByStore[slug])
+            deliveryFee = result.fee
+            isCalculating = result.isCalculating
         }
 
         const finalTotal = isCalculating ? itemsTotal : itemsTotal + deliveryFee
@@ -905,6 +910,8 @@ export default function CarrinhoPage() {
 
             const finalTotal = itemsTotal + deliveryFee
             const checkout_id = crypto.randomUUID()
+            const cashChangeFor = cashChangeByStore[slug] || ''
+            const cardIsContactless = cardContactlessByStore[slug] ?? null
 
             const { data: orderData, error: orderError } = await supabase
                 .from('orders')
@@ -922,6 +929,8 @@ export default function CarrinhoPage() {
                     delivery_lng: deliveryLng,
                     status: 'pending',
                     checkout_id,
+                    cash_change_for: paymentOpt === 'dinheiro' && cashChangeFor.trim() ? Number(cashChangeFor.replace(',', '.')) : null,
+                    card_is_contactless: paymentOpt === 'cartao' ? cardIsContactless : null,
                 })
                 .select()
                 .single()
@@ -1455,6 +1464,12 @@ export default function CarrinhoPage() {
                                         const canCard = config.accepts_card
                                         const canCash = config.accepts_cash
 
+                                        const canChooseReceivingMethod = canDelivery && canPickup
+                                        const onlyPickupAvailable = canPickup && !canDelivery
+                                        const onlyDeliveryAvailable = canDelivery && !canPickup
+                                        const bagDeliveryEstimate = computeDeliveryFee(slug, deliveryLoc)
+                                        const cashChangeFor = cashChangeByStore[slug] || ''
+                                        const cardIsContactless = cardContactlessByStore[slug] ?? null
 
                                         const checkoutStep = checkoutStepByStore[slug] || null
 
@@ -1482,26 +1497,99 @@ export default function CarrinhoPage() {
                                                     <p className="text-sm font-black mb-3" style={{ color: colors.textPrimary }}>
                                                         Como você quer receber seu pedido?
                                                     </p>
-                                                    <div className="flex gap-2">
-                                                        {canDelivery && (
-                                                            <button
-                                                                onClick={() => setDeliveryOptionByStore(prev => ({ ...prev, [slug]: 'entrega' }))}
-                                                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition ${deliveryOpt === 'entrega' ? 'text-white' : ''}`}
-                                                                style={deliveryOpt === 'entrega' ? { background: GRADIENT, color: '#ffffff' } : { background: 'transparent', border: `1px solid ${colors.border}`, color: colors.textSecondary }}
-                                                            >
-                                                                <Truck size={14} /> Entrega
-                                                            </button>
-                                                        )}
-                                                        {canPickup && (
-                                                            <button
-                                                                onClick={() => setDeliveryOptionByStore(prev => ({ ...prev, [slug]: 'retirada' }))}
-                                                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition ${deliveryOpt === 'retirada' ? 'text-white' : ''}`}
-                                                                style={deliveryOpt === 'retirada' ? { background: GRADIENT, color: '#ffffff' } : { background: 'transparent', border: `1px solid ${colors.border}`, color: colors.textSecondary }}
-                                                            >
-                                                                <Store size={14} /> Retirada
-                                                            </button>
-                                                        )}
-                                                    </div>
+
+                                                    {canChooseReceivingMethod ? (
+                                                        <div className="grid grid-cols-2 gap-3">
+                                                            {([
+                                                                {
+                                                                    value: 'retirada' as const,
+                                                                    icon: Store,
+                                                                    label: 'Retirar na loja',
+                                                                    desc: 'Busque no balcão',
+                                                                    priceLine: (
+                                                                        <span className="text-sm font-black" style={{ color: colors.textPrimary }}>
+                                                                            R$ {itemsTotal.toFixed(2)}
+                                                                        </span>
+                                                                    ),
+                                                                },
+                                                                {
+                                                                    value: 'entrega' as const,
+                                                                    icon: Truck,
+                                                                    label: 'Receber em casa',
+                                                                    desc: 'Entregamos no endereço',
+                                                                    priceLine: bagDeliveryEstimate.isCalculating ? (
+                                                                        <span className="text-[10px] font-medium" style={{ color: colors.textSecondary, opacity: 0.7 }}>
+                                                                            Frete a calcular
+                                                                        </span>
+                                                                    ) : (
+                                                                        <>
+                                                                            <span className="text-[9px] font-bold" style={{ color: bagDeliveryEstimate.fee === 0 ? '#22c55e' : colors.textSecondary }}>
+                                                                                {bagDeliveryEstimate.fee === 0 ? 'Frete grátis' : `+ R$ ${bagDeliveryEstimate.fee.toFixed(2)} frete`}
+                                                                            </span>
+                                                                            <span className="text-sm font-black" style={{ color: colors.textPrimary }}>
+                                                                                R$ {(itemsTotal + bagDeliveryEstimate.fee).toFixed(2)}
+                                                                            </span>
+                                                                        </>
+                                                                    ),
+                                                                },
+                                                            ]).map((opt) => {
+                                                                const selected = deliveryOpt === opt.value
+                                                                return (
+                                                                    <button
+                                                                        key={opt.value}
+                                                                        onClick={() => setDeliveryOptionByStore(prev => ({ ...prev, [slug]: opt.value }))}
+                                                                        className="flex flex-col items-center gap-1.5 p-3 rounded-2xl border-2 text-center transition hover:scale-[1.02] active:scale-95"
+                                                                        style={selected
+                                                                            ? { borderColor: '#f97316', background: `${colors.accent}10` }
+                                                                            : { borderColor: colors.border, background: 'transparent' }}
+                                                                    >
+                                                                        <div
+                                                                            className="w-10 h-10 rounded-full flex items-center justify-center"
+                                                                            style={selected ? { background: GRADIENT, color: '#ffffff' } : { background: `${colors.surface}88`, color: colors.textSecondary }}
+                                                                        >
+                                                                            <opt.icon size={18} />
+                                                                        </div>
+                                                                        <span className="text-xs font-bold" style={{ color: selected ? '#f97316' : colors.textPrimary }}>
+                                                                            {opt.label}
+                                                                        </span>
+                                                                        <span className="text-[9px]" style={{ color: colors.textSecondary }}>
+                                                                            {opt.desc}
+                                                                        </span>
+                                                                        <div className="w-full flex flex-col items-center gap-0.5 pt-1.5 mt-0.5 border-t" style={{ borderColor: colors.border }}>
+                                                                            {opt.priceLine}
+                                                                        </div>
+                                                                    </button>
+                                                                )
+                                                            })}
+                                                        </div>
+                                                    ) : onlyPickupAvailable ? (
+                                                        <div
+                                                            className="flex items-center gap-3 p-3 rounded-2xl"
+                                                            style={{ background: `${colors.surface}66`, border: `1px dashed ${colors.border}` }}
+                                                        >
+                                                            <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#ffffff' }}>
+                                                                <Store size={18} />
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-xs font-bold" style={{ color: colors.textPrimary }}>Essa loja não tem entrega</p>
+                                                                <p className="text-[10px]" style={{ color: colors.textSecondary }}>Seu pedido será retirado no balcão</p>
+                                                            </div>
+                                                        </div>
+                                                    ) : onlyDeliveryAvailable ? (
+                                                        <div
+                                                            className="flex items-center gap-3 p-3 rounded-2xl"
+                                                            style={{ background: `${colors.surface}66`, border: `1px dashed ${colors.border}` }}
+                                                        >
+                                                            <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#ffffff' }}>
+                                                                <Truck size={18} />
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-xs font-bold" style={{ color: colors.textPrimary }}>Essa loja não faz retirada no local</p>
+                                                                <p className="text-[10px]" style={{ color: colors.textSecondary }}>Seu pedido será entregue no seu endereço</p>
+                                                            </div>
+                                                        </div>
+                                                    ) : null}
+
                                                     {deliveryOpt === 'entrega' && (
                                                         <div className="mt-2">
                                                             {deliveryLoc ? (
@@ -1609,35 +1697,73 @@ export default function CarrinhoPage() {
                                                     <p className="text-sm font-black mb-3" style={{ color: colors.textPrimary }}>
                                                         Como você quer pagar?
                                                     </p>
-                                                    <div className="flex gap-2 flex-wrap">
-                                                        {canPix && (
-                                                            <button
-                                                                onClick={() => setPaymentMethodByStore(prev => ({ ...prev, [slug]: 'pix' }))}
-                                                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition ${paymentOpt === 'pix' ? 'text-white' : ''}`}
-                                                                style={paymentOpt === 'pix' ? { background: GRADIENT, color: '#ffffff' } : { background: 'transparent', border: `1px solid ${colors.border}`, color: colors.textSecondary }}
-                                                            >
-                                                                <QrCode size={14} /> Pix
-                                                            </button>
-                                                        )}
-                                                        {canCard && (
-                                                            <button
-                                                                onClick={() => setPaymentMethodByStore(prev => ({ ...prev, [slug]: 'cartao' }))}
-                                                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition ${paymentOpt === 'cartao' ? 'text-white' : ''}`}
-                                                                style={paymentOpt === 'cartao' ? { background: GRADIENT, color: '#ffffff' } : { background: 'transparent', border: `1px solid ${colors.border}`, color: colors.textSecondary }}
-                                                            >
-                                                                <CreditCard size={14} /> Cartão
-                                                            </button>
-                                                        )}
-                                                        {canCash && (
-                                                            <button
-                                                                onClick={() => setPaymentMethodByStore(prev => ({ ...prev, [slug]: 'dinheiro' }))}
-                                                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition ${paymentOpt === 'dinheiro' ? 'text-white' : ''}`}
-                                                                style={paymentOpt === 'dinheiro' ? { background: GRADIENT, color: '#ffffff' } : { background: 'transparent', border: `1px solid ${colors.border}`, color: colors.textSecondary }}
-                                                            >
-                                                                <Banknote size={14} /> Dinheiro
-                                                            </button>
-                                                        )}
+                                                    <div className="grid grid-cols-3 gap-2">
+                                                        {([
+                                                            { value: 'pix' as const, icon: QrCode, label: 'Pix', enabled: canPix },
+                                                            { value: 'cartao' as const, icon: CreditCard, label: 'Cartão', enabled: canCard },
+                                                            { value: 'dinheiro' as const, icon: Banknote, label: 'Dinheiro', enabled: canCash },
+                                                        ]).filter(opt => opt.enabled).map((opt) => {
+                                                            const selected = paymentOpt === opt.value
+                                                            return (
+                                                                <button
+                                                                    key={opt.value}
+                                                                    onClick={() => {
+                                                                        setPaymentMethodByStore(prev => ({ ...prev, [slug]: opt.value }))
+                                                                        if (opt.value !== 'dinheiro') setCashChangeByStore(prev => ({ ...prev, [slug]: '' }))
+                                                                        if (opt.value !== 'cartao') setCardContactlessByStore(prev => ({ ...prev, [slug]: null }))
+                                                                    }}
+                                                                    className="flex flex-col items-center gap-1.5 p-2.5 rounded-2xl border-2 text-center transition hover:scale-[1.02] active:scale-95"
+                                                                    style={selected
+                                                                        ? { borderColor: '#f97316', background: `${colors.accent}10` }
+                                                                        : { borderColor: colors.border, background: 'transparent' }}
+                                                                >
+                                                                    <div
+                                                                        className="w-9 h-9 rounded-full flex items-center justify-center"
+                                                                        style={selected ? { background: GRADIENT, color: '#ffffff' } : { background: `${colors.surface}88`, color: colors.textSecondary }}
+                                                                    >
+                                                                        <opt.icon size={16} />
+                                                                    </div>
+                                                                    <span className="text-[11px] font-bold" style={{ color: selected ? '#f97316' : colors.textPrimary }}>
+                                                                        {opt.label}
+                                                                    </span>
+                                                                </button>
+                                                            )
+                                                        })}
                                                     </div>
+
+                                                    {paymentOpt === 'dinheiro' && (
+                                                        <input
+                                                            type="text"
+                                                            inputMode="decimal"
+                                                            value={cashChangeFor}
+                                                            onChange={(e) => setCashChangeByStore(prev => ({ ...prev, [slug]: e.target.value.replace(/[^0-9,.]/g, '') }))}
+                                                            placeholder="Precisa de troco para quanto? (opcional)"
+                                                            className="w-full mt-2 px-3 py-2 rounded-lg text-sm focus:outline-none"
+                                                            style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                                                        />
+                                                    )}
+
+                                                    {paymentOpt === 'cartao' && (
+                                                        <div className="mt-2">
+                                                            <span className="text-xs font-bold block mb-1.5" style={{ color: colors.textSecondary }}>Seu cartão tem aproximação?</span>
+                                                            <div className="flex gap-2">
+                                                                <button
+                                                                    onClick={() => setCardContactlessByStore(prev => ({ ...prev, [slug]: true }))}
+                                                                    className="flex-1 py-2 rounded-xl text-xs font-bold transition-all"
+                                                                    style={cardIsContactless === true ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                                                                >
+                                                                    Sim
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => setCardContactlessByStore(prev => ({ ...prev, [slug]: false }))}
+                                                                    className="flex-1 py-2 rounded-xl text-xs font-bold transition-all"
+                                                                    style={cardIsContactless === false ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                                                                >
+                                                                    Não
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    )}
                                                 </div>
 
                                                 <div className="border-t pt-2.5 space-y-1 text-xs" style={{ borderColor: colors.border }}>
@@ -1701,8 +1827,9 @@ export default function CarrinhoPage() {
 
                                         return (
                                             <div key={slug} className="rounded-2xl p-5 mb-4 border" style={{ borderColor: colors.border, background: colors.surface }}>
-                                                <div className="flex items-center justify-between mb-3">
-                                                    <h3 className="text-sm font-black uppercase tracking-wide" style={{ color: colors.textPrimary }}>{details?.name || slug}</h3>
+                                                {/* O nome da loja já aparece do lado da logo, dentro do CatalogBag -
+                                                    repeti-lo aqui em cima seria redundante. */}
+                                                <div className="flex items-center justify-end mb-3">
                                                     <span className="text-lg font-black" style={{ color: '#f97316' }}>R$ {itemsTotal.toFixed(2)}</span>
                                                 </div>
 
