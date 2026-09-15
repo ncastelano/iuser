@@ -648,9 +648,23 @@ export default function HomePage() {
                     />
                 ) : (
                     <div className="mt-2 px-4 md:px-6">
-                        {/* Mostra "Últimos acessados" sempre que o campo está em foco - mesmo
-                            com texto de uma busca anterior ainda no campo (refocar sem limpar
-                            não deve esconder o histórico, só reexibir os mesmos resultados). */}
+                        {/* Enquanto está digitando, "Resultados para..." vem primeiro e
+                            "Últimos acessados" fica embaixo. Sem busca ativa, o histórico
+                            some (refocar sem limpar continua reexibindo os mesmos resultados
+                            acima do histórico). */}
+                        {isSearching && (
+                            <div className="mb-6">
+                                <SearchResultsSection
+                                    searchQuery={searchQuery}
+                                    onSearchSelect={(query) => {
+                                        setSearchQuery(query)
+                                        setSearchFocused(false)
+                                        searchInputRef.current?.focus()
+                                    }}
+                                />
+                            </div>
+                        )}
+
                         {searchFocused && hasInteractedWithSearch && (
                             <div
                                 className="mb-6 last-searched-container"
@@ -672,18 +686,7 @@ export default function HomePage() {
                             </div>
                         )}
 
-                        {isSearching ? (
-                            <div className="mb-6">
-                                <SearchResultsSection
-                                    searchQuery={searchQuery}
-                                    onSearchSelect={(query) => {
-                                        setSearchQuery(query)
-                                        setSearchFocused(false)
-                                        searchInputRef.current?.focus()
-                                    }}
-                                />
-                            </div>
-                        ) : (
+                        {!isSearching && (
                             <>
                                 {!searchFocused && !isSearching && (
                                     <>
