@@ -12,7 +12,7 @@ import LoginAndRegister from '@/components/LoginAndRegister/LoginAndRegister'
 import { toast } from 'sonner'
 import { TrendingUp, Car, Camera, Star, MessageSquare, Clock } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
-import { computeSuggestedPrice, PLATFORM_DEFAULT_PRICING, PLATFORM_DEFAULT_EXTRA_FEES, PricingMode } from '@/lib/driverPricing'
+import { computeSuggestedPrice, PLATFORM_DEFAULT_PRICING, PLATFORM_DEFAULT_EXTRA_FEES, PLATFORM_DEFAULT_CONDITION_EXTRA_FEES, PricingMode } from '@/lib/driverPricing'
 import { createSquareImage } from '@/lib/image'
 import { DRIVER_SERVICE_OPTIONS } from '@/lib/driverServices'
 import { getAvatarUrl } from '@/lib/avatar'
@@ -42,6 +42,12 @@ function PainelMotoristaContent() {
     const [extraFeePessoa, setExtraFeePessoa] = useState(String(PLATFORM_DEFAULT_EXTRA_FEES.pessoa))
     const [extraFeeAnimal, setExtraFeeAnimal] = useState(String(PLATFORM_DEFAULT_EXTRA_FEES.animal))
     const [extraFeeObjeto, setExtraFeeObjeto] = useState(String(PLATFORM_DEFAULT_EXTRA_FEES.objeto))
+    const [extraFeeCondominio, setExtraFeeCondominio] = useState(String(PLATFORM_DEFAULT_CONDITION_EXTRA_FEES.condominio))
+    const [extraFeeCompras, setExtraFeeCompras] = useState(String(PLATFORM_DEFAULT_CONDITION_EXTRA_FEES.compras))
+    const [extraFeeNecessidadeEspecial, setExtraFeeNecessidadeEspecial] = useState(String(PLATFORM_DEFAULT_CONDITION_EXTRA_FEES.necessidade_especial))
+    const [extraFeePetSemCaixa, setExtraFeePetSemCaixa] = useState(String(PLATFORM_DEFAULT_CONDITION_EXTRA_FEES.pet_sem_caixa))
+    const [extraFeeEntregaInterna, setExtraFeeEntregaInterna] = useState(String(PLATFORM_DEFAULT_CONDITION_EXTRA_FEES.entrega_interna))
+    const [extraFeeArCondicionado, setExtraFeeArCondicionado] = useState(String(PLATFORM_DEFAULT_CONDITION_EXTRA_FEES.ar_condicionado))
 
     // ===== MODO MOTORISTA (liga/desliga) =====
     const [driverModeActive, setDriverModeActive] = useState(false)
@@ -83,7 +89,7 @@ function PainelMotoristaContent() {
 
         const { data } = await supabase
             .from('driver_pricing')
-            .select('pricing_mode, base_distance_km, base_fee, price_per_km_after_base, extra_fee_pessoa, extra_fee_animal, extra_fee_objeto, driver_mode_active')
+            .select('pricing_mode, base_distance_km, base_fee, price_per_km_after_base, extra_fee_pessoa, extra_fee_animal, extra_fee_objeto, extra_fee_condominio, extra_fee_compras, extra_fee_necessidade_especial, extra_fee_pet_sem_caixa, extra_fee_entrega_interna, extra_fee_ar_condicionado, driver_mode_active')
             .eq('driver_id', userId)
             .maybeSingle()
 
@@ -95,6 +101,12 @@ function PainelMotoristaContent() {
             if (data.extra_fee_pessoa != null) setExtraFeePessoa(String(data.extra_fee_pessoa))
             if (data.extra_fee_animal != null) setExtraFeeAnimal(String(data.extra_fee_animal))
             if (data.extra_fee_objeto != null) setExtraFeeObjeto(String(data.extra_fee_objeto))
+            if (data.extra_fee_condominio != null) setExtraFeeCondominio(String(data.extra_fee_condominio))
+            if (data.extra_fee_compras != null) setExtraFeeCompras(String(data.extra_fee_compras))
+            if (data.extra_fee_necessidade_especial != null) setExtraFeeNecessidadeEspecial(String(data.extra_fee_necessidade_especial))
+            if (data.extra_fee_pet_sem_caixa != null) setExtraFeePetSemCaixa(String(data.extra_fee_pet_sem_caixa))
+            if (data.extra_fee_entrega_interna != null) setExtraFeeEntregaInterna(String(data.extra_fee_entrega_interna))
+            if (data.extra_fee_ar_condicionado != null) setExtraFeeArCondicionado(String(data.extra_fee_ar_condicionado))
             setDriverModeActive(!!data.driver_mode_active)
         }
 
@@ -200,6 +212,26 @@ function PainelMotoristaContent() {
         load()
     }
 
+    // Campos de tarifa compartilhados pelos dois upserts em driver_pricing
+    // (salvar tarifa e ligar/desligar modo motorista, que precisa reenviar
+    // a tarifa atual pra não zerar ela no upsert).
+    const buildPricingFields = (driverId: string) => ({
+        driver_id: driverId,
+        pricing_mode: pricingMode,
+        base_distance_km: pricingMode === 'custom' ? (parseFloat(baseDistanceKm) || 0) : null,
+        base_fee: pricingMode === 'custom' ? (parseFloat(baseFee) || 0) : null,
+        price_per_km_after_base: pricingMode === 'custom' ? (parseFloat(pricePerKmAfterBase) || 0) : null,
+        extra_fee_pessoa: pricingMode === 'custom' ? (parseFloat(extraFeePessoa) || 0) : null,
+        extra_fee_animal: pricingMode === 'custom' ? (parseFloat(extraFeeAnimal) || 0) : null,
+        extra_fee_objeto: pricingMode === 'custom' ? (parseFloat(extraFeeObjeto) || 0) : null,
+        extra_fee_condominio: pricingMode === 'custom' ? (parseFloat(extraFeeCondominio) || 0) : null,
+        extra_fee_compras: pricingMode === 'custom' ? (parseFloat(extraFeeCompras) || 0) : null,
+        extra_fee_necessidade_especial: pricingMode === 'custom' ? (parseFloat(extraFeeNecessidadeEspecial) || 0) : null,
+        extra_fee_pet_sem_caixa: pricingMode === 'custom' ? (parseFloat(extraFeePetSemCaixa) || 0) : null,
+        extra_fee_entrega_interna: pricingMode === 'custom' ? (parseFloat(extraFeeEntregaInterna) || 0) : null,
+        extra_fee_ar_condicionado: pricingMode === 'custom' ? (parseFloat(extraFeeArCondicionado) || 0) : null,
+    })
+
     const handleSave = async () => {
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) {
@@ -210,16 +242,7 @@ function PainelMotoristaContent() {
         setSaving(true)
         try {
             const { error } = await supabase.from('driver_pricing').upsert(
-                {
-                    driver_id: user.id,
-                    pricing_mode: pricingMode,
-                    base_distance_km: pricingMode === 'custom' ? (parseFloat(baseDistanceKm) || 0) : null,
-                    base_fee: pricingMode === 'custom' ? (parseFloat(baseFee) || 0) : null,
-                    price_per_km_after_base: pricingMode === 'custom' ? (parseFloat(pricePerKmAfterBase) || 0) : null,
-                    extra_fee_pessoa: pricingMode === 'custom' ? (parseFloat(extraFeePessoa) || 0) : null,
-                    extra_fee_animal: pricingMode === 'custom' ? (parseFloat(extraFeeAnimal) || 0) : null,
-                    extra_fee_objeto: pricingMode === 'custom' ? (parseFloat(extraFeeObjeto) || 0) : null,
-                },
+                buildPricingFields(user.id),
                 { onConflict: 'driver_id' }
             )
             if (error) throw error
@@ -246,17 +269,7 @@ function PainelMotoristaContent() {
         const next = !driverModeActive
         try {
             const { error } = await supabase.from('driver_pricing').upsert(
-                {
-                    driver_id: user.id,
-                    pricing_mode: pricingMode,
-                    base_distance_km: pricingMode === 'custom' ? (parseFloat(baseDistanceKm) || 0) : null,
-                    base_fee: pricingMode === 'custom' ? (parseFloat(baseFee) || 0) : null,
-                    price_per_km_after_base: pricingMode === 'custom' ? (parseFloat(pricePerKmAfterBase) || 0) : null,
-                    extra_fee_pessoa: pricingMode === 'custom' ? (parseFloat(extraFeePessoa) || 0) : null,
-                    extra_fee_animal: pricingMode === 'custom' ? (parseFloat(extraFeeAnimal) || 0) : null,
-                    extra_fee_objeto: pricingMode === 'custom' ? (parseFloat(extraFeeObjeto) || 0) : null,
-                    driver_mode_active: next,
-                },
+                { ...buildPricingFields(user.id), driver_mode_active: next },
                 { onConflict: 'driver_id' }
             )
             if (error) throw error
@@ -282,8 +295,25 @@ function PainelMotoristaContent() {
                 animal: parseFloat(extraFeeAnimal) || 0,
                 objeto: parseFloat(extraFeeObjeto) || 0,
             },
+            conditionExtraFees: {
+                condominio: parseFloat(extraFeeCondominio) || 0,
+                compras: parseFloat(extraFeeCompras) || 0,
+                necessidade_especial: parseFloat(extraFeeNecessidadeEspecial) || 0,
+                pet_sem_caixa: parseFloat(extraFeePetSemCaixa) || 0,
+                entrega_interna: parseFloat(extraFeeEntregaInterna) || 0,
+                ar_condicionado: parseFloat(extraFeeArCondicionado) || 0,
+            },
         }
     const previewPrice = computeSuggestedPrice(previewDistance, activePricing)
+
+    const conditionExtraFeeFields = [
+        { key: 'condominio', label: 'Condomínio', value: extraFeeCondominio, setValue: setExtraFeeCondominio, platformDefault: PLATFORM_DEFAULT_CONDITION_EXTRA_FEES.condominio },
+        { key: 'compras', label: 'Compras no mercado', value: extraFeeCompras, setValue: setExtraFeeCompras, platformDefault: PLATFORM_DEFAULT_CONDITION_EXTRA_FEES.compras },
+        { key: 'necessidade_especial', label: 'Necessidade especial', value: extraFeeNecessidadeEspecial, setValue: setExtraFeeNecessidadeEspecial, platformDefault: PLATFORM_DEFAULT_CONDITION_EXTRA_FEES.necessidade_especial },
+        { key: 'pet_sem_caixa', label: 'Pet sem caixa de transporte', value: extraFeePetSemCaixa, setValue: setExtraFeePetSemCaixa, platformDefault: PLATFORM_DEFAULT_CONDITION_EXTRA_FEES.pet_sem_caixa },
+        { key: 'entrega_interna', label: 'Entrega em área interna', value: extraFeeEntregaInterna, setValue: setExtraFeeEntregaInterna, platformDefault: PLATFORM_DEFAULT_CONDITION_EXTRA_FEES.entrega_interna },
+        { key: 'ar_condicionado', label: 'Ar condicionado', value: extraFeeArCondicionado, setValue: setExtraFeeArCondicionado, platformDefault: PLATFORM_DEFAULT_CONDITION_EXTRA_FEES.ar_condicionado },
+    ]
 
     const planButtonStyle = (active: boolean) => ({
         flex: 1,
@@ -533,6 +563,47 @@ function PainelMotoristaContent() {
                                                 style={{ background: colors.background, borderColor: colors.border, color: colors.textPrimary }}
                                             />
                                         </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div
+                                className="p-4 rounded-2xl border"
+                                style={{ background: colors.surface, borderColor: colors.border }}
+                            >
+                                <div className="flex items-center gap-2 mb-1">
+                                    <TrendingUp size={16} style={{ color: '#f97316' }} />
+                                    <p className="text-[10px] font-black" style={{ color: '#f97316' }}>
+                                        Valor extra por condição da corrida
+                                    </p>
+                                </div>
+                                <p className="text-[10px] mb-3" style={{ color: colors.textSecondary }}>
+                                    Somado à tarifa base, conforme o que o pedido precisar (condomínio conta em dobro se for na origem e no destino)
+                                </p>
+                                {pricingMode === 'platform' ? (
+                                    <div className="grid grid-cols-2 gap-3 text-center">
+                                        {conditionExtraFeeFields.map((field) => (
+                                            <div key={field.key}>
+                                                <p className="text-[9px] font-bold" style={{ color: colors.textSecondary }}>{field.label}</p>
+                                                <p className="text-xs font-black" style={{ color: colors.textPrimary }}>+ R$ {field.platformDefault.toFixed(2)}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {conditionExtraFeeFields.map((field) => (
+                                            <div key={field.key}>
+                                                <label className="text-[9px] font-bold block mb-1" style={{ color: colors.textSecondary }}>{field.label} (R$)</label>
+                                                <input
+                                                    type="number"
+                                                    value={field.value}
+                                                    onChange={(e) => field.setValue(e.target.value)}
+                                                    placeholder={String(field.platformDefault)}
+                                                    className="w-full p-2 rounded-full border text-sm"
+                                                    style={{ background: colors.background, borderColor: colors.border, color: colors.textPrimary }}
+                                                />
+                                            </div>
+                                        ))}
                                     </div>
                                 )}
                             </div>

@@ -10,7 +10,7 @@ import { useProfile } from '@/app/contexts/ProfileContext'
 import { supabase } from '@/lib/supabase/client'
 import { hexToRgb } from '@/lib/color'
 import { getAvatarUrl } from '@/lib/avatar'
-import { computeSuggestedPrice, getEffectivePricing } from '@/lib/driverPricing'
+import { computeSuggestedPrice, computeConditionExtras, getEffectivePricing, type RideConditionFlags } from '@/lib/driverPricing'
 import RideChat from '@/components/RideChat'
 import { DRIVER_CHAT_QUICK_REPLIES } from '@/lib/rideChatQuickReplies'
 
@@ -155,7 +155,7 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
 
             const { data: rows } = await supabase
                 .from('ride_requests')
-                .select('id, requester_id, ride_type, origin_address, destination_address, distance_km, duration_min, passenger_count, object_description, pet_description, applicant_count')
+                .select('id, requester_id, ride_type, origin_address, destination_address, distance_km, duration_min, passenger_count, object_description, pet_description, applicant_count, origin_needs_access, destination_needs_access, has_shopping, has_special_needs, special_needs_wheelchair, special_needs_visual_impairment, has_guide_dog, pet_has_carrier, delivery_location, wants_air_conditioning')
                 .eq('status', 'pending')
                 .neq('requester_id', userId)
                 .order('created_at', { ascending: false })
@@ -176,9 +176,23 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
             setOpenRides(
                 top.map((r) => {
                     const p = profilesById.get(r.requester_id)
+                    const conditionFlags: RideConditionFlags = {
+                        origin_needs_access: r.origin_needs_access,
+                        destination_needs_access: r.destination_needs_access,
+                        is_grocery_shopping: r.has_shopping,
+                        has_special_needs: r.has_special_needs,
+                        special_needs_wheelchair: r.special_needs_wheelchair,
+                        special_needs_visual_impairment: r.special_needs_visual_impairment,
+                        has_guide_dog: r.has_guide_dog,
+                        pet_has_carrier: r.pet_has_carrier,
+                        delivery_location: r.delivery_location,
+                        wants_air_conditioning: r.wants_air_conditioning,
+                    }
                     const suggestedPrice = r.distance_km != null
-                        ? computeSuggestedPrice(r.distance_km, pricingShape, r.ride_type)
-                        : pricingShape.baseFee + pricingShape.extraFees[r.ride_type as 'pessoa' | 'animal' | 'objeto']
+                        ? computeSuggestedPrice(r.distance_km, pricingShape, r.ride_type, conditionFlags)
+                        : pricingShape.baseFee
+                            + pricingShape.extraFees[r.ride_type as 'pessoa' | 'animal' | 'objeto']
+                            + computeConditionExtras(conditionFlags, pricingShape.conditionExtraFees)
                     return {
                         id: r.id,
                         ride_type: r.ride_type,

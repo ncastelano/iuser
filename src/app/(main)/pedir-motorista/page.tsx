@@ -14,6 +14,7 @@ import { addRecentRideDestination, getRecentRideDestinations, RecentRideDestinat
 import { addRecentRideOrigin, getRecentRideOrigins, RecentRideOrigin } from '@/lib/recentRideOrigins'
 import { getVehicleTypeForPassengers, VEHICLE_TYPE_LABELS } from '@/lib/rideVehicle'
 import { createSquareImage } from '@/lib/image'
+import { computeSuggestedPrice, PLATFORM_DEFAULT_PRICING, type RideConditionFlags } from '@/lib/driverPricing'
 import {
     Car,
     Users,
@@ -39,6 +40,7 @@ import {
     History,
     Clock,
     CalendarClock,
+    Wind,
 } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import RideTrackingPanel from './RideTrackingPanel'
@@ -378,6 +380,9 @@ export default function PedirMotoristaPage() {
     const [cashChangeFor, setCashChangeFor] = useState('')
     const [cardIsContactless, setCardIsContactless] = useState<boolean | null>(null)
 
+    // ===== AR CONDICIONADO =====
+    const [wantsAirConditioning, setWantsAirConditioning] = useState(false)
+
     // ===== NECESSIDADE ESPECIAL =====
     const [hasSpecialNeeds, setHasSpecialNeeds] = useState(false)
     const [specialNeedsDescription, setSpecialNeedsDescription] = useState('')
@@ -392,6 +397,26 @@ export default function PedirMotoristaPage() {
 
     const totalPeople = 1 + extraPeopleCount + childrenCount
     const vehicleType = getVehicleTypeForPassengers(totalPeople)
+
+    // Estimativa de valor mostrada ao passageiro (valores padrão da
+    // plataforma - ainda não há motorista escolhido nesse momento, o preço
+    // final é o que quem se candidatar oferecer). Só o total, sem
+    // detalhamento por condição.
+    const estimatedRideFlags: RideConditionFlags = {
+        origin_needs_access: originNeedsAccess,
+        destination_needs_access: requestFor === 'objeto' ? deliveryLocation !== 'portaria' : destinationNeedsAccess,
+        is_grocery_shopping: requestFor === 'pessoa' && hasShopping,
+        has_special_needs: hasSpecialNeeds,
+        special_needs_wheelchair: hasSpecialNeeds ? specialNeedsWheelchair : false,
+        special_needs_visual_impairment: hasSpecialNeeds ? specialNeedsVisualImpairment : false,
+        has_guide_dog: hasSpecialNeeds && specialNeedsVisualImpairment ? hasGuideDog : false,
+        pet_has_carrier: ((requestFor === 'pessoa' && hasPet) || requestFor === 'animal') ? petHasCarrier : null,
+        delivery_location: requestFor === 'objeto' ? deliveryLocation : null,
+        wants_air_conditioning: wantsAirConditioning,
+    }
+    const estimatedPrice = route?.distanceKm != null && requestFor
+        ? computeSuggestedPrice(route.distanceKm, PLATFORM_DEFAULT_PRICING, requestFor, estimatedRideFlags)
+        : null
     const stepIndex = STEPS.indexOf(step)
 
     // ===== PREVIEW DAS FOTOS =====
@@ -1006,6 +1031,7 @@ export default function PedirMotoristaPage() {
                 payment_method: paymentMethod,
                 cash_change_for: paymentMethod === 'dinheiro' && cashChangeFor.trim() ? Number(cashChangeFor.replace(',', '.')) : null,
                 card_is_contactless: paymentMethod === 'cartao' ? cardIsContactless : null,
+                wants_air_conditioning: wantsAirConditioning,
                 origin_lat: origin.coords ? origin.coords[1] : null,
                 origin_lng: origin.coords ? origin.coords[0] : null,
                 destination_lat: destination.coords ? destination.coords[1] : null,
@@ -2155,6 +2181,43 @@ export default function PedirMotoristaPage() {
                                     </div>
                                 )}
                             </div>
+
+                            <div className="rounded-xl px-3 py-2.5 mt-3" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
+                                <div className="flex items-center justify-between gap-2 flex-wrap">
+                                    <span className="flex items-center gap-1.5 text-xs font-bold" style={{ color: colors.textPrimary }}>
+                                        <Wind size={13} style={{ color: colors.accent }} />
+                                        Quero ar condicionado
+                                    </span>
+                                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                                        <button
+                                            onClick={() => setWantsAirConditioning(true)}
+                                            className="px-3 py-1 rounded-full text-[11px] font-black transition-all"
+                                            style={wantsAirConditioning ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                                        >
+                                            SIM
+                                        </button>
+                                        <button
+                                            onClick={() => setWantsAirConditioning(false)}
+                                            className="px-3 py-1 rounded-full text-[11px] font-black transition-all"
+                                            style={!wantsAirConditioning ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                                        >
+                                            NÃO
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {estimatedPrice != null && (
+                                <div
+                                    className="rounded-xl px-4 py-3 mt-3 flex items-center justify-between"
+                                    style={{ background: `${colors.accent}15`, border: `1px solid ${colors.accent}40` }}
+                                >
+                                    <span className="text-xs font-bold" style={{ color: colors.textPrimary }}>Valor estimado</span>
+                                    <span className="text-lg font-black" style={{ color: colors.accent }}>
+                                        R$ {estimatedPrice.toFixed(2)}
+                                    </span>
+                                </div>
+                            )}
 
                             <div className="flex items-center gap-2 mt-4">
                                 <button
