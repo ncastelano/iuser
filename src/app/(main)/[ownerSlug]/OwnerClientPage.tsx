@@ -262,6 +262,19 @@ export default function OwnerClientPage() {
             },
         ]
 
+        // Logo depois do perfil, antes das lojas - assim não fica escondida
+        // atrás das abas de loja quando a barra precisa rolar (celular).
+        if (isSuperAdmin) {
+            allTabs.push({
+                id: 'admin',
+                label: 'Admin',
+                icon: Shield as any,
+                imageUrl: null,
+                onClick: handleAdminClick,
+                isActive: showAdminDashboard,
+            })
+        }
+
         if (loadingStores) {
             return allTabs
         }
@@ -302,17 +315,6 @@ export default function OwnerClientPage() {
                 imageUrl: null,
                 onClick: () => router.push('/criar-loja-com-cadastro'),
                 isActive: false,
-            })
-        }
-
-        if (isSuperAdmin) {
-            allTabs.push({
-                id: 'admin',
-                label: 'Admin',
-                icon: Shield as any,
-                imageUrl: null,
-                onClick: handleAdminClick,
-                isActive: showAdminDashboard,
             })
         }
 
