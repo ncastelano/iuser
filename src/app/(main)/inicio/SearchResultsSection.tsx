@@ -92,30 +92,13 @@ export default function SearchResultsSection({ searchQuery, onSearchSelect }: Se
             const query = trimmed
 
             try {
+                // Busca sem distinção de acento/cedilha (RPCs com unaccent() no
+                // Postgres) - ILIKE puro nunca ignora acentuação, então "agua"
+                // nunca encontrava "água" nem "acai" encontrava "açaí".
+
                 // 1. Buscar perfis
                 const { data: profilesData, error: profilesError } = await supabase
-                    .from('profiles')
-                    .select(`
-                        id,
-                        name,
-                        avatar_url,
-                        "profileSlug",
-                        description,
-                        bio,
-                        address,
-                        whatsapp,
-                        instagram,
-                        ratings_avg,
-                        ratings_count,
-                        is_seller,
-                        is_active,
-                        category,
-                        view_count,
-                        created_at
-                    `)
-                    .or(`name.ilike.%${query}%,profileSlug.ilike.%${query}%,description.ilike.%${query}%,bio.ilike.%${query}%,address.ilike.%${query}%`)
-                    .eq('is_active', true)
-                    .limit(20)
+                    .rpc('search_profiles_unaccented', { search_term: query })
 
                 if (profilesError) {
                     console.error('Erro ao buscar perfis:', profilesError)
@@ -132,10 +115,7 @@ export default function SearchResultsSection({ searchQuery, onSearchSelect }: Se
 
                 // 2. Buscar lojas
                 const { data: storesData, error: storesError } = await supabase
-                    .from('stores')
-                    .select('id, name, "storeSlug", description, logo_url, ratings_avg, ratings_count, prep_time_min, prep_time_max, category')
-                    .or(`name.ilike.%${query}%,description.ilike.%${query}%,"storeSlug".ilike.%${query}%,category.ilike.%${query}%`)
-                    .limit(30)
+                    .rpc('search_stores_unaccented', { search_term: query })
 
                 if (storesError) {
                     console.error('Erro ao buscar lojas:', storesError)
@@ -143,11 +123,7 @@ export default function SearchResultsSection({ searchQuery, onSearchSelect }: Se
 
                 // 3. Buscar produtos
                 const { data: productsData, error: productsError } = await supabase
-                    .from('products')
-                    .select('id, name, description, price, image_url, slug, store_id, category, type')
-                    .eq('listing_type', 'sale')
-                    .ilike('name', `%${query}%`)
-                    .limit(50)
+                    .rpc('search_products_unaccented', { search_term: query })
 
                 if (productsError) {
                     console.error('Erro ao buscar produtos:', productsError)
@@ -163,7 +139,7 @@ export default function SearchResultsSection({ searchQuery, onSearchSelect }: Se
 
                 // 5. Produtos por loja
                 const productsByStore: Record<string, any[]> = {}
-                mappedProducts.forEach(product => {
+                mappedProducts.forEach((product: any) => {
                     if (!productsByStore[product.store_id]) {
                         productsByStore[product.store_id] = []
                     }
