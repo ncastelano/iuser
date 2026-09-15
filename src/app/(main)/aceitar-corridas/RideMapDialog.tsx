@@ -40,7 +40,9 @@ export default function RideMapDialog({ originLat, originLng, destLat, destLng, 
     const mapRef = useRef<mapboxgl.Map | null>(null)
     const [loading, setLoading] = useState(true)
     const [toPickupKm, setToPickupKm] = useState<number | null>(null)
+    const [toPickupMin, setToPickupMin] = useState<number | null>(null)
     const [tripKm, setTripKm] = useState<number | null>(null)
+    const [tripMin, setTripMin] = useState<number | null>(null)
     const hasDriver = driverLat != null && driverLng != null
 
     useEffect(() => {
@@ -79,6 +81,7 @@ export default function RideMapDialog({ originLat, originLng, destLat, destLng, 
                 legToOrigin.coords.forEach((c) => bounds.extend(c as [number, number]))
                 new mapboxgl.Marker({ element: marker(TO_PICKUP_COLOR, 'Você') }).setLngLat([driverLng as number, driverLat as number]).addTo(map)
                 setToPickupKm(legToOrigin.distanceKm)
+                setToPickupMin(legToOrigin.durationMin)
             }
 
             const legTrip = await fetchRoute([originLng, originLat], [destLng, destLat])
@@ -93,6 +96,7 @@ export default function RideMapDialog({ originLat, originLng, destLat, destLng, 
             })
             legTrip.coords.forEach((c) => bounds.extend(c as [number, number]))
             setTripKm(legTrip.distanceKm)
+            setTripMin(legTrip.durationMin)
 
             new mapboxgl.Marker({ element: marker('#22c55e', 'Partida') }).setLngLat([originLng, originLat]).addTo(map)
             new mapboxgl.Marker({ element: marker('#ef4444', 'Chegada') }).setLngLat([destLng, destLat]).addTo(map)
@@ -152,18 +156,19 @@ export default function RideMapDialog({ originLat, originLng, destLat, destLng, 
                         {hasDriver && toPickupKm != null && (
                             <span className="flex items-center gap-1.5 text-[10px] font-bold" style={{ color: colors.textSecondary }}>
                                 <span className="w-3.5 h-1 rounded-full flex-shrink-0" style={{ background: TO_PICKUP_COLOR }} />
-                                Até a partida: {toPickupKm.toFixed(1)} km
+                                Até a partida: {toPickupKm.toFixed(1)} km{toPickupMin != null ? ` · ${Math.round(toPickupMin)} min` : ''}
                             </span>
                         )}
                         {tripKm != null && (
                             <span className="flex items-center gap-1.5 text-[10px] font-bold" style={{ color: colors.textSecondary }}>
                                 <span className="w-3.5 h-1 rounded-full flex-shrink-0" style={{ background: TRIP_COLOR }} />
-                                Partida → chegada: {tripKm.toFixed(1)} km
+                                Partida → chegada: {tripKm.toFixed(1)} km{tripMin != null ? ` · ${Math.round(tripMin)} min` : ''}
                             </span>
                         )}
                         {hasDriver && toPickupKm != null && tripKm != null && (
                             <span className="text-[10px] font-black" style={{ color: colors.textPrimary }}>
                                 Total: {(toPickupKm + tripKm).toFixed(1)} km
+                                {toPickupMin != null && tripMin != null ? ` · ${Math.round(toPickupMin + tripMin)} min` : ''}
                             </span>
                         )}
                     </div>

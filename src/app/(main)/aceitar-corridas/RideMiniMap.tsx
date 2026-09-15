@@ -59,7 +59,9 @@ export default function RideMiniMap({ originLng, originLat, destLng, destLat, dr
     const [imgUrl, setImgUrl] = useState<string | null>(null)
     const [failed, setFailed] = useState(false)
     const [toPickupKm, setToPickupKm] = useState<number | null>(null)
+    const [toPickupMin, setToPickupMin] = useState<number | null>(null)
     const [tripKm, setTripKm] = useState<number | null>(null)
+    const [tripMin, setTripMin] = useState<number | null>(null)
     const hasDriver = driverLng != null && driverLat != null
 
     useEffect(() => {
@@ -69,10 +71,12 @@ export default function RideMiniMap({ originLng, originLat, destLng, destLat, dr
         const build = async () => {
             const overlays: string[] = []
             let nextToPickupKm: number | null = null
+            let nextToPickupMin: number | null = null
 
             if (hasDriver) {
                 const leg = await fetchRoute([driverLng as number, driverLat as number], [originLng, originLat])
                 nextToPickupKm = leg.distanceKm
+                nextToPickupMin = leg.durationMin
                 // Desloca as duas pernas pra lados opostos: se o motorista tiver
                 // que ir e voltar pelo mesmo trecho de rua, as duas cores ficam
                 // lado a lado no mapa em vez de uma cobrir a outra.
@@ -90,7 +94,9 @@ export default function RideMiniMap({ originLng, originLat, destLng, destLat, dr
             if (!cancelled) {
                 setImgUrl(url)
                 setToPickupKm(nextToPickupKm)
+                setToPickupMin(nextToPickupMin)
                 setTripKm(trip.distanceKm)
+                setTripMin(trip.durationMin)
             }
         }
 
@@ -142,18 +148,19 @@ export default function RideMiniMap({ originLng, originLat, destLng, destLat, dr
                 {hasDriver && toPickupKm != null && (
                     <span className="flex items-center gap-1 text-[9px] font-bold" style={{ color: colors.textSecondary }}>
                         <span className="w-3 h-[3px] rounded-full flex-shrink-0" style={{ background: `#${TO_PICKUP_COLOR}` }} />
-                        Até a partida: {toPickupKm.toFixed(1)} km
+                        Até a partida: {toPickupKm.toFixed(1)} km{toPickupMin != null ? ` · ${Math.round(toPickupMin)} min` : ''}
                     </span>
                 )}
                 {tripKm != null && (
                     <span className="flex items-center gap-1 text-[9px] font-bold" style={{ color: colors.textSecondary }}>
                         <span className="w-3 h-[3px] rounded-full flex-shrink-0" style={{ background: `#${TRIP_COLOR}` }} />
-                        Partida → chegada: {tripKm.toFixed(1)} km
+                        Partida → chegada: {tripKm.toFixed(1)} km{tripMin != null ? ` · ${Math.round(tripMin)} min` : ''}
                     </span>
                 )}
                 {hasDriver && toPickupKm != null && tripKm != null && (
                     <span className="text-[9px] font-black" style={{ color: colors.textPrimary }}>
                         Total: {(toPickupKm + tripKm).toFixed(1)} km
+                        {toPickupMin != null && tripMin != null ? ` · ${Math.round(toPickupMin + tripMin)} min` : ''}
                     </span>
                 )}
             </div>
