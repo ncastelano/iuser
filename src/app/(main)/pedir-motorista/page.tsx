@@ -14,6 +14,7 @@ import { addRecentRideDestination, getRecentRideDestinations, RecentRideDestinat
 import { addRecentRideOrigin, getRecentRideOrigins, RecentRideOrigin } from '@/lib/recentRideOrigins'
 import { getVehicleTypeForPassengers, VEHICLE_TYPE_LABELS } from '@/lib/rideVehicle'
 import { createSquareImage } from '@/lib/image'
+import { PLATFORM_DEFAULT_CONDITION_EXTRA_FEES } from '@/lib/driverPricing'
 import {
     Car,
     Users,
@@ -915,6 +916,37 @@ export default function PedirMotoristaPage() {
         return rows
     })()
 
+    // ===== SERVIÇOS QUE COSTUMAM TER CUSTO EXTRA (valores de referência da
+    // plataforma) — só pra deixar a pessoa ciente antes de confirmar; o
+    // valor de verdade é o que o motorista oferecer ao se candidatar. =====
+    const extraServiceFees: { label: string; amount: number }[] = (() => {
+        if (!requestFor) return []
+        const fees = PLATFORM_DEFAULT_CONDITION_EXTRA_FEES
+        const items: { label: string; amount: number }[] = []
+
+        if (originNeedsAccess) items.push({ label: 'Acesso em condomínio (retirada)', amount: fees.condominio })
+
+        if (requestFor === 'objeto') {
+            if (deliveryLocation && deliveryLocation !== 'portaria') {
+                items.push({ label: 'Entrega em área interna/apartamento', amount: fees.entrega_interna })
+            }
+        } else if (destinationNeedsAccess) {
+            items.push({ label: 'Acesso em condomínio (entrega)', amount: fees.condominio })
+        }
+
+        if (requestFor === 'pessoa' && hasShopping) items.push({ label: 'Compras no mercado', amount: fees.compras })
+
+        const specialNeedsActive = hasSpecialNeeds || specialNeedsWheelchair || specialNeedsVisualImpairment || hasGuideDog
+        if (specialNeedsActive) items.push({ label: 'Necessidade especial', amount: fees.necessidade_especial })
+
+        const petPresent = (requestFor === 'pessoa' && hasPet) || requestFor === 'animal'
+        if (petPresent && petHasCarrier === false) items.push({ label: 'Pet sem caixa de transporte', amount: fees.pet_sem_caixa })
+
+        if (wantsAirConditioning) items.push({ label: 'Ar condicionado', amount: fees.ar_condicionado })
+
+        return items
+    })()
+
     const uploadRidePhoto = async (userId: string, file: File): Promise<string | null> => {
         const fileExt = file.name.split('.').pop()
         const fileName = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${fileExt}`
@@ -1153,6 +1185,24 @@ export default function PedirMotoristaPage() {
                                 </p>
                             ))}
                         </div>
+
+                        {extraServiceFees.length > 0 && (
+                            <div className="w-full rounded-xl px-4 py-3 text-left flex flex-col gap-1.5" style={{ background: '#f9731615', border: '1px solid #f9731640' }}>
+                                <p className="text-[10px] font-black uppercase tracking-wider" style={{ color: colors.accent }}>
+                                    Serviços com custo extra
+                                </p>
+                                {extraServiceFees.map((item) => (
+                                    <div key={item.label} className="flex items-center justify-between gap-2 text-sm">
+                                        <span style={{ color: colors.textPrimary }}>{item.label}</span>
+                                        <span className="font-black" style={{ color: colors.accent }}>+ R$ {item.amount.toFixed(2)}</span>
+                                    </div>
+                                ))}
+                                <p className="text-[10px] mt-0.5" style={{ color: colors.textSecondary }}>
+                                    Valor de referência da plataforma — o motorista pode oferecer um valor diferente ao se candidatar.
+                                </p>
+                            </div>
+                        )}
+
                         <p className="text-xs" style={{ color: colors.textSecondary }}>
                             Sua localização enviada ao motorista é aproximada. Ao encontrar o carro, sempre confira a <strong>placa</strong> e a <strong>cor</strong> do veículo para ter certeza de que é o motorista certo.
                         </p>
