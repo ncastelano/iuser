@@ -8,23 +8,9 @@ import { Spinner } from '@/components/Spinner'
 import { toast } from 'sonner'
 import { hexToRgb } from '@/lib/color'
 import { Wallet, KeyRound, Users, Settings as SettingsIcon, Check, X, Copy, Plus, ShieldOff } from 'lucide-react'
+import { callAdminApi } from '@/lib/callAdminApi'
 
 type Section = 'pagamentos' | 'codigos' | 'administradores' | 'configuracoes'
-
-async function callAdminApi<T>(path: string, body?: Record<string, unknown>): Promise<T> {
-    const { data: { session } } = await supabase.auth.getSession()
-    const res = await fetch(path, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            ...(session ? { Authorization: `Bearer ${session.access_token}` } : {}),
-        },
-        body: JSON.stringify(body || {}),
-    })
-    const json = await res.json()
-    if (!res.ok) throw new Error(json.error || 'Erro na requisição')
-    return json as T
-}
 
 function formatCents(cents: number | null) {
     if (cents === null) return '—'

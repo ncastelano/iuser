@@ -5,6 +5,7 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import { useParams, useRouter, usePathname, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
+import { callAdminApi } from '@/lib/callAdminApi'
 import { Spinner } from '@/components/Spinner'
 import { useTheme } from '@/app/contexts/theme'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
@@ -193,19 +194,13 @@ export default function OwnerClientPage() {
         }
 
         let cancelled = false
-        supabase.auth.getSession().then(async ({ data: { session } }) => {
-            if (!session) return
-            const res = await fetch('/api/admin/whoami', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${session.access_token}`,
-                },
-                body: JSON.stringify({}),
+        callAdminApi<{ isSuperAdmin: boolean }>('/api/admin/whoami')
+            .then((json) => {
+                if (!cancelled) setIsSuperAdmin(!!json.isSuperAdmin)
             })
-            const json = await res.json()
-            if (!cancelled) setIsSuperAdmin(!!json.isSuperAdmin)
-        })
+            .catch(() => {
+                if (!cancelled) setIsSuperAdmin(false)
+            })
 
         return () => { cancelled = true }
     }, [userId])
