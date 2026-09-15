@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useTheme } from '@/app/contexts/theme'
-import { MapPin, X, Check, Navigation, Search, Home, MoveVertical, Hash, FileText, AlertCircle, Car, Radio } from 'lucide-react'
+import { MapPin, X, Check, Navigation, Search, Home, MoveVertical, Hash, FileText, AlertCircle, Car, Radio, Copy } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
@@ -162,6 +162,22 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
     const [numberError, setNumberError] = useState('')
     const [mapReady, setMapReady] = useState(false)
     const [usingGPS, setUsingGPS] = useState(false)
+    const [coordsCopied, setCoordsCopied] = useState(false)
+
+    // Coordenadas exatas do ponto selecionado - sempre precisas, diferente
+    // do endereço por extenso (que depende do OpenStreetMap ter o número da
+    // casa mapeado, o que nem sempre acontece). Copiável pra quem for até a
+    // pessoa (motorista, entregador) conseguir achar o local exato.
+    const handleCopyCoords = useCallback(async () => {
+        const text = `${selectedPosition.lat.toFixed(6)}, ${selectedPosition.lng.toFixed(6)}`
+        try {
+            await navigator.clipboard.writeText(text)
+            setCoordsCopied(true)
+            setTimeout(() => setCoordsCopied(false), 2000)
+        } catch (err) {
+            console.error('Erro ao copiar coordenadas:', err)
+        }
+    }, [selectedPosition])
 
     // ===== SINCRONIZAÇÃO DE LOCALIZAÇÃO PARA MOTORISTA =====
     // Só aparece pra quem já aceitou um plano de tarifa em /painel-motorista
@@ -874,6 +890,19 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
                                         {newAddress || 'Arraste o marcador laranja ou mova o mapa'}
                                     </p>
                                 )}
+                                <button
+                                    onClick={handleCopyCoords}
+                                    className="flex items-center gap-1.5 mt-1 text-[10px] font-mono opacity-60 hover:opacity-100 transition-opacity"
+                                    style={{ color: colors.textPrimary }}
+                                    title="Copiar coordenadas exatas"
+                                >
+                                    {coordsCopied ? (
+                                        <Check size={11} style={{ color: '#22c55e' }} />
+                                    ) : (
+                                        <Copy size={11} />
+                                    )}
+                                    {selectedPosition.lat.toFixed(6)}, {selectedPosition.lng.toFixed(6)}
+                                </button>
                             </div>
                         </div>
                     </div>
