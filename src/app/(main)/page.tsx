@@ -648,6 +648,30 @@ export default function HomePage() {
                     />
                 ) : (
                     <div className="mt-2 px-4 md:px-6">
+                        {/* Mostra "Últimos acessados" sempre que o campo está em foco - mesmo
+                            com texto de uma busca anterior ainda no campo (refocar sem limpar
+                            não deve esconder o histórico, só reexibir os mesmos resultados). */}
+                        {searchFocused && hasInteractedWithSearch && (
+                            <div
+                                className="mb-6 last-searched-container"
+                                ref={lastSearchedRef}
+                            >
+                                <LastSearched
+                                    onItemClick={(item) => {
+                                        if (item.url) {
+                                            setSearchFocused(false)
+                                            setSearchQuery('')
+                                            startNavProgress()
+                                            setTimeout(() => {
+                                                router.push(item.url)
+                                            }, 50)
+                                        }
+                                    }}
+                                    onClearResults={clearSearch}
+                                />
+                            </div>
+                        )}
+
                         {isSearching ? (
                             <div className="mb-6">
                                 <SearchResultsSection
@@ -661,27 +685,6 @@ export default function HomePage() {
                             </div>
                         ) : (
                             <>
-                                {searchFocused && !isSearching && hasInteractedWithSearch && (
-                                    <div
-                                        className="mb-6 last-searched-container"
-                                        ref={lastSearchedRef}
-                                    >
-                                        <LastSearched
-                                            onItemClick={(item) => {
-                                                if (item.url) {
-                                                    setSearchFocused(false)
-                                                    setSearchQuery('')
-                                                    startNavProgress()
-                                                    setTimeout(() => {
-                                                        router.push(item.url)
-                                                    }, 50)
-                                                }
-                                            }}
-                                            onClearResults={clearSearch}
-                                        />
-                                    </div>
-                                )}
-
                                 {!searchFocused && !isSearching && (
                                     <>
                                         {editMode ? (
