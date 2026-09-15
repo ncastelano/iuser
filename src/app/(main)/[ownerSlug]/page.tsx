@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { Suspense } from 'react'
 import { generateOwnerMetadata } from '@/lib/getOwnerMetadata'
 import OwnerClientPage from './OwnerClientPage'
 
@@ -12,5 +13,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default function Page() {
-    return <OwnerClientPage />
+    return (
+        <Suspense fallback={null}>
+            <OwnerClientPage />
+        </Suspense>
+    )
 }

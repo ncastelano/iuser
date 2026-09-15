@@ -71,7 +71,7 @@ export async function POST(req: Request) {
 
         const { data: store, error: storeError } = await supabaseAdmin
             .from('stores')
-            .select('owner_id, name')
+            .select('owner_id, name, storeSlug')
             .eq('id', order.store_id)
             .single()
 
@@ -82,7 +82,8 @@ export async function POST(req: Request) {
         const { sent } = await sendPushToUser(store.owner_id, {
             title: `Novo pedido em ${store.name}`,
             body: `${order.buyer_profile_slug ? '@' + order.buyer_profile_slug : 'Um cliente'} fez um pedido de R$ ${Number(order.total_amount).toFixed(2)}`,
-            url: '/',
+            // Leva direto para o StoreDashboard da loja (pedidos ficam no topo dele)
+            url: `/${store.storeSlug}?dashboard=pedidos`,
             tag: `order-${order.id}`,
         })
 

@@ -2,8 +2,8 @@
 
 'use client'
 
-import { useEffect, useState, useMemo, useCallback } from 'react'
-import { useParams, useRouter, usePathname } from 'next/navigation'
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react'
+import { useParams, useRouter, usePathname, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { Spinner } from '@/components/Spinner'
 import { useTheme } from '@/app/contexts/theme'
@@ -39,6 +39,7 @@ export default function OwnerClientPage() {
     const params = useParams()
     const router = useRouter()
     const pathname = usePathname()
+    const searchParams = useSearchParams()
     const { colors } = useTheme()
     const {
         userId,
@@ -304,6 +305,24 @@ export default function OwnerClientPage() {
     useEffect(() => {
         setMounted(true)
     }, [])
+
+    // ========== ABRIR DASHBOARD DA LOJA VIA LINK (ex: notificação de novo pedido) ==========
+    const openedFromDashboardParamRef = useRef(false)
+    useEffect(() => {
+        if (openedFromDashboardParamRef.current) return
+        if (ownerType !== 'store' || loadingStores) return
+
+        const wantsDashboard = searchParams.get('dashboard') === 'pedidos'
+        if (!wantsDashboard) return
+
+        const store = stores.find((s) => s.slug === ownerSlug)
+        if (!store) return
+
+        openedFromDashboardParamRef.current = true
+        handleStoreDashboardClick(store.slug, store.name)
+        router.replace(`/${ownerSlug}`, { scroll: false })
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [ownerType, loadingStores, stores, ownerSlug, searchParams])
 
     // ========== RENDER ==========
     if (loading) {
