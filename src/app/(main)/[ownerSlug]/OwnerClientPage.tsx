@@ -11,10 +11,11 @@ import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import Header from '@/components/Header'
 import { useMerchantStore } from '@/store/useMerchantStore'
-import { User, Store as StoreIcon, LayoutDashboard, Home } from 'lucide-react'
+import { User, Store as StoreIcon, LayoutDashboard, Home, Shield } from 'lucide-react'
 import type { Tab } from '@/components/Header'
 import ProfileDashboard from '@/components/ProfileDashboard/ProfileDashboard'
 import StoreDashboard from '@/components/StoreDashboard/StoreDashboard'
+import AdminDashboard from '@/components/AdminDashboard/AdminDashboard'
 import { Profile } from './Profile'
 import { Store } from './Store'
 import { usePublicationsStore } from '@/store/usePublicationStore'
@@ -65,6 +66,8 @@ export default function OwnerClientPage() {
     const [showProfile, setShowProfile] = useState(false)
     const [showStoreDashboard, setShowStoreDashboard] = useState<{ slug: string; name: string } | null>(null)
     const [showPublications, setShowPublications] = useState(false)
+    const [showAdminDashboard, setShowAdminDashboard] = useState(false)
+    const [isSuperAdmin, setIsSuperAdmin] = useState(false)
     const [storeDialogOpen, setStoreDialogOpen] = useState(false)
 
     const pendingInvitesCount = useMerchantStore(s => s.pendingInvitesCount)
@@ -79,6 +82,7 @@ export default function OwnerClientPage() {
         setShowPublications(true)
         setShowProfile(false)
         setShowStoreDashboard(null)
+        setShowAdminDashboard(false)
     }, [publicationsStore])
 
     // ========== FUNÇÃO PARA ABRIR CATÁLOGO ==========
@@ -181,16 +185,50 @@ export default function OwnerClientPage() {
             })
     }, [loggedUserSlug, userId])
 
+    // ========== ABA "ADMIN" (só pra conta ncastelano@gmail.com) ==========
+    useEffect(() => {
+        if (!userId) {
+            setIsSuperAdmin(false)
+            return
+        }
+
+        let cancelled = false
+        supabase.auth.getSession().then(async ({ data: { session } }) => {
+            if (!session) return
+            const res = await fetch('/api/admin/whoami', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${session.access_token}`,
+                },
+                body: JSON.stringify({}),
+            })
+            const json = await res.json()
+            if (!cancelled) setIsSuperAdmin(!!json.isSuperAdmin)
+        })
+
+        return () => { cancelled = true }
+    }, [userId])
+
     // ========== TABS DO HEADER ==========
     const handleProfileClick = () => {
         setShowProfile(true)
         setShowStoreDashboard(null)
         setShowPublications(false)
+        setShowAdminDashboard(false)
     }
 
     const handleStoreDashboardClick = (storeSlug: string, storeName: string) => {
         setShowStoreDashboard({ slug: storeSlug, name: storeName })
         setShowProfile(false)
+        setShowPublications(false)
+        setShowAdminDashboard(false)
+    }
+
+    const handleAdminClick = () => {
+        setShowAdminDashboard(true)
+        setShowProfile(false)
+        setShowStoreDashboard(null)
         setShowPublications(false)
     }
 
@@ -198,6 +236,7 @@ export default function OwnerClientPage() {
         setShowProfile(false)
         setShowStoreDashboard(null)
         setShowPublications(false)
+        setShowAdminDashboard(false)
         // Voltar para a URL base quando fechar
         router.replace(`/${ownerSlug}`, { scroll: false })
     }
@@ -266,8 +305,19 @@ export default function OwnerClientPage() {
             })
         }
 
+        if (isSuperAdmin) {
+            allTabs.push({
+                id: 'admin',
+                label: 'Admin',
+                icon: Shield as any,
+                imageUrl: null,
+                onClick: handleAdminClick,
+                isActive: showAdminDashboard,
+            })
+        }
+
         return allTabs
-    }, [loggedUserSlug, profileLoading, loggedUserAvatarUrl, stores, loadingStores, storeOrderCounts, pendingInvitesCount, profileOpenNow, showProfile, showStoreDashboard, router])
+    }, [loggedUserSlug, profileLoading, loggedUserAvatarUrl, stores, loadingStores, storeOrderCounts, pendingInvitesCount, profileOpenNow, showProfile, showStoreDashboard, isSuperAdmin, showAdminDashboard, router])
 
     // ========== CARREGAR DADOS ==========
     useEffect(() => {
@@ -404,6 +454,10 @@ export default function OwnerClientPage() {
                                 }
                             }}
                         />
+                    </div>
+                ) : showAdminDashboard ? (
+                    <div className="w-full px-4 md:px-6 py-6">
+                        <AdminDashboard />
                     </div>
                 ) : showPublications ? (
                     <PublicationsListView

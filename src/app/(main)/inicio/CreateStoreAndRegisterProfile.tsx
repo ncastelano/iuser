@@ -37,6 +37,8 @@ import AnimatedBackground from '@/components/AnimatedBackground'
 import { createSquareImage } from '@/lib/image'
 import { checkSlugAvailability, getSlugSuggestions, sanitizeSlug } from '@/lib/slugUtils'
 import { categorias } from '@/lib/categorias'
+import { StoreAccessGate } from '@/components/StoreAccessGate'
+import { useStoreAccessStatus } from '@/hooks/useStoreAccessStatus'
 
 // Filtra as categorias para remover "Social"
 const CATEGORIAS_LOJAS = categorias.filter(cat => cat.slug !== 'social')
@@ -140,11 +142,24 @@ function extractStreetDisplay(fullAddress: string): string {
     return parts[0].trim()
 }
 
-type Step = 'store' | 'account' | 'success'
+type Step = 'store' | 'account' | 'access' | 'success'
 
 interface CreateStoreAndRegisterProfileProps {
     embedded?: boolean
     onBack?: () => void
+}
+
+interface PendingStorePayload {
+    name: string
+    storeSlug: string
+    description: string
+    logo_url: string | null
+    address: string
+    store_lat: number | null
+    store_lng: number | null
+    address_number: string
+    address_complement: string | null
+    category: string
 }
 
 export default function CreateStoreAndRegisterProfile({
@@ -163,6 +178,11 @@ export default function CreateStoreAndRegisterProfile({
 
     // Step control
     const [step, setStep] = useState<Step>('store')
+
+    // Preenchido depois que a conta é criada, usado só na etapa 'access'
+    const [createdUserId, setCreatedUserId] = useState<string | null>(null)
+    const [pendingStorePayload, setPendingStorePayload] = useState<PendingStorePayload | null>(null)
+    const accessStatus = useStoreAccessStatus(createdUserId)
 
     // Store data
     const [storeName, setStoreName] = useState('')
@@ -644,13 +664,15 @@ export default function CreateStoreAndRegisterProfile({
                 }
             }
 
-            const { error: storeError } = await supabase.from('stores').insert({
+            // Conta e perfil prontos - a loja em si só é criada depois que o
+            // acesso for liberado (etapa 'access' abaixo), porque agora a
+            // criação de loja exige pagamento PIX ou código.
+            setCreatedUserId(userId)
+            setPendingStorePayload({
                 name: storeName,
                 storeSlug,
                 description,
                 logo_url: logoPath,
-                owner_id: userId,
-                location: selectedPosition ? `POINT(${selectedPosition.lng} ${selectedPosition.lat})` : null,
                 address: fullAddress,
                 store_lat: selectedPosition.lat,
                 store_lng: selectedPosition.lng,
@@ -658,14 +680,26 @@ export default function CreateStoreAndRegisterProfile({
                 address_complement: addressComplement || null,
                 category: categoryName,
             })
-
-            if (storeError) {
-                toast.error('Loja criada, mas houve um erro: ' + storeError.message)
-            }
-
-            setStep('success')
+            setStep('access')
         } catch (err: any) {
             setAccountError(err.message)
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    const finalizeStoreCreation = async () => {
+        if (!pendingStorePayload) return
+        setLoading(true)
+        try {
+            const { error } = await supabase.rpc('create_store_with_access', {
+                p_grant_id: accessStatus.availableGrant?.id ?? null,
+                p_store: pendingStorePayload,
+            })
+            if (error) throw error
+            setStep('success')
+        } catch (err: any) {
+            toast.error(err.message || 'Erro ao criar a loja')
         } finally {
             setLoading(false)
         }
@@ -678,11 +712,11 @@ export default function CreateStoreAndRegisterProfile({
     const handleBack = () => {
         if (embedded && onBack) {
             if (step === 'account') setStep('store')
-            else if (step === 'success') onBack()
+            else if (step === 'success' || step === 'access') onBack()
             else onBack()
         } else {
             if (step === 'account') setStep('store')
-            else if (step === 'success') router.push('/')
+            else if (step === 'success' || step === 'access') router.push('/')
             else router.back()
         }
     }
@@ -1212,12 +1246,44 @@ export default function CreateStoreAndRegisterProfile({
                             <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                         ) : (
                             <>
-                                Criar conta e loja
+                                Criar conta
                                 <Sparkles className="w-4 h-4" />
                             </>
                         )}
                     </button>
                 </form>
+            )}
+
+            {/* ACCESS STEP - libera a loja (pix ou código) antes de criar de verdade */}
+            {step === 'access' && (
+                <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-orange-200/50 p-6 space-y-5 shadow-sm">
+                    <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-gray-500">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
+                        Conta criada! Falta liberar a loja "{storeName}"
+                    </div>
+                    <StoreAccessGate status={accessStatus}>
+                        <div className="space-y-4">
+                            <div className="p-3 bg-orange-50 border border-orange-200 rounded-xl text-sm text-gray-700">
+                                Acesso liberado! Agora é só confirmar a criação da loja <strong>{storeName}</strong>.
+                            </div>
+                            <button
+                                type="button"
+                                onClick={finalizeStoreCreation}
+                                disabled={loading}
+                                className="w-full py-3.5 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl font-black uppercase text-xs tracking-wider hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                            >
+                                {loading ? (
+                                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                ) : (
+                                    <>
+                                        Criar loja
+                                        <Sparkles className="w-4 h-4" />
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </StoreAccessGate>
+                </div>
             )}
 
             {/* SUCCESS STEP */}
@@ -1257,11 +1323,13 @@ export default function CreateStoreAndRegisterProfile({
                     <h1 className="text-2xl sm:text-3xl font-black bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent tracking-tighter">
                         {step === 'store' && 'Criar Loja'}
                         {step === 'account' && 'Criar Conta'}
+                        {step === 'access' && 'Liberar Loja'}
                         {step === 'success' && 'Tudo pronto!'}
                     </h1>
                     <p className="text-[8px] font-black uppercase tracking-wider text-gray-500 mt-0.5">
-                        {step === 'store' && 'Passo 1 de 2'}
-                        {step === 'account' && 'Passo 2 de 2'}
+                        {step === 'store' && 'Passo 1 de 3'}
+                        {step === 'account' && 'Passo 2 de 3'}
+                        {step === 'access' && 'Passo 3 de 3'}
                         {step === 'success' && 'Sua loja está no ar'}
                     </p>
                 </div>
@@ -1287,11 +1355,13 @@ export default function CreateStoreAndRegisterProfile({
                         <h1 className="text-2xl sm:text-3xl font-black bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent tracking-tighter">
                             {step === 'store' && 'Criar Loja'}
                             {step === 'account' && 'Criar Conta'}
+                            {step === 'access' && 'Liberar Loja'}
                             {step === 'success' && 'Tudo pronto!'}
                         </h1>
                         <p className="text-[8px] font-black uppercase tracking-wider text-gray-500 mt-0.5">
-                            {step === 'store' && 'Passo 1 de 2'}
-                            {step === 'account' && 'Passo 2 de 2'}
+                            {step === 'store' && 'Passo 1 de 3'}
+                            {step === 'account' && 'Passo 2 de 3'}
+                            {step === 'access' && 'Passo 3 de 3'}
                             {step === 'success' && 'Sua loja está no ar'}
                         </p>
                     </div>

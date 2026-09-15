@@ -35,6 +35,8 @@ import { useProfile } from "@/app/contexts/ProfileContext";
 import Header from '@/components/Header';
 import { categorias } from "@/lib/categorias";
 import { checkSlugAvailability, getSlugSuggestions, sanitizeSlug } from "@/lib/slugUtils";
+import { StoreAccessGate } from "@/components/StoreAccessGate";
+import { useStoreAccessStatus } from "@/hooks/useStoreAccessStatus";
 
 // Filtra as categorias para remover "Social"
 const CATEGORIAS_LOJAS = categorias.filter(cat => cat.slug !== 'social');
@@ -159,6 +161,7 @@ function formatWhatsApp(number: string): string {
 export default function CriarLoja() {
   const router = useRouter();
   const { userId, bgMode, customBgUrl, loading: profileLoading, avatarUrl: contextAvatarUrl } = useProfile();
+  const accessStatus = useStoreAccessStatus(userId);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -575,20 +578,27 @@ export default function CriarLoja() {
       return;
     }
 
-    const { error } = await supabase.from("stores").insert({
-      name,
-      storeSlug,
-      description,
-      logo_url: logoPath,
-      owner_id: userData.user.id,
-      location: selectedPosition ? `POINT(${selectedPosition.lng} ${selectedPosition.lat})` : null,
-      address: fullAddress,
-      store_lat: selectedPosition.lat,
-      store_lng: selectedPosition.lng,
-      address_number: addressNumber,
-      address_complement: addressComplement || null,
-      category: categoryName,
-      whatsapp: whatsappClean,
+    if (!accessStatus.bypass && !accessStatus.availableGrant) {
+      toast.error("Acesso não liberado. Pague via PIX ou use um código.");
+      setLoading(false);
+      return;
+    }
+
+    const { error } = await supabase.rpc("create_store_with_access", {
+      p_grant_id: accessStatus.availableGrant?.id ?? null,
+      p_store: {
+        name,
+        storeSlug,
+        description,
+        logo_url: logoPath,
+        address: fullAddress,
+        store_lat: selectedPosition.lat,
+        store_lng: selectedPosition.lng,
+        address_number: addressNumber,
+        address_complement: addressComplement || null,
+        category: categoryName,
+        whatsapp: whatsappClean,
+      },
     });
 
     if (error) {
@@ -642,6 +652,7 @@ export default function CriarLoja() {
         />
 
         <div className="w-full px-4 md:px-6 py-6">
+          <StoreAccessGate status={accessStatus}>
           <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-orange-200/50 p-6 space-y-6 shadow-sm">
             {/* LOGO */}
             <div className="space-y-3">
@@ -1072,6 +1083,7 @@ export default function CriarLoja() {
               </span>
             </div>
           </div>
+          </StoreAccessGate>
         </div>
 
         <div style={{ position: 'fixed', bottom: 32, right: 24, display: 'flex', gap: 12, zIndex: 998 }}>

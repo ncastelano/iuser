@@ -31,8 +31,21 @@ import { toast } from 'sonner'
 import AnimatedBackground from '@/components/AnimatedBackground'
 import { createSquareImage } from '@/lib/image'
 import { checkSlugAvailability, getSlugSuggestions, sanitizeSlug } from '@/lib/slugUtils'
+import { StoreAccessGate } from '@/components/StoreAccessGate'
+import { useStoreAccessStatus } from '@/hooks/useStoreAccessStatus'
+import { Spinner } from '@/components/Spinner'
 
-type Step = 'store' | 'account' | 'success'
+type Step = 'store' | 'account' | 'access' | 'success'
+
+interface PendingStorePayload {
+    name: string
+    storeSlug: string
+    description: string
+    logo_url: string | null
+    address: string
+    store_lat: number | null
+    store_lng: number | null
+}
 
 export default function CriarLojaComCadastro() {
     const router = useRouter()
@@ -68,6 +81,11 @@ export default function CriarLojaComCadastro() {
     const [accountAvatarFile, setAccountAvatarFile] = useState<File | null>(null)
     const [accountAvatarPreview, setAccountAvatarPreview] = useState<string | null>(null)
     const accountAvatarInputRef = useRef<HTMLInputElement | null>(null)
+
+    // Preenchido depois que a conta é criada, usado só na etapa 'access'
+    const [createdUserId, setCreatedUserId] = useState<string | null>(null)
+    const [pendingStorePayload, setPendingStorePayload] = useState<PendingStorePayload | null>(null)
+    const accessStatus = useStoreAccessStatus(createdUserId)
 
     const handleAccountAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0]
@@ -289,23 +307,39 @@ export default function CriarLojaComCadastro() {
                 }
             }
 
-            // 5. Criar loja
-            const { error: storeError } = await supabase.from('stores').insert({
+            // 5. Conta e perfil prontos - a loja em si só é criada depois que o
+            // acesso for liberado (etapa 'access' abaixo), porque agora a
+            // criação de loja exige pagamento PIX ou código.
+            setCreatedUserId(userId)
+            setPendingStorePayload({
                 name: storeName,
                 storeSlug,
                 description,
                 logo_url: logoPath,
-                owner_id: userId,
-                location: location ? `POINT(${location.lng} ${location.lat})` : null,
-                address: address,
+                address,
+                store_lat: location?.lat ?? null,
+                store_lng: location?.lng ?? null,
             })
-            if (storeError) {
-                toast.error('Loja criada, mas houve um erro: ' + storeError.message)
-            }
-
-            setStep('success')
+            setStep('access')
         } catch (err: any) {
             setAccountError(err.message)
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    const finalizeStoreCreation = async () => {
+        if (!pendingStorePayload) return
+        setLoading(true)
+        try {
+            const { error } = await supabase.rpc('create_store_with_access', {
+                p_grant_id: accessStatus.availableGrant?.id ?? null,
+                p_store: pendingStorePayload,
+            })
+            if (error) throw error
+            setStep('success')
+        } catch (err: any) {
+            toast.error(err.message || 'Erro ao criar a loja')
         } finally {
             setLoading(false)
         }
@@ -325,7 +359,7 @@ export default function CriarLojaComCadastro() {
                     <button
                         onClick={() => {
                             if (step === 'account') setStep('store')
-                            else if (step === 'success') router.push('/')
+                            else if (step === 'success' || step === 'access') router.push('/')
                             else router.back()
                         }}
                         className="w-10 h-10 flex items-center justify-center bg-white/90 border-2 border-orange-200 rounded-xl hover:bg-gradient-to-r hover:from-orange-500 hover:to-red-500 hover:text-white transition-all"
@@ -336,11 +370,13 @@ export default function CriarLojaComCadastro() {
                         <h1 className="text-2xl sm:text-3xl font-black bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent tracking-tighter">
                             {step === 'store' && 'Criar Loja'}
                             {step === 'account' && 'Criar Conta'}
+                            {step === 'access' && 'Liberar Loja'}
                             {step === 'success' && 'Tudo pronto!'}
                         </h1>
                         <p className="text-[8px] font-black uppercase tracking-wider text-gray-500 mt-0.5">
-                            {step === 'store' && 'Passo 1 de 2'}
-                            {step === 'account' && 'Passo 2 de 2'}
+                            {step === 'store' && 'Passo 1 de 3'}
+                            {step === 'account' && 'Passo 2 de 3'}
+                            {step === 'access' && 'Passo 3 de 3'}
                             {step === 'success' && 'Sua loja está no ar'}
                         </p>
                     </div>
@@ -719,12 +755,42 @@ export default function CriarLojaComCadastro() {
                                 <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                             ) : (
                                 <>
-                                    Criar conta e loja
+                                    Criar conta
                                     <Sparkles className="w-4 h-4" />
                                 </>
                             )}
                         </button>
                     </form>
+                )}
+
+                {/* ACCESS STEP - libera a loja (pix ou código) antes de criar de verdade */}
+                {step === 'access' && (
+                    <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-orange-200/50 p-6 space-y-5 shadow-sm">
+                        <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-gray-500">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
+                            Conta criada! Falta liberar a loja "{storeName}"
+                        </div>
+                        <StoreAccessGate status={accessStatus}>
+                            <div className="space-y-4">
+                                <div className="p-3 bg-orange-50 border border-orange-200 rounded-xl text-sm text-gray-700">
+                                    Acesso liberado! Agora é só confirmar a criação da loja <strong>{storeName}</strong>.
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={finalizeStoreCreation}
+                                    disabled={loading}
+                                    className="w-full py-3.5 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl font-black uppercase text-xs tracking-wider hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                >
+                                    {loading ? <Spinner size={16} color="#fff" /> : (
+                                        <>
+                                            Criar loja
+                                            <Sparkles className="w-4 h-4" />
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        </StoreAccessGate>
+                    </div>
                 )}
 
                 {/* SUCCESS STEP */}
