@@ -60,6 +60,9 @@ function PainelMotoristaContent() {
     const [carPhotoFile, setCarPhotoFile] = useState<File | null>(null)
     const [carPhotoPreview, setCarPhotoPreview] = useState<string | null>(null)
     const [carPhotoPath, setCarPhotoPath] = useState<string | null>(null)
+    const [driverPhotoFile, setDriverPhotoFile] = useState<File | null>(null)
+    const [driverPhotoPreview, setDriverPhotoPreview] = useState<string | null>(null)
+    const [driverPhotoPath, setDriverPhotoPath] = useState<string | null>(null)
     const [services, setServices] = useState<string[]>([])
     const [passengerCapacity, setPassengerCapacity] = useState('')
     const [hasBabySeat, setHasBabySeat] = useState<boolean | null>(null)
@@ -72,6 +75,8 @@ function PainelMotoristaContent() {
     const [savingVehicle, setSavingVehicle] = useState(false)
     const [isFirstVehicleSetup, setIsFirstVehicleSetup] = useState(false)
     const [showFirstVehicleDialog, setShowFirstVehicleDialog] = useState(false)
+    const [showActivationWizard, setShowActivationWizard] = useState(false)
+    const [wizardStep, setWizardStep] = useState<1 | 2>(1)
 
     // ===== AVALIAÇÕES E HISTÓRICO =====
     const [reviews, setReviews] = useState<{ rating: number; comment: string | null; created_at: string; reviewerName: string | null; reviewerAvatarUrl: string | undefined }[]>([])
@@ -83,6 +88,13 @@ function PainelMotoristaContent() {
         setCarPhotoPreview(url)
         return () => URL.revokeObjectURL(url)
     }, [carPhotoFile])
+
+    useEffect(() => {
+        if (!driverPhotoFile) return
+        const url = URL.createObjectURL(driverPhotoFile)
+        setDriverPhotoPreview(url)
+        return () => URL.revokeObjectURL(url)
+    }, [driverPhotoFile])
 
     const toggleService = (id: string) => {
         setServices((prev) => (prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]))
@@ -122,7 +134,7 @@ function PainelMotoristaContent() {
 
         const { data: vehicle } = await supabase
             .from('driver_vehicles')
-            .select('car_model, car_color, car_plate, car_photo_url, services, passenger_capacity, has_baby_seat, trunk_bags_pequena, trunk_bags_media, trunk_bags_grande, trunk_suitcases_pequena, trunk_suitcases_media, trunk_suitcases_grande')
+            .select('car_model, car_color, car_plate, car_photo_url, driver_photo_url, services, passenger_capacity, has_baby_seat, trunk_bags_pequena, trunk_bags_media, trunk_bags_grande, trunk_suitcases_pequena, trunk_suitcases_media, trunk_suitcases_grande')
             .eq('driver_id', userId)
             .maybeSingle()
 
@@ -131,6 +143,7 @@ function PainelMotoristaContent() {
             setCarColor(vehicle.car_color || '')
             setCarPlate(vehicle.car_plate || '')
             setCarPhotoPath(vehicle.car_photo_url || null)
+            setDriverPhotoPath(vehicle.driver_photo_url || null)
             setServices(vehicle.services || [])
             setPassengerCapacity(vehicle.passenger_capacity != null ? String(vehicle.passenger_capacity) : '')
             setHasBabySeat(vehicle.has_baby_seat)
@@ -142,6 +155,17 @@ function PainelMotoristaContent() {
             setTrunkSuitcasesGrande(vehicle.trunk_suitcases_grande != null ? String(vehicle.trunk_suitcases_grande) : '')
         }
         setIsFirstVehicleSetup(!vehicle)
+
+        // Retoma o wizard sozinho se a página carregar com o modo já ligado
+        // mas o cadastro incompleto (ex: motorista ativou antes dessa
+        // mudança, ou recarregou no meio do preenchimento).
+        const hasRequiredFieldsFromDb = !!(
+            vehicle?.car_model?.trim() && vehicle?.car_plate?.trim() && vehicle?.car_photo_url && vehicle?.driver_photo_url
+        )
+        if (data?.driver_mode_active && !hasRequiredFieldsFromDb) {
+            setShowActivationWizard(true)
+            setWizardStep(1)
+        }
 
         const { data: reviewRows } = await supabase
             .from('ride_reviews')
@@ -194,6 +218,15 @@ function PainelMotoristaContent() {
                 photoPath = data?.path || null
             }
 
+            let driverPhotoPathToSave = driverPhotoPath
+            if (driverPhotoFile) {
+                const fileExt = driverPhotoFile.name.split('.').pop()
+                const fileName = `${user.id}/${Date.now()}.${fileExt}`
+                const { data, error: uploadError } = await supabase.storage.from('driver-selfie-photos').upload(fileName, driverPhotoFile)
+                if (uploadError) throw uploadError
+                driverPhotoPathToSave = data?.path || null
+            }
+
             const { error } = await supabase.from('driver_vehicles').upsert(
                 {
                     driver_id: user.id,
@@ -201,6 +234,7 @@ function PainelMotoristaContent() {
                     car_color: carColor.trim() || null,
                     car_plate: carPlate.trim() || null,
                     car_photo_url: photoPath,
+                    driver_photo_url: driverPhotoPathToSave,
                     services,
                     passenger_capacity: passengerCapacity.trim() ? parseInt(passengerCapacity, 10) || null : null,
                     has_baby_seat: hasBabySeat,
@@ -217,6 +251,8 @@ function PainelMotoristaContent() {
 
             setCarPhotoPath(photoPath)
             setCarPhotoFile(null)
+            setDriverPhotoPath(driverPhotoPathToSave)
+            setDriverPhotoFile(null)
             toast.success('As informações do seu carro foram salvas!')
 
             if (isFirstVehicleSetup) {
@@ -231,7 +267,30 @@ function PainelMotoristaContent() {
     }
 
     const carPhotoUrl = carPhotoPreview || (carPhotoPath ? supabase.storage.from('driver-car-photos').getPublicUrl(carPhotoPath).data.publicUrl : null)
+    const driverPhotoUrl = driverPhotoPreview || (driverPhotoPath ? supabase.storage.from('driver-selfie-photos').getPublicUrl(driverPhotoPath).data.publicUrl : null)
     const reviewsAvg = reviews.length > 0 ? reviews.reduce((s, r) => s + r.rating, 0) / reviews.length : null
+
+    // ===== COMPLETUDE DO CADASTRO (define se o botão fica amarelo ou verde) =====
+    const missingFields: string[] = []
+    if (!carModel.trim()) missingFields.push('modelo do carro')
+    if (!carPlate.trim()) missingFields.push('placa')
+    if (!carPhotoFile && !carPhotoPath) missingFields.push('foto do carro')
+    if (!driverPhotoFile && !driverPhotoPath) missingFields.push('sua foto')
+    const isVehicleComplete = missingFields.length === 0
+    const driverStatus: 'inactive' | 'incomplete' | 'active' = !driverModeActive
+        ? 'inactive'
+        : (isVehicleComplete ? 'active' : 'incomplete')
+
+    // Botão "Concluir cadastro" da Etapa 2 do wizard: só segue se os dados
+    // obrigatórios estiverem completos, e fecha o wizard ao salvar com sucesso.
+    const handleWizardStep2Continue = async () => {
+        if (missingFields.length > 0) {
+            toast.error(`Falta completar: ${missingFields.join(', ')}`)
+            return
+        }
+        await handleSaveVehicle()
+        setShowActivationWizard(false)
+    }
 
     useEffect(() => {
         if (profileLoading) return
@@ -307,12 +366,31 @@ function PainelMotoristaContent() {
             if (error) throw error
 
             setDriverModeActive(next)
-            toast.success(next ? 'Modo motorista ativado!' : 'Modo motorista desativado.')
+            if (next) {
+                toast.success('Modo motorista ativado!')
+                // Ativando com cadastro incompleto: abre o wizard guiado em
+                // vez de deixar a pessoa perdida numa página cheia de campos.
+                if (!isVehicleComplete) {
+                    setShowActivationWizard(true)
+                    setWizardStep(1)
+                }
+            } else {
+                toast.success('Modo motorista desativado.')
+                setShowActivationWizard(false)
+            }
         } catch (err: any) {
             toast.error('Erro ao atualizar modo motorista: ' + (err.message || 'tente novamente'))
         } finally {
             setTogglingMode(false)
         }
+    }
+
+    // Botão "Continuar" da Etapa 1 do wizard: salva a tarifa e avança pra
+    // Etapa 2 (a menos que handleSave já esteja redirecionando pra outra
+    // página via ?next=).
+    const handleWizardStep1Continue = async () => {
+        await handleSave()
+        if (!nextUrl) setWizardStep(2)
     }
 
     const previewDistance = 10
@@ -361,6 +439,12 @@ function PainelMotoristaContent() {
         border: active ? 'none' : `1px solid ${colors.border}`,
     })
 
+    const statusStyle = {
+        inactive: { bg: colors.surface, border: colors.border, dot: GRADIENT },
+        incomplete: { bg: '#eab30820', border: '#eab30860', dot: '#eab308' },
+        active: { bg: '#22c55e20', border: '#22c55e60', dot: '#22c55e' },
+    }[driverStatus]
+
     return (
         <div className="relative min-h-dvh" style={{ background: colors.background }}>
             <div className="fixed inset-0 z-0">
@@ -394,29 +478,37 @@ function PainelMotoristaContent() {
                                 disabled={togglingMode}
                                 className="w-full flex items-center gap-3 p-4 rounded-2xl transition-all hover:scale-[1.01] disabled:opacity-60"
                                 style={{
-                                    background: driverModeActive ? '#22c55e20' : colors.surface,
-                                    border: `1px solid ${driverModeActive ? '#22c55e60' : colors.border}`,
+                                    background: statusStyle.bg,
+                                    border: `1px solid ${statusStyle.border}`,
                                 }}
                             >
                                 <div
                                     className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
-                                    style={{ background: driverModeActive ? '#22c55e' : GRADIENT, color: '#ffffff' }}
+                                    style={{ background: statusStyle.dot, color: '#ffffff' }}
                                 >
                                     {togglingMode ? <Spinner size={18} color="#ffffff" /> : <Car size={24} />}
                                 </div>
                                 <div className="flex-1 min-w-0 text-left">
-                                    <span className="text-sm font-black" style={{ color: colors.textPrimary }}>
+                                    <span className="text-sm font-black flex items-center gap-1.5" style={{ color: colors.textPrimary }}>
                                         {driverModeActive ? 'Desativar modo motorista' : 'Ativar modo motorista'}
+                                        {driverStatus === 'incomplete' && (
+                                            <span
+                                                className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-full"
+                                                style={{ background: '#eab30820', color: '#ca8a04' }}
+                                            >
+                                                Incompleto
+                                            </span>
+                                        )}
                                     </span>
                                     <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>
-                                        {driverModeActive
-                                            ? 'Ativado — você vê as corridas em tempo real e aparece no mapa do passageiro assim que se candidatar a um pedido'
-                                            : 'Ative pra ver as corridas disponíveis em tempo real e poder se candidatar aos pedidos'}
+                                        {driverStatus === 'active' && 'Ativado — você vê as corridas em tempo real e aparece no mapa do passageiro assim que se candidatar a um pedido'}
+                                        {driverStatus === 'incomplete' && 'Quase lá! Complete seu cadastro pra aparecer disponível pros passageiros'}
+                                        {driverStatus === 'inactive' && 'Ative pra ver as corridas disponíveis em tempo real e poder se candidatar aos pedidos'}
                                     </p>
                                 </div>
                                 <div
                                     className="flex-shrink-0 w-11 h-6 rounded-full relative transition-all"
-                                    style={{ background: driverModeActive ? '#22c55e' : colors.border }}
+                                    style={{ background: driverModeActive ? statusStyle.dot : colors.border }}
                                 >
                                     <div
                                         className="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all"
@@ -425,6 +517,32 @@ function PainelMotoristaContent() {
                                 </div>
                             </button>
 
+                            {driverStatus === 'incomplete' && !showActivationWizard && (
+                                <button
+                                    onClick={() => { setShowActivationWizard(true); setWizardStep(1) }}
+                                    className="w-full py-2.5 rounded-full text-xs font-black uppercase tracking-wider"
+                                    style={{ background: '#eab30820', color: '#ca8a04', border: '1px solid #eab30860' }}
+                                >
+                                    Continuar cadastro
+                                </button>
+                            )}
+
+                            {(!showActivationWizard || wizardStep === 1) && (
+                            <>
+                            {showActivationWizard && (
+                                <div className="flex flex-col gap-2">
+                                    <div className="flex items-center gap-1.5 justify-center">
+                                        <div className="h-1.5 rounded-full transition-all" style={{ width: 26, background: GRADIENT }} />
+                                        <div className="h-1.5 rounded-full transition-all" style={{ width: 8, background: colors.border }} />
+                                    </div>
+                                    <p className="text-[10px] font-black uppercase tracking-wider text-center" style={{ color: colors.textSecondary }}>
+                                        Etapa 1 de 2 · Sua tarifa
+                                    </p>
+                                    <p className="text-xs text-center" style={{ color: colors.textSecondary }}>
+                                        Só mais um passo! Vamos deixar tudo prontinho pra você começar a receber corridas.
+                                    </p>
+                                </div>
+                            )}
                             <div className="flex items-center gap-3">
                                 <div
                                     className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
@@ -641,14 +759,29 @@ function PainelMotoristaContent() {
                             </div>
 
                             <button
-                                onClick={handleSave}
+                                onClick={showActivationWizard ? handleWizardStep1Continue : handleSave}
                                 disabled={saving}
                                 className="w-full py-3.5 rounded-full text-sm font-black uppercase tracking-wider transition-all disabled:opacity-70 flex items-center justify-center gap-2"
                                 style={{ background: GRADIENT, color: '#ffffff' }}
                             >
-                                {saving ? <Spinner size={16} /> : 'Salvar tarifa'}
+                                {saving ? <Spinner size={16} /> : (showActivationWizard ? 'Continuar' : 'Salvar tarifa')}
                             </button>
+                            </>
+                            )}
 
+                            {(!showActivationWizard || wizardStep === 2) && (
+                            <>
+                            {showActivationWizard && (
+                                <div className="flex flex-col gap-2 mt-2">
+                                    <div className="flex items-center gap-1.5 justify-center">
+                                        <div className="h-1.5 rounded-full transition-all" style={{ width: 8, background: colors.border }} />
+                                        <div className="h-1.5 rounded-full transition-all" style={{ width: 26, background: GRADIENT }} />
+                                    </div>
+                                    <p className="text-[10px] font-black uppercase tracking-wider text-center" style={{ color: colors.textSecondary }}>
+                                        Etapa 2 de 2 · Seu carro
+                                    </p>
+                                </div>
+                            )}
                             {/* ===== MEU CARRO ===== */}
                             <div className="flex items-center gap-3 mt-2">
                                 <div
@@ -718,6 +851,41 @@ function PainelMotoristaContent() {
                                             className="col-span-2 w-full p-2 rounded-full border text-xs"
                                             style={{ background: colors.background, borderColor: colors.border, color: colors.textPrimary }}
                                         />
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center gap-3 pt-1 border-t" style={{ borderColor: colors.border }}>
+                                    <div
+                                        onClick={() => document.getElementById('driver-photo-input')?.click()}
+                                        className="w-20 h-20 rounded-full flex items-center justify-center cursor-pointer overflow-hidden flex-shrink-0"
+                                        style={{ background: `${colors.border}30`, border: `1px dashed ${colors.border}` }}
+                                    >
+                                        {driverPhotoUrl ? (
+                                            <img src={driverPhotoUrl} className="w-full h-full object-cover" alt="" />
+                                        ) : (
+                                            <Camera size={22} style={{ color: colors.textSecondary }} />
+                                        )}
+                                    </div>
+                                    <input
+                                        id="driver-photo-input"
+                                        type="file"
+                                        accept="image/*"
+                                        className="hidden"
+                                        onChange={async (e) => {
+                                            const file = e.target.files?.[0]
+                                            if (!file) return
+                                            try {
+                                                setDriverPhotoFile(await createSquareImage(file, 500))
+                                            } catch {
+                                                toast.error('Erro ao processar imagem')
+                                            }
+                                        }}
+                                    />
+                                    <div>
+                                        <p className="text-xs font-black" style={{ color: colors.textPrimary }}>Sua foto</p>
+                                        <p className="text-[10px]" style={{ color: colors.textSecondary }}>
+                                            Uma foto sua de rosto, pro passageiro reconhecer quem vai dirigir
+                                        </p>
                                     </div>
                                 </div>
 
@@ -871,15 +1039,19 @@ function PainelMotoristaContent() {
                                 </div>
 
                                 <button
-                                    onClick={handleSaveVehicle}
+                                    onClick={showActivationWizard ? handleWizardStep2Continue : handleSaveVehicle}
                                     disabled={savingVehicle}
                                     className="w-full py-3 rounded-full text-sm font-black uppercase tracking-wider transition-all disabled:opacity-70 flex items-center justify-center gap-2"
                                     style={{ background: GRADIENT, color: '#ffffff' }}
                                 >
-                                    {savingVehicle ? <Spinner size={16} /> : 'Salvar carro'}
+                                    {savingVehicle ? <Spinner size={16} /> : (showActivationWizard ? 'Concluir cadastro' : 'Salvar carro')}
                                 </button>
                             </div>
+                            </>
+                            )}
 
+                            {!showActivationWizard && (
+                            <>
                             {/* ===== AVALIAÇÕES RECEBIDAS ===== */}
                             <div className="flex items-center gap-3 mt-2">
                                 <div
@@ -956,6 +1128,8 @@ function PainelMotoristaContent() {
                                         </div>
                                     ))}
                                 </div>
+                            )}
+                            </>
                             )}
                         </div>
                     )}
