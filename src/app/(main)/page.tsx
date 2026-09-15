@@ -788,6 +788,7 @@ export default function HomePage() {
                         } : null}
                         onSave={handleLocationSave}
                         onClose={() => setShowLocationDialog(false)}
+                        allowDriverSync={false}
                     />
                 )}
             </main>

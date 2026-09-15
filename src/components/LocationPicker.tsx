@@ -26,6 +26,8 @@ interface LocationPickerProps {
         addressComplement: string;
     }) => void
     onClose: () => void
+    /** Quando false, esconde o controle de sincronização de motorista mesmo com o modo ativo - usado na home, onde definir local é sobre o endereço de entrega, não sobre estar disponível pra corridas. */
+    allowDriverSync?: boolean
 }
 
 const geocodeCache: Map<string, { lat: number; lng: number; address: string } | null> = new Map()
@@ -126,7 +128,7 @@ function extractStreetDisplay(fullAddress: string): string {
     return parts[0].trim()
 }
 
-export default function LocationPicker({ initialLocation, onSave, onClose }: LocationPickerProps) {
+export default function LocationPicker({ initialLocation, onSave, onClose, allowDriverSync = true }: LocationPickerProps) {
     const { colors } = useTheme()
     const router = useRouter()
 
@@ -162,6 +164,18 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
     const [numberError, setNumberError] = useState('')
     const [mapReady, setMapReady] = useState(false)
     const [usingGPS, setUsingGPS] = useState(false)
+
+    // ===== ETAPAS (mesmo padrão do CatalogBag: uma pergunta por vez) =====
+    // 'choose' pergunta como a pessoa quer definir o local (escrever ou
+    // marcar no mapa); 'address' mostra a busca/mapa; 'number' e
+    // 'complement' vêm depois, em sequência, só depois do endereço definido.
+    const [step, setStep] = useState<'choose' | 'address' | 'number' | 'complement'>('choose')
+    const [method, setMethod] = useState<'search' | 'map' | null>(null)
+
+    const chooseMethod = useCallback((m: 'search' | 'map') => {
+        setMethod(m)
+        setStep('address')
+    }, [])
 
     // ===== SINCRONIZAÇÃO DE LOCALIZAÇÃO PARA MOTORISTA =====
     // Só aparece pra quem já aceitou um plano de tarifa em /painel-motorista
@@ -550,7 +564,7 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
     }, [selectedPosition, savedPosition, newNumber, authChecked, isAuthenticated])
 
     useEffect(() => {
-        if (!authChecked || !isAuthenticated || !mapContainerRef.current) {
+        if (step !== 'address' || !authChecked || !isAuthenticated || !mapContainerRef.current) {
             return
         }
 
@@ -561,7 +575,22 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
         }, 200)
 
         return () => clearTimeout(timer)
-    }, [authChecked, isAuthenticated, initializeMap])
+    }, [step, authChecked, isAuthenticated, initializeMap])
+
+    // O container do mapa só existe no DOM enquanto a etapa é 'address' (ver
+    // JSX mais abaixo) - ao sair dessa etapa, o container antigo é desmontado
+    // e o Leaflet fica órfão. Zera o guard de inicialização aqui pra que,
+    // voltando pra 'address', um mapa novo seja montado no container novo -
+    // sem isso, o mapa fica em branco na segunda vez.
+    useEffect(() => {
+        if (step === 'address' || !initializedRef.current) return
+        initializedRef.current = false
+        mapInstanceRef.current = null
+        movableMarkerRef.current = null
+        savedMarkerRef.current = null
+        polylineRef.current = null
+        setMapReady(false)
+    }, [step])
 
     const handleGetCurrentLocation = useCallback(() => {
         setUsingGPS(true)
@@ -638,6 +667,16 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
         setShowConfirmDialog(true)
     }, [newNumber, newAddress, newComplement, selectedPosition])
 
+    // ===== ETAPA 3 -> 4: exige número antes de deixar seguir pro complemento =====
+    const handleContinueToComplement = useCallback(() => {
+        if (!newNumber.trim()) {
+            setNumberError('O número é obrigatório')
+            return
+        }
+        setNumberError('')
+        setStep('complement')
+    }, [newNumber])
+
     // ===== CONFIRM SAVE =====
     const confirmSave = useCallback(() => {
         if (pendingLocation) {
@@ -697,197 +736,299 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
                         Definir localização
                     </h3>
 
-                    {/* ===== TEXTO INSTRUTIVO ACIMA DO INPUT ===== */}
-                    <p className="text-[10px] mb-2 opacity-60" style={{ color: colors.textPrimary }}>
-                        Escreva a localização e aperte <strong>Enter</strong> ou clique em <strong>"Ir"</strong> para buscar
-                    </p>
-
-                    <div className="flex gap-2 mb-3">
-                        <div className="flex-1 flex items-center pl-0 pr-2 py-0.5 rounded-full text-xs font-semibold"
-                            style={{
-                                background: `${colors.surface}88`,
-                                backdropFilter: 'blur(10px)',
-                                border: `1px solid ${colors.border}`,
-                            }}
-                        >
-                            <div className="h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0"
-                                style={{ background: `${colors.surface}88` }}>
-                                <Search size={14} color={colors.textPrimary} />
-                            </div>
-                            <input
-                                type="text"
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                onKeyDown={handleSearchKeyDown}
-                                placeholder="Digite o endereço..."
-                                className="flex-1 bg-transparent outline-none ml-1.5 text-xs"
-                                style={{ color: colors.textPrimary }}
-                                disabled={loading}
-                            />
-                            <button
-                                onClick={() => performSearch(searchQuery)}
-                                disabled={loading || !searchQuery.trim()}
-                                className="px-3 py-1 rounded-full text-xs font-bold transition-all hover:scale-105 disabled:opacity-50"
-                                style={{
-                                    background: 'linear-gradient(135deg, #f97316, #dc2626)',
-                                    color: '#ffffff',
-                                    boxShadow: '0 2px 8px rgba(249, 115, 22, 0.3)',
-                                }}
-                            >
-                                {loading ? '...' : 'Ir'}
-                            </button>
-                        </div>
-
-                        <button
-                            onClick={handleGetCurrentLocation}
-                            disabled={loading}
-                            className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold transition-all hover:opacity-80 disabled:opacity-50 flex-shrink-0"
-                            style={{
-                                background: '#f9731620',
-                                color: '#f97316',
-                                border: '1px solid #f9731640',
-                            }}
-                            title="Usar GPS"
-                        >
-                            {usingGPS ? <Spinner size={14} color="#f97316" /> : <Navigation size={14} />}
-                            <span className="hidden sm:inline">GPS</span>
-                        </button>
-                    </div>
-
-                    {/* ===== TEXTO INSTRUTIVO ABAIXO DO INPUT ===== */}
-                    <p className="text-[10px] mb-2 opacity-60 text-center" style={{ color: colors.textPrimary }}>
-                        Ou arraste o <strong>Pin</strong> ou o <strong>mapa</strong> para ajustar a localização
-                    </p>
-
-                    <div className="relative w-full h-48 sm:h-56 rounded-xl overflow-hidden mb-3"
-                        style={{
-                            border: `2px solid ${colors.border}`,
-                            background: colors.surface,
-                        }}
-                    >
-                        <div ref={mapContainerRef} className="w-full h-full" />
-                        {!mapReady && (
-                            <div className="absolute inset-0 flex items-center justify-center" style={{ background: colors.surface }}>
-                                <Spinner size={24} color="#f97316" />
-                            </div>
-                        )}
-                    </div>
-
-                    <p className="text-[10px] mb-3 ml-1 opacity-50" style={{ color: colors.textPrimary }}>
-                        💡 Arraste o marcador laranja ou o mapa para ajustar a nova localização
-                    </p>
-
-                    {isDriver && driverModeActive && (
-                        <button
-                            onClick={() => setShowDeactivateConfirm(true)}
-                            disabled={savingSync}
-                            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl mb-3 transition-all disabled:opacity-60"
-                            style={{
-                                background: '#22c55e20',
-                                border: '1px solid #22c55e60',
-                            }}
-                        >
-                            <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center"
-                                style={{ background: '#22c55e' }}>
-                                {savingSync ? (
-                                    <Spinner size={14} color="#ffffff" />
-                                ) : (
-                                    <Car size={16} color="#ffffff" />
-                                )}
-                            </div>
-                            <div className="flex-1 min-w-0 text-left">
-                                <span className="flex items-center gap-1.5 text-xs font-bold" style={{ color: colors.textPrimary }}>
-                                    Sincronização para motorista
-                                    {effectiveLiveSync && <Radio size={11} style={{ color: '#22c55e' }} />}
-                                </span>
-                                <p className="text-[10px] mt-0.5 opacity-70" style={{ color: colors.textPrimary }}>
-                                    Modo motorista ativo — toque para desativar
+                    {/* ===== ETAPA 1 DE 4 · COMO DEFINIR ===== */}
+                    {step === 'choose' && (
+                        <>
+                            <div className="flex items-center justify-between mb-3">
+                                <p className="text-[10px] font-black uppercase tracking-wider" style={{ color: '#f97316' }}>
+                                    Etapa 1 de 4 · Localização
                                 </p>
+                                <button onClick={onClose} className="p-1 rounded-full hover:bg-black/5 transition" style={{ color: colors.textSecondary }}>
+                                    <X size={16} />
+                                </button>
                             </div>
-                            <div
-                                className="flex-shrink-0 w-10 h-6 rounded-full relative transition-all"
-                                style={{ background: '#22c55e' }}
-                            >
-                                <div
-                                    className="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all"
-                                    style={{ left: 18 }}
-                                />
+
+                            {savedAddress && (
+                                <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-xl mb-3"
+                                    style={{ background: `${colors.surface}88`, border: '1px solid #3B82F644' }}
+                                >
+                                    <div className="flex-shrink-0 mt-0.5">
+                                        <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center">
+                                            <Home size={14} style={{ color: '#3B82F6' }} />
+                                        </div>
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <span className="text-[10px] font-semibold uppercase tracking-wider opacity-50" style={{ color: colors.textPrimary }}>
+                                            Localização salva
+                                        </span>
+                                        <p className="text-xs font-medium mt-0.5 break-words leading-relaxed" style={{ color: colors.textPrimary }}>
+                                            {savedAddress}
+                                        </p>
+                                        {savedNumber && (
+                                            <p className="text-[11px] mt-0.5 opacity-70" style={{ color: colors.textPrimary }}>Nº {savedNumber}</p>
+                                        )}
+                                        {savedComplement && (
+                                            <p className="text-[11px] mt-0.5 opacity-70 italic" style={{ color: colors.textPrimary }}>"{savedComplement}"</p>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
+                            <p className="text-sm font-black mb-3" style={{ color: colors.textPrimary }}>
+                                {savedAddress ? 'Quer atualizar sua localização?' : 'Você ainda não tem uma localização definida. Como quer defini-la?'}
+                            </p>
+
+                            <div className="grid grid-cols-2 gap-3">
+                                <button
+                                    onClick={() => chooseMethod('search')}
+                                    className="flex flex-col items-center gap-1.5 p-3 rounded-2xl border-2 text-center transition hover:scale-[1.02] active:scale-95"
+                                    style={{ borderColor: colors.border, background: 'transparent' }}
+                                >
+                                    <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: `${colors.surface}88`, color: colors.textSecondary }}>
+                                        <Search size={18} />
+                                    </div>
+                                    <span className="text-xs font-bold" style={{ color: colors.textPrimary }}>Escrever endereço</span>
+                                    <span className="text-[9px]" style={{ color: colors.textSecondary, opacity: 0.8 }}>Digite o endereço</span>
+                                </button>
+                                <button
+                                    onClick={() => chooseMethod('map')}
+                                    className="flex flex-col items-center gap-1.5 p-3 rounded-2xl border-2 text-center transition hover:scale-[1.02] active:scale-95"
+                                    style={{ borderColor: colors.border, background: 'transparent' }}
+                                >
+                                    <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: `${colors.surface}88`, color: colors.textSecondary }}>
+                                        <MapPin size={18} />
+                                    </div>
+                                    <span className="text-xs font-bold" style={{ color: colors.textPrimary }}>Marcar no mapa</span>
+                                    <span className="text-[9px]" style={{ color: colors.textSecondary, opacity: 0.8 }}>Toque ou arraste o pino</span>
+                                </button>
                             </div>
-                        </button>
+                        </>
                     )}
 
-                    <div className="space-y-2 mb-3">
-                        {savedPosition && !effectiveLiveSync && (
-                            <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-xl"
-                                style={{
-                                    background: `${colors.surface}88`,
-                                    border: `1px solid #3B82F644`,
-                                }}
+                    {/* ===== ETAPA 2 DE 4 · ENDEREÇO ===== */}
+                    {step === 'address' && (
+                        <>
+                            <div className="flex items-center justify-between mb-3">
+                                <p className="text-[10px] font-black uppercase tracking-wider" style={{ color: '#f97316' }}>
+                                    Etapa 2 de 4 · Endereço
+                                </p>
+                                <button onClick={onClose} className="p-1 rounded-full hover:bg-black/5 transition" style={{ color: colors.textSecondary }}>
+                                    <X size={16} />
+                                </button>
+                            </div>
+
+                            {method === 'search' && (
+                                <>
+                                    <p className="text-[10px] mb-2 opacity-60" style={{ color: colors.textPrimary }}>
+                                        Escreva a localização e aperte <strong>Enter</strong> ou clique em <strong>"Ir"</strong> para buscar
+                                    </p>
+                                    <div className="flex gap-2 mb-3">
+                                        <div className="flex-1 flex items-center pl-0 pr-2 py-0.5 rounded-full text-xs font-semibold"
+                                            style={{ background: `${colors.surface}88`, backdropFilter: 'blur(10px)', border: `1px solid ${colors.border}` }}
+                                        >
+                                            <div className="h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: `${colors.surface}88` }}>
+                                                <Search size={14} color={colors.textPrimary} />
+                                            </div>
+                                            <input
+                                                type="text"
+                                                value={searchQuery}
+                                                onChange={(e) => setSearchQuery(e.target.value)}
+                                                onKeyDown={handleSearchKeyDown}
+                                                placeholder="Digite o endereço..."
+                                                className="flex-1 bg-transparent outline-none ml-1.5 text-xs"
+                                                style={{ color: colors.textPrimary }}
+                                                disabled={loading}
+                                                autoFocus
+                                            />
+                                            <button
+                                                onClick={() => performSearch(searchQuery)}
+                                                disabled={loading || !searchQuery.trim()}
+                                                className="px-3 py-1 rounded-full text-xs font-bold transition-all hover:scale-105 disabled:opacity-50"
+                                                style={{ background: 'linear-gradient(135deg, #f97316, #dc2626)', color: '#ffffff', boxShadow: '0 2px 8px rgba(249, 115, 22, 0.3)' }}
+                                            >
+                                                {loading ? '...' : 'Ir'}
+                                            </button>
+                                        </div>
+
+                                        <button
+                                            onClick={handleGetCurrentLocation}
+                                            disabled={loading}
+                                            className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold transition-all hover:opacity-80 disabled:opacity-50 flex-shrink-0"
+                                            style={{ background: '#f9731620', color: '#f97316', border: '1px solid #f9731640' }}
+                                            title="Usar GPS"
+                                        >
+                                            {usingGPS ? <Spinner size={14} color="#f97316" /> : <Navigation size={14} />}
+                                            <span className="hidden sm:inline">GPS</span>
+                                        </button>
+                                    </div>
+                                    <p className="text-[10px] mb-2 opacity-60 text-center" style={{ color: colors.textPrimary }}>
+                                        Ou arraste o <strong>Pin</strong> ou o <strong>mapa</strong> para ajustar a localização
+                                    </p>
+                                </>
+                            )}
+
+                            {method === 'map' && (
+                                <div className="flex items-center justify-between mb-2">
+                                    <p className="text-xs font-black" style={{ color: colors.textPrimary }}>
+                                        Toque no mapa ou arraste o pino laranja
+                                    </p>
+                                    <button
+                                        onClick={handleGetCurrentLocation}
+                                        disabled={loading}
+                                        className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold transition-all hover:opacity-80 disabled:opacity-50 flex-shrink-0"
+                                        style={{ background: '#f9731620', color: '#f97316', border: '1px solid #f9731640' }}
+                                        title="Usar GPS"
+                                    >
+                                        {usingGPS ? <Spinner size={14} color="#f97316" /> : <Navigation size={14} />}
+                                        GPS
+                                    </button>
+                                </div>
+                            )}
+
+                            <div className="relative w-full h-48 sm:h-56 rounded-xl overflow-hidden mb-3"
+                                style={{ border: `2px solid ${colors.border}`, background: colors.surface }}
+                            >
+                                <div ref={mapContainerRef} className="w-full h-full" />
+                                {!mapReady && (
+                                    <div className="absolute inset-0 flex items-center justify-center" style={{ background: colors.surface }}>
+                                        <Spinner size={24} color="#f97316" />
+                                    </div>
+                                )}
+                            </div>
+
+                            {allowDriverSync && isDriver && driverModeActive && (
+                                <button
+                                    onClick={() => setShowDeactivateConfirm(true)}
+                                    disabled={savingSync}
+                                    className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl mb-3 transition-all disabled:opacity-60"
+                                    style={{ background: '#22c55e20', border: '1px solid #22c55e60' }}
+                                >
+                                    <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center" style={{ background: '#22c55e' }}>
+                                        {savingSync ? <Spinner size={14} color="#ffffff" /> : <Car size={16} color="#ffffff" />}
+                                    </div>
+                                    <div className="flex-1 min-w-0 text-left">
+                                        <span className="flex items-center gap-1.5 text-xs font-bold" style={{ color: colors.textPrimary }}>
+                                            Sincronização para motorista
+                                            {effectiveLiveSync && <Radio size={11} style={{ color: '#22c55e' }} />}
+                                        </span>
+                                        <p className="text-[10px] mt-0.5 opacity-70" style={{ color: colors.textPrimary }}>
+                                            Modo motorista ativo — toque para desativar
+                                        </p>
+                                    </div>
+                                    <div className="flex-shrink-0 w-10 h-6 rounded-full relative transition-all" style={{ background: '#22c55e' }}>
+                                        <div className="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all" style={{ left: 18 }} />
+                                    </div>
+                                </button>
+                            )}
+
+                            <div className="space-y-2 mb-3">
+                                {savedPosition && !effectiveLiveSync && (
+                                    <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-xl"
+                                        style={{ background: `${colors.surface}88`, border: '1px solid #3B82F644' }}
+                                    >
+                                        <div className="flex-shrink-0 mt-0.5">
+                                            <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center">
+                                                <Home size={14} style={{ color: '#3B82F6' }} />
+                                            </div>
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <span className="text-[10px] font-semibold uppercase tracking-wider opacity-50" style={{ color: colors.textPrimary }}>
+                                                Localização salva
+                                            </span>
+                                            <p className="text-xs font-medium mt-0.5 break-words leading-relaxed" style={{ color: colors.textPrimary }}>
+                                                {savedAddress || 'Carregando endereço...'}
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-xl"
+                                    style={{ background: `${colors.surface}88`, border: '1px solid #F9731644' }}
+                                >
+                                    <div className="flex-shrink-0 mt-0.5">
+                                        <div className="w-6 h-6 rounded-full bg-orange-500/20 flex items-center justify-center">
+                                            <MoveVertical size={14} style={{ color: '#f97316' }} />
+                                        </div>
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <span className="text-[10px] font-semibold uppercase tracking-wider opacity-50" style={{ color: colors.textPrimary }}>
+                                            {effectiveLiveSync ? 'Localização atual (ao vivo)' : 'Endereço selecionado'}
+                                        </span>
+                                        {resolvingAddress ? (
+                                            <p className="text-xs mt-0.5 opacity-50" style={{ color: colors.textPrimary }}>
+                                                Obtendo endereço...
+                                            </p>
+                                        ) : (
+                                            <p className="text-xs font-medium mt-0.5 break-words leading-relaxed" style={{ color: colors.textPrimary }}>
+                                                {newAddress || 'Arraste o marcador laranja ou mova o mapa'}
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {error && (
+                                <p className="text-red-500 text-xs font-medium mb-2 ml-1">{error}</p>
+                            )}
+
+                            <div className="flex gap-2 mt-3">
+                                <button
+                                    onClick={() => setStep('choose')}
+                                    className="flex-1 py-2.5 rounded-xl font-bold text-xs transition hover:scale-105 active:scale-95"
+                                    style={{ background: 'transparent', border: `2px solid ${colors.border}`, color: colors.textSecondary }}
+                                >
+                                    Voltar
+                                </button>
+                                <button
+                                    onClick={() => setStep('number')}
+                                    disabled={!newAddress || resolvingAddress}
+                                    className="flex-1 py-2.5 rounded-xl font-bold text-xs transition hover:scale-105 active:scale-95 disabled:opacity-50"
+                                    style={{ background: 'linear-gradient(135deg, #f97316, #dc2626)', color: '#ffffff', boxShadow: '0 4px 14px #f9731660' }}
+                                >
+                                    {resolvingAddress ? 'Obtendo endereço...' : !newAddress ? 'Selecione um local' : 'Continuar'}
+                                </button>
+                            </div>
+                        </>
+                    )}
+
+                    {/* ===== ETAPA 3 DE 4 · NÚMERO ===== */}
+                    {step === 'number' && (
+                        <>
+                            <div className="flex items-center justify-between mb-3">
+                                <p className="text-[10px] font-black uppercase tracking-wider" style={{ color: '#f97316' }}>
+                                    Etapa 3 de 4 · Número
+                                </p>
+                                <button onClick={onClose} className="p-1 rounded-full hover:bg-black/5 transition" style={{ color: colors.textSecondary }}>
+                                    <X size={16} />
+                                </button>
+                            </div>
+
+                            <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-xl mb-3"
+                                style={{ background: `${colors.surface}88`, border: '1px solid #F9731644' }}
                             >
                                 <div className="flex-shrink-0 mt-0.5">
-                                    <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center">
-                                        <Home size={14} style={{ color: '#3B82F6' }} />
+                                    <div className="w-6 h-6 rounded-full bg-orange-500/20 flex items-center justify-center">
+                                        <MoveVertical size={14} style={{ color: '#f97316' }} />
                                     </div>
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <span className="text-[10px] font-semibold uppercase tracking-wider opacity-50" style={{ color: colors.textPrimary }}>
-                                        Localização salva
+                                        Endereço
                                     </span>
                                     <p className="text-xs font-medium mt-0.5 break-words leading-relaxed" style={{ color: colors.textPrimary }}>
-                                        {savedAddress || 'Carregando endereço...'}
+                                        {newAddress}
                                     </p>
-                                    {savedNumber && (
-                                        <p className="text-[11px] mt-0.5 opacity-70" style={{ color: colors.textPrimary }}>
-                                            Nº {savedNumber}
-                                        </p>
-                                    )}
-                                    {savedComplement && (
-                                        <p className="text-[11px] mt-0.5 opacity-70 italic" style={{ color: colors.textPrimary }}>
-                                            "{savedComplement}"
-                                        </p>
-                                    )}
                                 </div>
                             </div>
-                        )}
 
-                        <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-xl"
-                            style={{
-                                background: `${colors.surface}88`,
-                                border: `1px solid #F9731644`,
-                            }}
-                        >
-                            <div className="flex-shrink-0 mt-0.5">
-                                <div className="w-6 h-6 rounded-full bg-orange-500/20 flex items-center justify-center">
-                                    <MoveVertical size={14} style={{ color: '#f97316' }} />
-                                </div>
-                            </div>
-                            <div className="flex-1 min-w-0">
-                                <span className="text-[10px] font-semibold uppercase tracking-wider opacity-50" style={{ color: colors.textPrimary }}>
-                                    {effectiveLiveSync ? 'Localização atual (ao vivo)' : 'Nova localização'}
-                                </span>
-                                {resolvingAddress ? (
-                                    <p className="text-xs mt-0.5 opacity-50" style={{ color: colors.textPrimary }}>
-                                        Obtendo endereço...
-                                    </p>
-                                ) : (
-                                    <p className="text-xs font-medium mt-0.5 break-words leading-relaxed" style={{ color: colors.textPrimary }}>
-                                        {newAddress || 'Arraste o marcador laranja ou mova o mapa'}
-                                    </p>
-                                )}
-                            </div>
-                        </div>
-                    </div>
+                            <p className="text-sm font-black mb-3" style={{ color: colors.textPrimary }}>
+                                Qual o número?
+                            </p>
 
-                    {!resolvingAddress && newAddress && (
-                        <div className="space-y-2 mb-3">
-                            <div className="px-3 py-2 rounded-xl"
-                                style={{
-                                    background: `${colors.surface}88`,
-                                    border: `1px solid ${numberError ? '#EF4444' : colors.border}`,
-                                }}
+                            <div className="px-3 py-2 rounded-xl mb-3"
+                                style={{ background: `${colors.surface}88`, border: `1px solid ${numberError ? '#EF4444' : colors.border}` }}
                             >
-                                <label className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider opacity-50 mb-1"
-                                    style={{ color: colors.textPrimary }}>
+                                <label className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider opacity-50 mb-1" style={{ color: colors.textPrimary }}>
                                     <Hash size={12} />
                                     Número da casa/apto *
                                 </label>
@@ -898,9 +1039,11 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
                                         setNewNumber(e.target.value)
                                         setNumberError('')
                                     }}
+                                    onKeyDown={(e) => { if (e.key === 'Enter') handleContinueToComplement() }}
                                     placeholder="Ex: 2836"
                                     className="w-full bg-transparent outline-none text-xs font-medium"
                                     style={{ color: colors.textPrimary }}
+                                    autoFocus
                                     required
                                 />
                                 {numberError && (
@@ -908,14 +1051,66 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
                                 )}
                             </div>
 
-                            <div className="px-3 py-2 rounded-xl"
-                                style={{
-                                    background: `${colors.surface}88`,
-                                    border: `1px solid ${colors.border}`,
-                                }}
+                            <div className="flex gap-2 mt-3">
+                                <button
+                                    onClick={() => setStep('address')}
+                                    className="flex-1 py-2.5 rounded-xl font-bold text-xs transition hover:scale-105 active:scale-95"
+                                    style={{ background: 'transparent', border: `2px solid ${colors.border}`, color: colors.textSecondary }}
+                                >
+                                    Voltar
+                                </button>
+                                <button
+                                    onClick={handleContinueToComplement}
+                                    className="flex-1 py-2.5 rounded-xl font-bold text-xs transition hover:scale-105 active:scale-95"
+                                    style={{ background: 'linear-gradient(135deg, #f97316, #dc2626)', color: '#ffffff', boxShadow: '0 4px 14px #f9731660' }}
+                                >
+                                    Continuar
+                                </button>
+                            </div>
+                        </>
+                    )}
+
+                    {/* ===== ETAPA 4 DE 4 · COMPLEMENTO ===== */}
+                    {step === 'complement' && (
+                        <>
+                            <div className="flex items-center justify-between mb-3">
+                                <p className="text-[10px] font-black uppercase tracking-wider" style={{ color: '#f97316' }}>
+                                    Etapa 4 de 4 · Complemento
+                                </p>
+                                <button onClick={onClose} className="p-1 rounded-full hover:bg-black/5 transition" style={{ color: colors.textSecondary }}>
+                                    <X size={16} />
+                                </button>
+                            </div>
+
+                            <div className="space-y-2 mb-3">
+                                <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-xl"
+                                    style={{ background: `${colors.surface}88`, border: '1px solid #F9731644' }}
+                                >
+                                    <div className="flex-shrink-0 mt-0.5">
+                                        <div className="w-6 h-6 rounded-full bg-orange-500/20 flex items-center justify-center">
+                                            <MoveVertical size={14} style={{ color: '#f97316' }} />
+                                        </div>
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <span className="text-[10px] font-semibold uppercase tracking-wider opacity-50" style={{ color: colors.textPrimary }}>
+                                            Endereço
+                                        </span>
+                                        <p className="text-xs font-medium mt-0.5 break-words leading-relaxed" style={{ color: colors.textPrimary }}>
+                                            {newAddress}
+                                        </p>
+                                        <p className="text-[11px] mt-0.5 opacity-70" style={{ color: colors.textPrimary }}>Nº {newNumber}</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <p className="text-sm font-black mb-3" style={{ color: colors.textPrimary }}>
+                                Quer adicionar algum complemento?
+                            </p>
+
+                            <div className="px-3 py-2 rounded-xl mb-3"
+                                style={{ background: `${colors.surface}88`, border: `1px solid ${colors.border}` }}
                             >
-                                <label className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider opacity-50 mb-1"
-                                    style={{ color: colors.textPrimary }}>
+                                <label className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider opacity-50 mb-1" style={{ color: colors.textPrimary }}>
                                     <FileText size={12} />
                                     Complemento (opcional)
                                 </label>
@@ -923,39 +1118,39 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
                                     type="text"
                                     value={newComplement}
                                     onChange={(e) => setNewComplement(e.target.value)}
+                                    onKeyDown={(e) => { if (e.key === 'Enter') handleSaveWithConfirmation() }}
                                     placeholder="Ex: Casa com parede de cerâmica, portão azul..."
                                     className="w-full bg-transparent outline-none text-xs font-medium"
                                     style={{ color: colors.textPrimary }}
+                                    autoFocus
                                 />
                             </div>
-                        </div>
-                    )}
 
-                    {error && (
-                        <p className="text-red-500 text-xs font-medium mb-2 ml-1">{error}</p>
-                    )}
+                            {error && (
+                                <p className="text-red-500 text-xs font-medium mb-2 ml-1">{error}</p>
+                            )}
 
-                    <div className="flex gap-2 justify-end">
-                        <button onClick={onClose} disabled={loading}
-                            className="flex items-center pl-0 pr-3 py-0.5 rounded-full text-xs font-semibold transition-all hover:opacity-80"
-                            style={{ background: `${colors.surface}88`, backdropFilter: 'blur(10px)', color: colors.textPrimary, border: `1px solid ${colors.border}` }}>
-                            <div className="h-7 w-7 rounded-full flex items-center justify-center"
-                                style={{ background: `${colors.surface}88` }}>
-                                <X size={14} />
+                            <div className="flex gap-2 mt-3">
+                                <button
+                                    onClick={() => setStep('number')}
+                                    disabled={loading}
+                                    className="flex-1 py-2.5 rounded-xl font-bold text-xs transition hover:scale-105 active:scale-95 disabled:opacity-50"
+                                    style={{ background: 'transparent', border: `2px solid ${colors.border}`, color: colors.textSecondary }}
+                                >
+                                    Voltar
+                                </button>
+                                <button
+                                    onClick={handleSaveWithConfirmation}
+                                    disabled={loading || !newAddress}
+                                    className="flex-1 py-2.5 rounded-xl font-bold text-xs transition hover:scale-105 active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
+                                    style={{ background: 'linear-gradient(135deg, #f97316, #dc2626)', color: '#ffffff', boxShadow: '0 4px 14px #f9731660' }}
+                                >
+                                    <Check size={14} />
+                                    Salvar localização
+                                </button>
                             </div>
-                            <span className="ml-1.5">Cancelar</span>
-                        </button>
-
-                        <button onClick={handleSaveWithConfirmation} disabled={loading || !newAddress}
-                            className="flex items-center pl-0 pr-3 py-0.5 rounded-full text-xs font-semibold transition-all hover:opacity-90 active:scale-95 disabled:opacity-50"
-                            style={{ background: 'linear-gradient(135deg, #f97316, #dc2626)', color: '#ffffff', boxShadow: '0 2px 10px rgba(249, 115, 22, 0.3)' }}>
-                            <div className="h-7 w-7 rounded-full flex items-center justify-center"
-                                style={{ background: 'linear-gradient(135deg, #f97316, #dc2626)' }}>
-                                <Check size={14} />
-                            </div>
-                            <span className="ml-1.5">Salvar localização</span>
-                        </button>
-                    </div>
+                        </>
+                    )}
                 </div>
             </div>
 
