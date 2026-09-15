@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { FontLoader } from '@/components/FontLoader'
 import { OrderNotification } from '@/components/OrderNotification'
 import { PwaCleanup } from '@/components/PwaCleanup'
+import { PwaInstallPrompt } from '@/components/PwaInstallPrompt'
 import { PushNotificationSetup } from '@/components/PushNotificationSetup'
 import { NavigationProgressBar } from '@/components/NavigationProgressBar'
 import { FinishedRideTrigger } from '@/components/ratings/FinishedRideTrigger'
@@ -48,6 +49,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <RideAcceptedDialog />
         <DriverLiveLocationBroadcaster />
         <PwaCleanup />
+        <PwaInstallPrompt />
         <PushNotificationSetup />
         <Toaster
           position="top-center"
