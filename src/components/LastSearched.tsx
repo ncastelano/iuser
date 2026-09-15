@@ -81,6 +81,12 @@ export default function LastSearched({ onItemClick, onClearResults }: LastSearch
 
     const removeItem = (item: RecentClickItem, e: React.MouseEvent) => {
         e.stopPropagation()
+        // O botão clicado é removido do DOM junto com o item - sem o foco ir
+        // pra um elemento estável (o container) antes disso, a página some
+        // do foco (activeElement cai pro body) e a página acha que a pessoa
+        // saiu da busca, fechando a seção inteira. Focar o container aqui
+        // mantém a seção aberta pra continuar removendo outros itens.
+        containerRef.current?.focus()
         const updated = items.filter(i => !(i.type === item.type && i.id === item.id))
         setItems(updated)
         saveRecentClicks(updated)
@@ -192,7 +198,7 @@ export default function LastSearched({ onItemClick, onClearResults }: LastSearch
     }
 
     return (
-        <div ref={containerRef} className="w-full">
+        <div ref={containerRef} tabIndex={-1} className="w-full outline-none">
             {/* Cabeçalho com botão de limpar resultados */}
             <div
                 className="flex items-center justify-between px-2 py-3 transition-all duration-500 ease-out"
@@ -345,9 +351,10 @@ export default function LastSearched({ onItemClick, onClearResults }: LastSearch
                                             </div>
                                         )}
 
-                                        {/* Badge do tipo no canto superior direito */}
+                                        {/* Badge do tipo no canto superior direito - empurrado pra baixo do
+                                            botão de remover, que agora fica sempre visível ali em cima. */}
                                         <div
-                                            className="absolute top-2 right-2 px-2 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-wider pointer-events-none flex items-center gap-1"
+                                            className="absolute top-9 right-2 px-2 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-wider pointer-events-none flex items-center gap-1"
                                             style={{
                                                 background: `${typeColor}dd`,
                                                 color: '#ffffff',
@@ -359,17 +366,18 @@ export default function LastSearched({ onItemClick, onClearResults }: LastSearch
                                             {getTypeLabel(item.type)}
                                         </div>
 
-                                        {/* Botão de remover */}
+                                        {/* Botão de remover - sempre visível (não só no hover, que nem
+                                            existe no toque em celular) pra poder apagar só esse item. */}
                                         <button
                                             onClick={(e) => {
                                                 e.stopPropagation()
                                                 removeItem(item, e)
                                             }}
-                                            className="absolute top-8 left-2 p-1.5 rounded-lg transition-all opacity-0 group-hover:opacity-100 hover:bg-black/30 pointer-events-auto"
-                                            style={{ color: '#ffffff' }}
+                                            className="absolute top-2 right-2 w-6 h-6 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95 pointer-events-auto"
+                                            style={{ background: '#ef4444', color: '#ffffff', boxShadow: '0 2px 6px rgba(0,0,0,0.4)' }}
                                             title="Remover"
                                         >
-                                            <X size={14} />
+                                            <X size={13} />
                                         </button>
 
                                         {/* Informações na parte inferior */}
