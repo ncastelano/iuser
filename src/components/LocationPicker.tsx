@@ -165,10 +165,14 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
 
     // ===== SINCRONIZAÇÃO DE LOCALIZAÇÃO PARA MOTORISTA =====
     // Só aparece pra quem já aceitou um plano de tarifa em /painel-motorista
-    // (ou seja, já existe uma linha em driver_pricing).
+    // (ou seja, já existe uma linha em driver_pricing) E já ativou o modo
+    // motorista por lá - sem isso, alguém que nunca ativou o modo via
+    // duplicidade acabava vendo esse controle de qualquer forma.
     const [isDriver, setIsDriver] = useState(false)
+    const [driverModeActive, setDriverModeActive] = useState(false)
     const [liveLocationSync, setLiveLocationSync] = useState(false)
     const [savingSync, setSavingSync] = useState(false)
+    const [showDeactivateConfirm, setShowDeactivateConfirm] = useState(false)
 
     useEffect(() => {
         if (!isAuthenticated) return
@@ -178,12 +182,13 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
 
             const { data } = await supabase
                 .from('driver_pricing')
-                .select('live_location_sync')
+                .select('live_location_sync, driver_mode_active')
                 .eq('driver_id', userId)
                 .maybeSingle()
 
             if (data) {
                 setIsDriver(true)
+                setDriverModeActive(!!data.driver_mode_active)
                 setLiveLocationSync(!!data.live_location_sync)
             }
         }
@@ -191,26 +196,35 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
         loadDriverSync()
     }, [isAuthenticated, userId])
 
-    const toggleLiveLocationSync = useCallback(async () => {
+    // live_location_sync sozinho não basta - sem o modo motorista ativo,
+    // nenhum comportamento de "ao vivo" (rastreamento, rótulo, mapa) deve
+    // rodar, mesmo que o valor tenha ficado true no banco de antes.
+    const effectiveLiveSync = liveLocationSync && driverModeActive
+
+    // Clicar em "Sincronização para motorista" (só visível com o modo já
+    // ativo) pergunta se quer desativar o modo motorista - não é mais um
+    // toggle direto de live_location_sync, já que esse controle representa
+    // "estou ativo como motorista agora".
+    const handleDeactivateDriverMode = useCallback(async () => {
         setSavingSync(true)
-        const nextValue = !liveLocationSync
         try {
             const { data: { user } } = await supabase.auth.getUser()
             if (!user) return
 
             const { error } = await supabase
                 .from('driver_pricing')
-                .update({ live_location_sync: nextValue })
+                .update({ driver_mode_active: false })
                 .eq('driver_id', user.id)
 
             if (error) throw error
-            setLiveLocationSync(nextValue)
+            setDriverModeActive(false)
+            setShowDeactivateConfirm(false)
         } catch (err) {
-            console.error('Erro ao atualizar sincronização do motorista:', err)
+            console.error('Erro ao desativar modo motorista:', err)
         } finally {
             setSavingSync(false)
         }
-    }, [liveLocationSync])
+    }, [])
 
     // ===== CONFIRMATION DIALOG STATE =====
     const [showConfirmDialog, setShowConfirmDialog] = useState(false)
@@ -270,7 +284,7 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
     const liveWatchIdRef = useRef<GeoWatchHandle | null>(null)
 
     useEffect(() => {
-        if (!liveLocationSync || !mapReady) return
+        if (!effectiveLiveSync || !mapReady) return
 
         liveWatchIdRef.current = watchNativePosition(
             (pos) => {
@@ -316,7 +330,7 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
                 liveWatchIdRef.current = null
             }
         }
-    }, [liveLocationSync, mapReady, newNumber])
+    }, [effectiveLiveSync, mapReady, newNumber])
 
     // Enquanto sincronizado, esconde o marcador/linha da localização salva —
     // o mapa mostra só a posição atual. Os dados salvos continuam intactos
@@ -327,19 +341,19 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
         if (!mapReady || !map) return
 
         if (savedMarkerRef.current) {
-            if (liveLocationSync) {
+            if (effectiveLiveSync) {
                 map.removeLayer(savedMarkerRef.current)
             } else if (!map.hasLayer(savedMarkerRef.current)) {
                 savedMarkerRef.current.addTo(map)
             }
         }
         if (polylineRef.current) {
-            if (liveLocationSync) {
+            if (effectiveLiveSync) {
                 map.removeLayer(polylineRef.current)
                 polylineRef.current = null
             }
         }
-    }, [liveLocationSync, mapReady])
+    }, [effectiveLiveSync, mapReady])
 
     // ===== FLY TO =====
     const flyTo = useCallback((lat: number, lng: number) => {
@@ -763,49 +777,47 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
                         💡 Arraste o marcador laranja ou o mapa para ajustar a nova localização
                     </p>
 
-                    {isDriver && (
+                    {isDriver && driverModeActive && (
                         <button
-                            onClick={toggleLiveLocationSync}
+                            onClick={() => setShowDeactivateConfirm(true)}
                             disabled={savingSync}
                             className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl mb-3 transition-all disabled:opacity-60"
                             style={{
-                                background: liveLocationSync ? '#22c55e20' : `${colors.surface}88`,
-                                border: `1px solid ${liveLocationSync ? '#22c55e60' : colors.border}`,
+                                background: '#22c55e20',
+                                border: '1px solid #22c55e60',
                             }}
                         >
                             <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center"
-                                style={{ background: liveLocationSync ? '#22c55e' : `${colors.border}40` }}>
+                                style={{ background: '#22c55e' }}>
                                 {savingSync ? (
-                                    <Spinner size={14} color={liveLocationSync ? '#ffffff' : colors.textPrimary} />
+                                    <Spinner size={14} color="#ffffff" />
                                 ) : (
-                                    <Car size={16} color={liveLocationSync ? '#ffffff' : colors.textPrimary} />
+                                    <Car size={16} color="#ffffff" />
                                 )}
                             </div>
                             <div className="flex-1 min-w-0 text-left">
                                 <span className="flex items-center gap-1.5 text-xs font-bold" style={{ color: colors.textPrimary }}>
                                     Sincronização para motorista
-                                    {liveLocationSync && <Radio size={11} style={{ color: '#22c55e' }} />}
+                                    {effectiveLiveSync && <Radio size={11} style={{ color: '#22c55e' }} />}
                                 </span>
                                 <p className="text-[10px] mt-0.5 opacity-70" style={{ color: colors.textPrimary }}>
-                                    {liveLocationSync
-                                        ? 'Ativada — sua localização em tempo real aparece no mapa de /aceitar-corridas'
-                                        : 'Mostra sua localização em tempo real no mapa de /aceitar-corridas'}
+                                    Modo motorista ativo — toque para desativar
                                 </p>
                             </div>
                             <div
                                 className="flex-shrink-0 w-10 h-6 rounded-full relative transition-all"
-                                style={{ background: liveLocationSync ? '#22c55e' : colors.border }}
+                                style={{ background: '#22c55e' }}
                             >
                                 <div
                                     className="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all"
-                                    style={{ left: liveLocationSync ? 18 : 2 }}
+                                    style={{ left: 18 }}
                                 />
                             </div>
                         </button>
                     )}
 
                     <div className="space-y-2 mb-3">
-                        {savedPosition && !liveLocationSync && (
+                        {savedPosition && !effectiveLiveSync && (
                             <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-xl"
                                 style={{
                                     background: `${colors.surface}88`,
@@ -851,7 +863,7 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
                             </div>
                             <div className="flex-1 min-w-0">
                                 <span className="text-[10px] font-semibold uppercase tracking-wider opacity-50" style={{ color: colors.textPrimary }}>
-                                    {liveLocationSync ? 'Localização atual (ao vivo)' : 'Nova localização'}
+                                    {effectiveLiveSync ? 'Localização atual (ao vivo)' : 'Nova localização'}
                                 </span>
                                 {resolvingAddress ? (
                                     <p className="text-xs mt-0.5 opacity-50" style={{ color: colors.textPrimary }}>
@@ -1007,6 +1019,62 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
                             >
                                 <Check size={14} />
                                 Confirmar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {showDeactivateConfirm && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+                    <div
+                        className="w-full max-w-md rounded-3xl p-6 shadow-2xl space-y-5 animate-slide-up"
+                        style={{
+                            background: colors.surface,
+                            border: `1px solid ${colors.border}`,
+                            color: colors.textPrimary,
+                        }}
+                    >
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
+                                style={{ background: '#f9731620' }}>
+                                <Car size={20} style={{ color: '#f97316' }} />
+                            </div>
+                            <h2 className="text-lg font-black" style={{ color: colors.textPrimary }}>
+                                Desativar modo motorista?
+                            </h2>
+                        </div>
+
+                        <p className="text-xs font-medium" style={{ color: colors.textPrimary, opacity: 0.8 }}>
+                            Você não vai mais aparecer como disponível para novas corridas até ativar o modo de novo em /painel-motorista.
+                        </p>
+
+                        <div className="flex gap-2 pt-2">
+                            <button
+                                onClick={() => setShowDeactivateConfirm(false)}
+                                disabled={savingSync}
+                                className="flex-1 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all hover:scale-[1.02] disabled:opacity-60"
+                                style={{
+                                    background: `${colors.surface}88`,
+                                    color: colors.textPrimary,
+                                    border: `1px solid ${colors.border}`,
+                                }}
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={handleDeactivateDriverMode}
+                                disabled={savingSync}
+                                className="flex-1 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all hover:scale-[1.02] flex items-center justify-center gap-2 disabled:opacity-60"
+                                style={{
+                                    background: 'linear-gradient(135deg, #f97316, #dc2626)',
+                                    color: '#ffffff',
+                                    boxShadow: '0 4px 14px rgba(249, 115, 22, 0.4)',
+                                    border: 'none',
+                                }}
+                            >
+                                {savingSync ? <Spinner size={14} color="#ffffff" /> : <Check size={14} />}
+                                Desativar
                             </button>
                         </div>
                     </div>
