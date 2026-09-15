@@ -107,7 +107,12 @@ export default function AdminDashboard() {
             {section === 'pagamentos' && <PaymentsSection cardStyle={cardStyle} colors={colors} />}
             {section === 'codigos' && <CodesSection cardStyle={cardStyle} colors={colors} />}
             {section === 'administradores' && <AdminsSection cardStyle={cardStyle} colors={colors} />}
-            {section === 'configuracoes' && <SettingsSection cardStyle={cardStyle} colors={colors} />}
+            {section === 'configuracoes' && (
+                <div className="space-y-5">
+                    <SettingsSection cardStyle={cardStyle} colors={colors} />
+                    <PixKeysSection cardStyle={cardStyle} colors={colors} />
+                </div>
+            )}
         </div>
     )
 }
@@ -487,16 +492,12 @@ interface Settings {
 }
 
 function SettingsSection({ cardStyle, colors }: SectionProps) {
-    const [settings, setSettings] = useState<Settings | null>(null)
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
 
     const [price, setPrice] = useState('1.00')
     const [lifetime, setLifetime] = useState(true)
     const [validityDays, setValidityDays] = useState('30')
-    const [pixKey, setPixKey] = useState('')
-    const [pixKeyType, setPixKeyType] = useState('cpf')
-    const [pixReceiverName, setPixReceiverName] = useState('')
 
     useEffect(() => {
         supabase
@@ -506,13 +507,9 @@ function SettingsSection({ cardStyle, colors }: SectionProps) {
             .single()
             .then(({ data }) => {
                 if (data) {
-                    setSettings(data as Settings)
                     setPrice((data.price_cents / 100).toFixed(2))
                     setLifetime(!data.validity_days)
                     if (data.validity_days) setValidityDays(String(data.validity_days))
-                    setPixKey(data.pix_key || '')
-                    setPixKeyType(data.pix_key_type || 'cpf')
-                    setPixReceiverName(data.pix_receiver_name || '')
                 }
                 setLoading(false)
             })
@@ -526,12 +523,11 @@ function SettingsSection({ cardStyle, colors }: SectionProps) {
         }
         setSaving(true)
         try {
+            // A chave PIX ativa é gerenciada à parte, em PixKeysSection logo
+            // abaixo - aqui só preço/validade.
             await callAdminApi('/api/admin/settings/update', {
                 priceCents,
                 validityDays: lifetime ? null : Number(validityDays),
-                pixKey: pixKey.trim() || null,
-                pixKeyType,
-                pixReceiverName: pixReceiverName.trim() || null,
             })
             toast.success('Configuração salva!')
         } catch (err: any) {
@@ -580,40 +576,209 @@ function SettingsSection({ cardStyle, colors }: SectionProps) {
                 </div>
             )}
 
-            <div>
-                <label className="text-[10px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>
-                    Chave PIX
-                </label>
-                <input value={pixKey} onChange={(e) => setPixKey(e.target.value)} style={inputStyle} className="mt-1" placeholder="CPF, e-mail, telefone ou chave aleatória" />
-            </div>
-
-            <div>
-                <label className="text-[10px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>
-                    Tipo da chave
-                </label>
-                <select value={pixKeyType} onChange={(e) => setPixKeyType(e.target.value)} style={inputStyle} className="mt-1">
-                    <option value="cpf">CPF</option>
-                    <option value="email">E-mail</option>
-                    <option value="phone">Telefone</option>
-                    <option value="random">Aleatória</option>
-                </select>
-            </div>
-
-            <div>
-                <label className="text-[10px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>
-                    Nome do recebedor (mostrado a quem paga)
-                </label>
-                <input value={pixReceiverName} onChange={(e) => setPixReceiverName(e.target.value)} style={inputStyle} className="mt-1" />
-            </div>
-
             <button
                 onClick={save}
                 disabled={saving}
                 className="w-full py-3 rounded-xl font-black uppercase text-xs text-white disabled:opacity-50"
                 style={{ background: colors.accent }}
             >
-                {saving ? <Spinner size={14} /> : 'Salvar configurações'}
+                {saving ? <Spinner size={14} /> : 'Salvar preço e validade'}
             </button>
+        </div>
+    )
+}
+
+interface PixKeyRow {
+    id: string
+    pix_key: string
+    pix_key_type: 'cpf' | 'email' | 'phone' | 'random'
+    receiver_name: string | null
+    is_default: boolean
+    created_at: string
+}
+
+const PIX_TYPE_LABELS: Record<string, string> = {
+    cpf: 'CPF',
+    email: 'E-mail',
+    phone: 'Telefone',
+    random: 'Aleatória',
+}
+
+function PixKeysSection({ cardStyle, colors }: SectionProps) {
+    const [keys, setKeys] = useState<PixKeyRow[]>([])
+    const [loading, setLoading] = useState(true)
+    const [actingId, setActingId] = useState<string | null>(null)
+
+    const [newKey, setNewKey] = useState('')
+    const [newType, setNewType] = useState<'cpf' | 'email' | 'phone' | 'random'>('cpf')
+    const [newReceiver, setNewReceiver] = useState('')
+    const [newSetDefault, setNewSetDefault] = useState(true)
+    const [adding, setAdding] = useState(false)
+
+    const load = useCallback(async () => {
+        setLoading(true)
+        try {
+            const { pixKeys } = await callAdminApi<{ pixKeys: PixKeyRow[] }>('/api/admin/pix-keys/list')
+            setKeys(pixKeys)
+        } catch (err: any) {
+            toast.error(err.message || 'Erro ao carregar chaves PIX')
+        } finally {
+            setLoading(false)
+        }
+    }, [])
+
+    useEffect(() => { load() }, [load])
+
+    const addKey = async () => {
+        if (!newKey.trim()) return
+        setAdding(true)
+        try {
+            await callAdminApi('/api/admin/pix-keys/create', {
+                pixKey: newKey.trim(),
+                pixKeyType: newType,
+                receiverName: newReceiver.trim() || undefined,
+                setDefault: newSetDefault,
+            })
+            toast.success('Chave PIX cadastrada!')
+            setNewKey('')
+            setNewReceiver('')
+            await load()
+        } catch (err: any) {
+            toast.error(err.message || 'Erro ao cadastrar chave')
+        } finally {
+            setAdding(false)
+        }
+    }
+
+    const setDefault = async (id: string) => {
+        setActingId(id)
+        try {
+            await callAdminApi('/api/admin/pix-keys/set-default', { id })
+            toast.success('Chave padrão atualizada!')
+            await load()
+        } catch (err: any) {
+            toast.error(err.message || 'Erro ao definir chave padrão')
+        } finally {
+            setActingId(null)
+        }
+    }
+
+    const remove = async (id: string) => {
+        setActingId(id)
+        try {
+            await callAdminApi('/api/admin/pix-keys/delete', { id })
+            toast.success('Chave removida')
+            await load()
+        } catch (err: any) {
+            toast.error(err.message || 'Erro ao remover chave')
+        } finally {
+            setActingId(null)
+        }
+    }
+
+    const inputStyle: React.CSSProperties = {
+        background: colors.background,
+        border: `1px solid ${colors.border}`,
+        color: colors.textPrimary,
+        borderRadius: 12,
+        padding: '8px 12px',
+        fontSize: 13,
+    }
+
+    return (
+        <div className="space-y-3">
+            <p className="text-xs font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>
+                Chaves PIX
+            </p>
+
+            {loading ? (
+                <div className="flex justify-center py-6"><Spinner size={20} color={colors.accent} /></div>
+            ) : keys.length === 0 ? (
+                <div className="text-sm" style={{ ...cardStyle, color: colors.textSecondary }}>
+                    Nenhuma chave cadastrada ainda.
+                </div>
+            ) : keys.map((k) => (
+                <div key={k.id} style={cardStyle} className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                        <p className="text-sm font-bold truncate flex items-center gap-2" style={{ color: colors.textPrimary }}>
+                            {k.pix_key}
+                            {k.is_default && (
+                                <span
+                                    className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full"
+                                    style={{ background: colors.accent, color: colors.accentText }}
+                                >
+                                    Padrão
+                                </span>
+                            )}
+                        </p>
+                        <p className="text-[11px]" style={{ color: colors.textSecondary }}>
+                            {PIX_TYPE_LABELS[k.pix_key_type] || k.pix_key_type}
+                            {k.receiver_name ? ` · ${k.receiver_name}` : ''}
+                        </p>
+                    </div>
+                    <div className="flex gap-2 flex-shrink-0">
+                        {!k.is_default && (
+                            <button
+                                onClick={() => setDefault(k.id)}
+                                disabled={actingId === k.id}
+                                className="px-3 py-1.5 rounded-full font-bold text-[11px] disabled:opacity-50"
+                                style={{ background: colors.background, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                            >
+                                Usar como padrão
+                            </button>
+                        )}
+                        {!k.is_default && (
+                            <button
+                                onClick={() => remove(k.id)}
+                                disabled={actingId === k.id}
+                                className="w-8 h-8 rounded-full bg-red-500 text-white flex items-center justify-center disabled:opacity-50 flex-shrink-0"
+                            >
+                                <X size={14} />
+                            </button>
+                        )}
+                    </div>
+                </div>
+            ))}
+
+            <div style={cardStyle} className="space-y-3">
+                <p className="text-xs font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>
+                    Adicionar chave
+                </p>
+                <div className="flex flex-wrap gap-2">
+                    <input
+                        value={newKey}
+                        onChange={(e) => setNewKey(e.target.value)}
+                        placeholder="CPF, e-mail, telefone ou chave aleatória"
+                        style={{ ...inputStyle, flex: 1, minWidth: 160 }}
+                    />
+                    <select value={newType} onChange={(e) => setNewType(e.target.value as any)} style={inputStyle}>
+                        <option value="cpf">CPF</option>
+                        <option value="email">E-mail</option>
+                        <option value="phone">Telefone</option>
+                        <option value="random">Aleatória</option>
+                    </select>
+                    <input
+                        value={newReceiver}
+                        onChange={(e) => setNewReceiver(e.target.value)}
+                        placeholder="Nome do recebedor (opcional)"
+                        style={{ ...inputStyle, flex: 1, minWidth: 160 }}
+                    />
+                </div>
+                <div className="flex items-center gap-2">
+                    <input type="checkbox" checked={newSetDefault} onChange={(e) => setNewSetDefault(e.target.checked)} id="new-pix-default" />
+                    <label htmlFor="new-pix-default" className="text-xs" style={{ color: colors.textPrimary }}>
+                        Definir como padrão
+                    </label>
+                </div>
+                <button
+                    onClick={addKey}
+                    disabled={adding || !newKey.trim()}
+                    className="flex items-center justify-center gap-1.5 w-full py-2.5 rounded-xl font-black uppercase text-xs text-white disabled:opacity-50"
+                    style={{ background: colors.accent }}
+                >
+                    {adding ? <Spinner size={14} /> : <><Plus size={14} /> Adicionar chave</>}
+                </button>
+            </div>
         </div>
     )
 }

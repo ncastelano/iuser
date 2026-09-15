@@ -17,16 +17,21 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: 'Validade inválida' }, { status: 400 })
     }
 
+    // pixKey/pixKeyType/pixReceiverName são opcionais aqui - a chave PIX
+    // ativa é gerenciada por /api/admin/pix-keys/*; se não vierem, não mexe
+    // no que já estava salvo.
+    const update: Record<string, unknown> = {
+        price_cents: priceCents,
+        validity_days: validityDays || null,
+        updated_at: new Date().toISOString(),
+    }
+    if (pixKey !== undefined) update.pix_key = pixKey || null
+    if (pixKeyType !== undefined) update.pix_key_type = pixKeyType || null
+    if (pixReceiverName !== undefined) update.pix_receiver_name = pixReceiverName || null
+
     const { error } = await supabaseAdmin
         .from('store_access_settings')
-        .update({
-            price_cents: priceCents,
-            validity_days: validityDays || null,
-            pix_key: pixKey || null,
-            pix_key_type: pixKeyType || null,
-            pix_receiver_name: pixReceiverName || null,
-            updated_at: new Date().toISOString(),
-        })
+        .update(update)
         .eq('id', 1)
 
     if (error) {
