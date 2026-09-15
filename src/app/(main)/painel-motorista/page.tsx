@@ -66,6 +66,9 @@ function PainelMotoristaContent() {
     const [trunkBagsPequena, setTrunkBagsPequena] = useState('')
     const [trunkBagsMedia, setTrunkBagsMedia] = useState('')
     const [trunkBagsGrande, setTrunkBagsGrande] = useState('')
+    const [trunkSuitcasesPequena, setTrunkSuitcasesPequena] = useState('')
+    const [trunkSuitcasesMedia, setTrunkSuitcasesMedia] = useState('')
+    const [trunkSuitcasesGrande, setTrunkSuitcasesGrande] = useState('')
     const [savingVehicle, setSavingVehicle] = useState(false)
 
     // ===== AVALIAÇÕES E HISTÓRICO =====
@@ -117,7 +120,7 @@ function PainelMotoristaContent() {
 
         const { data: vehicle } = await supabase
             .from('driver_vehicles')
-            .select('car_model, car_color, car_plate, car_photo_url, services, passenger_capacity, has_baby_seat, trunk_bags_pequena, trunk_bags_media, trunk_bags_grande')
+            .select('car_model, car_color, car_plate, car_photo_url, services, passenger_capacity, has_baby_seat, trunk_bags_pequena, trunk_bags_media, trunk_bags_grande, trunk_suitcases_pequena, trunk_suitcases_media, trunk_suitcases_grande')
             .eq('driver_id', userId)
             .maybeSingle()
 
@@ -132,6 +135,9 @@ function PainelMotoristaContent() {
             setTrunkBagsPequena(vehicle.trunk_bags_pequena != null ? String(vehicle.trunk_bags_pequena) : '')
             setTrunkBagsMedia(vehicle.trunk_bags_media != null ? String(vehicle.trunk_bags_media) : '')
             setTrunkBagsGrande(vehicle.trunk_bags_grande != null ? String(vehicle.trunk_bags_grande) : '')
+            setTrunkSuitcasesPequena(vehicle.trunk_suitcases_pequena != null ? String(vehicle.trunk_suitcases_pequena) : '')
+            setTrunkSuitcasesMedia(vehicle.trunk_suitcases_media != null ? String(vehicle.trunk_suitcases_media) : '')
+            setTrunkSuitcasesGrande(vehicle.trunk_suitcases_grande != null ? String(vehicle.trunk_suitcases_grande) : '')
         }
 
         const { data: reviewRows } = await supabase
@@ -198,6 +204,9 @@ function PainelMotoristaContent() {
                     trunk_bags_pequena: trunkBagsPequena.trim() ? parseInt(trunkBagsPequena, 10) || null : null,
                     trunk_bags_media: trunkBagsMedia.trim() ? parseInt(trunkBagsMedia, 10) || null : null,
                     trunk_bags_grande: trunkBagsGrande.trim() ? parseInt(trunkBagsGrande, 10) || null : null,
+                    trunk_suitcases_pequena: trunkSuitcasesPequena.trim() ? parseInt(trunkSuitcasesPequena, 10) || null : null,
+                    trunk_suitcases_media: trunkSuitcasesMedia.trim() ? parseInt(trunkSuitcasesMedia, 10) || null : null,
+                    trunk_suitcases_grande: trunkSuitcasesGrande.trim() ? parseInt(trunkSuitcasesGrande, 10) || null : null,
                 },
                 { onConflict: 'driver_id' }
             )
@@ -775,6 +784,51 @@ function PainelMotoristaContent() {
                                                 min={0}
                                                 value={trunkBagsGrande}
                                                 onChange={(e) => setTrunkBagsGrande(e.target.value)}
+                                                placeholder="0"
+                                                className="w-full p-2 rounded-full border text-sm"
+                                                style={{ background: colors.background, borderColor: colors.border, color: colors.textPrimary }}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <p className="text-[9px] font-bold mt-3 mb-1.5" style={{ color: colors.textSecondary }}>
+                                        Malas de viagem que cabem no porta-malas
+                                    </p>
+                                    <div className="grid grid-cols-3 gap-2">
+                                        <div>
+                                            <label className="text-[9px] font-bold block" style={{ color: colors.textSecondary }}>Pequena</label>
+                                            <span className="text-[8px] block mb-1" style={{ color: colors.textSecondary, opacity: 0.7 }}>até 55cm</span>
+                                            <input
+                                                type="number"
+                                                min={0}
+                                                value={trunkSuitcasesPequena}
+                                                onChange={(e) => setTrunkSuitcasesPequena(e.target.value)}
+                                                placeholder="0"
+                                                className="w-full p-2 rounded-full border text-sm"
+                                                style={{ background: colors.background, borderColor: colors.border, color: colors.textPrimary }}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-[9px] font-bold block" style={{ color: colors.textSecondary }}>Média</label>
+                                            <span className="text-[8px] block mb-1" style={{ color: colors.textSecondary, opacity: 0.7 }}>até 65cm</span>
+                                            <input
+                                                type="number"
+                                                min={0}
+                                                value={trunkSuitcasesMedia}
+                                                onChange={(e) => setTrunkSuitcasesMedia(e.target.value)}
+                                                placeholder="0"
+                                                className="w-full p-2 rounded-full border text-sm"
+                                                style={{ background: colors.background, borderColor: colors.border, color: colors.textPrimary }}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-[9px] font-bold block" style={{ color: colors.textSecondary }}>Grande</label>
+                                            <span className="text-[8px] block mb-1" style={{ color: colors.textSecondary, opacity: 0.7 }}>até 75cm</span>
+                                            <input
+                                                type="number"
+                                                min={0}
+                                                value={trunkSuitcasesGrande}
+                                                onChange={(e) => setTrunkSuitcasesGrande(e.target.value)}
                                                 placeholder="0"
                                                 className="w-full p-2 rounded-full border text-sm"
                                                 style={{ background: colors.background, borderColor: colors.border, color: colors.textPrimary }}
