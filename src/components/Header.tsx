@@ -198,6 +198,18 @@ export default function Header({
 
     const enhancedTabs: Tab[] = tabs || []
 
+    // Rola a aba ativa pra dentro da área visível - importante numa lista
+    // que precisa de swipe pro lado (celular): sem isso, uma aba que virou
+    // ativa fora da tela (ex: Admin, sempre presente mas nem sempre visível)
+    // parece que "sumiu", quando só estava fora da área visível.
+    const tabsScrollRef = useRef<HTMLDivElement>(null)
+    const activeTabId = enhancedTabs.find((t) => t.isActive)?.id
+    useEffect(() => {
+        if (!activeTabId || !tabsScrollRef.current) return
+        const el = tabsScrollRef.current.querySelector(`[data-tab-id="${activeTabId}"]`)
+        el?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
+    }, [activeTabId])
+
     const getTabBackground = (tab: Tab): string => {
         if (tab.statusColor) {
             return tab.statusColor
@@ -361,8 +373,14 @@ export default function Header({
 
                     {enhancedTabs.length > 0 && (
                         <div
+                            ref={tabsScrollRef}
                             className="flex gap-1.5 mt-2 overflow-x-auto scroll-smooth pb-1 pt-1 scrollbar-hide"
-                            style={{ overflowY: 'visible' }}
+                            style={{
+                                overflowY: 'visible',
+                                scrollSnapType: 'x proximity',
+                                WebkitOverflowScrolling: 'touch',
+                                overscrollBehaviorX: 'contain',
+                            }}
                         >
                             {enhancedTabs.map((tab) => {
                                 const backgroundColor = getTabBackground(tab)
@@ -373,6 +391,7 @@ export default function Header({
                                 return (
                                     <button
                                         key={tab.id}
+                                        data-tab-id={tab.id}
                                         onClick={tab.onClick}
                                         disabled={loading}
                                         className="relative flex items-center pl-0 pr-3 py-0.5 rounded-full text-xs sm:text-sm font-semibold transition-all duration-200 whitespace-nowrap disabled:opacity-50 flex-shrink-0"
@@ -381,6 +400,7 @@ export default function Header({
                                             backdropFilter: 'blur(10px)',
                                             color: textColor,
                                             overflow: 'visible',
+                                            scrollSnapAlign: 'start',
                                             border: `1.5px solid ${borderColor}`,
                                             ...(isActive && !tab.statusColor ? {
                                                 boxShadow: `0 2px 8px #f9731640`,
