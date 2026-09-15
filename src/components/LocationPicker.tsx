@@ -171,11 +171,34 @@ export default function LocationPicker({ initialLocation, onSave, onClose, allow
     // 'complement' vêm depois, em sequência, só depois do endereço definido.
     const [step, setStep] = useState<'choose' | 'address' | 'number' | 'complement'>('choose')
     const [method, setMethod] = useState<'search' | 'map' | null>(null)
+    // Enquanto busca o GPS do aparelho antes de abrir o mapa (só quando não
+    // há localização salva pra centralizar nela) - sem isso o mapa abriria
+    // sempre no mesmo ponto fixo (Brasília), em vez de onde a pessoa está.
+    const [resolvingMapEntry, setResolvingMapEntry] = useState(false)
 
     const chooseMethod = useCallback((m: 'search' | 'map') => {
         setMethod(m)
+
+        if (m === 'map' && !initialLocation) {
+            setResolvingMapEntry(true)
+            getNativeCurrentPosition(
+                (pos) => {
+                    setSelectedPosition({ lat: pos.coords.latitude, lng: pos.coords.longitude })
+                    setResolvingMapEntry(false)
+                    setStep('address')
+                },
+                () => {
+                    // sem permissão/indisponível: segue mesmo assim com o ponto padrão
+                    setResolvingMapEntry(false)
+                    setStep('address')
+                },
+                { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
+            )
+            return
+        }
+
         setStep('address')
-    }, [])
+    }, [initialLocation])
 
     // ===== SINCRONIZAÇÃO DE LOCALIZAÇÃO PARA MOTORISTA =====
     // Só aparece pra quem já aceitou um plano de tarifa em /painel-motorista
@@ -563,8 +586,11 @@ export default function LocationPicker({ initialLocation, onSave, onClose, allow
         }
     }, [selectedPosition, savedPosition, newNumber, authChecked, isAuthenticated])
 
+    // O mapa só é montado quando o método escolhido é "marcar no mapa" - pra
+    // "escrever endereço" não faz sentido nem baixar o Leaflet nem mostrar
+    // um endereço padrão vindo de um mapa que a pessoa nunca pediu pra ver.
     useEffect(() => {
-        if (step !== 'address' || !authChecked || !isAuthenticated || !mapContainerRef.current) {
+        if (step !== 'address' || method !== 'map' || !authChecked || !isAuthenticated || !mapContainerRef.current) {
             return
         }
 
@@ -575,22 +601,22 @@ export default function LocationPicker({ initialLocation, onSave, onClose, allow
         }, 200)
 
         return () => clearTimeout(timer)
-    }, [step, authChecked, isAuthenticated, initializeMap])
+    }, [step, method, authChecked, isAuthenticated, initializeMap])
 
-    // O container do mapa só existe no DOM enquanto a etapa é 'address' (ver
-    // JSX mais abaixo) - ao sair dessa etapa, o container antigo é desmontado
-    // e o Leaflet fica órfão. Zera o guard de inicialização aqui pra que,
-    // voltando pra 'address', um mapa novo seja montado no container novo -
-    // sem isso, o mapa fica em branco na segunda vez.
+    // O container do mapa só existe no DOM enquanto a etapa é 'address' e o
+    // método é "mapa" (ver JSX mais abaixo) - ao sair daí, o container
+    // antigo é desmontado e o Leaflet fica órfão. Zera o guard de
+    // inicialização aqui pra que, voltando, um mapa novo seja montado no
+    // container novo - sem isso, o mapa fica em branco na segunda vez.
     useEffect(() => {
-        if (step === 'address' || !initializedRef.current) return
+        if ((step === 'address' && method === 'map') || !initializedRef.current) return
         initializedRef.current = false
         mapInstanceRef.current = null
         movableMarkerRef.current = null
         savedMarkerRef.current = null
         polylineRef.current = null
         setMapReady(false)
-    }, [step])
+    }, [step, method])
 
     const handleGetCurrentLocation = useCallback(() => {
         setUsingGPS(true)
@@ -774,34 +800,45 @@ export default function LocationPicker({ initialLocation, onSave, onClose, allow
                                 </div>
                             )}
 
-                            <p className="text-sm font-black mb-3" style={{ color: colors.textPrimary }}>
-                                {savedAddress ? 'Quer atualizar sua localização?' : 'Você ainda não tem uma localização definida. Como quer defini-la?'}
-                            </p>
+                            {resolvingMapEntry ? (
+                                <div className="flex flex-col items-center gap-2 py-6">
+                                    <Spinner size={24} color="#f97316" />
+                                    <p className="text-xs font-medium" style={{ color: colors.textPrimary, opacity: 0.7 }}>
+                                        Obtendo sua localização atual...
+                                    </p>
+                                </div>
+                            ) : (
+                                <>
+                                    <p className="text-sm font-black mb-3" style={{ color: colors.textPrimary }}>
+                                        {savedAddress ? 'Quer atualizar sua localização?' : 'Você ainda não tem uma localização definida. Como quer defini-la?'}
+                                    </p>
 
-                            <div className="grid grid-cols-2 gap-3">
-                                <button
-                                    onClick={() => chooseMethod('search')}
-                                    className="flex flex-col items-center gap-1.5 p-3 rounded-2xl border-2 text-center transition hover:scale-[1.02] active:scale-95"
-                                    style={{ borderColor: colors.border, background: 'transparent' }}
-                                >
-                                    <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: `${colors.surface}88`, color: colors.textSecondary }}>
-                                        <Search size={18} />
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <button
+                                            onClick={() => chooseMethod('search')}
+                                            className="flex flex-col items-center gap-1.5 p-3 rounded-2xl border-2 text-center transition hover:scale-[1.02] active:scale-95"
+                                            style={{ borderColor: colors.border, background: 'transparent' }}
+                                        >
+                                            <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: `${colors.surface}88`, color: colors.textSecondary }}>
+                                                <Search size={18} />
+                                            </div>
+                                            <span className="text-xs font-bold" style={{ color: colors.textPrimary }}>Escrever endereço</span>
+                                            <span className="text-[9px]" style={{ color: colors.textSecondary, opacity: 0.8 }}>Digite o endereço</span>
+                                        </button>
+                                        <button
+                                            onClick={() => chooseMethod('map')}
+                                            className="flex flex-col items-center gap-1.5 p-3 rounded-2xl border-2 text-center transition hover:scale-[1.02] active:scale-95"
+                                            style={{ borderColor: colors.border, background: 'transparent' }}
+                                        >
+                                            <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: `${colors.surface}88`, color: colors.textSecondary }}>
+                                                <MapPin size={18} />
+                                            </div>
+                                            <span className="text-xs font-bold" style={{ color: colors.textPrimary }}>Marcar no mapa</span>
+                                            <span className="text-[9px]" style={{ color: colors.textSecondary, opacity: 0.8 }}>Toque ou arraste o pino</span>
+                                        </button>
                                     </div>
-                                    <span className="text-xs font-bold" style={{ color: colors.textPrimary }}>Escrever endereço</span>
-                                    <span className="text-[9px]" style={{ color: colors.textSecondary, opacity: 0.8 }}>Digite o endereço</span>
-                                </button>
-                                <button
-                                    onClick={() => chooseMethod('map')}
-                                    className="flex flex-col items-center gap-1.5 p-3 rounded-2xl border-2 text-center transition hover:scale-[1.02] active:scale-95"
-                                    style={{ borderColor: colors.border, background: 'transparent' }}
-                                >
-                                    <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: `${colors.surface}88`, color: colors.textSecondary }}>
-                                        <MapPin size={18} />
-                                    </div>
-                                    <span className="text-xs font-bold" style={{ color: colors.textPrimary }}>Marcar no mapa</span>
-                                    <span className="text-[9px]" style={{ color: colors.textSecondary, opacity: 0.8 }}>Toque ou arraste o pino</span>
-                                </button>
-                            </div>
+                                </>
+                            )}
                         </>
                     )}
 
@@ -861,9 +898,6 @@ export default function LocationPicker({ initialLocation, onSave, onClose, allow
                                             <span className="hidden sm:inline">GPS</span>
                                         </button>
                                     </div>
-                                    <p className="text-[10px] mb-2 opacity-60 text-center" style={{ color: colors.textPrimary }}>
-                                        Ou arraste o <strong>Pin</strong> ou o <strong>mapa</strong> para ajustar a localização
-                                    </p>
                                 </>
                             )}
 
@@ -885,16 +919,18 @@ export default function LocationPicker({ initialLocation, onSave, onClose, allow
                                 </div>
                             )}
 
-                            <div className="relative w-full h-48 sm:h-56 rounded-xl overflow-hidden mb-3"
-                                style={{ border: `2px solid ${colors.border}`, background: colors.surface }}
-                            >
-                                <div ref={mapContainerRef} className="w-full h-full" />
-                                {!mapReady && (
-                                    <div className="absolute inset-0 flex items-center justify-center" style={{ background: colors.surface }}>
-                                        <Spinner size={24} color="#f97316" />
-                                    </div>
-                                )}
-                            </div>
+                            {method === 'map' && (
+                                <div className="relative w-full h-48 sm:h-56 rounded-xl overflow-hidden mb-3"
+                                    style={{ border: `2px solid ${colors.border}`, background: colors.surface }}
+                                >
+                                    <div ref={mapContainerRef} className="w-full h-full" />
+                                    {!mapReady && (
+                                        <div className="absolute inset-0 flex items-center justify-center" style={{ background: colors.surface }}>
+                                            <Spinner size={24} color="#f97316" />
+                                        </div>
+                                    )}
+                                </div>
+                            )}
 
                             {allowDriverSync && isDriver && driverModeActive && (
                                 <button
@@ -921,51 +957,53 @@ export default function LocationPicker({ initialLocation, onSave, onClose, allow
                                 </button>
                             )}
 
-                            <div className="space-y-2 mb-3">
-                                {savedPosition && !effectiveLiveSync && (
+                            {(newAddress || resolvingAddress) && (
+                                <div className="space-y-2 mb-3">
+                                    {savedPosition && !effectiveLiveSync && method === 'map' && (
+                                        <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-xl"
+                                            style={{ background: `${colors.surface}88`, border: '1px solid #3B82F644' }}
+                                        >
+                                            <div className="flex-shrink-0 mt-0.5">
+                                                <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center">
+                                                    <Home size={14} style={{ color: '#3B82F6' }} />
+                                                </div>
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <span className="text-[10px] font-semibold uppercase tracking-wider opacity-50" style={{ color: colors.textPrimary }}>
+                                                    Localização salva
+                                                </span>
+                                                <p className="text-xs font-medium mt-0.5 break-words leading-relaxed" style={{ color: colors.textPrimary }}>
+                                                    {savedAddress || 'Carregando endereço...'}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    )}
+
                                     <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-xl"
-                                        style={{ background: `${colors.surface}88`, border: '1px solid #3B82F644' }}
+                                        style={{ background: `${colors.surface}88`, border: '1px solid #F9731644' }}
                                     >
                                         <div className="flex-shrink-0 mt-0.5">
-                                            <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center">
-                                                <Home size={14} style={{ color: '#3B82F6' }} />
+                                            <div className="w-6 h-6 rounded-full bg-orange-500/20 flex items-center justify-center">
+                                                <MoveVertical size={14} style={{ color: '#f97316' }} />
                                             </div>
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <span className="text-[10px] font-semibold uppercase tracking-wider opacity-50" style={{ color: colors.textPrimary }}>
-                                                Localização salva
+                                                {effectiveLiveSync ? 'Localização atual (ao vivo)' : 'Endereço selecionado'}
                                             </span>
-                                            <p className="text-xs font-medium mt-0.5 break-words leading-relaxed" style={{ color: colors.textPrimary }}>
-                                                {savedAddress || 'Carregando endereço...'}
-                                            </p>
+                                            {resolvingAddress ? (
+                                                <p className="text-xs mt-0.5 opacity-50" style={{ color: colors.textPrimary }}>
+                                                    Obtendo endereço...
+                                                </p>
+                                            ) : (
+                                                <p className="text-xs font-medium mt-0.5 break-words leading-relaxed" style={{ color: colors.textPrimary }}>
+                                                    {newAddress}
+                                                </p>
+                                            )}
                                         </div>
-                                    </div>
-                                )}
-
-                                <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-xl"
-                                    style={{ background: `${colors.surface}88`, border: '1px solid #F9731644' }}
-                                >
-                                    <div className="flex-shrink-0 mt-0.5">
-                                        <div className="w-6 h-6 rounded-full bg-orange-500/20 flex items-center justify-center">
-                                            <MoveVertical size={14} style={{ color: '#f97316' }} />
-                                        </div>
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <span className="text-[10px] font-semibold uppercase tracking-wider opacity-50" style={{ color: colors.textPrimary }}>
-                                            {effectiveLiveSync ? 'Localização atual (ao vivo)' : 'Endereço selecionado'}
-                                        </span>
-                                        {resolvingAddress ? (
-                                            <p className="text-xs mt-0.5 opacity-50" style={{ color: colors.textPrimary }}>
-                                                Obtendo endereço...
-                                            </p>
-                                        ) : (
-                                            <p className="text-xs font-medium mt-0.5 break-words leading-relaxed" style={{ color: colors.textPrimary }}>
-                                                {newAddress || 'Arraste o marcador laranja ou mova o mapa'}
-                                            </p>
-                                        )}
                                     </div>
                                 </div>
-                            </div>
+                            )}
 
                             {error && (
                                 <p className="text-red-500 text-xs font-medium mb-2 ml-1">{error}</p>
