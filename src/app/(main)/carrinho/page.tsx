@@ -196,6 +196,16 @@ export default function CarrinhoPage() {
         business_hours?: BusinessHours
     }>>({})
 
+    // Só existe pra forçar o recálculo periódico de aberto/fechado (ver
+    // getStoreStatus mais abaixo) - sem isso, o status fica travado no que
+    // foi calculado no primeiro render e só muda se algo mais causar um
+    // re-render (ex.: o polling de pedidos, que nem roda sem login).
+    const [, tickStoreStatus] = useState(0)
+    useEffect(() => {
+        const interval = setInterval(() => tickStoreStatus((n) => n + 1), 30000)
+        return () => clearInterval(interval)
+    }, [])
+
     // Opções selecionadas por loja
     const [deliveryOptionByStore, setDeliveryOptionByStore] = useState<Record<string, 'entrega' | 'retirada'>>({})
     const [paymentMethodByStore, setPaymentMethodByStore] = useState<Record<string, 'pix' | 'cartao' | 'dinheiro'>>({})
