@@ -54,12 +54,12 @@ export const PLATFORM_DEFAULT_EXTRA_FEES: DriverExtraFees = {
 }
 
 export const PLATFORM_DEFAULT_CONDITION_EXTRA_FEES: DriverConditionExtraFees = {
-    condominio: 5,
-    compras: 5,
-    necessidade_especial: 5,
-    pet_sem_caixa: 5,
-    entrega_interna: 5,
-    ar_condicionado: 5,
+    condominio: 1,
+    compras: 1,
+    necessidade_especial: 1,
+    pet_sem_caixa: 1,
+    entrega_interna: 1,
+    ar_condicionado: 1,
 }
 
 export const PLATFORM_DEFAULT_PRICING: DriverPricing = {

@@ -61,6 +61,11 @@ function PainelMotoristaContent() {
     const [carPhotoPreview, setCarPhotoPreview] = useState<string | null>(null)
     const [carPhotoPath, setCarPhotoPath] = useState<string | null>(null)
     const [services, setServices] = useState<string[]>([])
+    const [passengerCapacity, setPassengerCapacity] = useState('')
+    const [hasBabySeat, setHasBabySeat] = useState<boolean | null>(null)
+    const [trunkBagsPequena, setTrunkBagsPequena] = useState('')
+    const [trunkBagsMedia, setTrunkBagsMedia] = useState('')
+    const [trunkBagsGrande, setTrunkBagsGrande] = useState('')
     const [savingVehicle, setSavingVehicle] = useState(false)
 
     // ===== AVALIAÇÕES E HISTÓRICO =====
@@ -112,7 +117,7 @@ function PainelMotoristaContent() {
 
         const { data: vehicle } = await supabase
             .from('driver_vehicles')
-            .select('car_model, car_color, car_plate, car_photo_url, services')
+            .select('car_model, car_color, car_plate, car_photo_url, services, passenger_capacity, has_baby_seat, trunk_bags_pequena, trunk_bags_media, trunk_bags_grande')
             .eq('driver_id', userId)
             .maybeSingle()
 
@@ -122,6 +127,11 @@ function PainelMotoristaContent() {
             setCarPlate(vehicle.car_plate || '')
             setCarPhotoPath(vehicle.car_photo_url || null)
             setServices(vehicle.services || [])
+            setPassengerCapacity(vehicle.passenger_capacity != null ? String(vehicle.passenger_capacity) : '')
+            setHasBabySeat(vehicle.has_baby_seat)
+            setTrunkBagsPequena(vehicle.trunk_bags_pequena != null ? String(vehicle.trunk_bags_pequena) : '')
+            setTrunkBagsMedia(vehicle.trunk_bags_media != null ? String(vehicle.trunk_bags_media) : '')
+            setTrunkBagsGrande(vehicle.trunk_bags_grande != null ? String(vehicle.trunk_bags_grande) : '')
         }
 
         const { data: reviewRows } = await supabase
@@ -183,6 +193,11 @@ function PainelMotoristaContent() {
                     car_plate: carPlate.trim() || null,
                     car_photo_url: photoPath,
                     services,
+                    passenger_capacity: passengerCapacity.trim() ? parseInt(passengerCapacity, 10) || null : null,
+                    has_baby_seat: hasBabySeat,
+                    trunk_bags_pequena: trunkBagsPequena.trim() ? parseInt(trunkBagsPequena, 10) || null : null,
+                    trunk_bags_media: trunkBagsMedia.trim() ? parseInt(trunkBagsMedia, 10) || null : null,
+                    trunk_bags_grande: trunkBagsGrande.trim() ? parseInt(trunkBagsGrande, 10) || null : null,
                 },
                 { onConflict: 'driver_id' }
             )
@@ -686,6 +701,85 @@ function PainelMotoristaContent() {
                                             className="col-span-2 w-full p-2 rounded-full border text-xs"
                                             style={{ background: colors.background, borderColor: colors.border, color: colors.textPrimary }}
                                         />
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <p className="text-[10px] font-black mb-2" style={{ color: colors.textSecondary }}>Capacidade do carro</p>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                            <label className="text-[9px] font-bold block mb-1" style={{ color: colors.textSecondary }}>Quantos passageiros cabem?</label>
+                                            <input
+                                                type="number"
+                                                min={1}
+                                                value={passengerCapacity}
+                                                onChange={(e) => setPassengerCapacity(e.target.value)}
+                                                placeholder="4"
+                                                className="w-full p-2 rounded-full border text-sm"
+                                                style={{ background: colors.background, borderColor: colors.border, color: colors.textPrimary }}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-[9px] font-bold block mb-1" style={{ color: colors.textSecondary }}>Tem banco para bebê?</label>
+                                            <div className="flex items-center gap-1.5">
+                                                <button
+                                                    onClick={() => setHasBabySeat(true)}
+                                                    className="flex-1 py-2 rounded-full text-[11px] font-black transition-all"
+                                                    style={hasBabySeat === true ? { background: GRADIENT, color: '#fff' } : { background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                                                >
+                                                    SIM
+                                                </button>
+                                                <button
+                                                    onClick={() => setHasBabySeat(false)}
+                                                    className="flex-1 py-2 rounded-full text-[11px] font-black transition-all"
+                                                    style={hasBabySeat === false ? { background: GRADIENT, color: '#fff' } : { background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                                                >
+                                                    NÃO
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <p className="text-[9px] font-bold mt-3 mb-1.5" style={{ color: colors.textSecondary }}>
+                                        Sacolas de compras que cabem no porta-malas
+                                    </p>
+                                    <div className="grid grid-cols-3 gap-2">
+                                        <div>
+                                            <label className="text-[9px] font-bold block mb-1" style={{ color: colors.textSecondary }}>Pequena</label>
+                                            <input
+                                                type="number"
+                                                min={0}
+                                                value={trunkBagsPequena}
+                                                onChange={(e) => setTrunkBagsPequena(e.target.value)}
+                                                placeholder="0"
+                                                className="w-full p-2 rounded-full border text-sm"
+                                                style={{ background: colors.background, borderColor: colors.border, color: colors.textPrimary }}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-[9px] font-bold block mb-1" style={{ color: colors.textSecondary }}>Média</label>
+                                            <input
+                                                type="number"
+                                                min={0}
+                                                value={trunkBagsMedia}
+                                                onChange={(e) => setTrunkBagsMedia(e.target.value)}
+                                                placeholder="0"
+                                                className="w-full p-2 rounded-full border text-sm"
+                                                style={{ background: colors.background, borderColor: colors.border, color: colors.textPrimary }}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-[9px] font-bold block mb-1" style={{ color: colors.textSecondary }}>Grande</label>
+                                            <input
+                                                type="number"
+                                                min={0}
+                                                value={trunkBagsGrande}
+                                                onChange={(e) => setTrunkBagsGrande(e.target.value)}
+                                                placeholder="0"
+                                                className="w-full p-2 rounded-full border text-sm"
+                                                style={{ background: colors.background, borderColor: colors.border, color: colors.textPrimary }}
+                                            />
+                                        </div>
                                     </div>
                                 </div>
 
