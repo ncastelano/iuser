@@ -266,6 +266,19 @@ export default function CompromissosPage() {
     const [bgMode, setBgMode] = useState<BgMode>('black')
     const [customBgUrl, setCustomBgUrl] = useState<string | null>(null)
 
+    // Abrir direto numa aba específica via link (ex: notificação de agendamento
+    // numa loja) - lido do próprio window.location pra não precisar de
+    // useSearchParams/Suspense nessa página.
+    useEffect(() => {
+        if (typeof window === 'undefined') return
+        const tabParam = new URLSearchParams(window.location.search).get('tab')
+        if (tabParam) {
+            setActiveTab(tabParam)
+            router.replace('/compromissos', { scroll: false })
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
+
     useEffect(() => {
         if (!userId) return
         supabase

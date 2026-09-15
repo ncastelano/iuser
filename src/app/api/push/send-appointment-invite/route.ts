@@ -23,7 +23,7 @@ export async function POST(req: Request) {
 
         const { data: appointment, error: apptError } = await supabaseAdmin
             .from('appointments')
-            .select('id, customer_id, customer_slug, owner_id, owner_slug, service_name, date, time, status, store_name')
+            .select('id, customer_id, customer_slug, owner_id, owner_slug, service_name, date, time, status, store_name, store_id')
             .eq('id', appointmentId)
             .single()
 
@@ -40,15 +40,21 @@ export async function POST(req: Request) {
         let targetUserId: string
         let title: string
         let body: string
+        let url: string
 
         if (appointment.owner_id === user.id) {
+            // Convite pessoal: pro convidado, o compromisso aparece na aba "Pessoal"
+            // (filtrada por customer_id, não por loja), então não precisa de aba específica.
             targetUserId = appointment.customer_id
             title = `Convite de @${appointment.owner_slug}`
             body = `${appointment.service_name} · ${appointment.date} às ${appointment.time?.slice(0, 5)}`
+            url = '/compromissos'
         } else if (appointment.customer_id === user.id) {
             targetUserId = appointment.owner_id
             title = appointment.store_name ? `Novo agendamento em ${appointment.store_name}` : 'Novo agendamento'
             body = `${appointment.customer_slug ? '@' + appointment.customer_slug : 'Alguém'} agendou: ${appointment.service_name} · ${appointment.date} às ${appointment.time?.slice(0, 5)}`
+            // Se for agendamento numa loja, leva direto pra aba daquela loja em /compromissos
+            url = appointment.store_id ? `/compromissos?tab=${appointment.store_id}` : '/compromissos'
         } else {
             return NextResponse.json({ error: 'Sem permissão' }, { status: 403 })
         }
@@ -56,7 +62,7 @@ export async function POST(req: Request) {
         const { sent } = await sendPushToUser(targetUserId, {
             title,
             body,
-            url: '/compromissos',
+            url,
             tag: `appointment-invite-${appointment.id}`,
         })
 
