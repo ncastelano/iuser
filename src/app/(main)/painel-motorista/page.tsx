@@ -10,7 +10,7 @@ import Header from '@/components/Header'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import LoginAndRegister from '@/components/LoginAndRegister/LoginAndRegister'
 import { toast } from 'sonner'
-import { TrendingUp, Car, Camera, Star, MessageSquare, Clock } from 'lucide-react'
+import { TrendingUp, Car, Camera, Star, MessageSquare, Clock, CheckCircle2 } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import { computeSuggestedPrice, PLATFORM_DEFAULT_PRICING, PLATFORM_DEFAULT_EXTRA_FEES, PLATFORM_DEFAULT_CONDITION_EXTRA_FEES, PricingMode } from '@/lib/driverPricing'
 import { createSquareImage } from '@/lib/image'
@@ -70,6 +70,8 @@ function PainelMotoristaContent() {
     const [trunkSuitcasesMedia, setTrunkSuitcasesMedia] = useState('')
     const [trunkSuitcasesGrande, setTrunkSuitcasesGrande] = useState('')
     const [savingVehicle, setSavingVehicle] = useState(false)
+    const [isFirstVehicleSetup, setIsFirstVehicleSetup] = useState(false)
+    const [showFirstVehicleDialog, setShowFirstVehicleDialog] = useState(false)
 
     // ===== AVALIAÇÕES E HISTÓRICO =====
     const [reviews, setReviews] = useState<{ rating: number; comment: string | null; created_at: string; reviewerName: string | null; reviewerAvatarUrl: string | undefined }[]>([])
@@ -139,6 +141,7 @@ function PainelMotoristaContent() {
             setTrunkSuitcasesMedia(vehicle.trunk_suitcases_media != null ? String(vehicle.trunk_suitcases_media) : '')
             setTrunkSuitcasesGrande(vehicle.trunk_suitcases_grande != null ? String(vehicle.trunk_suitcases_grande) : '')
         }
+        setIsFirstVehicleSetup(!vehicle)
 
         const { data: reviewRows } = await supabase
             .from('ride_reviews')
@@ -215,6 +218,11 @@ function PainelMotoristaContent() {
             setCarPhotoPath(photoPath)
             setCarPhotoFile(null)
             toast.success('As informações do seu carro foram salvas!')
+
+            if (isFirstVehicleSetup) {
+                setIsFirstVehicleSetup(false)
+                setShowFirstVehicleDialog(true)
+            }
         } catch (err: any) {
             toast.error('Erro ao salvar o carro: ' + (err.message || 'tente novamente'))
         } finally {
@@ -402,8 +410,8 @@ function PainelMotoristaContent() {
                                     </span>
                                     <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>
                                         {driverModeActive
-                                            ? 'Ativado — você aparece pronto pra aceitar corridas'
-                                            : 'Ative para aparecer disponível e aceitar corridas'}
+                                            ? 'Ativado — você vê as corridas em tempo real e aparece no mapa do passageiro assim que se candidatar a um pedido'
+                                            : 'Ative pra ver as corridas disponíveis em tempo real e poder se candidatar aos pedidos'}
                                     </p>
                                 </div>
                                 <div
@@ -953,6 +961,38 @@ function PainelMotoristaContent() {
                     )}
                 </section>
             </main>
+
+            {showFirstVehicleDialog && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)' }}>
+                    <div
+                        className="w-full max-w-sm rounded-2xl p-8 flex flex-col items-center gap-3 text-center"
+                        style={{ background: colors.surface, boxShadow: colors.shadow }}
+                    >
+                        <div className="w-16 h-16 rounded-full flex items-center justify-center" style={{ background: GRADIENT, color: '#fff' }}>
+                            <CheckCircle2 size={32} />
+                        </div>
+                        <h2 className="text-lg font-black" style={{ color: colors.textPrimary }}>Carro cadastrado!</h2>
+                        <p className="text-sm" style={{ color: colors.textSecondary }}>
+                            Ative o modo motorista aqui em cima pra aparecer disponível, e vá pra tela de corridas — lá você vê os pedidos em tempo real e pode se candidatar.
+                        </p>
+                        <button
+                            onClick={() => { setShowFirstVehicleDialog(false); router.push('/aceitar-corridas') }}
+                            className="mt-2 w-full py-3 rounded-full font-bold text-sm flex items-center justify-center gap-2"
+                            style={{ background: GRADIENT, color: '#fff' }}
+                        >
+                            <Car size={18} />
+                            Ir para corridas disponíveis
+                        </button>
+                        <button
+                            onClick={() => setShowFirstVehicleDialog(false)}
+                            className="w-full py-2.5 rounded-full font-bold text-sm"
+                            style={{ color: colors.textSecondary }}
+                        >
+                            Continuar aqui
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }
