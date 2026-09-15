@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { User, Store, Home, MapPin, LayoutDashboard, X, Radar } from 'lucide-react'
+import { User, Store, Home, MapPin, LayoutDashboard, X, Radar, Shield } from 'lucide-react'
 
 import CategoriasSection from './inicio/sections/CanIhelp'
 import LookForAService from './inicio/sections/LookForAService'
@@ -32,6 +32,8 @@ import FeaturedProfiles from './inicio/sections/FeaturedProfiles'
 import LocationPicker from '@/components/LocationPicker'
 import StoreList from './inicio/sections/StoreList'
 import StoreDashboard from '@/components/StoreDashboard/StoreDashboard'
+import AdminDashboard from '@/components/AdminDashboard/AdminDashboard'
+import { callAdminApi } from '@/lib/callAdminApi'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -118,6 +120,8 @@ export default function HomePage() {
     const [showLogin, setShowLogin] = useState(false)
     const [showProfile, setShowProfile] = useState(false)
     const [showStoreDashboard, setShowStoreDashboard] = useState<{ slug: string; name: string } | null>(null)
+    const [showAdminDashboard, setShowAdminDashboard] = useState(false)
+    const [isSuperAdmin, setIsSuperAdmin] = useState(false)
 
     const [savedLocation, setSavedLocation] = useState<{ lat: number; lng: number; address: string; addressNumber?: string; addressComplement?: string } | null>(null)
     const [showLocationDialog, setShowLocationDialog] = useState(false)
@@ -147,6 +151,25 @@ export default function HomePage() {
 
     const pendingInvitesCount = useMerchantStore(s => s.pendingInvitesCount)
     const [profileOpenNow, setProfileOpenNow] = useState(false)
+
+    // ========== ABA "ADMIN" (só pra conta ncastelano@gmail.com) ==========
+    useEffect(() => {
+        if (!userId) {
+            setIsSuperAdmin(false)
+            return
+        }
+
+        let cancelled = false
+        callAdminApi<{ isSuperAdmin: boolean }>('/api/admin/whoami')
+            .then((json) => {
+                if (!cancelled) setIsSuperAdmin(!!json.isSuperAdmin)
+            })
+            .catch(() => {
+                if (!cancelled) setIsSuperAdmin(false)
+            })
+
+        return () => { cancelled = true }
+    }, [userId])
 
     // ---------- CARREGAR ORDEM DAS SEÇÕES ----------
     useEffect(() => {
@@ -461,6 +484,7 @@ export default function HomePage() {
         setShowLogin(false)
         setShowProfile(false)
         setShowStoreDashboard(null)
+        setShowAdminDashboard(false)
     }
 
     const handleLoginClick = () => {
@@ -468,6 +492,7 @@ export default function HomePage() {
         setShowCreateStore(false)
         setShowProfile(false)
         setShowStoreDashboard(null)
+        setShowAdminDashboard(false)
     }
 
     const handleProfileClick = () => {
@@ -476,6 +501,7 @@ export default function HomePage() {
                 setShowCreateStore(false)
             setShowLogin(false)
             setShowStoreDashboard(null)
+            setShowAdminDashboard(false)
         } else {
             handleLoginClick()
         }
@@ -486,6 +512,15 @@ export default function HomePage() {
         setShowCreateStore(false)
         setShowLogin(false)
         setShowProfile(false)
+        setShowAdminDashboard(false)
+    }
+
+    const handleAdminClick = () => {
+        setShowAdminDashboard(true)
+        setShowCreateStore(false)
+        setShowLogin(false)
+        setShowProfile(false)
+        setShowStoreDashboard(null)
     }
 
     const tabs = useMemo(() => {
@@ -502,6 +537,19 @@ export default function HomePage() {
                 statusColor: isLoggedIn ? (profileOpenNow ? '#22c55e' : '#ef4444') : undefined,
             },
         ]
+
+        // Logo depois do perfil, antes das lojas - assim não fica escondida
+        // atrás das abas de loja quando a barra precisa rolar (celular).
+        if (isSuperAdmin) {
+            allTabs.push({
+                id: 'admin',
+                label: 'Admin',
+                icon: Shield,
+                imageUrl: null,
+                onClick: handleAdminClick,
+                isActive: showAdminDashboard,
+            })
+        }
 
         if (loadingStores) {
             return allTabs
@@ -540,16 +588,16 @@ export default function HomePage() {
         }
 
         return allTabs
-    }, [profileSlug, loading, avatarUrl, showCreateStore, showLogin, showProfile, showStoreDashboard, stores, loadingStores, storeOrderCounts, pendingInvitesCount, profileOpenNow, router])
+    }, [profileSlug, loading, avatarUrl, showCreateStore, showLogin, showProfile, showStoreDashboard, isSuperAdmin, showAdminDashboard, stores, loadingStores, storeOrderCounts, pendingInvitesCount, profileOpenNow, router])
 
-    const showFab = showCreateStore || showLogin || showProfile || showStoreDashboard
-    const shouldShowCarrinho = !showProfile && !showStoreDashboard && !showLogin
+    const showFab = showCreateStore || showLogin || showProfile || showStoreDashboard || showAdminDashboard
+    const shouldShowCarrinho = !showProfile && !showStoreDashboard && !showLogin && !showAdminDashboard
 
     // ===== VERIFICAR SE ESTÁ EM TELA DE LOGIN =====
     const isLoginScreen = showLogin || showCreateStore
 
     // ===== VERIFICAR SE ESTÁ EM DASHBOARD =====
-    const isDashboardScreen = showProfile || showStoreDashboard
+    const isDashboardScreen = showProfile || showStoreDashboard || showAdminDashboard
 
     // ===== VERIFICAR SE ESTÁ PESQUISANDO =====
     const isSearching = searchQuery.trim().length > 0
@@ -646,6 +694,10 @@ export default function HomePage() {
                         onBack={() => setShowStoreDashboard(null)}
                         onOrderCountsChange={handleOrderCountsChange}
                     />
+                ) : showAdminDashboard ? (
+                    <div className="w-full px-4 md:px-6 py-6">
+                        <AdminDashboard />
+                    </div>
                 ) : (
                     <div className="mt-2 px-4 md:px-6">
                         {/* Enquanto está digitando, "Resultados para..." vem primeiro e
