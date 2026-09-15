@@ -48,10 +48,10 @@ const DEFAULT_SECTIONS = [
     'productShowcase',
     'publicationShowcase',
     'profileShowcase',
-    'transporte',
     'motorista',
-    'canalMotorista',
     'servico',
+    'canalMotorista',
+    'transporte',
     'orderSection',
 ]
 
