@@ -12,6 +12,7 @@ import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import Header from '@/components/Header'
 import { Spinner } from '@/components/Spinner'
 import { generateUniqueGlobalSlug } from '@/lib/slugUtils'
+import { useActivePlans } from '@/hooks/useActivePlans'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -21,6 +22,7 @@ export function CriarProdutoClient() {
     const ownerSlug = (Array.isArray(params.ownerSlug) ? params.ownerSlug[0] : params.ownerSlug) ?? ''
     const { colors } = useTheme()
     const { userId, avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
+    const { hasStore } = useActivePlans(userId)
 
     // ===== RESOLVE A LOJA E CONFERE SE QUEM ESTÁ LOGADO É O DONO =====
     const [checkingStore, setCheckingStore] = useState(true)
@@ -74,6 +76,11 @@ export function CriarProdutoClient() {
             return
         }
         if (!storeId) return
+        if (!hasStore) {
+            toast.error('Assine o plano Loja pra poder vender.')
+            router.push('/planos?plan=loja')
+            return
+        }
 
         setSaving(true)
         try {

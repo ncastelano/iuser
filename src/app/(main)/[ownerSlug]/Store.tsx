@@ -122,6 +122,11 @@ export function Store({
     const [error, setError] = useState<string | null>(null)
     const [owner, setOwner] = useState<OwnerData | null>(null)
     const [isOwner, setIsOwner] = useState(false)
+    // null enquanto carrega (evita mostrar "fechada" num flash antes da
+    // resposta chegar) — depois true/false conforme o dono tem assinatura
+    // ativa do plano Loja/Combo. Diferente de isStoreOpen (que é sobre
+    // horário de funcionamento): aqui é sobre mensalidade em dia.
+    const [storeSubscriptionActive, setStoreSubscriptionActive] = useState<boolean | null>(null)
     const [followersCount, setFollowersCount] = useState(0)
     const [shareCount, setShareCount] = useState(0)
     const [showFollowers, setShowFollowers] = useState(false)
@@ -517,6 +522,12 @@ export function Store({
             setTotalVisitors(store.view_count || 0)
             setShareCount(store.share_count || 0)
             setImageUrl(logoUrl)
+
+            if (store.owner_id) {
+                supabase
+                    .rpc('store_has_active_subscription', { p_owner_id: store.owner_id })
+                    .then(({ data }) => setStoreSubscriptionActive(!!data))
+            }
             setStoreWhatsapp(storeWhatsapp)
 
             setIsOwner(currentUserId === store.owner_id)
@@ -1296,7 +1307,7 @@ export function Store({
                                     } as React.CSSProperties}
                                 />
                             </div>
-                            {isOwner && (
+                            {isOwner && storeSubscriptionActive !== false && (
                                 <button
                                     onClick={() => router.push(`/${ownerSlug}/criar-produto`)}
                                     className="flex items-center justify-center w-9 h-9 rounded-xl shadow-md hover:scale-110 transition-transform"
@@ -1308,7 +1319,31 @@ export function Store({
                             )}
                         </div>
 
-                        {filteredProducts.length === 0 ? (
+                        {storeSubscriptionActive === false ? (
+                            <div className="py-8 text-center rounded-xl" style={{
+                                background: 'rgba(239,68,68,0.08)',
+                                border: `1px dashed #ef4444`,
+                            }}>
+                                <StoreIcon className="w-8 h-8 mx-auto mb-2" style={{ color: '#ef4444' }} />
+                                <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>
+                                    Loja fechada — assinatura pendente
+                                </p>
+                                <p className="text-xs mt-1 max-w-xs mx-auto" style={{ color: colors.textSecondary }}>
+                                    {isOwner
+                                        ? 'Assine o plano Loja pra reabrir e voltar a vender.'
+                                        : 'Essa loja está temporariamente indisponível pra vendas.'}
+                                </p>
+                                {isOwner && (
+                                    <button
+                                        onClick={() => router.push('/planos?plan=loja')}
+                                        className="mt-3 w-full"
+                                        style={primaryButtonStyle}
+                                    >
+                                        Assinar plano Loja
+                                    </button>
+                                )}
+                            </div>
+                        ) : filteredProducts.length === 0 ? (
                             isOwner ? (
                                 <div className="py-8 text-center rounded-xl" style={{
                                     background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,

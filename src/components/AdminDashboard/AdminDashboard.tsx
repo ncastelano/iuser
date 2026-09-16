@@ -7,10 +7,10 @@ import { supabase } from '@/lib/supabase/client'
 import { Spinner } from '@/components/Spinner'
 import { toast } from 'sonner'
 import { hexToRgb } from '@/lib/color'
-import { Wallet, KeyRound, Users, Settings as SettingsIcon, Check, X, Copy, Plus, ShieldOff, Send } from 'lucide-react'
+import { Wallet, KeyRound, Users, Settings as SettingsIcon, Check, X, Copy, Plus, ShieldOff, Send, CalendarClock } from 'lucide-react'
 import { callAdminApi } from '@/lib/callAdminApi'
 
-type Section = 'pagamentos' | 'saques' | 'codigos' | 'administradores' | 'configuracoes'
+type Section = 'pagamentos' | 'saques' | 'planos' | 'codigos' | 'administradores' | 'configuracoes'
 
 function formatCents(cents: number | null) {
     if (cents === null) return '—'
@@ -20,6 +20,7 @@ function formatCents(cents: number | null) {
 const SECTIONS: { id: Section; label: string; icon: typeof Wallet }[] = [
     { id: 'pagamentos', label: 'Pagamentos', icon: Wallet },
     { id: 'saques', label: 'Saques', icon: Send },
+    { id: 'planos', label: 'Planos', icon: CalendarClock },
     { id: 'codigos', label: 'Códigos', icon: KeyRound },
     { id: 'administradores', label: 'Administradores', icon: Users },
     { id: 'configuracoes', label: 'Configurações', icon: SettingsIcon },
@@ -93,6 +94,12 @@ export default function AdminDashboard() {
 
             {section === 'pagamentos' && <PaymentsSection cardStyle={cardStyle} colors={colors} />}
             {section === 'saques' && <WithdrawalsSection cardStyle={cardStyle} colors={colors} />}
+            {section === 'planos' && (
+                <div className="space-y-5">
+                    <PlanGrantsSection cardStyle={cardStyle} colors={colors} />
+                    <PlanCodesSection cardStyle={cardStyle} colors={colors} />
+                </div>
+            )}
             {section === 'codigos' && <CodesSection cardStyle={cardStyle} colors={colors} />}
             {section === 'administradores' && <AdminsSection cardStyle={cardStyle} colors={colors} />}
             {section === 'configuracoes' && (
@@ -335,6 +342,247 @@ function WithdrawalsSection({ cardStyle, colors }: SectionProps) {
                     ))}
                 </>
             )}
+        </div>
+    )
+}
+
+const GRANT_PLAN_OPTIONS = [
+    { code: 'motorista', label: 'Motorista' },
+    { code: 'prestador', label: 'Prestador de serviço' },
+    { code: 'loja', label: 'Loja' },
+    { code: 'combo', label: 'Combo' },
+]
+
+// Concede um plano (motorista/prestador/loja/combo) por um número de dias,
+// sem passar pela Asaas — pra dar acesso de graça por um período (parceiros,
+// testes, cortesia). O admin geral nunca precisa disso pra si mesmo: ele já
+// tem bypass automático em get_active_plan_grants.
+function PlanGrantsSection({ cardStyle, colors }: SectionProps) {
+    const [slug, setSlug] = useState('')
+    const [planCode, setPlanCode] = useState('combo')
+    const [days, setDays] = useState('30')
+    const [granting, setGranting] = useState(false)
+
+    const grant = async () => {
+        if (!slug.trim()) return
+        setGranting(true)
+        try {
+            await callAdminApi('/api/admin/plans/grant', {
+                profileSlug: slug.trim(),
+                planCode,
+                days: Number(days),
+            })
+            toast.success(`Plano concedido a @${slug.trim()} por ${days} dias!`)
+            setSlug('')
+        } catch (err: any) {
+            toast.error(err.message || 'Erro ao conceder plano')
+        } finally {
+            setGranting(false)
+        }
+    }
+
+    const inputStyle: React.CSSProperties = {
+        background: colors.background,
+        border: `1px solid ${colors.border}`,
+        color: colors.textPrimary,
+        borderRadius: 12,
+        padding: '8px 12px',
+        fontSize: 13,
+    }
+
+    return (
+        <div style={cardStyle} className="space-y-3">
+            <p className="text-xs font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>
+                Conceder plano sem cobrar
+            </p>
+            <p className="text-xs" style={{ color: colors.textSecondary }}>
+                A pessoa fica com o plano ativo pelo número de dias escolhido, sem passar pela Asaas — nem ela nem você paga nada.
+            </p>
+            <div className="flex flex-wrap gap-2 items-center">
+                <input
+                    value={slug}
+                    onChange={(e) => setSlug(e.target.value)}
+                    placeholder="@slug do perfil"
+                    style={{ ...inputStyle, flex: 1, minWidth: 140 }}
+                />
+                <select value={planCode} onChange={(e) => setPlanCode(e.target.value)} style={inputStyle}>
+                    {GRANT_PLAN_OPTIONS.map((p) => (
+                        <option key={p.code} value={p.code}>{p.label}</option>
+                    ))}
+                </select>
+                <input
+                    type="number"
+                    min={1}
+                    value={days}
+                    onChange={(e) => setDays(e.target.value)}
+                    style={{ ...inputStyle, width: 90 }}
+                    placeholder="dias"
+                />
+                <button
+                    onClick={grant}
+                    disabled={granting || !slug.trim()}
+                    className="px-4 py-2 rounded-xl font-bold text-xs text-white disabled:opacity-50"
+                    style={{ background: colors.accent }}
+                >
+                    {granting ? <Spinner size={14} /> : 'Conceder'}
+                </button>
+            </div>
+        </div>
+    )
+}
+
+interface PlanCodeRow {
+    id: string
+    code: string
+    grant_type: 'days' | 'lifetime'
+    days: number | null
+    active: boolean
+    max_uses: number
+    use_count: number
+    created_at: string
+    plans: { code: string; name: string } | { code: string; name: string }[] | null
+}
+
+// Código promocional (motorista/prestador/loja/combo) que qualquer usuário
+// resgata sozinho em /planos — pra convidar gente da plataforma pra um
+// combo de cortesia, por exemplo, sem precisar saber o @slug de cada um
+// de antemão (diferente da concessão direta acima, que já pede o slug).
+function PlanCodesSection({ cardStyle, colors }: SectionProps) {
+    const [codes, setCodes] = useState<PlanCodeRow[]>([])
+    const [loading, setLoading] = useState(true)
+    const [planCode, setPlanCode] = useState('combo')
+    const [grantType, setGrantType] = useState<'days' | 'lifetime'>('days')
+    const [days, setDays] = useState('30')
+    const [maxUses, setMaxUses] = useState('1')
+    const [generating, setGenerating] = useState(false)
+
+    const load = useCallback(async () => {
+        setLoading(true)
+        try {
+            const { codes } = await callAdminApi<{ codes: PlanCodeRow[] }>('/api/admin/plan-codes/list')
+            setCodes(codes)
+        } catch (err: any) {
+            toast.error(err.message || 'Erro ao carregar códigos')
+        } finally {
+            setLoading(false)
+        }
+    }, [])
+
+    useEffect(() => { load() }, [load])
+
+    const generate = async () => {
+        setGenerating(true)
+        try {
+            await callAdminApi('/api/admin/plan-codes/create', {
+                planCode,
+                grantType,
+                days: grantType === 'days' ? Number(days) : undefined,
+                maxUses: Number(maxUses),
+            })
+            toast.success('Código gerado!')
+            await load()
+        } catch (err: any) {
+            toast.error(err.message || 'Erro ao gerar código')
+        } finally {
+            setGenerating(false)
+        }
+    }
+
+    const copyCode = (code: string) => {
+        navigator.clipboard.writeText(code)
+        toast.success('Código copiado!')
+    }
+
+    const inputStyle: React.CSSProperties = {
+        background: colors.background,
+        border: `1px solid ${colors.border}`,
+        color: colors.textPrimary,
+        borderRadius: 12,
+        padding: '8px 12px',
+        fontSize: 13,
+    }
+
+    return (
+        <div className="space-y-5">
+            <div style={cardStyle} className="space-y-3">
+                <p className="text-xs font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>
+                    Gerar código promocional
+                </p>
+                <p className="text-xs" style={{ color: colors.textSecondary }}>
+                    Qualquer pessoa com o código resgata sozinha em /planos — bom pra convidar várias pessoas da plataforma de uma vez pro combo, sem saber o @slug de cada uma.
+                </p>
+                <div className="flex flex-wrap gap-2 items-center">
+                    <select value={planCode} onChange={(e) => setPlanCode(e.target.value)} style={inputStyle}>
+                        {GRANT_PLAN_OPTIONS.map((p) => (
+                            <option key={p.code} value={p.code}>{p.label}</option>
+                        ))}
+                    </select>
+                    <select value={grantType} onChange={(e) => setGrantType(e.target.value as any)} style={inputStyle}>
+                        <option value="days">Por dias</option>
+                        <option value="lifetime">Vitalício</option>
+                    </select>
+                    {grantType === 'days' && (
+                        <input
+                            type="number"
+                            min={1}
+                            value={days}
+                            onChange={(e) => setDays(e.target.value)}
+                            style={{ ...inputStyle, width: 80 }}
+                            placeholder="dias"
+                        />
+                    )}
+                    <input
+                        type="number"
+                        min={1}
+                        value={maxUses}
+                        onChange={(e) => setMaxUses(e.target.value)}
+                        style={{ ...inputStyle, width: 90 }}
+                        placeholder="usos"
+                        title="Quantas pessoas diferentes podem usar esse mesmo código"
+                    />
+                    <button
+                        onClick={generate}
+                        disabled={generating}
+                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl font-bold text-xs text-white disabled:opacity-50"
+                        style={{ background: colors.accent }}
+                    >
+                        {generating ? <Spinner size={14} /> : <Plus size={14} />}
+                        Gerar
+                    </button>
+                </div>
+            </div>
+
+            <div className="space-y-2">
+                <p className="text-xs font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>
+                    Códigos gerados ({codes.length})
+                </p>
+                {loading ? (
+                    <div className="flex justify-center py-6"><Spinner size={20} color={colors.accent} /></div>
+                ) : codes.length === 0 ? (
+                    <div className="text-sm" style={{ ...cardStyle, color: colors.textSecondary }}>
+                        Nenhum código gerado ainda.
+                    </div>
+                ) : codes.map((c) => {
+                    const plan = Array.isArray(c.plans) ? c.plans[0] : c.plans
+                    return (
+                        <div key={c.id} style={cardStyle} className="flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                                <p className="text-sm font-mono font-bold truncate" style={{ color: colors.textPrimary }}>{c.code}</p>
+                                <p className="text-[11px]" style={{ color: colors.textSecondary }}>
+                                    {plan?.name || plan?.code} · {c.grant_type === 'lifetime' ? 'Vitalício' : `${c.days} dias`} · usado {c.use_count}/{c.max_uses} {!c.active && '· inativo'}
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => copyCode(c.code)}
+                                className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+                                style={{ background: colors.accent, color: colors.accentText }}
+                            >
+                                <Copy size={13} />
+                            </button>
+                        </div>
+                    )
+                })}
+            </div>
         </div>
     )
 }

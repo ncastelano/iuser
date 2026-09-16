@@ -16,7 +16,7 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
         }
 
-        const { planId } = await req.json()
+        const { planId, cpfCnpj } = await req.json()
         if (!planId) {
             return NextResponse.json({ error: 'planId é obrigatório' }, { status: 400 })
         }
@@ -48,9 +48,22 @@ export async function POST(req: Request) {
 
         const { data: profile } = await supabaseAdmin
             .from('profiles')
-            .select('name')
+            .select('name, cpf_cnpj')
             .eq('id', user.id)
             .maybeSingle()
+
+        // A Asaas exige CPF/CNPJ pra criar a cobrança de verdade — se o
+        // perfil ainda não tem e o cliente não mandou um agora, devolve um
+        // sinal específico (needsCpf) pra tela pedir e reenviar, em vez de
+        // um erro genérico.
+        const cpfCnpjClean = (cpfCnpj || '').replace(/\D/g, '')
+        const resolvedCpfCnpj = profile?.cpf_cnpj || cpfCnpjClean || null
+        if (!resolvedCpfCnpj) {
+            return NextResponse.json({ error: 'Informe seu CPF ou CNPJ pra continuar', needsCpf: true }, { status: 400 })
+        }
+        if (cpfCnpjClean && cpfCnpjClean !== profile?.cpf_cnpj) {
+            await supabaseAdmin.from('profiles').update({ cpf_cnpj: cpfCnpjClean }).eq('id', user.id)
+        }
 
         let subscriptionRowId: string
         let asaasSubscriptionId: string
@@ -76,6 +89,7 @@ export async function POST(req: Request) {
                 : await createOrGetCustomer({
                     name: profile?.name || user.email || 'Usuário iuser',
                     email: user.email,
+                    cpfCnpj: resolvedCpfCnpj,
                     externalReference: user.id,
                 })
 
