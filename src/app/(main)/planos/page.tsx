@@ -14,6 +14,8 @@ import { toast } from 'sonner'
 import { callAdminApi } from '@/lib/callAdminApi'
 import { Car, Briefcase, Sparkles, Store, Check, Copy, X, ShieldCheck, Gift, Users, CreditCard } from 'lucide-react'
 
+export const dynamic = 'force-dynamic'
+
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
 interface Plan {

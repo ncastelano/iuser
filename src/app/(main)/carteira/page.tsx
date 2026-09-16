@@ -12,6 +12,8 @@ import { Spinner } from '@/components/Spinner'
 import { toast } from 'sonner'
 import { Wallet, ArrowDownCircle, ArrowUpCircle, Send } from 'lucide-react'
 
+export const dynamic = 'force-dynamic'
+
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
 interface WalletTransaction {
