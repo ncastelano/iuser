@@ -396,3 +396,78 @@ export async function generatePublicationMetadata(slug: string): Promise<Metadat
         description: 'Esta publicação não está disponível.',
     }
 }
+
+/**
+ * Generates OpenGraph and Twitter metadata for /convite?ref={profileSlug}
+ * Mesma ideia do perfil: foto de quem convidou (não a logo genérica) do lado
+ * do texto quando o link é colado no WhatsApp/Telegram/iMessage — é a foto
+ * que faz o convite parecer pessoal antes mesmo de abrir o link.
+ */
+export async function generateInviteMetadata(ref: string | undefined): Promise<Metadata> {
+    const defaultLogoUrl = `${BASE_URL}/logo-preview.png`
+    const pageUrl = ref ? `${BASE_URL}/convite?ref=${encodeURIComponent(ref)}` : `${BASE_URL}/convite`
+
+    const fallback: Metadata = {
+        title: 'Convite para o iUser',
+        description: 'Compre, venda, preste serviço ou dirija — tudo numa plataforma só.',
+        openGraph: {
+            title: 'Convite para o iUser',
+            description: 'Compre, venda, preste serviço ou dirija — tudo numa plataforma só.',
+            url: pageUrl,
+            siteName: 'iUser',
+            images: [{ url: defaultLogoUrl, width: 1254, height: 1254, alt: 'iUser' }],
+            type: 'website',
+        },
+    }
+
+    const supabase = getSupabaseClient()
+    if (!supabase || !ref) return fallback
+
+    try {
+        const { data: inviter } = await supabase
+            .from('profiles')
+            .select('name, profileSlug, avatar_url')
+            .eq('profileSlug', ref)
+            .maybeSingle()
+
+        if (!inviter) return fallback
+
+        const displayName = inviter.name || `@${inviter.profileSlug}`
+        const title = `${displayName} te chamou pro iUser`
+        const description = `@${inviter.profileSlug} usa o iUser pra comprar, vender, prestar serviço ou dirigir — tudo numa plataforma só. Entre pelo convite.`
+        const rawAvatarUrl = getPublicStorageUrl('avatars', inviter.avatar_url)
+        const avatarUrl = rawAvatarUrl ? toThumbUrl(rawAvatarUrl) : defaultLogoUrl
+
+        return {
+            title,
+            description,
+            alternates: { canonical: pageUrl },
+            openGraph: {
+                title,
+                description,
+                url: pageUrl,
+                siteName: 'iUser',
+                images: [
+                    {
+                        url: avatarUrl,
+                        width: 300,
+                        height: 300,
+                        alt: displayName,
+                        type: 'image/png',
+                    },
+                ],
+                type: 'profile',
+            },
+            twitter: {
+                card: 'summary',
+                title,
+                description,
+                images: [avatarUrl],
+            },
+        }
+    } catch (err) {
+        console.error('[generateInviteMetadata] Erro ao buscar metadados:', err)
+    }
+
+    return fallback
+}
