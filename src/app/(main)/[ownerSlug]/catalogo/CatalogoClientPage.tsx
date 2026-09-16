@@ -42,6 +42,7 @@ interface StoreInfo {
     logo_url: string | null
     banner_url: string | null
     business_hours?: BusinessHours | null
+    owner_id: string
 }
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
@@ -209,7 +210,7 @@ export default function CatalogoClientPage() {
             try {
                 const { data: store, error: storeError } = await supabase
                     .from('stores')
-                    .select('id, name, storeSlug, logo_url, banner_url, business_hours, accepts_delivery, accepts_pickup, accepts_pix, accepts_card, accepts_cash, delivery_type, delivery_fee, delivery_fee_per_km, delivery_base_distance, delivery_base_fee, store_lat, store_lng, address')
+                    .select('id, name, storeSlug, logo_url, banner_url, business_hours, accepts_delivery, accepts_pickup, accepts_pix, accepts_card, accepts_cash, delivery_type, delivery_fee, delivery_fee_per_km, delivery_base_distance, delivery_base_fee, store_lat, store_lng, address, owner_id')
                     .eq('storeSlug', ownerSlug)
                     .maybeSingle()
 
@@ -267,6 +268,7 @@ export default function CatalogoClientPage() {
                     logo_url: logoUrl,
                     banner_url: bannerUrl,
                     business_hours: store.business_hours,
+                    owner_id: store.owner_id,
                 })
 
                 setStoreConfig({
@@ -603,12 +605,43 @@ export default function CatalogoClientPage() {
                 avatarUrl = supabase.storage.from('avatars').getPublicUrl(fileName).data.publicUrl
             }
 
+            // Indicação: respeita uma indicação já existente (cookie de
+            // /convite, de outra pessoa) antes de qualquer coisa. Só se não
+            // tiver nenhuma é que o dono desta loja vira quem indicou —
+            // reconhece quem trouxe a pessoa pro iUser, sem travar a compra.
+            let uplineId: string | null = null
+            let usedReferralCookie = false
+            try {
+                const res = await fetch('/api/get-referral-cookie')
+                const cookieData = await res.json()
+                if (cookieData.referralSlug) {
+                    const { data: upline } = await supabase
+                        .from('profiles')
+                        .select('id')
+                        .eq('profileSlug', cookieData.referralSlug)
+                        .maybeSingle()
+                    if (upline) {
+                        uplineId = upline.id
+                        usedReferralCookie = true
+                    }
+                }
+            } catch {
+                // sem cookie/indicação prévia — segue pro fallback da loja
+            }
+            if (!uplineId && storeInfo?.owner_id) {
+                uplineId = storeInfo.owner_id
+            }
+
             await supabase.from('profiles').upsert({
                 id: data.user.id,
                 name: authName,
                 profileSlug: authProfileSlug,
                 avatar_url: avatarUrl,
+                upline_id: uplineId,
             })
+            if (usedReferralCookie) {
+                await fetch('/api/clear-referral-cookie', { method: 'POST' })
+            }
             await loadUserData(data.user.id)
             setCheckoutStep('delivery')
             setIsBagExpanded(true)
