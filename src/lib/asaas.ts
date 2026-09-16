@@ -86,6 +86,7 @@ export async function createSubscription(params: {
     value: number
     description: string
     externalReference?: string // subscriptions.id (nossa tabela), pro webhook achar de volta
+    cycle?: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'SEMIANNUALLY' | 'YEARLY'
 }): Promise<AsaasSubscription> {
     // nextDueDate hoje: cobra o primeiro ciclo imediatamente (Asaas gera o
     // primeiro payment já na criação da assinatura).
@@ -101,7 +102,7 @@ export async function createSubscription(params: {
         body: JSON.stringify({
             customer: params.customerId,
             billingType: 'UNDEFINED',
-            cycle: 'MONTHLY',
+            cycle: params.cycle || 'MONTHLY',
             value: params.value,
             nextDueDate: today,
             description: params.description,

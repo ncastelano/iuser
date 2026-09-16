@@ -26,6 +26,8 @@ interface Plan {
     is_active: boolean
     description: string | null
     features: string[] | null
+    billing_cycle: string
+    max_active_subscriptions: number | null
 }
 
 interface ActiveSub {
@@ -54,6 +56,16 @@ const PLAN_ICON: Record<string, typeof Car> = {
     loja: Store,
     recrutador: Users,
     combo: Sparkles,
+    beta: Gift,
+}
+
+const CYCLE_LABEL: Record<string, string> = {
+    WEEKLY: '/semana',
+    BIWEEKLY: '/quinzena',
+    MONTHLY: '/mês',
+    QUARTERLY: '/trimestre',
+    SEMIANNUALLY: '/semestre',
+    YEARLY: '/ano',
 }
 
 function daysLeft(iso: string | null): number | null {
@@ -81,15 +93,22 @@ function PlanosContent() {
     const [cpfInput, setCpfInput] = useState('')
     const [promoCode, setPromoCode] = useState('')
     const [redeeming, setRedeeming] = useState(false)
+    const [subscriberCounts, setSubscriberCounts] = useState<Record<string, number>>({})
     const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
     const load = useCallback(async () => {
         setLoading(true)
-        const { data: plansData } = await supabase
-            .from('plans')
-            .select('id, code, name, price, is_active, description, features')
-            .eq('is_active', true)
-            .order('price', { ascending: true })
+        const [{ data: plansData }, { data: countsData }] = await Promise.all([
+            supabase
+                .from('plans')
+                .select('id, code, name, price, is_active, description, features, billing_cycle, max_active_subscriptions')
+                .eq('is_active', true)
+                .order('price', { ascending: true }),
+            supabase.rpc('get_plan_subscriber_counts'),
+        ])
+        setSubscriberCounts(
+            Object.fromEntries((countsData || []).map((c: { plan_id: string; active_count: number }) => [c.plan_id, Number(c.active_count)]))
+        )
         setPlans(plansData || [])
 
         // Os planos (preço, nome) são públicos — mostra pra qualquer um, logado
@@ -266,9 +285,13 @@ function PlanosContent() {
                                     const remaining = sub ? daysLeft(sub.current_period_end) : null
                                     const highlighted = highlightPlan === plan.code
                                     const isCombo = plan.code === 'combo'
-                                    const soloPlans = plans.filter((p) => p.code !== 'combo')
+                                    const soloPlans = plans.filter((p) => p.code !== 'combo' && p.max_active_subscriptions == null)
                                     const soloSum = soloPlans.reduce((acc, p) => acc + Number(p.price), 0)
                                     const savings = isCombo ? soloSum - Number(plan.price) : 0
+                                    const remainingSlots = plan.max_active_subscriptions != null
+                                        ? Math.max(0, plan.max_active_subscriptions - (subscriberCounts[plan.id] || 0))
+                                        : null
+                                    const soldOut = remainingSlots === 0 && !active
 
                                     return (
                                         <div
@@ -309,13 +332,22 @@ function PlanosContent() {
                                                     R$ {plan.price.toFixed(2)}
                                                 </span>
                                                 <span className="text-xs font-bold" style={{ color: colors.textSecondary }}>
-                                                    /mês
+                                                    {CYCLE_LABEL[plan.billing_cycle] || '/mês'}
                                                 </span>
                                             </div>
 
                                             {isCombo && savings > 0 && (
                                                 <span className="text-[11px] font-bold" style={{ color: '#22c55e' }}>
                                                     Economize R$ {savings.toFixed(2)} vs. assinar os {soloPlans.length} separados
+                                                </span>
+                                            )}
+
+                                            {remainingSlots !== null && !active && (
+                                                <span
+                                                    className="text-[11px] font-bold"
+                                                    style={{ color: soldOut ? '#ef4444' : '#f97316' }}
+                                                >
+                                                    {soldOut ? 'Vagas esgotadas' : `${remainingSlots} de ${plan.max_active_subscriptions} vagas restantes`}
                                                 </span>
                                             )}
 
@@ -349,11 +381,11 @@ function PlanosContent() {
                                             {!active && (
                                                 <button
                                                     onClick={() => handleBuy(plan)}
-                                                    disabled={buyingPlanId === plan.id}
+                                                    disabled={buyingPlanId === plan.id || soldOut}
                                                     className="w-full mt-1 px-4 py-2.5 rounded-full font-black uppercase text-xs tracking-wider transition-all hover:scale-105 active:scale-95 disabled:opacity-60"
                                                     style={{ background: isCombo ? GRADIENT : `${colors.textPrimary}15`, color: isCombo ? '#ffffff' : colors.textPrimary }}
                                                 >
-                                                    {buyingPlanId === plan.id ? <Spinner size={14} color="#ffffff" /> : 'Assinar'}
+                                                    {buyingPlanId === plan.id ? <Spinner size={14} color="#ffffff" /> : soldOut ? 'Esgotado' : 'Assinar'}
                                                 </button>
                                             )}
                                         </div>

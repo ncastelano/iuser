@@ -23,7 +23,7 @@ export async function POST(req: Request) {
 
         const { data: plan, error: planError } = await supabaseAdmin
             .from('plans')
-            .select('id, code, name, price, is_active')
+            .select('id, code, name, price, is_active, billing_cycle, max_active_subscriptions')
             .eq('id', planId)
             .maybeSingle()
 
@@ -44,6 +44,21 @@ export async function POST(req: Request) {
 
         if (existing?.status === 'active') {
             return NextResponse.json({ error: 'Você já tem esse plano ativo' }, { status: 409 })
+        }
+
+        // Vagas limitadas (ex: plano Beta, 20 vagas) — só barra quem está
+        // tentando abrir uma assinatura nova; quem já tinha uma pendente
+        // (contada aqui embaixo) pode terminar de pagar normalmente.
+        if (plan.max_active_subscriptions != null && !existing) {
+            const { count } = await supabaseAdmin
+                .from('subscriptions')
+                .select('id', { count: 'exact', head: true })
+                .eq('plan_id', plan.id)
+                .in('status', ['pending', 'active'])
+
+            if ((count || 0) >= plan.max_active_subscriptions) {
+                return NextResponse.json({ error: 'Vagas desse plano esgotadas' }, { status: 409 })
+            }
         }
 
         const { data: profile } = await supabaseAdmin
@@ -123,6 +138,7 @@ export async function POST(req: Request) {
                 value: Number(plan.price),
                 description: `iuser — ${plan.name}`,
                 externalReference: subscriptionRowId,
+                cycle: plan.billing_cycle,
             })
             asaasSubscriptionId = asaasSubscription.id
 
