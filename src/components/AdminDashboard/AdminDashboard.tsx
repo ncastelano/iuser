@@ -7,10 +7,10 @@ import { supabase } from '@/lib/supabase/client'
 import { Spinner } from '@/components/Spinner'
 import { toast } from 'sonner'
 import { hexToRgb } from '@/lib/color'
-import { Wallet, KeyRound, Users, Settings as SettingsIcon, Check, X, Copy, Plus, ShieldOff } from 'lucide-react'
+import { Wallet, KeyRound, Users, Settings as SettingsIcon, Check, X, Copy, Plus, ShieldOff, Send } from 'lucide-react'
 import { callAdminApi } from '@/lib/callAdminApi'
 
-type Section = 'pagamentos' | 'codigos' | 'administradores' | 'configuracoes'
+type Section = 'pagamentos' | 'saques' | 'codigos' | 'administradores' | 'configuracoes'
 
 function formatCents(cents: number | null) {
     if (cents === null) return '—'
@@ -19,6 +19,7 @@ function formatCents(cents: number | null) {
 
 const SECTIONS: { id: Section; label: string; icon: typeof Wallet }[] = [
     { id: 'pagamentos', label: 'Pagamentos', icon: Wallet },
+    { id: 'saques', label: 'Saques', icon: Send },
     { id: 'codigos', label: 'Códigos', icon: KeyRound },
     { id: 'administradores', label: 'Administradores', icon: Users },
     { id: 'configuracoes', label: 'Configurações', icon: SettingsIcon },
@@ -91,6 +92,7 @@ export default function AdminDashboard() {
             </div>
 
             {section === 'pagamentos' && <PaymentsSection cardStyle={cardStyle} colors={colors} />}
+            {section === 'saques' && <WithdrawalsSection cardStyle={cardStyle} colors={colors} />}
             {section === 'codigos' && <CodesSection cardStyle={cardStyle} colors={colors} />}
             {section === 'administradores' && <AdminsSection cardStyle={cardStyle} colors={colors} />}
             {section === 'configuracoes' && (
@@ -210,6 +212,123 @@ function PaymentsSection({ cardStyle, colors }: SectionProps) {
                                 </p>
                                 <p className="text-[11px]" style={{ color: colors.textSecondary }}>
                                     {p.status === 'approved' ? `Aprovado · ${formatCents(p.amount_cents)}` : p.status === 'rejected' ? 'Rejeitado' : 'Consumido'}
+                                </p>
+                            </div>
+                        </div>
+                    ))}
+                </>
+            )}
+        </div>
+    )
+}
+
+interface WithdrawalRow {
+    id: string
+    user_id: string
+    amount: number
+    pix_key: string
+    pix_key_type: string | null
+    status: 'pending' | 'paid' | 'rejected'
+    requested_at: string
+    profiles: { name: string | null; profileSlug: string | null } | null
+}
+
+function WithdrawalsSection({ cardStyle, colors }: SectionProps) {
+    const [withdrawals, setWithdrawals] = useState<WithdrawalRow[]>([])
+    const [loading, setLoading] = useState(true)
+    const [actingId, setActingId] = useState<string | null>(null)
+
+    const load = useCallback(async () => {
+        setLoading(true)
+        try {
+            const { withdrawals } = await callAdminApi<{ withdrawals: WithdrawalRow[] }>('/api/admin/withdrawals')
+            setWithdrawals(withdrawals)
+        } catch (err: any) {
+            toast.error(err.message || 'Erro ao carregar saques')
+        } finally {
+            setLoading(false)
+        }
+    }, [])
+
+    useEffect(() => { load() }, [load])
+
+    const resolve = async (id: string, action: 'paid' | 'reject') => {
+        setActingId(id)
+        try {
+            await callAdminApi(`/api/admin/withdrawals/${id}/mark-paid`, { action })
+            toast.success(action === 'paid' ? 'Saque marcado como pago!' : 'Pedido rejeitado')
+            await load()
+        } catch (err: any) {
+            toast.error(err.message || 'Erro ao atualizar saque')
+        } finally {
+            setActingId(null)
+        }
+    }
+
+    if (loading) {
+        return <div className="flex justify-center py-8"><Spinner size={24} color={colors.accent} /></div>
+    }
+
+    const pending = withdrawals.filter((w) => w.status === 'pending')
+    const resolved = withdrawals.filter((w) => w.status !== 'pending')
+
+    return (
+        <div className="space-y-3">
+            <p className="text-xs font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>
+                Pendentes ({pending.length})
+            </p>
+            {pending.length === 0 && (
+                <div className="text-sm" style={{ ...cardStyle, color: colors.textSecondary }}>
+                    Nenhum saque aguardando pagamento.
+                </div>
+            )}
+            {pending.map((w) => (
+                <div key={w.id} style={cardStyle} className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                        <p className="text-sm font-bold truncate" style={{ color: colors.textPrimary }}>
+                            {w.profiles?.name || (w.profiles?.profileSlug ? `@${w.profiles.profileSlug}` : 'Usuário')}
+                            {' · '}
+                            R$ {Number(w.amount).toFixed(2)}
+                        </p>
+                        <p className="text-[11px] truncate" style={{ color: colors.textSecondary }}>
+                            PIX: {w.pix_key} · {new Date(w.requested_at).toLocaleString('pt-BR')}
+                        </p>
+                    </div>
+                    <div className="flex gap-2 flex-shrink-0">
+                        <button
+                            onClick={() => resolve(w.id, 'paid')}
+                            disabled={actingId === w.id}
+                            className="w-9 h-9 rounded-full bg-green-500 text-white flex items-center justify-center disabled:opacity-50"
+                            title="Marcar como pago (depois de transferir o PIX manualmente)"
+                        >
+                            {actingId === w.id ? <Spinner size={14} /> : <Check size={16} />}
+                        </button>
+                        <button
+                            onClick={() => resolve(w.id, 'reject')}
+                            disabled={actingId === w.id}
+                            className="w-9 h-9 rounded-full bg-red-500 text-white flex items-center justify-center disabled:opacity-50"
+                        >
+                            <X size={16} />
+                        </button>
+                    </div>
+                </div>
+            ))}
+
+            {resolved.length > 0 && (
+                <>
+                    <p className="text-xs font-black uppercase tracking-wider mt-5" style={{ color: colors.textSecondary }}>
+                        Histórico
+                    </p>
+                    {resolved.map((w) => (
+                        <div key={w.id} style={cardStyle} className="flex items-center justify-between gap-3 opacity-80">
+                            <div className="min-w-0">
+                                <p className="text-sm font-bold truncate" style={{ color: colors.textPrimary }}>
+                                    {w.profiles?.name || (w.profiles?.profileSlug ? `@${w.profiles.profileSlug}` : 'Usuário')}
+                                    {' · '}
+                                    R$ {Number(w.amount).toFixed(2)}
+                                </p>
+                                <p className="text-[11px]" style={{ color: colors.textSecondary }}>
+                                    {w.status === 'paid' ? 'Pago' : 'Rejeitado'}
                                 </p>
                             </div>
                         </div>
