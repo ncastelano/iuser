@@ -23,7 +23,10 @@ import {
     Music2,
     Wallet,
     Receipt,
+    ArrowDownCircle,
+    ArrowUpCircle,
 } from 'lucide-react'
+import { Spinner } from '@/components/Spinner'
 import { formatDistanceToNow } from 'date-fns'
 import { ptBR as ptBRLocale } from 'date-fns/locale'
 import { useRouter } from 'next/navigation'
@@ -82,6 +85,20 @@ interface CommissionMember {
     sales: CommissionSale[]
 }
 
+interface WalletTransaction {
+    id: string
+    type: 'commission_credit' | 'withdrawal_debit'
+    amount: number
+    description: string | null
+    created_at: string
+}
+
+const MIN_WITHDRAWAL_AMOUNT = 20
+
+function formatWalletDate(iso: string): string {
+    return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+}
+
 // ============================================
 // ÍCONES DAS REDES SOCIAIS
 // ============================================
@@ -123,6 +140,19 @@ export default function Commission({ userId, profileSlug, onLatestUpdate }: Comm
     const [shareLink, setShareLink] = useState('')
     const [shareMessage, setShareMessage] = useState('')
     const [userProfileSlug, setUserProfileSlug] = useState<string | null>(profileSlug || null)
+
+    // ============================================
+    // CARTEIRA (saldo + saque via PIX) — embutida aqui porque quem indica
+    // pessoas é quem recebe a comissão; junto do extrato de indicados fica
+    // mais claro de onde vem o saldo.
+    // ============================================
+    const [walletLoading, setWalletLoading] = useState(true)
+    const [walletTransactions, setWalletTransactions] = useState<WalletTransaction[]>([])
+    const [showWithdrawForm, setShowWithdrawForm] = useState(false)
+    const [withdrawAmount, setWithdrawAmount] = useState('')
+    const [pixKey, setPixKey] = useState('')
+    const [pixKeyType, setPixKeyType] = useState('cpf')
+    const [submittingWithdraw, setSubmittingWithdraw] = useState(false)
 
     const accentColor = colors.accent
     const textPrimary = colors.textPrimary
@@ -217,6 +247,21 @@ export default function Commission({ userId, profileSlug, onLatestUpdate }: Comm
         }
     }, [userId, onLatestUpdate])
 
+    const fetchWalletData = useCallback(async () => {
+        if (!userId) {
+            setWalletLoading(false)
+            return
+        }
+        setWalletLoading(true)
+        const { data } = await supabase
+            .from('wallet_transactions')
+            .select('id, type, amount, description, created_at')
+            .eq('user_id', userId)
+            .order('created_at', { ascending: false })
+        setWalletTransactions(data || [])
+        setWalletLoading(false)
+    }, [userId])
+
     // ============================================
     // USE EFFECT
     // ============================================
@@ -225,11 +270,60 @@ export default function Commission({ userId, profileSlug, onLatestUpdate }: Comm
         if (userId) {
             fetchUserProfileSlug()
             fetchCommissionData()
+            fetchWalletData()
         } else {
             console.warn('⚠️ Commission: userId não fornecido')
             setLoading(false)
+            setWalletLoading(false)
         }
-    }, [userId, fetchUserProfileSlug, fetchCommissionData])
+    }, [userId, fetchUserProfileSlug, fetchCommissionData, fetchWalletData])
+
+    const walletBalance = walletTransactions.reduce((sum, t) => sum + Number(t.amount), 0)
+
+    const handleWithdraw = async () => {
+        const amount = Number(withdrawAmount.replace(',', '.'))
+        if (!amount || amount <= 0) {
+            toast.error('Informe um valor válido')
+            return
+        }
+        if (amount < MIN_WITHDRAWAL_AMOUNT) {
+            toast.error(`Valor mínimo de saque: R$ ${MIN_WITHDRAWAL_AMOUNT.toFixed(2)}`)
+            return
+        }
+        if (amount > walletBalance) {
+            toast.error('Saldo insuficiente')
+            return
+        }
+        if (!pixKey.trim()) {
+            toast.error('Informe sua chave PIX')
+            return
+        }
+
+        setSubmittingWithdraw(true)
+        try {
+            const { data: { session } } = await supabase.auth.getSession()
+            const res = await fetch('/api/wallet/request-withdrawal', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${session?.access_token}`,
+                },
+                body: JSON.stringify({ amount, pixKey: pixKey.trim(), pixKeyType }),
+            })
+            const json = await res.json()
+            if (!res.ok) throw new Error(json.error || 'Erro ao solicitar saque')
+
+            toast.success('Saque enviado! O PIX já foi transferido pra sua chave.')
+            setShowWithdrawForm(false)
+            setWithdrawAmount('')
+            setPixKey('')
+            await fetchWalletData()
+        } catch (err: any) {
+            toast.error(err.message || 'Erro ao solicitar saque')
+        } finally {
+            setSubmittingWithdraw(false)
+        }
+    }
 
     // ============================================
     // FUNÇÕES AUXILIARES
@@ -373,6 +467,116 @@ export default function Commission({ userId, profileSlug, onLatestUpdate }: Comm
 
                     {isExpanded && (
                         <div className="flex flex-col gap-5">
+                            {/* ===== CARTEIRA (saldo + saque) ===== */}
+                            <div className="w-full rounded-2xl p-6 flex flex-col items-center gap-2" style={{ background: GRADIENT }}>
+                                <Wallet size={28} color="#fff" />
+                                <span className="text-xs font-bold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.85)' }}>
+                                    Saldo disponível
+                                </span>
+                                <span className="text-3xl font-black" style={{ color: '#fff' }}>
+                                    R$ {walletBalance.toFixed(2)}
+                                </span>
+                            </div>
+
+                            {!showWithdrawForm ? (
+                                <button
+                                    onClick={() => setShowWithdrawForm(true)}
+                                    disabled={walletBalance < MIN_WITHDRAWAL_AMOUNT}
+                                    className="w-full py-3.5 rounded-full font-black uppercase text-sm tracking-wider transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
+                                    style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`, border: `1px solid ${borderColor}`, color: textPrimary }}
+                                >
+                                    <Send size={16} />
+                                    Solicitar saque via PIX
+                                </button>
+                            ) : (
+                                <div className="w-full rounded-2xl p-4 flex flex-col gap-3" style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.4)`, border: `1px solid ${borderColor}` }}>
+                                    <p className="text-[11px]" style={{ color: textSecondary }}>
+                                        O PIX é enviado automaticamente pra chave abaixo assim que você confirmar. Valor mínimo: R$ {MIN_WITHDRAWAL_AMOUNT.toFixed(2)}.
+                                    </p>
+                                    <label className="text-[10px] font-bold uppercase" style={{ color: textSecondary }}>Valor (máx. R$ {walletBalance.toFixed(2)})</label>
+                                    <input
+                                        type="text"
+                                        inputMode="decimal"
+                                        value={withdrawAmount}
+                                        onChange={(e) => setWithdrawAmount(e.target.value)}
+                                        placeholder="0,00"
+                                        className="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none"
+                                        style={{ background: colors.background, borderColor: borderColor, color: textPrimary }}
+                                    />
+                                    <label className="text-[10px] font-bold uppercase" style={{ color: textSecondary }}>Tipo da chave</label>
+                                    <select
+                                        value={pixKeyType}
+                                        onChange={(e) => setPixKeyType(e.target.value)}
+                                        className="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none"
+                                        style={{ background: colors.background, borderColor: borderColor, color: textPrimary }}
+                                    >
+                                        <option value="cpf">CPF</option>
+                                        <option value="cnpj">CNPJ</option>
+                                        <option value="email">E-mail</option>
+                                        <option value="phone">Telefone</option>
+                                        <option value="random">Aleatória</option>
+                                    </select>
+                                    <label className="text-[10px] font-bold uppercase" style={{ color: textSecondary }}>Chave PIX</label>
+                                    <input
+                                        type="text"
+                                        value={pixKey}
+                                        onChange={(e) => setPixKey(e.target.value)}
+                                        placeholder="CPF, email, telefone ou chave aleatória"
+                                        className="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none"
+                                        style={{ background: colors.background, borderColor: borderColor, color: textPrimary }}
+                                    />
+                                    <div className="flex gap-2 mt-1">
+                                        <button
+                                            onClick={() => setShowWithdrawForm(false)}
+                                            className="flex-1 py-2.5 rounded-xl text-sm font-bold"
+                                            style={{ background: `${borderColor}30`, color: textPrimary }}
+                                        >
+                                            Cancelar
+                                        </button>
+                                        <button
+                                            onClick={handleWithdraw}
+                                            disabled={submittingWithdraw}
+                                            className="flex-1 py-2.5 rounded-xl text-sm font-bold disabled:opacity-60"
+                                            style={{ background: GRADIENT, color: '#fff' }}
+                                        >
+                                            {submittingWithdraw ? <Spinner size={14} color="#ffffff" /> : 'Confirmar'}
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {!walletLoading && walletTransactions.length > 0 && (
+                                <div className="flex flex-col gap-2">
+                                    <h2 className="text-xs font-black uppercase tracking-widest" style={{ color: textPrimary }}>
+                                        Lançamentos
+                                    </h2>
+                                    {walletTransactions.map((t) => (
+                                        <div
+                                            key={t.id}
+                                            className="flex items-center gap-3 p-3 rounded-xl"
+                                            style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`, border: `1px solid ${borderColor}` }}
+                                        >
+                                            {t.amount >= 0 ? (
+                                                <ArrowDownCircle size={20} color="#22c55e" />
+                                            ) : (
+                                                <ArrowUpCircle size={20} color="#ef4444" />
+                                            )}
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-xs font-bold truncate" style={{ color: textPrimary }}>
+                                                    {t.description || (t.amount >= 0 ? 'Crédito' : 'Débito')}
+                                                </p>
+                                                <p className="text-[10px]" style={{ color: textSecondary }}>
+                                                    {formatWalletDate(t.created_at)}
+                                                </p>
+                                            </div>
+                                            <span className="text-sm font-black flex-shrink-0" style={{ color: t.amount >= 0 ? '#22c55e' : '#ef4444' }}>
+                                                {t.amount >= 0 ? '+' : ''}R$ {Number(t.amount).toFixed(2)}
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
                             {/* Botão Convidar - PILL */}
                             <button
                                 onClick={handleInvite}

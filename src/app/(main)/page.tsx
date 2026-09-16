@@ -34,6 +34,7 @@ import StoreList from './inicio/sections/StoreList'
 import StoreDashboard from '@/components/StoreDashboard/StoreDashboard'
 import AdminDashboard from '@/components/AdminDashboard/AdminDashboard'
 import { callAdminApi } from '@/lib/callAdminApi'
+import CareerPlans from './inicio/sections/CareerPlans'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -52,6 +53,7 @@ const DEFAULT_SECTIONS = [
     'servico',
     'canalMotorista',
     'transporte',
+    'careerPlans',
     'orderSection',
 ]
 
@@ -447,6 +449,8 @@ export default function HomePage() {
                         }}
                     />
                 )
+            case 'careerPlans':
+                return <CareerPlans />
             case 'orderSection':
                 return (
                     <OrderSection
