@@ -20,15 +20,12 @@ import {
     DollarSign,
     ShoppingCart,
     Package,
-    Pencil,
     Phone,
     User,
     Calendar,
     Store,
     Heart,
     Star,
-    Copy,
-    ExternalLink,
     AlertCircle,
     Check,
     BarChart3,
@@ -45,14 +42,12 @@ import {
     Palette,
 } from 'lucide-react'
 import AtalhoCompromissosPessoal from '@/app/(main)/compromissos/AtalhoCompromissosPessoal'
+import { ProfileInfo } from './ProfileInfo'
 import ProfileVisitors from './ProfileVisitors'
 import PublicationProfile from './ProfilePublication'
 import Commission from './Commission'
 import { format, subDays, startOfDay, eachDayOfInterval, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subMonths, addMonths } from 'date-fns'
 import { ptBR as ptBRLocale } from 'date-fns/locale'
-
-// ===== IMPORTAR DO PROFILEHOURS (com suporte a intervalo) =====
-import { isProfileOpenNow, getProfileStatusWithLunch } from '@/lib/profileHours'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -147,18 +142,6 @@ export default function ProfileDashboard({
     const intervalRef = useRef<any>(null)
     const loadTimeoutRef = useRef<NodeJS.Timeout | null>(null)
     const isMounted = useRef(true)
-
-    // ===== USANDO AS FUNÇÕES DO PROFILEHOURS (com suporte a intervalo) =====
-    const isProfileOpen = useMemo(() => {
-        if (!profile) return false
-        return isProfileOpenNow(profile.business_hours)
-    }, [profile])
-
-    const profileStatusText = useMemo(() => {
-        if (!profile) return ''
-        const status = getProfileStatusWithLunch(profile.business_hours)
-        return status.text
-    }, [profile])
 
     // Função para salvar WhatsApp
     const handleSaveWhatsApp = async () => {
@@ -762,14 +745,6 @@ export default function ProfileDashboard({
         }
     }
 
-    const copyStoreLink = () => {
-        if (profileSlug) {
-            const url = `${window.location.origin}/${profileSlug}`
-            navigator.clipboard.writeText(url)
-            toast.success('Link copiado!')
-        }
-    }
-
     const formatStatus = (status: string) => {
         const statusMap: Record<string, { label: string; color: string }> = {
             pending: { label: 'Pendente', color: '#3b82f6' },
@@ -1367,39 +1342,18 @@ export default function ProfileDashboard({
 
     return (
         <div className="w-full px-4 md:px-6 pb-28">
-            {/* Header - Avatar e Nome clicáveis */}
-            <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-3 cursor-pointer" onClick={goToPublicProfile}>
-                    <div className="w-12 h-12 rounded-full overflow-hidden bg-gray-200 flex-shrink-0">
-                        {profile.avatar_url ? (
-                            <img src={profile.avatar_url} className="w-full h-full object-cover" alt={profile.name} />
-                        ) : (
-                            <div className="w-full h-full flex items-center justify-center text-xl font-bold" style={{ color: colors.textPrimary }}>
-                                {profile.name?.charAt(0) || '@'}
-                            </div>
-                        )}
-                    </div>
-                    <div>
-                        <h2 className="text-2xl font-black hover:underline transition-all" style={{ color: colors.textPrimary }}>
-                            {profile.name || `@${profileSlug}`}
-                        </h2>
-                        <div className="flex flex-wrap items-center gap-2 text-xs" style={{ color: colors.textSecondary }}>
-                            <span className={`w-2 h-2 rounded-full ${isProfileOpen ? 'bg-green-500' : 'bg-red-500'}`} />
-                            <span className="font-bold" style={{ color: isProfileOpen ? '#10b981' : '#ef4444' }}>
-                                {profileStatusText}
-                            </span>
-                            <span>•</span>
-                            <span>@{profileSlug}</span>
-                            {profile.whatsapp && (
-                                <>
-                                    <span>•</span>
-                                    <Phone size={12} />
-                                    <span>{profile.whatsapp}</span>
-                                </>
-                            )}
-                        </div>
-                    </div>
-                </div>
+            {/* ===== Informações do Perfil — mesmo design de "Informações da Loja" ===== */}
+            <div className="mb-6">
+                <ProfileInfo
+                    profile={{
+                        id: profile.id,
+                        name: profile.name,
+                        profileSlug: profile.profileSlug || profileSlug,
+                        avatar_url: profile.avatar_url,
+                        description: profile.description,
+                    }}
+                    onProfileUpdate={(updates) => setProfile((prev: any) => ({ ...prev, ...updates }))}
+                />
             </div>
 
             {/* ===== CARD DE AVISO - WHATSAPP ===== */}
@@ -1477,50 +1431,6 @@ export default function ProfileDashboard({
                 </div>
             )}
 
-            {/* ===== Botões do Perfil - PILL ===== */}
-            <div className="mb-6 mt-4">
-                <div className="flex gap-2">
-                    <button
-                        onClick={goToPublicProfile}
-                        style={{
-                            ...pillButtonFullStyle,
-                            background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
-                            border: `1px solid ${colors.border}`,
-                            color: colors.textPrimary,
-                        }}
-                        className="hover:scale-105 transition-transform"
-                    >
-                        <ExternalLink size={18} />
-                        Perfil
-                    </button>
-                    <button
-                        onClick={copyStoreLink}
-                        style={{
-                            ...pillButtonFullStyle,
-                            background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
-                            border: `1px solid ${colors.border}`,
-                            color: colors.textPrimary,
-                        }}
-                        className="hover:scale-105 transition-transform"
-                    >
-                        <Copy size={18} />
-                        Copiar
-                    </button>
-                    <button
-                        onClick={() => router.push(`/${profileSlug}/editar-perfil`)}
-                        style={{
-                            ...pillButtonFullStyle,
-                            background: GRADIENT,
-                            color: '#ffffff',
-                            boxShadow: `0 4px 12px #f9731640`,
-                        }}
-                        className="hover:scale-105 transition-transform"
-                    >
-                        <Pencil size={18} />
-                        Editar
-                    </button>
-                </div>
-            </div>
 
             {/* ===== BLOCOS ORDENADOS PELA ATIVIDADE MAIS RECENTE ===== */}
             {sortableSections.map((section) => (
