@@ -37,6 +37,8 @@ const IGNORED_ROUTES = [
     '/painel-motorista',
     '/painel-prestador',
     '/minhas-corridas',
+    '/planos',
+    '/carteira',
 ]
 
 // ===== PREFIXOS IGNORADOS =====
