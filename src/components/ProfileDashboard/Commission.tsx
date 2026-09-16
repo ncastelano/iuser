@@ -93,6 +93,29 @@ interface WalletTransaction {
     created_at: string
 }
 
+interface WithdrawalRequest {
+    id: string
+    amount: number
+    pix_key: string
+    status: 'pending' | 'paid' | 'rejected' | 'failed'
+    failure_reason: string | null
+    requested_at: string
+}
+
+const WITHDRAWAL_STATUS_LABEL: Record<WithdrawalRequest['status'], string> = {
+    pending: 'Pendente',
+    paid: 'Pago',
+    rejected: 'Rejeitado',
+    failed: 'Falhou',
+}
+
+const WITHDRAWAL_STATUS_COLOR: Record<WithdrawalRequest['status'], string> = {
+    pending: '#eab308',
+    paid: '#22c55e',
+    rejected: '#ef4444',
+    failed: '#ef4444',
+}
+
 const MIN_WITHDRAWAL_AMOUNT = 20
 
 function formatWalletDate(iso: string): string {
@@ -148,6 +171,7 @@ export default function Commission({ userId, profileSlug, onLatestUpdate }: Comm
     // ============================================
     const [walletLoading, setWalletLoading] = useState(true)
     const [walletTransactions, setWalletTransactions] = useState<WalletTransaction[]>([])
+    const [withdrawalRequests, setWithdrawalRequests] = useState<WithdrawalRequest[]>([])
     const [showWithdrawForm, setShowWithdrawForm] = useState(false)
     const [withdrawAmount, setWithdrawAmount] = useState('')
     const [pixKey, setPixKey] = useState('')
@@ -253,12 +277,20 @@ export default function Commission({ userId, profileSlug, onLatestUpdate }: Comm
             return
         }
         setWalletLoading(true)
-        const { data } = await supabase
-            .from('wallet_transactions')
-            .select('id, type, amount, description, created_at')
-            .eq('user_id', userId)
-            .order('created_at', { ascending: false })
-        setWalletTransactions(data || [])
+        const [{ data: transactions }, { data: withdrawals }] = await Promise.all([
+            supabase
+                .from('wallet_transactions')
+                .select('id, type, amount, description, created_at')
+                .eq('user_id', userId)
+                .order('created_at', { ascending: false }),
+            supabase
+                .from('withdrawal_requests')
+                .select('id, amount, pix_key, status, failure_reason, requested_at')
+                .eq('user_id', userId)
+                .order('requested_at', { ascending: false }),
+        ])
+        setWalletTransactions(transactions || [])
+        setWithdrawalRequests(withdrawals || [])
         setWalletLoading(false)
     }, [userId])
 
@@ -549,6 +581,47 @@ export default function Commission({ userId, profileSlug, onLatestUpdate }: Comm
                                             {submittingWithdraw ? <Spinner size={14} color="#ffffff" /> : 'Confirmar'}
                                         </button>
                                     </div>
+                                </div>
+                            )}
+
+                            {!walletLoading && withdrawalRequests.length > 0 && (
+                                <div className="flex flex-col gap-2">
+                                    <h2 className="text-xs font-black uppercase tracking-widest" style={{ color: textPrimary }}>
+                                        Pedidos de saque
+                                    </h2>
+                                    {withdrawalRequests.map((w) => (
+                                        <div
+                                            key={w.id}
+                                            className="flex flex-col gap-1 p-3 rounded-xl"
+                                            style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`, border: `1px solid ${borderColor}` }}
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <Send size={16} style={{ color: textSecondary }} className="flex-shrink-0" />
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-xs font-bold truncate" style={{ color: textPrimary }}>
+                                                        {w.pix_key}
+                                                    </p>
+                                                    <p className="text-[10px]" style={{ color: textSecondary }}>
+                                                        {formatWalletDate(w.requested_at)}
+                                                    </p>
+                                                </div>
+                                                <span className="text-sm font-black flex-shrink-0" style={{ color: textPrimary }}>
+                                                    R$ {Number(w.amount).toFixed(2)}
+                                                </span>
+                                                <span
+                                                    className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full flex-shrink-0"
+                                                    style={{ background: `${WITHDRAWAL_STATUS_COLOR[w.status]}20`, color: WITHDRAWAL_STATUS_COLOR[w.status] }}
+                                                >
+                                                    {WITHDRAWAL_STATUS_LABEL[w.status]}
+                                                </span>
+                                            </div>
+                                            {w.failure_reason && (
+                                                <p className="text-[10px]" style={{ color: '#ef4444' }}>
+                                                    {w.failure_reason}
+                                                </p>
+                                            )}
+                                        </div>
+                                    ))}
                                 </div>
                             )}
 
