@@ -1,7 +1,7 @@
 // app/api/subscriptions/purchase/route.ts
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
-import { createOrGetCustomer, createSubscription, getFirstPaymentForSubscription, getPixQrCodeForPayment } from '@/lib/asaas'
+import { createOrGetCustomer, createSubscription, getFirstPaymentForSubscription, getPixQrCodeForPayment, ensureCustomerCpfCnpj } from '@/lib/asaas'
 
 export async function POST(req: Request) {
     try {
@@ -84,14 +84,21 @@ export async function POST(req: Request) {
                 .limit(1)
                 .maybeSingle()
 
-            const customer = previousSub?.asaas_customer_id
-                ? { id: previousSub.asaas_customer_id }
-                : await createOrGetCustomer({
+            let customer: { id: string }
+            if (previousSub?.asaas_customer_id) {
+                customer = { id: previousSub.asaas_customer_id }
+                // O customer pode ter sido criado antes da gente coletar o
+                // CPF (ou de exigir isso) — garante que está preenchido lá
+                // antes de tentar cobrar, senão a Asaas rejeita de novo.
+                await ensureCustomerCpfCnpj(customer.id, resolvedCpfCnpj)
+            } else {
+                customer = await createOrGetCustomer({
                     name: profile?.name || user.email || 'Usuário iuser',
                     email: user.email,
                     cpfCnpj: resolvedCpfCnpj,
                     externalReference: user.id,
                 })
+            }
 
             const { data: subRow, error: subInsertError } = existing
                 ? await supabaseAdmin
@@ -137,6 +144,7 @@ export async function POST(req: Request) {
             pixQrCodeImage: pix.encodedImage,
             pixCopyPaste: pix.payload,
             expirationDate: pix.expirationDate,
+            invoiceUrl: payment.invoiceUrl,
         })
     } catch (err: any) {
         console.error('Erro ao criar assinatura:', err)

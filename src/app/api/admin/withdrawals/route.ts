@@ -11,7 +11,7 @@ export async function POST(req: Request) {
 
     const { data, error } = await supabaseAdmin
         .from('withdrawal_requests')
-        .select('id, user_id, amount, pix_key, pix_key_type, status, requested_at, resolved_at, profiles:user_id(name, profileSlug)')
+        .select('id, user_id, amount, pix_key, pix_key_type, status, requested_at, resolved_at, failure_reason, asaas_transfer_id, profiles:user_id(name, profileSlug)')
         .order('requested_at', { ascending: false })
         .limit(100)
 

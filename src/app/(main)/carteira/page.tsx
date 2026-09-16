@@ -36,7 +36,10 @@ export default function CarteiraPage() {
     const [showWithdrawForm, setShowWithdrawForm] = useState(false)
     const [withdrawAmount, setWithdrawAmount] = useState('')
     const [pixKey, setPixKey] = useState('')
+    const [pixKeyType, setPixKeyType] = useState('cpf')
     const [submitting, setSubmitting] = useState(false)
+
+    const MIN_WITHDRAWAL_AMOUNT = 20
 
     const load = useCallback(async () => {
         if (!userId) {
@@ -72,6 +75,10 @@ export default function CarteiraPage() {
             toast.error('Informe um valor válido')
             return
         }
+        if (amount < MIN_WITHDRAWAL_AMOUNT) {
+            toast.error(`Valor mínimo de saque: R$ ${MIN_WITHDRAWAL_AMOUNT.toFixed(2)}`)
+            return
+        }
         if (amount > balance) {
             toast.error('Saldo insuficiente')
             return
@@ -90,12 +97,12 @@ export default function CarteiraPage() {
                     'Content-Type': 'application/json',
                     Authorization: `Bearer ${session?.access_token}`,
                 },
-                body: JSON.stringify({ amount, pixKey: pixKey.trim() }),
+                body: JSON.stringify({ amount, pixKey: pixKey.trim(), pixKeyType }),
             })
             const json = await res.json()
             if (!res.ok) throw new Error(json.error || 'Erro ao solicitar saque')
 
-            toast.success('Saque solicitado! Você recebe assim que for confirmado.')
+            toast.success('Saque enviado! O PIX já foi transferido pra sua chave.')
             setShowWithdrawForm(false)
             setWithdrawAmount('')
             setPixKey('')
@@ -148,7 +155,7 @@ export default function CarteiraPage() {
                             {!showWithdrawForm ? (
                                 <button
                                     onClick={() => setShowWithdrawForm(true)}
-                                    disabled={balance <= 0}
+                                    disabled={balance < MIN_WITHDRAWAL_AMOUNT}
                                     className="w-full py-3.5 rounded-full font-black uppercase text-sm tracking-wider transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
                                     style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
                                 >
@@ -157,6 +164,9 @@ export default function CarteiraPage() {
                                 </button>
                             ) : (
                                 <div className="w-full rounded-2xl p-4 flex flex-col gap-3" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
+                                    <p className="text-[11px]" style={{ color: colors.textSecondary }}>
+                                        O PIX é enviado automaticamente pra chave abaixo assim que você confirmar. Valor mínimo: R$ {MIN_WITHDRAWAL_AMOUNT.toFixed(2)}.
+                                    </p>
                                     <label className="text-[10px] font-bold uppercase" style={{ color: colors.textSecondary }}>Valor (máx. R$ {balance.toFixed(2)})</label>
                                     <input
                                         type="text"
@@ -167,6 +177,23 @@ export default function CarteiraPage() {
                                         className="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none"
                                         style={{ background: colors.background, borderColor: colors.border, color: colors.textPrimary }}
                                     />
+                                    <div className="flex gap-2">
+                                        <div className="flex-1">
+                                            <label className="text-[10px] font-bold uppercase" style={{ color: colors.textSecondary }}>Tipo da chave</label>
+                                            <select
+                                                value={pixKeyType}
+                                                onChange={(e) => setPixKeyType(e.target.value)}
+                                                className="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none mt-1"
+                                                style={{ background: colors.background, borderColor: colors.border, color: colors.textPrimary }}
+                                            >
+                                                <option value="cpf">CPF</option>
+                                                <option value="cnpj">CNPJ</option>
+                                                <option value="email">E-mail</option>
+                                                <option value="phone">Telefone</option>
+                                                <option value="random">Aleatória</option>
+                                            </select>
+                                        </div>
+                                    </div>
                                     <label className="text-[10px] font-bold uppercase" style={{ color: colors.textSecondary }}>Chave PIX</label>
                                     <input
                                         type="text"

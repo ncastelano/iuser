@@ -37,7 +37,7 @@ export async function POST(req: Request) {
     try {
         const { data: subscription } = await supabaseAdmin
             .from('subscriptions')
-            .select('id, user_id, plan_id, plans(code, price)')
+            .select('id, user_id, plan_id')
             .eq('asaas_subscription_id', payment.subscription)
             .maybeSingle()
 
@@ -57,21 +57,20 @@ export async function POST(req: Request) {
                 })
                 .eq('id', subscription.id)
 
-            const plan = Array.isArray(subscription.plans) ? subscription.plans[0] : subscription.plans
-
+            // Usa o valor REALMENTE cobrado nesse pagamento (payment.value),
+            // nunca o preço atual da tabela de planos — a Asaas não recobra
+            // assinaturas existentes quando o admin muda o preço de um plano,
+            // então usar o preço "atual" prometeria comissão maior do que o
+            // dinheiro que de fato entrou (descoberto testando na prática:
+            // preço subiu de R$5 pra R$50 com uma assinatura já pendente,
+            // que continuou cobrando R$5 — mas a comissão ia creditar como
+            // se fosse R$50).
             await creditReferralCommission({
                 payingUserId: subscription.user_id,
                 subscriptionId: subscription.id,
                 paymentId: payment.id,
-                planPrice: plan?.price ? Number(plan.price) : Number(payment.value),
+                paymentValue: Number(payment.value),
             })
-
-            // Combo dá acesso de loja de verdade, através do paywall já
-            // existente (create_store_with_access) — concede um grant se
-            // o usuário ainda não tiver um aprovado e não consumido.
-            if (plan?.code === 'combo') {
-                await grantStoreAccessForCombo(subscription.user_id)
-            }
         } else if (payload.event === 'PAYMENT_OVERDUE') {
             await supabaseAdmin
                 .from('subscriptions')
@@ -94,7 +93,7 @@ async function creditReferralCommission(params: {
     payingUserId: string
     subscriptionId: string
     paymentId: string
-    planPrice: number
+    paymentValue: number
 }) {
     const { data: payingProfile } = await supabaseAdmin
         .from('profiles')
@@ -109,7 +108,7 @@ async function creditReferralCommission(params: {
         .insert({
             user_id: payingProfile.upline_id,
             type: 'commission_credit',
-            amount: params.planPrice * 0.5,
+            amount: params.paymentValue * 0.5,
             source_subscription_id: params.subscriptionId,
             source_payment_id: params.paymentId,
             description: 'Comissão de indicação (50% da mensalidade)',
@@ -122,28 +121,3 @@ async function creditReferralCommission(params: {
     }
 }
 
-async function grantStoreAccessForCombo(userId: string) {
-    const { data: existingGrant } = await supabaseAdmin
-        .from('store_access_grants')
-        .select('id')
-        .eq('profile_id', userId)
-        .eq('status', 'approved')
-        .is('store_id', null)
-        .maybeSingle()
-
-    if (existingGrant) return // já tem um grant disponível, não duplica
-
-    const { error } = await supabaseAdmin
-        .from('store_access_grants')
-        .insert({
-            profile_id: userId,
-            source: 'combo_subscription',
-            grant_type: 'lifetime',
-            status: 'approved',
-            reviewed_at: new Date().toISOString(),
-        })
-
-    if (error) {
-        console.error('Erro ao conceder acesso de loja via combo:', error)
-    }
-}

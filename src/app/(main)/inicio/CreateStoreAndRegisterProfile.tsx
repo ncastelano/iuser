@@ -38,7 +38,6 @@ import { createSquareImage } from '@/lib/image'
 import { checkSlugAvailability, getSlugSuggestions, sanitizeSlug } from '@/lib/slugUtils'
 import { categorias } from '@/lib/categorias'
 import { StoreAccessGate } from '@/components/StoreAccessGate'
-import { useStoreAccessStatus } from '@/hooks/useStoreAccessStatus'
 
 // Filtra as categorias para remover "Social"
 const CATEGORIAS_LOJAS = categorias.filter(cat => cat.slug !== 'social')
@@ -182,7 +181,6 @@ export default function CreateStoreAndRegisterProfile({
     // Preenchido depois que a conta é criada, usado só na etapa 'access'
     const [createdUserId, setCreatedUserId] = useState<string | null>(null)
     const [pendingStorePayload, setPendingStorePayload] = useState<PendingStorePayload | null>(null)
-    const accessStatus = useStoreAccessStatus(createdUserId)
 
     // Store data
     const [storeName, setStoreName] = useState('')
@@ -693,7 +691,6 @@ export default function CreateStoreAndRegisterProfile({
         setLoading(true)
         try {
             const { error } = await supabase.rpc('create_store_with_access', {
-                p_grant_id: accessStatus.availableGrant?.id ?? null,
                 p_store: pendingStorePayload,
             })
             if (error) throw error
@@ -1261,7 +1258,7 @@ export default function CreateStoreAndRegisterProfile({
                         <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
                         Conta criada! Falta liberar a loja "{storeName}"
                     </div>
-                    <StoreAccessGate status={accessStatus}>
+                    <StoreAccessGate userId={createdUserId}>
                         <div className="space-y-4">
                             <div className="p-3 bg-orange-50 border border-orange-200 rounded-xl text-sm text-gray-700">
                                 Acesso liberado! Agora é só confirmar a criação da loja <strong>{storeName}</strong>.

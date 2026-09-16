@@ -24,8 +24,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (fetchError || !withdrawal) {
         return NextResponse.json({ error: 'Pedido não encontrado' }, { status: 404 })
     }
-    if (withdrawal.status !== 'pending') {
-        return NextResponse.json({ error: 'Esse pedido não está mais pendente' }, { status: 400 })
+    // 'failed' também pode chegar aqui: a Asaas recusou o saque automático,
+    // o admin resolveu na mão (ou tentou de novo) e está só registrando.
+    if (withdrawal.status !== 'pending' && withdrawal.status !== 'failed') {
+        return NextResponse.json({ error: 'Esse pedido já foi resolvido' }, { status: 400 })
     }
 
     if (action === 'reject') {

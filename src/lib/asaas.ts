@@ -60,6 +60,19 @@ export async function createOrGetCustomer(params: {
     })
 }
 
+// Garante que um customer já existente tenha CPF/CNPJ preenchido — precisa
+// disso pra criar cobrança de verdade. Sem isso, reaproveitar um customer
+// criado antes de a gente coletar o CPF (ex: em testes) trava toda
+// assinatura futura desse usuário com o mesmo erro, mesmo já tendo o CPF
+// salvo no perfil, porque quem falta o CPF é o registro na Asaas, não a
+// chamada de criar assinatura.
+export async function ensureCustomerCpfCnpj(customerId: string, cpfCnpj: string): Promise<void> {
+    await asaasFetch(`/customers/${customerId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ cpfCnpj }),
+    })
+}
+
 interface AsaasSubscription {
     id: string
     customer: string
@@ -78,11 +91,16 @@ export async function createSubscription(params: {
     // primeiro payment já na criação da assinatura).
     const today = new Date().toISOString().split('T')[0]
 
+    // 'UNDEFINED' em vez de 'PIX' fixo: a mesma cobrança aceita tanto PIX
+    // (QR embutido, via getPixQrCodeForPayment) quanto Cartão/Boleto (via
+    // payment.invoiceUrl, a fatura hospedada pela própria Asaas — nunca
+    // tocamos em número de cartão, fica fora do escopo de PCI-compliance).
+    // Testado direto na sandbox: os dois convivem na mesma cobrança.
     return asaasFetch<AsaasSubscription>('/subscriptions', {
         method: 'POST',
         body: JSON.stringify({
             customer: params.customerId,
-            billingType: 'PIX',
+            billingType: 'UNDEFINED',
             cycle: 'MONTHLY',
             value: params.value,
             nextDueDate: today,
@@ -97,6 +115,7 @@ interface AsaasPayment {
     subscription: string | null
     status: string
     value: number
+    invoiceUrl: string
 }
 
 // A assinatura não devolve o payment direto na criação — precisa listar os
@@ -120,4 +139,45 @@ export async function getPixQrCodeForPayment(paymentId: string): Promise<AsaasPi
 
 export async function getSubscription(subscriptionId: string): Promise<AsaasSubscription> {
     return asaasFetch<AsaasSubscription>(`/subscriptions/${subscriptionId}`)
+}
+
+// Muda o valor de uma assinatura Asaas já existente — usado quando o admin
+// reajusta o preço de um plano (promoção, aumento etc), pra quem já é
+// assinante também passar a pagar o valor novo, em vez de ficar travado no
+// valor de quando assinou. updatePendingPayments:true também atualiza uma
+// cobrança pendente que já tinha sido gerada (senão ela cobraria o valor
+// antigo mesmo depois do reajuste).
+export async function updateSubscriptionValue(subscriptionId: string, value: number): Promise<AsaasSubscription> {
+    return asaasFetch<AsaasSubscription>(`/subscriptions/${subscriptionId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ value, updatePendingPayments: true }),
+    })
+}
+
+export type AsaasPixKeyType = 'CPF' | 'CNPJ' | 'EMAIL' | 'PHONE' | 'EVP'
+
+interface AsaasTransfer {
+    id: string
+    status: string
+    value: number
+}
+
+// Saque automático: manda o dinheiro de verdade pra chave PIX da pessoa,
+// sem o admin precisar clicar em nada. A Asaas cobra uma taxa fixa por
+// transferência enviada (não é a mesma taxa de receber cobrança).
+export async function createTransfer(params: {
+    value: number
+    pixKey: string
+    pixKeyType: AsaasPixKeyType
+    description?: string
+}): Promise<AsaasTransfer> {
+    return asaasFetch<AsaasTransfer>('/transfers', {
+        method: 'POST',
+        body: JSON.stringify({
+            value: params.value,
+            pixAddressKey: params.pixKey,
+            pixAddressKeyType: params.pixKeyType,
+            description: params.description,
+        }),
+    })
 }

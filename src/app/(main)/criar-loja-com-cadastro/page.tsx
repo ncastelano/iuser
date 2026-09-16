@@ -32,7 +32,6 @@ import AnimatedBackground from '@/components/AnimatedBackground'
 import { createSquareImage } from '@/lib/image'
 import { checkSlugAvailability, getSlugSuggestions, sanitizeSlug } from '@/lib/slugUtils'
 import { StoreAccessGate } from '@/components/StoreAccessGate'
-import { useStoreAccessStatus } from '@/hooks/useStoreAccessStatus'
 import { Spinner } from '@/components/Spinner'
 
 type Step = 'store' | 'account' | 'access' | 'success'
@@ -85,7 +84,6 @@ export default function CriarLojaComCadastro() {
     // Preenchido depois que a conta é criada, usado só na etapa 'access'
     const [createdUserId, setCreatedUserId] = useState<string | null>(null)
     const [pendingStorePayload, setPendingStorePayload] = useState<PendingStorePayload | null>(null)
-    const accessStatus = useStoreAccessStatus(createdUserId)
 
     const handleAccountAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0]
@@ -333,7 +331,6 @@ export default function CriarLojaComCadastro() {
         setLoading(true)
         try {
             const { error } = await supabase.rpc('create_store_with_access', {
-                p_grant_id: accessStatus.availableGrant?.id ?? null,
                 p_store: pendingStorePayload,
             })
             if (error) throw error
@@ -770,7 +767,7 @@ export default function CriarLojaComCadastro() {
                             <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
                             Conta criada! Falta liberar a loja "{storeName}"
                         </div>
-                        <StoreAccessGate status={accessStatus}>
+                        <StoreAccessGate userId={createdUserId}>
                             <div className="space-y-4">
                                 <div className="p-3 bg-orange-50 border border-orange-200 rounded-xl text-sm text-gray-700">
                                     Acesso liberado! Agora é só confirmar a criação da loja <strong>{storeName}</strong>.

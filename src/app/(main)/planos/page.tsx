@@ -12,7 +12,7 @@ import LoginAndRegister from '@/components/LoginAndRegister/LoginAndRegister'
 import { Spinner } from '@/components/Spinner'
 import { toast } from 'sonner'
 import { callAdminApi } from '@/lib/callAdminApi'
-import { Car, Briefcase, Sparkles, Store, Check, Copy, X, ShieldCheck, Gift } from 'lucide-react'
+import { Car, Briefcase, Sparkles, Store, Check, Copy, X, ShieldCheck, Gift, Users, CreditCard } from 'lucide-react'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -23,6 +23,7 @@ interface Plan {
     price: number
     is_active: boolean
     description: string | null
+    features: string[] | null
 }
 
 interface ActiveSub {
@@ -42,12 +43,14 @@ interface PixData {
     subscriptionId: string
     pixQrCodeImage: string
     pixCopyPaste: string
+    invoiceUrl: string
 }
 
 const PLAN_ICON: Record<string, typeof Car> = {
     motorista: Car,
     prestador: Briefcase,
     loja: Store,
+    recrutador: Users,
     combo: Sparkles,
 }
 
@@ -82,7 +85,7 @@ function PlanosContent() {
         setLoading(true)
         const { data: plansData } = await supabase
             .from('plans')
-            .select('id, code, name, price, is_active, description')
+            .select('id, code, name, price, is_active, description, features')
             .eq('is_active', true)
             .order('price', { ascending: true })
         setPlans(plansData || [])
@@ -223,7 +226,7 @@ function PlanosContent() {
                     loading={profileLoading}
                 />
 
-                <section className="px-4 md:px-6 mt-4 pb-24 max-w-lg mx-auto">
+                <section className="px-4 md:px-6 mt-4 pb-24 max-w-5xl mx-auto">
                     {loading && (
                         <div className="flex justify-center py-10">
                             <Spinner size={24} color={colors.textSecondary} />
@@ -231,10 +234,15 @@ function PlanosContent() {
                     )}
 
                     {!loading && (
-                        <div className="flex flex-col gap-4">
-                            <p className="text-sm" style={{ color: colors.textSecondary }}>
-                                Assine pra ativar modo motorista, modo prestador, manter a loja aberta pra vender, ou tudo junto no combo.
-                            </p>
+                        <div className="flex flex-col gap-6">
+                            <div className="text-center max-w-xl mx-auto">
+                                <h1 className="text-2xl md:text-3xl font-black" style={{ color: colors.textPrimary }}>
+                                    Escolha seu plano
+                                </h1>
+                                <p className="text-sm mt-2" style={{ color: colors.textSecondary }}>
+                                    Assine pra ativar modo motorista, modo prestador, manter a loja aberta pra vender, ou tudo junto no combo — o jeito mais barato de liberar tudo.
+                                </p>
+                            </div>
 
                             {isSuperAdmin && (
                                 <div
@@ -248,63 +256,111 @@ function PlanosContent() {
                                 </div>
                             )}
 
-                            {plans.map((plan) => {
-                                const Icon = PLAN_ICON[plan.code] || Sparkles
-                                const sub = getActiveSub(plan.id)
-                                const active = isSuperAdmin || !!sub
-                                const remaining = sub ? daysLeft(sub.current_period_end) : null
-                                const highlighted = highlightPlan === plan.code
-                                return (
-                                    <div
-                                        key={plan.id}
-                                        className="w-full flex items-center gap-3 p-4 rounded-2xl"
-                                        style={{
-                                            background: active ? '#22c55e20' : colors.surface,
-                                            border: `1px solid ${active ? '#22c55e60' : highlighted ? colors.accent : colors.border}`,
-                                        }}
-                                    >
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-start">
+                                {plans.map((plan) => {
+                                    const Icon = PLAN_ICON[plan.code] || Sparkles
+                                    const sub = getActiveSub(plan.id)
+                                    const active = isSuperAdmin || !!sub
+                                    const remaining = sub ? daysLeft(sub.current_period_end) : null
+                                    const highlighted = highlightPlan === plan.code
+                                    const isCombo = plan.code === 'combo'
+                                    const soloPlans = plans.filter((p) => p.code !== 'combo')
+                                    const soloSum = soloPlans.reduce((acc, p) => acc + Number(p.price), 0)
+                                    const savings = isCombo ? soloSum - Number(plan.price) : 0
+
+                                    return (
                                         <div
-                                            className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
-                                            style={{ background: active ? '#22c55e' : GRADIENT, color: '#ffffff' }}
+                                            key={plan.id}
+                                            className="relative flex flex-col gap-3 p-5 rounded-3xl h-full"
+                                            style={{
+                                                background: active ? '#22c55e18' : isCombo ? `${colors.surface}` : colors.surface,
+                                                border: `2px solid ${active ? '#22c55e60' : isCombo ? '#f97316' : highlighted ? colors.accent : colors.border}`,
+                                                boxShadow: isCombo && !active ? '0 8px 30px rgba(249,115,22,0.25)' : undefined,
+                                                transform: isCombo ? 'scale(1.02)' : undefined,
+                                            }}
                                         >
-                                            <Icon size={22} />
-                                        </div>
-                                        <div className="flex-1 min-w-0">
+                                            {isCombo && !active && (
+                                                <span
+                                                    className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider text-white whitespace-nowrap"
+                                                    style={{ background: GRADIENT }}
+                                                >
+                                                    Melhor oferta
+                                                </span>
+                                            )}
+
+                                            <div
+                                                className="w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0"
+                                                style={{ background: active ? '#22c55e' : GRADIENT, color: '#ffffff' }}
+                                            >
+                                                <Icon size={20} />
+                                            </div>
+
                                             <span className="text-sm font-black" style={{ color: colors.textPrimary }}>
                                                 {plan.name}
                                             </span>
-                                            <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>
-                                                R$ {plan.price.toFixed(2)}/mês
-                                            </p>
-                                            {plan.description && (
-                                                <p className="text-[11px] mt-1" style={{ color: colors.textSecondary }}>
-                                                    {plan.description}
-                                                </p>
+
+                                            <div className="flex items-baseline gap-1">
+                                                <span
+                                                    className={isCombo ? 'text-3xl font-black' : 'text-2xl font-black'}
+                                                    style={{ color: isCombo ? '#f97316' : colors.textPrimary }}
+                                                >
+                                                    R$ {plan.price.toFixed(2)}
+                                                </span>
+                                                <span className="text-xs font-bold" style={{ color: colors.textSecondary }}>
+                                                    /mês
+                                                </span>
+                                            </div>
+
+                                            {isCombo && savings > 0 && (
+                                                <span className="text-[11px] font-bold" style={{ color: '#22c55e' }}>
+                                                    Economize R$ {savings.toFixed(2)} vs. assinar os {soloPlans.length} separados
+                                                </span>
                                             )}
+
+                                            <div className="flex-1 flex flex-col gap-2">
+                                                {plan.description && (
+                                                    <p className="text-[11px] font-semibold" style={{ color: colors.textSecondary }}>
+                                                        {plan.description}
+                                                    </p>
+                                                )}
+
+                                                {plan.features && plan.features.length > 0 && (
+                                                    <ul className="flex flex-col gap-1.5">
+                                                        {plan.features.map((feature, i) => (
+                                                            <li key={i} className="flex items-start gap-1.5 text-[11px]" style={{ color: colors.textPrimary }}>
+                                                                <Check size={12} className="mt-0.5 flex-shrink-0" color="#22c55e" />
+                                                                <span>{feature}</span>
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                )}
+                                            </div>
+
                                             {sub && !isSuperAdmin && (
-                                                <p className="text-[11px] mt-1 flex items-center gap-1 font-bold" style={{ color: '#22c55e' }}>
+                                                <p className="text-[11px] flex items-center gap-1 font-bold" style={{ color: '#22c55e' }}>
                                                     {sub.source === 'asaas' ? <Check size={12} /> : <Gift size={12} />}
                                                     {SOURCE_LABEL[sub.source]}
                                                     {remaining !== null && ` · faltam ${remaining} dia${remaining === 1 ? '' : 's'}`}
                                                 </p>
                                             )}
+
+                                            {!active && (
+                                                <button
+                                                    onClick={() => handleBuy(plan)}
+                                                    disabled={buyingPlanId === plan.id}
+                                                    className="w-full mt-1 px-4 py-2.5 rounded-full font-black uppercase text-xs tracking-wider transition-all hover:scale-105 active:scale-95 disabled:opacity-60"
+                                                    style={{ background: isCombo ? GRADIENT : `${colors.textPrimary}15`, color: isCombo ? '#ffffff' : colors.textPrimary }}
+                                                >
+                                                    {buyingPlanId === plan.id ? <Spinner size={14} color="#ffffff" /> : 'Assinar'}
+                                                </button>
+                                            )}
                                         </div>
-                                        {!active && (
-                                            <button
-                                                onClick={() => handleBuy(plan)}
-                                                disabled={buyingPlanId === plan.id}
-                                                className="px-4 py-2 rounded-full font-black uppercase text-xs tracking-wider transition-all hover:scale-105 active:scale-95 disabled:opacity-60 flex-shrink-0"
-                                                style={{ background: GRADIENT, color: '#ffffff' }}
-                                            >
-                                                {buyingPlanId === plan.id ? <Spinner size={14} color="#ffffff" /> : 'Assinar'}
-                                            </button>
-                                        )}
-                                    </div>
-                                )
-                            })}
+                                    )
+                                })}
+                            </div>
 
                             {userId && !isSuperAdmin && (
-                                <div className="rounded-2xl p-4" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
+                                <div className="rounded-2xl p-4 max-w-xl w-full mx-auto" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
                                     <p className="text-xs font-black uppercase tracking-wider mb-2" style={{ color: colors.textSecondary }}>
                                         Tenho um código promocional
                                     </p>
@@ -330,7 +386,7 @@ function PlanosContent() {
                             )}
 
                             {showLogin && (
-                                <div className="mt-2">
+                                <div className="mt-2 max-w-xl w-full mx-auto">
                                     <p className="text-xs mb-3 text-center" style={{ color: colors.textSecondary }}>
                                         Entra ou cria sua conta pra assinar
                                     </p>
@@ -408,6 +464,23 @@ function PlanosContent() {
                                 >
                                     <Copy size={14} /> Copiar código PIX
                                 </button>
+
+                                <div className="flex items-center gap-2 w-full my-1">
+                                    <div className="flex-1 h-px" style={{ background: colors.border }} />
+                                    <span className="text-[10px] font-bold" style={{ color: colors.textSecondary }}>ou</span>
+                                    <div className="flex-1 h-px" style={{ background: colors.border }} />
+                                </div>
+
+                                <a
+                                    href={pixData.invoiceUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold"
+                                    style={{ background: `${colors.border}30`, color: colors.textPrimary, border: `1px solid ${colors.border}` }}
+                                >
+                                    <CreditCard size={14} /> Pagar com cartão
+                                </a>
+
                                 <div className="flex items-center gap-2 mt-1">
                                     <Spinner size={14} color={colors.textSecondary} />
                                     <span className="text-xs" style={{ color: colors.textSecondary }}>Aguardando confirmação...</span>

@@ -14,7 +14,6 @@ import {
     UserPlus,
     Copy,
     Check,
-    Crown,
     X,
     Share2,
     Send,
@@ -22,6 +21,8 @@ import {
     Link2,
     Image,
     Music2,
+    Wallet,
+    Receipt,
 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { ptBR as ptBRLocale } from 'date-fns/locale'
@@ -64,22 +65,21 @@ interface CommissionProps {
     onLatestUpdate?: (iso: string) => void
 }
 
+interface CommissionSale {
+    planName: string
+    amount: number
+    date: string
+}
+
 interface CommissionMember {
     id: string
     name: string
-    email: string
     avatar_url: string | null
-    user_type: 'person' | 'store'
-    is_leader: boolean
-    level: number
-    monthly_volume: number
-    commission_value: number
-    total_earnings: number
     created_at: string
     profileSlug: string | null
-    store_name: string | null
-    store_avatar: string | null
-    downline_count: number
+    activePlans: string | null
+    commissionTotal: number
+    sales: CommissionSale[]
 }
 
 // ============================================
@@ -177,13 +177,12 @@ export default function Commission({ userId, profileSlug, onLatestUpdate }: Comm
 
         setLoading(true)
         try {
-            console.log('🔍 Buscando pessoas convidadas por:', userId)
-
-            const { data: downlineData, error } = await supabase
-                .from('profiles')
-                .select('*')
-                .eq('upline_id', userId)
-                .order('created_at', { ascending: false })
+            // RPC (security definer) em vez de query direta: precisa ler
+            // subscriptions/wallet_transactions de OUTRAS pessoas (quem foi
+            // indicado), e essas tabelas só deixam o dono ler a própria
+            // linha por RLS — a função já filtra por upline_id = auth.uid()
+            // internamente, nunca vaza dado de quem não foi indicado por mim.
+            const { data: downlineData, error } = await supabase.rpc('get_referral_commission_summary')
 
             if (error) {
                 console.error('❌ Erro ao buscar dados:', error)
@@ -191,24 +190,21 @@ export default function Commission({ userId, profileSlug, onLatestUpdate }: Comm
                 return
             }
 
-            console.log(`✅ Encontradas ${downlineData?.length || 0} pessoas convidadas`)
-
             const members: CommissionMember[] = (downlineData || []).map((item: any) => ({
-                id: item.id,
+                id: item.downline_id,
                 name: item.name || 'Usuário',
-                email: item.email || '',
                 avatar_url: item.avatar_url || null,
-                user_type: 'person',
-                is_leader: false,
-                level: 1,
-                monthly_volume: item.view_count || 0,
-                commission_value: 0,
-                total_earnings: 0,
-                created_at: item.created_at || new Date().toISOString(),
-                profileSlug: item.profileSlug || null,
-                store_name: null,
-                store_avatar: null,
-                downline_count: 0,
+                created_at: item.joined_at || new Date().toISOString(),
+                profileSlug: item.profile_slug || null,
+                activePlans: item.active_plans || null,
+                commissionTotal: Number(item.commission_total) || 0,
+                sales: Array.isArray(item.sales)
+                    ? item.sales.map((s: any) => ({
+                        planName: s.plan_name,
+                        amount: Number(s.amount) || 0,
+                        date: s.date,
+                    }))
+                    : [],
             }))
 
             setMembers(members)
@@ -314,6 +310,8 @@ export default function Commission({ userId, profileSlug, onLatestUpdate }: Comm
         return null
     }
 
+    const totalCommission = members.reduce((acc, m) => acc + m.commissionTotal, 0)
+
     return (
         <>
             <div className="mb-6 mt-4">
@@ -355,6 +353,7 @@ export default function Commission({ userId, profileSlug, onLatestUpdate }: Comm
                                 </h3>
                                 <p className="text-xs mt-0.5" style={{ color: textSecondary }}>
                                     {members.length} pessoa{members.length !== 1 ? 's' : ''} indicada{members.length !== 1 ? 's' : ''}
+                                    {totalCommission > 0 && ` · ${formatCurrency(totalCommission)} em comissão`}
                                 </p>
                             </div>
                         </div>
@@ -426,54 +425,108 @@ export default function Commission({ userId, profileSlug, onLatestUpdate }: Comm
                                     </div>
                                 </div>
                             ) : (
-                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                <div className="flex flex-col gap-3">
                                     {members.map(member => {
                                         const avatarUrl = getImageUrl(member.avatar_url)
+                                        const hasSales = member.sales.length > 0
 
                                         return (
                                             <div
                                                 key={member.id}
-                                                className="rounded-2xl border p-3 flex flex-col gap-2 relative group cursor-pointer hover:shadow-md transition-shadow"
+                                                className="rounded-2xl border overflow-hidden"
                                                 style={{
                                                     background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
                                                     borderColor: borderColor,
                                                 }}
-                                                onClick={() => {
-                                                    if (member.profileSlug) {
-                                                        router.push(`/${member.profileSlug}`)
-                                                    }
-                                                }}
                                             >
                                                 <div
-                                                    className="w-full aspect-square rounded-xl overflow-hidden bg-gray-100 flex items-center justify-center"
-                                                    style={{
-                                                        background: `${accentColor}15`,
+                                                    className="flex items-center gap-3 p-3 cursor-pointer hover:opacity-80 transition-opacity"
+                                                    onClick={() => {
+                                                        if (member.profileSlug) {
+                                                            router.push(`/${member.profileSlug}`)
+                                                        }
                                                     }}
                                                 >
-                                                    {avatarUrl ? (
-                                                        <img
-                                                            src={avatarUrl}
-                                                            className="w-full h-full object-cover"
-                                                            alt={member.name}
-                                                        />
-                                                    ) : (
-                                                        <User size={32} style={{ color: '#f97316' }} />
-                                                    )}
-                                                </div>
+                                                    <div
+                                                        className="w-12 h-12 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0"
+                                                        style={{ background: `${accentColor}15` }}
+                                                    >
+                                                        {avatarUrl ? (
+                                                            <img
+                                                                src={avatarUrl}
+                                                                className="w-full h-full object-cover"
+                                                                alt={member.name}
+                                                            />
+                                                        ) : (
+                                                            <User size={22} style={{ color: '#f97316' }} />
+                                                        )}
+                                                    </div>
 
-                                                <div>
-                                                    <p className="text-xs font-bold truncate" style={{ color: textPrimary }}>
-                                                        {member.name}
-                                                    </p>
-                                                    <div className="flex items-center gap-1.5 mt-0.5">
-                                                        <span className="text-[8px]" style={{ color: textSecondary }}>
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-sm font-bold truncate" style={{ color: textPrimary }}>
+                                                            {member.name}
+                                                        </p>
+                                                        <p className="text-[10px] mt-0.5" style={{ color: textSecondary }}>
                                                             Entrou {formatDistanceToNow(new Date(member.created_at), {
                                                                 addSuffix: true,
                                                                 locale: ptBRLocale,
                                                             })}
+                                                        </p>
+                                                        {member.activePlans ? (
+                                                            <span
+                                                                className="inline-block mt-1.5 text-[9px] font-bold px-2 py-0.5 rounded-full truncate max-w-full"
+                                                                style={{ background: '#22c55e20', color: '#22c55e' }}
+                                                                title={member.activePlans}
+                                                            >
+                                                                {member.activePlans}
+                                                            </span>
+                                                        ) : (
+                                                            <span className="inline-block mt-1.5 text-[9px]" style={{ color: textSecondary }}>
+                                                                Sem plano ativo
+                                                            </span>
+                                                        )}
+                                                    </div>
+
+                                                    <div className="flex flex-col items-end gap-0.5 flex-shrink-0 text-right">
+                                                        <span className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider" style={{ color: textSecondary }}>
+                                                            <Wallet size={10} />
+                                                            Comissão
+                                                        </span>
+                                                        <span className="text-base font-black" style={{ color: member.commissionTotal > 0 ? '#f97316' : textSecondary }}>
+                                                            {formatCurrency(member.commissionTotal)}
                                                         </span>
                                                     </div>
                                                 </div>
+
+                                                {hasSales && (
+                                                    <div
+                                                        className="px-3 py-2.5 space-y-1.5 border-t"
+                                                        style={{
+                                                            borderColor,
+                                                            background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.25)`,
+                                                        }}
+                                                    >
+                                                        <p className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wider mb-1" style={{ color: textSecondary }}>
+                                                            <Receipt size={11} />
+                                                            Extrato de vendas
+                                                        </p>
+                                                        {member.sales.map((sale, i) => (
+                                                            <div key={i} className="flex items-center justify-between text-[11px]">
+                                                                <span className="truncate" style={{ color: textPrimary }}>
+                                                                    {sale.planName}
+                                                                </span>
+                                                                <span className="flex items-center gap-2 flex-shrink-0">
+                                                                    <span style={{ color: textSecondary }}>
+                                                                        {new Date(sale.date).toLocaleDateString('pt-BR')}
+                                                                    </span>
+                                                                    <span className="font-bold" style={{ color: '#22c55e' }}>
+                                                                        +{formatCurrency(sale.amount)}
+                                                                    </span>
+                                                                </span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
                                             </div>
                                         )
                                     })}
