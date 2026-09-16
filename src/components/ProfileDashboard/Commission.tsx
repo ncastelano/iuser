@@ -387,7 +387,7 @@ export default function Commission({ userId, profileSlug, onLatestUpdate }: Comm
         console.log('📝 ProfileSlug usado:', slug)
 
         setShareLink(link)
-        setShareMessage(`🎉 Oi! Estou usando o iUser e amando! 🚀\n\nVem comigo também, é incrível! Use meu link de convite e vamos juntos construir uma rede incrível:\n\n${link}\n\nTe espero lá! 🙌`)
+        setShareMessage(`@${slug} te chama pro iUser — compre, venda, preste serviço ou dirija, tudo numa plataforma só, sem taxa escondida.\n\nEntre pelo meu link e comece agora:\n\n${link}`)
         setShowShareModal(true)
     }
 

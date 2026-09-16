@@ -495,35 +495,41 @@ function ConviteContent() {
                             boxShadow: colors.shadow,
                         }}
                     >
-                        {/* Logo com animação */}
+                        {/* Foto de quem convidou, no lugar da logo genérica */}
                         <div className="relative z-10 flex justify-center">
                             <div
-                                className="absolute w-20 h-20 rounded-full blur-xl opacity-50 animate-[pulse_2s_ease-in-out_infinite]"
+                                className="absolute w-24 h-24 rounded-full blur-xl opacity-50 animate-[pulse_2s_ease-in-out_infinite]"
                                 style={{
                                     background: `linear-gradient(135deg, ${primaryParticle}, ${darkerAccent})`,
                                 }}
                             />
                             <div
-                                className="w-20 h-20 rounded-full flex items-center justify-center relative ring-2 ring-white/80 ring-offset-2 ring-offset-transparent"
+                                className="w-24 h-24 rounded-full flex items-center justify-center relative ring-2 ring-white/80 ring-offset-2 ring-offset-transparent overflow-hidden"
                                 style={{
                                     background: `linear-gradient(135deg, ${primaryParticle}, ${darkerAccent})`,
                                     boxShadow: `0 0 30px ${primaryParticle}66, 0 0 60px ${darkerAccent}33`,
                                 }}
                             >
-                                <img
-                                    src="/logotransparente.png"
-                                    alt="iUser"
-                                    className="h-10 w-10 object-contain rounded-full drop-shadow-lg relative z-20"
-                                />
+                                {inviter.avatar_url ? (
+                                    <img
+                                        src={inviter.avatar_url}
+                                        alt={inviter.name}
+                                        className="w-full h-full object-cover relative z-20"
+                                    />
+                                ) : (
+                                    <span className="text-3xl font-black text-white relative z-20">
+                                        {inviter.name?.charAt(0) || '?'}
+                                    </span>
+                                )}
                             </div>
                         </div>
 
                         <div className="text-center">
                             <h1 className="text-2xl font-black" style={{ color: textPrimary }}>
-                                Convite Exclusivo
+                                {inviter.name}
                             </h1>
-                            <p className="text-sm" style={{ color: textSecondary }}>
-                                Você foi convidado(a) para o iUser!
+                            <p className="text-sm font-bold" style={{ color: accentColor }}>
+                                @{inviter.profileSlug} te chamou para o iUser
                             </p>
 
                             {/* Feature badges */}
@@ -561,55 +567,18 @@ function ConviteContent() {
                             </div>
                         </div>
 
-                        {/* Card do convidante */}
+                        {/* Chamada de impacto, reforçando quem está convidando */}
                         <div
-                            className="rounded-2xl p-6 text-center"
+                            className="rounded-2xl p-4 text-center flex items-center justify-center gap-2"
                             style={{
-                                background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
-                                border: `1px solid ${borderColor}`,
+                                background: `${accentColor}12`,
+                                border: `1px solid ${accentColor}30`,
                             }}
                         >
-                            <div
-                                className="w-20 h-20 rounded-full mx-auto mb-3 overflow-hidden"
-                                style={{
-                                    border: `3px solid ${accentColor}`,
-                                    boxShadow: `0 0 30px ${accentColor}30`,
-                                }}
-                            >
-                                {inviter.avatar_url ? (
-                                    <img
-                                        src={inviter.avatar_url}
-                                        className="w-full h-full object-cover"
-                                        alt={inviter.name}
-                                    />
-                                ) : (
-                                    <div
-                                        className="w-full h-full flex items-center justify-center text-3xl font-black"
-                                        style={{ background: `${accentColor}20`, color: accentColor }}
-                                    >
-                                        {inviter.name?.charAt(0) || '?'}
-                                    </div>
-                                )}
-                            </div>
-
-                            <div className="flex items-center justify-center gap-2">
-                                <h2 className="text-xl font-bold" style={{ color: textPrimary }}>
-                                    {inviter.name}
-                                </h2>
-                                <Crown className="w-4 h-4" style={{ color: accentColor }} />
-                            </div>
-                            <p className="text-sm" style={{ color: textSecondary }}>
-                                @{inviter.profileSlug}
+                            <Crown className="w-4 h-4 flex-shrink-0" style={{ color: accentColor }} />
+                            <p className="text-xs font-bold" style={{ color: textPrimary }}>
+                                Convite exclusivo — entre e faça parte da rede de {inviter.name}
                             </p>
-
-                            <div
-                                className="mt-3 pt-3 border-t"
-                                style={{ borderColor: `${borderColor}30` }}
-                            >
-                                <p className="text-xs" style={{ color: textSecondary }}>
-                                    <span className="font-bold" style={{ color: accentColor }}>🔗 Convite exclusivo</span> — junte-se à rede de {inviter.name}
-                                </p>
-                            </div>
                         </div>
 
                         {/* CASO 1: NÃO LOGADO */}
