@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase/client'
 import { Spinner } from '@/components/Spinner'
 import { toast } from 'sonner'
 import { hexToRgb } from '@/lib/color'
-import { Check, X, Copy, Plus, ShieldOff, Send, CalendarClock, Wallet, Tag } from 'lucide-react'
+import { Check, X, Copy, Plus, ShieldOff, Send, CalendarClock, Wallet, Tag, Sparkles } from 'lucide-react'
 import { callAdminApi } from '@/lib/callAdminApi'
 
 type Section = 'pagamentos' | 'saques' | 'planos'
@@ -88,6 +88,7 @@ export default function AdminDashboard() {
             {section === 'saques' && <WithdrawalsSection cardStyle={cardStyle} colors={colors} />}
             {section === 'planos' && (
                 <div className="space-y-5">
+                    <PlanManageSection cardStyle={cardStyle} colors={colors} />
                     <PlanPricingSection cardStyle={cardStyle} colors={colors} />
                     <PlanGrantsSection cardStyle={cardStyle} colors={colors} />
                     <PlanCodesSection cardStyle={cardStyle} colors={colors} />
@@ -363,6 +364,363 @@ interface PlanRow {
     code: string
     name: string
     price: number
+}
+
+interface FullPlanRow {
+    id: string
+    code: string
+    name: string
+    price: number
+    description: string | null
+    features: string[] | null
+    billing_cycle: string
+    max_active_subscriptions: number | null
+    grants_driver: boolean
+    grants_provider: boolean
+    grants_store: boolean
+    grants_recruiter: boolean
+    is_active: boolean
+    promo_price: number | null
+    promo_starts_at: string | null
+    promo_ends_at: string | null
+}
+
+const BILLING_CYCLE_OPTIONS = ['WEEKLY', 'BIWEEKLY', 'MONTHLY', 'QUARTERLY', 'SEMIANNUALLY', 'YEARLY']
+
+// Admin cria planos com qualquer código (não só os 6 fixos), edita texto/
+// config dos existentes, e roda promoções temporárias — tudo publicado
+// como os mesmos cards que já aparecem em /planos.
+function PlanManageSection({ cardStyle, colors }: SectionProps) {
+    const [plans, setPlans] = useState<FullPlanRow[]>([])
+    const [loading, setLoading] = useState(true)
+    const [showCreateForm, setShowCreateForm] = useState(false)
+    const [editingPlanId, setEditingPlanId] = useState<string | null>(null)
+    const [promoPlanId, setPromoPlanId] = useState<string | null>(null)
+
+    const load = useCallback(async () => {
+        setLoading(true)
+        const { data } = await supabase.from('plans').select('*').order('created_at', { ascending: false })
+        setPlans((data as FullPlanRow[]) || [])
+        setLoading(false)
+    }, [])
+
+    useEffect(() => { load() }, [load])
+
+    const inputStyle: React.CSSProperties = {
+        background: colors.background,
+        border: `1px solid ${colors.border}`,
+        color: colors.textPrimary,
+        borderRadius: 12,
+        padding: '8px 12px',
+        fontSize: 13,
+    }
+
+    return (
+        <div className="space-y-3">
+            <div style={cardStyle} className="space-y-3">
+                <div className="flex items-center justify-between">
+                    <p className="text-xs font-black uppercase tracking-wider flex items-center gap-1.5" style={{ color: colors.textSecondary }}>
+                        <Sparkles size={12} />
+                        Gerenciar planos
+                    </p>
+                    <button
+                        onClick={() => setShowCreateForm(!showCreateForm)}
+                        className="text-xs font-bold px-3 py-1.5 rounded-full flex items-center gap-1"
+                        style={{ background: colors.accent, color: colors.accentText }}
+                    >
+                        <Plus size={12} /> Criar plano
+                    </button>
+                </div>
+                <p className="text-xs" style={{ color: colors.textSecondary }}>
+                    Crie planos novos com qualquer código, edite texto/benefícios dos existentes, ou rode uma promoção temporária (preço alternativo válido só numa janela de datas).
+                </p>
+
+                {showCreateForm && (
+                    <PlanForm
+                        colors={colors}
+                        inputStyle={inputStyle}
+                        mode="create"
+                        onSubmit={async (values) => {
+                            await callAdminApi('/api/admin/plans/create', values)
+                            toast.success('Plano criado!')
+                            setShowCreateForm(false)
+                            await load()
+                        }}
+                    />
+                )}
+            </div>
+
+            {loading ? (
+                <div className="flex justify-center py-8"><Spinner size={24} color={colors.accent} /></div>
+            ) : (
+                <div className="space-y-2">
+                    {plans.map((plan) => (
+                        <div key={plan.id} style={cardStyle} className="space-y-2">
+                            <div className="flex items-center justify-between gap-2">
+                                <div>
+                                    <p className="text-sm font-black" style={{ color: colors.textPrimary }}>
+                                        {plan.name} <span className="text-[10px] font-normal" style={{ color: colors.textSecondary }}>({plan.code})</span>
+                                    </p>
+                                    <p className="text-xs" style={{ color: colors.textSecondary }}>
+                                        R$ {Number(plan.price).toFixed(2)} · {plan.billing_cycle}
+                                        {!plan.is_active && ' · inativo'}
+                                        {plan.promo_price && ` · promo R$ ${Number(plan.promo_price).toFixed(2)}`}
+                                    </p>
+                                </div>
+                                <div className="flex gap-1.5 flex-shrink-0">
+                                    <button
+                                        onClick={() => { setEditingPlanId(editingPlanId === plan.id ? null : plan.id); setPromoPlanId(null) }}
+                                        className="text-[10px] font-bold px-2.5 py-1.5 rounded-full"
+                                        style={{ background: `${colors.border}30`, color: colors.textPrimary }}
+                                    >
+                                        Editar
+                                    </button>
+                                    <button
+                                        onClick={() => { setPromoPlanId(promoPlanId === plan.id ? null : plan.id); setEditingPlanId(null) }}
+                                        className="text-[10px] font-bold px-2.5 py-1.5 rounded-full"
+                                        style={{ background: `${colors.border}30`, color: colors.textPrimary }}
+                                    >
+                                        Promoção
+                                    </button>
+                                </div>
+                            </div>
+
+                            {editingPlanId === plan.id && (
+                                <PlanForm
+                                    colors={colors}
+                                    inputStyle={inputStyle}
+                                    mode="edit"
+                                    initial={plan}
+                                    onSubmit={async (values) => {
+                                        await callAdminApi('/api/admin/plans/update', { planId: plan.id, ...values })
+                                        toast.success('Plano atualizado!')
+                                        setEditingPlanId(null)
+                                        await load()
+                                    }}
+                                />
+                            )}
+
+                            {promoPlanId === plan.id && (
+                                <PromoForm
+                                    colors={colors}
+                                    inputStyle={inputStyle}
+                                    plan={plan}
+                                    onSubmit={async (values) => {
+                                        await callAdminApi('/api/admin/plans/set-promo', { planId: plan.id, ...values })
+                                        toast.success(values.clear ? 'Promoção removida' : 'Promoção definida!')
+                                        setPromoPlanId(null)
+                                        await load()
+                                    }}
+                                />
+                            )}
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    )
+}
+
+function PlanForm({
+    colors,
+    inputStyle,
+    mode,
+    initial,
+    onSubmit,
+}: {
+    colors: ThemeColors
+    inputStyle: React.CSSProperties
+    mode: 'create' | 'edit'
+    initial?: FullPlanRow
+    onSubmit: (values: any) => Promise<void>
+}) {
+    const [code, setCode] = useState(initial?.code || '')
+    const [name, setName] = useState(initial?.name || '')
+    const [price, setPrice] = useState(initial ? String(initial.price) : '')
+    const [description, setDescription] = useState(initial?.description || '')
+    const [featuresText, setFeaturesText] = useState((initial?.features || []).join('\n'))
+    const [billingCycle, setBillingCycle] = useState(initial?.billing_cycle || 'MONTHLY')
+    const [maxSubs, setMaxSubs] = useState(initial?.max_active_subscriptions ? String(initial.max_active_subscriptions) : '')
+    const [grantsDriver, setGrantsDriver] = useState(!!initial?.grants_driver)
+    const [grantsProvider, setGrantsProvider] = useState(!!initial?.grants_provider)
+    const [grantsStore, setGrantsStore] = useState(!!initial?.grants_store)
+    const [grantsRecruiter, setGrantsRecruiter] = useState(!!initial?.grants_recruiter)
+    const [isActive, setIsActive] = useState(initial ? initial.is_active : true)
+    const [saving, setSaving] = useState(false)
+
+    const submit = async () => {
+        setSaving(true)
+        try {
+            await onSubmit({
+                ...(mode === 'create' ? { code: code.trim().toLowerCase(), price: Number(price.replace(',', '.')) } : {}),
+                name: name.trim(),
+                description: description.trim(),
+                features: featuresText.split('\n').map((f) => f.trim()).filter(Boolean),
+                billingCycle,
+                maxActiveSubscriptions: maxSubs ? Number(maxSubs) : null,
+                grantsDriver,
+                grantsProvider,
+                grantsStore,
+                grantsRecruiter,
+                isActive,
+            })
+        } catch (err: any) {
+            toast.error(err.message || 'Erro ao salvar plano')
+        } finally {
+            setSaving(false)
+        }
+    }
+
+    const checkbox = (label: string, checked: boolean, onChange: (v: boolean) => void) => (
+        <label className="flex items-center gap-1.5 text-[11px] font-bold" style={{ color: colors.textPrimary }}>
+            <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+            {label}
+        </label>
+    )
+
+    return (
+        <div className="space-y-2 pt-2 border-t" style={{ borderColor: colors.border }}>
+            {mode === 'create' && (
+                <input
+                    type="text"
+                    placeholder="código (ex: vip)"
+                    value={code}
+                    onChange={(e) => setCode(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                    style={inputStyle}
+                    className="w-full"
+                />
+            )}
+            <input type="text" placeholder="Nome do plano" value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} className="w-full" />
+            {mode === 'create' && (
+                <input
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="preço (R$)"
+                    value={price}
+                    onChange={(e) => setPrice(e.target.value)}
+                    style={inputStyle}
+                    className="w-full"
+                />
+            )}
+            <textarea placeholder="Descrição" value={description} onChange={(e) => setDescription(e.target.value)} rows={2} style={inputStyle} className="w-full resize-none" />
+            <textarea
+                placeholder="Benefícios (um por linha)"
+                value={featuresText}
+                onChange={(e) => setFeaturesText(e.target.value)}
+                rows={3}
+                style={inputStyle}
+                className="w-full resize-none"
+            />
+            <div className="flex flex-wrap gap-2 items-center">
+                <select value={billingCycle} onChange={(e) => setBillingCycle(e.target.value)} style={inputStyle}>
+                    {BILLING_CYCLE_OPTIONS.map((c) => <option key={c} value={c}>{c}</option>)}
+                </select>
+                <input
+                    type="number"
+                    min={1}
+                    placeholder="vagas (opcional)"
+                    value={maxSubs}
+                    onChange={(e) => setMaxSubs(e.target.value)}
+                    style={{ ...inputStyle, width: 130 }}
+                />
+            </div>
+            <div className="flex flex-wrap gap-3">
+                {checkbox('Motorista', grantsDriver, setGrantsDriver)}
+                {checkbox('Prestador', grantsProvider, setGrantsProvider)}
+                {checkbox('Loja', grantsStore, setGrantsStore)}
+                {checkbox('Recrutador', grantsRecruiter, setGrantsRecruiter)}
+                {checkbox('Ativo', isActive, setIsActive)}
+            </div>
+            <button onClick={submit} disabled={saving} className="px-4 py-2 rounded-xl font-bold text-xs text-white disabled:opacity-50" style={{ background: colors.accent }}>
+                {saving ? <Spinner size={14} /> : mode === 'create' ? 'Criar plano' : 'Salvar alterações'}
+            </button>
+        </div>
+    )
+}
+
+function PromoForm({
+    colors,
+    inputStyle,
+    plan,
+    onSubmit,
+}: {
+    colors: ThemeColors
+    inputStyle: React.CSSProperties
+    plan: FullPlanRow
+    onSubmit: (values: any) => Promise<void>
+}) {
+    const toLocalInput = (iso: string | null) => {
+        if (!iso) return ''
+        const d = new Date(iso)
+        const pad = (n: number) => String(n).padStart(2, '0')
+        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+    }
+    const [promoPrice, setPromoPrice] = useState(plan.promo_price ? String(plan.promo_price) : '')
+    const [startsAt, setStartsAt] = useState(toLocalInput(plan.promo_starts_at))
+    const [endsAt, setEndsAt] = useState(toLocalInput(plan.promo_ends_at))
+    const [saving, setSaving] = useState(false)
+
+    const submit = async () => {
+        setSaving(true)
+        try {
+            await onSubmit({
+                promoPrice: Number(promoPrice.replace(',', '.')),
+                promoStartsAt: startsAt ? new Date(startsAt).toISOString() : null,
+                promoEndsAt: endsAt ? new Date(endsAt).toISOString() : null,
+            })
+        } catch (err: any) {
+            toast.error(err.message || 'Erro ao definir promoção')
+        } finally {
+            setSaving(false)
+        }
+    }
+
+    const clearPromo = async () => {
+        setSaving(true)
+        try {
+            await onSubmit({ clear: true })
+        } catch (err: any) {
+            toast.error(err.message || 'Erro ao remover promoção')
+        } finally {
+            setSaving(false)
+        }
+    }
+
+    return (
+        <div className="space-y-2 pt-2 border-t" style={{ borderColor: colors.border }}>
+            <p className="text-[11px]" style={{ color: colors.textSecondary }}>
+                Preço normal: R$ {Number(plan.price).toFixed(2)}. Enquanto a promoção estiver dentro da janela, quem comprar paga o valor promocional.
+            </p>
+            <div className="flex flex-wrap gap-2 items-center">
+                <input
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="preço promocional"
+                    value={promoPrice}
+                    onChange={(e) => setPromoPrice(e.target.value)}
+                    style={{ ...inputStyle, width: 140 }}
+                />
+                <input type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} style={inputStyle} />
+                <span style={{ color: colors.textSecondary }} className="text-xs">até</span>
+                <input type="datetime-local" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} style={inputStyle} />
+            </div>
+            <div className="flex gap-2">
+                <button onClick={submit} disabled={saving} className="px-4 py-2 rounded-xl font-bold text-xs text-white disabled:opacity-50" style={{ background: colors.accent }}>
+                    {saving ? <Spinner size={14} /> : 'Salvar promoção'}
+                </button>
+                {plan.promo_price && (
+                    <button
+                        onClick={clearPromo}
+                        disabled={saving}
+                        className="px-4 py-2 rounded-xl font-bold text-xs disabled:opacity-50"
+                        style={{ background: `${colors.border}30`, color: colors.textPrimary }}
+                    >
+                        Remover promoção
+                    </button>
+                )}
+            </div>
+        </div>
+    )
 }
 
 // Reajusta o preço de um plano (promoção, aumento etc) pra quem vai assinar

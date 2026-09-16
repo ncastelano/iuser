@@ -23,13 +23,21 @@ export async function POST(req: Request) {
 
         const { data: plan, error: planError } = await supabaseAdmin
             .from('plans')
-            .select('id, code, name, price, is_active, billing_cycle, max_active_subscriptions')
+            .select('id, code, name, price, is_active, billing_cycle, max_active_subscriptions, promo_price, promo_starts_at, promo_ends_at')
             .eq('id', planId)
             .maybeSingle()
 
         if (planError || !plan || !plan.is_active) {
             return NextResponse.json({ error: 'Plano inválido' }, { status: 404 })
         }
+
+        // Promoção temporária: nunca confia no que o client mandou — recalcula
+        // a janela aqui. Fora da janela, cobra o preço normal mesmo.
+        const now = Date.now()
+        const promoActive = plan.promo_price && plan.promo_starts_at && plan.promo_ends_at
+            && now >= new Date(plan.promo_starts_at).getTime()
+            && now <= new Date(plan.promo_ends_at).getTime()
+        const chargeValue = promoActive ? Number(plan.promo_price) : Number(plan.price)
 
         // Se já existe uma assinatura "em aberto" (pendente ou ativa) pra
         // esse plano, reaproveita em vez de tentar criar outra (o índice
@@ -135,7 +143,7 @@ export async function POST(req: Request) {
 
             const asaasSubscription = await createSubscription({
                 customerId: customer.id,
-                value: Number(plan.price),
+                value: chargeValue,
                 description: `iuser — ${plan.name}`,
                 externalReference: subscriptionRowId,
                 cycle: plan.billing_cycle,

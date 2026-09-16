@@ -1,18 +1,18 @@
 // app/(main)/planos/page.tsx
 'use client'
 
-import { useCallback, useEffect, useRef, useState, Suspense } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { useTheme } from '@/app/contexts/theme'
-import Header from '@/components/Header'
+import Header, { type Tab } from '@/components/Header'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import LoginAndRegister from '@/components/LoginAndRegister/LoginAndRegister'
 import { Spinner } from '@/components/Spinner'
 import { toast } from 'sonner'
 import { callAdminApi } from '@/lib/callAdminApi'
-import { Car, Briefcase, Sparkles, Store, Check, Copy, X, ShieldCheck, Gift, Users, CreditCard } from 'lucide-react'
+import { Car, Briefcase, Sparkles, Store, Check, Copy, X, ShieldCheck, Gift, Users, CreditCard, User, Shield, LayoutDashboard } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,6 +28,16 @@ interface Plan {
     features: string[] | null
     billing_cycle: string
     max_active_subscriptions: number | null
+    promo_price: number | null
+    promo_starts_at: string | null
+    promo_ends_at: string | null
+}
+
+function activePromoPrice(plan: Plan): number | null {
+    if (!plan.promo_price || !plan.promo_starts_at || !plan.promo_ends_at) return null
+    const now = Date.now()
+    if (now < new Date(plan.promo_starts_at).getTime() || now > new Date(plan.promo_ends_at).getTime()) return null
+    return Number(plan.promo_price)
 }
 
 interface ActiveSub {
@@ -101,7 +111,7 @@ function PlanosContent() {
         const [{ data: plansData }, { data: countsData }] = await Promise.all([
             supabase
                 .from('plans')
-                .select('id, code, name, price, is_active, description, features, billing_cycle, max_active_subscriptions')
+                .select('id, code, name, price, is_active, description, features, billing_cycle, max_active_subscriptions, promo_price, promo_starts_at, promo_ends_at')
                 .eq('is_active', true)
                 .order('price', { ascending: true }),
             supabase.rpc('get_plan_subscriber_counts'),
@@ -134,6 +144,89 @@ function PlanosContent() {
     useEffect(() => {
         if (!profileLoading) load()
     }, [profileLoading, load])
+
+    // ===== ABAS DO HEADER — mesmo padrão da home (perfil, Admin, lojas) =====
+    // /planos é uma rota isolada (sem view-switching como a home), então os
+    // cliques navegam em vez de trocar de view.
+    const [ownedStores, setOwnedStores] = useState<{ id: string; slug: string; name: string; logoUrl: string | null }[]>([])
+    const [loadingOwnedStores, setLoadingOwnedStores] = useState(true)
+
+    useEffect(() => {
+        let cancelled = false
+        const loadOwnedStores = async () => {
+            setLoadingOwnedStores(true)
+            if (!userId) {
+                if (!cancelled) { setOwnedStores([]); setLoadingOwnedStores(false) }
+                return
+            }
+            const { data } = await supabase
+                .from('stores')
+                .select('id, name, storeSlug, logo_url')
+                .eq('owner_id', userId)
+                .order('created_at', { ascending: true })
+            if (cancelled) return
+            setOwnedStores((data || []).map((s: any) => ({
+                id: s.id,
+                slug: s.storeSlug,
+                name: s.name,
+                logoUrl: s.logo_url ? supabase.storage.from('store-logos').getPublicUrl(s.logo_url).data.publicUrl : null,
+            })))
+            setLoadingOwnedStores(false)
+        }
+        loadOwnedStores()
+        return () => { cancelled = true }
+    }, [userId])
+
+    const headerTabs: Tab[] = useMemo(() => {
+        const isLoggedIn = !!profileSlug && !profileLoading
+        const allTabs: Tab[] = [
+            {
+                id: 'perfil',
+                label: isLoggedIn ? `@${profileSlug}` : 'Entrar',
+                icon: User,
+                imageUrl: isLoggedIn ? avatarUrl : null,
+                onClick: () => { isLoggedIn ? router.push(`/${profileSlug}`) : setShowLogin(true) },
+                isActive: !isLoggedIn && showLogin,
+            },
+        ]
+
+        if (isSuperAdmin) {
+            allTabs.push({
+                id: 'admin',
+                label: 'Admin',
+                icon: Shield,
+                imageUrl: null,
+                onClick: () => router.push('/'),
+                isActive: false,
+            })
+        }
+
+        if (loadingOwnedStores) return allTabs
+
+        if (ownedStores.length > 0) {
+            ownedStores.forEach((s) => {
+                allTabs.push({
+                    id: `loja-${s.slug}`,
+                    label: s.name,
+                    icon: LayoutDashboard,
+                    imageUrl: s.logoUrl,
+                    onClick: () => router.push(`/${s.slug}`),
+                    isActive: false,
+                })
+            })
+        } else {
+            allTabs.push({
+                id: 'criar-loja',
+                label: 'Cadastrar loja?',
+                icon: Store,
+                imageUrl: null,
+                onClick: () => (isLoggedIn ? router.push('/criar-loja') : setShowLogin(true)),
+                isActive: false,
+            })
+        }
+
+        return allTabs
+    }, [profileSlug, profileLoading, avatarUrl, showLogin, isSuperAdmin, ownedStores, loadingOwnedStores, router])
 
     const stopPolling = () => {
         if (pollRef.current) {
@@ -245,6 +338,7 @@ function PlanosContent() {
                     greeting={`Olá, ${profileLoading ? '...' : profileSlug ? `@${profileSlug}` : 'Visitante'}`}
                     avatarUrl={avatarUrl}
                     loading={profileLoading}
+                    tabs={headerTabs}
                 />
 
                 <section className="px-4 md:px-6 mt-4 pb-24 max-w-5xl mx-auto">
@@ -292,6 +386,7 @@ function PlanosContent() {
                                         ? Math.max(0, plan.max_active_subscriptions - (subscriberCounts[plan.id] || 0))
                                         : null
                                     const soldOut = remainingSlots === 0 && !active
+                                    const promoPrice = activePromoPrice(plan)
 
                                     return (
                                         <div
@@ -324,17 +419,31 @@ function PlanosContent() {
                                                 {plan.name}
                                             </span>
 
-                                            <div className="flex items-baseline gap-1">
+                                            <div className="flex items-baseline gap-1.5 flex-wrap">
+                                                {promoPrice != null && (
+                                                    <span className="text-sm font-bold line-through" style={{ color: colors.textSecondary }}>
+                                                        R$ {plan.price.toFixed(2)}
+                                                    </span>
+                                                )}
                                                 <span
                                                     className={isCombo ? 'text-3xl font-black' : 'text-2xl font-black'}
-                                                    style={{ color: isCombo ? '#f97316' : colors.textPrimary }}
+                                                    style={{ color: promoPrice != null ? '#22c55e' : isCombo ? '#f97316' : colors.textPrimary }}
                                                 >
-                                                    R$ {plan.price.toFixed(2)}
+                                                    R$ {(promoPrice ?? plan.price).toFixed(2)}
                                                 </span>
                                                 <span className="text-xs font-bold" style={{ color: colors.textSecondary }}>
                                                     {CYCLE_LABEL[plan.billing_cycle] || '/mês'}
                                                 </span>
                                             </div>
+
+                                            {promoPrice != null && (
+                                                <span
+                                                    className="text-[11px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full w-fit"
+                                                    style={{ background: '#22c55e20', color: '#22c55e' }}
+                                                >
+                                                    Promoção por tempo limitado
+                                                </span>
+                                            )}
 
                                             {isCombo && savings > 0 && (
                                                 <span className="text-[11px] font-bold" style={{ color: '#22c55e' }}>
