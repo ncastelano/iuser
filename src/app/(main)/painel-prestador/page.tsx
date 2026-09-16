@@ -12,6 +12,7 @@ import LoginAndRegister from '@/components/LoginAndRegister/LoginAndRegister'
 import { toast } from 'sonner'
 import { Briefcase } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
+import { useActivePlans } from '@/hooks/useActivePlans'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -21,6 +22,7 @@ function PainelPrestadorContent() {
     const nextUrl = searchParams.get('next')
     const { userId, avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
     const { colors } = useTheme()
+    const { hasProvider } = useActivePlans(userId)
 
     const [loading, setLoading] = useState(true)
     const [showLogin, setShowLogin] = useState(false)
@@ -64,8 +66,14 @@ function PainelPrestadorContent() {
             return
         }
 
-        setTogglingMode(true)
         const next = !serviceModeActive
+        if (next && !hasProvider) {
+            toast.error('Assine o plano Prestador pra ativar esse modo.')
+            router.push('/planos?plan=prestador')
+            return
+        }
+
+        setTogglingMode(true)
         try {
             const { error } = await supabase
                 .from('profiles')

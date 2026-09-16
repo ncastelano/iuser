@@ -17,6 +17,7 @@ import { createSquareImage } from '@/lib/image'
 import { DRIVER_SERVICE_OPTIONS } from '@/lib/driverServices'
 import { getAvatarUrl } from '@/lib/avatar'
 import { shortAddress } from '@/lib/serviceBoard'
+import { useActivePlans } from '@/hooks/useActivePlans'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -30,6 +31,7 @@ function PainelMotoristaContent() {
     const nextUrl = searchParams.get('next')
     const { userId, avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
     const { colors } = useTheme()
+    const { hasDriver } = useActivePlans(userId)
 
     const [loading, setLoading] = useState(true)
     const [showLogin, setShowLogin] = useState(false)
@@ -356,8 +358,14 @@ function PainelMotoristaContent() {
             return
         }
 
-        setTogglingMode(true)
         const next = !driverModeActive
+        if (next && !hasDriver) {
+            toast.error('Assine o plano Motorista pra ativar esse modo.')
+            router.push('/planos?plan=motorista')
+            return
+        }
+
+        setTogglingMode(true)
         try {
             const { error } = await supabase.from('driver_pricing').upsert(
                 { ...buildPricingFields(user.id), driver_mode_active: next },

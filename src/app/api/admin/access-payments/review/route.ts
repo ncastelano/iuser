@@ -16,7 +16,7 @@ export async function POST(req: Request) {
 
     const { data: grant, error: grantError } = await supabaseAdmin
         .from('store_access_grants')
-        .select('id, status, source')
+        .select('id, status, source, profile_id')
         .eq('id', grantId)
         .single()
 
@@ -62,5 +62,42 @@ export async function POST(req: Request) {
         .eq('id', grantId)
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+    await creditReferralCommissionForStoreGrant({
+        payingUserId: grant.profile_id,
+        grantId: grant.id,
+        amountCents: settings.price_cents,
+    })
+
     return NextResponse.json({ success: true })
+}
+
+// Mesma regra do webhook da Asaas: 1 nível só, nunca em cascata — lê
+// upline_id de quem pagou e para por aí.
+async function creditReferralCommissionForStoreGrant(params: {
+    payingUserId: string
+    grantId: string
+    amountCents: number
+}) {
+    const { data: payingProfile } = await supabaseAdmin
+        .from('profiles')
+        .select('upline_id')
+        .eq('id', params.payingUserId)
+        .maybeSingle()
+
+    if (!payingProfile?.upline_id) return
+
+    const { error } = await supabaseAdmin
+        .from('wallet_transactions')
+        .insert({
+            user_id: payingProfile.upline_id,
+            type: 'commission_credit',
+            amount: (params.amountCents / 100) * 0.5,
+            source_payment_id: `store-grant-${params.grantId}`,
+            description: 'Comissão de indicação (50% do acesso de loja)',
+        })
+
+    if (error && error.code !== '23505') {
+        console.error('Erro ao creditar comissão de indicação (loja):', error)
+    }
 }

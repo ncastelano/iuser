@@ -17,11 +17,17 @@ CREATE TABLE IF NOT EXISTS public.plans (
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
-INSERT INTO public.plans (code, name, price, grants_driver, grants_provider, grants_store) VALUES
-    ('motorista', 'Motorista', 0.80, true, false, false),
-    ('prestador', 'Prestador de serviço', 0.50, false, true, false),
-    ('loja', 'Loja', 0.70, false, false, true),
-    ('combo', 'Combo (loja + motorista + prestador)', 1.00, true, true, true)
+-- "loja" não é vendida por aqui (is_active = false) — o acesso de loja
+-- continua 100% pelo public.store_access_paywall (taxa única, PIX manual ou
+-- código de admin, já em produção). Essa linha existe só como referência de
+-- preço pra calcular a comissão de indicação quando um grant de loja é
+-- aprovado (ver função credit_referral_commission mais abaixo) — o valor
+-- (R$1,00) é o mesmo do store_access_settings.price_cents padrão.
+INSERT INTO public.plans (code, name, price, grants_driver, grants_provider, grants_store, is_active) VALUES
+    ('motorista', 'Motorista', 0.80, true, false, false, true),
+    ('prestador', 'Prestador de serviço', 0.50, false, true, false, true),
+    ('loja', 'Loja', 1.00, false, false, true, false),
+    ('combo', 'Combo (loja + motorista + prestador)', 1.50, true, true, true, true)
 ON CONFLICT (code) DO NOTHING;
 
 ALTER TABLE public.plans ENABLE ROW LEVEL SECURITY;
@@ -95,13 +101,24 @@ ALTER TABLE public.withdrawal_requests ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Usuário vê seus próprios pedidos de saque" ON public.withdrawal_requests FOR SELECT USING (auth.uid() = user_id);
 -- Sem política de INSERT/UPDATE pra authenticated: a rota de saque
 -- (service role) recalcula o saldo real antes de inserir, e a tela de
--- admin (service role, reconfere is_admin no servidor) marca como pago.
+-- admin (service role, reconfere requireSuperAdmin no servidor) marca como pago.
 
 ALTER TABLE public.wallet_transactions
     ADD CONSTRAINT wallet_transactions_withdrawal_request_fkey
     FOREIGN KEY (withdrawal_request_id) REFERENCES public.withdrawal_requests(id);
 
--- ===== FLAG DE ADMIN (pra tela de conferir/marcar saques como pagos) =====
-ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT false;
-UPDATE public.profiles p SET is_admin = true
-    FROM auth.users u WHERE u.id = p.id AND u.email = 'ncastelano@gmail.com';
+-- Sem coluna de is_admin aqui: já existe um mecanismo de admin pronto
+-- (lib/adminAuth.ts: SUPER_ADMIN_EMAIL/requireSuperAdmin, usado pelas rotas
+-- /api/admin/*) — a tela de saques reaproveita ele, não duplica.
+
+-- ===== PONTE COM O PAYWALL DE LOJA (store_access_paywall) =====
+-- Quem assina o Combo também precisa conseguir criar loja pelo
+-- create_store_with_access existente — a assinatura recorrente do Combo
+-- concede um store_access_grants (source='combo_subscription') em vez de
+-- duplicar o mecanismo de acesso. Simplificação consciente: o grant é
+-- vitalício (não expira com o cancelamento do Combo) — mexer em expiração
+-- vinculada à assinatura ficaria acoplado demais à lógica de
+-- access_expires_at de public.stores, que pertence a esse outro sistema.
+ALTER TABLE public.store_access_grants DROP CONSTRAINT IF EXISTS store_access_grants_source_check;
+ALTER TABLE public.store_access_grants ADD CONSTRAINT store_access_grants_source_check
+    CHECK (source IN ('manual_pix', 'code', 'combo_subscription'));
