@@ -12,6 +12,7 @@ import LoginAndRegister from '@/components/LoginAndRegister/LoginAndRegister'
 import { toast } from 'sonner'
 import { Briefcase, MapPin, Plus } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
+import { useActivePlans } from '@/hooks/useActivePlans'
 import {
     BoardItem,
     fetchOpenBoardItems,
@@ -30,6 +31,7 @@ export default function SerParceiroPage() {
     const router = useRouter()
     const { userId, avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
     const { colors } = useTheme()
+    const { loading: plansLoading, hasProvider } = useActivePlans(userId)
 
     const [loading, setLoading] = useState(true)
     const [showLogin, setShowLogin] = useState(false)
@@ -89,7 +91,11 @@ export default function SerParceiroPage() {
             setAppliedKeys((prev) => new Set(prev).add(key))
             toast.success('Candidatura enviada!')
         } catch (err: any) {
-            toast.error('Erro ao se candidatar: ' + (err.message || 'tente novamente'))
+            if ((err.code === '42501' || err.code === 'PGRST301') && !hasProvider) {
+                toast.error('Assine o plano Prestador ou o Combo pra se candidatar.')
+            } else {
+                toast.error('Erro ao se candidatar: ' + (err.message || 'tente novamente'))
+            }
         } finally {
             setApplyingKey(null)
         }
@@ -132,7 +138,33 @@ export default function SerParceiroPage() {
                         <LoginAndRegister onLoginSuccess={handleLoginSuccess} />
                     )}
 
-                    {!loading && !showLogin && jobs.length === 0 && (
+                    {!loading && !showLogin && !plansLoading && !hasProvider && (
+                        <div
+                            className="rounded-2xl p-6 text-center flex flex-col items-center gap-3"
+                            style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
+                        >
+                            <div className="w-16 h-16 rounded-full flex items-center justify-center" style={{ background: GRADIENT, color: '#fff' }}>
+                                <Briefcase size={28} />
+                            </div>
+                            <div>
+                                <h2 className="text-lg font-black" style={{ color: colors.textPrimary }}>Assine pra se candidatar</h2>
+                                <p className="text-xs mt-1" style={{ color: colors.textSecondary }}>
+                                    Pra ver e se candidatar aos pedidos de serviço disponíveis, você precisa do plano Prestador ou do Combo.
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => router.push('/planos?plan=prestador')}
+                                className="w-full py-3.5 rounded-full font-black uppercase text-xs tracking-wider"
+                                style={{ background: GRADIENT, color: '#fff' }}
+                            >
+                                Ver planos
+                            </button>
+                        </div>
+                    )}
+
+                    {!loading && !showLogin && !plansLoading && hasProvider && (
+                    <>
+                    {jobs.length === 0 && (
                         <div
                             className="rounded-2xl p-6 text-center"
                             style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
@@ -224,6 +256,8 @@ export default function SerParceiroPage() {
                                 )
                             })}
                         </div>
+                    )}
+                    </>
                     )}
                 </section>
 
