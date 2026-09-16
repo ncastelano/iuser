@@ -147,6 +147,10 @@ export default function CarrinhoPage() {
     const [authAvatarFile, setAuthAvatarFile] = useState<File | null>(null)
     const [authAvatarPreview, setAuthAvatarPreview] = useState<string | null>(null)
     const authAvatarInputRef = useRef<HTMLInputElement>(null)
+    // Loja cujo "Finalizar" pediu login/cadastro — se a pessoa criar conta
+    // aqui e não tiver nenhuma indicação anterior (cookie de /convite), o
+    // dono dessa loja vira quem indicou ela pro iUser.
+    const [pendingReferralStoreSlug, setPendingReferralStoreSlug] = useState<string | null>(null)
 
     const applyAuthAvatarFile = (file: File) => {
         setAuthAvatarFile(file)
@@ -1112,12 +1116,53 @@ export default function CarrinhoPage() {
                 avatarUrl = supabase.storage.from('avatars').getPublicUrl(fileName).data.publicUrl
             }
 
+            // Indicação: respeita uma indicação já existente (cookie de
+            // /convite, vinda de outra pessoa) antes de qualquer coisa. Só se
+            // não tiver nenhuma é que o dono da loja do checkout que pediu o
+            // cadastro vira quem indicou — reconhece quem trouxe a pessoa pro
+            // iUser de verdade.
+            let uplineId: string | null = null
+            let usedReferralCookie = false
+            try {
+                const res = await fetch('/api/get-referral-cookie')
+                const cookieData = await res.json()
+                if (cookieData.referralSlug) {
+                    const { data: upline } = await supabase
+                        .from('profiles')
+                        .select('id')
+                        .eq('profileSlug', cookieData.referralSlug)
+                        .maybeSingle()
+                    if (upline) {
+                        uplineId = upline.id
+                        usedReferralCookie = true
+                    }
+                }
+            } catch {
+                // sem cookie/indicação prévia — segue pro fallback da loja
+            }
+
+            if (!uplineId) {
+                const referralStoreSlug = pendingReferralStoreSlug || (storeSlugs.length === 1 ? storeSlugs[0] : null)
+                if (referralStoreSlug) {
+                    const { data: store } = await supabase
+                        .from('stores')
+                        .select('owner_id')
+                        .eq('storeSlug', referralStoreSlug)
+                        .maybeSingle()
+                    if (store?.owner_id) uplineId = store.owner_id
+                }
+            }
+
             await supabase.from('profiles').upsert({
                 id: data.user.id,
                 name: authName,
                 profileSlug: authProfileSlug,
                 avatar_url: avatarUrl,
+                upline_id: uplineId,
             })
+            if (usedReferralCookie) {
+                await fetch('/api/clear-referral-cookie', { method: 'POST' })
+            }
             await loadUserData(data.user.id)
         }
         setAuthLoading(false)
@@ -1864,6 +1909,7 @@ export default function CarrinhoPage() {
                                                     onRemove={(productId, comment, addons) => removeItem(slug, productId, comment, addons)}
                                                     onCheckout={() => {
                                                         if (!currentUserId) {
+                                                            setPendingReferralStoreSlug(slug)
                                                             toast.info('Identifique-se para continuar')
                                                             return
                                                         }
