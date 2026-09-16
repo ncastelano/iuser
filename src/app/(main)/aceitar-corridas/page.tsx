@@ -26,6 +26,7 @@ import { computeExtraTaskFee, EXTRA_TASK_FEE_TIERS } from '@/lib/extraTaskFees'
 import { haversineKm } from '@/lib/mapboxRoute'
 import RideChat from '@/components/RideChat'
 import { DRIVER_CHAT_QUICK_REPLIES } from '@/lib/rideChatQuickReplies'
+import { useActivePlans } from '@/hooks/useActivePlans'
 import RideMiniMap from './RideMiniMap'
 import RideMapDialog from './RideMapDialog'
 
@@ -209,6 +210,7 @@ export default function AceitarCorridasPage() {
     const router = useRouter()
     const { userId: contextUserId, avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
     const { colors } = useTheme()
+    const { loading: plansLoading, hasDriver } = useActivePlans(contextUserId)
 
     const [loading, setLoading] = useState(true)
     const [showLogin, setShowLogin] = useState(false)
@@ -631,8 +633,12 @@ export default function AceitarCorridasPage() {
             setActiveTab('candidatos')
         } catch (err: any) {
             if (err.code === '42501' || err.code === 'PGRST301') {
-                toast.error('Essa corrida já atingiu o limite de candidatos.')
-                setRides((prev) => prev.filter((r) => r.id !== ride.id))
+                if (!hasDriver) {
+                    toast.error('Assine o plano Motorista ou o Combo pra se candidatar.')
+                } else {
+                    toast.error('Essa corrida já atingiu o limite de candidatos.')
+                    setRides((prev) => prev.filter((r) => r.id !== ride.id))
+                }
             } else {
                 toast.error('Erro ao se candidatar: ' + (err.message || 'tente novamente'))
             }
@@ -939,7 +945,33 @@ export default function AceitarCorridasPage() {
                         <LoginAndRegister onLoginSuccess={handleLoginSuccess} />
                     )}
 
-                    {!loading && !showLogin && activeTab === 'servicos' && visibleRides.length === 0 && (
+                    {!loading && !showLogin && !plansLoading && !hasDriver && (
+                        <div
+                            className="rounded-2xl p-6 text-center flex flex-col items-center gap-3"
+                            style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
+                        >
+                            <div className="w-16 h-16 rounded-full flex items-center justify-center" style={{ background: GRADIENT, color: '#fff' }}>
+                                <Car size={28} />
+                            </div>
+                            <div>
+                                <h2 className="text-lg font-black" style={{ color: colors.textPrimary }}>Assine pra aceitar corridas</h2>
+                                <p className="text-xs mt-1" style={{ color: colors.textSecondary }}>
+                                    Pra ver e se candidatar às corridas disponíveis, você precisa do plano Motorista ou do Combo.
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => router.push('/planos?plan=motorista')}
+                                className="w-full py-3.5 rounded-full font-black uppercase text-xs tracking-wider"
+                                style={{ background: GRADIENT, color: '#fff' }}
+                            >
+                                Ver planos
+                            </button>
+                        </div>
+                    )}
+
+                    {!loading && !showLogin && !plansLoading && hasDriver && (
+                    <>
+                    {activeTab === 'servicos' && visibleRides.length === 0 && (
                         <div
                             className="rounded-2xl p-6 text-center"
                             style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
@@ -1447,6 +1479,8 @@ export default function AceitarCorridasPage() {
                         <div className="mt-3">
                             <RideChat rideId={acceptedRide.id} quickReplies={DRIVER_CHAT_QUICK_REPLIES} />
                         </div>
+                    )}
+                    </>
                     )}
                 </section>
 
