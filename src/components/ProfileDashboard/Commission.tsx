@@ -479,15 +479,22 @@ export default function Commission({ userId, profileSlug, onLatestUpdate }: Comm
                             </div>
 
                             {!showWithdrawForm ? (
-                                <button
-                                    onClick={() => setShowWithdrawForm(true)}
-                                    disabled={walletBalance < MIN_WITHDRAWAL_AMOUNT}
-                                    className="w-full py-3.5 rounded-full font-black uppercase text-sm tracking-wider transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
-                                    style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`, border: `1px solid ${borderColor}`, color: textPrimary }}
-                                >
-                                    <Send size={16} />
-                                    Solicitar saque via PIX
-                                </button>
+                                <div className="flex flex-col gap-2">
+                                    <button
+                                        onClick={() => setShowWithdrawForm(true)}
+                                        disabled={walletBalance < MIN_WITHDRAWAL_AMOUNT}
+                                        className="w-full py-3.5 rounded-full font-black uppercase text-sm tracking-wider transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
+                                        style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`, border: `1px solid ${borderColor}`, color: textPrimary }}
+                                    >
+                                        <Send size={16} />
+                                        Solicitar saque via PIX
+                                    </button>
+                                    <p className="text-[10px] text-center" style={{ color: textSecondary }}>
+                                        {walletBalance < MIN_WITHDRAWAL_AMOUNT
+                                            ? `Saque mínimo: R$ ${MIN_WITHDRAWAL_AMOUNT.toFixed(2)} — faltam R$ ${(MIN_WITHDRAWAL_AMOUNT - walletBalance).toFixed(2)} pra poder sacar.`
+                                            : `Valor mínimo de saque: R$ ${MIN_WITHDRAWAL_AMOUNT.toFixed(2)}.`}
+                                    </p>
+                                </div>
                             ) : (
                                 <div className="w-full rounded-2xl p-4 flex flex-col gap-3" style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.4)`, border: `1px solid ${borderColor}` }}>
                                     <p className="text-[11px]" style={{ color: textSecondary }}>
