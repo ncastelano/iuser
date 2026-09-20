@@ -12,7 +12,8 @@ import LoginAndRegister from '@/components/LoginAndRegister/LoginAndRegister'
 import { Spinner } from '@/components/Spinner'
 import { toast } from 'sonner'
 import { callAdminApi } from '@/lib/callAdminApi'
-import { Car, Briefcase, Sparkles, Store, Check, Copy, X, ShieldCheck, Gift, Users, CreditCard, User, Shield, LayoutDashboard } from 'lucide-react'
+import { getDeviceId } from '@/lib/deviceId'
+import { Car, Briefcase, Sparkles, Store, Check, Copy, X, ShieldCheck, Gift, Users, CreditCard, User, Shield, LayoutDashboard, Wallet } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
@@ -43,7 +44,7 @@ function activePromoPrice(plan: Plan): number | null {
 interface ActiveSub {
     plan_id: string
     status: string
-    source: 'asaas' | 'admin_grant' | 'code'
+    source: 'asaas' | 'admin_grant' | 'code' | 'leader_grant' | 'postpaid'
     current_period_end: string | null
 }
 
@@ -51,6 +52,8 @@ const SOURCE_LABEL: Record<ActiveSub['source'], string> = {
     asaas: 'Assinatura ativa',
     admin_grant: 'Concedido pelo admin',
     code: 'Resgatado por código',
+    leader_grant: 'Concedido por líder',
+    postpaid: 'Pós-pago ativo',
 }
 
 interface PixData {
@@ -67,6 +70,7 @@ const PLAN_ICON: Record<string, typeof Car> = {
     recrutador: Users,
     combo: Sparkles,
     beta: Gift,
+    pos_pago: Wallet,
 }
 
 const CYCLE_LABEL: Record<string, string> = {
@@ -252,7 +256,7 @@ function PlanosContent() {
                     'Content-Type': 'application/json',
                     Authorization: `Bearer ${session.access_token}`,
                 },
-                body: JSON.stringify({ planId: plan.id, cpfCnpj }),
+                body: JSON.stringify({ planId: plan.id, cpfCnpj, deviceId: getDeviceId() }),
             })
             const json = await res.json()
             if (!res.ok) {
@@ -261,6 +265,12 @@ function PlanosContent() {
                     return
                 }
                 throw new Error(json.error || 'Erro ao criar assinatura')
+            }
+
+            if (json.activated) {
+                toast.success('Plano pós-pago ativado!')
+                await load()
+                return
             }
 
             setPixData(json)
@@ -379,7 +389,7 @@ function PlanosContent() {
                                     const remaining = sub ? daysLeft(sub.current_period_end) : null
                                     const highlighted = highlightPlan === plan.code
                                     const isCombo = plan.code === 'combo'
-                                    const soloPlans = plans.filter((p) => p.code !== 'combo' && p.max_active_subscriptions == null)
+                                    const soloPlans = plans.filter((p) => p.code !== 'combo' && p.code !== 'pos_pago' && p.max_active_subscriptions == null)
                                     const soloSum = soloPlans.reduce((acc, p) => acc + Number(p.price), 0)
                                     const savings = isCombo ? soloSum - Number(plan.price) : 0
                                     const remainingSlots = plan.max_active_subscriptions != null
@@ -429,10 +439,10 @@ function PlanosContent() {
                                                     className={isCombo ? 'text-3xl font-black' : 'text-2xl font-black'}
                                                     style={{ color: promoPrice != null ? '#22c55e' : isCombo ? '#f97316' : colors.textPrimary }}
                                                 >
-                                                    R$ {(promoPrice ?? plan.price).toFixed(2)}
+                                                    {plan.code === 'pos_pago' ? 'R$ 0,50' : `R$ ${(promoPrice ?? plan.price).toFixed(2)}`}
                                                 </span>
                                                 <span className="text-xs font-bold" style={{ color: colors.textSecondary }}>
-                                                    {CYCLE_LABEL[plan.billing_cycle] || '/mês'}
+                                                    {plan.code === 'pos_pago' ? 'por serviço' : (CYCLE_LABEL[plan.billing_cycle] || '/mês')}
                                                 </span>
                                             </div>
 
@@ -494,7 +504,7 @@ function PlanosContent() {
                                                     className="w-full mt-1 px-4 py-2.5 rounded-full font-black uppercase text-xs tracking-wider transition-all hover:scale-105 active:scale-95 disabled:opacity-60"
                                                     style={{ background: isCombo ? GRADIENT : `${colors.textPrimary}15`, color: isCombo ? '#ffffff' : colors.textPrimary }}
                                                 >
-                                                    {buyingPlanId === plan.id ? <Spinner size={14} color="#ffffff" /> : soldOut ? 'Esgotado' : 'Assinar'}
+                                                    {buyingPlanId === plan.id ? <Spinner size={14} color="#ffffff" /> : soldOut ? 'Esgotado' : plan.code === 'pos_pago' ? 'Ativar' : 'Assinar'}
                                                 </button>
                                             )}
                                         </div>

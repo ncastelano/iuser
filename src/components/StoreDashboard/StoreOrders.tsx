@@ -19,6 +19,7 @@ import {
     Package,
     Truck,
 } from 'lucide-react'
+import CallIuserDriverDialog from './CallIuserDriverDialog'
 import { OrderModal } from '@/components/OrderModal'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
@@ -117,7 +118,29 @@ export default function StoreOrders({
     const [assignmentMap, setAssignmentMap] = useState<Map<string, { employeeName: string; status: string }>>(new Map())
     const [ownerProfile, setOwnerProfile] = useState<{ name: string; phone?: string } | null>(null)
     const [singleAssignOpen, setSingleAssignOpen] = useState<{ order: any } | null>(null)
+    const [iuserDeliveryEnabled, setIuserDeliveryEnabled] = useState(false)
+    const [dispatchedOrderIds, setDispatchedOrderIds] = useState<Set<string>>(new Set())
+    const [callDriverOrder, setCallDriverOrder] = useState<any>(null)
     const [store, setStore] = useState<any>(null)
+
+    useEffect(() => {
+        supabase.from('stores').select('iuser_delivery_enabled').eq('id', storeId).maybeSingle()
+            .then(({ data }) => setIuserDeliveryEnabled(!!data?.iuser_delivery_enabled))
+    }, [storeId])
+
+    // Pedidos que já têm motorista iUser chamado (corrida ativa ligada ao pedido).
+    useEffect(() => {
+        const ids = groupedOrders.map((o) => o.id).filter(Boolean)
+        if (ids.length === 0) return
+        supabase.from('ride_requests').select('order_id').in('order_id', ids).in('status', ['pending', 'accepted'])
+            .then(({ data }) => setDispatchedOrderIds(new Set((data || []).map((r) => r.order_id as string))))
+    }, [groupedOrders])
+
+    const iuserDelivery = {
+        enabled: iuserDeliveryEnabled,
+        dispatchedIds: dispatchedOrderIds,
+        onCall: (order: any) => setCallDriverOrder(order),
+    }
     const [isOrdersExpanded, setIsOrdersExpanded] = useState(true)
 
     // Ref para evitar múltiplas chamadas
@@ -1009,6 +1032,7 @@ export default function StoreOrders({
                                         <div className="space-y-3">
                                             {newOrders.map((order: any) => (
                                                 <OrderButton
+                                                    iuserDelivery={iuserDelivery}
                                                     key={order.checkout_id}
                                                     order={order}
                                                     assignmentMap={assignmentMap}
@@ -1035,6 +1059,7 @@ export default function StoreOrders({
                                         <div className="space-y-3">
                                             {preparing.map((order: any) => (
                                                 <OrderButton
+                                                    iuserDelivery={iuserDelivery}
                                                     key={order.checkout_id}
                                                     order={order}
                                                     assignmentMap={assignmentMap}
@@ -1061,6 +1086,7 @@ export default function StoreOrders({
                                         <div className="space-y-3">
                                             {ready.map((order: any) => (
                                                 <OrderButton
+                                                    iuserDelivery={iuserDelivery}
                                                     key={order.checkout_id}
                                                     order={order}
                                                     assignmentMap={assignmentMap}
@@ -1087,6 +1113,7 @@ export default function StoreOrders({
                                         <div className="space-y-3">
                                             {finished.slice(0, 5).map((order: any) => (
                                                 <OrderButton
+                                                    iuserDelivery={iuserDelivery}
                                                     key={order.checkout_id}
                                                     order={order}
                                                     assignmentMap={assignmentMap}
@@ -1148,6 +1175,14 @@ export default function StoreOrders({
                         </button>
                     </div>
                 </div>
+            )}
+
+            {callDriverOrder && (
+                <CallIuserDriverDialog
+                    order={callDriverOrder}
+                    onClose={() => setCallDriverOrder(null)}
+                    onDispatched={(id) => setDispatchedOrderIds((prev) => new Set(prev).add(id))}
+                />
             )}
 
             {singleAssignOpen && (
@@ -1212,6 +1247,7 @@ function OrderButton({
     isInPerson,
     borderColor,
     isPaid = false,
+    iuserDelivery,
 }: any) {
     const channelLabel = isInPerson ? 'Presencial' : 'Online'
     const statusColor = getStatusColor(order.status)
@@ -1235,7 +1271,7 @@ function OrderButton({
             className={`w-full rounded-2xl transition-all duration-200 hover:scale-[1.01] active:scale-[0.99] hover:shadow-xl relative overflow-hidden will-change-transform ${isPaid ? 'opacity-80' : 'cursor-pointer'}`}
             style={{
                 background: getStatusGradient(order.status),
-                color: '#ffffff',
+                color: statusColor,
                 boxShadow: `0 4px 16px ${statusColor}40`,
                 border: `1px solid ${statusColor}55`,
                 borderLeft: `4px solid ${statusColor}`,
@@ -1260,34 +1296,34 @@ function OrderButton({
                     <div className="flex items-center gap-2 min-w-0">
                         {isInPerson ? (
                             <>
-                                <Store size={14} className="text-white/80 flex-shrink-0" />
-                                <span className="text-sm font-bold truncate text-white">
+                                <Store size={14} className="flex-shrink-0" style={{ color: `${statusColor}cc` }} />
+                                <span className="text-sm font-bold truncate" style={{ color: statusColor }}>
                                     {order.buyer_name || 'Presencial'}
                                 </span>
                             </>
                         ) : (
-                            <span className="text-sm font-bold text-white truncate">
+                            <span className="text-sm font-bold truncate" style={{ color: statusColor }}>
                                 @{order.buyer_profile_slug}
                             </span>
                         )}
                         <span
-                            className="px-2 py-0.5 rounded-md text-[9px] font-bold text-white/70 flex-shrink-0 uppercase tracking-wide"
-                            style={{ background: 'rgba(255,255,255,0.08)' }}
+                            className="px-2 py-0.5 rounded-md text-[9px] font-bold flex-shrink-0 uppercase tracking-wide"
+                            style={{ background: `${statusColor}1a`, color: `${statusColor}b3` }}
                         >
                             {channelLabel}
                         </span>
                     </div>
                     <div className="flex items-center gap-3 text-xs mt-1.5 flex-wrap">
-                        <span className="text-white font-black text-sm">
+                        <span className="font-black text-sm" style={{ color: statusColor }}>
                             R$ {order.totalPrice.toFixed(2)}
                         </span>
                         {order.deliveryFee > 0 && (
-                            <span className="text-white/50">
+                            <span style={{ color: `${statusColor}80` }}>
                                 frete R$ {order.deliveryFee.toFixed(2)}
                             </span>
                         )}
                         {isAssigned && (
-                            <span className="text-[10px] font-bold text-white/60 flex items-center gap-1">
+                            <span className="text-[10px] font-bold flex items-center gap-1" style={{ color: `${statusColor}99` }}>
                                 🚚 {assignment?.employeeName}
                             </span>
                         )}
@@ -1295,18 +1331,34 @@ function OrderButton({
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
                     {orderTime && (
-                        <span className="text-[11px] font-medium text-white/50 flex-shrink-0 tabular-nums">
+                        <span className="text-[11px] font-medium flex-shrink-0 tabular-nums" style={{ color: `${statusColor}80` }}>
                             {orderTime}
                         </span>
+                    )}
+                    {!isInPerson && !isPaid && iuserDelivery?.enabled && order.delivery_address && (
+                        iuserDelivery.dispatchedIds.has(order.id) ? (
+                            <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-md flex-shrink-0" style={{ background: `${statusColor}1a`, color: `${statusColor}b3` }}>
+                                Motorista chamado
+                            </span>
+                        ) : (
+                            <button
+                                onClick={(e) => { e.stopPropagation(); e.preventDefault(); iuserDelivery.onCall(order) }}
+                                className="p-2 rounded-full transition-all duration-200 active:scale-90 flex-shrink-0"
+                                title="Chamar motorista iUser"
+                                type="button"
+                            >
+                                <Truck size={14} style={{ color: statusColor }} />
+                            </button>
+                        )
                     )}
                     {!isInPerson && !isPaid && (
                         <button
                             onClick={handleAssignClick}
-                            className="p-2 rounded-full transition-all duration-200 hover:bg-white/10 active:scale-90 flex-shrink-0"
+                            className="p-2 rounded-full transition-all duration-200 active:scale-90 flex-shrink-0"
                             title="Atribuir entregador"
                             type="button"
                         >
-                            <Send size={14} className="text-white/60" />
+                            <Send size={14} style={{ color: `${statusColor}99` }} />
                         </button>
                     )}
                 </div>

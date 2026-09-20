@@ -25,10 +25,18 @@ import {
     Clock,
     Eye,
     Store,
+    TrendingUp,
+    TrendingDown,
 } from 'lucide-react'
 import Employee from './Employee'
 import ButtonInPersonSale from './ButtonInPersonSale'
 import Publication from './StorePublication'
+import DeleteConfirmDialog from '@/components/DeleteConfirmDialog'
+import DriverDebtBanner from '@/components/DriverDebtBanner'
+import { useProfile } from '@/app/contexts/ProfileContext'
+import { callAdminApi } from '@/lib/callAdminApi'
+import StoreClubVip from './StoreClubVip'
+import StoreSalesExtractDialog, { type ExtractPeriod } from './StoreSalesExtractDialog'
 import StoreVisitors from './StoreVisitors'
 import StoreOperatingDays from './StoreOperatingDays'
 import StoreAddress from './StoreAddress'
@@ -47,6 +55,13 @@ const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 function startOfDay(date: Date = new Date()): string {
     date.setHours(0, 0, 0, 0)
     return date.toISOString()
+}
+
+function startOfPeriod(daysAgo: number): string {
+    const d = new Date()
+    d.setHours(0, 0, 0, 0)
+    d.setDate(d.getDate() - daysAgo)
+    return d.toISOString()
 }
 
 const pillButtonStyle = {
@@ -83,11 +98,18 @@ export default function StoreDashboard({
     const { colors } = useTheme()
     const surfaceRgb = hexToRgb(colors.surface)
 
+    const { userId } = useProfile()
     const [store, setStore] = useState<any>(null)
     const [loading, setLoading] = useState(true)
     const [refreshing, setRefreshing] = useState(false)
 
-    const [metrics, setMetrics] = useState({ daily: { revenue: 0, orders: 0 } })
+    const [metrics, setMetrics] = useState({
+        daily: { revenue: 0, orders: 0 },
+        weekly: { revenue: 0, orders: 0 },
+        monthly: { revenue: 0, orders: 0 },
+    })
+    const [showDeleteStore, setShowDeleteStore] = useState(false)
+    const [extractPeriod, setExtractPeriod] = useState<ExtractPeriod | null>(null)
     const [products, setProducts] = useState<any[]>([])
     const [sortBy, setSortBy] = useState<'mostSold' | 'leastSold' | 'mostExpensive' | 'cheapest'>('mostSold')
     const [employees, setEmployees] = useState<any[]>([])
@@ -244,19 +266,24 @@ export default function StoreDashboard({
 
         const storeId = storeData.id
 
-        // Buscar métricas de vendas do dia
+        // Buscar métricas de vendas (hoje/semana/mês) — uma query só, os 3
+        // baldes são filtrados no cliente em cima do mesmo resultado.
         const todayStart = startOfDay()
         const { data: ordersData } = await supabase
             .from('orders')
             .select('total_amount, status, created_at')
             .eq('store_id', storeId)
 
-        const dailyOrders = (ordersData || []).filter(o =>
-            new Date(o.created_at).getTime() >= new Date(todayStart).getTime() &&
-            o.status === 'paid'
-        )
-        const dailyRev = dailyOrders.reduce((acc, o) => acc + Number(o.total_amount || 0), 0)
-        setMetrics({ daily: { revenue: dailyRev, orders: dailyOrders.length } })
+        const paidOrders = (ordersData || []).filter(o => o.status === 'paid')
+        const bucket = (sinceISO: string) => {
+            const orders = paidOrders.filter(o => new Date(o.created_at).getTime() >= new Date(sinceISO).getTime())
+            return { revenue: orders.reduce((acc, o) => acc + Number(o.total_amount || 0), 0), orders: orders.length }
+        }
+        setMetrics({
+            daily: bucket(todayStart),
+            weekly: bucket(startOfPeriod(7)),
+            monthly: bucket(startOfPeriod(30)),
+        })
 
         // Buscar produtos
         const { data: productsData } = await supabase
@@ -280,10 +307,14 @@ export default function StoreDashboard({
             const viewsTotalMap = new Map()
             viewsTotal?.forEach(v => viewsTotalMap.set(v.product_id, (viewsTotalMap.get(v.product_id) || 0) + 1))
 
+            // Só pedido pago conta como "vendido" — antes essa contagem
+            // incluía pendente/cancelado, o que inflava "mais vendido"
+            // com pedido que nunca virou venda de verdade.
             const { data: orderIdsData } = await supabase
                 .from('orders')
                 .select('id')
                 .eq('store_id', storeId)
+                .eq('status', 'paid')
             const orderIds = orderIdsData?.map(o => o.id) || []
             const salesCountMap = new Map()
             if (orderIds.length > 0) {
@@ -376,6 +407,8 @@ export default function StoreDashboard({
                     </div>
                 </div>
             )}
+
+            <DriverDebtBanner userId={userId} />
 
             {/* ===== StoreOrders NO TOPO - é a primeira coisa que a loja precisa ver ===== */}
             <div className="mb-6">
@@ -482,24 +515,58 @@ export default function StoreDashboard({
                         >
                             <DollarSign size={24} />
                         </div>
-                        <div>
-                            <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
-                                Vendas Hoje
-                            </h3>
-                            <div className="flex items-center gap-3 text-xs mt-0.5" style={{ color: colors.textSecondary }}>
-                                <span className="text-2xl font-black" style={{ color: '#f97316' }}>
-                                    R$ {metrics.daily.revenue.toFixed(2)}
-                                </span>
-                                <span>•</span>
-                                <span>
-                                    <span className="font-bold" style={{ color: '#10b981' }}>
-                                        {metrics.daily.orders}
-                                    </span>{' '}
-                                    pedidos finalizados
-                                </span>
-                            </div>
-                        </div>
+                        <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
+                            Vendas
+                        </h3>
                     </div>
+
+                    <div className="grid grid-cols-3 gap-2">
+                        {([
+                            { label: 'Hoje', period: 'daily' as const, data: metrics.daily },
+                            { label: 'Semana', period: 'weekly' as const, data: metrics.weekly },
+                            { label: 'Mês', period: 'monthly' as const, data: metrics.monthly },
+                        ]).map(({ label, period, data }) => (
+                            <button
+                                key={label}
+                                onClick={() => setExtractPeriod(period)}
+                                className="rounded-xl p-3 text-center transition-transform hover:scale-[1.03] active:scale-95"
+                                style={{ background: `${colors.border}20` }}
+                            >
+                                <p className="text-lg font-black" style={{ color: '#f97316' }}>R$ {data.revenue.toFixed(2)}</p>
+                                <p className="text-[10px]" style={{ color: colors.textSecondary }}>
+                                    <span className="font-bold" style={{ color: '#10b981' }}>{data.orders}</span> pedido{data.orders !== 1 ? 's' : ''}
+                                </p>
+                                <p className="text-[9px] uppercase font-bold mt-1" style={{ color: colors.textSecondary }}>{label}</p>
+                            </button>
+                        ))}
+                    </div>
+
+                    {products.length > 0 && (() => {
+                        const withSales = products.filter(p => p.salesCount > 0)
+                        const best = withSales.length > 0 ? [...withSales].sort((a, b) => b.salesCount - a.salesCount)[0] : null
+                        const worst = withSales.length > 1 ? [...withSales].sort((a, b) => a.salesCount - b.salesCount)[0] : null
+                        if (!best) return null
+                        return (
+                            <div className="grid grid-cols-2 gap-2">
+                                <div className="rounded-xl p-3" style={{ background: '#22c55e15', border: '1px solid #22c55e40' }}>
+                                    <p className="text-[9px] uppercase font-bold flex items-center gap-1" style={{ color: '#22c55e' }}>
+                                        <TrendingUp size={11} /> Mais vendido
+                                    </p>
+                                    <p className="text-xs font-bold truncate mt-1" style={{ color: colors.textPrimary }}>{best.name}</p>
+                                    <p className="text-[10px]" style={{ color: colors.textSecondary }}>{best.salesCount} vendido{best.salesCount !== 1 ? 's' : ''}</p>
+                                </div>
+                                {worst && (
+                                    <div className="rounded-xl p-3" style={{ background: '#ef444415', border: '1px solid #ef444440' }}>
+                                        <p className="text-[9px] uppercase font-bold flex items-center gap-1" style={{ color: '#ef4444' }}>
+                                            <TrendingDown size={11} /> Menos vendido
+                                        </p>
+                                        <p className="text-xs font-bold truncate mt-1" style={{ color: colors.textPrimary }}>{worst.name}</p>
+                                        <p className="text-[10px]" style={{ color: colors.textSecondary }}>{worst.salesCount} vendido{worst.salesCount !== 1 ? 's' : ''}</p>
+                                    </div>
+                                )}
+                            </div>
+                        )
+                    })()}
                 </div>
             </div>
 
@@ -698,8 +765,42 @@ export default function StoreDashboard({
             {/* ===== Publicações ===== */}
             <Publication storeId={store.id} />
 
+            {/* ===== Club VIP ===== */}
+            <StoreClubVip storeId={store.id} />
+
             {/* ===== Visitantes ===== */}
             <StoreVisitors storeId={store.id} />
+
+            {/* ===== Excluir loja ===== */}
+            <button
+                onClick={() => setShowDeleteStore(true)}
+                className="w-full py-3 rounded-full text-xs font-black uppercase tracking-wider"
+                style={{ background: 'transparent', color: '#ef4444', border: '1px solid #ef444460' }}
+            >
+                Excluir loja
+            </button>
+
+            {showDeleteStore && (
+                <DeleteConfirmDialog
+                    title={`Excluir ${store.name}`}
+                    description="Isso apaga a loja, produtos, pedidos, publicações e tudo o que está ligado a ela. Não dá pra desfazer."
+                    confirmLabel="Excluir loja"
+                    onConfirm={async (password) => {
+                        await callAdminApi('/api/stores/delete', { storeId: store.id, password })
+                        window.location.href = `/${profileSlug}`
+                    }}
+                    onClose={() => setShowDeleteStore(false)}
+                />
+            )}
+
+            {extractPeriod && (
+                <StoreSalesExtractDialog
+                    storeId={store.id}
+                    storeName={store.name}
+                    period={extractPeriod}
+                    onClose={() => setExtractPeriod(null)}
+                />
+            )}
         </div>
     )
 }

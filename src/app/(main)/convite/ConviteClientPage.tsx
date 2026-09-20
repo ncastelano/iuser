@@ -53,8 +53,6 @@ function ConviteContent() {
     const textSecondary = colors.textSecondary
     const borderColor = colors.border
 
-    const primaryParticle = accentColor
-    const darkerAccent = colors.accentLight || accentColor
 
     useEffect(() => {
         if (profileLoading) return
@@ -169,7 +167,7 @@ function ConviteContent() {
             const params = new URLSearchParams({
                 ref: inviter.profileSlug
             })
-            const redirectUrl = `/register?${params.toString()}`
+            const redirectUrl = `/cadastrar?${params.toString()}`
             console.log('🔀 Redirecionando para:', redirectUrl)
 
             router.push(redirectUrl)
@@ -305,14 +303,14 @@ function ConviteContent() {
                             <div
                                 className="absolute w-20 h-20 rounded-full blur-xl opacity-50 animate-[pulse_2s_ease-in-out_infinite]"
                                 style={{
-                                    background: `linear-gradient(135deg, ${primaryParticle}, ${darkerAccent})`,
+                                    background: 'linear-gradient(135deg, #f97316, #dc2626)',
                                 }}
                             />
                             <div
                                 className="w-20 h-20 rounded-full flex items-center justify-center relative ring-2 ring-white/80 ring-offset-2 ring-offset-transparent"
                                 style={{
-                                    background: `linear-gradient(135deg, ${primaryParticle}, ${darkerAccent})`,
-                                    boxShadow: `0 0 30px ${primaryParticle}66, 0 0 60px ${darkerAccent}33`,
+                                    background: 'linear-gradient(135deg, #f97316, #dc2626)',
+                                    boxShadow: '0 0 30px #f9731666, 0 0 60px #dc262633',
                                 }}
                             >
                                 <img
@@ -355,7 +353,7 @@ function ConviteContent() {
                                 <div
                                     className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
                                     style={{
-                                        background: `linear-gradient(135deg, ${accentColor}, ${colors.accentLight})`,
+                                        background: 'linear-gradient(135deg, #f97316, #dc2626)',
                                         color: colors.accentText,
                                     }}
                                 >
@@ -391,7 +389,7 @@ function ConviteContent() {
                             onClick={() => router.push('/')}
                             className="w-full py-3.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all hover:scale-[1.02]"
                             style={{
-                                background: `linear-gradient(135deg, ${accentColor}, ${colors.accentLight})`,
+                                background: 'linear-gradient(135deg, #f97316, #dc2626)',
                                 color: colors.accentText,
                                 boxShadow: `0 4px 14px ${accentColor}40`,
                             }}
@@ -432,14 +430,14 @@ function ConviteContent() {
                             <div
                                 className="absolute w-20 h-20 rounded-full blur-xl opacity-50 animate-[pulse_2s_ease-in-out_infinite]"
                                 style={{
-                                    background: `linear-gradient(135deg, ${primaryParticle}, ${darkerAccent})`,
+                                    background: 'linear-gradient(135deg, #f97316, #dc2626)',
                                 }}
                             />
                             <div
                                 className="w-20 h-20 rounded-full flex items-center justify-center relative ring-2 ring-white/80 ring-offset-2 ring-offset-transparent"
                                 style={{
-                                    background: `linear-gradient(135deg, ${primaryParticle}, ${darkerAccent})`,
-                                    boxShadow: `0 0 30px ${primaryParticle}66, 0 0 60px ${darkerAccent}33`,
+                                    background: 'linear-gradient(135deg, #f97316, #dc2626)',
+                                    boxShadow: '0 0 30px #f9731666, 0 0 60px #dc262633',
                                 }}
                             >
                                 <img
@@ -462,7 +460,7 @@ function ConviteContent() {
                             onClick={() => router.push('/')}
                             className="w-full py-3.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all hover:scale-[1.02]"
                             style={{
-                                background: `linear-gradient(135deg, ${accentColor}, ${colors.accentLight})`,
+                                background: 'linear-gradient(135deg, #f97316, #dc2626)',
                                 color: colors.accentText,
                                 boxShadow: `0 4px 14px ${accentColor}40`,
                             }}
@@ -500,14 +498,14 @@ function ConviteContent() {
                             <div
                                 className="absolute w-24 h-24 rounded-full blur-xl opacity-50 animate-[pulse_2s_ease-in-out_infinite]"
                                 style={{
-                                    background: `linear-gradient(135deg, ${primaryParticle}, ${darkerAccent})`,
+                                    background: 'linear-gradient(135deg, #f97316, #dc2626)',
                                 }}
                             />
                             <div
                                 className="w-24 h-24 rounded-full flex items-center justify-center relative ring-2 ring-white/80 ring-offset-2 ring-offset-transparent overflow-hidden"
                                 style={{
-                                    background: `linear-gradient(135deg, ${primaryParticle}, ${darkerAccent})`,
-                                    boxShadow: `0 0 30px ${primaryParticle}66, 0 0 60px ${darkerAccent}33`,
+                                    background: 'linear-gradient(135deg, #f97316, #dc2626)',
+                                    boxShadow: '0 0 30px #f9731666, 0 0 60px #dc262633',
                                 }}
                             >
                                 {inviter.avatar_url ? (
@@ -562,7 +560,7 @@ function ConviteContent() {
                                     }}
                                 >
                                     <Sparkles className="w-3 h-3" />
-                                    <span>Grátis</span>
+                                    <span>Taxa 0% no plano ou R$ 0,50 por transação</span>
                                 </div>
                             </div>
                         </div>
@@ -588,7 +586,7 @@ function ConviteContent() {
                                 disabled={actionLoading}
                                 className="w-full py-3.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed"
                                 style={{
-                                    background: `linear-gradient(135deg, ${accentColor}, ${colors.accentLight})`,
+                                    background: 'linear-gradient(135deg, #f97316, #dc2626)',
                                     color: colors.accentText,
                                     boxShadow: `0 4px 14px ${accentColor}40`,
                                 }}
@@ -685,7 +683,7 @@ function ConviteContent() {
                                         disabled={actionLoading}
                                         className="w-full py-3.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed"
                                         style={{
-                                            background: `linear-gradient(135deg, ${accentColor}, ${colors.accentLight})`,
+                                            background: 'linear-gradient(135deg, #f97316, #dc2626)',
                                             color: colors.accentText,
                                             boxShadow: `0 4px 14px ${accentColor}40`,
                                         }}
@@ -719,7 +717,7 @@ function ConviteContent() {
                                 <div
                                     className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
                                     style={{
-                                        background: `linear-gradient(135deg, ${accentColor}, ${colors.accentLight})`,
+                                        background: 'linear-gradient(135deg, #f97316, #dc2626)',
                                         color: colors.accentText,
                                     }}
                                 >

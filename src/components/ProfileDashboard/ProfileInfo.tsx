@@ -9,6 +9,7 @@ import { toast } from 'sonner'
 import { hexToRgb } from '@/lib/color'
 import { supabase } from '@/lib/supabase/client'
 import { checkSlugAvailability } from '@/lib/slugUtils'
+import InviteButton from '@/components/InviteButton'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -411,7 +412,7 @@ export function ProfileInfo({ profile, onProfileUpdate }: ProfileInfoProps) {
             </div>
 
             {/* ===== Botões "Ver meu Perfil" / "Compartilhar Link" — mesmo design da loja ===== */}
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
                 <button
                     onClick={goToPublicProfile}
                     style={{ ...pillButtonFullStyle, background: GRADIENT, color: '#ffffff', boxShadow: '0 4px 12px #f9731640' }}
@@ -428,6 +429,7 @@ export function ProfileInfo({ profile, onProfileUpdate }: ProfileInfoProps) {
                     <Copy size={18} />
                     Compartilhar Link
                 </button>
+                <InviteButton className="!w-auto flex-1 min-w-[160px]" />
             </div>
         </div>
     )

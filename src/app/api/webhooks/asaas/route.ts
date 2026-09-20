@@ -16,8 +16,11 @@ interface AsaasWebhookPayload {
         subscription: string | null
         value: number
         status: string
+        externalReference?: string | null
     }
 }
+
+const DRIVER_DEBT_REFERENCE_PREFIX = 'driver_debt:'
 
 export async function POST(req: Request) {
     if (!ASAAS_WEBHOOK_TOKEN || req.headers.get('asaas-access-token') !== ASAAS_WEBHOOK_TOKEN) {
@@ -27,9 +30,33 @@ export async function POST(req: Request) {
     const payload = (await req.json()) as AsaasWebhookPayload
     const payment = payload.payment
 
-    // Eventos que não são de pagamento (ou pagamento avulso, sem
-    // assinatura vinculada) não interessam aqui — responde 200 pra Asaas
-    // não ficar reentregando o mesmo evento pra sempre.
+    // Cobrança avulsa de quitação de dívida de pós-pago (motorista) — não
+    // tem assinatura vinculada, identificada pelo externalReference gravado
+    // na hora de criar a cobrança (POST /api/driver-debt/pay).
+    if (!payment?.subscription && payment?.externalReference?.startsWith(DRIVER_DEBT_REFERENCE_PREFIX)) {
+        if (payload.event === 'PAYMENT_CONFIRMED' || payload.event === 'PAYMENT_RECEIVED') {
+            const driverId = payment.externalReference.slice(DRIVER_DEBT_REFERENCE_PREFIX.length)
+            const { error } = await supabaseAdmin
+                .from('driver_postpaid_charges')
+                .insert({
+                    driver_id: driverId,
+                    type: 'payment',
+                    amount: -Number(payment.value),
+                    asaas_payment_id: payment.id,
+                })
+            // Índice único em asaas_payment_id (type='payment') torna
+            // reentrega do mesmo evento inofensiva.
+            if (error && error.code !== '23505') {
+                console.error('Erro ao registrar quitação de pós-pago:', error)
+                return NextResponse.json({ error: error.message }, { status: 500 })
+            }
+        }
+        return NextResponse.json({ ok: true })
+    }
+
+    // Eventos que não são de pagamento (ou pagamento avulso não reconhecido,
+    // sem assinatura vinculada) não interessam aqui — responde 200 pra
+    // Asaas não ficar reentregando o mesmo evento pra sempre.
     if (!payment?.subscription) {
         return NextResponse.json({ ok: true })
     }
@@ -71,6 +98,21 @@ export async function POST(req: Request) {
                 paymentId: payment.id,
                 paymentValue: Number(payment.value),
             })
+
+            // Registro do pagamento de verdade recebido — a aba de
+            // pagamentos do admin usa isso pra separar receita real de
+            // plano concedido de graça. Índice único em asaas_payment_id
+            // torna reentrega do mesmo evento inofensiva.
+            const { error: paymentLedgerError } = await supabaseAdmin
+                .from('subscription_payments')
+                .insert({
+                    subscription_id: subscription.id,
+                    asaas_payment_id: payment.id,
+                    amount: Number(payment.value),
+                })
+            if (paymentLedgerError && paymentLedgerError.code !== '23505') {
+                console.error('Erro ao registrar pagamento de assinatura:', paymentLedgerError)
+            }
         } else if (payload.event === 'PAYMENT_OVERDUE') {
             await supabaseAdmin
                 .from('subscriptions')

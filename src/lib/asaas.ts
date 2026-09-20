@@ -111,12 +111,37 @@ export async function createSubscription(params: {
     })
 }
 
-interface AsaasPayment {
+export interface AsaasPayment {
     id: string
     subscription: string | null
     status: string
     value: number
     invoiceUrl: string
+}
+
+// Cobrança avulsa (não-recorrente) — usada pra quitar dívida de pós-pago
+// (motorista) ou qualquer outra cobrança pontual fora do ciclo de
+// assinatura. Diferente de createSubscription, essa cobrança não se repete
+// sozinha. externalReference é o jeito do webhook identificar de volta o
+// que essa cobrança avulsa está quitando (ex: 'driver_debt:<driver_id>').
+export async function createOnePixPayment(params: {
+    customerId: string
+    value: number
+    description: string
+    externalReference?: string
+}): Promise<AsaasPayment> {
+    const today = new Date().toISOString().split('T')[0]
+    return asaasFetch<AsaasPayment>('/payments', {
+        method: 'POST',
+        body: JSON.stringify({
+            customer: params.customerId,
+            billingType: 'PIX',
+            value: params.value,
+            dueDate: today,
+            description: params.description,
+            externalReference: params.externalReference,
+        }),
+    })
 }
 
 // A assinatura não devolve o payment direto na criação — precisa listar os
@@ -136,6 +161,12 @@ interface AsaasPixQrCode {
 
 export async function getPixQrCodeForPayment(paymentId: string): Promise<AsaasPixQrCode> {
     return asaasFetch<AsaasPixQrCode>(`/payments/${paymentId}/pixQrCode`)
+}
+
+// Cancela a assinatura recorrente na Asaas — usado ao excluir a conta, pra
+// não continuar cobrando de quem já não existe mais.
+export async function cancelSubscription(subscriptionId: string): Promise<void> {
+    await asaasFetch(`/subscriptions/${subscriptionId}`, { method: 'DELETE' })
 }
 
 export async function getSubscription(subscriptionId: string): Promise<AsaasSubscription> {

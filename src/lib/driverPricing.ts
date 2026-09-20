@@ -1,5 +1,7 @@
 // src/lib/driverPricing.ts
 
+import type { VehicleKind } from './rideVehicle'
+
 export type PricingMode = 'platform' | 'custom'
 export type RideRequestType = 'pessoa' | 'animal' | 'objeto'
 
@@ -62,13 +64,36 @@ export const PLATFORM_DEFAULT_CONDITION_EXTRA_FEES: DriverConditionExtraFees = {
     ar_condicionado: 1,
 }
 
-export const PLATFORM_DEFAULT_PRICING: DriverPricing = {
-    baseDistanceKm: 5,
-    baseFee: 7,
-    pricePerKmAfterBase: 2,
-    extraFees: PLATFORM_DEFAULT_EXTRA_FEES,
-    conditionExtraFees: PLATFORM_DEFAULT_CONDITION_EXTRA_FEES,
+// Tarifa padrão por tipo de veículo — moto e bicicleta têm a mesma tarifa,
+// mais barata que a de carro (base menor, km rodado mais barato), mesma estrutura de
+// extras (pessoa/animal/objeto e condições) em todas.
+export const PLATFORM_DEFAULT_PRICING_BY_VEHICLE: Record<VehicleKind, DriverPricing> = {
+    carro: {
+        baseDistanceKm: 5,
+        baseFee: 7,
+        pricePerKmAfterBase: 2,
+        extraFees: PLATFORM_DEFAULT_EXTRA_FEES,
+        conditionExtraFees: PLATFORM_DEFAULT_CONDITION_EXTRA_FEES,
+    },
+    moto: {
+        baseDistanceKm: 5,
+        baseFee: 5,
+        pricePerKmAfterBase: 1.5,
+        extraFees: PLATFORM_DEFAULT_EXTRA_FEES,
+        conditionExtraFees: PLATFORM_DEFAULT_CONDITION_EXTRA_FEES,
+    },
+    bicicleta: {
+        baseDistanceKm: 5,
+        baseFee: 5,
+        pricePerKmAfterBase: 1.5,
+        extraFees: PLATFORM_DEFAULT_EXTRA_FEES,
+        conditionExtraFees: PLATFORM_DEFAULT_CONDITION_EXTRA_FEES,
+    },
 }
+
+// Alias pra compatibilidade com código existente que ainda não passa o
+// tipo de veículo — sempre a tarifa de carro.
+export const PLATFORM_DEFAULT_PRICING: DriverPricing = PLATFORM_DEFAULT_PRICING_BY_VEHICLE.carro
 
 export interface DriverPricingRow {
     pricing_mode: PricingMode
@@ -87,13 +112,16 @@ export interface DriverPricingRow {
 }
 
 // Resolve a tarifa que vale de fato pra esse motorista, considerando o
-// plano escolhido (plataforma ou própria).
-export function getEffectivePricing(row: DriverPricingRow): DriverPricing {
-    if (row.pricing_mode === 'platform') return PLATFORM_DEFAULT_PRICING
+// plano escolhido (plataforma ou própria) e o veículo cadastrado (só
+// importa no modo plataforma — tarifa própria é uma só, independente do
+// veículo, já que driver_pricing é uma linha por motorista).
+export function getEffectivePricing(row: DriverPricingRow, vehicleKind: VehicleKind = 'carro'): DriverPricing {
+    const platformDefault = PLATFORM_DEFAULT_PRICING_BY_VEHICLE[vehicleKind]
+    if (row.pricing_mode === 'platform') return platformDefault
     return {
-        baseDistanceKm: row.base_distance_km ?? PLATFORM_DEFAULT_PRICING.baseDistanceKm,
-        baseFee: row.base_fee ?? PLATFORM_DEFAULT_PRICING.baseFee,
-        pricePerKmAfterBase: row.price_per_km_after_base ?? PLATFORM_DEFAULT_PRICING.pricePerKmAfterBase,
+        baseDistanceKm: row.base_distance_km ?? platformDefault.baseDistanceKm,
+        baseFee: row.base_fee ?? platformDefault.baseFee,
+        pricePerKmAfterBase: row.price_per_km_after_base ?? platformDefault.pricePerKmAfterBase,
         extraFees: {
             pessoa: row.extra_fee_pessoa ?? PLATFORM_DEFAULT_EXTRA_FEES.pessoa,
             animal: row.extra_fee_animal ?? PLATFORM_DEFAULT_EXTRA_FEES.animal,
@@ -143,4 +171,11 @@ export function computeSuggestedPrice(
     const rideTypeExtra = rideType ? pricing.extraFees[rideType] : 0
     const conditionExtra = ride ? computeConditionExtras(ride, pricing.conditionExtraFees) : 0
     return pricing.baseFee + extraKm * pricing.pricePerKmAfterBase + rideTypeExtra + conditionExtra
+}
+
+// "Minha tarifa": os valores próprios que o motorista deixou salvos, mesmo
+// quando o modo padrão dele é a tarifa iUser. Null se ele nunca salvou.
+export function getCustomPricing(row: DriverPricingRow, vehicleKind: VehicleKind = 'carro'): DriverPricing | null {
+    if (row.base_fee == null) return null
+    return getEffectivePricing({ ...row, pricing_mode: 'custom' }, vehicleKind)
 }

@@ -7,6 +7,7 @@
 // por apps de transporte pra "compartilhar viagem".
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
+import { kindForRideType } from '@/lib/rideVehicle'
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
     const { id } = await params
@@ -16,7 +17,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 
     const { data: ride, error } = await supabaseAdmin
         .from('ride_requests')
-        .select('id, status, ride_type, requester_id, driver_id, origin_address, destination_address, origin_complement, destination_complement, distance_km, duration_min, driver_en_route, driver_arrived_at, ride_started_at, created_at')
+        .select('id, status, ride_type, requester_id, driver_id, origin_address, destination_address, origin_complement, destination_complement, vehicle_type, distance_km, duration_min, driver_en_route, driver_arrived_at, ride_started_at, created_at')
         .eq('id', id)
         .maybeSingle()
 
@@ -40,10 +41,14 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     } | null = null
 
     if (ride.driver_id) {
-        const [{ data: driverProfile }, { data: vehicle }] = await Promise.all([
+        const [{ data: driverProfile }, { data: vehicleRows }] = await Promise.all([
             supabaseAdmin.from('profiles').select('name, profileSlug, avatar_url').eq('id', ride.driver_id).maybeSingle(),
-            supabaseAdmin.from('driver_vehicles').select('car_model, car_color, car_photo_url').eq('driver_id', ride.driver_id).maybeSingle(),
+            supabaseAdmin.from('driver_vehicles').select('vehicle_kind, car_model, car_color, car_photo_url').eq('driver_id', ride.driver_id),
         ])
+
+        // Motorista pode ter vários veículos — mostra o que atende essa corrida.
+        const rideKind = kindForRideType(ride.vehicle_type)
+        const vehicle = (vehicleRows || []).find((v) => v.vehicle_kind === rideKind) || (vehicleRows || [])[0]
 
         driver = {
             name: driverProfile?.name || (driverProfile?.profileSlug ? `@${driverProfile.profileSlug}` : null),

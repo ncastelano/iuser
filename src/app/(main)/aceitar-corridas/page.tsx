@@ -16,9 +16,10 @@ import { MapPin, Star, Pencil, X, Package, CalendarClock, PawPrint, Car, CheckCi
 import { Spinner } from '@/components/Spinner'
 import { shortAddress } from '@/lib/serviceBoard'
 import { getAvatarUrl } from '@/lib/avatar'
-import { computeSuggestedPrice, computeConditionExtras, getEffectivePricing, DriverPricing, type RideConditionFlags } from '@/lib/driverPricing'
+import { computeSuggestedPrice, computeConditionExtras, getEffectivePricing, getCustomPricing, PLATFORM_DEFAULT_PRICING_BY_VEHICLE, DriverPricing, type RideConditionFlags } from '@/lib/driverPricing'
+import { playRideAlertSound } from '@/lib/rideAlertSound'
 import { getProfileRideRatingsBatch, ProfileRideRating } from '@/lib/rideReviews'
-import { VehicleType } from '@/lib/rideVehicle'
+import { VehicleType, VehicleKind, VEHICLE_TYPE_LABELS, ridesAcceptableForVehicleKind, kindForRideType } from '@/lib/rideVehicle'
 import { buildRideSpecRows } from '@/lib/rideSpecs'
 import { notifyRideStatus } from '@/lib/notifyRideStatus'
 import { handleShareLink } from '@/lib/share'
@@ -27,6 +28,7 @@ import { haversineKm } from '@/lib/mapboxRoute'
 import RideChat from '@/components/RideChat'
 import { DRIVER_CHAT_QUICK_REPLIES } from '@/lib/rideChatQuickReplies'
 import { useActivePlans } from '@/hooks/useActivePlans'
+import DriverDebtBanner from '@/components/DriverDebtBanner'
 import RideMiniMap from './RideMiniMap'
 import RideMapDialog from './RideMapDialog'
 
@@ -157,6 +159,9 @@ interface RideRow {
     origin_lng: number | null
     destination_lat: number | null
     destination_lng: number | null
+    offered_price: number | null
+    order_id: string | null
+    store_id: string | null
     applicant_count: number
 }
 
@@ -168,6 +173,10 @@ interface RideCardData extends RideRow {
     requesterAvatarUrl: string | undefined
     requesterRating: ProfileRideRating
     suggestedPrice: number
+    platformPrice: number
+    customPrice: number | null
+    tariff: DriverPricing
+    storeName: string | null
     hasDistance: boolean
 }
 
@@ -216,7 +225,9 @@ export default function AceitarCorridasPage() {
     const [showLogin, setShowLogin] = useState(false)
     const [activeTab, setActiveTab] = useState<'servicos' | 'candidatos' | 'aceita'>('servicos')
     const [rides, setRides] = useState<RideCardData[]>([])
-    const [myPricing, setMyPricing] = useState<DriverPricing | null>(null)
+    const knownRideIdsRef = useRef<Set<string>>(new Set())
+    const firstLoadDoneRef = useRef(false)
+    const alertSoundRef = useRef(true)
     const [candidacies, setCandidacies] = useState<CandidacyCardData[]>([])
     const [acceptedRide, setAcceptedRide] = useState<AcceptedRideDetail | null>(null)
     const [departing, setDeparting] = useState(false)
@@ -301,10 +312,10 @@ export default function AceitarCorridasPage() {
         }
         setShowLogin(false)
 
-        const [{ data: pricing }, { data: profile }] = await Promise.all([
+        const [{ data: pricing }, { data: profile }, { data: vehicleRows }] = await Promise.all([
             supabase
                 .from('driver_pricing')
-                .select('pricing_mode, base_distance_km, base_fee, price_per_km_after_base')
+                .select('pricing_mode, base_distance_km, base_fee, price_per_km_after_base, extra_fee_pessoa, extra_fee_animal, extra_fee_objeto, extra_fee_condominio, extra_fee_compras, extra_fee_necessidade_especial, extra_fee_pet_sem_caixa, extra_fee_entrega_interna, extra_fee_ar_condicionado, alert_sound_enabled')
                 .eq('driver_id', contextUserId)
                 .maybeSingle(),
             supabase
@@ -312,12 +323,24 @@ export default function AceitarCorridasPage() {
                 .select('address, address_number, address_complement, store_lat, store_lng')
                 .eq('id', contextUserId)
                 .maybeSingle(),
+            supabase
+                .from('driver_vehicles')
+                .select('vehicle_kind')
+                .eq('driver_id', contextUserId),
         ])
 
         if (!pricing) {
             router.replace('/painel-motorista?next=/aceitar-corridas')
             return
         }
+
+        // Motorista pode ter vários veículos (carro, moto, bicicleta) e vê as
+        // corridas de todos eles. Sem cadastro de veículo (conta antiga, de
+        // antes dessa coluna existir) cai no padrão "carro".
+        alertSoundRef.current = pricing.alert_sound_enabled !== false
+        const vehicleKinds = (vehicleRows || []).map((v) => v.vehicle_kind as VehicleKind)
+        if (vehicleKinds.length === 0) vehicleKinds.push('carro')
+        const acceptableVehicleTypes = new Set(vehicleKinds.flatMap((k) => ridesAcceptableForVehicleKind(k)))
 
         // Consulta separada e best-effort: se a coluna ainda não existir (migração
         // pendente), isso não pode derrubar a checagem de tarifa acima.
@@ -367,13 +390,13 @@ export default function AceitarCorridasPage() {
 
         const { data: openRides } = await supabase
             .from('ride_requests')
-            .select('id, requester_id, ride_type, origin_address, destination_address, origin_complement, destination_complement, notes, passenger_count, vehicle_type, object_description, object_is_sensitive, pet_description, has_child, children_count, child_age, child_needs_car_seat, has_shopping, bag_count, has_extra_object, extra_object_description, has_pet, pet_weight_range, pet_has_carrier, has_special_needs, special_needs_description, special_needs_wheelchair, special_needs_wheelchair_type, special_needs_visual_impairment, has_guide_dog, delivery_location, payment_method, cash_change_for, card_is_contactless, origin_needs_access, origin_access_notes, destination_needs_access, destination_access_notes, grocery_bag_size, wants_air_conditioning, distance_km, duration_min, scheduled_for, created_at, origin_lat, origin_lng, destination_lat, destination_lng')
+            .select('id, requester_id, ride_type, origin_address, destination_address, origin_complement, destination_complement, notes, passenger_count, vehicle_type, object_description, object_is_sensitive, pet_description, has_child, children_count, child_age, child_needs_car_seat, has_shopping, bag_count, has_extra_object, extra_object_description, has_pet, pet_weight_range, pet_has_carrier, has_special_needs, special_needs_description, special_needs_wheelchair, special_needs_wheelchair_type, special_needs_visual_impairment, has_guide_dog, delivery_location, payment_method, cash_change_for, card_is_contactless, origin_needs_access, origin_access_notes, destination_needs_access, destination_access_notes, grocery_bag_size, wants_air_conditioning, distance_km, duration_min, scheduled_for, created_at, origin_lat, origin_lng, destination_lat, destination_lng, offered_price, order_id, store_id')
             .eq('status', 'pending')
             .neq('requester_id', contextUserId)
             .order('scheduled_for', { ascending: true, nullsFirst: true })
             .order('created_at', { ascending: false })
 
-        const candidateRides = (openRides || []).filter((r) => !appliedIds.has(r.id))
+        const candidateRides = (openRides || []).filter((r) => !appliedIds.has(r.id) && acceptableVehicleTypes.has(r.vehicle_type))
 
         // Consulta separada e best-effort: se a coluna ainda não existir (migração
         // pendente), isso não pode derrubar o quadro de corridas inteiro — só
@@ -398,7 +421,7 @@ export default function AceitarCorridasPage() {
         if (myApplications.length > 0) {
             const { data } = await supabase
                 .from('ride_requests')
-                .select('id, requester_id, ride_type, origin_address, destination_address, origin_complement, destination_complement, notes, passenger_count, vehicle_type, object_description, object_is_sensitive, pet_description, has_child, children_count, child_age, child_needs_car_seat, has_shopping, bag_count, has_extra_object, extra_object_description, has_pet, pet_weight_range, pet_has_carrier, has_special_needs, special_needs_description, special_needs_wheelchair, special_needs_wheelchair_type, special_needs_visual_impairment, has_guide_dog, delivery_location, payment_method, cash_change_for, card_is_contactless, origin_needs_access, origin_access_notes, destination_needs_access, destination_access_notes, grocery_bag_size, wants_air_conditioning, distance_km, duration_min, scheduled_for, created_at, origin_lat, origin_lng, destination_lat, destination_lng')
+                .select('id, requester_id, ride_type, origin_address, destination_address, origin_complement, destination_complement, notes, passenger_count, vehicle_type, object_description, object_is_sensitive, pet_description, has_child, children_count, child_age, child_needs_car_seat, has_shopping, bag_count, has_extra_object, extra_object_description, has_pet, pet_weight_range, pet_has_carrier, has_special_needs, special_needs_description, special_needs_wheelchair, special_needs_wheelchair_type, special_needs_visual_impairment, has_guide_dog, delivery_location, payment_method, cash_change_for, card_is_contactless, origin_needs_access, origin_access_notes, destination_needs_access, destination_access_notes, grocery_bag_size, wants_air_conditioning, distance_km, duration_min, scheduled_for, created_at, origin_lat, origin_lng, destination_lat, destination_lng, offered_price, order_id, store_id')
                 .in('id', myApplications.map((a) => a.ride_request_id))
                 .eq('status', 'pending')
             myRideRows = data || []
@@ -413,12 +436,18 @@ export default function AceitarCorridasPage() {
             : [{ data: [] as { id: string; name: string | null; profileSlug: string | null; avatar_url: string | null }[] }, new Map<string, ProfileRideRating>()]
         const profilesById = new Map((profiles || []).map((p) => [p.id, p]))
 
-        const pricingShape = getEffectivePricing(pricing)
-        setMyPricing(pricingShape)
+        const storeIds = Array.from(new Set(openList.map((r) => r.store_id).filter(Boolean))) as string[]
+        const storeNamesById = new Map<string, string>()
+        if (storeIds.length > 0) {
+            const { data: storeRows } = await supabase.from('stores').select('id, name').in('id', storeIds)
+            for (const st of storeRows || []) storeNamesById.set(st.id, st.name)
+        }
 
         const cards: RideCardData[] = openList.map((r) => {
             const p = profilesById.get(r.requester_id)
             const hasDistance = r.distance_km != null
+            const rideKind = kindForRideType(r.vehicle_type)
+            const pricingShape = getEffectivePricing(pricing, rideKind)
             const conditionFlags: RideConditionFlags = {
                 origin_needs_access: r.origin_needs_access,
                 destination_needs_access: r.destination_needs_access,
@@ -431,11 +460,16 @@ export default function AceitarCorridasPage() {
                 delivery_location: r.delivery_location,
                 wants_air_conditioning: r.wants_air_conditioning,
             }
-            const suggestedPrice = hasDistance
-                ? computeSuggestedPrice(r.distance_km!, pricingShape, r.ride_type, conditionFlags)
-                : pricingShape.baseFee
-                    + pricingShape.extraFees[r.ride_type as 'pessoa' | 'animal' | 'objeto']
-                    + computeConditionExtras(conditionFlags, pricingShape.conditionExtraFees)
+            const priceWith = (shape: DriverPricing) => hasDistance
+                ? computeSuggestedPrice(r.distance_km!, shape, r.ride_type, conditionFlags)
+                : shape.baseFee
+                    + shape.extraFees[r.ride_type as 'pessoa' | 'animal' | 'objeto']
+                    + computeConditionExtras(conditionFlags, shape.conditionExtraFees)
+            const platformPrice = priceWith(PLATFORM_DEFAULT_PRICING_BY_VEHICLE[rideKind])
+            const customShape = getCustomPricing(pricing, rideKind)
+            const customPrice = customShape ? priceWith(customShape) : null
+            // Frete definido pela loja (entrega iUser) vale como preço sugerido.
+            const suggestedPrice = r.offered_price != null ? Number(r.offered_price) : priceWith(pricingShape)
             return {
                 ...r,
                 requesterName: p?.name || null,
@@ -443,6 +477,10 @@ export default function AceitarCorridasPage() {
                 requesterAvatarUrl: getAvatarUrl(supabase, p?.avatar_url),
                 requesterRating: ratingsMap.get(r.requester_id) || { avg: 0, count: 0 },
                 suggestedPrice,
+                platformPrice,
+                customPrice,
+                tariff: pricingShape,
+                storeName: r.store_id ? (storeNamesById.get(r.store_id) || null) : null,
                 hasDistance,
             }
         })
@@ -463,6 +501,19 @@ export default function AceitarCorridasPage() {
                 hasDistance: r.distance_km != null,
             }
         })
+
+        // Corrida nova desde a última leitura: toca o alerta (se o motorista
+        // não silenciou em /painel-motorista). A primeira leitura só marca o
+        // que já existia, sem tocar.
+        const newIds = cards.filter((c) => !knownRideIdsRef.current.has(c.id))
+        if (knownRideIdsRef.current.size > 0 || firstLoadDoneRef.current) {
+            if (newIds.length > 0) {
+                if (alertSoundRef.current) playRideAlertSound()
+                toast.info(newIds.length === 1 ? 'Nova corrida disponível!' : `${newIds.length} novas corridas disponíveis!`)
+            }
+        }
+        knownRideIdsRef.current = new Set(cards.map((c) => c.id))
+        firstLoadDoneRef.current = true
 
         setRides(cards)
         setCandidacies(candidacyCards)
@@ -536,6 +587,15 @@ export default function AceitarCorridasPage() {
     useEffect(() => {
         const poll = setInterval(load, REFRESH_INTERVAL_MS)
         return () => clearInterval(poll)
+    }, [load])
+
+    // Corrida nova entra na hora (sem esperar o próximo ciclo de leitura).
+    useEffect(() => {
+        const channel = supabase
+            .channel('aceitar-corridas-new-rides')
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'ride_requests' }, () => { load() })
+            .subscribe()
+        return () => { supabase.removeChannel(channel) }
     }, [load])
 
     const handleLoginSuccess = () => {
@@ -971,6 +1031,7 @@ export default function AceitarCorridasPage() {
 
                     {!loading && !showLogin && !plansLoading && hasDriver && (
                     <>
+                    <DriverDebtBanner userId={contextUserId} />
                     {activeTab === 'servicos' && visibleRides.length === 0 && (
                         <div
                             className="rounded-2xl p-6 text-center"
@@ -996,6 +1057,21 @@ export default function AceitarCorridasPage() {
                                     >
                                         <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
                                             <div className="flex items-center gap-1.5 flex-wrap">
+                                                <span
+                                                    className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full"
+                                                    style={{ background: GRADIENT, color: '#fff' }}
+                                                >
+                                                    {VEHICLE_TYPE_LABELS[ride.vehicle_type]}
+                                                </span>
+                                                {ride.order_id && (
+                                                    <span
+                                                        className="flex items-center gap-1 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full"
+                                                        style={{ background: '#22c55e20', color: '#16a34a' }}
+                                                    >
+                                                        <Package size={10} />
+                                                        Entrega{ride.storeName ? ` · ${ride.storeName}` : ' de loja'}
+                                                    </span>
+                                                )}
                                                 {buildRideSpecRows(ride).map((spec, i) => (
                                                     <span
                                                         key={i}
@@ -1079,11 +1155,24 @@ export default function AceitarCorridasPage() {
                                             ) : null}
                                         </div>
 
-                                        {myPricing && (
-                                            <p className="text-[10px] font-bold mb-2" style={{ color: colors.textSecondary }}>
-                                                Sua tarifa: até {myPricing.baseDistanceKm} km R$ {myPricing.baseFee.toFixed(2)}, + R$ {myPricing.pricePerKmAfterBase.toFixed(2)}/km
-                                                {ride.hasDistance && ride.distance_km ? ` · R$ ${(ride.suggestedPrice / ride.distance_km).toFixed(2)}/km nesta corrida` : ''}
-                                            </p>
+                                        {ride.offered_price != null ? (
+                                            <div className="rounded-xl px-3 py-2.5 mb-2 flex items-center justify-between" style={{ background: '#22c55e15', border: '1px solid #22c55e40' }}>
+                                                <span className="text-[11px] font-black uppercase tracking-wider" style={{ color: '#16a34a' }}>Frete oferecido</span>
+                                                <span className="text-lg font-black" style={{ color: '#16a34a' }}>R$ {Number(ride.offered_price).toFixed(2)}</span>
+                                            </div>
+                                        ) : (
+                                            <div className="grid grid-cols-2 gap-2 mb-2">
+                                                <div className="rounded-xl px-3 py-2" style={{ background: `${colors.border}25`, border: `1px solid ${colors.border}` }}>
+                                                    <p className="text-[9px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>Tarifa iUser</p>
+                                                    <p className="text-base font-black" style={{ color: colors.textPrimary }}>R$ {ride.platformPrice.toFixed(2)}</p>
+                                                </div>
+                                                <div className="rounded-xl px-3 py-2" style={ride.customPrice != null ? { background: '#f9731615', border: '1px solid #f9731650' } : { background: `${colors.border}15`, border: `1px dashed ${colors.border}` }}>
+                                                    <p className="text-[9px] font-black uppercase tracking-wider" style={{ color: ride.customPrice != null ? '#f97316' : colors.textSecondary }}>Minha tarifa</p>
+                                                    <p className="text-base font-black" style={{ color: ride.customPrice != null ? '#f97316' : colors.textSecondary }}>
+                                                        {ride.customPrice != null ? `R$ ${ride.customPrice.toFixed(2)}` : 'não definida'}
+                                                    </p>
+                                                </div>
+                                            </div>
                                         )}
 
                                         {isEditingPrice ? (
@@ -1115,16 +1204,37 @@ export default function AceitarCorridasPage() {
                                             </div>
                                         ) : (
                                             <>
-                                                <button
-                                                    onClick={() => applyToRide(ride, ride.suggestedPrice)}
-                                                    disabled={isApplying}
-                                                    className="w-full mt-1 py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all disabled:opacity-70 flex items-center justify-center gap-2"
-                                                    style={{ background: '#a3e635', color: '#1a2e05' }}
-                                                >
-                                                    {isApplying ? <Spinner size={14} /> : `Candidatar-se por R$ ${ride.suggestedPrice.toFixed(2)}`}
-                                                </button>
+                                                {ride.offered_price == null && ride.customPrice != null && Math.abs(ride.customPrice - ride.platformPrice) > 0.004 ? (
+                                                    <div className="grid grid-cols-2 gap-2 mt-1">
+                                                        <button
+                                                            onClick={() => applyToRide(ride, ride.platformPrice)}
+                                                            disabled={isApplying}
+                                                            className="py-2.5 rounded-full text-[11px] font-black uppercase tracking-wider transition-all disabled:opacity-70"
+                                                            style={{ background: `${colors.border}30`, color: colors.textPrimary, border: `1px solid ${colors.border}` }}
+                                                        >
+                                                            {isApplying ? <Spinner size={14} /> : `Tarifa iUser R$ ${ride.platformPrice.toFixed(2)}`}
+                                                        </button>
+                                                        <button
+                                                            onClick={() => applyToRide(ride, ride.customPrice as number)}
+                                                            disabled={isApplying}
+                                                            className="py-2.5 rounded-full text-[11px] font-black uppercase tracking-wider transition-all disabled:opacity-70"
+                                                            style={{ background: GRADIENT, color: '#fff' }}
+                                                        >
+                                                            {isApplying ? <Spinner size={14} /> : `Minha tarifa R$ ${ride.customPrice.toFixed(2)}`}
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <button
+                                                        onClick={() => applyToRide(ride, ride.suggestedPrice)}
+                                                        disabled={isApplying}
+                                                        className="w-full mt-1 py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all disabled:opacity-70 flex items-center justify-center gap-2"
+                                                        style={{ background: GRADIENT, color: '#fff' }}
+                                                    >
+                                                        {isApplying ? <Spinner size={14} /> : `${ride.offered_price != null ? 'Aceitar frete' : 'Candidatar-se'} por R$ ${ride.suggestedPrice.toFixed(2)}`}
+                                                    </button>
+                                                )}
 
-                                                {ride.hasDistance && (
+                                                {ride.hasDistance && ride.offered_price == null && (
                                                     <div className="flex items-center gap-1.5 mt-2">
                                                         <span className="text-[9px]" style={{ color: colors.textSecondary }}>Ofereça sua tarifa:</span>
                                                         {[1, 2, 3].map((extra) => (

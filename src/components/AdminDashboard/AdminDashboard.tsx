@@ -91,6 +91,7 @@ export default function AdminDashboard() {
                     <PlanManageSection cardStyle={cardStyle} colors={colors} />
                     <PlanPricingSection cardStyle={cardStyle} colors={colors} />
                     <PlanGrantsSection cardStyle={cardStyle} colors={colors} />
+                    <DriverLeaderRoleSection cardStyle={cardStyle} colors={colors} />
                     <PlanCodesSection cardStyle={cardStyle} colors={colors} />
                 </div>
             )}
@@ -106,18 +107,23 @@ interface SectionProps {
 interface SubscriptionRow {
     id: string
     status: 'pending' | 'active' | 'past_due' | 'canceled'
-    source: 'asaas' | 'admin_grant' | 'code'
+    source: 'asaas' | 'admin_grant' | 'code' | 'leader_grant'
     current_period_end: string | null
     created_at: string
     plans: { code: string; name: string; price: number } | { code: string; name: string; price: number }[] | null
     profiles: { name: string | null; profileSlug: string | null } | { name: string | null; profileSlug: string | null }[] | null
 }
 
-interface PlanSummaryRow {
-    code: string
-    name: string
+interface GrantedFreeSummary {
     activeCount: number
-    monthlyRevenue: number
+    plans: { code: string; name: string; count: number }[]
+}
+
+interface PaidSummary {
+    onceCount: number
+    multipleCount: number
+    activeCount: number
+    totalRevenue: number
 }
 
 const STATUS_LABEL: Record<SubscriptionRow['status'], { label: string; color: string }> = {
@@ -131,6 +137,7 @@ const SUBSCRIPTION_SOURCE_LABEL: Record<SubscriptionRow['source'], string> = {
     asaas: 'Pago via Asaas',
     admin_grant: 'Concedido pelo admin',
     code: 'Código promocional',
+    leader_grant: 'Concedido por líder de motoristas',
 }
 
 // Quem comprou (ou ganhou) cada plano — visão de negócio pro admin: quantos
@@ -138,15 +145,24 @@ const SUBSCRIPTION_SOURCE_LABEL: Record<SubscriptionRow['source'], string> = {
 // em receita recorrente, além do histórico completo de assinaturas.
 function SubscriptionsSection({ cardStyle, colors }: SectionProps) {
     const [subscriptions, setSubscriptions] = useState<SubscriptionRow[]>([])
-    const [summary, setSummary] = useState<PlanSummaryRow[]>([])
+    const [grantedFree, setGrantedFree] = useState<GrantedFreeSummary>({ activeCount: 0, plans: [] })
+    const [paid, setPaid] = useState<PaidSummary>({ onceCount: 0, multipleCount: 0, activeCount: 0, totalRevenue: 0 })
+    const [activeCount, setActiveCount] = useState(0)
     const [loading, setLoading] = useState(true)
 
     const load = useCallback(async () => {
         setLoading(true)
         try {
-            const { subscriptions, summary } = await callAdminApi<{ subscriptions: SubscriptionRow[]; summary: PlanSummaryRow[] }>('/api/admin/subscriptions/list')
-            setSubscriptions(subscriptions)
-            setSummary(summary)
+            const res = await callAdminApi<{
+                subscriptions: SubscriptionRow[]
+                grantedFree: GrantedFreeSummary
+                paid: PaidSummary
+                activeSubscriptions: { count: number }
+            }>('/api/admin/subscriptions/list')
+            setSubscriptions(res.subscriptions)
+            setGrantedFree(res.grantedFree)
+            setPaid(res.paid)
+            setActiveCount(res.activeSubscriptions.count)
         } catch (err: any) {
             toast.error(err.message || 'Erro ao carregar assinaturas')
         } finally {
@@ -160,27 +176,46 @@ function SubscriptionsSection({ cardStyle, colors }: SectionProps) {
         return <div className="flex justify-center py-8"><Spinner size={24} color={colors.accent} /></div>
     }
 
-    const totalActive = summary.reduce((acc, s) => acc + s.activeCount, 0)
-    const totalRevenue = summary.reduce((acc, s) => acc + s.monthlyRevenue, 0)
-
     return (
         <div className="space-y-5">
-            <div style={cardStyle} className="space-y-3">
+            <div style={cardStyle} className="space-y-1">
                 <p className="text-xs font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>
-                    {totalActive} assinatura{totalActive !== 1 ? 's' : ''} ativa{totalActive !== 1 ? 's' : ''} · R$ {totalRevenue.toFixed(2)}/mês
+                    Assinaturas ativas
                 </p>
+                <p className="text-2xl font-black" style={{ color: colors.textPrimary }}>{activeCount}</p>
+                <p className="text-[11px]" style={{ color: colors.textSecondary }}>De qualquer origem — pago ou concedido, ver abaixo</p>
+            </div>
+
+            <div style={cardStyle} className="space-y-2">
+                <p className="text-xs font-black uppercase tracking-wider" style={{ color: '#22c55e' }}>
+                    Pago de verdade
+                </p>
+                <p className="text-2xl font-black" style={{ color: colors.textPrimary }}>
+                    R$ {paid.totalRevenue.toFixed(2)}
+                </p>
+                <p className="text-[11px]" style={{ color: colors.textSecondary }}>
+                    {paid.activeCount} assinatura{paid.activeCount !== 1 ? 's' : ''} ativa{paid.activeCount !== 1 ? 's' : ''} via Asaas ·{' '}
+                    {paid.onceCount} pagou 1x · {paid.multipleCount} pagou 2x ou mais
+                </p>
+            </div>
+
+            <div style={cardStyle} className="space-y-2">
+                <p className="text-xs font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>
+                    Concedido de graça (não é receita)
+                </p>
+                <p className="text-2xl font-black" style={{ color: colors.textPrimary }}>{grantedFree.activeCount}</p>
                 <div className="flex flex-wrap gap-2">
-                    {summary.map((s) => (
+                    {grantedFree.plans.map((p) => (
                         <span
-                            key={s.code}
+                            key={p.code}
                             className="text-[11px] font-bold px-3 py-1.5 rounded-full"
-                            style={{ background: `${colors.accent}20`, color: colors.accent }}
+                            style={{ background: `${colors.border}30`, color: colors.textSecondary }}
                         >
-                            {s.name}: {s.activeCount} · R$ {s.monthlyRevenue.toFixed(2)}
+                            {p.name}: {p.count}
                         </span>
                     ))}
-                    {summary.length === 0 && (
-                        <span className="text-xs" style={{ color: colors.textSecondary }}>Nenhuma assinatura ativa ainda.</span>
+                    {grantedFree.plans.length === 0 && (
+                        <span className="text-xs" style={{ color: colors.textSecondary }}>Nenhum plano concedido de graça ativo.</span>
                     )}
                 </div>
             </div>
@@ -353,11 +388,22 @@ function WithdrawalsSection({ cardStyle, colors }: SectionProps) {
 
 const GRANT_PLAN_OPTIONS = [
     { code: 'motorista', label: 'Motorista' },
+    { code: 'motorista_beta', label: 'Motorista Beta (até fim do ano)' },
     { code: 'prestador', label: 'Prestador de serviço' },
     { code: 'loja', label: 'Loja' },
     { code: 'recrutador', label: 'Recrutador' },
     { code: 'combo', label: 'Combo' },
 ]
+
+// 31/12 23:59:59 no horário de Brasília, expresso como dias a partir de
+// agora — usado como sugestão inicial pro campo "dias" quando o admin
+// concede o plano motorista_beta ("válido até o fim do ano").
+function daysUntilEndOfYear(): number {
+    const now = new Date()
+    const endOfYearBrasilia = new Date(Date.UTC(now.getUTCFullYear(), 11, 32, 2, 59, 59))
+    const diffMs = endOfYearBrasilia.getTime() - now.getTime()
+    return Math.max(1, Math.ceil(diffMs / (24 * 60 * 60 * 1000)))
+}
 
 interface PlanRow {
     id: string
@@ -850,6 +896,13 @@ function PlanGrantsSection({ cardStyle, colors }: SectionProps) {
     const [days, setDays] = useState('30')
     const [granting, setGranting] = useState(false)
 
+    const handlePlanCodeChange = (code: string) => {
+        setPlanCode(code)
+        // "Motorista Beta" é vendido como "válido até o fim do ano" — sugere
+        // os dias certos pra isso em vez de deixar o padrão genérico de 30.
+        if (code === 'motorista_beta') setDays(String(daysUntilEndOfYear()))
+    }
+
     const grant = async () => {
         if (!slug.trim()) return
         setGranting(true)
@@ -892,7 +945,7 @@ function PlanGrantsSection({ cardStyle, colors }: SectionProps) {
                     placeholder="@slug do perfil"
                     style={{ ...inputStyle, flex: 1, minWidth: 140 }}
                 />
-                <select value={planCode} onChange={(e) => setPlanCode(e.target.value)} style={inputStyle}>
+                <select value={planCode} onChange={(e) => handlePlanCodeChange(e.target.value)} style={inputStyle}>
                     {GRANT_PLAN_OPTIONS.map((p) => (
                         <option key={p.code} value={p.code}>{p.label}</option>
                     ))}
@@ -912,6 +965,75 @@ function PlanGrantsSection({ cardStyle, colors }: SectionProps) {
                     style={{ background: colors.accent }}
                 >
                     {granting ? <Spinner size={14} /> : 'Conceder'}
+                </button>
+            </div>
+        </div>
+    )
+}
+
+// Concede o papel de "Líder de Motoristas" — quem tem esse papel ganha uma
+// aba própria e pode conceder o plano motorista sem cobrar, mas só pra
+// quem ele mesmo convidou (ver grant_driver_plan_as_leader no banco).
+function DriverLeaderRoleSection({ cardStyle, colors }: SectionProps) {
+    const [slug, setSlug] = useState('')
+    const [granting, setGranting] = useState<'grant' | 'revoke' | null>(null)
+
+    const setLeader = async (isLeader: boolean) => {
+        if (!slug.trim()) return
+        setGranting(isLeader ? 'grant' : 'revoke')
+        try {
+            await callAdminApi('/api/admin/roles/grant-driver-leader', {
+                profileSlug: slug.trim(),
+                isLeader,
+            })
+            toast.success(isLeader ? `@${slug.trim()} agora é líder de motoristas!` : `Papel de líder removido de @${slug.trim()}`)
+            setSlug('')
+        } catch (err: any) {
+            toast.error(err.message || 'Erro ao atualizar papel')
+        } finally {
+            setGranting(null)
+        }
+    }
+
+    const inputStyle: React.CSSProperties = {
+        background: colors.background,
+        border: `1px solid ${colors.border}`,
+        color: colors.textPrimary,
+        borderRadius: 12,
+        padding: '8px 12px',
+        fontSize: 13,
+    }
+
+    return (
+        <div style={cardStyle} className="space-y-3">
+            <p className="text-xs font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>
+                Conceder papel de Líder de Motoristas
+            </p>
+            <p className="text-xs" style={{ color: colors.textSecondary }}>
+                Um líder ganha uma aba própria e pode conceder o plano motorista sem cobrar — só pra quem ele mesmo convidou.
+            </p>
+            <div className="flex flex-wrap gap-2 items-center">
+                <input
+                    value={slug}
+                    onChange={(e) => setSlug(e.target.value)}
+                    placeholder="@slug do perfil"
+                    style={{ ...inputStyle, flex: 1, minWidth: 140 }}
+                />
+                <button
+                    onClick={() => setLeader(true)}
+                    disabled={granting !== null || !slug.trim()}
+                    className="px-4 py-2 rounded-xl font-bold text-xs text-white disabled:opacity-50"
+                    style={{ background: colors.accent }}
+                >
+                    {granting === 'grant' ? <Spinner size={14} /> : 'Tornar líder'}
+                </button>
+                <button
+                    onClick={() => setLeader(false)}
+                    disabled={granting !== null || !slug.trim()}
+                    className="px-4 py-2 rounded-xl font-bold text-xs disabled:opacity-50"
+                    style={{ background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                >
+                    {granting === 'revoke' ? <Spinner size={14} /> : 'Remover'}
                 </button>
             </div>
         </div>

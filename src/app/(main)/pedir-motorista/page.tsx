@@ -10,9 +10,12 @@ import { getCurrentPosition as getNativeCurrentPosition } from '@/lib/nativeGeol
 import { useTheme, ThemeColors } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { toast } from 'sonner'
+import { haversineKm } from '@/lib/mapboxRoute'
+import { notifyNewRide } from '@/lib/notifyRideStatus'
 import { addRecentRideDestination, getRecentRideDestinations, RecentRideDestination } from '@/lib/recentRideDestinations'
 import { addRecentRideOrigin, getRecentRideOrigins, RecentRideOrigin } from '@/lib/recentRideOrigins'
-import { getVehicleTypeForPassengers, VEHICLE_TYPE_LABELS } from '@/lib/rideVehicle'
+import { fetchSavedRidePlaces, saveRidePlace } from '@/lib/savedRidePlaces'
+import { getVehicleTypeForPassengers, VEHICLE_TYPE_LABELS, type VehicleType } from '@/lib/rideVehicle'
 import { createSquareImage } from '@/lib/image'
 import { PLATFORM_DEFAULT_CONDITION_EXTRA_FEES } from '@/lib/driverPricing'
 import {
@@ -41,6 +44,7 @@ import {
     Clock,
     CalendarClock,
     Wind,
+    Store as StoreIcon,
 } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import RideTrackingPanel from './RideTrackingPanel'
@@ -82,13 +86,129 @@ async function reverseGeocode(lng: number, lat: number): Promise<string | null> 
     }
 }
 
-async function searchAddress(query: string): Promise<{ place_name: string; center: [number, number] }[]> {
+interface CityContext {
+    name: string
+    bbox: [number, number, number, number]
+    center: [number, number]
+}
+
+interface AddressSuggestion {
+    place_name: string
+    center: [number, number]
+    isStore?: boolean
+    hint?: string
+    logoUrl?: string
+}
+
+// Descobre a cidade (com a caixa geográfica dela) de uma coordenada, pra
+// limitar a busca de endereço à cidade da pessoa em vez do país inteiro.
+async function resolveCity(lng: number, lat: number): Promise<CityContext | null> {
     try {
         const res = await fetch(
-            `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${mapboxgl.accessToken}&language=pt&limit=5&country=br`
+            `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${mapboxgl.accessToken}&language=pt&types=place&limit=1`
         )
         const data = await res.json()
-        return data.features || []
+        const f = data.features?.[0]
+        if (!f?.bbox) return null
+        return { name: f.text, bbox: f.bbox, center: f.center }
+    } catch {
+        return null
+    }
+}
+
+interface StoreRow {
+    name: string
+    address: string | null
+    store_lat: number
+    store_lng: number
+    logo_url: string | null
+}
+
+const NEARBY_STORE_METERS = 100
+
+function storeToSuggestion(st: StoreRow, hint?: string): AddressSuggestion {
+    return {
+        place_name: st.address ? `${st.name} — ${st.address}` : st.name,
+        center: [st.store_lng, st.store_lat],
+        isStore: true,
+        hint,
+        logoUrl: st.logo_url ? supabase.storage.from('store-logos').getPublicUrl(st.logo_url).data.publicUrl : undefined,
+    }
+}
+
+function inCity(st: StoreRow, city: CityContext | null): boolean {
+    if (!city) return true
+    const [w, south, e, n] = city.bbox
+    return st.store_lng >= w && st.store_lng <= e && st.store_lat >= south && st.store_lat <= n
+}
+
+// Lojas do iuser cujo nome ou endereço bate com o que a pessoa digitou.
+async function searchStoresByText(query: string, city: CityContext | null): Promise<StoreRow[]> {
+    const q = query.replace(/[%,()]/g, ' ').trim()
+    if (!q) return []
+    const { data } = await supabase
+        .from('stores')
+        .select('name, address, store_lat, store_lng, logo_url')
+        .not('store_lat', 'is', null)
+        .not('store_lng', 'is', null)
+        .or(`name.ilike.%${q}%,address.ilike.%${q}%`)
+        .limit(20)
+    return ((data as StoreRow[]) || []).filter((st) => inCity(st, city)).slice(0, 4)
+}
+
+// Lojas do iuser num raio pequeno em volta dos endereços encontrados.
+async function fetchStoresAround(points: [number, number][]): Promise<StoreRow[]> {
+    if (points.length === 0) return []
+    const pad = 0.0015 // ~165 m, folga pra depois filtrar por distância real
+    const lngs = points.map((p) => p[0])
+    const lats = points.map((p) => p[1])
+    const { data } = await supabase
+        .from('stores')
+        .select('name, address, store_lat, store_lng, logo_url')
+        .gte('store_lng', Math.min(...lngs) - pad)
+        .lte('store_lng', Math.max(...lngs) + pad)
+        .gte('store_lat', Math.min(...lats) - pad)
+        .lte('store_lat', Math.max(...lats) + pad)
+        .limit(50)
+    return (data as StoreRow[]) || []
+}
+
+async function searchAddress(query: string, city: CityContext | null): Promise<AddressSuggestion[]> {
+    const cityParams = city
+        ? `&bbox=${city.bbox.join(',')}&proximity=${city.center[0]},${city.center[1]}`
+        : ''
+    try {
+        const [textStores, res] = await Promise.all([
+            searchStoresByText(query, city).catch(() => [] as StoreRow[]),
+            fetch(
+                `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${mapboxgl.accessToken}&language=pt&limit=5&country=br&types=address,poi,neighborhood,locality${cityParams}`
+            ),
+        ])
+        const data = await res.json()
+        const features = (data.features as AddressSuggestion[]) || []
+        const nearby = await fetchStoresAround(features.map((f) => f.center)).catch(() => [] as StoreRow[])
+
+        const seen = new Set<string>()
+        const keyOf = (st: StoreRow) => `${st.name}|${st.store_lat}|${st.store_lng}`
+        const result: AddressSuggestion[] = []
+
+        for (const st of textStores) {
+            seen.add(keyOf(st))
+            result.push(storeToSuggestion(st))
+        }
+        // Cada endereço vem seguido das lojas cadastradas a até 100 m dele.
+        for (const f of features) {
+            result.push(f)
+            const close = nearby
+                .map((st) => ({ st, m: haversineKm(f.center, [st.store_lng, st.store_lat]) * 1000 }))
+                .filter(({ st, m }) => m <= NEARBY_STORE_METERS && !seen.has(keyOf(st)) && inCity(st, city))
+                .sort((x, y) => x.m - y.m)
+            for (const { st, m } of close) {
+                seen.add(keyOf(st))
+                result.push(storeToSuggestion(st, `a ${Math.round(m)} m deste endereço`))
+            }
+        }
+        return result
     } catch {
         return []
     }
@@ -303,12 +423,18 @@ export default function PedirMotoristaPage() {
     const [mapReady, setMapReady] = useState(false)
     const [step, setStep] = useState<Step>('type')
     const [requestFor, setRequestFor] = useState<RequestFor | null>(null)
+    // Escolha de moto/bicicleta pra corrida de 1 pessoa ou de objeto —
+    // fora desses casos (mais gente, animal, mala grande) segue o cálculo
+    // automático por capacidade (getVehicleTypeForPassengers).
+    const [vehicleTypeChoice, setVehicleTypeChoice] = useState<'carro' | 'moto' | 'bicicleta'>('carro')
     const [origin, setOrigin] = useState<Place>({ address: '', coords: null })
     const [destination, setDestination] = useState<Place>({ address: '', coords: null })
     const [recentOrigins, setRecentOrigins] = useState<RecentRideOrigin[]>([])
     const [recentDestinations, setRecentDestinations] = useState<RecentRideDestination[]>([])
     const [activeField, setActiveField] = useState<ActiveField>(null)
-    const [suggestions, setSuggestions] = useState<{ place_name: string; center: [number, number] }[]>([])
+    const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([])
+    const [cityContext, setCityContext] = useState<CityContext | null>(null)
+    const cityResolvedRef = useRef(false)
     const [highlightedIndex, setHighlightedIndex] = useState(-1)
     const suggestionRefs = useRef<(HTMLButtonElement | null)[]>([])
     const [searching, setSearching] = useState(false)
@@ -397,6 +523,31 @@ export default function PedirMotoristaPage() {
 
     const totalPeople = 1 + extraPeopleCount + childrenCount
     const vehicleType = getVehicleTypeForPassengers(totalPeople)
+    // Moto/bicicleta só fazem sentido pra 1 pessoa sozinha (sem criança,
+    // sem adulto a mais) ou pra entrega de objeto; carregar passageiro de
+    // bike não é opção, e corrida de animal segue só carro por enquanto.
+    const effectiveVehicleType: VehicleType =
+        requestFor === 'pessoa'
+            ? (totalPeople === 1 && vehicleTypeChoice !== 'carro' ? vehicleTypeChoice : vehicleType)
+            : requestFor === 'objeto'
+                ? vehicleTypeChoice
+                : requestFor === 'animal'
+                    ? vehicleTypeChoice
+                    : 'carro'
+    // Moto e bicicleta levam uma coisa só (uma pessoa, um objeto ou um pet):
+    // sem ar condicionado, compras, objeto extra nem pet junto do passageiro.
+    const isTwoWheels = effectiveVehicleType === 'moto' || effectiveVehicleType === 'bicicleta'
+    const chooseVehicle = (kind: 'carro' | 'moto' | 'bicicleta') => {
+        setVehicleTypeChoice(kind)
+        if (kind !== 'carro') {
+            setExtraPeopleCount(0)
+            setChildrenCount(0)
+            setBagCount(0)
+            setExtraObjectCount(0)
+            setPetCount(0)
+            setWantsAirConditioning(false)
+        }
+    }
     const stepIndex = STEPS.indexOf(step)
 
     // ===== PREVIEW DAS FOTOS =====
@@ -435,6 +586,44 @@ export default function PedirMotoristaPage() {
         setRecentOrigins(getRecentRideOrigins())
         setRecentDestinations(getRecentRideDestinations())
     }, [])
+
+    useEffect(() => {
+        if (!contextUserId) return
+        fetchSavedRidePlaces(contextUserId, 'origin').then((places) => {
+            if (places.length > 0) setRecentOrigins(places)
+        })
+        fetchSavedRidePlaces(contextUserId, 'destination').then((places) => {
+            if (places.length > 0) setRecentDestinations(places)
+        })
+    }, [contextUserId])
+
+    // Cidade da pessoa: a busca de endereço fica restrita a ela. Prefere o
+    // GPS; sem GPS, cai pro local de partida já escolhido.
+    useEffect(() => {
+        if (!mapReady || cityResolvedRef.current) return
+        getNativeCurrentPosition(
+            async (pos) => {
+                if (cityResolvedRef.current) return
+                const city = await resolveCity(pos.coords.longitude, pos.coords.latitude)
+                if (city) {
+                    cityResolvedRef.current = true
+                    setCityContext(city)
+                }
+            },
+            () => {},
+            { enableHighAccuracy: false, timeout: 8000 }
+        )
+    }, [mapReady])
+
+    useEffect(() => {
+        if (cityResolvedRef.current || !origin.coords) return
+        resolveCity(origin.coords[0], origin.coords[1]).then((city) => {
+            if (city && !cityResolvedRef.current) {
+                cityResolvedRef.current = true
+                setCityContext(city)
+            }
+        })
+    }, [origin.coords])
 
     // ===== SE JÁ HOUVER UM PEDIDO EM ANDAMENTO, VOLTA DIRETO PRO ACOMPANHAMENTO =====
     useEffect(() => {
@@ -735,7 +924,7 @@ export default function PedirMotoristaPage() {
 
         searchTimeoutRef.current = setTimeout(async () => {
             setSearching(true)
-            const results = await searchAddress(value)
+            const results = await searchAddress(value, cityContext)
             setSuggestions(results)
             setSearching(false)
         }, 400)
@@ -746,7 +935,14 @@ export default function PedirMotoristaPage() {
         setSuggestions([])
     }
 
-    const selectSuggestion = (field: 'origin' | 'destination', suggestion: { place_name: string; center: [number, number] }) => {
+    // Guarda o local na conta (Supabase) pra aparecer de novo em qualquer
+    // aparelho; o localStorage acima continua como cache/fallback.
+    const persistPlace = (field: 'origin' | 'destination', place: { address: string; coords: [number, number] | null }) => {
+        if (!contextUserId) return
+        saveRidePlace(contextUserId, field, place).catch(() => {})
+    }
+
+    const selectSuggestion = (field: 'origin' | 'destination', suggestion: AddressSuggestion) => {
         const place = { address: suggestion.place_name, coords: suggestion.center }
         if (field === 'origin') {
             setOrigin(place)
@@ -757,6 +953,7 @@ export default function PedirMotoristaPage() {
             addRecentRideDestination(place)
             setRecentDestinations(getRecentRideDestinations())
         }
+        persistPlace(field, place)
         setSuggestions([])
         setActiveField(null)
     }
@@ -765,12 +962,14 @@ export default function PedirMotoristaPage() {
         setOrigin({ address: place.address, coords: place.coords })
         addRecentRideOrigin(place)
         setRecentOrigins(getRecentRideOrigins())
+        persistPlace('origin', place)
     }
 
     const selectRecentDestination = (place: RecentRideDestination) => {
         setDestination({ address: place.address, coords: place.coords })
         addRecentRideDestination(place)
         setRecentDestinations(getRecentRideDestinations())
+        persistPlace('destination', place)
     }
 
     // ===== NAVEGAÇÃO DAS SUGESTÕES PELO TECLADO =====
@@ -1006,7 +1205,7 @@ export default function PedirMotoristaPage() {
                     : (destinationNeedsAccess ? destinationAccessNotes.trim() || null : null),
                 delivery_location: requestFor === 'objeto' ? deliveryLocation : null,
                 passenger_count: requestFor === 'pessoa' ? totalPeople : 1,
-                vehicle_type: requestFor === 'pessoa' ? vehicleType : 'carro',
+                vehicle_type: effectiveVehicleType,
                 has_child: requestFor === 'pessoa' ? hasChild : false,
                 children_count: requestFor === 'pessoa' && hasChild ? childrenCount : null,
                 child_age: requestFor === 'pessoa' && hasChild && childAge.trim() ? childAge.trim() : null,
@@ -1042,7 +1241,7 @@ export default function PedirMotoristaPage() {
                 payment_method: paymentMethod,
                 cash_change_for: paymentMethod === 'dinheiro' && cashChangeFor.trim() ? Number(cashChangeFor.replace(',', '.')) : null,
                 card_is_contactless: paymentMethod === 'cartao' ? cardIsContactless : null,
-                wants_air_conditioning: wantsAirConditioning,
+                wants_air_conditioning: isTwoWheels ? false : wantsAirConditioning,
                 origin_lat: origin.coords ? origin.coords[1] : null,
                 origin_lng: origin.coords ? origin.coords[0] : null,
                 destination_lat: destination.coords ? destination.coords[1] : null,
@@ -1054,6 +1253,7 @@ export default function PedirMotoristaPage() {
 
             if (error) throw error
             clearDraft()
+            notifyNewRide(insertedRide.id)
             setActiveRideId(insertedRide.id)
         } catch (err: any) {
             if (err.code === '23505') {
@@ -1158,8 +1358,15 @@ export default function PedirMotoristaPage() {
                                         background: isHighlighted ? `${colors.accent}15` : undefined,
                                     }}
                                 >
-                                    <MapPin size={16} className="mt-0.5 flex-shrink-0" style={{ color: isHighlighted ? colors.accent : colors.textSecondary }} />
-                                    <span className="text-sm font-semibold" style={{ color: isHighlighted ? colors.accent : colors.textPrimary }}>{s.place_name}</span>
+                                    {s.isStore
+                                        ? (s.logoUrl
+                                            ? <img src={s.logoUrl} alt="" className="w-7 h-7 rounded-full object-cover flex-shrink-0" />
+                                            : <StoreIcon size={16} className="mt-0.5 flex-shrink-0" style={{ color: colors.accent }} />)
+                                        : <MapPin size={16} className="mt-0.5 flex-shrink-0" style={{ color: isHighlighted ? colors.accent : colors.textSecondary }} />}
+                                    <span className="flex flex-col">
+                                        <span className="text-sm font-semibold" style={{ color: isHighlighted ? colors.accent : colors.textPrimary }}>{s.place_name}</span>
+                                        {s.hint && <span className="text-[11px]" style={{ color: colors.textSecondary }}>{s.hint}</span>}
+                                    </span>
                                 </button>
                             )
                         })}
@@ -1746,6 +1953,34 @@ export default function PedirMotoristaPage() {
                                 <>
                                     {/* Cada adicional é um contador — 0 significa que não tem esse adicional */}
                                     <div className="flex flex-col gap-2">
+                                        {totalPeople === 1 && (
+                                            <div className="flex items-center gap-1.5">
+                                                {(['carro', 'moto', 'bicicleta'] as const).map((kind) => (
+                                                    <button
+                                                        key={kind}
+                                                        type="button"
+                                                        onClick={() => chooseVehicle(kind)}
+                                                        className="flex-1 py-2 rounded-full text-xs font-black transition-all"
+                                                        style={vehicleTypeChoice === kind
+                                                            ? { background: GRADIENT, color: '#fff' }
+                                                            : { background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                                                    >
+                                                        {VEHICLE_TYPE_LABELS[kind]}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+
+                                        {isTwoWheels && (
+                                            <div className="px-3 py-2 rounded-lg text-xs font-semibold" style={{ background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }}>
+                                                {effectiveVehicleType === 'bicicleta'
+                                                    ? 'De bicicleta vai só você, com no máximo uma sacola pequena na mão ou uma bolsa que não atrapalhe quem conduz o veículo.'
+                                                    : 'De moto vai só 1 pessoa — sem compras, objeto extra ou pet junto.'}
+                                            </div>
+                                        )}
+
+                                        {!isTwoWheels && (
+                                        <>
                                         <CounterRow
                                             label="Quantas adultos a mais?"
                                             icon={Users}
@@ -1900,10 +2135,28 @@ export default function PedirMotoristaPage() {
                                                 />
                                             </div>
                                         )}
+                                        </>
+                                        )}
                                     </div>
                                 </>
                             ) : requestFor === 'animal' ? (
                                 <>
+                                    <div className="flex items-center gap-1.5 mb-3">
+                                        {(['carro', 'moto', 'bicicleta'] as const).map((kind) => (
+                                            <button
+                                                key={kind}
+                                                type="button"
+                                                onClick={() => chooseVehicle(kind)}
+                                                className="flex-1 py-2 rounded-full text-xs font-black transition-all"
+                                                style={effectiveVehicleType === kind
+                                                    ? { background: GRADIENT, color: '#fff' }
+                                                    : { background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                                            >
+                                                {VEHICLE_TYPE_LABELS[kind]}
+                                            </button>
+                                        ))}
+                                    </div>
+
                                     <input
                                         type="text"
                                         value={petDescription}
@@ -2014,6 +2267,22 @@ export default function PedirMotoristaPage() {
                                 </>
                             ) : (
                                 <>
+                                    <div className="flex items-center gap-1.5 mb-3">
+                                        {(['carro', 'moto', 'bicicleta'] as const).map((kind) => (
+                                            <button
+                                                key={kind}
+                                                type="button"
+                                                onClick={() => chooseVehicle(kind)}
+                                                className="flex-1 py-2 rounded-full text-xs font-black transition-all"
+                                                style={vehicleTypeChoice === kind
+                                                    ? { background: GRADIENT, color: '#fff' }
+                                                    : { background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                                            >
+                                                {VEHICLE_TYPE_LABELS[kind]}
+                                            </button>
+                                        ))}
+                                    </div>
+
                                     <input
                                         type="text"
                                         value={objectDescription}
@@ -2211,6 +2480,7 @@ export default function PedirMotoristaPage() {
                                 )}
                             </div>
 
+                            {!isTwoWheels && (
                             <div className="rounded-xl px-3 py-2.5 mt-3" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
                                 <div className="flex items-center justify-between gap-2 flex-wrap">
                                     <span className="flex items-center gap-1.5 text-xs font-bold" style={{ color: colors.textPrimary }}>
@@ -2235,6 +2505,7 @@ export default function PedirMotoristaPage() {
                                     </div>
                                 </div>
                             </div>
+                            )}
 
                             <div className="flex items-center gap-2 mt-4">
                                 <button

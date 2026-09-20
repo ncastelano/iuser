@@ -12,11 +12,12 @@ import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import Header from '@/components/Header'
 import { useMerchantStore } from '@/store/useMerchantStore'
-import { User, Store as StoreIcon, LayoutDashboard, Home, Shield } from 'lucide-react'
+import { User, Store as StoreIcon, LayoutDashboard, Home, Shield, Crown } from 'lucide-react'
 import type { Tab } from '@/components/Header'
 import ProfileDashboard from '@/components/ProfileDashboard/ProfileDashboard'
 import StoreDashboard from '@/components/StoreDashboard/StoreDashboard'
 import AdminDashboard from '@/components/AdminDashboard/AdminDashboard'
+import LiderMotoristaDashboard from '@/components/LiderMotoristaDashboard/LiderMotoristaDashboard'
 import { Profile } from './Profile'
 import { Store } from './Store'
 import { usePublicationsStore } from '@/store/usePublicationStore'
@@ -69,6 +70,8 @@ export default function OwnerClientPage() {
     const [showPublications, setShowPublications] = useState(false)
     const [showAdminDashboard, setShowAdminDashboard] = useState(false)
     const [isSuperAdmin, setIsSuperAdmin] = useState(false)
+    const [showLiderMotoristaDashboard, setShowLiderMotoristaDashboard] = useState(false)
+    const [isDriverLeader, setIsDriverLeader] = useState(false)
     const [storeDialogOpen, setStoreDialogOpen] = useState(false)
 
     const pendingInvitesCount = useMerchantStore(s => s.pendingInvitesCount)
@@ -84,6 +87,7 @@ export default function OwnerClientPage() {
         setShowProfile(false)
         setShowStoreDashboard(null)
         setShowAdminDashboard(false)
+        setShowLiderMotoristaDashboard(false)
     }, [publicationsStore])
 
     // ========== FUNÇÃO PARA ABRIR CATÁLOGO ==========
@@ -205,12 +209,32 @@ export default function OwnerClientPage() {
         return () => { cancelled = true }
     }, [userId])
 
+    useEffect(() => {
+        if (!userId) {
+            setIsDriverLeader(false)
+            return
+        }
+
+        let cancelled = false
+        supabase
+            .from('profiles')
+            .select('is_lider_motorista')
+            .eq('id', userId)
+            .maybeSingle()
+            .then(({ data }) => {
+                if (!cancelled) setIsDriverLeader(!!data?.is_lider_motorista)
+            })
+
+        return () => { cancelled = true }
+    }, [userId])
+
     // ========== TABS DO HEADER ==========
     const handleProfileClick = () => {
         setShowProfile(true)
         setShowStoreDashboard(null)
         setShowPublications(false)
         setShowAdminDashboard(false)
+        setShowLiderMotoristaDashboard(false)
     }
 
     const handleStoreDashboardClick = (storeSlug: string, storeName: string) => {
@@ -218,6 +242,7 @@ export default function OwnerClientPage() {
         setShowProfile(false)
         setShowPublications(false)
         setShowAdminDashboard(false)
+        setShowLiderMotoristaDashboard(false)
     }
 
     const handleAdminClick = () => {
@@ -225,6 +250,15 @@ export default function OwnerClientPage() {
         setShowProfile(false)
         setShowStoreDashboard(null)
         setShowPublications(false)
+        setShowLiderMotoristaDashboard(false)
+    }
+
+    const handleLiderMotoristaClick = () => {
+        setShowLiderMotoristaDashboard(true)
+        setShowProfile(false)
+        setShowStoreDashboard(null)
+        setShowPublications(false)
+        setShowAdminDashboard(false)
     }
 
     const showMainContent = () => {
@@ -232,6 +266,7 @@ export default function OwnerClientPage() {
         setShowStoreDashboard(null)
         setShowPublications(false)
         setShowAdminDashboard(false)
+        setShowLiderMotoristaDashboard(false)
         // Voltar para a URL base quando fechar
         router.replace(`/${ownerSlug}`, { scroll: false })
     }
@@ -267,6 +302,17 @@ export default function OwnerClientPage() {
                 imageUrl: null,
                 onClick: handleAdminClick,
                 isActive: showAdminDashboard,
+            })
+        }
+
+        if (isDriverLeader) {
+            allTabs.push({
+                id: 'lider-motorista',
+                label: 'Líder Motorista',
+                icon: Crown as any,
+                imageUrl: null,
+                onClick: handleLiderMotoristaClick,
+                isActive: showLiderMotoristaDashboard,
             })
         }
 
@@ -314,7 +360,7 @@ export default function OwnerClientPage() {
         }
 
         return allTabs
-    }, [loggedUserSlug, profileLoading, loggedUserAvatarUrl, stores, loadingStores, storeOrderCounts, pendingInvitesCount, profileOpenNow, showProfile, showStoreDashboard, isSuperAdmin, showAdminDashboard, router])
+    }, [loggedUserSlug, profileLoading, loggedUserAvatarUrl, stores, loadingStores, storeOrderCounts, pendingInvitesCount, profileOpenNow, showProfile, showStoreDashboard, isSuperAdmin, showAdminDashboard, isDriverLeader, showLiderMotoristaDashboard, router])
 
     // ========== CARREGAR DADOS ==========
     useEffect(() => {
@@ -455,6 +501,10 @@ export default function OwnerClientPage() {
                 ) : showAdminDashboard ? (
                     <div className="w-full px-4 md:px-6 py-6">
                         <AdminDashboard />
+                    </div>
+                ) : showLiderMotoristaDashboard ? (
+                    <div className="w-full px-4 md:px-6 py-6">
+                        <LiderMotoristaDashboard />
                     </div>
                 ) : showPublications ? (
                     <PublicationsListView

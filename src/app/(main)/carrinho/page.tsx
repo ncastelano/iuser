@@ -4,6 +4,7 @@
 import { useCartStore, cartItemUnitPrice, cartItemLineTotal, lineKey } from '@/store/useCartStore'
 import { useRouter } from 'next/navigation'
 import { hexToRgb } from '@/lib/color'
+import { validateCampaignCode, calculateCampaignDiscountAmount, consumeCampaignCode, type CampaignDiscount } from '@/lib/campaignRedemption'
 import { pickImageFile, isNativePlatform } from '@/lib/nativeCamera'
 import {
     Store,
@@ -215,6 +216,12 @@ export default function CarrinhoPage() {
     const [paymentMethodByStore, setPaymentMethodByStore] = useState<Record<string, 'pix' | 'cartao' | 'dinheiro'>>({})
     const [cashChangeByStore, setCashChangeByStore] = useState<Record<string, string>>({})
     const [cardContactlessByStore, setCardContactlessByStore] = useState<Record<string, boolean | null>>({})
+
+    // Código de resgate do Club VIP por loja (opcional) — validado antes de
+    // finalizar, aplicado no total, e consumido só depois do pedido criado.
+    const [redemptionInputByStore, setRedemptionInputByStore] = useState<Record<string, string>>({})
+    const [appliedDiscountByStore, setAppliedDiscountByStore] = useState<Record<string, CampaignDiscount | null>>({})
+    const [applyingCodeByStore, setApplyingCodeByStore] = useState<Record<string, boolean>>({})
 
     // Etapa de checkout por loja - mesmo padrão em 2 etapas (Recebimento,
     // Pagamento) usado no CatalogBag do catálogo e da página de produto:
@@ -696,8 +703,13 @@ export default function CarrinhoPage() {
             isCalculating = result.isCalculating
         }
 
-        const finalTotal = isCalculating ? itemsTotal : itemsTotal + deliveryFee
-        return { itemsTotal, deliveryFee, finalTotal, isCalculating }
+        const discount = appliedDiscountByStore[slug]
+        const discountAmount = discount
+            ? calculateCampaignDiscountAmount(discount, items.map((item) => ({ productId: item.product.id, lineTotal: cartItemLineTotal(item) })))
+            : 0
+
+        const finalTotal = isCalculating ? itemsTotal - discountAmount : Math.max(0, itemsTotal - discountAmount + deliveryFee)
+        return { itemsTotal, deliveryFee, discountAmount, finalTotal, isCalculating }
     }
 
     // ===== FUNÇÃO PARA VERIFICAR SE A LOJA ESTÁ ABERTA =====
@@ -805,6 +817,22 @@ export default function CarrinhoPage() {
     }
 
     // ---- Handler de finalização por loja ----
+    const handleApplyRedemptionCode = async (slug: string) => {
+        const code = (redemptionInputByStore[slug] || '').trim()
+        if (!code) return
+        setApplyingCodeByStore((prev) => ({ ...prev, [slug]: true }))
+        try {
+            const discount = await validateCampaignCode(code)
+            setAppliedDiscountByStore((prev) => ({ ...prev, [slug]: discount }))
+            toast.success('Código aplicado!')
+        } catch (err: any) {
+            setAppliedDiscountByStore((prev) => ({ ...prev, [slug]: null }))
+            toast.error(err.message || 'Código inválido')
+        } finally {
+            setApplyingCodeByStore((prev) => ({ ...prev, [slug]: false }))
+        }
+    }
+
     const handleFinalizarLoja = async (slug: string) => {
         if (!currentUserId) return
 
@@ -912,7 +940,17 @@ export default function CarrinhoPage() {
                 }
             }
 
-            const finalTotal = itemsTotal + deliveryFee
+            // Código de resgate do Club VIP (opcional) — desconta só dos
+            // itens elegíveis da campanha, nunca da taxa de entrega.
+            const appliedDiscount = appliedDiscountByStore[slug]
+            const discountAmount = appliedDiscount
+                ? calculateCampaignDiscountAmount(
+                    appliedDiscount,
+                    items.map((item) => ({ productId: item.product.id, lineTotal: cartItemLineTotal(item) }))
+                )
+                : 0
+
+            const finalTotal = Math.max(0, itemsTotal - discountAmount + deliveryFee)
             const checkout_id = crypto.randomUUID()
             const cashChangeFor = cashChangeByStore[slug] || ''
             const cardIsContactless = cardContactlessByStore[slug] ?? null
@@ -967,6 +1005,12 @@ export default function CarrinhoPage() {
                 toast.error(`Erro ao salvar itens: ${itemsError.message}`)
                 setCheckoutLoading(null)
                 return
+            }
+
+            if (appliedDiscount) {
+                await consumeCampaignCode(redemptionInputByStore[slug].trim(), orderData.id, 'cart')
+                setAppliedDiscountByStore((prev) => ({ ...prev, [slug]: null }))
+                setRedemptionInputByStore((prev) => ({ ...prev, [slug]: '' }))
             }
 
             // Notificação push do lojista é disparada por um Database Webhook do
@@ -1492,7 +1536,7 @@ export default function CarrinhoPage() {
                                         const details = storeDetails[slug]
                                         const items = itemsByStore[slug]
                                         const config = storeConfigs[slug] || {}
-                                        const { itemsTotal, deliveryFee, finalTotal, isCalculating } = getStoreTotals(slug)
+                                        const { itemsTotal, deliveryFee, discountAmount, finalTotal, isCalculating } = getStoreTotals(slug)
                                         const deliveryOpt = deliveryOptionByStore[slug] || 'retirada'
                                         const paymentOpt = paymentMethodByStore[slug] || 'pix'
                                         const deliveryLoc = deliveryLocationByStore[slug]
@@ -1811,11 +1855,51 @@ export default function CarrinhoPage() {
                                                     )}
                                                 </div>
 
+                                                <div className="pt-2 space-y-1.5">
+                                                    {appliedDiscountByStore[slug] ? (
+                                                        <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-xs" style={{ background: '#22c55e15', border: '1px solid #22c55e40' }}>
+                                                            <span className="font-bold" style={{ color: '#22c55e' }}>Código VIP aplicado · -R$ {discountAmount.toFixed(2)}</span>
+                                                            <button
+                                                                onClick={() => { setAppliedDiscountByStore(prev => ({ ...prev, [slug]: null })); setRedemptionInputByStore(prev => ({ ...prev, [slug]: '' })) }}
+                                                                className="text-[10px] font-bold underline"
+                                                                style={{ color: '#22c55e' }}
+                                                            >
+                                                                Remover
+                                                            </button>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="flex gap-2">
+                                                            <input
+                                                                type="text"
+                                                                placeholder="Código de resgate VIP (opcional)"
+                                                                value={redemptionInputByStore[slug] || ''}
+                                                                onChange={(e) => setRedemptionInputByStore(prev => ({ ...prev, [slug]: e.target.value }))}
+                                                                className="flex-1 px-3 py-2 rounded-xl border text-xs focus:outline-none"
+                                                                style={{ background: colors.background, borderColor: colors.border, color: colors.textPrimary }}
+                                                            />
+                                                            <button
+                                                                onClick={() => handleApplyRedemptionCode(slug)}
+                                                                disabled={applyingCodeByStore[slug] || !(redemptionInputByStore[slug] || '').trim()}
+                                                                className="px-3 py-2 rounded-xl text-xs font-bold disabled:opacity-50 flex-shrink-0"
+                                                                style={{ background: `${colors.border}40`, color: colors.textPrimary }}
+                                                            >
+                                                                Aplicar
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </div>
+
                                                 <div className="border-t pt-2.5 space-y-1 text-xs" style={{ borderColor: colors.border }}>
                                                     <div className="flex justify-between">
                                                         <span style={{ color: colors.textSecondary }}>Subtotal</span>
                                                         <span className="font-bold" style={{ color: colors.textPrimary }}>R$ {itemsTotal.toFixed(2)}</span>
                                                     </div>
+                                                    {discountAmount > 0 && (
+                                                        <div className="flex justify-between">
+                                                            <span style={{ color: colors.textSecondary }}>Desconto VIP</span>
+                                                            <span className="font-bold" style={{ color: '#22c55e' }}>-R$ {discountAmount.toFixed(2)}</span>
+                                                        </div>
+                                                    )}
                                                     {deliveryOpt === 'entrega' && (
                                                         <div className="flex justify-between">
                                                             <span style={{ color: colors.textSecondary }}>Taxa de entrega</span>

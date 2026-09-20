@@ -46,6 +46,8 @@ import { ProfileInfo } from './ProfileInfo'
 import ProfileVisitors from './ProfileVisitors'
 import PublicationProfile from './ProfilePublication'
 import Commission from './Commission'
+import DeleteConfirmDialog from '@/components/DeleteConfirmDialog'
+import { callAdminApi } from '@/lib/callAdminApi'
 import { format, subDays, startOfDay, eachDayOfInterval, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subMonths, addMonths } from 'date-fns'
 import { ptBR as ptBRLocale } from 'date-fns/locale'
 
@@ -213,6 +215,14 @@ export default function ProfileDashboard({
         } finally {
             setCfgSaving(false)
         }
+    }
+
+    const [showDeleteAccount, setShowDeleteAccount] = useState(false)
+
+    const handleDeleteAccount = async (password: string) => {
+        await callAdminApi('/api/account/delete', { password })
+        await supabase.auth.signOut()
+        window.location.href = '/'
     }
 
     const handleCfgLogout = async () => {
@@ -1922,6 +1932,30 @@ export default function ProfileDashboard({
                             <LogOut className="w-5 h-5" />
                             Sair da Conta
                         </button>
+
+                        <button
+                            onClick={() => setShowDeleteAccount(true)}
+                            style={{
+                                ...pillButtonFullStyle,
+                                background: 'transparent',
+                                color: '#ef4444',
+                                border: '1px solid #ef444460',
+                                width: '100%',
+                            }}
+                            className="hover:scale-105 transition-transform active:scale-95"
+                        >
+                            Excluir conta
+                        </button>
+
+                        {showDeleteAccount && (
+                            <DeleteConfirmDialog
+                                title="Excluir conta"
+                                description="Isso apaga sua conta, suas lojas, pedidos e tudo o que está ligado a você, e cancela suas assinaturas. Não dá pra desfazer."
+                                confirmLabel="Excluir conta"
+                                onConfirm={handleDeleteAccount}
+                                onClose={() => setShowDeleteAccount(false)}
+                            />
+                        )}
             </div>
         </div>
     )

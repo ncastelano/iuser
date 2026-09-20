@@ -18,7 +18,9 @@ import {
     ChevronDown,
     ChevronUp,
     Package,
+    Tag,
 } from 'lucide-react'
+import { validateCampaignCode, calculateCampaignDiscountAmount, consumeCampaignCode, type CampaignDiscount } from '@/lib/campaignRedemption'
 
 interface Product {
     id: string
@@ -64,6 +66,13 @@ export default function ButtonInPersonSale({
     const [loading, setLoading] = useState(false)
     const [buyerName, setBuyerName] = useState('')
     const searchInputRef = useRef<HTMLInputElement>(null)
+
+    // Código de resgate do Club VIP — quem atende digita o código que o
+    // cliente mostra (não tem buyer_id numa venda presencial pra achar o
+    // membro de outro jeito).
+    const [redemptionCode, setRedemptionCode] = useState('')
+    const [appliedDiscount, setAppliedDiscount] = useState<CampaignDiscount | null>(null)
+    const [applyingCode, setApplyingCode] = useState(false)
 
     useEffect(() => {
         if (!isOpen || !storeId) return
@@ -119,7 +128,28 @@ export default function ButtonInPersonSale({
         )
     }
 
-    const totalAmount = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0)
+    const cartSubtotal = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0)
+    const discountAmount = appliedDiscount
+        ? calculateCampaignDiscountAmount(appliedDiscount, cart.map((item) => ({ productId: item.product.id, lineTotal: item.product.price * item.quantity })))
+        : 0
+    const totalAmount = Math.max(0, cartSubtotal - discountAmount)
+
+    const handleApplyRedemptionCode = async () => {
+        const code = redemptionCode.trim()
+        if (!code) return
+        setApplyingCode(true)
+        try {
+            const discount = await validateCampaignCode(code)
+            if (discount.storeId !== storeId) throw new Error('Esse código não é dessa loja')
+            setAppliedDiscount(discount)
+            toast.success('Código VIP aplicado!')
+        } catch (err: any) {
+            setAppliedDiscount(null)
+            toast.error(err.message || 'Código inválido')
+        } finally {
+            setApplyingCode(false)
+        }
+    }
 
     const handleFinalizeSale = async () => {
         if (cart.length === 0) {
@@ -164,10 +194,16 @@ export default function ButtonInPersonSale({
             const { error: itemsError } = await supabase.from('order_items').insert(items)
             if (itemsError) throw itemsError
 
+            if (appliedDiscount) {
+                await consumeCampaignCode(redemptionCode.trim(), orderData.id, 'in_person')
+            }
+
             toast.success(`Venda de R$ ${totalAmount.toFixed(2)} finalizada!`)
             setCart([])
             setBuyerName('')
             setPaymentMethod('dinheiro')
+            setRedemptionCode('')
+            setAppliedDiscount(null)
             setIsOpen(false)
             onSaleCompleted()
         } catch (err: any) {
@@ -326,6 +362,43 @@ export default function ButtonInPersonSale({
                                         </div>
                                     ))}
                                 </div>
+                                {/* Código de resgate do Club VIP (opcional) */}
+                                <div className="pt-3 border-t" style={{ borderColor: colors.border }}>
+                                    {appliedDiscount ? (
+                                        <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-xs" style={{ background: '#22c55e15', border: '1px solid #22c55e40' }}>
+                                            <span className="font-bold flex items-center gap-1.5" style={{ color: '#22c55e' }}>
+                                                <Tag size={12} /> Código VIP aplicado · -R$ {discountAmount.toFixed(2)}
+                                            </span>
+                                            <button
+                                                onClick={() => { setAppliedDiscount(null); setRedemptionCode('') }}
+                                                className="text-[10px] font-bold underline"
+                                                style={{ color: '#22c55e' }}
+                                            >
+                                                Remover
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div className="flex gap-2">
+                                            <input
+                                                type="text"
+                                                placeholder="Código de resgate VIP do cliente"
+                                                value={redemptionCode}
+                                                onChange={(e) => setRedemptionCode(e.target.value)}
+                                                className="flex-1 px-3 py-2 rounded-xl border text-xs focus:outline-none"
+                                                style={{ background: `${colors.surface}88`, borderColor: colors.border, color: colors.textPrimary }}
+                                            />
+                                            <button
+                                                onClick={handleApplyRedemptionCode}
+                                                disabled={applyingCode || !redemptionCode.trim()}
+                                                className="px-3 py-2 rounded-xl text-xs font-bold disabled:opacity-50 flex-shrink-0"
+                                                style={{ background: `${colors.accent}20`, color: colors.accent }}
+                                            >
+                                                Aplicar
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+
                                 <div className="flex justify-between items-center mt-3 pt-3 border-t" style={{ borderColor: colors.border }}>
                                     <span className="font-black text-sm" style={{ color: colors.textPrimary }}>Total</span>
                                     <span className="font-black text-lg" style={{ color: colors.accent }}>

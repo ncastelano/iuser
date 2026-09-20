@@ -46,6 +46,7 @@ import StoreSchedule from '@/components/StoreSchedule'
 import { generateUniqueGlobalSlug } from '@/lib/slugUtils'
 import { handleShareLink } from '@/lib/share'
 import { Follows } from './Follows'
+import StoreVipClubMember from './StoreVipClubMember'
 
 interface StoreProps {
     ownerSlug: string
@@ -1021,6 +1022,8 @@ export function Store({
                         </button>
                     )}
                 </div>
+
+                <StoreVipClubMember storeId={owner.id} userId={currentUserId} />
 
                 {!isStoreOpen && (
                     <div

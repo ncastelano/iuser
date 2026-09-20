@@ -10,19 +10,54 @@ import Header from '@/components/Header'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import LoginAndRegister from '@/components/LoginAndRegister/LoginAndRegister'
 import { toast } from 'sonner'
-import { TrendingUp, Car, Camera, Star, MessageSquare, Clock, CheckCircle2 } from 'lucide-react'
+import { TrendingUp, Car, Camera, Star, MessageSquare, Clock, CheckCircle2, Volume2, VolumeX } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
-import { computeSuggestedPrice, PLATFORM_DEFAULT_PRICING, PLATFORM_DEFAULT_EXTRA_FEES, PLATFORM_DEFAULT_CONDITION_EXTRA_FEES, PricingMode } from '@/lib/driverPricing'
+import { computeSuggestedPrice, PLATFORM_DEFAULT_PRICING_BY_VEHICLE, PLATFORM_DEFAULT_EXTRA_FEES, PLATFORM_DEFAULT_CONDITION_EXTRA_FEES, PricingMode } from '@/lib/driverPricing'
+import { VehicleKind, VEHICLE_KIND_LABELS } from '@/lib/rideVehicle'
 import { createSquareImage } from '@/lib/image'
 import { DRIVER_SERVICE_OPTIONS } from '@/lib/driverServices'
 import { getAvatarUrl } from '@/lib/avatar'
 import { shortAddress } from '@/lib/serviceBoard'
 import { useActivePlans } from '@/hooks/useActivePlans'
+import DriverDebtBanner from '@/components/DriverDebtBanner'
+import InviteButton from '@/components/InviteButton'
+import { callAdminApi } from '@/lib/callAdminApi'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
 function formatDate(iso: string): string {
     return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+}
+
+interface VehicleRow {
+    vehicle_kind: VehicleKind
+    car_model: string | null
+    car_color: string | null
+    car_plate: string | null
+    car_photo_url: string | null
+    driver_photo_url: string | null
+    services: string[] | null
+    passenger_capacity: number | null
+    has_baby_seat: boolean | null
+    trunk_bags_pequena: number | null
+    trunk_bags_media: number | null
+    trunk_bags_grande: number | null
+    trunk_suitcases_pequena: number | null
+    trunk_suitcases_media: number | null
+    trunk_suitcases_grande: number | null
+}
+
+const VEHICLE_SELECT = 'vehicle_kind, car_model, car_color, car_plate, car_photo_url, driver_photo_url, services, passenger_capacity, has_baby_seat, trunk_bags_pequena, trunk_bags_media, trunk_bags_grande, trunk_suitcases_pequena, trunk_suitcases_media, trunk_suitcases_grande'
+
+// Um veículo só conta como completo com modelo, foto do veículo e selfie do
+// motorista (placa não vale pra bicicleta). Só o admin pode ficar sem foto.
+function isVehicleRowComplete(v: VehicleRow | null | undefined, admin: boolean): boolean {
+    if (!v) return false
+    return !!(
+        v.car_model?.trim()
+        && (v.vehicle_kind === 'bicicleta' || v.car_plate?.trim())
+        && (admin || (v.car_photo_url && v.driver_photo_url))
+    )
 }
 
 function PainelMotoristaContent() {
@@ -38,6 +73,9 @@ function PainelMotoristaContent() {
     const [saving, setSaving] = useState(false)
 
     const [pricingMode, setPricingMode] = useState<PricingMode>('platform')
+    // "Minha tarifa" só é gravada depois que o motorista mexeu nela — senão os
+    // valores iniciais de tela virariam uma tarifa própria que ele nunca definiu.
+    const [customTouched, setCustomTouched] = useState(false)
     const [baseDistanceKm, setBaseDistanceKm] = useState('5')
     const [baseFee, setBaseFee] = useState('7')
     const [pricePerKmAfterBase, setPricePerKmAfterBase] = useState('2')
@@ -53,9 +91,13 @@ function PainelMotoristaContent() {
 
     // ===== MODO MOTORISTA (liga/desliga) =====
     const [driverModeActive, setDriverModeActive] = useState(false)
+    const [alertSoundEnabled, setAlertSoundEnabled] = useState(true)
     const [togglingMode, setTogglingMode] = useState(false)
 
-    // ===== MEU CARRO =====
+    // ===== MEU VEÍCULO =====
+    const [vehicleKind, setVehicleKind] = useState<VehicleKind>('carro')
+    const [vehiclesByKind, setVehiclesByKind] = useState<Partial<Record<VehicleKind, VehicleRow>>>({})
+    const [isAdmin, setIsAdmin] = useState(false)
     const [carModel, setCarModel] = useState('')
     const [carColor, setCarColor] = useState('')
     const [carPlate, setCarPlate] = useState('')
@@ -85,6 +127,13 @@ function PainelMotoristaContent() {
     const [rideHistory, setRideHistory] = useState<{ id: string; origin_address: string; destination_address: string; created_at: string; distance_km: number | null }[]>([])
 
     useEffect(() => {
+        if (!userId) return
+        callAdminApi<{ isSuperAdmin: boolean }>('/api/admin/whoami')
+            .then((r) => setIsAdmin(!!r.isSuperAdmin))
+            .catch(() => setIsAdmin(false))
+    }, [userId])
+
+    useEffect(() => {
         if (!carPhotoFile) return
         const url = URL.createObjectURL(carPhotoFile)
         setCarPhotoPreview(url)
@@ -102,6 +151,36 @@ function PainelMotoristaContent() {
         setServices((prev) => (prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]))
     }
 
+    // Preenche o formulário com o veículo salvo desse tipo (ou em branco). A
+    // selfie é da pessoa, não do veículo: se esse tipo ainda não tem, herda a
+    // de outro veículo já cadastrado.
+    const applyVehicleToForm = (v: VehicleRow | null, all: Partial<Record<VehicleKind, VehicleRow>>) => {
+        const anySelfie = Object.values(all).find((x) => x?.driver_photo_url)?.driver_photo_url || null
+        setCarModel(v?.car_model || '')
+        setCarColor(v?.car_color || '')
+        setCarPlate(v?.car_plate || '')
+        setCarPhotoPath(v?.car_photo_url || null)
+        setCarPhotoFile(null)
+        setCarPhotoPreview(null)
+        setDriverPhotoPath(v?.driver_photo_url || anySelfie)
+        setDriverPhotoFile(null)
+        setDriverPhotoPreview(null)
+        setServices(v?.services || [])
+        setPassengerCapacity(v?.passenger_capacity != null ? String(v.passenger_capacity) : '')
+        setHasBabySeat(v?.has_baby_seat ?? null)
+        setTrunkBagsPequena(v?.trunk_bags_pequena != null ? String(v.trunk_bags_pequena) : '')
+        setTrunkBagsMedia(v?.trunk_bags_media != null ? String(v.trunk_bags_media) : '')
+        setTrunkBagsGrande(v?.trunk_bags_grande != null ? String(v.trunk_bags_grande) : '')
+        setTrunkSuitcasesPequena(v?.trunk_suitcases_pequena != null ? String(v.trunk_suitcases_pequena) : '')
+        setTrunkSuitcasesMedia(v?.trunk_suitcases_media != null ? String(v.trunk_suitcases_media) : '')
+        setTrunkSuitcasesGrande(v?.trunk_suitcases_grande != null ? String(v.trunk_suitcases_grande) : '')
+    }
+
+    const switchVehicleKind = (kind: VehicleKind) => {
+        setVehicleKind(kind)
+        applyVehicleToForm(vehiclesByKind[kind] || null, vehiclesByKind)
+    }
+
     const load = async () => {
         setLoading(true)
         if (!userId) {
@@ -113,12 +192,13 @@ function PainelMotoristaContent() {
 
         const { data } = await supabase
             .from('driver_pricing')
-            .select('pricing_mode, base_distance_km, base_fee, price_per_km_after_base, extra_fee_pessoa, extra_fee_animal, extra_fee_objeto, extra_fee_condominio, extra_fee_compras, extra_fee_necessidade_especial, extra_fee_pet_sem_caixa, extra_fee_entrega_interna, extra_fee_ar_condicionado, driver_mode_active')
+            .select('pricing_mode, base_distance_km, base_fee, price_per_km_after_base, extra_fee_pessoa, extra_fee_animal, extra_fee_objeto, extra_fee_condominio, extra_fee_compras, extra_fee_necessidade_especial, extra_fee_pet_sem_caixa, extra_fee_entrega_interna, extra_fee_ar_condicionado, driver_mode_active, alert_sound_enabled')
             .eq('driver_id', userId)
             .maybeSingle()
 
         if (data) {
             setPricingMode(data.pricing_mode)
+            if (data.base_fee != null) setCustomTouched(true)
             if (data.base_distance_km != null) setBaseDistanceKm(String(data.base_distance_km))
             if (data.base_fee != null) setBaseFee(String(data.base_fee))
             if (data.price_per_km_after_base != null) setPricePerKmAfterBase(String(data.price_per_km_after_base))
@@ -132,38 +212,27 @@ function PainelMotoristaContent() {
             if (data.extra_fee_entrega_interna != null) setExtraFeeEntregaInterna(String(data.extra_fee_entrega_interna))
             if (data.extra_fee_ar_condicionado != null) setExtraFeeArCondicionado(String(data.extra_fee_ar_condicionado))
             setDriverModeActive(!!data.driver_mode_active)
+            setAlertSoundEnabled(data.alert_sound_enabled !== false)
         }
 
-        const { data: vehicle } = await supabase
+        const { data: vehicleRows } = await supabase
             .from('driver_vehicles')
-            .select('car_model, car_color, car_plate, car_photo_url, driver_photo_url, services, passenger_capacity, has_baby_seat, trunk_bags_pequena, trunk_bags_media, trunk_bags_grande, trunk_suitcases_pequena, trunk_suitcases_media, trunk_suitcases_grande')
+            .select(VEHICLE_SELECT)
             .eq('driver_id', userId)
-            .maybeSingle()
 
-        if (vehicle) {
-            setCarModel(vehicle.car_model || '')
-            setCarColor(vehicle.car_color || '')
-            setCarPlate(vehicle.car_plate || '')
-            setCarPhotoPath(vehicle.car_photo_url || null)
-            setDriverPhotoPath(vehicle.driver_photo_url || null)
-            setServices(vehicle.services || [])
-            setPassengerCapacity(vehicle.passenger_capacity != null ? String(vehicle.passenger_capacity) : '')
-            setHasBabySeat(vehicle.has_baby_seat)
-            setTrunkBagsPequena(vehicle.trunk_bags_pequena != null ? String(vehicle.trunk_bags_pequena) : '')
-            setTrunkBagsMedia(vehicle.trunk_bags_media != null ? String(vehicle.trunk_bags_media) : '')
-            setTrunkBagsGrande(vehicle.trunk_bags_grande != null ? String(vehicle.trunk_bags_grande) : '')
-            setTrunkSuitcasesPequena(vehicle.trunk_suitcases_pequena != null ? String(vehicle.trunk_suitcases_pequena) : '')
-            setTrunkSuitcasesMedia(vehicle.trunk_suitcases_media != null ? String(vehicle.trunk_suitcases_media) : '')
-            setTrunkSuitcasesGrande(vehicle.trunk_suitcases_grande != null ? String(vehicle.trunk_suitcases_grande) : '')
-        }
-        setIsFirstVehicleSetup(!vehicle)
+        const byKind: Partial<Record<VehicleKind, VehicleRow>> = {}
+        for (const v of (vehicleRows as VehicleRow[]) || []) byKind[v.vehicle_kind] = v
+        setVehiclesByKind(byKind)
+        const kinds = Object.keys(byKind) as VehicleKind[]
+        const initialKind: VehicleKind = byKind.carro ? 'carro' : (kinds[0] || 'carro')
+        setVehicleKind(initialKind)
+        applyVehicleToForm(byKind[initialKind] || null, byKind)
+        setIsFirstVehicleSetup(kinds.length === 0)
 
         // Retoma o wizard sozinho se a página carregar com o modo já ligado
-        // mas o cadastro incompleto (ex: motorista ativou antes dessa
+        // mas nenhum veículo completo (ex: motorista ativou antes dessa
         // mudança, ou recarregou no meio do preenchimento).
-        const hasRequiredFieldsFromDb = !!(
-            vehicle?.car_model?.trim() && vehicle?.car_plate?.trim() && vehicle?.car_photo_url && vehicle?.driver_photo_url
-        )
+        const hasRequiredFieldsFromDb = kinds.some((k) => isVehicleRowComplete(byKind[k], false))
         if (data?.driver_mode_active && !hasRequiredFieldsFromDb) {
             setShowActivationWizard(true)
             setWizardStep(1)
@@ -209,6 +278,11 @@ function PainelMotoristaContent() {
             return
         }
 
+        if (!isAdmin && ((!carPhotoFile && !carPhotoPath) || (!driverPhotoFile && !driverPhotoPath))) {
+            toast.error('A foto do veículo e a sua foto são obrigatórias')
+            return
+        }
+
         setSavingVehicle(true)
         try {
             let photoPath = carPhotoPath
@@ -232,12 +306,13 @@ function PainelMotoristaContent() {
             const { error } = await supabase.from('driver_vehicles').upsert(
                 {
                     driver_id: user.id,
+                    vehicle_kind: vehicleKind,
                     car_model: carModel.trim() || null,
                     car_color: carColor.trim() || null,
                     car_plate: carPlate.trim() || null,
                     car_photo_url: photoPath,
                     driver_photo_url: driverPhotoPathToSave,
-                    services,
+                    services: vehicleKind === 'carro' ? services : [],
                     passenger_capacity: passengerCapacity.trim() ? parseInt(passengerCapacity, 10) || null : null,
                     has_baby_seat: hasBabySeat,
                     trunk_bags_pequena: trunkBagsPequena.trim() ? parseInt(trunkBagsPequena, 10) || null : null,
@@ -247,22 +322,42 @@ function PainelMotoristaContent() {
                     trunk_suitcases_media: trunkSuitcasesMedia.trim() ? parseInt(trunkSuitcasesMedia, 10) || null : null,
                     trunk_suitcases_grande: trunkSuitcasesGrande.trim() ? parseInt(trunkSuitcasesGrande, 10) || null : null,
                 },
-                { onConflict: 'driver_id' }
+                { onConflict: 'driver_id,vehicle_kind' }
             )
             if (error) throw error
 
+            setVehiclesByKind((prev) => ({
+                ...prev,
+                [vehicleKind]: {
+                    vehicle_kind: vehicleKind,
+                    car_model: carModel.trim() || null,
+                    car_color: carColor.trim() || null,
+                    car_plate: carPlate.trim() || null,
+                    car_photo_url: photoPath,
+                    driver_photo_url: driverPhotoPathToSave,
+                    services: vehicleKind === 'carro' ? services : [],
+                    passenger_capacity: passengerCapacity.trim() ? parseInt(passengerCapacity, 10) || null : null,
+                    has_baby_seat: hasBabySeat,
+                    trunk_bags_pequena: trunkBagsPequena.trim() ? parseInt(trunkBagsPequena, 10) || null : null,
+                    trunk_bags_media: trunkBagsMedia.trim() ? parseInt(trunkBagsMedia, 10) || null : null,
+                    trunk_bags_grande: trunkBagsGrande.trim() ? parseInt(trunkBagsGrande, 10) || null : null,
+                    trunk_suitcases_pequena: trunkSuitcasesPequena.trim() ? parseInt(trunkSuitcasesPequena, 10) || null : null,
+                    trunk_suitcases_media: trunkSuitcasesMedia.trim() ? parseInt(trunkSuitcasesMedia, 10) || null : null,
+                    trunk_suitcases_grande: trunkSuitcasesGrande.trim() ? parseInt(trunkSuitcasesGrande, 10) || null : null,
+                },
+            }))
             setCarPhotoPath(photoPath)
             setCarPhotoFile(null)
             setDriverPhotoPath(driverPhotoPathToSave)
             setDriverPhotoFile(null)
-            toast.success('As informações do seu carro foram salvas!')
+            toast.success(`As informações do seu veículo (${VEHICLE_KIND_LABELS[vehicleKind].toLowerCase()}) foram salvas!`)
 
             if (isFirstVehicleSetup) {
                 setIsFirstVehicleSetup(false)
                 setShowFirstVehicleDialog(true)
             }
         } catch (err: any) {
-            toast.error('Erro ao salvar o carro: ' + (err.message || 'tente novamente'))
+            toast.error('Erro ao salvar o veículo: ' + (err.message || 'tente novamente'))
         } finally {
             setSavingVehicle(false)
         }
@@ -274,14 +369,15 @@ function PainelMotoristaContent() {
 
     // ===== COMPLETUDE DO CADASTRO (define se o botão fica amarelo ou verde) =====
     const missingFields: string[] = []
-    if (!carModel.trim()) missingFields.push('modelo do carro')
-    if (!carPlate.trim()) missingFields.push('placa')
-    if (!carPhotoFile && !carPhotoPath) missingFields.push('foto do carro')
-    if (!driverPhotoFile && !driverPhotoPath) missingFields.push('sua foto')
+    if (!carModel.trim()) missingFields.push('modelo do veículo')
+    if (vehicleKind !== 'bicicleta' && !carPlate.trim()) missingFields.push('placa')
+    if (!isAdmin && !carPhotoFile && !carPhotoPath) missingFields.push('foto do veículo')
+    if (!isAdmin && !driverPhotoFile && !driverPhotoPath) missingFields.push('sua foto')
     const isVehicleComplete = missingFields.length === 0
+    const hasCompleteVehicle = isVehicleComplete || (Object.values(vehiclesByKind) as VehicleRow[]).some((v) => isVehicleRowComplete(v, isAdmin))
     const driverStatus: 'inactive' | 'incomplete' | 'active' = !driverModeActive
         ? 'inactive'
-        : (isVehicleComplete ? 'active' : 'incomplete')
+        : (hasCompleteVehicle ? 'active' : 'incomplete')
 
     // Botão "Concluir cadastro" da Etapa 2 do wizard: só segue se os dados
     // obrigatórios estiverem completos, e fecha o wizard ao salvar com sucesso.
@@ -311,18 +407,18 @@ function PainelMotoristaContent() {
     const buildPricingFields = (driverId: string) => ({
         driver_id: driverId,
         pricing_mode: pricingMode,
-        base_distance_km: pricingMode === 'custom' ? (parseFloat(baseDistanceKm) || 0) : null,
-        base_fee: pricingMode === 'custom' ? (parseFloat(baseFee) || 0) : null,
-        price_per_km_after_base: pricingMode === 'custom' ? (parseFloat(pricePerKmAfterBase) || 0) : null,
-        extra_fee_pessoa: pricingMode === 'custom' ? (parseFloat(extraFeePessoa) || 0) : null,
-        extra_fee_animal: pricingMode === 'custom' ? (parseFloat(extraFeeAnimal) || 0) : null,
-        extra_fee_objeto: pricingMode === 'custom' ? (parseFloat(extraFeeObjeto) || 0) : null,
-        extra_fee_condominio: pricingMode === 'custom' ? (parseFloat(extraFeeCondominio) || 0) : null,
-        extra_fee_compras: pricingMode === 'custom' ? (parseFloat(extraFeeCompras) || 0) : null,
-        extra_fee_necessidade_especial: pricingMode === 'custom' ? (parseFloat(extraFeeNecessidadeEspecial) || 0) : null,
-        extra_fee_pet_sem_caixa: pricingMode === 'custom' ? (parseFloat(extraFeePetSemCaixa) || 0) : null,
-        extra_fee_entrega_interna: pricingMode === 'custom' ? (parseFloat(extraFeeEntregaInterna) || 0) : null,
-        extra_fee_ar_condicionado: pricingMode === 'custom' ? (parseFloat(extraFeeArCondicionado) || 0) : null,
+        base_distance_km: customTouched ? (parseFloat(baseDistanceKm) || 0) : null,
+        base_fee: customTouched ? (parseFloat(baseFee) || 0) : null,
+        price_per_km_after_base: customTouched ? (parseFloat(pricePerKmAfterBase) || 0) : null,
+        extra_fee_pessoa: customTouched ? (parseFloat(extraFeePessoa) || 0) : null,
+        extra_fee_animal: customTouched ? (parseFloat(extraFeeAnimal) || 0) : null,
+        extra_fee_objeto: customTouched ? (parseFloat(extraFeeObjeto) || 0) : null,
+        extra_fee_condominio: customTouched ? (parseFloat(extraFeeCondominio) || 0) : null,
+        extra_fee_compras: customTouched ? (parseFloat(extraFeeCompras) || 0) : null,
+        extra_fee_necessidade_especial: customTouched ? (parseFloat(extraFeeNecessidadeEspecial) || 0) : null,
+        extra_fee_pet_sem_caixa: customTouched ? (parseFloat(extraFeePetSemCaixa) || 0) : null,
+        extra_fee_entrega_interna: customTouched ? (parseFloat(extraFeeEntregaInterna) || 0) : null,
+        extra_fee_ar_condicionado: customTouched ? (parseFloat(extraFeeArCondicionado) || 0) : null,
     })
 
     const handleSave = async () => {
@@ -349,6 +445,16 @@ function PainelMotoristaContent() {
         } finally {
             setSaving(false)
         }
+    }
+
+    const handleToggleAlertSound = async () => {
+        const next = !alertSoundEnabled
+        setAlertSoundEnabled(next)
+        try { localStorage.setItem('iuser_ride_alert_sound', next ? '1' : '0') } catch {}
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) return
+        await supabase.from('driver_pricing').update({ alert_sound_enabled: next }).eq('driver_id', user.id)
+        toast.success(next ? 'Som do alerta ligado' : 'Som do alerta desligado')
     }
 
     const handleToggleDriverMode = async () => {
@@ -378,7 +484,7 @@ function PainelMotoristaContent() {
                 toast.success('Modo motorista ativado!')
                 // Ativando com cadastro incompleto: abre o wizard guiado em
                 // vez de deixar a pessoa perdida numa página cheia de campos.
-                if (!isVehicleComplete) {
+                if (!hasCompleteVehicle) {
                     setShowActivationWizard(true)
                     setWizardStep(1)
                 }
@@ -402,8 +508,9 @@ function PainelMotoristaContent() {
     }
 
     const previewDistance = 10
+    const platformPricingForVehicle = PLATFORM_DEFAULT_PRICING_BY_VEHICLE[vehicleKind]
     const activePricing = pricingMode === 'platform'
-        ? PLATFORM_DEFAULT_PRICING
+        ? platformPricingForVehicle
         : {
             baseDistanceKm: parseFloat(baseDistanceKm) || 0,
             baseFee: parseFloat(baseFee) || 0,
@@ -481,6 +588,28 @@ function PainelMotoristaContent() {
 
                     {!loading && !showLogin && (
                         <div className="flex flex-col gap-5">
+                            {hasDriver && <DriverDebtBanner userId={userId} />}
+                            <InviteButton label="Convide amigos e ganhe" showCount />
+                            <button
+                                onClick={handleToggleAlertSound}
+                                className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all"
+                                style={{ background: colors.surface, border: `1px solid ${colors.border}` }}
+                            >
+                                <span
+                                    className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
+                                    style={alertSoundEnabled ? { background: GRADIENT, color: '#fff' } : { background: `${colors.border}40`, color: colors.textSecondary }}
+                                >
+                                    {alertSoundEnabled ? <Volume2 size={18} /> : <VolumeX size={18} />}
+                                </span>
+                                <span className="flex-1 text-left">
+                                    <span className="block text-sm font-black" style={{ color: colors.textPrimary }}>
+                                        Som do alerta de corridas
+                                    </span>
+                                    <span className="block text-[11px]" style={{ color: colors.textSecondary }}>
+                                        {alertSoundEnabled ? 'Toca quando chegar uma corrida nova — toque pra silenciar' : 'Silenciado — toque pra ligar'}
+                                    </span>
+                                </span>
+                            </button>
                             <button
                                 onClick={handleToggleDriverMode}
                                 disabled={togglingMode}
@@ -573,9 +702,9 @@ function PainelMotoristaContent() {
                                     Tarifa da plataforma
                                     <div className="text-[10px] font-normal mt-0.5 opacity-80">Valor padrão, sem configurar nada</div>
                                 </button>
-                                <button onClick={() => setPricingMode('custom')} style={planButtonStyle(pricingMode === 'custom')}>
+                                <button onClick={() => { setPricingMode('custom'); setCustomTouched(true) }} style={planButtonStyle(pricingMode === 'custom')}>
                                     Minha tarifa
-                                    <div className="text-[10px] font-normal mt-0.5 opacity-80">Você define seus próprios valores</div>
+                                    <div className="text-[10px] font-normal mt-0.5 opacity-80">Fica salva — você escolhe qual usar ao se candidatar</div>
                                 </button>
                             </div>
 
@@ -591,7 +720,7 @@ function PainelMotoristaContent() {
                                         </p>
                                     </div>
                                     <p className="text-xs" style={{ color: colors.textPrimary }}>
-                                        Até {PLATFORM_DEFAULT_PRICING.baseDistanceKm} km = R$ {PLATFORM_DEFAULT_PRICING.baseFee.toFixed(2)}, acima + R$ {PLATFORM_DEFAULT_PRICING.pricePerKmAfterBase.toFixed(2)}/km
+                                        Até {platformPricingForVehicle.baseDistanceKm} km = R$ {platformPricingForVehicle.baseFee.toFixed(2)}, acima + R$ {platformPricingForVehicle.pricePerKmAfterBase.toFixed(2)}/km
                                     </p>
                                     <p className="text-[10px] mt-3 font-bold" style={{ color: colors.textPrimary }}>
                                         Exemplo: uma corrida de {previewDistance} km sairia por R$ {previewPrice.toFixed(2)}
@@ -799,7 +928,7 @@ function PainelMotoristaContent() {
                                     <Car size={24} />
                                 </div>
                                 <div>
-                                    <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>Meu carro</h3>
+                                    <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>Meu Veículo</h3>
                                     <p className="text-xs" style={{ color: colors.textSecondary }}>
                                         Aparece pros passageiros escolherem entre os candidatos
                                     </p>
@@ -807,6 +936,24 @@ function PainelMotoristaContent() {
                             </div>
 
                             <div className="p-4 rounded-2xl border flex flex-col gap-3" style={{ background: colors.surface, borderColor: colors.border }}>
+                                <p className="text-[10px]" style={{ color: colors.textSecondary }}>
+                                    Cadastre quantos veículos quiser — cada tipo é independente (✓ = já cadastrado).
+                                </p>
+                                <div className="flex items-center gap-1.5">
+                                    {(Object.keys(VEHICLE_KIND_LABELS) as VehicleKind[]).map((kind) => (
+                                        <button
+                                            key={kind}
+                                            onClick={() => switchVehicleKind(kind)}
+                                            className="flex-1 py-2 rounded-full text-[11px] font-black transition-all"
+                                            style={vehicleKind === kind
+                                                ? { background: GRADIENT, color: '#fff' }
+                                                : { background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                                        >
+                                            {VEHICLE_KIND_LABELS[kind]}{vehiclesByKind[kind] ? ' ✓' : ''}
+                                        </button>
+                                    ))}
+                                </div>
+
                                 <div className="flex items-center gap-3">
                                     <div
                                         onClick={() => document.getElementById('car-photo-input')?.click()}
@@ -839,7 +986,7 @@ function PainelMotoristaContent() {
                                             type="text"
                                             value={carModel}
                                             onChange={(e) => setCarModel(e.target.value)}
-                                            placeholder="Modelo (ex: Onix)"
+                                            placeholder={vehicleKind === 'carro' ? 'Modelo (ex: Onix)' : vehicleKind === 'moto' ? 'Modelo (ex: CG 160)' : 'Modelo (ex: Caloi 10)'}
                                             className="w-full p-2 rounded-full border text-xs"
                                             style={{ background: colors.background, borderColor: colors.border, color: colors.textPrimary }}
                                         />
@@ -851,14 +998,16 @@ function PainelMotoristaContent() {
                                             className="w-full p-2 rounded-full border text-xs"
                                             style={{ background: colors.background, borderColor: colors.border, color: colors.textPrimary }}
                                         />
-                                        <input
-                                            type="text"
-                                            value={carPlate}
-                                            onChange={(e) => setCarPlate(e.target.value.toUpperCase())}
-                                            placeholder="Placa"
-                                            className="col-span-2 w-full p-2 rounded-full border text-xs"
-                                            style={{ background: colors.background, borderColor: colors.border, color: colors.textPrimary }}
-                                        />
+                                        {vehicleKind !== 'bicicleta' && (
+                                            <input
+                                                type="text"
+                                                value={carPlate}
+                                                onChange={(e) => setCarPlate(e.target.value.toUpperCase())}
+                                                placeholder="Placa"
+                                                className="col-span-2 w-full p-2 rounded-full border text-xs"
+                                                style={{ background: colors.background, borderColor: colors.border, color: colors.textPrimary }}
+                                            />
+                                        )}
                                     </div>
                                 </div>
 
@@ -897,6 +1046,7 @@ function PainelMotoristaContent() {
                                     </div>
                                 </div>
 
+                                {vehicleKind === 'carro' && (
                                 <div>
                                     <p className="text-[10px] font-black mb-2" style={{ color: colors.textSecondary }}>Capacidade do carro</p>
                                     <div className="grid grid-cols-2 gap-2">
@@ -1020,7 +1170,9 @@ function PainelMotoristaContent() {
                                         </div>
                                     </div>
                                 </div>
+                                )}
 
+                                {vehicleKind === 'carro' ? (
                                 <div>
                                     <p className="text-[10px] font-black mb-2" style={{ color: colors.textSecondary }}>Serviços oferecidos</p>
                                     <div className="grid grid-cols-2 gap-2">
@@ -1045,6 +1197,11 @@ function PainelMotoristaContent() {
                                         })}
                                     </div>
                                 </div>
+                                ) : (
+                                    <p className="text-[11px] font-semibold px-3 py-2 rounded-lg" style={{ background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }}>
+                                        {vehicleKind === 'moto' ? 'Moto' : 'Bicicleta'} só leva uma coisa por vez — uma pessoa, um animal ou um objeto. Por isso não tem serviços extras (ar-condicionado, wi-fi etc.) pra oferecer.
+                                    </p>
+                                )}
 
                                 <button
                                     onClick={showActivationWizard ? handleWizardStep2Continue : handleSaveVehicle}
@@ -1052,7 +1209,7 @@ function PainelMotoristaContent() {
                                     className="w-full py-3 rounded-full text-sm font-black uppercase tracking-wider transition-all disabled:opacity-70 flex items-center justify-center gap-2"
                                     style={{ background: GRADIENT, color: '#ffffff' }}
                                 >
-                                    {savingVehicle ? <Spinner size={16} /> : (showActivationWizard ? 'Concluir cadastro' : 'Salvar carro')}
+                                    {savingVehicle ? <Spinner size={16} /> : (showActivationWizard ? 'Concluir cadastro' : `Salvar ${VEHICLE_KIND_LABELS[vehicleKind].toLowerCase()}`)}
                                 </button>
                             </div>
                             </>

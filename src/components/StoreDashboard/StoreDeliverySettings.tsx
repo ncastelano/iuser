@@ -41,6 +41,7 @@ export default function StoreDeliverySettings({ storeId, onRefresh }: StoreDeliv
 
     const [acceptsDelivery, setAcceptsDelivery] = useState(true)
     const [acceptsPickup, setAcceptsPickup] = useState(true)
+    const [iuserDelivery, setIuserDelivery] = useState(false)
     const [deliveryMode, setDeliveryMode] = useState<'free' | 'fixed' | 'distance'>('fixed')
     const [fixedDeliveryFee, setFixedDeliveryFee] = useState('')
     const [deliveryBaseDistance, setDeliveryBaseDistance] = useState('5')
@@ -53,12 +54,12 @@ export default function StoreDeliverySettings({ storeId, onRefresh }: StoreDeliv
 
         const { data: store, error } = await supabase
             .from('stores')
-            .select('accepts_delivery, accepts_pickup, delivery_type, delivery_fee, delivery_base_distance, delivery_base_fee, delivery_fee_per_km')
+            .select('accepts_delivery, accepts_pickup, iuser_delivery_enabled, delivery_type, delivery_fee, delivery_base_distance, delivery_base_fee, delivery_fee_per_km')
             .eq('id', storeId)
             .single()
 
         if (error) {
-            console.error('[StoreDeliverySettings] Erro ao carregar configurações:', error)
+            console.error('[StoreDeliverySettings] Erro ao carregar configurações:', error.message, error.code)
             setLoading(false)
             return
         }
@@ -66,6 +67,7 @@ export default function StoreDeliverySettings({ storeId, onRefresh }: StoreDeliv
         if (store) {
             setAcceptsDelivery(store.accepts_delivery ?? true)
             setAcceptsPickup(store.accepts_pickup ?? true)
+            setIuserDelivery(!!store.iuser_delivery_enabled)
 
             if (store.delivery_type === 'free') {
                 setDeliveryMode('free')
@@ -120,6 +122,7 @@ export default function StoreDeliverySettings({ storeId, onRefresh }: StoreDeliv
             .update({
                 accepts_delivery: acceptsDelivery,
                 accepts_pickup: acceptsPickup,
+                iuser_delivery_enabled: acceptsDelivery && iuserDelivery,
                 delivery_type: deliveryType,
                 delivery_fee: savedDeliveryFee,
                 delivery_fee_per_km: savedFeePerKm,
@@ -416,6 +419,32 @@ export default function StoreDeliverySettings({ storeId, onRefresh }: StoreDeliv
                                         </p>
                                     </div>
                                 )}
+                            </div>
+                        )}
+
+                        {/* Entrega iUser: chamar motorista da plataforma */}
+                        {acceptsDelivery && (
+                            <div
+                                className="p-3 rounded-2xl flex flex-col gap-2"
+                                style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`, border: `1px solid ${colors.border}` }}
+                            >
+                                <div className="flex items-center justify-between gap-3">
+                                    <span className="flex items-center gap-2 text-xs font-bold" style={{ color: colors.textPrimary }}>
+                                        <Truck size={14} style={{ color: '#f97316' }} />
+                                        Entrega iUser
+                                    </span>
+                                    <button
+                                        onClick={() => setIuserDelivery(!iuserDelivery)}
+                                        className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${iuserDelivery ? 'bg-orange-500' : 'bg-gray-400'}`}
+                                    >
+                                        <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm transition-all ${iuserDelivery ? 'right-1' : 'left-1'}`} />
+                                    </button>
+                                </div>
+                                <p className="text-[11px]" style={{ color: colors.textSecondary }}>
+                                    {iuserDelivery
+                                        ? 'Em cada pedido com entrega aparece o botão do caminhão pra chamar um motorista da plataforma. O pedido vai pra lista de corridas dos motoristas, com o valor do frete e a descrição do que será entregue.'
+                                        : 'Ligue pra poder chamar motoristas do iUser pra levar seus pedidos, sem precisar de entregador próprio.'}
+                                </p>
                             </div>
                         )}
 

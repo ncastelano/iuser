@@ -17,3 +17,15 @@ export function notifyRideStatus(rideRequestId: string, status: 'en_route' | 'ar
         }).catch(() => { /* silencioso */ })
     })
 }
+
+// Best-effort: avisa os motoristas com o modo ligado que tem corrida nova.
+export function notifyNewRide(rideRequestId: string) {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+        if (!session) return
+        fetch('/api/rides/notify-drivers', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+            body: JSON.stringify({ rideRequestId }),
+        }).catch(() => { /* silencioso */ })
+    })
+}

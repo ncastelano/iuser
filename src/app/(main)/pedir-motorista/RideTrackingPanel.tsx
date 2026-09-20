@@ -13,6 +13,7 @@ import { Check, X, MapPin, Search, CheckCircle2, XCircle, Car, CalendarClock, Cl
 import { fetchRoute } from '@/lib/mapboxRoute'
 import { DRIVER_SERVICE_OPTIONS } from '@/lib/driverServices'
 import RideChat from '@/components/RideChat'
+import { kindForRideType, type VehicleType } from '@/lib/rideVehicle'
 import { notifyRideStatus } from '@/lib/notifyRideStatus'
 import { handleShareLink } from '@/lib/share'
 
@@ -40,6 +41,7 @@ interface RideRow {
     destination_complement: string | null
     status: RideStatus
     driver_id: string | null
+    vehicle_type: VehicleType
     created_at: string
     scheduled_for: string | null
     origin_lat: number | null
@@ -115,7 +117,7 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady }: Rid
     const load = useCallback(async () => {
         const { data: rideRow } = await supabase
             .from('ride_requests')
-            .select('id, origin_address, destination_address, origin_complement, destination_complement, status, driver_id, created_at, scheduled_for, origin_lat, origin_lng, destination_lat, destination_lng, duration_min, driver_en_route, driver_arrived_at, ride_started_at, extra_task_minutes, extra_task_fee, extra_task_description')
+            .select('id, origin_address, destination_address, origin_complement, destination_complement, status, driver_id, vehicle_type, created_at, scheduled_for, origin_lat, origin_lng, destination_lat, destination_lng, duration_min, driver_en_route, driver_arrived_at, ride_started_at, extra_task_minutes, extra_task_fee, extra_task_description')
             .eq('id', rideId)
             .single()
 
@@ -157,9 +159,13 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady }: Rid
         if (idsToFetch.length > 0) {
             const { data: vehicles } = await supabase
                 .from('driver_vehicles')
-                .select('driver_id, car_model, car_color, car_photo_url, services')
+                .select('driver_id, vehicle_kind, car_model, car_color, car_photo_url, services')
                 .in('driver_id', idsToFetch)
-            vehiclesById = new Map((vehicles || []).map((v) => [v.driver_id, v]))
+            // Motorista pode ter vários veículos — prefere o que atende essa corrida.
+            const rideKind = kindForRideType(rideRow.vehicle_type)
+            for (const v of vehicles || []) {
+                if (!vehiclesById.has(v.driver_id) || v.vehicle_kind === rideKind) vehiclesById.set(v.driver_id, v)
+            }
         }
 
         // Avaliações recebidas — média, quantidade e o comentário mais recente.

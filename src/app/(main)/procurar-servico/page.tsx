@@ -13,6 +13,7 @@ import { toast } from 'sonner'
 import { Briefcase, MapPin, Plus } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import { useActivePlans } from '@/hooks/useActivePlans'
+import DriverDebtBanner from '@/components/DriverDebtBanner'
 import {
     BoardItem,
     fetchOpenBoardItems,
@@ -164,6 +165,7 @@ export default function SerParceiroPage() {
 
                     {!loading && !showLogin && !plansLoading && hasProvider && (
                     <>
+                    <DriverDebtBanner userId={userId} />
                     {jobs.length === 0 && (
                         <div
                             className="rounded-2xl p-6 text-center"

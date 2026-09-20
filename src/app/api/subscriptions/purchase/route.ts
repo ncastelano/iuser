@@ -16,7 +16,7 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
         }
 
-        const { planId, cpfCnpj } = await req.json()
+        const { planId, cpfCnpj, deviceId } = await req.json()
         if (!planId) {
             return NextResponse.json({ error: 'planId é obrigatório' }, { status: 400 })
         }
@@ -52,6 +52,69 @@ export async function POST(req: Request) {
 
         if (existing?.status === 'active') {
             return NextResponse.json({ error: 'Você já tem esse plano ativo' }, { status: 409 })
+        }
+
+        // Plano sem mensalidade (Pós-pago): ativa direto, sem cobrança na Asaas —
+        // o dinheiro entra depois, R$ 0,50 por serviço (ver migration
+        // postpaid_plan_all_services). Como não há pagamento antecipado, exige
+        // CPF/CNPJ e aparelho ÚNICOS por conta pra ninguém criar várias contas
+        // e largar a dívida.
+        if (chargeValue === 0) {
+            const { data: freeProfile } = await supabaseAdmin
+                .from('profiles')
+                .select('cpf_cnpj')
+                .eq('id', user.id)
+                .maybeSingle()
+
+            const cleanCpf = (cpfCnpj || '').replace(/\D/g, '')
+            const resolvedCpf = freeProfile?.cpf_cnpj || cleanCpf || null
+            if (!resolvedCpf) {
+                return NextResponse.json({ error: 'Informe seu CPF ou CNPJ pra continuar', needsCpf: true }, { status: 400 })
+            }
+            if (typeof deviceId !== 'string' || !/^[A-Za-z0-9-]{8,64}$/.test(deviceId)) {
+                return NextResponse.json({ error: 'Não foi possível identificar seu aparelho' }, { status: 400 })
+            }
+
+            const { data: clashes } = await supabaseAdmin
+                .from('postpaid_identities')
+                .select('profile_id')
+                .or(`cpf_cnpj.eq.${resolvedCpf},device_id.eq.${deviceId}`)
+                .neq('profile_id', user.id)
+            if ((clashes || []).length > 0) {
+                return NextResponse.json(
+                    { error: 'Este CPF/CNPJ ou aparelho já está ligado a outra conta no plano pós-pago.' },
+                    { status: 409 }
+                )
+            }
+
+            if (cleanCpf && cleanCpf !== freeProfile?.cpf_cnpj) {
+                await supabaseAdmin.from('profiles').update({ cpf_cnpj: cleanCpf }).eq('id', user.id)
+            }
+
+            const { error: identityError } = await supabaseAdmin
+                .from('postpaid_identities')
+                .upsert({ profile_id: user.id, cpf_cnpj: resolvedCpf, device_id: deviceId }, { onConflict: 'profile_id' })
+            if (identityError) {
+                return NextResponse.json({ error: 'Este CPF/CNPJ ou aparelho já está ligado a outra conta no plano pós-pago.' }, { status: 409 })
+            }
+
+            const farFuture = '2099-12-31T00:00:00.000Z'
+            const { data: subRow, error: freeSubError } = existing
+                ? await supabaseAdmin
+                    .from('subscriptions')
+                    .update({ status: 'active', source: 'postpaid', current_period_end: farFuture, updated_at: new Date().toISOString() })
+                    .eq('id', existing.id)
+                    .select('id')
+                    .single()
+                : await supabaseAdmin
+                    .from('subscriptions')
+                    .insert({ user_id: user.id, plan_id: plan.id, status: 'active', source: 'postpaid', current_period_end: farFuture })
+                    .select('id')
+                    .single()
+            if (freeSubError || !subRow) {
+                return NextResponse.json({ error: 'Erro ao ativar o plano' }, { status: 500 })
+            }
+            return NextResponse.json({ activated: true, subscriptionId: subRow.id })
         }
 
         // Vagas limitadas (ex: plano Beta, 20 vagas) — só barra quem está
