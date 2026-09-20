@@ -69,6 +69,7 @@ export default function BenefitsManagement() {
     const [planId, setPlanId] = useState('')
     const [duration, setDuration] = useState('30')
     const [reason, setReason] = useState('')
+    const [startsAt, setStartsAt] = useState('')
     const [granting, setGranting] = useState(false)
 
     // histórico
@@ -140,12 +141,14 @@ export default function BenefitsManagement() {
                 planId,
                 days: duration === 'eoy' ? daysUntilEndOfYear() : Number(duration),
                 reason: reason.trim() || undefined,
+                startsAt: startsAt ? new Date(`${startsAt}T00:00:00`).toISOString() : undefined,
             })
             const plan = plans.find((p) => p.id === planId)
             toast.success(`${plan?.name || 'Benefício'} concedido a ${target.name || `@${target.profile_slug}`}!`)
             setTarget(null)
             setQuery('')
             setReason('')
+            setStartsAt('')
         } catch (err: any) {
             toast.error(err.message || 'Erro ao conceder benefício')
         } finally {
@@ -279,6 +282,17 @@ export default function BenefitsManagement() {
                             </div>
 
                             <div>
+                                <p className="text-[10px] font-black uppercase tracking-wider mb-1.5" style={{ color: colors.textSecondary }}>Início (opcional — vazio = agora)</p>
+                                <input
+                                    type="date"
+                                    value={startsAt}
+                                    min={new Date().toISOString().slice(0, 10)}
+                                    onChange={(e) => setStartsAt(e.target.value)}
+                                    style={inputStyle}
+                                />
+                            </div>
+
+                            <div>
                                 <p className="text-[10px] font-black uppercase tracking-wider mb-1.5" style={{ color: colors.textSecondary }}>Motivo (opcional)</p>
                                 <input value={reason} onChange={(e) => setReason(e.target.value)} maxLength={300} placeholder="Ex: parceiro do bairro" style={inputStyle} />
                             </div>
@@ -325,7 +339,7 @@ export default function BenefitsManagement() {
                                             {h.target_name || (h.target_slug ? `@${h.target_slug}` : 'Pessoa removida')} · {h.plan_name || h.plan_code}
                                         </p>
                                         <p className="text-[11px]" style={{ color: colors.textSecondary }}>
-                                            Concedido em {fmt(h.created_at)} · expira em {fmt(h.expires_at)}
+                                            Concedido em {fmt(h.created_at)} · {h.is_scheduled ? `começa em ${fmt(h.starts_at)} · ` : ''}expira em {fmt(h.expires_at)}
                                             {h.actor_name ? ` · por ${h.actor_name}` : ''}
                                         </p>
                                         {h.reason && <p className="text-[11px] italic" style={{ color: colors.textSecondary }}>{h.reason}</p>}
@@ -334,9 +348,11 @@ export default function BenefitsManagement() {
                                         className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full flex-shrink-0"
                                         style={h.is_active
                                             ? { background: '#22c55e20', color: '#22c55e' }
-                                            : { background: `${colors.border}40`, color: colors.textSecondary }}
+                                            : h.is_scheduled
+                                                ? { background: '#f9731620', color: '#f97316' }
+                                                : { background: `${colors.border}40`, color: colors.textSecondary }}
                                     >
-                                        {h.is_active ? 'Ativo' : 'Expirado'}
+                                        {h.is_active ? 'Ativo' : h.is_scheduled ? 'Agendado' : 'Expirado'}
                                     </span>
                                 </div>
                             ))}

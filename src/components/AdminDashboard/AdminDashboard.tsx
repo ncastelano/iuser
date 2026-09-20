@@ -7,14 +7,16 @@ import { supabase } from '@/lib/supabase/client'
 import { Spinner } from '@/components/Spinner'
 import { toast } from 'sonner'
 import { hexToRgb } from '@/lib/color'
-import { Check, X, Copy, Plus, ShieldOff, Send, CalendarClock, Wallet, Tag, Sparkles } from 'lucide-react'
+import { Check, X, Copy, Plus, ShieldOff, ShieldCheck, Send, CalendarClock, Wallet, Tag, Sparkles } from 'lucide-react'
+import HierarchyAdmin from './HierarchyAdmin'
 import { callAdminApi } from '@/lib/callAdminApi'
 
-type Section = 'pagamentos' | 'saques' | 'planos'
+type Section = 'pagamentos' | 'saques' | 'planos' | 'hierarquia'
 
 const SECTIONS: { id: Section; label: string; icon: typeof Send }[] = [
     { id: 'pagamentos', label: 'Pagamentos', icon: Wallet },
     { id: 'planos', label: 'Planos', icon: CalendarClock },
+    { id: 'hierarquia', label: 'Hierarquia', icon: ShieldCheck },
     { id: 'saques', label: 'Saques', icon: Send },
 ]
 
@@ -86,12 +88,12 @@ export default function AdminDashboard() {
 
             {section === 'pagamentos' && <SubscriptionsSection cardStyle={cardStyle} colors={colors} />}
             {section === 'saques' && <WithdrawalsSection cardStyle={cardStyle} colors={colors} />}
+            {section === 'hierarquia' && <HierarchyAdmin cardStyle={cardStyle} colors={colors} />}
             {section === 'planos' && (
                 <div className="space-y-5">
                     <PlanManageSection cardStyle={cardStyle} colors={colors} />
                     <PlanPricingSection cardStyle={cardStyle} colors={colors} />
                     <PlanGrantsSection cardStyle={cardStyle} colors={colors} />
-                    <UserStatusSection cardStyle={cardStyle} colors={colors} />
                     <PlanCodesSection cardStyle={cardStyle} colors={colors} />
                 </div>
             )}
@@ -976,77 +978,6 @@ function PlanGrantsSection({ cardStyle, colors }: SectionProps) {
                     style={{ background: colors.accent }}
                 >
                     {granting ? <Spinner size={14} /> : 'Conceder'}
-                </button>
-            </div>
-        </div>
-    )
-}
-
-// Define o status hierárquico (Usuário, Líder, Supervisor, Gestor, Administrador)
-// de uma pessoa. As permissões de cada status vêm do banco — aqui só se escolhe
-// o status. Quem pode mudar o quê é decidido no servidor (manage_leaders + nível).
-function UserStatusSection({ cardStyle, colors }: SectionProps) {
-    const [slug, setSlug] = useState('')
-    const [statuses, setStatuses] = useState<{ slug: string; name: string; level: number }[]>([])
-    const [statusSlug, setStatusSlug] = useState('lider')
-    const [saving, setSaving] = useState(false)
-
-    useEffect(() => {
-        supabase.from('user_statuses').select('slug, name, level').eq('is_active', true).order('level')
-            .then(({ data }) => setStatuses(data || []))
-    }, [])
-
-    const apply = async () => {
-        if (!slug.trim()) return
-        setSaving(true)
-        try {
-            await callAdminApi('/api/admin/statuses/set-user-status', { profileSlug: slug.trim(), statusSlug })
-            const name = statuses.find((s) => s.slug === statusSlug)?.name || statusSlug
-            toast.success(`@${slug.trim().replace(/^@/, '')} agora é ${name}`)
-            setSlug('')
-        } catch (err: any) {
-            toast.error(err.message || 'Erro ao atualizar status')
-        } finally {
-            setSaving(false)
-        }
-    }
-
-    const inputStyle: React.CSSProperties = {
-        background: colors.background,
-        border: `1px solid ${colors.border}`,
-        color: colors.textPrimary,
-        borderRadius: 12,
-        padding: '8px 12px',
-        fontSize: 13,
-    }
-
-    return (
-        <div style={cardStyle} className="space-y-3">
-            <p className="text-xs font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>
-                Status hierárquico
-            </p>
-            <p className="text-xs" style={{ color: colors.textSecondary }}>
-                O status define as permissões e o escopo da pessoa (ex: Líder concede Motorista só a quem convidou). Ela ganha a aba Gestão de Benefícios.
-            </p>
-            <div className="flex flex-wrap gap-2 items-center">
-                <input
-                    value={slug}
-                    onChange={(e) => setSlug(e.target.value)}
-                    placeholder="@slug do perfil"
-                    style={{ ...inputStyle, flex: 1, minWidth: 140 }}
-                />
-                <select value={statusSlug} onChange={(e) => setStatusSlug(e.target.value)} style={inputStyle}>
-                    {statuses.map((s) => (
-                        <option key={s.slug} value={s.slug}>{s.name} (nível {s.level})</option>
-                    ))}
-                </select>
-                <button
-                    onClick={apply}
-                    disabled={saving || !slug.trim()}
-                    className="px-4 py-2 rounded-xl font-bold text-xs text-white disabled:opacity-50"
-                    style={{ background: 'linear-gradient(135deg, #f97316, #dc2626)' }}
-                >
-                    {saving ? <Spinner size={14} /> : 'Definir status'}
                 </button>
             </div>
         </div>

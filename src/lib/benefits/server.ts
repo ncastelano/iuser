@@ -35,6 +35,7 @@ export async function grantPlan(params: {
     planId: string
     days: number
     reason?: string | null
+    startsAt?: string | null
 }): Promise<GrantResult> {
     const { data, error } = await supabaseAdmin.rpc('grant_plan_internal', {
         p_actor: params.actorId,
@@ -42,6 +43,7 @@ export async function grantPlan(params: {
         p_plan_id: params.planId,
         p_days: params.days,
         p_reason: params.reason ?? null,
+        p_starts_at: params.startsAt ?? null,
     })
     if (error || !data) {
         return { ok: false, code: 'internal_error', message: 'Erro ao conceder o benefício' }
@@ -60,5 +62,30 @@ export async function setUserStatus(params: {
         p_status_slug: params.statusSlug,
     })
     if (error || !data) return { ok: false, code: 'internal_error', message: 'Erro ao atualizar o status' }
+    return data as { ok: boolean; code?: string; message?: string }
+}
+
+export type HierarchyAction =
+    | 'upsert_status'
+    | 'set_status_permission'
+    | 'remove_status_permission'
+    | 'set_plan_grant_settings'
+    | 'set_user_permission'
+    | 'remove_user_permission'
+
+// Administração da hierarquia (status, permissões por status, planos
+// concedíveis, exceções por pessoa). A permissão (manage_hierarchy), as
+// travas de segurança e a auditoria ficam em manage_hierarchy_internal.
+export async function manageHierarchy(params: {
+    actorId: string
+    action: HierarchyAction
+    payload: Record<string, unknown>
+}): Promise<{ ok: boolean; code?: string; message?: string }> {
+    const { data, error } = await supabaseAdmin.rpc('manage_hierarchy_internal', {
+        p_actor: params.actorId,
+        p_action: params.action,
+        p_payload: params.payload,
+    })
+    if (error || !data) return { ok: false, code: 'internal_error', message: 'Erro ao atualizar a hierarquia' }
     return data as { ok: boolean; code?: string; message?: string }
 }

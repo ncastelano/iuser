@@ -5,6 +5,7 @@
 // /api/benefits/grant com o JWT de cada ator e apaga tudo no final.
 //   node scripts/test-benefits-authorization.mjs
 import fs from 'node:fs'
+import crypto from 'node:crypto'
 import { createClient } from '@supabase/supabase-js'
 
 const env = Object.fromEntries(fs.readFileSync('.env.local', 'utf8').split(/\r?\n/)
@@ -73,6 +74,7 @@ async function cleanup() {
         await admin.from('grant_audit_logs').delete().in('actor_user_id', ids)
         await admin.from('grant_audit_logs').delete().in('target_user_id', ids)
     }
+    await admin.from('profiles').update({ upline_id: null }).in('id', ids)
     for (const u of Object.values(users)) {
         await admin.rpc('admin_delete_profile', { p_user_id: u.id })
         await admin.auth.admin.deleteUser(u.id)
@@ -95,7 +97,12 @@ try {
     await mkUser('invitedStore', { upline: users.leaderStore.id })
     await mkUser('leaderRevoked', { statusSlug: 'lider' })
     await mkUser('invitedRevoked', { upline: users.leaderRevoked.id })
-    await mkUser('legacyLeader', { extra: { is_lider_motorista: true } })
+    await mkUser('legacyLeader')
+
+    await mkUser('sched', { upline: users.leader.id })
+    await mkUser('postpaid')
+    await mkUser('monthly')
+    await mkUser('requester')
 
     // exceções por pessoa (mesmo status, permissões diferentes)
     const permId = async (slug) => (await admin.from('permissions').select('id').eq('slug', slug).single()).data.id
@@ -221,6 +228,112 @@ try {
     check('Administrador vê tudo', (hAdm || []).some((h) => h.actor_user_id === users.leader.id) && (hAdm || []).some((h) => h.actor_user_id === users.supervisor.id))
     const { data: myStatus } = await leaderClient.rpc('get_my_status')
     check('get_my_status do Líder: nível 1, grant_driver_plan @ direct_invite', myStatus?.level === 1 && myStatus.permissions.some((p) => p.slug === 'grant_driver_plan' && p.scope === 'direct_invite'), JSON.stringify(myStatus))
+
+
+    console.log('\nPENDÊNCIA 5 — concessão agendada (início futuro)')
+    const inTen = new Date(Date.now() + 10 * 86400000).toISOString()
+    r = await grantVia('leader', { targetUserId: users.sched.id, planId: P.motorista, days: 30, startsAt: inTen })
+    check('agendar início daqui a 10 dias → 200', r.status === 200, JSON.stringify(r))
+    check('antes do início NÃO dá o benefício', !(await hasDriver('sched')))
+    const { data: schedHist } = await leaderClient.rpc('get_benefit_history', { p_limit: 100, p_only_granted: true })
+    check('histórico marca como agendado', (schedHist || []).some((h) => h.target_user_id === users.sched.id && h.is_scheduled === true && h.is_active === false))
+    r = await grantVia('leader', { targetUserId: users.sched.id, planId: P.motorista, days: 30, startsAt: new Date(Date.now() + 20 * 86400000).toISOString() })
+    check('reagendar por cima de agendamento pendente (nada em vigor) é permitido', r.status === 200, JSON.stringify(r))
+    await admin.from('subscriptions').update({ starts_at: new Date(Date.now() - 3600000).toISOString() }).eq('user_id', users.sched.id)
+    check('depois do início passa a valer', await hasDriver('sched'))
+    r = await grantVia('leader', { targetUserId: users.sched.id, planId: P.motorista, days: 30, startsAt: new Date(Date.now() + 5 * 86400000).toISOString() })
+    check('agendar por cima de benefício em vigor → negado (already_active)', r.status === 409 && r.json.code === 'already_active', JSON.stringify(r))
+    r = await grantVia('leader', { targetUserId: users.invited2.id, planId: P.motorista, days: 30, startsAt: new Date(Date.now() + 500 * 86400000).toISOString() })
+    check('início a mais de 1 ano → negado (invalid_start)', r.status === 409 && r.json.code === 'invalid_start', JSON.stringify(r))
+    r = await grantVia('leader', { targetUserId: users.invited2.id, planId: P.motorista, days: 30, startsAt: 'lixo' })
+    check('data inválida → 400', r.status === 400, JSON.stringify(r))
+
+    console.log('\nPENDÊNCIA 4 — administração da hierarquia')
+    const hier = async (actor, action, payload) => {
+        const { token } = await tokenFor(actor)
+        const res = await fetch(`${APP}/api/admin/hierarchy`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ action, payload }) })
+        return { status: res.status, json: await res.json().catch(() => ({})) }
+    }
+    const zz = `zz_test_${stamp}`
+    r = await hier('leader', 'upsert_status', { slug: zz, name: 'Teste', level: 5 })
+    check('Líder NÃO administra a hierarquia (403)', r.status === 403, JSON.stringify(r))
+    r = await hier('adm', 'upsert_status', { slug: zz, name: 'Teste', level: 5, description: 'temporário' })
+    check('Administrador cria status novo', r.status === 200, JSON.stringify(r))
+    r = await hier('adm', 'upsert_status', { slug: 'usuario', name: 'Usuário', level: 3 })
+    check('status Usuário é protegido (nível fixo 0)', r.status === 403, JSON.stringify(r))
+    r = await hier('adm', 'upsert_status', { slug: 'administrador', name: 'Administrador', level: 4, is_active: false })
+    check('Administrador não pode ser desativado', r.status === 403, JSON.stringify(r))
+    r = await hier('adm', 'remove_status_permission', { status_slug: 'administrador', permission_slug: 'grant_any_plan' })
+    check('Administrador não perde grant_any_plan', r.status === 403, JSON.stringify(r))
+    r = await hier('adm', 'set_status_permission', { status_slug: 'administrador', permission_slug: 'manage_hierarchy', scope: 'network' })
+    check('Administrador não rebaixa manage_hierarchy p/ escopo menor', r.status === 403, JSON.stringify(r))
+    r = await hier('adm', 'set_status_permission', { status_slug: zz, permission_slug: 'grant_store_plan', scope: 'direct_invite' })
+    check('dá permissão ao status novo', r.status === 200, JSON.stringify(r))
+    await admin.from('profiles').update({ status_id: (await admin.from('user_statuses').select('id').eq('slug', zz).single()).data.id }).eq('id', users.plain.id)
+    await admin.from('profiles').update({ upline_id: users.plain.id }).eq('id', users.stranger.id)
+    r = await grantVia('plain', { targetUserId: users.stranger.id, planId: P.loja, days: 30 })
+    check('pessoa no status novo concede Loja ao convidado (sem mexer no código)', r.status === 200, JSON.stringify(r))
+    r = await grantVia('plain', { targetUserId: users.stranger.id, planId: P.motorista, days: 30 })
+    check('… mas não Motorista', r.status === 403, JSON.stringify(r))
+    r = await hier('adm', 'set_plan_grant_settings', { plan_id: slotPlan.id, grantable: false, grant_permission: 'grant_driver_plan' })
+    check('Administrador desmarca plano como concedível', r.status === 200, JSON.stringify(r))
+    r = await grantVia('leader', { targetUserId: users.invited2.id, planId: slotPlan.id, days: 30 })
+    check('… e concessão desse plano passa a ser negada (plan_not_grantable)', r.status === 403 && r.json.code === 'plan_not_grantable', JSON.stringify(r))
+    r = await hier('adm', 'set_plan_grant_settings', { plan_id: slotPlan.id, grantable: true, grant_permission: 'grant_any_plan' })
+    check('permissão de plano não pode ser grant_any_plan (inválido)', r.status === 403, JSON.stringify(r))
+    r = await hier('adm', 'set_user_permission', { profileSlug: `bench-invited2-${stamp}`, permission_slug: 'grant_store_plan', effect: 'grant', scope: 'direct_invite' })
+    check('exceção por pessoa via @slug', r.status === 200, JSON.stringify(r))
+    const { data: ovList } = await (async () => { const { token } = await tokenFor('adm'); const res = await fetch(`${APP}/api/admin/hierarchy`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ action: 'list_user_overrides', payload: { profileSlug: `bench-invited2-${stamp}` } }) }); return { data: await res.json() } })()
+    check('lista de exceções da pessoa', (ovList.overrides || []).length === 1)
+    r = await hier('adm', 'remove_user_permission', { profileSlug: `bench-invited2-${stamp}`, permission_slug: 'grant_store_plan' })
+    check('remove a exceção', r.status === 200, JSON.stringify(r))
+    r = await hier('adm', 'set_user_permission', { profileSlug: `bench-adm-${stamp}`, permission_slug: 'manage_hierarchy', effect: 'revoke' })
+    check('Administrador não revoga as próprias permissões', r.status === 403, JSON.stringify(r))
+    const { data: hierAudit } = await admin.from('grant_audit_logs').select('outcome').eq('action', 'hierarchy_change').eq('actor_user_id', users.adm.id)
+    check('mudanças e negativas da hierarquia foram auditadas', (hierAudit || []).some((a) => a.outcome === 'granted') && (hierAudit || []).some((a) => a.outcome === 'denied'))
+    await admin.from('profiles').update({ status_id: null }).eq('id', users.plain.id)
+    await admin.from('user_statuses').delete().eq('slug', zz)
+
+    console.log('\nPENDÊNCIA 3 — cobrança pós-paga REAL (triggers do banco)')
+    await admin.from('subscriptions').insert({ user_id: users.postpaid.id, plan_id: P.posPago, status: 'active', source: 'postpaid', current_period_end: '2099-12-31' })
+    await admin.from('subscriptions').insert({ user_id: users.monthly.id, plan_id: P.motorista, status: 'active', source: 'asaas', current_period_end: '2099-12-31' })
+    const debtOf = async (key) => Number((await admin.rpc('get_driver_postpaid_debt', { p_driver_id: users[key].id })).data)
+    // corrida finalizada
+    for (const key of ['postpaid', 'monthly']) {
+        const { data: ride, error: re } = await admin.from('ride_requests').insert({ requester_id: users.requester.id, ride_type: 'pessoa', origin_address: 'A', destination_address: 'B', status: 'accepted', driver_id: users[key].id }).select('id').single()
+        if (re) throw re
+        await admin.from('ride_requests').update({ status: 'completed' }).eq('id', ride.id)
+        if (key === 'postpaid') await admin.from('ride_requests').update({ status: 'completed' }).eq('id', ride.id) // 2ª vez: não pode duplicar
+        await admin.from('ride_requests').delete().eq('id', ride.id).then(() => {}, () => {})
+    }
+    check('corrida finalizada cobra R$ 0,50 do pós-pago (e não duplica)', (await debtOf('postpaid')) === 0.5, `dívida ${await debtOf('postpaid')}`)
+    check('corrida finalizada NÃO cobra quem tem plano mensal', (await debtOf('monthly')) === 0)
+    // pedido de serviço aceito
+    for (const key of ['postpaid', 'monthly']) {
+        const { data: sr, error: se } = await admin.from('service_requests').insert({ requester_id: users.requester.id, service_type: 'outro', custom_service: 'teste', location_address: 'X', description: 'teste' }).select('id').single()
+        if (se) throw se
+        const { data: app } = await admin.from('service_applications').insert({ service_request_id: sr.id, applicant_id: users[key].id }).select('id').single()
+        await admin.from('service_applications').update({ status: 'accepted' }).eq('id', app.id)
+    }
+    check('serviço aceito cobra R$ 0,50 do prestador pós-pago (total R$ 1,00)', (await debtOf('postpaid')) === 1, `dívida ${await debtOf('postpaid')}`)
+    check('serviço aceito NÃO cobra plano mensal', (await debtOf('monthly')) === 0)
+    // pedido de loja pago
+    for (const key of ['postpaid', 'monthly']) {
+        const { data: store, error: ste } = await admin.from('stores').insert({ name: `Loja bench ${key}`, storeSlug: `bench-loja-${key}-${stamp}`, owner_id: users[key].id }).select('id').single()
+        if (ste) throw new Error('criar loja de teste: ' + ste.message)
+        const { error: oe } = await admin.from('orders').insert({ store_id: store.id, total_amount: 10, status: 'paid', checkout_id: crypto.randomUUID() })
+        if (oe) throw new Error('criar pedido de teste: ' + oe.message)
+    }
+    check('pedido de loja pago cobra R$ 0,50 do dono pós-pago (total R$ 1,50)', (await debtOf('postpaid')) === 1.5, `dívida ${await debtOf('postpaid')}`)
+    check('pedido de loja pago NÃO cobra dono de plano mensal', (await debtOf('monthly')) === 0)
+    // bloqueio em R$ 50
+    await admin.from('driver_postpaid_charges').insert({ driver_id: users.postpaid.id, type: 'payment', amount: 48.5, asaas_payment_id: `bench-${stamp}` }).then(() => {})
+    await admin.from('driver_postpaid_charges').delete().eq('asaas_payment_id', `bench-${stamp}`)
+    await admin.from('driver_postpaid_charges').insert({ driver_id: users.postpaid.id, type: 'ride_fee', amount: 48.5 })
+    check('dívida chega a R$ 50', (await debtOf('postpaid')) === 50)
+    const { data: st2 } = await admin.from('stores').select('id').eq('owner_id', users.postpaid.id).single()
+    const blocked = await admin.from('orders').insert({ store_id: st2.id, buyer_id: users.requester.id, total_amount: 10, status: 'pending', checkout_id: crypto.randomUUID() })
+    check('loja com R$ 50 de dívida não recebe pedido online', !!blocked.error, JSON.stringify(blocked.data))
 
     console.log('\nTESTE 12 — plano mensal continua sem cobrança pós-paga por serviço')
     const { data: monthlyCheck } = await admin.rpc('is_postpaid_user', { p_user_id: users.c.id })

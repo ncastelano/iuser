@@ -51,6 +51,7 @@ export interface BenefitHistoryRow {
     expires_at: string | null
     created_at: string
     is_active: boolean
+    is_scheduled: boolean
 }
 
 export type GrantResult =

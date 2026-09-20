@@ -13,12 +13,19 @@ export async function POST(req: Request) {
     if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
 
     const body = await req.json().catch(() => ({}))
-    const { targetUserId, planId, days, reason } = body as {
-        targetUserId?: string; planId?: string; days?: number; reason?: string
+    const { targetUserId, planId, days, reason, startsAt } = body as {
+        targetUserId?: string; planId?: string; days?: number; reason?: string; startsAt?: string
     }
 
     if (!targetUserId || !UUID.test(targetUserId) || !planId || !UUID.test(planId) || !Number.isInteger(days)) {
         return NextResponse.json({ error: 'Parâmetros inválidos' }, { status: 400 })
+    }
+
+    let startsAtIso: string | null = null
+    if (startsAt) {
+        const d = new Date(startsAt)
+        if (Number.isNaN(d.getTime())) return NextResponse.json({ error: 'Data de início inválida' }, { status: 400 })
+        startsAtIso = d.toISOString()
     }
 
     const result = await grantPlan({
@@ -27,6 +34,7 @@ export async function POST(req: Request) {
         planId,
         days: days as number,
         reason: typeof reason === 'string' ? reason.slice(0, 300) : null,
+        startsAt: startsAtIso,
     })
 
     if (!result.ok) {
