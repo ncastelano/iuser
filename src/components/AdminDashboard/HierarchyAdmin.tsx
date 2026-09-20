@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase/client'
 import { callAdminApi } from '@/lib/callAdminApi'
 import { Spinner } from '@/components/Spinner'
 import { toast } from 'sonner'
+import { getAvatarUrl } from '@/lib/avatar'
 import { SCOPE_LABEL, type PermissionScope } from '@/lib/benefits/types'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -16,6 +17,13 @@ interface StatusRow { id: string; slug: string; name: string; level: number; des
 interface PermissionRow { id: string; slug: string; name: string }
 interface StatusPermRow { status_id: string; permission_id: string; scope: PermissionScope }
 interface PlanRow { id: string; code: string; name: string; grantable: boolean; grant_permission: string | null }
+interface PersonPerm { slug: string; name: string; scope: PermissionScope }
+interface NetworkPerson {
+    id: string; name: string | null; profile_slug: string | null; avatar_url: string | null; created_at: string
+    upline_id: string | null; upline_name: string | null; upline_slug: string | null
+    status_slug: string; status_name: string; status_level: number; children_count: number
+}
+interface NetworkSummary { total: number; roots: number; invited: number; by_status: { slug: string; name: string; level: number; count: number }[] }
 interface OverrideRow { effect: 'grant' | 'revoke'; scope: PermissionScope | null; expires_at: string | null; reason: string | null; permissions: { slug: string; name: string } | { slug: string; name: string }[] | null }
 
 interface Props { cardStyle: React.CSSProperties; colors: ThemeColors }
@@ -104,37 +112,135 @@ export default function HierarchyAdmin({ cardStyle, colors }: Props) {
     const permStatus = statuses.find((s) => s.slug === permStatusSlug)
     const scopeOf = (permissionId: string) => statusPerms.find((sp) => sp.status_id === permStatus?.id && sp.permission_id === permissionId)?.scope
 
-    // ---------- exceções por pessoa ----------
+    // ---------- permissões de uma pessoa (só dá pra TIRAR) ----------
     const [ovSlug, setOvSlug] = useState('')
     const [ovLoaded, setOvLoaded] = useState<{ name: string | null; profileSlug: string } | null>(null)
+    const [ovStatus, setOvStatus] = useState<{ name: string; level: number } | null>(null)
+    const [effective, setEffective] = useState<PersonPerm[]>([])
     const [overrides, setOverrides] = useState<OverrideRow[]>([])
-    const [ovForm, setOvForm] = useState({ permission: 'grant_store_plan', effect: 'grant', scope: 'direct_invite' as PermissionScope, expires: '', reason: '' })
-    const loadOverrides = async (slug = ovSlug) => {
+    const loadPerson = async (slug = ovSlug) => {
         setBusy(true)
         try {
-            const res = await callAdminApi<{ profile: { name: string | null; profileSlug: string }; overrides: OverrideRow[] }>('/api/admin/hierarchy', { action: 'list_user_overrides', payload: { profileSlug: slug.trim() } })
+            const res = await callAdminApi<{ profile: { name: string | null; profileSlug: string }; status: { name: string; level: number } | null; effective: PersonPerm[]; overrides: OverrideRow[] }>(
+                '/api/admin/hierarchy', { action: 'list_user_overrides', payload: { profileSlug: slug.trim() } })
             setOvLoaded(res.profile)
+            setOvStatus(res.status)
+            setEffective(res.effective)
             setOverrides(res.overrides)
         } catch (err: any) {
-            toast.error(err.message || 'Erro ao carregar exceções')
+            toast.error(err.message || 'Erro ao carregar permissões')
             setOvLoaded(null)
         } finally {
             setBusy(false)
         }
     }
-    const addOverride = async () => {
-        const ok = await run('set_user_permission', {
-            profileSlug: ovSlug, permission_slug: ovForm.permission, effect: ovForm.effect,
-            scope: ovForm.effect === 'grant' ? ovForm.scope : null,
-            expires_at: ovForm.expires ? new Date(`${ovForm.expires}T23:59:59`).toISOString() : null,
-            reason: ovForm.reason,
-        }, 'Exceção salva')
-        if (ok) loadOverrides()
+    const overrideOf = (permissionSlug: string) =>
+        overrides.find((o) => (Array.isArray(o.permissions) ? o.permissions[0] : o.permissions)?.slug === permissionSlug)
+    const takeAway = async (permissionSlug: string) => {
+        const ok = await run('set_user_permission', { profileSlug: ovSlug, permission_slug: permissionSlug, effect: 'revoke' }, 'Permissão retirada')
+        if (ok) loadPerson()
     }
-    const removeOverride = async (permissionSlug: string) => {
-        const ok = await run('remove_user_permission', { profileSlug: ovSlug, permission_slug: permissionSlug }, 'Exceção removida')
-        if (ok) loadOverrides()
+    const restore = async (permissionSlug: string) => {
+        const ok = await run('remove_user_permission', { profileSlug: ovSlug, permission_slug: permissionSlug }, 'Permissão restaurada')
+        if (ok) loadPerson()
     }
+
+    // ---------- rede de pessoas (quem convidou quem) ----------
+    const [summary, setSummary] = useState<NetworkSummary | null>(null)
+    const [search, setSearch] = useState('')
+    const [searchResults, setSearchResults] = useState<NetworkPerson[] | null>(null)
+    const [rootPeople, setRootPeople] = useState<NetworkPerson[]>([])
+    const [rootMore, setRootMore] = useState(true)
+    const [children, setChildren] = useState<Record<string, NetworkPerson[]>>({})
+    const [expanded, setExpanded] = useState<Set<string>>(new Set())
+    const [netBusy, setNetBusy] = useState(false)
+    const PAGE = 50
+
+    const fetchPeople = useCallback(async (payload: Record<string, unknown>) => {
+        const res = await callAdminApi<{ people: NetworkPerson[] }>('/api/admin/hierarchy', { action: 'list_network', payload })
+        return res.people
+    }, [])
+
+    const loadRoots = useCallback(async (reset: boolean, offset = 0) => {
+        setNetBusy(true)
+        try {
+            const people = await fetchPeople({ limit: PAGE, offset })
+            setRootPeople((prev) => (reset ? people : [...prev, ...people]))
+            setRootMore(people.length === PAGE)
+        } catch (err: any) {
+            toast.error(err.message || 'Erro ao carregar a rede')
+        } finally {
+            setNetBusy(false)
+        }
+    }, [fetchPeople])
+
+    useEffect(() => {
+        callAdminApi<{ summary: NetworkSummary }>('/api/admin/hierarchy', { action: 'network_summary', payload: {} })
+            .then((r) => setSummary(r.summary)).catch(() => {})
+        loadRoots(true)
+    }, [loadRoots])
+
+    useEffect(() => {
+        if (search.trim().length < 2) { setSearchResults(null); return }
+        const t = setTimeout(async () => {
+            setNetBusy(true)
+            try { setSearchResults(await fetchPeople({ search: search.trim(), limit: 50 })) }
+            catch (err: any) { toast.error(err.message || 'Erro na busca') }
+            finally { setNetBusy(false) }
+        }, 350)
+        return () => clearTimeout(t)
+    }, [search, fetchPeople])
+
+    const toggleNode = async (person: NetworkPerson) => {
+        const next = new Set(expanded)
+        if (next.has(person.id)) { next.delete(person.id); setExpanded(next); return }
+        next.add(person.id)
+        setExpanded(next)
+        if (!children[person.id]) {
+            try {
+                const kids = await fetchPeople({ parentId: person.id, limit: 200 })
+                setChildren((prev) => ({ ...prev, [person.id]: kids }))
+            } catch (err: any) { toast.error(err.message || 'Erro ao carregar convidados') }
+        }
+    }
+
+    const statusColor = (level: number) => level >= 4 ? '#dc2626' : level >= 1 ? '#f97316' : colors.textSecondary
+
+    const renderPerson = (person: NetworkPerson, depth: number, flat = false): React.ReactNode => (
+        <div key={person.id}>
+            <div className="flex items-center gap-2 py-1.5" style={{ paddingLeft: depth * 18 }}>
+                {!flat && person.children_count > 0 ? (
+                    <button onClick={() => toggleNode(person)} className="w-5 text-xs font-black flex-shrink-0" style={{ color: colors.accent }}>
+                        {expanded.has(person.id) ? '▾' : '▸'}
+                    </button>
+                ) : <span className="w-5 flex-shrink-0" />}
+                <span className="w-7 h-7 rounded-full overflow-hidden flex-shrink-0" style={{ background: `${colors.border}40` }}>
+                    {getAvatarUrl(supabase, person.avatar_url) && <img src={getAvatarUrl(supabase, person.avatar_url)} alt="" className="w-full h-full object-cover" />}
+                </span>
+                <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-bold truncate" style={{ color: colors.textPrimary }}>
+                        {person.name || `@${person.profile_slug}`}
+                        {person.profile_slug && <span className="font-medium text-[11px]" style={labelStyle}> @{person.profile_slug}</span>}
+                    </span>
+                    <span className="block text-[11px]" style={labelStyle}>
+                        {person.upline_id ? `convidado por ${person.upline_name || `@${person.upline_slug}`}` : 'entrou sem convite'}
+                        {' · '}{new Date(person.created_at).toLocaleDateString('pt-BR')}
+                        {person.children_count > 0 ? ` · convidou ${person.children_count}` : ''}
+                    </span>
+                </span>
+                <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full flex-shrink-0" style={{ background: `${statusColor(person.status_level)}20`, color: statusColor(person.status_level) }}>
+                    {person.status_name}
+                </span>
+                {person.profile_slug && (
+                    <button onClick={() => { setPersonSlug(person.profile_slug!); document.getElementById('hier-person-status')?.scrollIntoView({ behavior: 'smooth', block: 'center' }) }} className="text-[11px] font-bold flex-shrink-0" style={{ color: colors.accent }}>
+                        Status
+                    </button>
+                )}
+            </div>
+            {!flat && expanded.has(person.id) && (children[person.id] || []).map((c) => renderPerson(c, depth + 1))}
+            {!flat && expanded.has(person.id) && !children[person.id] && <p className="text-[11px]" style={{ ...labelStyle, paddingLeft: (depth + 1) * 18 + 20 }}>Carregando...</p>}
+        </div>
+    )
 
     if (loading) return <div className="flex justify-center py-8"><Spinner size={24} color={colors.accent} /></div>
 
@@ -148,8 +254,40 @@ export default function HierarchyAdmin({ cardStyle, colors }: Props) {
 
     return (
         <div className="space-y-5">
-            {/* Status de uma pessoa */}
+            {/* Rede: todas as pessoas e quem convidou quem */}
             <div style={cardStyle} className="space-y-3">
+                {heading('Rede de pessoas', 'Todas as contas do iUser e quem convidou quem. Toque na seta para ver os convidados de cada pessoa.')}
+                {summary && (
+                    <div className="flex flex-wrap gap-2">
+                        <span className="text-[11px] font-bold px-3 py-1.5 rounded-full" style={{ background: `${colors.accent}20`, color: colors.accent }}>{summary.total} pessoas</span>
+                        <span className="text-[11px] font-bold px-3 py-1.5 rounded-full" style={{ background: `${colors.border}40`, color: colors.textPrimary }}>{summary.invited} vieram por convite</span>
+                        <span className="text-[11px] font-bold px-3 py-1.5 rounded-full" style={{ background: `${colors.border}40`, color: colors.textPrimary }}>{summary.roots} sem convite</span>
+                        {summary.by_status.filter((b) => b.level > 0).map((b) => (
+                            <span key={b.slug} className="text-[11px] font-bold px-3 py-1.5 rounded-full" style={{ background: `${statusColor(b.level)}20`, color: statusColor(b.level) }}>{b.name}: {b.count}</span>
+                        ))}
+                    </div>
+                )}
+                <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por nome ou @slug" style={{ ...inputStyle, width: '100%' }} />
+                <div className="max-h-[480px] overflow-y-auto">
+                    {searchResults ? (
+                        searchResults.length === 0
+                            ? <p className="text-xs py-2" style={labelStyle}>Ninguém encontrado.</p>
+                            : searchResults.map((p) => renderPerson(p, 0, true))
+                    ) : (
+                        <>
+                            {rootPeople.map((p) => renderPerson(p, 0))}
+                            {rootMore && (
+                                <button onClick={() => loadRoots(false, rootPeople.length)} disabled={netBusy} className="text-xs font-bold py-2" style={{ color: colors.accent }}>
+                                    {netBusy ? 'Carregando...' : 'Carregar mais'}
+                                </button>
+                            )}
+                        </>
+                    )}
+                </div>
+            </div>
+
+            {/* Status de uma pessoa */}
+            <div id="hier-person-status" style={cardStyle} className="space-y-3">
                 {heading('Status de uma pessoa', 'Define a posição na hierarquia; as permissões vêm do status (e das exceções abaixo).')}
                 <div className="flex flex-wrap gap-2 items-center">
                     <input value={personSlug} onChange={(e) => setPersonSlug(e.target.value)} placeholder="@slug do perfil" style={{ ...inputStyle, flex: 1, minWidth: 140 }} />
@@ -254,48 +392,53 @@ export default function HierarchyAdmin({ cardStyle, colors }: Props) {
                 </div>
             </div>
 
-            {/* Exceções por pessoa */}
+            {/* Permissões de uma pessoa: só dá pra tirar */}
             <div style={cardStyle} className="space-y-3">
-                {heading('Exceções por pessoa', 'Soma ou revoga uma permissão de uma pessoa específica, sem mudar o status dela.')}
+                {heading('Exceções por pessoa', 'Retire permissões de uma pessoa específica sem mudar o status dela. Para devolver, use "Restaurar".')}
                 <div className="flex flex-wrap gap-2 items-center">
                     <input value={ovSlug} onChange={(e) => { setOvSlug(e.target.value); setOvLoaded(null) }} placeholder="@slug do perfil" style={{ ...inputStyle, flex: 1, minWidth: 140 }} />
-                    <button onClick={() => loadOverrides()} disabled={busy || !ovSlug.trim()} className={btn} style={{ background: GRADIENT }}>Carregar</button>
+                    <button onClick={() => loadPerson()} disabled={busy || !ovSlug.trim()} className={btn} style={{ background: GRADIENT }}>Carregar</button>
                 </div>
                 {ovLoaded && (
-                    <>
-                        <p className="text-xs font-bold" style={{ color: colors.textPrimary }}>{ovLoaded.name || `@${ovLoaded.profileSlug}`}</p>
-                        {overrides.length === 0 ? (
-                            <p className="text-xs" style={labelStyle}>Nenhuma exceção.</p>
-                        ) : overrides.map((o, i) => {
-                            const perm = Array.isArray(o.permissions) ? o.permissions[0] : o.permissions
+                    <div className="space-y-2">
+                        <p className="text-xs font-bold" style={{ color: colors.textPrimary }}>
+                            {ovLoaded.name || `@${ovLoaded.profileSlug}`}
+                            {ovStatus && <span className="font-medium" style={labelStyle}> · {ovStatus.name} (nível {ovStatus.level})</span>}
+                        </p>
+
+                        <p className="text-[10px] font-black uppercase tracking-wider" style={labelStyle}>Permissões atuais</p>
+                        {effective.length === 0 ? (
+                            <p className="text-xs" style={labelStyle}>Essa pessoa não tem nenhuma permissão de gestão.</p>
+                        ) : effective.map((e) => {
+                            const ov = overrideOf(e.slug)
                             return (
-                                <div key={i} className="flex items-center gap-2 text-sm" style={{ color: colors.textPrimary }}>
-                                    <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full" style={{ background: o.effect === 'grant' ? '#22c55e20' : '#ef444420', color: o.effect === 'grant' ? '#22c55e' : '#ef4444' }}>
-                                        {o.effect === 'grant' ? 'Concede' : 'Revoga'}
-                                    </span>
-                                    <span>{perm?.name}{o.scope ? ` · ${SCOPE_LABEL[o.scope]}` : ''}{o.expires_at ? ` · até ${new Date(o.expires_at).toLocaleDateString('pt-BR')}` : ''}</span>
-                                    <button onClick={() => perm && removeOverride(perm.slug)} disabled={busy} className="ml-auto text-[11px] font-bold" style={{ color: '#ef4444' }}>Remover</button>
+                                <div key={e.slug} className="flex items-center gap-2 text-sm" style={{ color: colors.textPrimary }}>
+                                    <span>{e.name}</span>
+                                    <span className="text-[11px]" style={labelStyle}>{SCOPE_LABEL[e.scope]}</span>
+                                    {ov?.effect === 'grant' ? (
+                                        <button onClick={() => restore(e.slug)} disabled={busy} className="ml-auto text-[11px] font-bold" style={{ color: '#ef4444' }}>Remover</button>
+                                    ) : (
+                                        <button onClick={() => takeAway(e.slug)} disabled={busy} className="ml-auto text-[11px] font-bold px-2.5 py-1 rounded-full" style={{ background: '#ef444420', color: '#ef4444' }}>Tirar</button>
+                                    )}
                                 </div>
                             )
                         })}
-                        <div className="flex flex-wrap gap-2 items-center pt-2" style={{ borderTop: `1px solid ${colors.border}` }}>
-                            <select value={ovForm.permission} onChange={(e) => setOvForm({ ...ovForm, permission: e.target.value })} style={inputStyle}>
-                                {permissions.map((p) => <option key={p.slug} value={p.slug}>{p.name}</option>)}
-                            </select>
-                            <select value={ovForm.effect} onChange={(e) => setOvForm({ ...ovForm, effect: e.target.value })} style={inputStyle}>
-                                <option value="grant">Conceder</option>
-                                <option value="revoke">Revogar</option>
-                            </select>
-                            {ovForm.effect === 'grant' && (
-                                <select value={ovForm.scope} onChange={(e) => setOvForm({ ...ovForm, scope: e.target.value as PermissionScope })} style={inputStyle}>
-                                    {SCOPES.map((sc) => <option key={sc} value={sc}>{SCOPE_LABEL[sc]}</option>)}
-                                </select>
-                            )}
-                            <input type="date" value={ovForm.expires} onChange={(e) => setOvForm({ ...ovForm, expires: e.target.value })} style={inputStyle} title="Validade (opcional)" />
-                            <input value={ovForm.reason} onChange={(e) => setOvForm({ ...ovForm, reason: e.target.value })} placeholder="Motivo" style={{ ...inputStyle, flex: 1, minWidth: 120 }} />
-                            <button onClick={addOverride} disabled={busy} className={btn} style={{ background: GRADIENT }}>Salvar exceção</button>
-                        </div>
-                    </>
+
+                        {overrides.some((o) => o.effect === 'revoke') && (
+                            <>
+                                <p className="text-[10px] font-black uppercase tracking-wider pt-2" style={labelStyle}>Retiradas</p>
+                                {overrides.filter((o) => o.effect === 'revoke').map((o, i) => {
+                                    const perm = Array.isArray(o.permissions) ? o.permissions[0] : o.permissions
+                                    return (
+                                        <div key={i} className="flex items-center gap-2 text-sm" style={{ color: colors.textPrimary }}>
+                                            <span className="line-through opacity-70">{perm?.name}</span>
+                                            <button onClick={() => perm && restore(perm.slug)} disabled={busy} className="ml-auto text-[11px] font-bold" style={{ color: colors.accent }}>Restaurar</button>
+                                        </div>
+                                    )
+                                })}
+                            </>
+                        )}
+                    </div>
                 )}
             </div>
         </div>
