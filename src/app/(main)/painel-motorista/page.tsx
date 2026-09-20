@@ -481,7 +481,7 @@ function PainelMotoristaContent() {
 
             setDriverModeActive(next)
             if (next) {
-                toast.success('Modo motorista ativado!')
+                toast.success('/Aceitar-corridas ligado!')
                 // Ativando com cadastro incompleto: abre o wizard guiado em
                 // vez de deixar a pessoa perdida numa página cheia de campos.
                 if (!hasCompleteVehicle) {
@@ -489,7 +489,7 @@ function PainelMotoristaContent() {
                     setWizardStep(1)
                 }
             } else {
-                toast.success('Modo motorista desativado.')
+                toast.success('/Aceitar-corridas desligado.')
                 setShowActivationWizard(false)
             }
         } catch (err: any) {
@@ -627,7 +627,7 @@ function PainelMotoristaContent() {
                                 </div>
                                 <div className="flex-1 min-w-0 text-left">
                                     <span className="text-sm font-black flex items-center gap-1.5" style={{ color: colors.textPrimary }}>
-                                        {driverModeActive ? 'Desativar modo motorista' : 'Ativar modo motorista'}
+                                        {driverModeActive ? 'Desligar /Aceitar-corridas' : 'Ligar /Aceitar-corridas'}
                                         {driverStatus === 'incomplete' && (
                                             <span
                                                 className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-full"
@@ -638,9 +638,9 @@ function PainelMotoristaContent() {
                                         )}
                                     </span>
                                     <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>
-                                        {driverStatus === 'active' && 'Ativado — você vê as corridas em tempo real e aparece no mapa do passageiro assim que se candidatar a um pedido'}
-                                        {driverStatus === 'incomplete' && 'Quase lá! Complete seu cadastro pra aparecer disponível pros passageiros'}
-                                        {driverStatus === 'inactive' && 'Ative pra ver as corridas disponíveis em tempo real e poder se candidatar aos pedidos'}
+                                        {driverStatus === 'active' && 'Ligado — você já pode aceitar corridas: vê os pedidos em tempo real e aparece no mapa do passageiro assim que se candidatar'}
+                                        {driverStatus === 'incomplete' && 'Quase lá! Você poderá aceitar as corridas quando completar o cadastro'}
+                                        {driverStatus === 'inactive' && 'Você poderá aceitar as corridas quando tiver o cadastro completo (veículo, fotos e tarifa). Ligue pra ver os pedidos em tempo real'}
                                     </p>
                                 </div>
                                 <div
@@ -1312,7 +1312,7 @@ function PainelMotoristaContent() {
                         </div>
                         <h2 className="text-lg font-black" style={{ color: colors.textPrimary }}>Carro cadastrado!</h2>
                         <p className="text-sm" style={{ color: colors.textSecondary }}>
-                            Ative o modo motorista aqui em cima pra aparecer disponível, e vá pra tela de corridas — lá você vê os pedidos em tempo real e pode se candidatar.
+                            Ligue o /Aceitar-corridas aqui em cima pra aparecer disponível, e vá pra tela de corridas — lá você vê os pedidos em tempo real e pode se candidatar.
                         </p>
                         <button
                             onClick={() => { setShowFirstVehicleDialog(false); router.push('/aceitar-corridas') }}
