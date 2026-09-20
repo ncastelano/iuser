@@ -22,7 +22,7 @@ async function asaasFetch<T>(path: string, init?: RequestInit): Promise<T> {
     const data = await res.json().catch(() => null)
     if (!res.ok) {
         const message = data?.errors?.[0]?.description || `Asaas ${path} falhou (${res.status})`
-        throw new Error(message)
+        throw Object.assign(new Error(message), { status: res.status })
     }
     return data as T
 }
@@ -166,7 +166,13 @@ export async function getPixQrCodeForPayment(paymentId: string): Promise<AsaasPi
 // Cancela a assinatura recorrente na Asaas — usado ao excluir a conta, pra
 // não continuar cobrando de quem já não existe mais.
 export async function cancelSubscription(subscriptionId: string): Promise<void> {
-    await asaasFetch(`/subscriptions/${subscriptionId}`, { method: 'DELETE' })
+    try {
+        await asaasFetch(`/subscriptions/${subscriptionId}`, { method: 'DELETE' })
+    } catch (err: any) {
+        // Já não existe na Asaas (cancelada/removida) = objetivo cumprido.
+        if (err?.status === 404) return
+        throw err
+    }
 }
 
 export async function getSubscription(subscriptionId: string): Promise<AsaasSubscription> {

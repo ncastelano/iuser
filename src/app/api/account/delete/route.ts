@@ -61,12 +61,22 @@ export async function POST(req: Request) {
         .eq('user_id', user.id)
         .not('asaas_subscription_id', 'is', null)
         .in('status', ['pending', 'active', 'past_due'])
+    // Se a Asaas recusar (chave inválida, fora do ar...), a exclusão NÃO fica
+    // presa: o cancelamento vai pra fila de pendentes e é refeito depois
+    // (/api/admin/asaas/retry-cancellations).
+    let pendingCancellations = 0
     for (const sub of subs || []) {
         try {
             await cancelSubscription(sub.asaas_subscription_id as string)
-        } catch (err) {
-            console.error('Erro ao cancelar assinatura Asaas na exclusão de conta:', err)
-            return NextResponse.json({ error: 'Não consegui cancelar sua assinatura na Asaas. Tente de novo em instantes.' }, { status: 502 })
+        } catch (err: any) {
+            pendingCancellations += 1
+            console.error('Erro ao cancelar assinatura Asaas na exclusão de conta:', err?.message)
+            await supabaseAdmin
+                .from('asaas_pending_cancellations')
+                .upsert(
+                    { asaas_subscription_id: sub.asaas_subscription_id, user_id: user.id, last_error: String(err?.message || err).slice(0, 300) },
+                    { onConflict: 'asaas_subscription_id' }
+                )
         }
     }
 
@@ -82,5 +92,5 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: authDeleteError.message }, { status: 500 })
     }
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json({ success: true, pendingCancellations })
 }
