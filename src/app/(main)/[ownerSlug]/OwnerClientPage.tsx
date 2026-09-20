@@ -12,12 +12,13 @@ import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import Header from '@/components/Header'
 import { useMerchantStore } from '@/store/useMerchantStore'
-import { User, Store as StoreIcon, LayoutDashboard, Home, Shield, Crown } from 'lucide-react'
+import { User, Store as StoreIcon, LayoutDashboard, Home, Shield, Gift } from 'lucide-react'
 import type { Tab } from '@/components/Header'
 import ProfileDashboard from '@/components/ProfileDashboard/ProfileDashboard'
 import StoreDashboard from '@/components/StoreDashboard/StoreDashboard'
 import AdminDashboard from '@/components/AdminDashboard/AdminDashboard'
-import LiderMotoristaDashboard from '@/components/LiderMotoristaDashboard/LiderMotoristaDashboard'
+import BenefitsManagement from '@/components/BenefitsManagement/BenefitsManagement'
+import { hasAnyGrantPermission, type MyStatus } from '@/lib/benefits/types'
 import { Profile } from './Profile'
 import { Store } from './Store'
 import { usePublicationsStore } from '@/store/usePublicationStore'
@@ -70,8 +71,8 @@ export default function OwnerClientPage() {
     const [showPublications, setShowPublications] = useState(false)
     const [showAdminDashboard, setShowAdminDashboard] = useState(false)
     const [isSuperAdmin, setIsSuperAdmin] = useState(false)
-    const [showLiderMotoristaDashboard, setShowLiderMotoristaDashboard] = useState(false)
-    const [isDriverLeader, setIsDriverLeader] = useState(false)
+    const [showBenefits, setShowBenefits] = useState(false)
+    const [canManageBenefits, setCanManageBenefits] = useState(false)
     const [storeDialogOpen, setStoreDialogOpen] = useState(false)
 
     const pendingInvitesCount = useMerchantStore(s => s.pendingInvitesCount)
@@ -87,7 +88,7 @@ export default function OwnerClientPage() {
         setShowProfile(false)
         setShowStoreDashboard(null)
         setShowAdminDashboard(false)
-        setShowLiderMotoristaDashboard(false)
+        setShowBenefits(false)
     }, [publicationsStore])
 
     // ========== FUNÇÃO PARA ABRIR CATÁLOGO ==========
@@ -211,19 +212,14 @@ export default function OwnerClientPage() {
 
     useEffect(() => {
         if (!userId) {
-            setIsDriverLeader(false)
+            setCanManageBenefits(false)
             return
         }
 
         let cancelled = false
-        supabase
-            .from('profiles')
-            .select('is_lider_motorista')
-            .eq('id', userId)
-            .maybeSingle()
-            .then(({ data }) => {
-                if (!cancelled) setIsDriverLeader(!!data?.is_lider_motorista)
-            })
+        supabase.rpc('get_my_status').then(({ data }) => {
+            if (!cancelled) setCanManageBenefits(hasAnyGrantPermission((data as MyStatus) || null))
+        })
 
         return () => { cancelled = true }
     }, [userId])
@@ -234,7 +230,7 @@ export default function OwnerClientPage() {
         setShowStoreDashboard(null)
         setShowPublications(false)
         setShowAdminDashboard(false)
-        setShowLiderMotoristaDashboard(false)
+        setShowBenefits(false)
     }
 
     const handleStoreDashboardClick = (storeSlug: string, storeName: string) => {
@@ -242,7 +238,7 @@ export default function OwnerClientPage() {
         setShowProfile(false)
         setShowPublications(false)
         setShowAdminDashboard(false)
-        setShowLiderMotoristaDashboard(false)
+        setShowBenefits(false)
     }
 
     const handleAdminClick = () => {
@@ -250,11 +246,11 @@ export default function OwnerClientPage() {
         setShowProfile(false)
         setShowStoreDashboard(null)
         setShowPublications(false)
-        setShowLiderMotoristaDashboard(false)
+        setShowBenefits(false)
     }
 
-    const handleLiderMotoristaClick = () => {
-        setShowLiderMotoristaDashboard(true)
+    const handleBenefitsClick = () => {
+        setShowBenefits(true)
         setShowProfile(false)
         setShowStoreDashboard(null)
         setShowPublications(false)
@@ -266,7 +262,7 @@ export default function OwnerClientPage() {
         setShowStoreDashboard(null)
         setShowPublications(false)
         setShowAdminDashboard(false)
-        setShowLiderMotoristaDashboard(false)
+        setShowBenefits(false)
         // Voltar para a URL base quando fechar
         router.replace(`/${ownerSlug}`, { scroll: false })
     }
@@ -305,14 +301,14 @@ export default function OwnerClientPage() {
             })
         }
 
-        if (isDriverLeader) {
+        if (canManageBenefits) {
             allTabs.push({
-                id: 'lider-motorista',
-                label: 'Líder Motorista',
-                icon: Crown as any,
+                id: 'gestao-beneficios',
+                label: 'Gestão de Benefícios',
+                icon: Gift as any,
                 imageUrl: null,
-                onClick: handleLiderMotoristaClick,
-                isActive: showLiderMotoristaDashboard,
+                onClick: handleBenefitsClick,
+                isActive: showBenefits,
             })
         }
 
@@ -360,7 +356,7 @@ export default function OwnerClientPage() {
         }
 
         return allTabs
-    }, [loggedUserSlug, profileLoading, loggedUserAvatarUrl, stores, loadingStores, storeOrderCounts, pendingInvitesCount, profileOpenNow, showProfile, showStoreDashboard, isSuperAdmin, showAdminDashboard, isDriverLeader, showLiderMotoristaDashboard, router])
+    }, [loggedUserSlug, profileLoading, loggedUserAvatarUrl, stores, loadingStores, storeOrderCounts, pendingInvitesCount, profileOpenNow, showProfile, showStoreDashboard, isSuperAdmin, showAdminDashboard, canManageBenefits, showBenefits, router])
 
     // ========== CARREGAR DADOS ==========
     useEffect(() => {
@@ -502,9 +498,9 @@ export default function OwnerClientPage() {
                     <div className="w-full px-4 md:px-6 py-6">
                         <AdminDashboard />
                     </div>
-                ) : showLiderMotoristaDashboard ? (
+                ) : showBenefits ? (
                     <div className="w-full px-4 md:px-6 py-6">
-                        <LiderMotoristaDashboard />
+                        <BenefitsManagement />
                     </div>
                 ) : showPublications ? (
                     <PublicationsListView

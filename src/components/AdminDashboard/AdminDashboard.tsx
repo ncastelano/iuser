@@ -91,7 +91,7 @@ export default function AdminDashboard() {
                     <PlanManageSection cardStyle={cardStyle} colors={colors} />
                     <PlanPricingSection cardStyle={cardStyle} colors={colors} />
                     <PlanGrantsSection cardStyle={cardStyle} colors={colors} />
-                    <DriverLeaderRoleSection cardStyle={cardStyle} colors={colors} />
+                    <UserStatusSection cardStyle={cardStyle} colors={colors} />
                     <PlanCodesSection cardStyle={cardStyle} colors={colors} />
                 </div>
             )}
@@ -137,7 +137,7 @@ const SUBSCRIPTION_SOURCE_LABEL: Record<SubscriptionRow['source'], string> = {
     asaas: 'Pago via Asaas',
     admin_grant: 'Concedido pelo admin',
     code: 'Código promocional',
-    leader_grant: 'Concedido por líder de motoristas',
+    leader_grant: 'Concedido por liderança',
 }
 
 // Quem comprou (ou ganhou) cada plano — visão de negócio pro admin: quantos
@@ -895,6 +895,17 @@ function PlanGrantsSection({ cardStyle, colors }: SectionProps) {
     const [planCode, setPlanCode] = useState('combo')
     const [days, setDays] = useState('30')
     const [granting, setGranting] = useState(false)
+    // Só os planos que esse usuário pode conceder (o banco decide, pela
+    // permissão dele) — a lista deixou de ser fixa no código.
+    const [grantable, setGrantable] = useState<{ code: string; name: string }[]>([])
+
+    useEffect(() => {
+        supabase.rpc('get_my_grantable_plans').then(({ data }) => {
+            const list = (data as { code: string; name: string }[]) || []
+            setGrantable(list)
+            if (list.length > 0) setPlanCode((prev) => (list.some((p) => p.code === prev) ? prev : list[0].code))
+        })
+    }, [])
 
     const handlePlanCodeChange = (code: string) => {
         setPlanCode(code)
@@ -946,8 +957,8 @@ function PlanGrantsSection({ cardStyle, colors }: SectionProps) {
                     style={{ ...inputStyle, flex: 1, minWidth: 140 }}
                 />
                 <select value={planCode} onChange={(e) => handlePlanCodeChange(e.target.value)} style={inputStyle}>
-                    {GRANT_PLAN_OPTIONS.map((p) => (
-                        <option key={p.code} value={p.code}>{p.label}</option>
+                    {grantable.map((p) => (
+                        <option key={p.code} value={p.code}>{p.name}</option>
                     ))}
                 </select>
                 <input
@@ -971,27 +982,32 @@ function PlanGrantsSection({ cardStyle, colors }: SectionProps) {
     )
 }
 
-// Concede o papel de "Líder de Motoristas" — quem tem esse papel ganha uma
-// aba própria e pode conceder o plano motorista sem cobrar, mas só pra
-// quem ele mesmo convidou (ver grant_driver_plan_as_leader no banco).
-function DriverLeaderRoleSection({ cardStyle, colors }: SectionProps) {
+// Define o status hierárquico (Usuário, Líder, Supervisor, Gestor, Administrador)
+// de uma pessoa. As permissões de cada status vêm do banco — aqui só se escolhe
+// o status. Quem pode mudar o quê é decidido no servidor (manage_leaders + nível).
+function UserStatusSection({ cardStyle, colors }: SectionProps) {
     const [slug, setSlug] = useState('')
-    const [granting, setGranting] = useState<'grant' | 'revoke' | null>(null)
+    const [statuses, setStatuses] = useState<{ slug: string; name: string; level: number }[]>([])
+    const [statusSlug, setStatusSlug] = useState('lider')
+    const [saving, setSaving] = useState(false)
 
-    const setLeader = async (isLeader: boolean) => {
+    useEffect(() => {
+        supabase.from('user_statuses').select('slug, name, level').eq('is_active', true).order('level')
+            .then(({ data }) => setStatuses(data || []))
+    }, [])
+
+    const apply = async () => {
         if (!slug.trim()) return
-        setGranting(isLeader ? 'grant' : 'revoke')
+        setSaving(true)
         try {
-            await callAdminApi('/api/admin/roles/grant-driver-leader', {
-                profileSlug: slug.trim(),
-                isLeader,
-            })
-            toast.success(isLeader ? `@${slug.trim()} agora é líder de motoristas!` : `Papel de líder removido de @${slug.trim()}`)
+            await callAdminApi('/api/admin/statuses/set-user-status', { profileSlug: slug.trim(), statusSlug })
+            const name = statuses.find((s) => s.slug === statusSlug)?.name || statusSlug
+            toast.success(`@${slug.trim().replace(/^@/, '')} agora é ${name}`)
             setSlug('')
         } catch (err: any) {
-            toast.error(err.message || 'Erro ao atualizar papel')
+            toast.error(err.message || 'Erro ao atualizar status')
         } finally {
-            setGranting(null)
+            setSaving(false)
         }
     }
 
@@ -1007,10 +1023,10 @@ function DriverLeaderRoleSection({ cardStyle, colors }: SectionProps) {
     return (
         <div style={cardStyle} className="space-y-3">
             <p className="text-xs font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>
-                Conceder papel de Líder de Motoristas
+                Status hierárquico
             </p>
             <p className="text-xs" style={{ color: colors.textSecondary }}>
-                Um líder ganha uma aba própria e pode conceder o plano motorista sem cobrar — só pra quem ele mesmo convidou.
+                O status define as permissões e o escopo da pessoa (ex: Líder concede Motorista só a quem convidou). Ela ganha a aba Gestão de Benefícios.
             </p>
             <div className="flex flex-wrap gap-2 items-center">
                 <input
@@ -1019,21 +1035,18 @@ function DriverLeaderRoleSection({ cardStyle, colors }: SectionProps) {
                     placeholder="@slug do perfil"
                     style={{ ...inputStyle, flex: 1, minWidth: 140 }}
                 />
+                <select value={statusSlug} onChange={(e) => setStatusSlug(e.target.value)} style={inputStyle}>
+                    {statuses.map((s) => (
+                        <option key={s.slug} value={s.slug}>{s.name} (nível {s.level})</option>
+                    ))}
+                </select>
                 <button
-                    onClick={() => setLeader(true)}
-                    disabled={granting !== null || !slug.trim()}
+                    onClick={apply}
+                    disabled={saving || !slug.trim()}
                     className="px-4 py-2 rounded-xl font-bold text-xs text-white disabled:opacity-50"
-                    style={{ background: colors.accent }}
+                    style={{ background: 'linear-gradient(135deg, #f97316, #dc2626)' }}
                 >
-                    {granting === 'grant' ? <Spinner size={14} /> : 'Tornar líder'}
-                </button>
-                <button
-                    onClick={() => setLeader(false)}
-                    disabled={granting !== null || !slug.trim()}
-                    className="px-4 py-2 rounded-xl font-bold text-xs disabled:opacity-50"
-                    style={{ background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
-                >
-                    {granting === 'revoke' ? <Spinner size={14} /> : 'Remover'}
+                    {saving ? <Spinner size={14} /> : 'Definir status'}
                 </button>
             </div>
         </div>
