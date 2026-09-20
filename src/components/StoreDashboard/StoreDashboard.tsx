@@ -759,25 +759,32 @@ export default function StoreDashboard({
             {/* ===== Informações da Loja ===== */}
             <StoreAddress address={store.address} whatsapp={store.whatsapp} />
 
-            {/* ===== Excluir loja ===== */}
-            <div
-                className="rounded-2xl p-4 flex flex-col gap-3"
-                style={{ background: '#ef444410', border: '1px solid #ef444450' }}
+            {/* ===== Agendamentos ===== */}
+            <AtalhoCompromissosDaLoja profileSlug={profileSlug} />
+
+            {/* ===== Publicações ===== */}
+            <Publication storeId={store.id} />
+
+            {/* ===== Club VIP ===== */}
+            <StoreClubVip storeId={store.id} />
+
+            {/* ===== Visitantes ===== */}
+            <StoreVisitors storeId={store.id} />
+
+            {/* ===== Excluir loja (no final, mesmo design do Excluir conta) ===== */}
+            <button
+                onClick={() => setShowDeleteStore(true)}
+                style={{
+                    ...pillButtonFullStyle,
+                    background: 'transparent',
+                    color: '#ef4444',
+                    border: '1px solid #ef444460',
+                    width: '100%',
+                }}
+                className="hover:scale-105 transition-transform active:scale-95"
             >
-                <div>
-                    <p className="text-sm font-black" style={{ color: '#ef4444' }}>Excluir loja</p>
-                    <p className="text-[11px]" style={{ color: colors.textSecondary }}>
-                        Apaga a loja, produtos, pedidos e publicações. Pede a sua senha e não dá pra desfazer.
-                    </p>
-                </div>
-                <button
-                    onClick={() => setShowDeleteStore(true)}
-                    className="w-full py-3 rounded-full text-xs font-black uppercase tracking-wider text-white"
-                    style={{ background: 'linear-gradient(135deg, #f97316, #dc2626)' }}
-                >
-                    Excluir loja
-                </button>
-            </div>
+                Excluir loja
+            </button>
 
             {showDeleteStore && (
                 <DeleteConfirmDialog
@@ -791,18 +798,6 @@ export default function StoreDashboard({
                     onClose={() => setShowDeleteStore(false)}
                 />
             )}
-
-            {/* ===== Agendamentos ===== */}
-            <AtalhoCompromissosDaLoja profileSlug={profileSlug} />
-
-            {/* ===== Publicações ===== */}
-            <Publication storeId={store.id} />
-
-            {/* ===== Club VIP ===== */}
-            <StoreClubVip storeId={store.id} />
-
-            {/* ===== Visitantes ===== */}
-            <StoreVisitors storeId={store.id} />
 
             {extractPeriod && (
                 <StoreSalesExtractDialog
