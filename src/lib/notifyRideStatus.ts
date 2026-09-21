@@ -29,3 +29,15 @@ export function notifyNewRide(rideRequestId: string) {
         }).catch(() => { /* silencioso */ })
     })
 }
+
+// Best-effort: avisa o perfil/loja que alguém começou a seguir.
+export function notifyNewFollower(followingId: string) {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+        if (!session) return
+        fetch('/api/follows/notify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+            body: JSON.stringify({ followingId }),
+        }).catch(() => { /* silencioso */ })
+    })
+}

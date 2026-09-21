@@ -2,6 +2,7 @@
 
 'use client'
 
+import { notifyNewFollower } from '@/lib/notifyRideStatus'
 import { useEffect, useRef, useState } from 'react'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
@@ -1091,7 +1092,7 @@ export default function MapPage() {
         if (wasFollowing) {
             await supabase.from('follows').delete().eq('follower_id', userId).eq('following_id', selectedItem.id)
         } else {
-            await supabase.from('follows').insert({ follower_id: userId, following_id: selectedItem.id })
+            { const { error: fe } = await supabase.from('follows').insert({ follower_id: userId, following_id: selectedItem.id }); if (!fe) notifyNewFollower(selectedItem.id) }
         }
     }
 

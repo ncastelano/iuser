@@ -1,6 +1,7 @@
 // src/components/owner/Store.tsx
 'use client'
 
+import { notifyNewFollower } from '@/lib/notifyRideStatus'
 import { useCallback, useEffect, useState, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
@@ -606,7 +607,7 @@ export function Store({
         } else {
             setIsFollowing(true)
             setFollowersCount(prev => prev + 1)
-            await supabase.from('follows').insert({ follower_id: currentUserId, following_id: owner.id })
+            { const { error: fe } = await supabase.from('follows').insert({ follower_id: currentUserId, following_id: owner.id }); if (!fe) notifyNewFollower(owner.id) }
         }
     }
 
