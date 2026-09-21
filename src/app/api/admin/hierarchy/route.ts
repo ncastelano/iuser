@@ -35,6 +35,7 @@ export async function POST(req: Request) {
                 p_search: typeof payload?.search === 'string' ? payload.search.slice(0, 60) : null,
                 p_limit: Math.min(Number(payload?.limit) || 50, 200),
                 p_offset: Math.max(Number(payload?.offset) || 0, 0),
+                p_filter: typeof payload?.filter === 'string' ? payload.filter.slice(0, 50) : 'all',
             })
             if (error) return NextResponse.json({ error: error.message }, { status: 500 })
             return NextResponse.json({ people: data || [] })

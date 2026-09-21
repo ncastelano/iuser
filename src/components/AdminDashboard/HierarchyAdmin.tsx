@@ -22,6 +22,7 @@ interface NetworkPerson {
     id: string; name: string | null; profile_slug: string | null; avatar_url: string | null; created_at: string
     upline_id: string | null; upline_name: string | null; upline_slug: string | null
     status_slug: string; status_name: string; status_level: number; children_count: number
+    active_plans: string[]
 }
 interface NetworkSummary { total: number; roots: number; invited: number; by_status: { slug: string; name: string; level: number; count: number }[] }
 interface OverrideRow { effect: 'grant' | 'revoke'; scope: PermissionScope | null; expires_at: string | null; reason: string | null; permissions: { slug: string; name: string } | { slug: string; name: string }[] | null }
@@ -147,10 +148,14 @@ export default function HierarchyAdmin({ cardStyle, colors }: Props) {
 
     // ---------- rede de pessoas (quem convidou quem) ----------
     const [summary, setSummary] = useState<NetworkSummary | null>(null)
+    // Visão: 'all' (todos) | 'invited' | 'roots' | `status:<slug>` | 'tree' (árvore de convites)
+    const [view, setView] = useState<string>('all')
     const [search, setSearch] = useState('')
     const [searchResults, setSearchResults] = useState<NetworkPerson[] | null>(null)
+    const [flatPeople, setFlatPeople] = useState<NetworkPerson[]>([])
+    const [flatMore, setFlatMore] = useState(false)
     const [rootPeople, setRootPeople] = useState<NetworkPerson[]>([])
-    const [rootMore, setRootMore] = useState(true)
+    const [rootMore, setRootMore] = useState(false)
     const [children, setChildren] = useState<Record<string, NetworkPerson[]>>({})
     const [expanded, setExpanded] = useState<Set<string>>(new Set())
     const [netBusy, setNetBusy] = useState(false)
@@ -161,10 +166,25 @@ export default function HierarchyAdmin({ cardStyle, colors }: Props) {
         return res.people
     }, [])
 
+    // Lista plana (todos / por convite / sem convite / por status).
+    const loadFlat = useCallback(async (filter: string, reset: boolean, offset = 0) => {
+        setNetBusy(true)
+        try {
+            const people = await fetchPeople({ filter, limit: PAGE, offset })
+            setFlatPeople((prev) => (reset ? people : [...prev, ...people]))
+            setFlatMore(people.length === PAGE)
+        } catch (err: any) {
+            toast.error(err.message || 'Erro ao carregar a rede')
+        } finally {
+            setNetBusy(false)
+        }
+    }, [fetchPeople])
+
+    // Árvore: só as raízes (quem entrou sem convite); os convidados abrem sob demanda.
     const loadRoots = useCallback(async (reset: boolean, offset = 0) => {
         setNetBusy(true)
         try {
-            const people = await fetchPeople({ limit: PAGE, offset })
+            const people = await fetchPeople({ filter: 'roots', limit: PAGE, offset })
             setRootPeople((prev) => (reset ? people : [...prev, ...people]))
             setRootMore(people.length === PAGE)
         } catch (err: any) {
@@ -177,19 +197,23 @@ export default function HierarchyAdmin({ cardStyle, colors }: Props) {
     useEffect(() => {
         callAdminApi<{ summary: NetworkSummary }>('/api/admin/hierarchy', { action: 'network_summary', payload: {} })
             .then((r) => setSummary(r.summary)).catch(() => {})
-        loadRoots(true)
-    }, [loadRoots])
+    }, [])
+
+    useEffect(() => {
+        if (view === 'tree') loadRoots(true)
+        else loadFlat(view, true)
+    }, [view, loadFlat, loadRoots])
 
     useEffect(() => {
         if (search.trim().length < 2) { setSearchResults(null); return }
         const t = setTimeout(async () => {
             setNetBusy(true)
-            try { setSearchResults(await fetchPeople({ search: search.trim(), limit: 50 })) }
+            try { setSearchResults(await fetchPeople({ search: search.trim(), filter: view === 'tree' ? 'all' : view, limit: 100 })) }
             catch (err: any) { toast.error(err.message || 'Erro na busca') }
             finally { setNetBusy(false) }
         }, 350)
         return () => clearTimeout(t)
-    }, [search, fetchPeople])
+    }, [search, view, fetchPeople])
 
     const toggleNode = async (person: NetworkPerson) => {
         const next = new Set(expanded)
@@ -228,6 +252,11 @@ export default function HierarchyAdmin({ cardStyle, colors }: Props) {
                         {person.children_count > 0 ? ` · convidou ${person.children_count}` : ''}
                     </span>
                 </span>
+                {(person.active_plans || []).map((code) => (
+                    <span key={code} className="hidden sm:inline text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0" style={{ background: '#22c55e20', color: '#22c55e' }}>
+                        {code}
+                    </span>
+                ))}
                 <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full flex-shrink-0" style={{ background: `${statusColor(person.status_level)}20`, color: statusColor(person.status_level) }}>
                     {person.status_name}
                 </span>
@@ -256,24 +285,39 @@ export default function HierarchyAdmin({ cardStyle, colors }: Props) {
         <div className="space-y-5">
             {/* Rede: todas as pessoas e quem convidou quem */}
             <div style={cardStyle} className="space-y-3">
-                {heading('Rede de pessoas', 'Todas as contas do iUser e quem convidou quem. Toque na seta para ver os convidados de cada pessoa.')}
+                {heading('Rede de pessoas', 'Todas as contas do iUser e quem convidou quem. Toque em um número para filtrar; em \"Ver árvore de convites\" dá para abrir os convidados de cada pessoa.')}
                 {summary && (
                     <div className="flex flex-wrap gap-2">
-                        <span className="text-[11px] font-bold px-3 py-1.5 rounded-full" style={{ background: `${colors.accent}20`, color: colors.accent }}>{summary.total} pessoas</span>
-                        <span className="text-[11px] font-bold px-3 py-1.5 rounded-full" style={{ background: `${colors.border}40`, color: colors.textPrimary }}>{summary.invited} vieram por convite</span>
-                        <span className="text-[11px] font-bold px-3 py-1.5 rounded-full" style={{ background: `${colors.border}40`, color: colors.textPrimary }}>{summary.roots} sem convite</span>
-                        {summary.by_status.filter((b) => b.level > 0).map((b) => (
-                            <span key={b.slug} className="text-[11px] font-bold px-3 py-1.5 rounded-full" style={{ background: `${statusColor(b.level)}20`, color: statusColor(b.level) }}>{b.name}: {b.count}</span>
-                        ))}
+                        {[
+                            { id: 'all', label: `${summary.total} pessoas`, color: colors.accent },
+                            { id: 'invited', label: `${summary.invited} vieram por convite`, color: colors.textPrimary },
+                            { id: 'roots', label: `${summary.roots} sem convite`, color: colors.textPrimary },
+                            ...summary.by_status.filter((b) => b.level > 0).map((b) => ({ id: `status:${b.slug}`, label: `${b.name}: ${b.count}`, color: statusColor(b.level) })),
+                            { id: 'tree', label: 'Ver árvore de convites', color: colors.textPrimary },
+                        ].map((chip) => {
+                            const active = view === chip.id
+                            return (
+                                <button
+                                    key={chip.id}
+                                    onClick={() => { setView(chip.id); setSearch('') }}
+                                    className="text-[11px] font-bold px-3 py-1.5 rounded-full transition-all"
+                                    style={active
+                                        ? { background: GRADIENT, color: '#fff', border: '1px solid transparent' }
+                                        : { background: `${chip.color}18`, color: chip.color, border: `1px solid ${colors.border}` }}
+                                >
+                                    {chip.label}
+                                </button>
+                            )
+                        })}
                     </div>
                 )}
                 <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por nome ou @slug" style={{ ...inputStyle, width: '100%' }} />
-                <div className="max-h-[480px] overflow-y-auto">
+                <div className="max-h-[520px] overflow-y-auto">
                     {searchResults ? (
                         searchResults.length === 0
                             ? <p className="text-xs py-2" style={labelStyle}>Ninguém encontrado.</p>
                             : searchResults.map((p) => renderPerson(p, 0, true))
-                    ) : (
+                    ) : view === 'tree' ? (
                         <>
                             {rootPeople.map((p) => renderPerson(p, 0))}
                             {rootMore && (
@@ -282,7 +326,18 @@ export default function HierarchyAdmin({ cardStyle, colors }: Props) {
                                 </button>
                             )}
                         </>
+                    ) : (
+                        <>
+                            {flatPeople.length === 0 && !netBusy && <p className="text-xs py-2" style={labelStyle}>Ninguém nessa seleção.</p>}
+                            {flatPeople.map((p) => renderPerson(p, 0, true))}
+                            {flatMore && (
+                                <button onClick={() => loadFlat(view, false, flatPeople.length)} disabled={netBusy} className="text-xs font-bold py-2" style={{ color: colors.accent }}>
+                                    {netBusy ? 'Carregando...' : 'Carregar mais'}
+                                </button>
+                            )}
+                        </>
                     )}
+                    {netBusy && flatPeople.length === 0 && rootPeople.length === 0 && <p className="text-xs py-2" style={labelStyle}>Carregando...</p>}
                 </div>
             </div>
 
