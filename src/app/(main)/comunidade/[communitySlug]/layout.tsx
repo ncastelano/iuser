@@ -15,17 +15,16 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
             if (data) {
                 const about = (data.description || '').replace(/\s+/g, ' ').trim()
                 return pageMetadata({
-                    title: `${data.name}${data.city ? ` · ${data.city}` : ''}`,
+                    title: data.city && data.city.trim().toLowerCase() !== String(data.name).trim().toLowerCase() ? `${data.name} · ${data.city}` : data.name,
                     description: about || `Entre na comunidade ${data.name} no iUser e converse com as pessoas da sua cidade.`,
                     path,
-                    kind: 'comunidade',
                 })
             }
         }
     } catch {
         // cai no padrão
     }
-    return pageMetadata({ title: 'Comunidade', description: 'Entre nessa comunidade no iUser e converse com as pessoas da sua cidade.', path, kind: 'comunidade' })
+    return pageMetadata({ title: 'Comunidade', description: 'Entre nessa comunidade no iUser e converse com as pessoas da sua cidade.', path })
 }
 
 export default function Layout({ children }: { children: React.ReactNode }) {

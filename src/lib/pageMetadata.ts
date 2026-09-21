@@ -4,14 +4,11 @@ import type { Metadata } from 'next'
 const BASE_URL = 'https://www.iuser.com.br'
 const THUMB_SIZE = 200 // menos de 300px = miniatura do lado esquerdo no WhatsApp
 
-export type CardKind = 'planos' | 'motorista' | 'corrida' | 'servico' | 'loja' | 'radar' | 'comunidade' | 'calculadora'
-
 // Metadados de prévia (WhatsApp, Telegram, iMessage...) de páginas fixas:
-// miniatura quadrada 200x200 com ícone próprio + título e descrição do tipo
-// de página. Páginas client ('use client') não exportam metadata, então cada
-// rota usa isso num layout.tsx ao lado.
-export function pageMetadata(params: { title: string; description: string; path: string; kind: CardKind }): Metadata {
-    const image = `${BASE_URL}/api/og-card?kind=${params.kind}`
+// logo do iUser (200x200) + título e descrição próprios de cada página. Páginas client ('use client')
+// não exportam metadata, então cada rota usa isso num layout.tsx ao lado.
+export function pageMetadata(params: { title: string; description: string; path: string }): Metadata {
+    const image = `${BASE_URL}/logo-preview-thumb.png`
     const url = `${BASE_URL}${params.path}`
     return {
         title: `${params.title} | iUser`,

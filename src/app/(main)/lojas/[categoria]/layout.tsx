@@ -14,7 +14,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
             ? `Veja o que está aberto agora em ${name}, compare as avaliações e peça direto pelo iUser, com entrega ou retirada.`
             : 'Descubra lojas perto de você no iUser.',
         path: `/lojas/${categoria}`,
-        kind: 'loja',
     })
 }
 

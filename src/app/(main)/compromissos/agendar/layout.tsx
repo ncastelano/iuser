@@ -5,7 +5,6 @@ export const metadata: Metadata = pageMetadata({
     title: 'Agende o seu horário',
     description: 'Escolha o dia e o horário e marque direto com a loja ou o profissional, sem troca de mensagens.',
     path: '/compromissos/agendar',
-    kind: 'servico',
 })
 
 export default function Layout({ children }: { children: React.ReactNode }) {
