@@ -256,6 +256,7 @@ export default function CompromissosPage() {
 
     const [myStores, setMyStores] = useState<any[]>([])
     const [activeTab, setActiveTab] = useState<string>('pessoal')
+    const [profileAgendaOn, setProfileAgendaOn] = useState(false)
 
     const [showSettingsModal, setShowSettingsModal] = useState(false)
 
@@ -283,13 +284,14 @@ export default function CompromissosPage() {
         if (!userId) return
         supabase
             .from('profiles')
-            .select('avatar_url, profileSlug, background_mode, background_image_url')
+            .select('avatar_url, profileSlug, background_mode, background_image_url, allow_scheduling')
             .eq('id', userId)
             .single()
             .then(({ data }) => {
                 if (data) {
                     if (data.avatar_url) setUserAvatarUrl(data.avatar_url)
                     if (data.profileSlug) setUserProfileSlug(data.profileSlug)
+                    setProfileAgendaOn(data.allow_scheduling === true)
                     if (data.background_mode) setBgMode(data.background_mode)
                     if (data.background_image_url) setCustomBgUrl(data.background_image_url)
                 }
@@ -311,10 +313,19 @@ export default function CompromissosPage() {
         return `${year}-${month}-${day}`
     }
 
+    // Agendamento feito por outra pessoa na agenda de perfil de quem está logado:
+    // sem loja, direção 'outgoing' e cliente diferente do prestador.
+    const isProfileBooking = (a: Appointment) =>
+        !a.store_id && a.direction === 'outgoing' && a.provider_profile_id === userId && a.customer_id !== userId
+
     const filteredAppointments = useMemo(() => {
         if (!userId) return []
         if (activeTab === 'pessoal') {
             return appointments.filter((a) => a.customer_id === userId)
+        }
+        if (activeTab === 'agenda-perfil') {
+            // Agendamentos que outras pessoas fizeram na MINHA agenda de perfil.
+            return appointments.filter((a) => isProfileBooking(a))
         }
         return appointments.filter((a) => String(a.store_id) === String(activeTab))
     }, [appointments, userId, activeTab])
@@ -632,8 +643,18 @@ export default function CompromissosPage() {
             icon: Store as any,
             imageUrl: store.logo_url ? getPublicUrl(store.logo_url, 'store-logos') : null,
         }))
-        return [personalTab, ...storeTabs]
-    }, [userAvatarUrl, myStores])
+        const hasProfileBookings = appointments.some((a) => isProfileBooking(a))
+        const agendaTab = (profileAgendaOn || hasProfileBookings)
+            ? [{
+                id: 'agenda-perfil',
+                label: 'Minha agenda',
+                icon: Calendar as any,
+                imageUrl: null,
+            }]
+            : []
+        return [personalTab, ...agendaTab, ...storeTabs]
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [userAvatarUrl, myStores, profileAgendaOn, appointments, userId])
 
     const getAvatarType = (appointment: Appointment): 'store' | 'personal' | 'invite' => {
         if (appointment.store_id) {
@@ -974,7 +995,7 @@ export default function CompromissosPage() {
                                     pendentesLoja.map((agendamento) => (
                                         <div key={agendamento.id} style={{ ...cardStyle, padding: 16, marginBottom: 12 }}>
                                             <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-                                                <AppointmentAvatar url={agendamento.store_logo_url ?? null} name={agendamento.store_name || 'Loja'} type="store" size={56} colors={colors} />
+                                                <AppointmentAvatar url={agendamento.store_id ? (agendamento.store_logo_url ?? null) : getPublicUrl(agendamento.customer_avatar_url, 'avatars')} name={agendamento.store_id ? (agendamento.store_name || 'Loja') : (agendamento.customer_slug || 'Cliente')} type={agendamento.store_id ? 'store' : 'invite'} size={56} colors={colors} />
                                                 <div style={{ flex: 1 }}>
                                                     <h3 style={{ fontWeight: 800, fontSize: 16, color: colors.textPrimary }}>{agendamento.service_name}</h3>
                                                     <p style={{ color: colors.textSecondary, fontSize: 14, marginTop: 2 }}>Cliente: @{agendamento.customer_slug}</p>
@@ -1021,7 +1042,7 @@ export default function CompromissosPage() {
                                                         <h3 style={{ fontWeight: 800, fontSize: 18, color: colors.textPrimary }}>{item.service_name}</h3>
                                                         {item.is_public !== undefined && <VisibilityBadge isPublic={item.is_public} />}
                                                     </div>
-                                                    <p style={{ color: colors.textSecondary, marginTop: 4 }}>{avatarType === 'store' ? item.store_name : avatarType === 'invite' ? 'Convite' : 'Compromisso pessoal'}</p>
+                                                    <p style={{ color: colors.textSecondary, marginTop: 4 }}>{avatarType === 'store' ? item.store_name : activeTab === 'agenda-perfil' ? `Cliente: @${item.customer_slug}` : avatarType === 'invite' ? 'Convite' : 'Compromisso pessoal'}</p>
                                                     <div style={{ display: 'flex', gap: 12, marginTop: 10, alignItems: 'center', color: colors.textSecondary }}>
                                                         <Clock3 size={16} />
                                                         <span>{displayDate} • {formatTime(item.time)}</span>
@@ -1195,7 +1216,7 @@ export default function CompromissosPage() {
                             isOpen={showSettingsModal}
                             onClose={() => setShowSettingsModal(false)}
                             userId={userId}
-                            activeTab={activeTab}
+                            activeTab={activeTab === 'agenda-perfil' ? 'pessoal' : activeTab}
                             onSaved={() => refetch()}
                         />
                     )}

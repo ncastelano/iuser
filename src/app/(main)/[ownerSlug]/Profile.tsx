@@ -3,6 +3,7 @@
 
 import { notifyNewFollower } from '@/lib/notifyRideStatus'
 import { useCallback, useEffect, useState, useMemo, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { useProfile } from '@/app/contexts/ProfileContext'
@@ -35,8 +36,10 @@ import {
 
     Send,
     LogIn,
+    Calendar,
 } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
+import ProfileScheduleModal from '@/components/ProfileScheduleModal'
 import { toast } from 'sonner'
 import { getAvatarUrl } from '@/lib/avatar'
 import { usePublicationsStore } from '@/store/usePublicationStore'
@@ -70,6 +73,7 @@ interface OwnerData {
     ratings_count?: number
     show_location?: boolean
     location?: any
+    allow_scheduling?: boolean
 }
 
 type RatingRow = {
@@ -238,6 +242,9 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
     const [error, setError] = useState<string | null>(null)
     const [owner, setOwner] = useState<OwnerData | null>(null)
     const [isOwner, setIsOwner] = useState(false)
+    const [showAgendaDialog, setShowAgendaDialog] = useState(false)
+    const [agendaSaving, setAgendaSaving] = useState(false)
+    const [showScheduleModal, setShowScheduleModal] = useState(false)
     const [followersCount, setFollowersCount] = useState(0)
     const [followingCount, setFollowingCount] = useState(0)
     const [isFollowing, setIsFollowing] = useState(false)
@@ -349,6 +356,7 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                 ratings_count: count,
                 show_location: profile.show_location || false,
                 location: profile.location,
+                allow_scheduling: profile.allow_scheduling === true,
             }
 
             setOwner(ownerData)
@@ -633,6 +641,22 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
     }, [loadProfileData])
 
     // ========== FOLLOW ==========
+    // Liga/desliga a agenda do perfil. A cobrança de ativação (pós-pago) é feita
+    // pelo banco (trigger); aqui só atualizamos e mostramos o erro, se houver.
+    const handleToggleAgenda = async (enable: boolean) => {
+        if (!owner) return
+        setAgendaSaving(true)
+        const { error } = await supabase.from('profiles').update({ allow_scheduling: enable }).eq('id', owner.id)
+        setAgendaSaving(false)
+        if (error) {
+            toast.error(error.message)
+            return
+        }
+        setOwner(prev => prev ? { ...prev, allow_scheduling: enable } : prev)
+        setShowAgendaDialog(false)
+        toast.success(enable ? 'Agenda ativada!' : 'Agenda desativada')
+    }
+
     const handleFollowToggle = async () => {
         if (!currentUserId || !owner) return
         if (isFollowing) {
@@ -1428,6 +1452,123 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                                 <p className="text-xs mt-0.5 truncate" style={{ color: colors.textSecondary }}>{owner.address}</p>
                             </div>
                         </button>
+                    )}
+
+                    {isOwner && (
+                        <>
+                            <button
+                                onClick={() => setShowAgendaDialog(true)}
+                                className="w-full flex items-center gap-3 p-3 rounded-xl text-left transition-all hover:scale-[1.01]"
+                                style={{ background: glassBg, border: `1px ${owner.allow_scheduling ? 'solid' : 'dashed'} ${owner.allow_scheduling ? colors.border : '#f97316'}` }}
+                            >
+                                <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: owner.allow_scheduling ? 'rgba(249,115,22,0.15)' : GRADIENT, color: owner.allow_scheduling ? '#f97316' : '#fff' }}>
+                                    <Calendar size={18} />
+                                </div>
+                                <div className="min-w-0">
+                                    <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>{owner.allow_scheduling ? 'Agenda ativa' : 'Ativar agenda'}</p>
+                                    <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>
+                                        {owner.allow_scheduling ? 'Toque para ver os custos ou desativar' : 'Receba pedidos de agendamento no seu perfil'}
+                                    </p>
+                                </div>
+                            </button>
+                            {owner.allow_scheduling && (
+                                <button
+                                    onClick={() => router.push('/compromissos?tab=agenda-perfil')}
+                                    className="w-full text-xs font-bold underline text-center"
+                                    style={{ color: '#f97316' }}
+                                >
+                                    Ver pedidos e ajustar horários de atendimento
+                                </button>
+                            )}
+                        </>
+                    )}
+
+                    {!isOwner && owner.allow_scheduling && (
+                        <button
+                            onClick={() => setShowScheduleModal(true)}
+                            className="w-full flex items-center gap-3 p-3 rounded-xl text-left transition-all hover:scale-[1.01]"
+                            style={{ background: glassBg, border: `1px solid ${colors.border}` }}
+                        >
+                            <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#fff' }}>
+                                <Calendar size={18} />
+                            </div>
+                            <div className="min-w-0">
+                                <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>Agendar atendimento</p>
+                                <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>Escolha um dia e horário na agenda de {owner.name}</p>
+                            </div>
+                        </button>
+                    )}
+
+                    {showAgendaDialog && isOwner && typeof document !== 'undefined' && createPortal(
+                        <div
+                            className="fixed inset-0 z-[1000] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4"
+                            onClick={() => !agendaSaving && setShowAgendaDialog(false)}
+                        >
+                            <div
+                                onClick={(e) => e.stopPropagation()}
+                                className="w-full max-w-sm rounded-2xl p-5 space-y-4 shadow-xl"
+                                style={{ background: colors.surface, border: `1px solid ${colors.border}` }}
+                            >
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#fff' }}>
+                                        <Calendar size={18} />
+                                    </div>
+                                    <h3 className="text-base font-black" style={{ color: colors.textPrimary }}>
+                                        {owner.allow_scheduling ? 'Agenda ativa' : 'Ativar agenda'}
+                                    </h3>
+                                </div>
+                                <p className="text-sm" style={{ color: colors.textSecondary }}>
+                                    A agenda é recomendada para quem precisa marcar compromisso, como psicólogos, professores, personal trainers, barbeiros e afins.
+                                </p>
+                                <div className="rounded-xl p-3 text-xs space-y-1" style={{ background: 'rgba(249,115,22,0.08)', border: '1px dashed #f97316', color: colors.textPrimary }}>
+                                    <p className="font-black" style={{ color: '#f97316' }}>Custo</p>
+                                    <p>• Ativar a agenda: <strong>R$ 0,50</strong> (uma única vez)</p>
+                                    <p>• Cada pessoa que agendar com você e você aceitar: <strong>R$ 0,50</strong></p>
+                                    <p style={{ color: colors.textSecondary }}>
+                                        Os valores são somados à sua dívida do plano pós-pago e pagos via Pix quando ela chegar a R$ 50.
+                                    </p>
+                                </div>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => setShowAgendaDialog(false)}
+                                        disabled={agendaSaving}
+                                        className="flex-1 py-2.5 rounded-full text-sm font-bold border"
+                                        style={{ borderColor: colors.border, color: colors.textPrimary, background: 'transparent' }}
+                                    >
+                                        Cancelar
+                                    </button>
+                                    {owner.allow_scheduling ? (
+                                        <button
+                                            onClick={() => handleToggleAgenda(false)}
+                                            disabled={agendaSaving}
+                                            className="flex-1 py-2.5 rounded-full text-sm font-bold disabled:opacity-60"
+                                            style={{ background: '#ef4444', color: '#fff' }}
+                                        >
+                                            {agendaSaving ? 'Salvando...' : 'Desativar agenda'}
+                                        </button>
+                                    ) : (
+                                        <button
+                                            onClick={() => handleToggleAgenda(true)}
+                                            disabled={agendaSaving}
+                                            className="flex-1 py-2.5 rounded-full text-sm font-bold disabled:opacity-60"
+                                            style={{ background: GRADIENT, color: '#fff', boxShadow: '0 4px 12px #f9731640' }}
+                                        >
+                                            {agendaSaving ? 'Ativando...' : 'Ativar agenda'}
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        </div>,
+                        document.body
+                    )}
+
+                    {showScheduleModal && (
+                        <ProfileScheduleModal
+                            profileId={owner.id}
+                            profileName={owner.name}
+                            profileSlug={owner.slug}
+                            onClose={() => setShowScheduleModal(false)}
+                        />
                     )}
 
                     {whatsappLink && (

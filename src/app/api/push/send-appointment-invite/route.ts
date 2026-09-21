@@ -51,10 +51,10 @@ export async function POST(req: Request) {
             url = '/compromissos'
         } else if (appointment.customer_id === user.id) {
             targetUserId = appointment.owner_id
-            title = appointment.store_name ? `Novo agendamento em ${appointment.store_name}` : 'Novo agendamento'
+            title = appointment.store_name ? `Novo agendamento em ${appointment.store_name}` : 'Novo agendamento na sua agenda'
             body = `${appointment.customer_slug ? '@' + appointment.customer_slug : 'Alguém'} agendou: ${appointment.service_name} · ${appointment.date} às ${appointment.time?.slice(0, 5)}`
             // Se for agendamento numa loja, leva direto pra aba daquela loja em /compromissos
-            url = appointment.store_id ? `/compromissos?tab=${appointment.store_id}` : '/compromissos'
+            url = appointment.store_id ? `/compromissos?tab=${appointment.store_id}` : '/compromissos?tab=agenda-perfil'
         } else {
             return NextResponse.json({ error: 'Sem permissão' }, { status: 403 })
         }
