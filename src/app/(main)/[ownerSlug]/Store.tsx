@@ -44,6 +44,7 @@ import { toast } from 'sonner'
 import { getAvatarUrl } from '@/lib/avatar'
 import { usePublicationsStore } from '@/store/usePublicationStore'
 import StoreSchedule from '@/components/StoreSchedule'
+import StoreOperatingDays from '@/components/StoreDashboard/StoreOperatingDays'
 import { generateUniqueGlobalSlug } from '@/lib/slugUtils'
 import { handleShareLink } from '@/lib/share'
 import { Follows } from './Follows'
@@ -147,6 +148,8 @@ export function Store({
     const DESC_LIMIT = 80
     const [showAllHours, setShowAllHours] = useState(false)
     const [showScheduleModal, setShowScheduleModal] = useState(false)
+    const [showAgendaDialog, setShowAgendaDialog] = useState(false)
+    const [agendaSaving, setAgendaSaving] = useState(false)
     const [storeWhatsapp, setStoreWhatsapp] = useState<string | null>(null)
 
     // ===== MODAL DE DETALHES DO PRODUTO =====
@@ -157,10 +160,10 @@ export function Store({
     // cheia está aberto, pra ele esconder os botões flutuantes ("Ver
     // Catálogo" / Home) que senão ficam por cima do dialog.
     useEffect(() => {
-        onDialogOpenChange?.(showAllHours || showScheduleModal || showProductModal || showFollowers)
+        onDialogOpenChange?.(showAllHours || showScheduleModal || showAgendaDialog || showProductModal || showFollowers)
         return () => { onDialogOpenChange?.(false) }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [showAllHours, showScheduleModal, showProductModal, showFollowers])
+    }, [showAllHours, showScheduleModal, showAgendaDialog, showProductModal, showFollowers])
 
     // States para Publicações
     const [isCreatingPublication, setIsCreatingPublication] = useState(false)
@@ -312,6 +315,22 @@ export function Store({
             setPubLoading(false)
         }
     }, [])
+
+    // Liga/desliga a agenda. A cobrança de ativação (pós-pago) é feita pelo
+    // banco (trigger), então aqui só atualizamos e mostramos o erro se houver.
+    const handleToggleAgenda = async (enable: boolean) => {
+        if (!owner) return
+        setAgendaSaving(true)
+        const { error } = await supabase.from('stores').update({ allow_scheduling: enable }).eq('id', owner.id)
+        setAgendaSaving(false)
+        if (error) {
+            toast.error(error.message)
+            return
+        }
+        setOwner(prev => prev ? { ...prev, allow_scheduling: enable } : prev)
+        setShowAgendaDialog(false)
+        toast.success(enable ? 'Agenda ativada!' : 'Agenda desativada')
+    }
 
     const handleCreatePublication = async () => {
         if (!pubName.trim()) {
@@ -702,6 +721,71 @@ export function Store({
                 }
             `}</style>
 
+            {showAgendaDialog && owner && isOwner && (
+                <div
+                    className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4"
+                    onClick={() => !agendaSaving && setShowAgendaDialog(false)}
+                >
+                    <div
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-full max-w-sm rounded-2xl p-5 space-y-4 shadow-xl"
+                        style={{ background: colors.surface, border: `1px solid ${colors.border}` }}
+                    >
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#fff' }}>
+                                <Calendar size={18} />
+                            </div>
+                            <h3 className="text-base font-black" style={{ color: colors.textPrimary }}>
+                                {owner.allow_scheduling ? 'Agenda ativa' : 'Ativar agenda'}
+                            </h3>
+                        </div>
+
+                        <p className="text-sm" style={{ color: colors.textSecondary }}>
+                            A agenda é recomendada para lojas que precisam marcar compromisso, como barbearias, consultórios, clínicas, psicólogos e afins.
+                        </p>
+
+                        <div className="rounded-xl p-3 text-xs space-y-1" style={{ background: 'rgba(249,115,22,0.08)', border: '1px dashed #f97316', color: colors.textPrimary }}>
+                            <p className="font-black" style={{ color: '#f97316' }}>Custo</p>
+                            <p>• Ativar a agenda: <strong>R$ 0,50</strong> (uma única vez)</p>
+                            <p>• Cada pessoa que agendar na sua loja: <strong>R$ 0,50</strong></p>
+                            <p style={{ color: colors.textSecondary }}>
+                                Os valores são somados à sua dívida do plano pós-pago e pagos via Pix quando ela chegar a R$ 50.
+                            </p>
+                        </div>
+
+                        <div className="flex gap-2">
+                            <button
+                                onClick={() => setShowAgendaDialog(false)}
+                                disabled={agendaSaving}
+                                className="flex-1 py-2.5 rounded-full text-sm font-bold border"
+                                style={{ borderColor: colors.border, color: colors.textPrimary, background: 'transparent' }}
+                            >
+                                Cancelar
+                            </button>
+                            {owner.allow_scheduling ? (
+                                <button
+                                    onClick={() => handleToggleAgenda(false)}
+                                    disabled={agendaSaving}
+                                    className="flex-1 py-2.5 rounded-full text-sm font-bold disabled:opacity-60"
+                                    style={{ background: '#ef4444', color: '#fff' }}
+                                >
+                                    {agendaSaving ? 'Salvando...' : 'Desativar agenda'}
+                                </button>
+                            ) : (
+                                <button
+                                    onClick={() => handleToggleAgenda(true)}
+                                    disabled={agendaSaving}
+                                    className="flex-1 py-2.5 rounded-full text-sm font-bold disabled:opacity-60"
+                                    style={{ background: GRADIENT, color: '#fff', boxShadow: '0 4px 12px #f9731640' }}
+                                >
+                                    {agendaSaving ? 'Ativando...' : 'Ativar agenda'}
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {showScheduleModal && owner && (
                 <div
                     className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4"
@@ -1056,6 +1140,14 @@ export function Store({
                         )}
                     </div>
                 )}
+
+                {/* Só o dono: ajustar os dias e horários de funcionamento */}
+                {isOwner && !isStoreOpen && (
+                    <StoreOperatingDays
+                        storeId={owner.id}
+                        onSaved={(config) => setOwner(prev => prev ? { ...prev, business_hours: config as any } : prev)}
+                    />
+                )}
             </div>
 
             {/* ===== PUBLICAÇÕES (círculos estilo stories, acima das tabs) ===== */}
@@ -1070,7 +1162,7 @@ export function Store({
                             <Spinner size={20} color="#f97316" />
                         </div>
                     ) : (
-                        <div className={`flex items-start gap-3 overflow-x-auto pb-1 scrollbar-hide ${publications.length + (isOwner ? 1 : 0) <= 4 ? 'justify-center' : ''}`}>
+                        <div className={`flex items-start gap-3 overflow-x-auto pb-1 scrollbar-hide ${publications.length + (isOwner ? 2 : 0) <= 4 ? 'justify-center' : ''}`}>
                             {isOwner && (
                                 <button
                                     onClick={() => setIsCreatingPublication(true)}
@@ -1084,6 +1176,22 @@ export function Store({
                                     </div>
                                     <span className="text-[10px] font-bold truncate w-full text-center" style={{ color: colors.textSecondary }}>
                                         Nova
+                                    </span>
+                                </button>
+                            )}
+                            {isOwner && (
+                                <button
+                                    onClick={() => setShowAgendaDialog(true)}
+                                    className="flex flex-col items-center gap-1 flex-shrink-0 w-16"
+                                >
+                                    <div
+                                        className="w-16 h-16 rounded-full border-2 border-dashed flex items-center justify-center transition-all hover:scale-105"
+                                        style={{ borderColor: owner.allow_scheduling ? '#f97316' : colors.border }}
+                                    >
+                                        <Calendar size={20} style={{ color: '#f97316' }} />
+                                    </div>
+                                    <span className="text-[10px] font-bold truncate w-full text-center" style={{ color: colors.textSecondary }}>
+                                        {owner.allow_scheduling ? 'Agenda ativa' : 'Ativar agenda'}
                                     </span>
                                 </button>
                             )}
@@ -1321,6 +1429,17 @@ export function Store({
                                     title="Adicionar produto"
                                 >
                                     <Plus size={18} />
+                                </button>
+                            )}
+                            {isOwner && storeSubscriptionActive !== false && (
+                                <button
+                                    onClick={() => setShowAgendaDialog(true)}
+                                    className="flex items-center justify-center gap-1.5 h-9 px-3 rounded-xl shadow-md hover:scale-105 transition-transform text-xs font-bold whitespace-nowrap"
+                                    style={{ background: owner.allow_scheduling ? 'transparent' : GRADIENT, color: owner.allow_scheduling ? '#f97316' : '#ffffff', border: owner.allow_scheduling ? '1px solid #f97316' : 'none' }}
+                                    title={owner.allow_scheduling ? 'Agenda ativa' : 'Ativar agenda'}
+                                >
+                                    <Calendar size={14} />
+                                    {owner.allow_scheduling ? 'Agenda ativa' : 'Ativar agenda'}
                                 </button>
                             )}
                         </div>

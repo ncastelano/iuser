@@ -11,6 +11,7 @@ import { hexToRgb } from '@/lib/color'
 
 interface StoreOperatingDaysProps {
     storeId: string
+    onSaved?: (config: { weekly: any; blocked_dates: string[] }) => void
 }
 
 const WEEKDAYS = [
@@ -23,12 +24,15 @@ const WEEKDAYS = [
     { id: '0', name: 'Domingo' },
 ]
 
+// Loja nova NÃO vem com horário: todos os dias começam fechados e o dono liga
+// os que quiser. Os horários abaixo são só sugestão que já aparece preenchida
+// quando ele liga o dia, e nada vale até ele salvar.
 const DEFAULT_WEEKLY = {
-    '1': { isOpen: true, start: '08:00', end: '18:00', lunchStart: '12:00', lunchEnd: '13:00' },
-    '2': { isOpen: true, start: '08:00', end: '18:00', lunchStart: '12:00', lunchEnd: '13:00' },
-    '3': { isOpen: true, start: '08:00', end: '18:00', lunchStart: '12:00', lunchEnd: '13:00' },
-    '4': { isOpen: true, start: '08:00', end: '18:00', lunchStart: '12:00', lunchEnd: '13:00' },
-    '5': { isOpen: true, start: '08:00', end: '18:00', lunchStart: '12:00', lunchEnd: '13:00' },
+    '1': { isOpen: false, start: '08:00', end: '18:00', lunchStart: '', lunchEnd: '' },
+    '2': { isOpen: false, start: '08:00', end: '18:00', lunchStart: '', lunchEnd: '' },
+    '3': { isOpen: false, start: '08:00', end: '18:00', lunchStart: '', lunchEnd: '' },
+    '4': { isOpen: false, start: '08:00', end: '18:00', lunchStart: '', lunchEnd: '' },
+    '5': { isOpen: false, start: '08:00', end: '18:00', lunchStart: '', lunchEnd: '' },
     '6': { isOpen: false, start: '09:00', end: '13:00', lunchStart: '', lunchEnd: '' },
     '0': { isOpen: false, start: '09:00', end: '13:00', lunchStart: '', lunchEnd: '' },
 }
@@ -54,7 +58,7 @@ const pillButtonStyle = {
 // ===== DIAS DA SEMANA PARA EXIBIÇÃO =====
 const DAY_NAMES = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
 
-export default function StoreOperatingDays({ storeId }: StoreOperatingDaysProps) {
+export default function StoreOperatingDays({ storeId, onSaved }: StoreOperatingDaysProps) {
     const { colors } = useTheme()
     const surfaceRgb = hexToRgb(colors.surface)
 
@@ -213,6 +217,7 @@ export default function StoreOperatingDays({ storeId }: StoreOperatingDaysProps)
             toast.error('Erro ao salvar configurações: ' + error.message)
         } else {
             toast.success('Horários salvos!')
+            onSaved?.(config)
             // Atualiza o status após salvar
             updateCurrentStatus(weekly, blockedDates)
         }
