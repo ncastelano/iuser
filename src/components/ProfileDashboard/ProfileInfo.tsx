@@ -46,8 +46,12 @@ interface ProfileInfoProps {
 
 interface ActivePlanBadge {
     name: string
+    code: string | null
     daysLeft: number | null
 }
+
+const POSTPAID_LIMIT = 50
+const brl = (n: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n)
 
 function daysLeft(iso: string | null): number | null {
     if (!iso) return null
@@ -70,6 +74,7 @@ export function ProfileInfo({ profile, onProfileUpdate }: ProfileInfoProps) {
     const [slugStatus, setSlugStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle')
     const [saving, setSaving] = useState(false)
     const [activePlans, setActivePlans] = useState<ActivePlanBadge[]>([])
+    const [postpaidDebt, setPostpaidDebt] = useState(0)
 
     useEffect(() => {
         setName(profile.name || '')
@@ -97,15 +102,29 @@ export function ProfileInfo({ profile, onProfileUpdate }: ProfileInfoProps) {
         const loadPlans = async () => {
             const { data } = await supabase
                 .from('subscriptions')
-                .select('current_period_end, plans(name)')
+                .select('current_period_end, plans(name, code)')
                 .eq('user_id', profile.id)
                 .eq('status', 'active')
             if (cancelled) return
-            const badges = (data || []).map((s: any) => ({
-                name: (Array.isArray(s.plans) ? s.plans[0]?.name : s.plans?.name) || 'Plano',
-                daysLeft: daysLeft(s.current_period_end),
-            }))
+            const badges = (data || []).map((s: any) => {
+                const plan = Array.isArray(s.plans) ? s.plans[0] : s.plans
+                return {
+                    name: plan?.name || 'Plano',
+                    code: plan?.code || null,
+                    daysLeft: daysLeft(s.current_period_end),
+                }
+            })
             setActivePlans(badges)
+
+            // Pós-pago não tem "dias restantes" (a data é só de controle): o que importa
+            // é quanto já acumulou e quanto falta pro limite.
+            if (badges.some((b) => b.code === 'pos_pago')) {
+                const { data: charges } = await supabase
+                    .from('driver_postpaid_charges')
+                    .select('amount')
+                    .eq('driver_id', profile.id)
+                if (!cancelled) setPostpaidDebt((charges || []).reduce((sum, c: any) => sum + Number(c.amount), 0))
+            }
         }
         loadPlans()
         return () => { cancelled = true }
@@ -258,17 +277,37 @@ export function ProfileInfo({ profile, onProfileUpdate }: ProfileInfoProps) {
                 {/* Plano(s) ativo(s) + dias restantes */}
                 {activePlans.length > 0 && (
                     <div className="flex flex-wrap gap-2">
-                        {activePlans.map((p, i) => (
-                            <span
-                                key={i}
-                                className="flex items-center gap-1.5 text-[10px] font-bold px-3 py-1.5 rounded-full"
-                                style={{ background: '#22c55e18', color: '#16a34a', border: '1px solid #22c55e40' }}
-                            >
-                                <Sparkles size={11} />
-                                {p.name}
-                                {p.daysLeft != null && ` · ${p.daysLeft} dia${p.daysLeft === 1 ? '' : 's'} restante${p.daysLeft === 1 ? '' : 's'}`}
-                            </span>
-                        ))}
+                        {activePlans.map((p, i) => {
+                            if (p.code === 'pos_pago') {
+                                const accumulated = Math.max(0, postpaidDebt)
+                                const remaining = Math.max(0, POSTPAID_LIMIT - accumulated)
+                                const blocked = accumulated >= POSTPAID_LIMIT
+                                return (
+                                    <button
+                                        key={i}
+                                        onClick={() => router.push('/planos/pos-pago')}
+                                        className="flex items-center gap-1.5 text-[10px] font-bold px-3 py-1.5 rounded-full text-left"
+                                        style={blocked
+                                            ? { background: '#ef444418', color: '#dc2626', border: '1px solid #ef444440' }
+                                            : { background: '#22c55e18', color: '#16a34a', border: '1px solid #22c55e40' }}
+                                    >
+                                        <Sparkles size={11} />
+                                        {p.name} · {brl(accumulated)} acumulados · {blocked ? 'limite atingido, quite para continuar' : `faltam ${brl(remaining)}`}
+                                    </button>
+                                )
+                            }
+                            return (
+                                <span
+                                    key={i}
+                                    className="flex items-center gap-1.5 text-[10px] font-bold px-3 py-1.5 rounded-full"
+                                    style={{ background: '#22c55e18', color: '#16a34a', border: '1px solid #22c55e40' }}
+                                >
+                                    <Sparkles size={11} />
+                                    {p.name}
+                                    {p.daysLeft != null && ` · ${p.daysLeft} dia${p.daysLeft === 1 ? '' : 's'} restante${p.daysLeft === 1 ? '' : 's'}`}
+                                </span>
+                            )
+                        })}
                     </div>
                 )}
 
