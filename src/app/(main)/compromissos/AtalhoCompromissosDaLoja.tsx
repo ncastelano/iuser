@@ -150,7 +150,7 @@ export default function AtalhoCompromissosDaLoja({
             .update({ status: 'confirmed' })
             .eq('id', id)
         if (!error) refetch()
-        else alert('Erro ao aceitar.')
+        else alert(error.message.includes('pós-pago') ? error.message : 'Erro ao aceitar.')
     }, [refetch])
 
     const handleDecline = useCallback(async (id: string, e: React.MouseEvent) => {

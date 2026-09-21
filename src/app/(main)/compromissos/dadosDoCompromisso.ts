@@ -1,6 +1,7 @@
 // app/(main)/compromissos/dadosDoCompromisso.ts
 import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '@/lib/supabase/client'
+import { toast } from 'sonner'
 import { useProfile } from '@/app/contexts/ProfileContext'
 
 export type AppointmentStatus = 'confirmed' | 'pending' | 'cancelled' | 'completed'
@@ -90,6 +91,8 @@ export function useUpdateAppointmentStatus() {
             return true
         } catch (err: any) {
             console.error('Erro ao atualizar status:', err.message)
+            // Dono travado por dívida do pós-pago: mostra o motivo em vez de falhar calado.
+            if (String(err.message).includes('pós-pago')) toast.error(err.message)
             return false
         } finally {
             setLoading(false)
