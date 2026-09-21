@@ -486,6 +486,7 @@ export default function OwnerClientPage() {
                             profileSlug={loggedUserSlug || ''}
                             storeSlug={showStoreDashboard.slug}
                             onBack={showMainContent}
+                            onDialogOpenChange={setStoreDialogOpen}
                             onOrderCountsChange={(counts) => {
                                 const store = stores.find(s => s.slug === showStoreDashboard.slug)
                                 if (store) {

@@ -87,11 +87,14 @@ export default function StoreDashboard({
     storeSlug,
     onBack,
     onOrderCountsChange,
+    onDialogOpenChange,
 }: {
     profileSlug: string
     storeSlug: string
     onBack?: () => void
     onOrderCountsChange?: (counts: { pending: number; preparing: number; ready: number }) => void
+    /** Avisa quando um dialog (extrato, excluir loja) abre/fecha, pra esconder os botões flutuantes da página. */
+    onDialogOpenChange?: (open: boolean) => void
 }) {
     const router = useRouter()
     const { colors } = useTheme()
@@ -109,6 +112,11 @@ export default function StoreDashboard({
     })
     const [showDeleteStore, setShowDeleteStore] = useState(false)
     const [extractPeriod, setExtractPeriod] = useState<ExtractPeriod | null>(null)
+
+    useEffect(() => {
+        onDialogOpenChange?.(!!extractPeriod || showDeleteStore)
+    }, [extractPeriod, showDeleteStore, onDialogOpenChange])
+    useEffect(() => () => onDialogOpenChange?.(false), [onDialogOpenChange])
     const [products, setProducts] = useState<any[]>([])
     const [sortBy, setSortBy] = useState<'mostSold' | 'leastSold' | 'mostExpensive' | 'cheapest'>('mostSold')
     const [employees, setEmployees] = useState<any[]>([])
