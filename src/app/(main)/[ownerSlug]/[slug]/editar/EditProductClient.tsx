@@ -1,6 +1,7 @@
 // src/app/(app)/[ownerSlug]/[slug]/editar/EditProductClient.tsx
 'use client'
 
+import CategorySuggestions from '@/components/StoreDashboard/CategorySuggestions'
 import { useState, useRef, useEffect } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
@@ -464,6 +465,7 @@ export function EditProductClient() {
                                             '--tw-ring-color': '#f97316',
                                         } as React.CSSProperties}
                                     />
+                                    <CategorySuggestions storeId={product.store_id} value={category} onPick={setCategory} colors={colors} />
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-sm font-bold" style={{ color: colors.textPrimary }}>
