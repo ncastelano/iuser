@@ -179,7 +179,7 @@ export default function AddToCartModal({ product, onClose, onConfirm, colors, st
                     <>
                         <div className="mb-4">
                             <label className="text-sm font-medium block mb-2" style={{ color: textColor }}>
-                                Quer adicionar algum adicional?
+                                Adicionar algo a mais?
                             </label>
                             {loadingAddons ? (
                                 <div className="flex justify-center py-6">
