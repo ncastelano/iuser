@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { hexToRgb } from '@/lib/color'
-import { X, ChevronDown, ChevronUp, MessageCircle, Mail, Receipt } from 'lucide-react'
+import { X, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, MessageCircle, Mail, Receipt } from 'lucide-react'
 
 export type ExtractPeriod = 'daily' | 'weekly' | 'monthly'
 
@@ -32,19 +32,42 @@ interface OrderItemRow {
     total_price: number
 }
 
-const PERIOD_LABEL: Record<ExtractPeriod, string> = {
-    daily: 'Hoje',
-    weekly: 'Últimos 7 dias',
-    monthly: 'Últimos 30 dias',
+const WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
+
+const capitalize = (t: string) => t.charAt(0).toUpperCase() + t.slice(1)
+
+// Intervalo [start, end) do período, já deslocado por `offset` (0 = atual,
+// -1 = anterior...). Hoje: o dia. Semana: domingo a sábado. Mês: do dia 1 ao
+// último dia do mês.
+function periodRange(period: ExtractPeriod, offset: number): { start: Date; end: Date } {
+    const start = new Date()
+    start.setHours(0, 0, 0, 0)
+    const end = new Date(start)
+    if (period === 'daily') {
+        end.setDate(end.getDate() + 1)
+    } else if (period === 'weekly') {
+        start.setDate(start.getDate() - start.getDay() + offset * 7)
+        end.setTime(start.getTime())
+        end.setDate(end.getDate() + 7)
+    } else {
+        start.setDate(1)
+        start.setMonth(start.getMonth() + offset)
+        end.setTime(start.getTime())
+        end.setMonth(end.getMonth() + 1)
+    }
+    return { start, end }
 }
 
-function periodStart(period: ExtractPeriod): string {
-    const d = new Date()
-    d.setHours(0, 0, 0, 0)
-    if (period === 'weekly') d.setDate(d.getDate() - 7)
-    if (period === 'monthly') d.setDate(d.getDate() - 30)
-    return d.toISOString()
+function periodTitle(period: ExtractPeriod, start: Date, end: Date): string {
+    if (period === 'daily') return 'Hoje'
+    if (period === 'monthly') return capitalize(start.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }))
+    const last = new Date(end)
+    last.setDate(last.getDate() - 1)
+    const fmt = (d: Date) => d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).replace('.', '')
+    return `Semana · ${fmt(start)} a ${fmt(last)}`
 }
+
+const sameDay = (a: Date, b: Date) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
 
 const PAYMENT_LABEL: Record<string, string> = {
     pix: 'PIX',
@@ -59,7 +82,10 @@ export default function StoreSalesExtractDialog({ storeId, storeName, period, on
     const surfaceRgb = hexToRgb(colors.surface)
 
     const [loading, setLoading] = useState(true)
+    const [offset, setOffset] = useState(0) // 0 = período atual, -1 = anterior...
+    const [selectedDay, setSelectedDay] = useState<number | null>(null) // dia da semana filtrado (0-6)
     const [orders, setOrders] = useState<OrderRow[]>([])
+    const { start, end } = periodRange(period, offset)
     const [expandedId, setExpandedId] = useState<string | null>(null)
     const [itemsByOrder, setItemsByOrder] = useState<Record<string, OrderItemRow[]>>({})
     const [loadingItemsFor, setLoadingItemsFor] = useState<string | null>(null)
@@ -71,13 +97,16 @@ export default function StoreSalesExtractDialog({ storeId, storeName, period, on
             .select('id, buyer_name, buyer_profile_slug, total_amount, payment_method, delivery_option, created_at')
             .eq('store_id', storeId)
             .eq('status', 'paid')
-            .gte('created_at', periodStart(period))
+            .gte('created_at', start.toISOString())
+            .lt('created_at', end.toISOString())
             .order('created_at', { ascending: false })
         setOrders((data as OrderRow[]) || [])
         setLoading(false)
-    }, [storeId, period])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [storeId, period, offset])
 
     useEffect(() => { load() }, [load])
+    useEffect(() => { setSelectedDay(null) }, [offset])
 
     const toggleExpand = async (orderId: string) => {
         if (expandedId === orderId) {
@@ -119,7 +148,19 @@ export default function StoreSalesExtractDialog({ storeId, storeName, period, on
         window.open(`mailto:?subject=${encodeURIComponent(`Pedido — ${storeName}`)}&body=${encodeURIComponent(text)}`, '_blank')
     }
 
-    const totalRevenue = orders.reduce((acc, o) => acc + Number(o.total_amount || 0), 0)
+    // Vendas por dia da semana (semana): total e quantidade de cada dia.
+    const dayTotals = WEEKDAYS.map((_, i) => {
+        const dayOrders = orders.filter((o) => new Date(o.created_at).getDay() === i)
+        return { total: dayOrders.reduce((acc, o) => acc + Number(o.total_amount || 0), 0), count: dayOrders.length }
+    })
+    const maxDayTotal = Math.max(...dayTotals.map((d) => d.total), 0)
+    const visibleOrders = period === 'weekly' && selectedDay !== null
+        ? orders.filter((o) => new Date(o.created_at).getDay() === selectedDay)
+        : orders
+    const totalRevenue = visibleOrders.reduce((acc, o) => acc + Number(o.total_amount || 0), 0)
+    const title = periodTitle(period, start, end)
+    const canNavigate = period !== 'daily'
+    const today = new Date()
 
     return (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={onClose}>
@@ -128,18 +169,77 @@ export default function StoreSalesExtractDialog({ storeId, storeName, period, on
                 style={{ background: colors.surface, border: `1px solid ${colors.border}` }}
                 onClick={(e) => e.stopPropagation()}
             >
-                <div className="flex items-center justify-between p-5 pb-3 flex-shrink-0" style={{ borderBottom: `1px solid ${colors.border}` }}>
-                    <div>
-                        <h3 className="text-base font-black" style={{ color: colors.textPrimary }}>
-                            Extrato · {PERIOD_LABEL[period]}
-                        </h3>
-                        <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>
-                            {orders.length} pedido{orders.length !== 1 ? 's' : ''} · R$ {totalRevenue.toFixed(2)}
-                        </p>
+                <div className="p-5 pb-3 flex-shrink-0" style={{ borderBottom: `1px solid ${colors.border}` }}>
+                    <div className="flex items-center justify-between">
+                        <h3 className="text-base font-black" style={{ color: colors.textPrimary }}>Extrato</h3>
+                        <button onClick={onClose} className="p-2 -mr-2 rounded-full flex-shrink-0" style={{ color: colors.textSecondary }}>
+                            <X size={20} />
+                        </button>
                     </div>
-                    <button onClick={onClose} className="p-2 rounded-full flex-shrink-0" style={{ color: colors.textSecondary }}>
-                        <X size={20} />
-                    </button>
+
+                    {/* Navegação entre semanas/meses */}
+                    <div className="flex items-center justify-between gap-2 mt-2">
+                        {canNavigate ? (
+                            <button
+                                onClick={() => setOffset((o) => o - 1)}
+                                aria-label="Período anterior"
+                                className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
+                                style={{ background: `${colors.border}30`, color: colors.textPrimary }}
+                            >
+                                <ChevronLeft size={18} />
+                            </button>
+                        ) : <span className="w-9" />}
+                        <div className="text-center min-w-0">
+                            <p className="text-sm font-black truncate" style={{ color: colors.textPrimary }}>{title}</p>
+                            <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>
+                                {visibleOrders.length} pedido{visibleOrders.length !== 1 ? 's' : ''} · <strong style={{ color: '#f97316' }}>R$ {totalRevenue.toFixed(2)}</strong>
+                            </p>
+                        </div>
+                        {canNavigate ? (
+                            <button
+                                onClick={() => setOffset((o) => Math.min(0, o + 1))}
+                                disabled={offset >= 0}
+                                aria-label="Próximo período"
+                                className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 disabled:opacity-30"
+                                style={{ background: `${colors.border}30`, color: colors.textPrimary }}
+                            >
+                                <ChevronRight size={18} />
+                            </button>
+                        ) : <span className="w-9" />}
+                    </div>
+
+                    {/* Semana: sempre mostra os 7 dias, com o total de cada um */}
+                    {period === 'weekly' && (
+                        <div className="grid grid-cols-7 gap-1 mt-3">
+                            {WEEKDAYS.map((label, i) => {
+                                const day = new Date(start)
+                                day.setDate(start.getDate() + i)
+                                const isToday = sameDay(day, today)
+                                const selected = selectedDay === i
+                                const d = dayTotals[i]
+                                const barHeight = maxDayTotal > 0 ? Math.max(4, Math.round((d.total / maxDayTotal) * 28)) : 4
+                                return (
+                                    <button
+                                        key={label}
+                                        onClick={() => setSelectedDay(selected ? null : i)}
+                                        className="flex flex-col items-center gap-1 py-1.5 rounded-xl transition"
+                                        style={selected
+                                            ? { background: 'linear-gradient(135deg, #f97316, #dc2626)' }
+                                            : { background: isToday ? '#f9731615' : 'transparent', border: `1px solid ${isToday ? '#f97316' : 'transparent'}` }}
+                                    >
+                                        <span className="text-[10px] font-black uppercase" style={{ color: selected ? '#fff' : colors.textSecondary }}>{label}</span>
+                                        <span className="text-xs font-black" style={{ color: selected ? '#fff' : colors.textPrimary }}>{day.getDate()}</span>
+                                        <div className="h-7 flex items-end">
+                                            <div className="w-3 rounded-full" style={{ height: barHeight, background: selected ? 'rgba(255,255,255,0.85)' : d.total > 0 ? '#f97316' : `${colors.border}80` }} />
+                                        </div>
+                                        <span className="text-[9px] font-bold" style={{ color: selected ? '#fff' : colors.textSecondary }}>
+                                            {d.total > 0 ? d.total.toFixed(0) : '–'}
+                                        </span>
+                                    </button>
+                                )
+                            })}
+                        </div>
+                    )}
                 </div>
 
                 <div className="overflow-y-auto p-4 space-y-2 flex-1">
@@ -147,13 +247,13 @@ export default function StoreSalesExtractDialog({ storeId, storeName, period, on
                         <div className="flex justify-center py-10">
                             <div className="w-6 h-6 border-2 border-orange-200 border-t-orange-500 rounded-full animate-spin" />
                         </div>
-                    ) : orders.length === 0 ? (
+                    ) : visibleOrders.length === 0 ? (
                         <div className="flex flex-col items-center gap-2 py-10 text-center">
                             <Receipt size={28} style={{ color: colors.textSecondary }} />
                             <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>Nenhum pedido nesse período</p>
                         </div>
                     ) : (
-                        orders.map((order) => {
+                        visibleOrders.map((order) => {
                             const isExpanded = expandedId === order.id
                             const items = itemsByOrder[order.id]
                             return (

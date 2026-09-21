@@ -56,6 +56,27 @@ function startOfDay(date: Date = new Date()): string {
     return date.toISOString()
 }
 
+// Semana atual (domingo a sábado) e mês atual (do dia 1 em diante): os cartões
+// de Vendas mostram o período em curso, não "os últimos N dias".
+function startOfCurrentWeek(): string {
+    const d = new Date()
+    d.setHours(0, 0, 0, 0)
+    d.setDate(d.getDate() - d.getDay())
+    return d.toISOString()
+}
+
+function startOfCurrentMonth(): string {
+    const d = new Date()
+    d.setHours(0, 0, 0, 0)
+    d.setDate(1)
+    return d.toISOString()
+}
+
+const CURRENT_MONTH_LABEL = () => {
+    const name = new Date().toLocaleDateString('pt-BR', { month: 'long' })
+    return name.charAt(0).toUpperCase() + name.slice(1)
+}
+
 function startOfPeriod(daysAgo: number): string {
     const d = new Date()
     d.setHours(0, 0, 0, 0)
@@ -288,8 +309,8 @@ export default function StoreDashboard({
         }
         setMetrics({
             daily: bucket(todayStart),
-            weekly: bucket(startOfPeriod(7)),
-            monthly: bucket(startOfPeriod(30)),
+            weekly: bucket(startOfCurrentWeek()),
+            monthly: bucket(startOfCurrentMonth()),
         })
 
         // Buscar produtos
@@ -550,7 +571,7 @@ export default function StoreDashboard({
                         {([
                             { label: 'Hoje', period: 'daily' as const, data: metrics.daily },
                             { label: 'Semana', period: 'weekly' as const, data: metrics.weekly },
-                            { label: 'Mês', period: 'monthly' as const, data: metrics.monthly },
+                            { label: CURRENT_MONTH_LABEL(), period: 'monthly' as const, data: metrics.monthly },
                         ]).map(({ label, period, data }) => (
                             <button
                                 key={label}
