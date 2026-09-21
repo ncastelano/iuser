@@ -32,7 +32,6 @@ import Employee from './Employee'
 import ButtonInPersonSale from './ButtonInPersonSale'
 import Publication from './StorePublication'
 import DeleteConfirmDialog from '@/components/DeleteConfirmDialog'
-import CollapsibleSection from '@/components/CollapsibleSection'
 import DriverDebtBanner from '@/components/DriverDebtBanner'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { callAdminApi } from '@/lib/callAdminApi'
@@ -495,7 +494,6 @@ export default function StoreDashboard({
             </div>
 
             {/* ===== Vendas do dia ===== */}
-            <CollapsibleSection title="Vendas" subtitle="Hoje, semana e mês">
             <div className="mb-6">
                 <div
                     className="rounded-2xl p-6 pt-7 flex flex-col gap-5 relative"
@@ -571,7 +569,6 @@ export default function StoreDashboard({
                     })()}
                 </div>
             </div>
-            </CollapsibleSection>
 
             {/* ===== Produtos ===== */}
             <div className="mb-6">
@@ -760,14 +757,10 @@ export default function StoreDashboard({
             </div>
 
             {/* ===== Informações da Loja ===== */}
-            <CollapsibleSection title="Informações da Loja">
-                <StoreAddress address={store.address} whatsapp={store.whatsapp} />
-            </CollapsibleSection>
+            <StoreAddress address={store.address} whatsapp={store.whatsapp} />
 
             {/* ===== Agendamentos ===== */}
-            <CollapsibleSection title="Agendamentos">
-                <AtalhoCompromissosDaLoja profileSlug={profileSlug} />
-            </CollapsibleSection>
+            <AtalhoCompromissosDaLoja profileSlug={profileSlug} />
 
             {/* ===== Publicações ===== */}
             <Publication storeId={store.id} />
@@ -776,9 +769,7 @@ export default function StoreDashboard({
             <StoreClubVip storeId={store.id} />
 
             {/* ===== Visitantes ===== */}
-            <CollapsibleSection title="Visitantes">
-                <StoreVisitors storeId={store.id} />
-            </CollapsibleSection>
+            <StoreVisitors storeId={store.id} />
 
             {/* ===== Excluir loja (no final, mesmo design do Excluir conta) ===== */}
             <button

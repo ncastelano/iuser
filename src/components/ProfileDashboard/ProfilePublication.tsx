@@ -72,7 +72,7 @@ export default function ProfilePublication({ profileId, profileSlug, isOwner = t
     const router = useRouter()
     const fileInputRef = useRef<HTMLInputElement>(null)
 
-    const [isExpanded, setIsExpanded] = useState(false)
+    const [isExpanded, setIsExpanded] = useState(true)
     const [isCreating, setIsCreating] = useState(false)
     const [publications, setPublications] = useState<Publication[]>([])
     const [loading, setLoading] = useState(false)
