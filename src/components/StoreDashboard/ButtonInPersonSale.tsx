@@ -15,8 +15,6 @@ import {
     CreditCard,
     Banknote,
     Smartphone,
-    ChevronDown,
-    ChevronUp,
     Package,
     Tag,
 } from 'lucide-react'
@@ -43,6 +41,8 @@ interface ButtonInPersonSaleProps {
     onSaleCompleted: () => void
 }
 
+const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
+
 const PAYMENT_METHODS = [
     { id: 'dinheiro', label: 'Dinheiro', icon: Banknote },
     { id: 'pix', label: 'PIX', icon: Smartphone },
@@ -58,7 +58,6 @@ export default function ButtonInPersonSale({
     onSaleCompleted,
 }: ButtonInPersonSaleProps) {
     const { colors } = useTheme()
-    const [isOpen, setIsOpen] = useState(true)
     const [products, setProducts] = useState<Product[]>([])
     const [searchQuery, setSearchQuery] = useState('')
     const [cart, setCart] = useState<CartItem[]>([])
@@ -75,7 +74,7 @@ export default function ButtonInPersonSale({
     const [applyingCode, setApplyingCode] = useState(false)
 
     useEffect(() => {
-        if (!isOpen || !storeId) return
+        if (!storeId) return
         const loadProducts = async () => {
             const { data } = await supabase
                 .from('products')
@@ -86,13 +85,7 @@ export default function ButtonInPersonSale({
             if (data) setProducts(data as Product[])
         }
         loadProducts()
-    }, [isOpen, storeId])
-
-    useEffect(() => {
-        if (isOpen && searchInputRef.current) {
-            setTimeout(() => searchInputRef.current?.focus(), 100)
-        }
-    }, [isOpen])
+    }, [storeId])
 
     const filteredProducts = products.filter(p =>
         p.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -204,7 +197,6 @@ export default function ButtonInPersonSale({
             setPaymentMethod('dinheiro')
             setRedemptionCode('')
             setAppliedDiscount(null)
-            setIsOpen(false)
             onSaleCompleted()
         } catch (err: any) {
             console.error('[Venda Presencial] Erro:', err)
@@ -214,270 +206,239 @@ export default function ButtonInPersonSale({
         }
     }
 
+    const qtyInCart = (productId: string) => cart.find((i) => i.product.id === productId)?.quantity || 0
+    const itemsCount = cart.reduce((sum, i) => sum + i.quantity, 0)
+    const inputStyle = { background: `${colors.surface}88`, borderColor: colors.border, color: colors.textPrimary }
+
     return (
-        <div className="mb-6">
-            {/* Botão principal */}
-            <button
-                onClick={() => setIsOpen(!isOpen)}
-                className="w-full py-3.5 rounded-2xl font-black text-sm uppercase tracking-wider flex items-center justify-center gap-2 transition-all hover:shadow-lg"
-                style={{
-                    background: isOpen
-                        ? 'linear-gradient(135deg, #ef4444, #dc2626)'
-                        : 'linear-gradient(135deg, #22c55e, #16a34a)',
-                    color: '#ffffff',
-                    border: isOpen ? '1px solid #ef4444' : '1px solid #22c55e',
-                    boxShadow: isOpen
-                        ? '0 8px 18px #ef444450'
-                        : '0 8px 18px #22c55e50',
-                }}
-            >
-                <ShoppingCart size={18} />
-                {isOpen ? 'Não executar venda' : 'Vender Presencial'}
-                {isOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-            </button>
+        <div
+            className="mb-6 rounded-3xl border overflow-hidden"
+            style={{ background: colors.surface, borderColor: colors.border, boxShadow: colors.shadow }}
+        >
+            {/* Cabeçalho: sempre aberto, sem botão de abrir/fechar */}
+            <div className="flex items-center gap-3 px-4 py-3.5" style={{ background: GRADIENT }}>
+                <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0">
+                    <ShoppingCart size={20} color="#ffffff" />
+                </div>
+                <div className="min-w-0 flex-1">
+                    <h3 className="text-sm font-black uppercase tracking-wider text-white">Venda presencial</h3>
+                    <p className="text-[11px] text-white/80">Toque nos produtos para montar a venda do balcão</p>
+                </div>
+                {itemsCount > 0 && (
+                    <span className="px-2.5 py-1 rounded-full bg-white text-xs font-black" style={{ color: '#dc2626' }}>
+                        {itemsCount} {itemsCount === 1 ? 'item' : 'itens'}
+                    </span>
+                )}
+            </div>
 
-            {/* Área expansível (restante inalterado) */}
-            {isOpen && (
-                <div
-                    className="mt-3 rounded-2xl border p-4 space-y-4 animate-in slide-in-from-top-2 duration-200"
-                    style={{
-                        background: colors.surface,
-                        borderColor: colors.border,
-                    }}
-                >
-                    {/* Busca de produtos */}
-                    <div className="relative">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: colors.textSecondary }} />
-                        <input
-                            ref={searchInputRef}
-                            type="text"
-                            placeholder="Buscar produto..."
-                            value={searchQuery}
-                            onChange={e => setSearchQuery(e.target.value)}
-                            className="w-full pl-9 pr-4 py-2.5 rounded-xl border text-sm focus:outline-none focus:ring-2"
-                            style={{
-                                background: `${colors.surface}88`,
-                                borderColor: colors.border,
-                                color: colors.textPrimary,
-                            }}
-                        />
-                    </div>
+            <div className="p-4 space-y-4">
+                {/* Busca */}
+                <div className="relative">
+                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: colors.textSecondary }} />
+                    <input
+                        ref={searchInputRef}
+                        type="text"
+                        placeholder="Buscar produto..."
+                        value={searchQuery}
+                        onChange={e => setSearchQuery(e.target.value)}
+                        className="w-full pl-10 pr-4 py-3 rounded-2xl border text-sm focus:outline-none focus:ring-2"
+                        style={{ ...inputStyle, '--tw-ring-color': '#f97316' } as React.CSSProperties}
+                    />
+                </div>
 
-                    {/* Lista de produtos */}
-                    <div className="max-h-48 overflow-y-auto space-y-2">
-                        {filteredProducts.length === 0 ? (
-                            <p className="text-xs text-center py-4" style={{ color: colors.textSecondary }}>
-                                {products.length === 0 ? 'Nenhum produto cadastrado.' : 'Nenhum produto encontrado.'}
-                            </p>
-                        ) : (
-                            filteredProducts.map(product => (
-                                <div
+                {/* Produtos em grade */}
+                {filteredProducts.length === 0 ? (
+                    <p className="text-xs text-center py-6" style={{ color: colors.textSecondary }}>
+                        {products.length === 0 ? 'Nenhum produto cadastrado.' : 'Nenhum produto encontrado.'}
+                    </p>
+                ) : (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-h-72 overflow-y-auto pr-0.5">
+                        {filteredProducts.map(product => {
+                            const qty = qtyInCart(product.id)
+                            return (
+                                <button
                                     key={product.id}
-                                    className="flex items-center justify-between p-3 rounded-xl border cursor-pointer hover:bg-white/5 transition-colors"
-                                    style={{ borderColor: colors.border }}
                                     onClick={() => addToCart(product)}
+                                    className="relative text-left rounded-2xl border overflow-hidden transition-all hover:scale-[1.02] active:scale-95"
+                                    style={{ borderColor: qty > 0 ? '#f97316' : colors.border, background: qty > 0 ? '#f9731610' : 'transparent' }}
                                 >
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
-                                            {product.image_url ? (
-                                                <img
-                                                    src={supabase.storage.from('product-images').getPublicUrl(product.image_url).data.publicUrl}
-                                                    alt={product.name}
-                                                    className="w-full h-full object-cover"
-                                                />
-                                            ) : (
-                                                <div className="w-full h-full flex items-center justify-center">
-                                                    <Package size={16} style={{ color: colors.textSecondary }} />
-                                                </div>
-                                            )}
+                                    <div className="w-full aspect-[4/3] bg-gray-100 flex items-center justify-center">
+                                        {product.image_url ? (
+                                            <img
+                                                src={supabase.storage.from('product-images').getPublicUrl(product.image_url).data.publicUrl}
+                                                alt={product.name}
+                                                className="w-full h-full object-cover"
+                                            />
+                                        ) : (
+                                            <Package size={22} style={{ color: colors.textSecondary }} />
+                                        )}
+                                    </div>
+                                    <div className="p-2.5">
+                                        <p className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>{product.name}</p>
+                                        <p className="text-xs font-black mt-0.5" style={{ color: '#f97316' }}>R$ {product.price.toFixed(2)}</p>
+                                    </div>
+                                    {qty > 0 ? (
+                                        <span className="absolute top-2 right-2 min-w-[24px] h-6 px-1.5 rounded-full flex items-center justify-center text-xs font-black text-white" style={{ background: GRADIENT }}>
+                                            {qty}
+                                        </span>
+                                    ) : (
+                                        <span className="absolute top-2 right-2 w-6 h-6 rounded-full flex items-center justify-center bg-white/90" style={{ color: '#f97316' }}>
+                                            <Plus size={14} />
+                                        </span>
+                                    )}
+                                </button>
+                            )
+                        })}
+                    </div>
+                )}
+
+                {cart.length > 0 && (
+                    <>
+                        {/* Carrinho */}
+                        <div className="rounded-2xl border p-3.5" style={{ borderColor: colors.border }}>
+                            <h4 className="text-[11px] font-black uppercase tracking-wider mb-2.5" style={{ color: colors.textSecondary }}>
+                                Carrinho
+                            </h4>
+                            <div className="space-y-2.5 max-h-44 overflow-y-auto">
+                                {cart.map(item => (
+                                    <div key={item.product.id} className="flex items-center gap-2">
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-sm font-bold truncate" style={{ color: colors.textPrimary }}>{item.product.name}</p>
+                                            <p className="text-[11px]" style={{ color: colors.textSecondary }}>
+                                                R$ {item.product.price.toFixed(2)} × {item.quantity} = <strong style={{ color: colors.textPrimary }}>R$ {(item.product.price * item.quantity).toFixed(2)}</strong>
+                                            </p>
                                         </div>
-                                        <div>
-                                            <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>
-                                                {product.name}
-                                            </p>
-                                            <p className="text-xs font-bold" style={{ color: colors.accent }}>
-                                                R$ {product.price.toFixed(2)}
-                                            </p>
+                                        <div className="flex items-center gap-1">
+                                            <button
+                                                onClick={() => updateQuantity(item.product.id, -1)}
+                                                className="w-8 h-8 rounded-full flex items-center justify-center"
+                                                style={{ background: '#f9731620', color: '#f97316' }}
+                                            >
+                                                <Minus size={14} />
+                                            </button>
+                                            <span className="w-7 text-center font-black text-sm" style={{ color: colors.textPrimary }}>{item.quantity}</span>
+                                            <button
+                                                onClick={() => updateQuantity(item.product.id, 1)}
+                                                className="w-8 h-8 rounded-full flex items-center justify-center"
+                                                style={{ background: '#f9731620', color: '#f97316' }}
+                                            >
+                                                <Plus size={14} />
+                                            </button>
+                                            <button
+                                                onClick={() => removeFromCart(item.product.id)}
+                                                className="w-8 h-8 rounded-full flex items-center justify-center ml-0.5"
+                                                style={{ background: '#ef444420', color: '#ef4444' }}
+                                            >
+                                                <X size={14} />
+                                            </button>
                                         </div>
                                     </div>
-                                    <Plus size={18} style={{ color: colors.accent }} />
-                                </div>
-                            ))
-                        )}
-                    </div>
-
-                    {/* Carrinho */}
-                    {cart.length > 0 && (
-                        <>
-                            <div className="border-t pt-3" style={{ borderColor: colors.border }}>
-                                <h4 className="text-xs font-black uppercase tracking-wider mb-2" style={{ color: colors.textPrimary }}>
-                                    Carrinho
-                                </h4>
-                                <div className="space-y-2 max-h-40 overflow-y-auto">
-                                    {cart.map(item => (
-                                        <div key={item.product.id} className="flex items-center justify-between text-sm">
-                                            <div className="flex-1 min-w-0">
-                                                <p className="font-bold truncate" style={{ color: colors.textPrimary }}>
-                                                    {item.product.name}
-                                                </p>
-                                                <p className="text-xs" style={{ color: colors.textSecondary }}>
-                                                    R$ {item.product.price.toFixed(2)} x {item.quantity}
-                                                </p>
-                                            </div>
-                                            <div className="flex items-center gap-1 ml-2">
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation()
-                                                        updateQuantity(item.product.id, -1)
-                                                    }}
-                                                    className="w-7 h-7 rounded-full flex items-center justify-center"
-                                                    style={{ background: `${colors.accent}20`, color: colors.accent }}
-                                                >
-                                                    <Minus size={14} />
-                                                </button>
-                                                <span className="w-8 text-center font-bold" style={{ color: colors.textPrimary }}>
-                                                    {item.quantity}
-                                                </span>
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation()
-                                                        updateQuantity(item.product.id, 1)
-                                                    }}
-                                                    className="w-7 h-7 rounded-full flex items-center justify-center"
-                                                    style={{ background: `${colors.accent}20`, color: colors.accent }}
-                                                >
-                                                    <Plus size={14} />
-                                                </button>
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation()
-                                                        removeFromCart(item.product.id)
-                                                    }}
-                                                    className="w-7 h-7 rounded-full flex items-center justify-center ml-1"
-                                                    style={{ background: '#ef444420', color: '#ef4444' }}
-                                                >
-                                                    <X size={14} />
-                                                </button>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                                {/* Código de resgate do Club VIP (opcional) */}
-                                <div className="pt-3 border-t" style={{ borderColor: colors.border }}>
-                                    {appliedDiscount ? (
-                                        <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-xs" style={{ background: '#22c55e15', border: '1px solid #22c55e40' }}>
-                                            <span className="font-bold flex items-center gap-1.5" style={{ color: '#22c55e' }}>
-                                                <Tag size={12} /> Código VIP aplicado · -R$ {discountAmount.toFixed(2)}
-                                            </span>
-                                            <button
-                                                onClick={() => { setAppliedDiscount(null); setRedemptionCode('') }}
-                                                className="text-[10px] font-bold underline"
-                                                style={{ color: '#22c55e' }}
-                                            >
-                                                Remover
-                                            </button>
-                                        </div>
-                                    ) : (
-                                        <div className="flex gap-2">
-                                            <input
-                                                type="text"
-                                                placeholder="Código de resgate VIP do cliente"
-                                                value={redemptionCode}
-                                                onChange={(e) => setRedemptionCode(e.target.value)}
-                                                className="flex-1 px-3 py-2 rounded-xl border text-xs focus:outline-none"
-                                                style={{ background: `${colors.surface}88`, borderColor: colors.border, color: colors.textPrimary }}
-                                            />
-                                            <button
-                                                onClick={handleApplyRedemptionCode}
-                                                disabled={applyingCode || !redemptionCode.trim()}
-                                                className="px-3 py-2 rounded-xl text-xs font-bold disabled:opacity-50 flex-shrink-0"
-                                                style={{ background: `${colors.accent}20`, color: colors.accent }}
-                                            >
-                                                Aplicar
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
-
-                                <div className="flex justify-between items-center mt-3 pt-3 border-t" style={{ borderColor: colors.border }}>
-                                    <span className="font-black text-sm" style={{ color: colors.textPrimary }}>Total</span>
-                                    <span className="font-black text-lg" style={{ color: colors.accent }}>
-                                        R$ {totalAmount.toFixed(2)}
-                                    </span>
-                                </div>
+                                ))}
                             </div>
 
-                            {/* Nome do cliente (opcional) */}
-                            <div>
-                                <label className="text-xs font-bold block mb-1" style={{ color: colors.textSecondary }}>
-                                    Nome do cliente (opcional)
-                                </label>
-                                <input
-                                    type="text"
-                                    placeholder="Cliente presencial"
-                                    value={buyerName}
-                                    onChange={e => setBuyerName(e.target.value)}
-                                    className="w-full px-3 py-2 rounded-xl border text-sm focus:outline-none focus:ring-2"
-                                    style={{
-                                        background: `${colors.surface}88`,
-                                        borderColor: colors.border,
-                                        color: colors.textPrimary,
-                                    }}
-                                />
-                            </div>
-
-                            {/* Método de pagamento */}
-                            <div>
-                                <label className="text-xs font-bold block mb-2" style={{ color: colors.textSecondary }}>
-                                    Pagamento
-                                </label>
-                                <div className="grid grid-cols-2 gap-2">
-                                    {PAYMENT_METHODS.map(method => {
-                                        const Icon = method.icon
-                                        const isSelected = paymentMethod === method.id
-                                        return (
-                                            <button
-                                                key={method.id}
-                                                onClick={() => setPaymentMethod(method.id)}
-                                                className="flex items-center gap-2 p-2.5 rounded-xl border text-xs font-bold transition-all"
-                                                style={{
-                                                    background: isSelected ? `${colors.accent}20` : 'transparent',
-                                                    borderColor: isSelected ? colors.accent : colors.border,
-                                                    color: isSelected ? colors.accent : colors.textSecondary,
-                                                }}
-                                            >
-                                                <Icon size={16} />
-                                                {method.label}
-                                            </button>
-                                        )
-                                    })}
-                                </div>
-                            </div>
-
-                            {/* Botão finalizar */}
-                            <button
-                                onClick={handleFinalizeSale}
-                                disabled={loading || cart.length === 0}
-                                className="w-full py-3 rounded-xl font-black text-sm uppercase tracking-wider flex items-center justify-center gap-2 transition-all disabled:opacity-50"
-                                style={{
-                                    background: `linear-gradient(135deg, #22c55e, #16a34a)`,
-                                    color: '#ffffff',
-                                    boxShadow: '0 8px 18px #22c55e50',
-                                }}
-                            >
-                                {loading ? (
-                                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            {/* Código de resgate do Club VIP (opcional) */}
+                            <div className="pt-3 mt-3 border-t" style={{ borderColor: colors.border }}>
+                                {appliedDiscount ? (
+                                    <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-xs" style={{ background: '#22c55e15', border: '1px solid #22c55e40' }}>
+                                        <span className="font-bold flex items-center gap-1.5" style={{ color: '#22c55e' }}>
+                                            <Tag size={12} /> Código VIP aplicado · -R$ {discountAmount.toFixed(2)}
+                                        </span>
+                                        <button
+                                            onClick={() => { setAppliedDiscount(null); setRedemptionCode('') }}
+                                            className="text-[10px] font-bold underline"
+                                            style={{ color: '#22c55e' }}
+                                        >
+                                            Remover
+                                        </button>
+                                    </div>
                                 ) : (
-                                    <>
-                                        <DollarSign size={18} />
-                                        Finalizar Venda (R$ {totalAmount.toFixed(2)})
-                                    </>
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="text"
+                                            placeholder="Código de resgate VIP do cliente"
+                                            value={redemptionCode}
+                                            onChange={(e) => setRedemptionCode(e.target.value)}
+                                            className="flex-1 min-w-0 px-3 py-2 rounded-xl border text-xs focus:outline-none"
+                                            style={inputStyle}
+                                        />
+                                        <button
+                                            onClick={handleApplyRedemptionCode}
+                                            disabled={applyingCode || !redemptionCode.trim()}
+                                            className="px-3.5 py-2 rounded-xl text-xs font-bold disabled:opacity-50 flex-shrink-0"
+                                            style={{ background: '#f9731620', color: '#f97316' }}
+                                        >
+                                            Aplicar
+                                        </button>
+                                    </div>
                                 )}
-                            </button>
-                        </>
-                    )}
-                </div>
-            )}
+                            </div>
+
+                            <div className="flex justify-between items-end mt-3 pt-3 border-t" style={{ borderColor: colors.border }}>
+                                <span className="font-black text-sm uppercase tracking-wider" style={{ color: colors.textSecondary }}>Total</span>
+                                <span className="font-black text-2xl" style={{ color: '#f97316' }}>R$ {totalAmount.toFixed(2)}</span>
+                            </div>
+                        </div>
+
+                        {/* Nome do cliente (opcional) */}
+                        <div>
+                            <label className="text-[11px] font-black uppercase tracking-wider block mb-1.5" style={{ color: colors.textSecondary }}>
+                                Nome do cliente (opcional)
+                            </label>
+                            <input
+                                type="text"
+                                placeholder="Cliente presencial"
+                                value={buyerName}
+                                onChange={e => setBuyerName(e.target.value)}
+                                className="w-full px-3.5 py-2.5 rounded-xl border text-sm focus:outline-none focus:ring-2"
+                                style={{ ...inputStyle, '--tw-ring-color': '#f97316' } as React.CSSProperties}
+                            />
+                        </div>
+
+                        {/* Pagamento */}
+                        <div>
+                            <label className="text-[11px] font-black uppercase tracking-wider block mb-1.5" style={{ color: colors.textSecondary }}>
+                                Pagamento
+                            </label>
+                            <div className="grid grid-cols-2 gap-2">
+                                {PAYMENT_METHODS.map(method => {
+                                    const Icon = method.icon
+                                    const isSelected = paymentMethod === method.id
+                                    return (
+                                        <button
+                                            key={method.id}
+                                            onClick={() => setPaymentMethod(method.id)}
+                                            className="flex items-center justify-center gap-2 py-3 rounded-xl border-2 text-xs font-black transition-all"
+                                            style={isSelected
+                                                ? { background: GRADIENT, borderColor: 'transparent', color: '#ffffff', boxShadow: '0 4px 12px #f9731640' }
+                                                : { background: 'transparent', borderColor: colors.border, color: colors.textSecondary }}
+                                        >
+                                            <Icon size={16} />
+                                            {method.label}
+                                        </button>
+                                    )
+                                })}
+                            </div>
+                        </div>
+
+                        {/* Finalizar */}
+                        <button
+                            onClick={handleFinalizeSale}
+                            disabled={loading || cart.length === 0}
+                            className="w-full py-3.5 rounded-2xl font-black text-sm uppercase tracking-wider flex items-center justify-center gap-2 transition-all hover:scale-[1.01] disabled:opacity-50"
+                            style={{ background: GRADIENT, color: '#ffffff', boxShadow: '0 8px 18px #f9731650' }}
+                        >
+                            {loading ? (
+                                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            ) : (
+                                <>
+                                    <DollarSign size={18} />
+                                    Finalizar venda · R$ {totalAmount.toFixed(2)}
+                                </>
+                            )}
+                        </button>
+                    </>
+                )}
+            </div>
         </div>
     )
 }

@@ -23,7 +23,7 @@ const DEBT_LIMIT = 50
 const MAX_ROWS = 1000
 
 type ChargeType =
-    | 'ride_fee' | 'service_fee' | 'order_fee' | 'product_fee' | 'publication_fee'
+    | 'ride_fee' | 'service_fee' | 'order_fee' | 'in_person_fee' | 'product_fee' | 'publication_fee'
     | 'schedule_activation_fee' | 'appointment_fee' | 'payment'
 
 interface Charge {
@@ -42,6 +42,7 @@ const TYPE_INFO: Record<ChargeType, { label: string; plural: string; icon: any; 
     ride_fee: { label: 'Corrida finalizada', plural: 'corridas', icon: Car, how: 'Cada corrida que você finaliza como motorista.' },
     service_fee: { label: 'Serviço aceito', plural: 'serviços', icon: Wrench, how: 'Cada serviço em que o cliente aceita a sua candidatura.' },
     order_fee: { label: 'Pedido de loja pago', plural: 'pedidos', icon: ShoppingBag, how: 'Cada pedido pago na sua loja.' },
+    in_person_fee: { label: 'Venda presencial', plural: 'vendas presenciais', icon: ShoppingBag, how: 'Cada venda presencial registrada no balcão da loja.' },
     product_fee: { label: 'Produto cadastrado', plural: 'produtos', icon: Package, how: 'Cada produto novo que você adiciona à loja.' },
     publication_fee: { label: 'Publicação criada', plural: 'publicações', icon: Megaphone, how: 'Cada publicação nova na loja.' },
     schedule_activation_fee: { label: 'Agenda ativada', plural: 'ativações de agenda', icon: CalendarPlus, how: 'Ao ativar a agenda da loja (uma única vez).' },
