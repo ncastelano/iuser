@@ -46,6 +46,7 @@ import { ProfileInfo } from './ProfileInfo'
 import ProfileVisitors from './ProfileVisitors'
 import PublicationProfile from './ProfilePublication'
 import Commission from './Commission'
+import CollapsibleSection from '@/components/CollapsibleSection'
 import DeleteConfirmDialog from '@/components/DeleteConfirmDialog'
 import { callAdminApi } from '@/lib/callAdminApi'
 import { format, subDays, startOfDay, eachDayOfInterval, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subMonths, addMonths } from 'date-fns'
@@ -1343,11 +1344,11 @@ export default function ProfileDashboard({
     const visitantesNode = <ProfileVisitors key={profile.id} profileId={profile.id} onLatestUpdate={onVisitantesUpdate} />
 
     const sortableSections = [
-        { key: 'financeiro', node: financeiroNode, ts: financeiroTimestamp },
-        { key: 'agenda', node: agendaNode, ts: sectionTimestamps.agenda },
+        { key: 'financeiro', node: <CollapsibleSection title="Financeiro" subtitle="Gastos, compras e avaliações">{financeiroNode}</CollapsibleSection>, ts: financeiroTimestamp },
+        { key: 'agenda', node: <CollapsibleSection title="Agenda">{agendaNode}</CollapsibleSection>, ts: sectionTimestamps.agenda },
         { key: 'publicacoes', node: publicacoesNode, ts: sectionTimestamps.publicacoes },
         { key: 'indicacoes', node: indicacoesNode, ts: sectionTimestamps.indicacoes },
-        { key: 'visitantes', node: visitantesNode, ts: sectionTimestamps.visitantes },
+        { key: 'visitantes', node: <CollapsibleSection title="Visitantes">{visitantesNode}</CollapsibleSection>, ts: sectionTimestamps.visitantes },
     ].sort((a, b) => (b.ts || '1970-01-01').localeCompare(a.ts || '1970-01-01'))
 
     return (

@@ -94,7 +94,7 @@ export default function Employee({
     const [deleteConfirmOpen, setDeleteConfirmOpen] = useState<EmployeeType | null>(null)
     const [deleting, setDeleting] = useState(false)
 
-    const [isExpanded, setIsExpanded] = useState(true)
+    const [isExpanded, setIsExpanded] = useState(false)
 
     const handleAdd = () => {
         setEditingEmployee(null)

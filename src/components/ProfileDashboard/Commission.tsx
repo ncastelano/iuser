@@ -157,7 +157,7 @@ export default function Commission({ userId, profileSlug, onLatestUpdate }: Comm
 
     const [loading, setLoading] = useState(true)
     const [members, setMembers] = useState<CommissionMember[]>([])
-    const [isExpanded, setIsExpanded] = useState(true)
+    const [isExpanded, setIsExpanded] = useState(false)
     const [copied, setCopied] = useState(false)
     const [showShareModal, setShowShareModal] = useState(false)
     const [shareLink, setShareLink] = useState('')

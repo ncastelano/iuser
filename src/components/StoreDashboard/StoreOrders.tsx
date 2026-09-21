@@ -141,7 +141,7 @@ export default function StoreOrders({
         dispatchedIds: dispatchedOrderIds,
         onCall: (order: any) => setCallDriverOrder(order),
     }
-    const [isOrdersExpanded, setIsOrdersExpanded] = useState(true)
+    const [isOrdersExpanded, setIsOrdersExpanded] = useState(false)
 
     // Ref para evitar múltiplas chamadas
     const isLoadingRef = useRef(false)
