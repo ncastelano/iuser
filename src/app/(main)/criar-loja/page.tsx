@@ -184,8 +184,8 @@ export default function CriarLoja() {
   const [selectedCategorySlug, setSelectedCategorySlug] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
   const [whatsappError, setWhatsappError] = useState("");
-  const [whatsappOrders, setWhatsappOrders] = useState(true);
-  const [showWhatsapp, setShowWhatsapp] = useState(true);
+  const [whatsappOrders, setWhatsappOrders] = useState(false);
+  const [showWhatsapp, setShowWhatsapp] = useState(false);
 
   const [selectedPosition, setSelectedPosition] = useState<{ lat: number; lng: number }>({
     lat: -15.7801,
@@ -649,13 +649,11 @@ export default function CriarLoja() {
       return;
     }
 
-    // Opcional: só grava quando a pessoa desligou (o padrão do banco é ligado).
-    const optOuts: Record<string, boolean> = {};
-    if (!whatsappOrders) optOuts.whatsapp_orders_enabled = false;
-    if (!showWhatsapp) optOuts.show_whatsapp = false;
-    if (Object.keys(optOuts).length > 0) {
-      await supabase.from("stores").update(optOuts).eq("storeSlug", storeSlug);
-    }
+    // Os dois começam desmarcados: grava explicitamente a escolha da pessoa.
+    await supabase
+      .from("stores")
+      .update({ whatsapp_orders_enabled: whatsappOrders, show_whatsapp: showWhatsapp })
+      .eq("storeSlug", storeSlug);
 
     setLoading(false);
 
