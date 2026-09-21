@@ -163,15 +163,20 @@ export function EditProductClient() {
                 type: productType,
                 price_type: priceType,
                 duration_minutes: durationMinutes ? parseInt(durationMinutes) : null,
-                stock_quantity: stockQuantity ? parseInt(stockQuantity) : null,
                 is_active: isActive,
                 has_addons: hasAddons,
                 image_url: imagePath,
             }
 
+            // Estoque é opcional: vazio = sem controle de estoque, e a coluna nem é
+            // enviada (só mexe nela se a pessoa preencheu, ou pra limpar um valor antigo).
+            const stockPayload: Record<string, number | null> = {}
+            if (stockQuantity.trim() !== '') stockPayload.stock_quantity = parseInt(stockQuantity)
+            else if (product.stock_quantity != null) stockPayload.stock_quantity = null
+
             const { error: updateError } = await supabase
                 .from('products')
-                .update(updateData)
+                .update({ ...updateData, ...stockPayload })
                 .eq('id', product.id)
 
             if (updateError) throw updateError
