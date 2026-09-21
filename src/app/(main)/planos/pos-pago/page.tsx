@@ -43,10 +43,10 @@ const TYPE_INFO: Record<ChargeType, { label: string; plural: string; icon: any; 
     service_fee: { label: 'Serviço aceito', plural: 'serviços', icon: Wrench, how: 'Cada serviço em que o cliente aceita a sua candidatura.' },
     order_fee: { label: 'Pedido de loja pago', plural: 'pedidos', icon: ShoppingBag, how: 'Cada pedido pago na sua loja.' },
     in_person_fee: { label: 'Venda presencial', plural: 'vendas presenciais', icon: ShoppingBag, how: 'Cada venda presencial registrada no balcão da loja.' },
-    product_fee: { label: 'Produto cadastrado', plural: 'produtos', icon: Package, how: 'Cada produto novo que você adiciona à loja.' },
-    publication_fee: { label: 'Publicação criada', plural: 'publicações', icon: Megaphone, how: 'Cada publicação nova na loja.' },
-    schedule_activation_fee: { label: 'Agenda ativada', plural: 'ativações de agenda', icon: CalendarPlus, how: 'Ao ativar a agenda da loja (uma única vez).' },
-    appointment_fee: { label: 'Agendamento aceito', plural: 'agendamentos', icon: CalendarCheck, how: 'Cada agendamento de cliente que você aceita.' },
+    product_fee: { label: 'Produto cadastrado', plural: 'produtos', icon: Package, how: 'Cada produto novo que você adiciona à sua loja ou ao seu perfil.' },
+    publication_fee: { label: 'Publicação criada', plural: 'publicações', icon: Megaphone, how: 'Cada publicação nova na sua loja ou no seu perfil.' },
+    schedule_activation_fee: { label: 'Agenda ativada', plural: 'ativações de agenda', icon: CalendarPlus, how: 'Ao ativar a agenda da loja ou do perfil (uma única vez em cada).' },
+    appointment_fee: { label: 'Agendamento aceito', plural: 'agendamentos', icon: CalendarCheck, how: 'Cada agendamento de cliente que você aceita, na loja ou no perfil.' },
     payment: { label: 'Pagamento via Pix', plural: 'pagamentos', icon: Wallet, how: '' },
 }
 
