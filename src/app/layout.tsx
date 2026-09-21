@@ -43,11 +43,11 @@ export const metadata: Metadata = {
       {
         // Imagem pequena e quadrada: a maioria dos apps (WhatsApp, Telegram,
         // iMessage) só mostra a logo do lado do texto quando o og:image é
-        // pequeno — com uma imagem grande (a antiga era 1254x1254) eles
+        // pequeno (menos de 300px de largura) — com uma imagem grande (a antiga era 1254x1254) eles
         // preferem exibir a imagem inteira em cima, como banner.
-        url: '/logo-preview.png',
-        width: 300,
-        height: 300,
+        url: '/logo-preview-thumb.png',
+        width: 200,
+        height: 200,
         alt: 'iUser',
         type: 'image/png',
       },
@@ -59,7 +59,7 @@ export const metadata: Metadata = {
     card: 'summary',
     title: 'iUser | Mostre o que você tem de melhor!',
     description: 'Tudo o que você precisa está aqui!',
-    images: ['/logo-preview.png'],
+    images: ['/logo-preview-thumb.png'],
   },
   robots: {
     index: true,

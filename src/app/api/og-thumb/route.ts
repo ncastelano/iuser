@@ -6,12 +6,14 @@ import sharp from 'sharp'
 export const runtime = 'nodejs'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
+// Menos de 300px de largura = o WhatsApp mostra a miniatura do lado esquerdo.
+const THUMB_SIZE = 200
 
 // Serve o arquivo local diretamente (em vez de redirecionar) — um redirect
 // dependeria do host que o servidor vê na request, que atrás de proxy/dev
 // server pode não bater com o domínio público.
 async function fallbackLogo() {
-    const buffer = await readFile(path.join(process.cwd(), 'public', 'logo-preview.png'))
+    const buffer = await readFile(path.join(process.cwd(), 'public', 'logo-preview-thumb.png'))
     return new NextResponse(new Uint8Array(buffer), {
         headers: {
             'Content-Type': 'image/png',
@@ -48,7 +50,7 @@ export async function GET(req: NextRequest) {
         const buffer = Buffer.from(await upstream.arrayBuffer())
 
         const resized = await sharp(buffer)
-            .resize(300, 300, { fit: 'cover', position: 'centre' })
+            .resize(THUMB_SIZE, THUMB_SIZE, { fit: 'cover', position: 'centre' })
             .flatten({ background: { r: 255, g: 255, b: 255 } })
             .png()
             .toBuffer()

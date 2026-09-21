@@ -3,11 +3,12 @@ import { createClient } from '@supabase/supabase-js'
 import sharp from 'sharp'
 
 const BASE_URL = 'https://www.iuser.com.br'
-const DEFAULT_LOGO_DIMENSIONS = { width: 1254, height: 1254 }
-// Chute razoável só usado se a imagem real falhar ao baixar/ler — evita
-// deixar a tag sem width/height (é isso que fazia o WhatsApp/Facebook
-// recusar a mostrar a imagem nas publicações, mesmo com og:image presente).
-const FALLBACK_IMAGE_DIMENSIONS = { width: 1200, height: 630 }
+// Toda prévia de link usa uma miniatura QUADRADA PEQUENA (200x200). O WhatsApp,
+// Telegram e iMessage só mostram a imagem do lado esquerdo do texto quando o
+// og:image tem menos de 300px de largura; a partir disso viram um banner
+// grande em cima. Por isso o tamanho é 200 (e não 300).
+const THUMB_SIZE = 200
+const DEFAULT_THUMB_URL = `${'https://www.iuser.com.br'}/logo-preview-thumb.png`
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 
@@ -34,7 +35,7 @@ function getSupabaseClient() {
     return createClient(SUPABASE_URL, SUPABASE_KEY)
 }
 
-// Passa a imagem por /api/og-thumb pra garantir um quadrado pequeno (300x300)
+// Passa a imagem por /api/og-thumb pra garantir um quadrado pequeno (200x200)
 // — avatar_url/logo_url vêm do Storage em qualquer tamanho, e a maioria dos
 // apps (WhatsApp, Telegram, iMessage) só mostra a miniatura do lado do texto
 // quando a imagem é pequena; do contrário preferem esticar em cima, como banner.
@@ -42,29 +43,12 @@ function toThumbUrl(imageUrl: string): string {
     return `${BASE_URL}/api/og-thumb?src=${encodeURIComponent(imageUrl)}`
 }
 
-// Lê as dimensões reais da imagem — produtos/publicações têm foto de
-// qualquer tamanho/proporção (ao contrário do avatar/logo, que sempre vira
-// um quadrado pequeno via toThumbUrl). Sem width/height no og:image, vários
-// apps (WhatsApp, Facebook) simplesmente não mostram nenhuma imagem.
-async function getImageDimensions(url: string): Promise<{ width: number; height: number } | null> {
-    try {
-        const res = await fetch(url)
-        if (!res.ok) return null
-        const buffer = Buffer.from(await res.arrayBuffer())
-        const meta = await sharp(buffer).metadata()
-        if (!meta.width || !meta.height) return null
-        return { width: meta.width, height: meta.height }
-    } catch {
-        return null
-    }
-}
-
 /**
  * Generates OpenGraph and Twitter metadata for an owner page (Store or Profile).
  * Route: /[ownerSlug]
  */
 export async function generateOwnerMetadata(ownerSlug: string): Promise<Metadata> {
-    const defaultLogoUrl = `${BASE_URL}/logo-preview.png`
+    const defaultLogoUrl = DEFAULT_THUMB_URL
     const pageUrl = `${BASE_URL}/${ownerSlug}`
 
     const supabase = getSupabaseClient()
@@ -102,8 +86,8 @@ export async function generateOwnerMetadata(ownerSlug: string): Promise<Metadata
                     images: [
                         {
                             url: avatarUrl,
-                            width: 300,
-                            height: 300,
+                            width: THUMB_SIZE,
+                            height: THUMB_SIZE,
                             alt: displayName,
                             type: 'image/png',
                         },
@@ -145,8 +129,8 @@ export async function generateOwnerMetadata(ownerSlug: string): Promise<Metadata
                     images: [
                         {
                             url: logoUrl,
-                            width: 300,
-                            height: 300,
+                            width: THUMB_SIZE,
+                            height: THUMB_SIZE,
                             alt: displayName,
                             type: 'image/png',
                         },
@@ -179,7 +163,7 @@ export async function generateOwnerMetadata(ownerSlug: string): Promise<Metadata
  * aparece do lado do texto em vez de em cima.
  */
 export async function generateCatalogMetadata(ownerSlug: string): Promise<Metadata> {
-    const defaultLogoUrl = `${BASE_URL}/logo-preview.png`
+    const defaultLogoUrl = DEFAULT_THUMB_URL
     const pageUrl = `${BASE_URL}/${ownerSlug}/catalogo`
 
     const supabase = getSupabaseClient()
@@ -216,8 +200,8 @@ export async function generateCatalogMetadata(ownerSlug: string): Promise<Metada
                     images: [
                         {
                             url: logoUrl,
-                            width: 300,
-                            height: 300,
+                            width: THUMB_SIZE,
+                            height: THUMB_SIZE,
                             alt: displayName,
                             type: 'image/png',
                         },
@@ -289,10 +273,9 @@ export async function generateProductOrPublicationMetadata(
             const title = `${product.name}${formattedPrice} | ${ownerName}`
             const description = product.description || `Confira ${product.name} no iUser!`
 
-            const imageUrl = getPublicStorageUrl('product-images', product.image_url) || ownerImage || defaultLogoUrl
-            const dimensions = imageUrl === defaultLogoUrl
-                ? DEFAULT_LOGO_DIMENSIONS
-                : (await getImageDimensions(imageUrl)) || FALLBACK_IMAGE_DIMENSIONS
+            const rawImageUrl = getPublicStorageUrl('product-images', product.image_url) || ownerImage
+            const imageUrl = rawImageUrl ? toThumbUrl(rawImageUrl) : defaultLogoUrl
+            const dimensions = { width: THUMB_SIZE, height: THUMB_SIZE }
 
             return {
                 title,
@@ -314,7 +297,7 @@ export async function generateProductOrPublicationMetadata(
                     type: isSale ? 'website' : 'article',
                 },
                 twitter: {
-                    card: 'summary_large_image',
+                    card: 'summary',
                     title,
                     description,
                     images: [imageUrl],
@@ -357,10 +340,9 @@ export async function generatePublicationMetadata(slug: string): Promise<Metadat
         if (publication) {
             const title = `${publication.name || 'Publicação'} | iUser`
             const description = publication.description || 'Confira esta publicação no iUser!'
-            const imageUrl = getPublicStorageUrl('product-images', publication.image_url) || defaultLogoUrl
-            const dimensions = imageUrl === defaultLogoUrl
-                ? DEFAULT_LOGO_DIMENSIONS
-                : (await getImageDimensions(imageUrl)) || FALLBACK_IMAGE_DIMENSIONS
+            const rawImageUrl = getPublicStorageUrl('product-images', publication.image_url)
+            const imageUrl = rawImageUrl ? toThumbUrl(rawImageUrl) : defaultLogoUrl
+            const dimensions = { width: THUMB_SIZE, height: THUMB_SIZE }
 
             return {
                 title,
@@ -380,7 +362,7 @@ export async function generatePublicationMetadata(slug: string): Promise<Metadat
                     type: 'article',
                 },
                 twitter: {
-                    card: 'summary_large_image',
+                    card: 'summary',
                     title,
                     description,
                     images: [imageUrl],
@@ -404,7 +386,7 @@ export async function generatePublicationMetadata(slug: string): Promise<Metadat
  * que faz o convite parecer pessoal antes mesmo de abrir o link.
  */
 export async function generateInviteMetadata(ref: string | undefined): Promise<Metadata> {
-    const defaultLogoUrl = `${BASE_URL}/logo-preview.png`
+    const defaultLogoUrl = DEFAULT_THUMB_URL
     const pageUrl = ref ? `${BASE_URL}/convite?ref=${encodeURIComponent(ref)}` : `${BASE_URL}/convite`
 
     const fallback: Metadata = {
@@ -450,8 +432,8 @@ export async function generateInviteMetadata(ref: string | undefined): Promise<M
                 images: [
                     {
                         url: avatarUrl,
-                        width: 300,
-                        height: 300,
+                        width: THUMB_SIZE,
+                        height: THUMB_SIZE,
                         alt: displayName,
                         type: 'image/png',
                     },
