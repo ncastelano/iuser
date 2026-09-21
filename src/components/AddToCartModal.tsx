@@ -4,6 +4,10 @@
 // (sempre) e, se a loja tiver habilitado pro produto, escolher adicionais
 // (cada um com seu próprio preço, definido pela loja). Usado tanto no
 // catálogo quanto na página de produto — mesmo comportamento nos dois.
+//
+// Quando são várias unidades de uma vez (ex: 2 x-tudo), primeiro pergunta se
+// a personalização vale pra todas (mesmas etapas de quando é 1 só) ou se
+// cada unidade tem a sua (uma rodada de etapas por unidade).
 'use client'
 
 import { useEffect, useState } from 'react'
@@ -29,10 +33,20 @@ interface ProductAddonRow {
     price: number
 }
 
+export interface AddToCartUnit {
+    comment: string | undefined
+    addons: CartAddon[]
+}
+
 interface AddToCartModalProps {
     product: AddToCartProduct
     onClose: () => void
+    /** Personalização única, vale pra todas as unidades. */
     onConfirm: (comment: string | undefined, addons: CartAddon[]) => void
+    /** Uma personalização por unidade (só usado quando quantity > 1). */
+    onConfirmEach?: (units: AddToCartUnit[]) => void
+    /** Quantas unidades estão sendo adicionadas de uma vez. */
+    quantity?: number
     colors: any
     /** Foto da loja: usada como imagem de fallback quando o produto não tem foto própria. */
     storeImageUrl?: string | null
@@ -40,12 +54,25 @@ interface AddToCartModalProps {
     storeName?: string
 }
 
-export default function AddToCartModal({ product, onClose, onConfirm, colors, storeImageUrl = null, storeName = '' }: AddToCartModalProps) {
-    const [step, setStep] = useState<'observacao' | 'adicionais'>('observacao')
-    const [commentText, setCommentText] = useState('')
+interface UnitDraft {
+    comment: string
+    ids: string[]
+}
+
+export default function AddToCartModal({ product, onClose, onConfirm, onConfirmEach, quantity = 1, colors, storeImageUrl = null, storeName = '' }: AddToCartModalProps) {
+    const qty = Math.max(1, quantity)
+    // Só oferece "cada um" se quem chamou sabe tratar (onConfirmEach).
+    const canCustomizeEach = qty > 1 && !!onConfirmEach
+    const [mode, setMode] = useState<'all' | 'each'>('all')
+    const [step, setStep] = useState<'modo' | 'observacao' | 'adicionais'>(canCustomizeEach ? 'modo' : 'observacao')
+    const [unit, setUnit] = useState(0)
+    const [units, setUnits] = useState<UnitDraft[]>(() => Array.from({ length: qty }, () => ({ comment: '', ids: [] })))
+    const current = units[unit]
+    const commentText = current.comment
+    const setCommentText = (comment: string) => setUnits((prev) => prev.map((u, i) => (i === unit ? { ...u, comment } : u)))
     const [productAddons, setProductAddons] = useState<ProductAddonRow[]>([])
     const [loadingAddons, setLoadingAddons] = useState(false)
-    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+    const selectedIds = new Set(current.ids)
 
     useEffect(() => {
         if (!product.has_addons) {
@@ -69,22 +96,64 @@ export default function AddToCartModal({ product, onClose, onConfirm, colors, st
     }, [product.id, product.has_addons])
 
     const toggleAddon = (id: string) => {
-        setSelectedIds((prev) => {
-            const next = new Set(prev)
-            if (next.has(id)) next.delete(id)
-            else next.add(id)
-            return next
-        })
+        setUnits((prev) => prev.map((u, i) => {
+            if (i !== unit) return u
+            const ids = u.ids.includes(id) ? u.ids.filter((x) => x !== id) : [...u.ids, id]
+            return { ...u, ids }
+        }))
     }
 
     const formatPrice = (price: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(price)
 
+    const toAddons = (ids: string[]): CartAddon[] =>
+        productAddons.filter((a) => ids.includes(a.id)).map((a) => ({ id: a.id, name: a.name, price: a.price }))
+
     const handleConfirm = () => {
-        const chosen: CartAddon[] = productAddons
-            .filter((a) => selectedIds.has(a.id))
-            .map((a) => ({ id: a.id, name: a.name, price: a.price }))
-        onConfirm(commentText.trim() || undefined, chosen)
+        if (mode === 'each' && onConfirmEach) {
+            onConfirmEach(units.map((u) => ({ comment: u.comment.trim() || undefined, addons: toAddons(u.ids) })))
+            return
+        }
+        onConfirm(commentText.trim() || undefined, toAddons(current.ids))
     }
+
+    const isLastUnit = mode !== 'each' || unit === qty - 1
+
+    // Fecha a rodada da unidade atual: no modo "cada um" vai pra próxima
+    // unidade (já começando igual à anterior, só ajustar o que muda); na
+    // última, ou no modo "todos", confirma.
+    const finishUnit = () => {
+        if (isLastUnit) {
+            handleConfirm()
+            return
+        }
+        setUnits((prev) => prev.map((u, i) => (i === unit + 1 && !u.comment && u.ids.length === 0 ? { ...prev[unit] } : u)))
+        setUnit(unit + 1)
+        setStep('observacao')
+    }
+
+    const goBack = () => {
+        if (step === 'adicionais') {
+            setStep('observacao')
+        } else if (mode === 'each' && unit > 0) {
+            setUnit(unit - 1)
+            setStep(product.has_addons ? 'adicionais' : 'observacao')
+        } else if (canCustomizeEach) {
+            setStep('modo')
+        } else {
+            onClose()
+        }
+    }
+
+    const chooseMode = (m: 'all' | 'each') => {
+        setMode(m)
+        setUnit(0)
+        setStep('observacao')
+    }
+
+    const stepsPerUnit = product.has_addons ? 2 : 1
+    const stepNumber = step === 'adicionais' ? 2 : 1
+    const unitNoun = qty > 1 ? `${qty} unidades` : ''
+    const stepLabel = step === 'adicionais' ? 'Adicionais' : 'Observação'
 
     const textColor = colors.textPrimary
 
@@ -100,9 +169,10 @@ export default function AddToCartModal({ product, onClose, onConfirm, colors, st
             >
                 <div className="flex items-center justify-between mb-4">
                     <div>
-                        {product.has_addons && (
+                        {step !== 'modo' && (product.has_addons || mode === 'each') && (
                             <p className="text-[10px] font-black uppercase tracking-wider mb-0.5" style={{ color: '#f97316' }}>
-                                Etapa {step === 'observacao' ? '1' : '2'} de 2 · {step === 'observacao' ? 'Observação' : 'Adicionais'}
+                                {mode === 'each' ? `Produto ${unit + 1} de ${qty} · ` : ''}
+                                {stepsPerUnit > 1 ? `Etapa ${stepNumber} de ${stepsPerUnit} · ` : ''}{stepLabel}
                             </p>
                         )}
                         <h3 className="text-lg font-black" style={{ color: textColor }}>
@@ -132,16 +202,65 @@ export default function AddToCartModal({ product, onClose, onConfirm, colors, st
                             {product.name}
                         </p>
                         <p className="text-sm font-bold" style={{ color: '#f97316' }}>
-                            {formatPrice(product.price)}
+                            {formatPrice(product.price)}{qty > 1 ? ` cada · ${unitNoun}` : ''}
                         </p>
                     </div>
+                    {qty > 1 && (
+                        <span className="px-2.5 py-1 rounded-full text-xs font-black flex-shrink-0" style={{ background: GRADIENT, color: '#fff' }}>
+                            {mode === 'each' ? `${unit + 1}/${qty}` : `×${qty}`}
+                        </span>
+                    )}
                 </div>
 
-                {step === 'observacao' ? (
+                {step === 'modo' && (
+                    <>
+                        <p className="text-sm font-bold mb-1" style={{ color: textColor }}>
+                            Você está adicionando {qty} × {product.name}
+                        </p>
+                        <p className="text-xs mb-3" style={{ color: colors.textSecondary }}>
+                            Como você quer personalizar?
+                        </p>
+                        <div className="space-y-2 mb-4">
+                            <button
+                                onClick={() => chooseMode('all')}
+                                className="w-full p-3 rounded-xl border-2 text-left transition hover:scale-[1.01] active:scale-95"
+                                style={{ borderColor: '#f97316', background: `${colors.accent}10` }}
+                            >
+                                <p className="text-sm font-black" style={{ color: textColor }}>Igual para todos</p>
+                                <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>
+                                    Uma observação e os mesmos adicionais valem para os {qty} {product.name}.
+                                </p>
+                            </button>
+                            <button
+                                onClick={() => chooseMode('each')}
+                                className="w-full p-3 rounded-xl border-2 text-left transition hover:scale-[1.01] active:scale-95"
+                                style={{ borderColor: colors.border, background: 'transparent' }}
+                            >
+                                <p className="text-sm font-black" style={{ color: textColor }}>Personalizar cada um</p>
+                                <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>
+                                    Cada {product.name} tem a sua observação e os seus adicionais, um de cada vez.
+                                </p>
+                            </button>
+                        </div>
+                        <button
+                            onClick={onClose}
+                            className="w-full py-3 rounded-xl font-bold text-sm transition hover:scale-105 active:scale-95"
+                            style={{ background: 'transparent', border: `2px solid ${colors.border}`, color: colors.textSecondary }}
+                        >
+                            Cancelar
+                        </button>
+                    </>
+                )}
+
+                {step === 'modo' ? null : step === 'observacao' ? (
                     <>
                         <div className="mb-4">
                             <label className="text-sm font-medium block mb-1" style={{ color: textColor }}>
-                                Quer remover algo ou deixar uma observação? (opcional)
+                                {mode === 'each'
+                                    ? `Quer remover algo ou deixar uma observação no produto ${unit + 1}? (opcional)`
+                                    : qty > 1
+                                        ? `Observação para os ${qty} produtos (opcional)`
+                                        : 'Quer remover algo ou deixar uma observação? (opcional)'}
                             </label>
                             <textarea
                                 value={commentText}
@@ -160,18 +279,18 @@ export default function AddToCartModal({ product, onClose, onConfirm, colors, st
 
                         <div className="flex gap-3">
                             <button
-                                onClick={onClose}
+                                onClick={goBack}
                                 className="flex-1 py-3 rounded-xl font-bold text-sm transition hover:scale-105 active:scale-95"
                                 style={{ background: 'transparent', border: `2px solid ${colors.border}`, color: colors.textSecondary }}
                             >
-                                Cancelar
+                                {canCustomizeEach || (mode === 'each' && unit > 0) ? 'Voltar' : 'Cancelar'}
                             </button>
                             <button
-                                onClick={() => (product.has_addons ? setStep('adicionais') : handleConfirm())}
+                                onClick={() => (product.has_addons ? setStep('adicionais') : finishUnit())}
                                 className="flex-1 py-3 rounded-xl font-bold text-sm transition hover:scale-105 active:scale-95"
                                 style={{ background: GRADIENT, color: '#ffffff', boxShadow: `0 4px 14px #f9731660` }}
                             >
-                                {product.has_addons ? 'Continuar' : 'Adicionar'}
+                                {product.has_addons ? 'Continuar' : isLastUnit ? 'Adicionar' : `Próximo produto (${unit + 2}/${qty})`}
                             </button>
                         </div>
                     </>
@@ -179,7 +298,7 @@ export default function AddToCartModal({ product, onClose, onConfirm, colors, st
                     <>
                         <div className="mb-4">
                             <label className="text-sm font-medium block mb-2" style={{ color: textColor }}>
-                                Adicionar algo a mais?
+                                {mode === 'each' ? `Adicionar algo a mais no produto ${unit + 1}?` : qty > 1 ? `Adicionar algo a mais nos ${qty} produtos?` : 'Adicionar algo a mais?'}
                             </label>
                             {loadingAddons ? (
                                 <div className="flex justify-center py-6">
@@ -222,18 +341,18 @@ export default function AddToCartModal({ product, onClose, onConfirm, colors, st
 
                         <div className="flex gap-3">
                             <button
-                                onClick={() => setStep('observacao')}
+                                onClick={goBack}
                                 className="flex-1 py-3 rounded-xl font-bold text-sm transition hover:scale-105 active:scale-95"
                                 style={{ background: 'transparent', border: `2px solid ${colors.border}`, color: colors.textSecondary }}
                             >
                                 Voltar
                             </button>
                             <button
-                                onClick={handleConfirm}
+                                onClick={finishUnit}
                                 className="flex-1 py-3 rounded-xl font-bold text-sm transition hover:scale-105 active:scale-95"
                                 style={{ background: GRADIENT, color: '#ffffff', boxShadow: `0 4px 14px #f9731660` }}
                             >
-                                Adicionar
+                                {isLastUnit ? (qty > 1 && mode === 'all' ? `Adicionar ${qty}` : 'Adicionar') : `Próximo produto (${unit + 2}/${qty})`}
                             </button>
                         </div>
                     </>

@@ -348,6 +348,27 @@ export function ProductClientPage({
         }
     }
 
+    // Cada unidade com a sua observação/adicionais (modo "personalizar cada um").
+    const confirmAddEach = (units: { comment: string | undefined; addons: CartAddon[] }[]) => {
+        if (!product) return
+        setAddingToCart(true)
+        try {
+            const storeDetails = { name: product.store?.name || ownerSlug, logo_url: finalStoreImage }
+            const cartProduct = { id: product.id, name: product.name, price: product.price || 0, image_url: imageUrl, slug: product.slug }
+            for (const u of units) {
+                addItem(ownerSlug, storeDetails, cartProduct, u.comment, u.addons.length > 0 ? u.addons : undefined)
+            }
+            toast.success(`${units.length} × ${product.name} adicionados ao carrinho!`)
+            setAddedToCart(true)
+            setTimeout(() => setAddedToCart(false), 3000)
+        } catch (error: any) {
+            toast.error('Erro ao adicionar ao carrinho: ' + error.message)
+        } finally {
+            setAddingToCart(false)
+            setShowAddModal(false)
+        }
+    }
+
     const handleQuantityChange = (newQuantity: number) => {
         if (newQuantity < 1) return
         setQuantity(newQuantity)
@@ -1247,6 +1268,8 @@ export function ProductClientPage({
                     storeName={storeDisplay.name}
                     onClose={() => setShowAddModal(false)}
                     onConfirm={confirmAddToCart}
+                    onConfirmEach={confirmAddEach}
+                    quantity={quantity}
                 />
             )}
 
