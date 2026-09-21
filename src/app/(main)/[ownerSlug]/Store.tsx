@@ -68,6 +68,7 @@ interface OwnerData {
     description?: string | null
     address?: string | null
     whatsapp?: string | null
+    show_whatsapp?: boolean
     instagram?: string | null
     view_count?: number
     ratings_avg?: number
@@ -257,7 +258,7 @@ export function Store({
 
     // ========== WHATSAPP ==========
     const whatsappLink = useMemo(() => {
-        if (!owner?.whatsapp) return null
+        if (!owner?.whatsapp || owner.show_whatsapp === false) return null
         return `https://wa.me/${owner.whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(`Olá! Vi sua loja no iUser e tenho interesse nos seus produtos/serviços.`)}`
     }, [owner])
 
@@ -511,6 +512,7 @@ export function Store({
                 description: store.description,
                 address: store.address,
                 whatsapp: storeWhatsapp,
+                show_whatsapp: store.show_whatsapp ?? true,
                 instagram: storeInstagram,
                 view_count: store.view_count || 0,
                 ratings_avg: avg,
@@ -1192,7 +1194,7 @@ export function Store({
                                 />
                             </div>
 
-                            {storeWhatsapp && (
+                            {storeWhatsapp && owner?.show_whatsapp !== false && (
                                 <div className="flex items-center gap-2 text-xs text-green-700 bg-green-50/50 px-3 py-2 rounded-lg">
                                     <MessageCircle size={14} />
                                     <span>O cliente será direcionado para o WhatsApp da loja: <strong>{storeWhatsapp}</strong></span>

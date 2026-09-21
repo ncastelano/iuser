@@ -447,7 +447,9 @@ export default function StoreDashboard({
                         lat: store.store_lat ?? null,
                         lng: store.store_lng ?? null,
                         whatsapp: store.whatsapp ?? null,
+                        showWhatsapp: store.show_whatsapp ?? true,
                     }}
+                    onShowWhatsappChange={(show) => setStore((prev: any) => ({ ...prev, show_whatsapp: show }))}
                     onLocationSaved={(loc) => setStore((prev: any) => ({
                         ...prev,
                         address: loc.address,

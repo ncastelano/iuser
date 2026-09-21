@@ -545,7 +545,7 @@ export default function MapPage() {
 
                 setStoreDetails({
                     followersCount: followersCount || 0,
-                    whatsapp,
+                    whatsapp: selectedItem.show_whatsapp === false ? null : whatsapp,
                     instagram,
                     isFollowing: !!followData,
                     topProducts: mappedProducts,

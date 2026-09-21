@@ -185,6 +185,7 @@ export default function CriarLoja() {
   const [whatsapp, setWhatsapp] = useState("");
   const [whatsappError, setWhatsappError] = useState("");
   const [whatsappOrders, setWhatsappOrders] = useState(true);
+  const [showWhatsapp, setShowWhatsapp] = useState(true);
 
   const [selectedPosition, setSelectedPosition] = useState<{ lat: number; lng: number }>({
     lat: -15.7801,
@@ -649,8 +650,11 @@ export default function CriarLoja() {
     }
 
     // Opcional: só grava quando a pessoa desligou (o padrão do banco é ligado).
-    if (!whatsappOrders) {
-      await supabase.from("stores").update({ whatsapp_orders_enabled: false }).eq("storeSlug", storeSlug);
+    const optOuts: Record<string, boolean> = {};
+    if (!whatsappOrders) optOuts.whatsapp_orders_enabled = false;
+    if (!showWhatsapp) optOuts.show_whatsapp = false;
+    if (Object.keys(optOuts).length > 0) {
+      await supabase.from("stores").update(optOuts).eq("storeSlug", storeSlug);
     }
 
     setLoading(false);
@@ -838,7 +842,26 @@ export default function CriarLoja() {
                 <div className="flex items-start gap-1.5 mt-1.5">
                   <Shield className="w-3 h-3 text-orange-400 flex-shrink-0 mt-0.5" />
                   <p className="text-[8px] text-gray-400 leading-relaxed">
-                    Este número fica visível como contato da loja.
+                    Você escolhe abaixo se este número aparece na página da loja.
+                  </p>
+                </div>
+                <div className="mt-2 p-3 rounded-xl border" style={{ borderColor: '#fbd5a4', background: '#fff7ed' }}>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-gray-700">
+                      Mostrar o WhatsApp na página da loja
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowWhatsapp(!showWhatsapp)}
+                      className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${showWhatsapp ? 'bg-orange-500' : 'bg-gray-400'}`}
+                    >
+                      <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm transition-all ${showWhatsapp ? 'right-1' : 'left-1'}`} />
+                    </button>
+                  </div>
+                  <p className="text-[9px] text-gray-500 leading-relaxed mt-1.5">
+                    {showWhatsapp
+                      ? 'Os clientes veem o número e o botão de WhatsApp na página da loja.'
+                      : 'O número fica escondido: os clientes não veem o WhatsApp na página da loja.'}
                   </p>
                 </div>
                 <div className="mt-2 p-3 rounded-xl border" style={{ borderColor: '#fbd5a4', background: '#fff7ed' }}>

@@ -40,10 +40,12 @@ export interface StoreLocationInfo {
     lat: number | null
     lng: number | null
     whatsapp: string | null
+    showWhatsapp?: boolean
 }
 
 interface StoreDescriptionProps {
     location?: StoreLocationInfo
+    onShowWhatsappChange?: (show: boolean) => void
     onLocationSaved?: (loc: { address: string; addressNumber: string; addressComplement: string; lat: number; lng: number }) => void
     name: string
     storeSlug: string
@@ -67,6 +69,7 @@ interface StoreDescriptionProps {
 export function StoreDescription({
     location,
     onLocationSaved,
+    onShowWhatsappChange,
     name,
     storeSlug,
     description,
@@ -91,6 +94,21 @@ export function StoreDescription({
 
     const [showLocationPicker, setShowLocationPicker] = useState(false)
     const [savingLocation, setSavingLocation] = useState(false)
+    const [savingShowWhatsapp, setSavingShowWhatsapp] = useState(false)
+
+    const toggleShowWhatsapp = async () => {
+        if (!location) return
+        const next = !(location.showWhatsapp ?? true)
+        setSavingShowWhatsapp(true)
+        const { error } = await supabase.from('stores').update({ show_whatsapp: next }).eq('id', location.storeId)
+        setSavingShowWhatsapp(false)
+        if (error) {
+            toast.error('Erro ao salvar: ' + error.message)
+            return
+        }
+        onShowWhatsappChange?.(next)
+        toast.success(next ? 'WhatsApp visível na página da loja' : 'WhatsApp escondido da página da loja')
+    }
 
     // Grava a localização escolhida na própria loja (endereço, número,
     // complemento, coordenadas e o campo geográfico usado nas buscas).
@@ -472,6 +490,25 @@ export function StoreDescription({
                                         </p>
                                     </div>
                                 </div>
+                                {location.whatsapp && (
+                                    <div className="flex items-center justify-between gap-3 p-3 rounded-2xl" style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`, border: `1px solid ${colors.border}` }}>
+                                        <div className="min-w-0">
+                                            <p className="text-xs font-bold" style={{ color: colors.textPrimary }}>Mostrar o WhatsApp na página da loja</p>
+                                            <p className="text-[11px]" style={{ color: colors.textSecondary }}>
+                                                {(location.showWhatsapp ?? true)
+                                                    ? 'Os clientes veem o número e o botão de WhatsApp.'
+                                                    : 'O número fica escondido dos clientes.'}
+                                            </p>
+                                        </div>
+                                        <button
+                                            onClick={toggleShowWhatsapp}
+                                            disabled={savingShowWhatsapp}
+                                            className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 disabled:opacity-60 ${(location.showWhatsapp ?? true) ? 'bg-orange-500' : 'bg-gray-400'}`}
+                                        >
+                                            <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm transition-all ${(location.showWhatsapp ?? true) ? 'right-1' : 'left-1'}`} />
+                                        </button>
+                                    </div>
+                                )}
                                 {location.whatsapp && (
                                     <a
                                         href={`https://wa.me/${location.whatsapp.replace(/\D/g, '')}`}
