@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { createClient } from '@supabase/supabase-js'
-import sharp from 'sharp'
+import { categorias } from './categorias'
 
 const BASE_URL = 'https://www.iuser.com.br'
 // Toda prévia de link usa uma miniatura QUADRADA PEQUENA (200x200). O WhatsApp,
@@ -28,6 +28,26 @@ function getPublicStorageUrl(bucket: string, path: string | null | undefined): s
     }
     if (!SUPABASE_URL) return null
     return `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${cleanPath}`
+}
+
+
+// Categoria da loja pode estar salva como slug ("saude") ou como nome ("Serviços").
+function categoryName(raw: string | null | undefined): string | null {
+    if (!raw) return null
+    const found = categorias.find((c) => c.slug === raw || c.nome === raw)
+    return found ? found.nome : raw
+}
+
+// "Rua X, Bairro, Porto Velho - Rondônia, 76808-054, Brazil" → "Porto Velho - RO"
+function cityFromAddress(address: string | null | undefined): string | null {
+    if (!address) return null
+    const m = address.match(/,\s*([^,]+?)\s-\s([^,]+?)(?:,|$)/)
+    return m ? `${m[1].trim()} - ${m[2].trim()}` : null
+}
+
+// Uma linha de destaque + a descrição: "⭐ 4,8 (23) · Saúde · Porto Velho - Rondônia · Faz entrega".
+function joinParts(parts: (string | null | false | undefined)[]): string {
+    return parts.filter(Boolean).join(' · ')
 }
 
 function getSupabaseClient() {
@@ -63,14 +83,19 @@ export async function generateOwnerMetadata(ownerSlug: string): Promise<Metadata
         // 1. Tenta buscar como Perfil
         const { data: profile } = await supabase
             .from('profiles')
-            .select('name, profileSlug, avatar_url, bio')
+            .select('name, profileSlug, avatar_url, bio, description, address, ratings_avg, ratings_count, is_seller')
             .eq('profileSlug', ownerSlug)
             .maybeSingle()
 
         if (profile) {
             const displayName = profile.name ? profile.name : `@${profile.profileSlug}`
             const title = `${displayName} (@${profile.profileSlug}) | iUser`
-            const description = profile.bio || `Confira o perfil de ${displayName} no iUser!`
+            const rating = Number(profile.ratings_avg) > 0 && Number(profile.ratings_count) > 0
+                ? `⭐ ${Number(profile.ratings_avg).toFixed(1).replace('.', ',')} (${profile.ratings_count})`
+                : null
+            const highlight = joinParts([rating, cityFromAddress(profile.address)])
+            const about = (profile.bio || profile.description || '').trim()
+            const description = [highlight, about || `Confira o perfil de ${displayName} no iUser: compre, venda, dirija e preste serviços.`].filter(Boolean).join(' — ')
             const rawAvatarUrl = getPublicStorageUrl('avatars', profile.avatar_url)
             const avatarUrl = rawAvatarUrl ? toThumbUrl(rawAvatarUrl) : defaultLogoUrl
 
@@ -106,14 +131,25 @@ export async function generateOwnerMetadata(ownerSlug: string): Promise<Metadata
         // 2. Tenta buscar como Loja
         const { data: store } = await supabase
             .from('stores')
-            .select('name, storeSlug, logo_url, description')
+            .select('name, storeSlug, logo_url, description, category, address, ratings_avg, ratings_count, accepts_delivery, accepts_pickup')
             .eq('storeSlug', ownerSlug)
             .maybeSingle()
 
         if (store) {
             const displayName = store.name ? store.name : store.storeSlug
-            const title = `${displayName} (@${store.storeSlug}) | iUser`
-            const description = store.description || `Confira a loja ${displayName} no iUser! Os melhores produtos e serviços.`
+            const cat = categoryName(store.category)
+            const title = `${displayName}${cat ? ` · ${cat}` : ''} | iUser`
+            const rating = Number(store.ratings_avg) > 0 && Number(store.ratings_count) > 0
+                ? `⭐ ${Number(store.ratings_avg).toFixed(1).replace('.', ',')} (${store.ratings_count})`
+                : null
+            const highlight = joinParts([
+                rating,
+                cityFromAddress(store.address),
+                store.accepts_delivery && 'Faz entrega',
+                !store.accepts_delivery && store.accepts_pickup && 'Retirada no local',
+            ])
+            const about = (store.description || '').replace(/\s+/g, ' ').trim()
+            const description = [highlight, about || `Confira a loja ${displayName} no iUser! Os melhores produtos e serviços.`].filter(Boolean).join(' — ')
             const rawLogoUrl = getPublicStorageUrl('store-logos', store.logo_url)
             const logoUrl = rawLogoUrl ? toThumbUrl(rawLogoUrl) : defaultLogoUrl
 
