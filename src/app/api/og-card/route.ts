@@ -30,6 +30,28 @@ const ICONS: Record<string, string> = {
         <rect x="92" y="102" width="16" height="20" rx="4" fill="url(#g)"/>`,
 }
 
+ICONS.loja = `
+        <path d="M46 84 L58 50 H142 L154 84 Z" fill="#fff"/>
+        <rect x="52" y="84" width="96" height="70" rx="6" fill="#fff"/>
+        <rect x="84" y="112" width="32" height="42" rx="4" fill="url(#g)"/>
+        <path d="M46 84 Q58 104 70 84 Q82 104 94 84 Q106 104 118 84 Q130 104 142 84 L154 84" fill="none" stroke="url(#g)" stroke-width="6"/>`
+// alvo/radar
+ICONS.radar = `
+        <circle cx="100" cy="100" r="58" fill="none" stroke="#fff" stroke-width="10"/>
+        <circle cx="100" cy="100" r="30" fill="none" stroke="#fff" stroke-width="10"/>
+        <circle cx="100" cy="100" r="10" fill="#fff"/>`
+// pessoas (comunidade)
+ICONS.comunidade = `
+        <circle cx="100" cy="78" r="24" fill="#fff"/>
+        <path d="M56 152 Q56 112 100 112 Q144 112 144 152 Z" fill="#fff"/>
+        <circle cx="52" cy="92" r="16" fill="#fff" fill-opacity="0.85"/>
+        <circle cx="148" cy="92" r="16" fill="#fff" fill-opacity="0.85"/>`
+// calculadora
+ICONS.calculadora = `
+        <rect x="56" y="38" width="88" height="124" rx="14" fill="#fff"/>
+        <rect x="68" y="52" width="64" height="28" rx="6" fill="url(#g)"/>
+        <g fill="url(#g)"><circle cx="76" cy="102" r="8"/><circle cx="100" cy="102" r="8"/><circle cx="124" cy="102" r="8"/><circle cx="76" cy="126" r="8"/><circle cx="100" cy="126" r="8"/><circle cx="124" cy="126" r="8"/><circle cx="76" cy="148" r="6"/><circle cx="100" cy="148" r="6"/><circle cx="124" cy="148" r="6"/></g>`
+
 export async function GET(req: NextRequest) {
     const kind = req.nextUrl.searchParams.get('kind') || ''
     const icon = ICONS[kind] || ICONS.planos

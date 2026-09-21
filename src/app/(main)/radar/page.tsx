@@ -7,7 +7,7 @@ import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
-import { Store, ShoppingCart, X, MapPin, Star, Briefcase, Layers, Flame, Navigation, Crosshair, Home, Save, XCircle, Building2, ChevronRight, CheckCircle2, Users, Calendar, MessageCircle, Eye, Clock, AlertCircle, UserCheck, UserPlus, Camera } from 'lucide-react'
+import { Store, ShoppingCart, X, MapPin, Star, Briefcase, Layers, Flame, Navigation, Crosshair, Home, Save, XCircle, Building2, ChevronRight, CheckCircle2, Users, Calendar, MessageCircle, Eye, Clock, AlertCircle, UserCheck, UserPlus, Camera, ChevronDown, Check } from 'lucide-react'
 import { useAppModeStore } from '@/store/useAppModeStore'
 import { toast } from 'sonner'
 import { Spinner } from '@/components/Spinner'
@@ -16,6 +16,7 @@ import { useProfile } from '@/app/contexts/ProfileContext'
 import { getCurrentPosition as getNativeCurrentPosition } from '@/lib/nativeGeolocation'
 import Header, { type Tab } from '@/components/Header'
 import LocationPicker from '@/components/LocationPicker'
+import { haversineKm } from '@/lib/mapboxRoute'
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
 
@@ -84,6 +85,72 @@ async function reverseGeocode(lng: number, lat: number): Promise<string> {
     }
 }
 
+// ===== RANKING / FILTROS DO RADAR =====
+type RankKey =
+    | 'views_desc' | 'views_asc' | 'sales_desc' | 'sales_asc'
+    | 'comments_desc' | 'comments_asc' | 'followers_desc' | 'followers_asc'
+    | 'rating_desc' | 'rating_asc' | 'recent_desc' | 'recent_asc'
+
+// Sempre em pares: o "mais" e o "menos" de cada critério.
+const RANK_GROUPS: { id: string; title: string; storesOnly?: boolean; desc: { key: RankKey; label: string }; asc: { key: RankKey; label: string } }[] = [
+    { id: 'views', title: 'Visualizações', desc: { key: 'views_desc', label: 'Mais vistos' }, asc: { key: 'views_asc', label: 'Menos vistos' } },
+    { id: 'sales', title: 'Vendas', desc: { key: 'sales_desc', label: 'Mais vendidos' }, asc: { key: 'sales_asc', label: 'Menos vendidos' } },
+    { id: 'comments', title: 'Comentários', desc: { key: 'comments_desc', label: 'Mais comentados' }, asc: { key: 'comments_asc', label: 'Menos comentados' } },
+    { id: 'followers', title: 'Seguidores', storesOnly: true, desc: { key: 'followers_desc', label: 'Mais seguidos' }, asc: { key: 'followers_asc', label: 'Menos seguidos' } },
+    { id: 'rating', title: 'Avaliação', desc: { key: 'rating_desc', label: 'Melhor avaliados' }, asc: { key: 'rating_asc', label: 'Pior avaliados' } },
+    { id: 'recent', title: 'Novidade', desc: { key: 'recent_desc', label: 'Mais recentes' }, asc: { key: 'recent_asc', label: 'Mais antigos' } },
+]
+
+function rankLabel(key: RankKey): string {
+    for (const g of RANK_GROUPS) {
+        if (g.desc.key === key) return g.desc.label
+        if (g.asc.key === key) return g.asc.label
+    }
+    return 'Mais vistos'
+}
+
+type RadarMetrics = { stores: Record<string, { sales: number; comments: number; followers: number }>; products: Record<string, { sales: number; comments: number }> }
+
+function metricValue(item: any, key: RankKey, isStoreMode: boolean, metrics: RadarMetrics | null): number {
+    const base = key.split('_')[0]
+    const m: any = metrics ? (isStoreMode ? metrics.stores[item.id] : metrics.products[item.id]) : null
+    switch (base) {
+        case 'views': return Number(item.view_count) || 0
+        case 'sales': return Number(m?.sales) || 0
+        case 'comments': return Number(m?.comments) || 0
+        case 'followers': return Number(m?.followers) || 0
+        case 'rating': return (Number(item.ratings_avg) || 0) * 1000 + (Number(item.ratings_count) || 0)
+        case 'recent': return item.created_at ? new Date(item.created_at).getTime() : 0
+        default: return 0
+    }
+}
+
+function sortByRank(items: any[], key: RankKey, isStoreMode: boolean, metrics: RadarMetrics | null): any[] {
+    const dir = key.endsWith('_asc') ? 1 : -1
+    return [...items].sort((a, b) => {
+        const diff = metricValue(a, key, isStoreMode, metrics) - metricValue(b, key, isStoreMode, metrics)
+        return diff !== 0 ? dir * diff : String(a.name || '').localeCompare(String(b.name || ''))
+    })
+}
+
+// Coroas dos 3 primeiros: ouro, prata e bronze, cada uma com o seu número.
+const RANK_COLORS: Record<number, { fill: string; stroke: string; text: string }> = {
+    1: { fill: '#facc15', stroke: '#a16207', text: '#713f12' },
+    2: { fill: '#e2e8f0', stroke: '#64748b', text: '#334155' },
+    3: { fill: '#d97706', stroke: '#7c2d12', text: '#431407' },
+}
+
+function crownSvg(rank: number, size: number): string {
+    const c = RANK_COLORS[rank]
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24"><path d="M2.5 18.5h19l1.2-11.2-5.4 4.2L12 4 7.7 11.5 2.3 7.3z" fill="${c.fill}" stroke="${c.stroke}" stroke-width="1.4" stroke-linejoin="round"/><rect x="3" y="18.5" width="18" height="2.6" rx="1.1" fill="${c.fill}" stroke="${c.stroke}" stroke-width="1.2"/><text x="12" y="17" text-anchor="middle" font-size="8.5" font-weight="900" fill="${c.text}" font-family="system-ui,sans-serif">${rank}</text></svg>`
+}
+
+function CrownBadge({ rank, size = 28 }: { rank: number; size?: number }) {
+    return <span aria-label={`Top ${rank}`} style={{ display: 'inline-block', lineHeight: 0, filter: 'drop-shadow(0 2px 3px rgba(0,0,0,0.35))' }} dangerouslySetInnerHTML={{ __html: crownSvg(rank, size) }} />
+}
+
+type EdgeIndicator = { id: string; x: number; y: number; angle: number; item: any; rank: number; km: number }
+
 export default function MapPage() {
     const { userId: contextUserId, profileSlug, avatarUrl, loading: profileLoading } = useProfile()
     const mapRef = useRef<mapboxgl.Map | null>(null)
@@ -94,6 +161,10 @@ export default function MapPage() {
     const clusterMarkersRef = useRef<mapboxgl.Marker[]>([])
 
     const [mode, setMode] = useState<Mode>('lojas')
+    const [metrics, setMetrics] = useState<RadarMetrics | null>(null)
+    const [rankKey, setRankKey] = useState<RankKey>('views_desc')
+    const [showRankMenu, setShowRankMenu] = useState(false)
+    const [edgeIndicators, setEdgeIndicators] = useState<EdgeIndicator[]>([])
     const [stores, setStores] = useState<any[]>([])
     const [products, setProducts] = useState<any[]>([])
     const [filtered, setFiltered] = useState<any[]>([])
@@ -376,6 +447,9 @@ export default function MapPage() {
 
             setStores(mappedStores)
             setProducts(mappedProducts)
+
+            const { data: metricsData } = await supabase.rpc('get_radar_metrics')
+            if (metricsData) setMetrics(metricsData as RadarMetrics)
             console.log('[MapPage] 📦 Dados carregados:', { stores: mappedStores.length, products: mappedProducts.length })
         }
 
@@ -398,10 +472,12 @@ export default function MapPage() {
         }
 
         const q = search.toLowerCase()
-        const result = q ? items.filter(i => i.name?.toLowerCase().includes(q)) : items
+        const matched = q ? items.filter(i => i.name?.toLowerCase().includes(q)) : items
+        // Ordena pelo filtro escolhido (padrão: mais vistos → menos vistos).
+        const result = sortByRank(matched, rankKey, mode === 'lojas', metrics)
         setFiltered(result)
         console.log('[MapPage] 🎯 Filtrados:', { mode, count: result.length, search: q })
-    }, [search, mode, stores, products, overrideList])
+    }, [search, mode, stores, products, overrideList, rankKey, metrics])
 
     // Buscar detalhes extras da loja selecionada (seguidores, whatsapp, instagram,
     // se já sigo, produtos mais vistos, comentários)
@@ -566,6 +642,7 @@ export default function MapPage() {
             return
         }
 
+        const rankOf = new Map<string, number>(filtered.slice(0, 3).map((it, i) => [it.id, i + 1] as [string, number]))
         const coordGroups: Record<string, any[]> = {}
 
         filtered.forEach(item => {
@@ -608,17 +685,23 @@ export default function MapPage() {
                 if (mode === 'lojas') {
                     borderColor = item.is_open ? '#22c55e' : '#ef4444'
                 }
+                // Top 3: marcador maior, com a cor da coroa e uma coroa numerada em cima.
+                const rank = rankOf.get(item.id)
+                if (rank) borderColor = RANK_COLORS[rank].fill
+                const boxSize = rank ? 58 : 48
+                const baseZ = rank ? '600' : (100 - index).toString()
+                el.style.zIndex = baseZ
 
                 inner.style.cssText = `
-                    width: 48px;
-                    height: 48px;
+                    width: ${boxSize}px;
+                    height: ${boxSize}px;
                     border-radius: 12px;
                     overflow: hidden;
                     border: 3px solid ${borderColor};
                     cursor: pointer;
                     background: white;
                     transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-                    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+                    box-shadow: ${rank ? `0 0 0 3px ${RANK_COLORS[rank].fill}55, 0 6px 20px rgba(0,0,0,0.4)` : '0 4px 15px rgba(0,0,0,0.3)'};
                 `
 
                 inner.onmouseenter = () => {
@@ -629,8 +712,8 @@ export default function MapPage() {
 
                 inner.onmouseleave = () => {
                     inner.style.transform = 'scale(1) rotate(0deg)'
-                    inner.style.boxShadow = '0 4px 15px rgba(0,0,0,0.3)'
-                    el.style.zIndex = (100 - index).toString()
+                    inner.style.boxShadow = rank ? `0 0 0 3px ${RANK_COLORS[rank].fill}55, 0 6px 20px rgba(0,0,0,0.4)` : '0 4px 15px rgba(0,0,0,0.3)'
+                    el.style.zIndex = baseZ
                 }
 
                 const storeSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m2 7 4.41-2.20a2 2 0 0 1 1.76 0l4.23 2.12a2 2 0 0 0 1.76 0L18.4 4.8a2 2 0 0 1 1.76 0L22 7"/><path d="M22 7v11a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7"/><path d="M2 11h20"/><path d="M16 11v9"/><path d="M8 11v9"/></svg>`
@@ -648,6 +731,13 @@ export default function MapPage() {
                 }
 
                 el.appendChild(inner)
+
+                if (rank) {
+                    const crown = document.createElement('div')
+                    crown.innerHTML = crownSvg(rank, 32)
+                    crown.style.cssText = 'position:absolute;top:-26px;left:50%;transform:translateX(-50%);pointer-events:none;line-height:0;filter:drop-shadow(0 2px 3px rgba(0,0,0,0.4));'
+                    el.appendChild(crown)
+                }
 
                 if (index === 0 && group.length > 1) {
                     const badge = document.createElement('div')
@@ -694,6 +784,87 @@ export default function MapPage() {
         })
 
         console.log('[MapPage] ✅ Marcadores criados:', markersRef.current.length)
+    }, [filtered, mode, stores, mapReady])
+
+    // TOP 3 SEMPRE VISÍVEIS: quando a loja está fora da área visível do mapa
+    // (ou escondida atrás do cabeçalho/lista), mostra o ícone dela na borda,
+    // com uma seta apontando a direção e a distância até ela.
+    useEffect(() => {
+        if (!mapReady || !mapRef.current) return
+        const map = mapRef.current
+
+        const top3 = filtered.slice(0, 3).map((item, i) => {
+            let coords: [number, number] | null = null
+            if (mode === 'lojas') coords = parseCoords(item.location)
+            else {
+                const store = stores.find(s => s.id === item.store_id)
+                coords = parseCoords(item.location) || parseCoords(store?.location)
+            }
+            return { item, rank: i + 1, coords }
+        }).filter((t): t is { item: any; rank: number; coords: [number, number] } => !!t.coords)
+
+        if (top3.length === 0) { setEdgeIndicators([]); return }
+
+        let raf = 0
+        const update = () => {
+            const c = map.getContainer()
+            const w = c.clientWidth
+            const h = c.clientHeight
+            // Zona realmente visível: abaixo do cabeçalho + lista, acima da barra inferior.
+            const inset = { top: Math.min(300, h * 0.38), bottom: 140, left: 34, right: 84 }
+            const cx = (inset.left + (w - inset.right)) / 2
+            const cy = (inset.top + (h - inset.bottom)) / 2
+            const halfW = ((w - inset.right) - inset.left) / 2
+            const halfH = ((h - inset.bottom) - inset.top) / 2
+            const center = map.getCenter()
+            const next: EdgeIndicator[] = []
+            for (const t of top3) {
+                const p = map.project(t.coords)
+                const inside = p.x >= inset.left && p.x <= w - inset.right && p.y >= inset.top && p.y <= h - inset.bottom
+                if (inside) continue
+                const dx = p.x - cx
+                const dy = p.y - cy
+                const k = Math.min(halfW / Math.max(Math.abs(dx), 0.0001), halfH / Math.max(Math.abs(dy), 0.0001))
+                next.push({
+                    id: t.item.id,
+                    x: cx + dx * k,
+                    y: cy + dy * k,
+                    angle: (Math.atan2(dy, dx) * 180) / Math.PI,
+                    item: t.item,
+                    rank: t.rank,
+                    km: haversineKm([center.lng, center.lat], t.coords),
+                })
+            }
+            // Vários no mesmo lado (ex: as 3 lojas na mesma direção) não podem
+            // ficar uns sobre os outros: afasta ao longo da borda, respeitando a zona visível.
+            const GAP = 80
+            const spread = (group: EdgeIndicator[], axis: 'x' | 'y', min: number, max: number) => {
+                group.sort((a, b) => a[axis] - b[axis])
+                for (let i = 1; i < group.length; i++) {
+                    if (group[i][axis] - group[i - 1][axis] < GAP) group[i][axis] = group[i - 1][axis] + GAP
+                }
+                const overflow = group.length ? group[group.length - 1][axis] - max : 0
+                if (overflow > 0) for (const g of group) g[axis] -= overflow
+                for (const g of group) g[axis] = Math.max(min, g[axis])
+                for (let i = 1; i < group.length; i++) {
+                    if (group[i][axis] - group[i - 1][axis] < GAP) group[i][axis] = group[i - 1][axis] + GAP
+                }
+            }
+            const onSide = (e: EdgeIndicator) => e.x <= inset.left + 1 || e.x >= w - inset.right - 1
+            spread(next.filter(onSide), 'y', inset.top, h - inset.bottom)
+            spread(next.filter(e => !onSide(e)), 'x', inset.left, w - inset.right)
+            setEdgeIndicators(next)
+        }
+        const schedule = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(update) }
+
+        map.on('move', schedule)
+        map.on('resize', schedule)
+        update()
+        return () => {
+            cancelAnimationFrame(raf)
+            map.off('move', schedule)
+            map.off('resize', schedule)
+        }
     }, [filtered, mode, stores, mapReady])
 
     // PROFILE MARKER
@@ -1148,49 +1319,145 @@ export default function MapPage() {
                 </div>
             )}
 
-            {/* Horizontal List */}
+            {/* Horizontal List — do mais visto ao menos visto (esquerda → direita) */}
             {filtered.length > 0 && !clusterItems && !selectedItem && (
                 <div className="absolute top-[190px] left-1/2 -translate-x-1/2 w-[95%] max-w-2xl z-20">
-                    <div className="flex gap-2 overflow-x-auto pt-3 pb-3 scrollbar-hide snap-x">
-                        {filtered.map(item => (
-                            <button
-                                key={item.id}
-                                onClick={() => {
-                                    setSelectedItem(item)
-                                    let loc = null
-                                    if (mode === 'lojas') loc = item.location
-                                    else {
-                                        const store = stores.find(s => s.id === item.store_id)
-                                        loc = store?.location
-                                    }
-                                    const coords = parseCoords(loc)
-                                    if (coords && mapRef.current) {
-                                        mapRef.current.flyTo({ center: coords, zoom: 16, duration: 1000 })
-                                    }
-                                }}
-                                className={`snap-center flex-shrink-0 transition-all duration-300 ${selectedItem?.id === item.id
-                                    ? 'ring-4 ring-orange-500 scale-110 shadow-xl'
-                                    : 'opacity-90 hover:scale-105'
-                                    }`}
-                                style={{ width: '52px', height: '52px' }}
-                            >
-                                <div className={`w-full h-full rounded-2xl overflow-hidden border-2 shadow-md ${mode === 'lojas'
-                                    ? (item.is_open ? 'border-green-500' : 'border-red-500')
-                                    : 'border-orange-200'
-                                    } bg-white`}>
-                                    {(mode === 'lojas' ? item.logo_url : item.image_url) ? (
-                                        <img src={mode === 'lojas' ? item.logo_url : item.image_url} className="w-full h-full object-cover" alt="" />
-                                    ) : (
-                                        <div className="w-full h-full flex items-center justify-center text-xs font-black italic bg-gradient-to-br from-orange-100 to-red-100 text-orange-500">
-                                            {item.name?.charAt(0)}
-                                        </div>
+                    <div className="flex gap-2.5 overflow-x-auto pt-6 pb-3 scrollbar-hide snap-x items-end">
+                        {filtered.map((item, idx) => {
+                            const rank = idx < 3 ? idx + 1 : 0
+                            const size = rank ? 62 : 52
+                            const img = mode === 'lojas' ? item.logo_url : item.image_url
+                            return (
+                                <button
+                                    key={item.id}
+                                    onClick={() => {
+                                        setSelectedItem(item)
+                                        let loc = null
+                                        if (mode === 'lojas') loc = item.location
+                                        else {
+                                            const store = stores.find(s => s.id === item.store_id)
+                                            loc = store?.location
+                                        }
+                                        const coords = parseCoords(loc)
+                                        if (coords && mapRef.current) {
+                                            mapRef.current.flyTo({ center: coords, zoom: 16, duration: 1000 })
+                                        }
+                                    }}
+                                    className={`snap-center flex-shrink-0 relative transition-all duration-300 ${selectedItem?.id === item.id
+                                        ? 'ring-4 ring-orange-500 scale-110 shadow-xl'
+                                        : 'opacity-95 hover:scale-105'
+                                        }`}
+                                    style={{ width: `${size}px`, height: `${size}px` }}
+                                >
+                                    {rank > 0 && (
+                                        <span className="absolute left-1/2 -translate-x-1/2 z-10" style={{ top: -22 }}>
+                                            <CrownBadge rank={rank} size={30} />
+                                        </span>
                                     )}
-                                </div>
-                            </button>
-                        ))}
+                                    <div
+                                        className={`w-full h-full rounded-2xl overflow-hidden shadow-md bg-white ${rank ? '' : `border-2 ${mode === 'lojas'
+                                            ? (item.is_open ? 'border-green-500' : 'border-red-500')
+                                            : 'border-orange-200'}`}`}
+                                        style={rank ? { border: `3px solid ${RANK_COLORS[rank].fill}`, boxShadow: `0 0 0 3px ${RANK_COLORS[rank].fill}55, 0 6px 16px rgba(0,0,0,0.35)` } : undefined}
+                                    >
+                                        {img ? (
+                                            <img src={img} className="w-full h-full object-cover" alt="" />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center text-xs font-black italic bg-gradient-to-br from-orange-100 to-red-100 text-orange-500">
+                                                {item.name?.charAt(0)}
+                                            </div>
+                                        )}
+                                    </div>
+                                </button>
+                            )
+                        })}
+                    </div>
+
+                    {/* Filtro (embaixo da lista, no canto direito): sempre em pares mais/menos */}
+                    <div className="flex justify-end relative -mt-1">
+                        <button
+                            onClick={() => setShowRankMenu(v => !v)}
+                            className="flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[11px] font-black text-white shadow-lg"
+                            style={{ background: 'linear-gradient(135deg, #f97316, #dc2626)', boxShadow: '0 4px 14px #f9731660' }}
+                            aria-expanded={showRankMenu}
+                        >
+                            <Flame className="w-3.5 h-3.5" />
+                            Filtro: {rankLabel(rankKey)}
+                            <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showRankMenu ? 'rotate-180' : ''}`} />
+                        </button>
+                        {showRankMenu && (
+                            <div className="absolute right-0 top-full mt-2 w-64 max-h-[46vh] overflow-y-auto rounded-2xl bg-white shadow-2xl border border-orange-200 z-40 py-1.5">
+                                {RANK_GROUPS.filter(g => !g.storesOnly || mode === 'lojas').map(g => (
+                                    <div key={g.id} className="px-3 py-1.5">
+                                        <p className="text-[9px] font-black uppercase tracking-wider text-gray-400 mb-1">{g.title}</p>
+                                        <div className="grid grid-cols-2 gap-1.5">
+                                            {[g.desc, g.asc].map(opt => {
+                                                const active = rankKey === opt.key
+                                                return (
+                                                    <button
+                                                        key={opt.key}
+                                                        onClick={() => { setRankKey(opt.key); setShowRankMenu(false) }}
+                                                        className={`flex items-center justify-center gap-1 rounded-xl px-2 py-1.5 text-[11px] font-bold border transition ${active
+                                                            ? 'text-white border-transparent'
+                                                            : 'text-gray-700 border-gray-200 hover:bg-orange-50'}`}
+                                                        style={active ? { background: 'linear-gradient(135deg, #f97316, #dc2626)' } : undefined}
+                                                    >
+                                                        {active && <Check className="w-3 h-3" />}
+                                                        {opt.label}
+                                                    </button>
+                                                )
+                                            })}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
+
+            {/* Indicadores dos 3 primeiros quando estão fora do mapa: ícone da loja na
+                borda + seta na direção + distância. Clique = voar até lá. */}
+            {edgeIndicators.map(ind => {
+                const col = RANK_COLORS[ind.rank]
+                const img = mode === 'lojas' ? ind.item.logo_url : ind.item.image_url
+                return (
+                    <button
+                        key={ind.id}
+                        onClick={() => {
+                            setSelectedItem(ind.item)
+                            let loc = mode === 'lojas' ? ind.item.location : stores.find(s => s.id === ind.item.store_id)?.location
+                            const coords = parseCoords(loc)
+                            if (coords && mapRef.current) mapRef.current.flyTo({ center: coords, zoom: 16, duration: 1000 })
+                        }}
+                        className="absolute z-10"
+                        style={{ left: ind.x, top: ind.y, transform: 'translate(-50%, -50%)' }}
+                        aria-label={`Top ${ind.rank}: ${ind.item.name}, a ${ind.km.toFixed(1)} km`}
+                    >
+                        {/* seta na direção da loja */}
+                        <span
+                            className="absolute"
+                            style={{ left: '50%', top: '50%', transform: `rotate(${ind.angle}deg) translateX(36px) translate(-50%, -50%)` }}
+                        >
+                            <span style={{ display: 'block', width: 0, height: 0, borderTop: '9px solid transparent', borderBottom: '9px solid transparent', borderLeft: `14px solid ${col.fill}`, filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.5))' }} />
+                        </span>
+                        <span className="absolute left-1/2 -translate-x-1/2" style={{ top: -22 }}>
+                            <CrownBadge rank={ind.rank} size={26} />
+                        </span>
+                        <span
+                            className="block w-11 h-11 rounded-xl overflow-hidden bg-white"
+                            style={{ border: `3px solid ${col.fill}`, boxShadow: `0 0 0 3px ${col.fill}55, 0 6px 16px rgba(0,0,0,0.4)` }}
+                        >
+                            {img ? <img src={img} className="w-full h-full object-cover" alt="" /> : (
+                                <span className="w-full h-full flex items-center justify-center text-xs font-black bg-gradient-to-br from-orange-100 to-red-100 text-orange-500">{ind.item.name?.charAt(0)}</span>
+                            )}
+                        </span>
+                        <span className="absolute left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full px-1.5 text-[9px] font-black text-white" style={{ top: 'calc(100% + 2px)', background: 'rgba(0,0,0,0.7)' }}>
+                            {ind.km < 1 ? `${Math.round(ind.km * 1000)} m` : `${ind.km.toFixed(1)} km`}
+                        </span>
+                    </button>
+                )
+            })}
 
             {/* Selected Item Card */}
             {selectedItem && !clusterItems && (

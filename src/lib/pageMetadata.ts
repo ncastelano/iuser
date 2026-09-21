@@ -4,7 +4,7 @@ import type { Metadata } from 'next'
 const BASE_URL = 'https://www.iuser.com.br'
 const THUMB_SIZE = 200 // menos de 300px = miniatura do lado esquerdo no WhatsApp
 
-export type CardKind = 'planos' | 'motorista' | 'corrida' | 'servico'
+export type CardKind = 'planos' | 'motorista' | 'corrida' | 'servico' | 'loja' | 'radar' | 'comunidade' | 'calculadora'
 
 // Metadados de prévia (WhatsApp, Telegram, iMessage...) de páginas fixas:
 // miniatura quadrada 200x200 com ícone próprio + título e descrição do tipo
