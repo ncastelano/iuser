@@ -163,7 +163,9 @@ export default function CriarLoja() {
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const mapContainerRef = useRef<HTMLDivElement>(null);
+  // O mapa fica dentro do StoreAccessGate (que monta depois de carregar), então
+  // o container só existe mais tarde: guardamos em state pra o efeito reagir.
+  const [mapEl, setMapEl] = useState<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<any>(null);
   const movableMarkerRef = useRef<any>(null);
   const polylineRef = useRef<any>(null);
@@ -196,6 +198,9 @@ export default function CriarLoja() {
   const [locationError, setLocationError] = useState("");
   const [mapReady, setMapReady] = useState(false);
   const [usingGPS, setUsingGPS] = useState(false);
+  const [hasPicked, setHasPicked] = useState(false);
+  const [showAddressSearch, setShowAddressSearch] = useState(false);
+  const gpsAskedRef = useRef(false);
   const [showLocationConfirm, setShowLocationConfirm] = useState(false);
   const [pendingAddress, setPendingAddress] = useState("");
   const [pendingNumber, setPendingNumber] = useState("");
@@ -271,7 +276,7 @@ export default function CriarLoja() {
   }, [imageFile]);
 
   useEffect(() => {
-    if (typeof window === 'undefined' || !mapContainerRef.current || initializedRef.current) return;
+    if (typeof window === 'undefined' || !mapEl || initializedRef.current) return;
 
     initializedRef.current = true;
 
@@ -286,9 +291,9 @@ export default function CriarLoja() {
         shadowUrl: '',
       });
 
-      const map = L.map(mapContainerRef.current!, {
+      const map = L.map(mapEl, {
         center: [selectedPosition.lat, selectedPosition.lng],
-        zoom: 15,
+        zoom: 4,
         zoomControl: true,
         attributionControl: false,
       });
@@ -319,6 +324,7 @@ export default function CriarLoja() {
         const pos = movableMarker.getLatLng();
         const newPos = { lat: pos.lat, lng: pos.lng };
         setSelectedPosition(newPos);
+        setHasPicked(true);
 
         setResolvingAddress(true);
         setLocationError('');
@@ -344,6 +350,7 @@ export default function CriarLoja() {
         const newPos = { lat: center.lat, lng: center.lng };
         movableMarker.setLatLng([newPos.lat, newPos.lng]);
         setSelectedPosition(newPos);
+        setHasPicked(true);
 
         if (debounceTimerRef.current) {
           clearTimeout(debounceTimerRef.current);
@@ -379,8 +386,10 @@ export default function CriarLoja() {
         mapInstanceRef.current.remove();
         mapInstanceRef.current = null;
       }
+      initializedRef.current = false;
+      setMapReady(false);
     };
-  }, []);
+  }, [mapEl]);
 
   const flyTo = useCallback((lat: number, lng: number) => {
     if (!mapInstanceRef.current || !movableMarkerRef.current) return;
@@ -435,6 +444,39 @@ export default function CriarLoja() {
     );
   };
 
+  // Ao entrar, pede a permissão de localização e já coloca o pin onde a
+  // pessoa está. Se negar, o mapa continua utilizável: ela arrasta o pin.
+  useEffect(() => {
+    if (!mapReady || gpsAskedRef.current) return;
+    gpsAskedRef.current = true;
+    getNativeCurrentPosition(
+      async (pos) => {
+        const newPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        setSelectedPosition(newPos);
+        setHasPicked(true);
+        if (mapInstanceRef.current && movableMarkerRef.current) {
+          isMovingRef.current = true;
+          mapInstanceRef.current.flyTo([newPos.lat, newPos.lng], 17, { duration: 0.8 });
+          movableMarkerRef.current.setLatLng([newPos.lat, newPos.lng]);
+        }
+        setResolvingAddress(true);
+        try {
+          const result = await reverseGeocode(newPos.lat, newPos.lng);
+          setAddress(result.fullAddress);
+          if (result.extractedNumber) setAddressNumber(prev => prev || result.extractedNumber);
+        } catch {
+          setAddress(`Local (${newPos.lat.toFixed(4)}, ${newPos.lng.toFixed(4)})`);
+        } finally {
+          setResolvingAddress(false);
+        }
+      },
+      () => {
+        setLocationError('Sem acesso à sua localização. Arraste o pin no mapa ou escreva o endereço.');
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    );
+  }, [mapReady]);
+
   const handleSearchAddress = async () => {
     if (!searchQuery.trim()) return;
 
@@ -445,6 +487,7 @@ export default function CriarLoja() {
 
     if (result) {
       setSelectedPosition({ lat: result.lat, lng: result.lng });
+      setHasPicked(true);
       flyTo(result.lat, result.lng);
       setPendingAddress(result.address);
       setPendingNumber('');
@@ -467,6 +510,7 @@ export default function CriarLoja() {
 
   const handleConfirmLocation = () => {
     setAddress(pendingAddress);
+    setLocationError('');
     if (pendingNumber) {
       setAddressNumber(prev => prev || pendingNumber);
     }
@@ -521,6 +565,11 @@ export default function CriarLoja() {
 
     if (!addressNumber.trim()) {
       toast.error("Digite o número da localização");
+      return;
+    }
+
+    if (!hasPicked) {
+      toast.error("Marque a localização da loja no mapa");
       return;
     }
 
@@ -874,62 +923,13 @@ export default function CriarLoja() {
                 Localização da Loja *
               </label>
 
-              <div className="flex gap-2">
-                <div className="flex-1 flex items-center pl-0 pr-2 py-0.5 rounded-full text-xs font-semibold"
-                  style={{
-                    background: `rgba(255,255,255,0.4)`,
-                    backdropFilter: 'blur(10px)',
-                    border: `1px solid #fbd5a4`,
-                  }}
-                >
-                  <div className="h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0"
-                    style={{ background: `rgba(255,255,255,0.4)` }}>
-                    <Search size={14} color="#f97316" />
-                  </div>
-                  <input
-                    ref={searchInputRef}
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Buscar endereço..."
-                    className="flex-1 bg-transparent outline-none ml-1.5 text-xs text-gray-700"
-                    disabled={loadingLocation}
-                    onKeyDown={(e) => { if (e.key === 'Enter') handleSearchAddress(); }}
-                  />
-                  {searchQuery && (
-                    <button
-                      onClick={handleSearchAddress}
-                      disabled={loadingLocation}
-                      className="px-3 py-1 rounded-full text-xs font-bold bg-gradient-to-r from-orange-500 to-red-500 text-white"
-                    >
-                      {loadingLocation ? '...' : 'Ir'}
-                    </button>
-                  )}
-                </div>
-
-                <button
-                  onClick={handleGetCurrentLocation}
-                  disabled={loadingLocation}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold transition-all hover:opacity-80 disabled:opacity-50 flex-shrink-0"
-                  style={{
-                    background: `#f9731622`,
-                    color: '#f97316',
-                    border: `1px solid #f9731644`,
-                  }}
-                  title="Usar GPS"
-                >
-                  {usingGPS ? <Spinner size={14} /> : <Navigation size={14} />}
-                  <span className="hidden sm:inline">GPS</span>
-                </button>
-              </div>
-
-              <div className="relative w-full h-48 sm:h-56 rounded-xl overflow-hidden"
+              <div className="relative w-full h-64 sm:h-72 rounded-xl overflow-hidden"
                 style={{
                   border: `2px solid #fbd5a4`,
                   background: '#fff',
                 }}
               >
-                <div ref={mapContainerRef} className="w-full h-full" />
+                <div ref={setMapEl} className="w-full h-full" />
 
                 {!mapReady && (
                   <div className="absolute inset-0 flex items-center justify-center bg-white/80">
@@ -938,32 +938,69 @@ export default function CriarLoja() {
                 )}
               </div>
 
-              <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-xl"
-                style={{
-                  background: `rgba(255,255,255,0.4)`,
-                  border: `1px solid #fbd5a4`,
-                }}
+              <div className="flex items-start gap-2.5 px-4 py-3 rounded-2xl shadow-md"
+                style={{ background: 'linear-gradient(135deg, #f97316, #dc2626)' }}
               >
                 <div className="flex-shrink-0 mt-0.5">
-                  <div className="w-6 h-6 rounded-full bg-orange-500/20 flex items-center justify-center">
-                    <MoveVertical size={14} style={{ color: '#f97316' }} />
+                  <div className="w-7 h-7 rounded-full bg-white/25 flex items-center justify-center">
+                    <MapPinned size={15} color="#ffffff" />
                   </div>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <span className="text-[10px] font-semibold uppercase tracking-wider opacity-50 text-gray-600">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-white/80">
                     Localização selecionada
                   </span>
                   {resolvingAddress ? (
-                    <p className="text-xs mt-0.5 opacity-50 text-gray-500">
-                      Obtendo endereço...
-                    </p>
+                    <p className="text-xs mt-0.5 text-white/80">Obtendo endereço...</p>
                   ) : (
-                    <p className="text-xs font-medium mt-0.5 break-words leading-relaxed text-gray-700">
+                    <p className="text-sm font-bold mt-0.5 break-words leading-relaxed text-white">
                       {address || 'Arraste o marcador ou mova o mapa'}
                     </p>
                   )}
                 </div>
               </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAddressSearch(v => !v);
+                  setTimeout(() => searchInputRef.current?.focus(), 150);
+                }}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-full text-sm font-bold text-white shadow-md hover:scale-[1.01] transition-transform"
+                style={{ background: 'linear-gradient(135deg, #f97316, #dc2626)' }}
+              >
+                <Search size={15} />
+                Escrever endereço...
+              </button>
+
+              {showAddressSearch && (
+                <div className="flex items-center px-2 py-1 rounded-full bg-white border-2 border-orange-200">
+                  <input
+                    ref={searchInputRef}
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Rua, número, bairro, cidade..."
+                    className="flex-1 bg-transparent outline-none ml-2 text-sm text-gray-700"
+                    disabled={loadingLocation}
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleSearchAddress(); }}
+                  />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={handleSearchAddress}
+                      disabled={loadingLocation}
+                      className="px-3 py-1 rounded-full text-xs font-bold bg-gradient-to-r from-orange-500 to-red-500 text-white"
+                    >
+                      {loadingLocation ? '...' : 'Ir'}
+                    </button>
+                  )}
+                </div>
+              )}
+
+              <p className="text-center text-xs font-semibold text-gray-500">
+                ou arraste o pin no mapa para selecionar a localização
+              </p>
 
               {!resolvingAddress && address && (
                 <div className="space-y-2">
@@ -1012,9 +1049,6 @@ export default function CriarLoja() {
                 <p className="text-red-500 text-xs font-medium">{locationError}</p>
               )}
 
-              <p className="text-[10px] opacity-50 text-gray-500">
-                💡 Arraste o marcador laranja ou o mapa para ajustar a localização
-              </p>
             </div>
 
             {showLocationConfirm && (
