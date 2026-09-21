@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { readFile } from 'fs/promises'
 import path from 'path'
 import sharp from 'sharp'
+import { addLogoBadge } from '@/lib/ogBadge'
 
 export const runtime = 'nodejs'
 
@@ -54,8 +55,9 @@ export async function GET(req: NextRequest) {
             .flatten({ background: { r: 255, g: 255, b: 255 } })
             .png()
             .toBuffer()
+        const branded = await addLogoBadge(resized, THUMB_SIZE)
 
-        return new NextResponse(new Uint8Array(resized), {
+        return new NextResponse(new Uint8Array(branded), {
             headers: {
                 'Content-Type': 'image/png',
                 'Cache-Control': 'public, max-age=86400, stale-while-revalidate=604800',

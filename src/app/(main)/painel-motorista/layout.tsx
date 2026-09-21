@@ -2,8 +2,8 @@ import type { Metadata } from 'next'
 import { pageMetadata } from '@/lib/pageMetadata'
 
 export const metadata: Metadata = pageMetadata({
-    title: 'Painel do Motorista',
-    description: 'Cadastre seu carro, moto ou bicicleta, defina sua tarifa e ligue o Aceitar-corridas pra começar a receber corridas.',
+    title: 'Seu painel de motorista',
+    description: 'Ligue o Aceitar-corridas, cadastre carro, moto ou bicicleta e defina a sua tarifa. Comece a receber corridas hoje.',
     path: '/painel-motorista',
     kind: 'motorista',
 })

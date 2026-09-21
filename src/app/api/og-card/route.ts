@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import sharp from 'sharp'
+import { addLogoBadge } from '@/lib/ogBadge'
 
 export const runtime = 'nodejs'
 
@@ -62,7 +63,8 @@ export async function GET(req: NextRequest) {
         ${icon}
     </svg>`
 
-    const png = await sharp(Buffer.from(svg)).png().toBuffer()
+    const base = await sharp(Buffer.from(svg)).png().toBuffer()
+    const png = await addLogoBadge(base, SIZE)
     return new NextResponse(new Uint8Array(png), {
         headers: {
             'Content-Type': 'image/png',

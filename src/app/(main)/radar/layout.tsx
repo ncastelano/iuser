@@ -2,8 +2,8 @@ import type { Metadata } from 'next'
 import { pageMetadata } from '@/lib/pageMetadata'
 
 export const metadata: Metadata = pageMetadata({
-    title: 'Radar de lojas',
-    description: 'Veja no mapa as lojas, serviços e produtos perto de você — e o ranking dos mais vistos, mais vendidos e mais comentados.',
+    title: 'Veja o que tem perto de você',
+    description: 'No radar do iUser você vê lojas, serviços e produtos ao seu redor: procure, compare e descubra o que está pertinho. Os mais vistos aparecem primeiro.',
     path: '/radar',
     kind: 'radar',
 })

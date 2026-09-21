@@ -9,9 +9,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     const cat = categorias.find((c) => c.slug === categoria)
     const name = cat ? cat.nome : 'Lojas'
     return pageMetadata({
-        title: cat ? `Lojas de ${name}` : 'Lojas',
+        title: cat ? `Lojas de ${name} perto de você` : 'Lojas perto de você',
         description: cat
-            ? `As melhores lojas de ${name} perto de você no iUser: veja o que está aberto agora, avaliações e peça com entrega.`
+            ? `Veja o que está aberto agora em ${name}, compare as avaliações e peça direto pelo iUser, com entrega ou retirada.`
             : 'Descubra lojas perto de você no iUser.',
         path: `/lojas/${categoria}`,
         kind: 'loja',

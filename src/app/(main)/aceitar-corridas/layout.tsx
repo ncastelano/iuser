@@ -2,8 +2,8 @@ import type { Metadata } from 'next'
 import { pageMetadata } from '@/lib/pageMetadata'
 
 export const metadata: Metadata = pageMetadata({
-    title: 'Aceitar corridas',
-    description: 'Veja as corridas disponíveis perto de você em tempo real e candidate-se com a sua tarifa ou a tarifa iUser.',
+    title: 'Corridas esperando por você',
+    description: 'Novas corridas aparecem aqui em tempo real, com alerta sonoro. Escolha a tarifa iUser ou a sua e candidate-se.',
     path: '/aceitar-corridas',
     kind: 'corrida',
 })

@@ -2,8 +2,8 @@ import type { Metadata } from 'next'
 import { pageMetadata } from '@/lib/pageMetadata'
 
 export const metadata: Metadata = pageMetadata({
-    title: 'Lojas em destaque',
-    description: 'As lojas que estão bombando no iUser: mais vistas, mais bem avaliadas e com entrega. Descubra e peça agora.',
+    title: 'As lojas que estão em alta',
+    description: 'Descubra as lojas mais vistas e mais bem avaliadas do iUser e peça com entrega ou retirada.',
     path: '/lojas-em-destaque',
     kind: 'loja',
 })

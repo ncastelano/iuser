@@ -2,8 +2,8 @@ import type { Metadata } from 'next'
 import { pageMetadata } from '@/lib/pageMetadata'
 
 export const metadata: Metadata = pageMetadata({
-    title: 'Planos',
-    description: 'Motorista, Prestador, Loja ou Combo. Ou sem mensalidade: no Pós-pago você paga só R$ 0,50 por serviço. Escolha o seu.',
+    title: 'Descubra o melhor plano para você',
+    description: 'Veja os planos e as ofertas do iUser: Motorista, Prestador, Loja, Combo ou o Pós-pago sem mensalidade. Compare e escolha o que combina com o seu momento.',
     path: '/planos',
     kind: 'planos',
 })

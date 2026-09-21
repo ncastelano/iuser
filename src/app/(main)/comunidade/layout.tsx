@@ -2,8 +2,8 @@ import type { Metadata } from 'next'
 import { pageMetadata } from '@/lib/pageMetadata'
 
 export const metadata: Metadata = pageMetadata({
-    title: 'Comunidades',
-    description: 'Entre nas comunidades da sua cidade: converse, tire dúvidas e descubra o que está acontecendo perto de você.',
+    title: 'Converse com a sua cidade',
+    description: 'Entre nas comunidades do iUser, tire dúvidas, combine encontros e descubra o que está acontecendo perto de você.',
     path: '/comunidade',
     kind: 'comunidade',
 })

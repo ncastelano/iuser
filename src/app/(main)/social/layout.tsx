@@ -2,8 +2,8 @@ import type { Metadata } from 'next'
 import { pageMetadata } from '@/lib/pageMetadata'
 
 export const metadata: Metadata = pageMetadata({
-    title: 'Social iUser',
-    description: 'Publicações, novidades e pessoas do iUser num só lugar.',
+    title: 'O que está rolando no iUser',
+    description: 'Publicações, novidades e pessoas do iUser num só lugar. Entre, acompanhe e participe.',
     path: '/social',
     kind: 'comunidade',
 })

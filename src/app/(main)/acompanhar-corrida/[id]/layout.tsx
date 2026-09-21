@@ -2,8 +2,8 @@ import type { Metadata } from 'next'
 import { pageMetadata } from '@/lib/pageMetadata'
 
 export const metadata: Metadata = pageMetadata({
-    title: 'Acompanhe a corrida',
-    description: 'Veja em tempo real o status da corrida, os endereços e quem é o motorista — sem precisar de conta.',
+    title: 'Acompanhe a corrida ao vivo',
+    description: 'Veja o status, os endereços e quem é o motorista em tempo real. Sem precisar de conta no iUser.',
     path: '/acompanhar-corrida',
     kind: 'corrida',
 })
