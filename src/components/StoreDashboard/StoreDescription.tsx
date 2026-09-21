@@ -2,11 +2,14 @@
 'use client'
 
 import { useRef, useState, useEffect } from 'react'
-import { Camera, Store, Link, ChevronDown, ChevronUp, ImageIcon, AlertCircle, Tag, CheckCircle2 } from 'lucide-react'
+import { createPortal } from 'react-dom'
+import { Camera, Store, Link, ChevronDown, ChevronUp, ImageIcon, AlertCircle, Tag, CheckCircle2, MapPin, Phone } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import { toast } from 'sonner'
 import { categorias } from '@/lib/categorias'
 import { hexToRgb } from '@/lib/color'
+import { supabase } from '@/lib/supabase/client'
+import LocationPicker from '@/components/LocationPicker'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -29,7 +32,19 @@ const pillButtonStyle = {
 // Filtra as categorias para remover "Social" (lojas não podem ser sociais)
 const CATEGORIAS_LOJAS = categorias.filter(cat => cat.slug !== 'social')
 
+export interface StoreLocationInfo {
+    storeId: string
+    address: string | null
+    addressNumber: string | null
+    addressComplement: string | null
+    lat: number | null
+    lng: number | null
+    whatsapp: string | null
+}
+
 interface StoreDescriptionProps {
+    location?: StoreLocationInfo
+    onLocationSaved?: (loc: { address: string; addressNumber: string; addressComplement: string; lat: number; lng: number }) => void
     name: string
     storeSlug: string
     description: string
@@ -50,6 +65,8 @@ interface StoreDescriptionProps {
 }
 
 export function StoreDescription({
+    location,
+    onLocationSaved,
     name,
     storeSlug,
     description,
@@ -71,6 +88,35 @@ export function StoreDescription({
     const { colors } = useTheme()
     const fileInputRef = useRef<HTMLInputElement>(null)
     const surfaceRgb = hexToRgb(colors.surface)
+
+    const [showLocationPicker, setShowLocationPicker] = useState(false)
+    const [savingLocation, setSavingLocation] = useState(false)
+
+    // Grava a localização escolhida na própria loja (endereço, número,
+    // complemento, coordenadas e o campo geográfico usado nas buscas).
+    const saveStoreLocation = async (loc: { lat: number; lng: number; address: string; addressNumber: string; addressComplement: string }) => {
+        if (!location) return
+        setSavingLocation(true)
+        const { error } = await supabase
+            .from('stores')
+            .update({
+                address: loc.address,
+                address_number: loc.addressNumber || null,
+                address_complement: loc.addressComplement || null,
+                store_lat: loc.lat,
+                store_lng: loc.lng,
+                location: `POINT(${loc.lng} ${loc.lat})`,
+            })
+            .eq('id', location.storeId)
+        setSavingLocation(false)
+        if (error) {
+            toast.error('Erro ao salvar a localização: ' + error.message)
+            return
+        }
+        toast.success('Localização da loja salva!')
+        setShowLocationPicker(false)
+        onLocationSaved?.(loc)
+    }
 
     // Estado interno para controle de expansão (caso não seja controlado externamente)
     const [internalExpanded, setInternalExpanded] = useState(true)
@@ -395,6 +441,62 @@ export function StoreDescription({
                         </div>
                     </div>
 
+                    {/* ===== Endereço e localização (embutido em Informações da Loja) ===== */}
+                    {location && (
+                        <div className="space-y-2">
+                            <label className="block text-[10px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>
+                                Endereço e localização
+                            </label>
+                            <div
+                                className="rounded-2xl p-4 flex flex-col gap-3"
+                                style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.2)`, border: `2px solid ${colors.border}` }}
+                            >
+                                <div className="flex items-start gap-3">
+                                    <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#fff' }}>
+                                        <MapPin size={20} />
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                        {location.address ? (
+                                            <p className="text-sm break-words" style={{ color: colors.textPrimary }}>
+                                                {location.address}
+                                                {location.addressNumber ? `, ${location.addressNumber}` : ''}
+                                                {location.addressComplement ? ` — ${location.addressComplement}` : ''}
+                                            </p>
+                                        ) : (
+                                            <p className="text-sm" style={{ color: colors.textSecondary }}>Nenhum endereço definido.</p>
+                                        )}
+                                        <p className="text-[11px] mt-0.5" style={{ color: location.lat != null && location.lng != null ? '#22c55e' : '#f97316' }}>
+                                            {location.lat != null && location.lng != null
+                                                ? 'Localização no mapa definida — clientes e motoristas encontram a loja.'
+                                                : 'Sem localização no mapa: defina pra clientes e motoristas encontrarem a loja.'}
+                                        </p>
+                                    </div>
+                                </div>
+                                {location.whatsapp && (
+                                    <a
+                                        href={`https://wa.me/${location.whatsapp.replace(/\D/g, '')}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        style={{ ...pillButtonStyle, background: GRADIENT, color: '#ffffff', boxShadow: '0 4px 12px #f9731640', width: 'fit-content' }}
+                                        className="hover:scale-105 transition-transform"
+                                    >
+                                        <Phone size={14} />
+                                        {location.whatsapp}
+                                    </a>
+                                )}
+                                <button
+                                    onClick={() => setShowLocationPicker(true)}
+                                    disabled={savingLocation}
+                                    style={{ ...pillButtonStyle, background: GRADIENT, color: '#ffffff', boxShadow: '0 4px 12px #f9731640', width: '100%' }}
+                                    className="hover:scale-[1.02] transition-transform disabled:opacity-60"
+                                >
+                                    <MapPin size={16} />
+                                    {savingLocation ? 'Salvando...' : location.lat != null ? 'Atualizar localização da loja' : 'Definir localização da loja'}
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Botões de ação - PILL */}
                     <div className="flex gap-3 mt-2">
                         <button
@@ -428,6 +530,19 @@ export function StoreDescription({
                         </button>
                     </div>
                 </>
+            )}
+
+            {showLocationPicker && location && typeof document !== 'undefined' && createPortal(
+                <LocationPicker
+                    subject="store"
+                    allowDriverSync={false}
+                    initialLocation={location.lat != null && location.lng != null && location.address
+                        ? { lat: location.lat, lng: location.lng, address: location.address, addressNumber: location.addressNumber || '', addressComplement: location.addressComplement || '' }
+                        : null}
+                    onSave={saveStoreLocation}
+                    onClose={() => setShowLocationPicker(false)}
+                />,
+                document.body
             )}
         </div>
     )

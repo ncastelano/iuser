@@ -39,7 +39,6 @@ import StoreClubVip from './StoreClubVip'
 import StoreSalesExtractDialog, { type ExtractPeriod } from './StoreSalesExtractDialog'
 import StoreVisitors from './StoreVisitors'
 import StoreOperatingDays from './StoreOperatingDays'
-import StoreAddress from './StoreAddress'
 import AtalhoCompromissosDaLoja from '@/app/(main)/compromissos/AtalhoCompromissosDaLoja'
 import StoreOrders from './StoreOrders'
 import StoreDeliverySettings from './StoreDeliverySettings'
@@ -440,6 +439,23 @@ export default function StoreDashboard({
 
 
                 <StoreDescription
+                    location={{
+                        storeId: store.id,
+                        address: store.address ?? null,
+                        addressNumber: store.address_number ?? null,
+                        addressComplement: store.address_complement ?? null,
+                        lat: store.store_lat ?? null,
+                        lng: store.store_lng ?? null,
+                        whatsapp: store.whatsapp ?? null,
+                    }}
+                    onLocationSaved={(loc) => setStore((prev: any) => ({
+                        ...prev,
+                        address: loc.address,
+                        address_number: loc.addressNumber || null,
+                        address_complement: loc.addressComplement || null,
+                        store_lat: loc.lat,
+                        store_lng: loc.lng,
+                    }))}
                     name={name}
                     storeSlug={storeSlugState}
                     description={description}
@@ -755,9 +771,6 @@ export default function StoreDashboard({
                     onRefresh={() => { }}
                 />
             </div>
-
-            {/* ===== Informações da Loja ===== */}
-            <StoreAddress address={store.address} whatsapp={store.whatsapp} />
 
             {/* ===== Agendamentos ===== */}
             <AtalhoCompromissosDaLoja profileSlug={profileSlug} />

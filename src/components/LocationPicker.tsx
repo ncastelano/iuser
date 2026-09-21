@@ -28,6 +28,8 @@ interface LocationPickerProps {
     onClose: () => void
     /** Quando false, esconde o controle de sincronização de motorista mesmo com o modo ativo - usado na home, onde definir local é sobre o endereço de entrega, não sobre estar disponível pra corridas. */
     allowDriverSync?: boolean
+    /** Sobre o que é a localização: a própria pessoa (padrão) ou uma loja — só muda os textos. */
+    subject?: 'profile' | 'store'
 }
 
 const geocodeCache: Map<string, { lat: number; lng: number; address: string } | null> = new Map()
@@ -128,7 +130,8 @@ function extractStreetDisplay(fullAddress: string): string {
     return parts[0].trim()
 }
 
-export default function LocationPicker({ initialLocation, onSave, onClose, allowDriverSync = true }: LocationPickerProps) {
+export default function LocationPicker({ initialLocation, onSave, onClose, allowDriverSync = true, subject = 'profile' }: LocationPickerProps) {
+    const isStore = subject === 'store'
     const { colors } = useTheme()
     const router = useRouter()
 
@@ -759,7 +762,7 @@ export default function LocationPicker({ initialLocation, onSave, onClose, allow
                 >
                     <h3 className="text-base sm:text-lg font-extrabold mb-3 tracking-tight flex items-center gap-2">
                         <MapPin size={20} style={{ color: '#f97316' }} />
-                        Definir localização
+                        {isStore ? 'Localização da loja' : 'Definir localização'}
                     </h3>
 
                     {/* ===== ETAPA 1 DE 4 · COMO DEFINIR ===== */}
@@ -810,7 +813,9 @@ export default function LocationPicker({ initialLocation, onSave, onClose, allow
                             ) : (
                                 <>
                                     <p className="text-sm font-black mb-3" style={{ color: colors.textPrimary }}>
-                                        {savedAddress ? 'Quer atualizar sua localização?' : 'Você ainda não tem uma localização definida. Como quer defini-la?'}
+                                        {isStore
+                                            ? (savedAddress ? 'Quer atualizar a localização da loja?' : 'A loja ainda não tem localização definida. Como quer defini-la?')
+                                            : (savedAddress ? 'Quer atualizar sua localização?' : 'Você ainda não tem uma localização definida. Como quer defini-la?')}
                                     </p>
 
                                     <div className="grid grid-cols-2 gap-3">
@@ -1184,7 +1189,7 @@ export default function LocationPicker({ initialLocation, onSave, onClose, allow
                                     style={{ background: 'linear-gradient(135deg, #f97316, #dc2626)', color: '#ffffff', boxShadow: '0 4px 14px #f9731660' }}
                                 >
                                     <Check size={14} />
-                                    Salvar localização
+                                    {isStore ? 'Salvar localização da loja' : 'Salvar localização'}
                                 </button>
                             </div>
                         </>
