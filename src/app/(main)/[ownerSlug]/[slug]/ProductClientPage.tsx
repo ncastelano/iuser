@@ -441,7 +441,7 @@ export function ProductClientPage({
             <button
                 onClick={openAddModal}
                 disabled={addingToCart || addedToCart}
-                className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold transition-all hover:scale-[1.01] disabled:opacity-60"
+                className="flex-1 min-w-0 flex items-center justify-center gap-2 px-3 py-3 md:py-3.5 rounded-2xl text-sm md:text-base font-bold whitespace-nowrap transition-all hover:scale-[1.01] disabled:opacity-60"
                 style={{
                     background: addedToCart ? '#22c55e' : GRADIENT,
                     color: '#ffffff',
@@ -478,7 +478,7 @@ export function ProductClientPage({
     const formattedStoreCartTotal = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(storeCartTotal)
 
     const storeCartBar = storeCartCount > 0 ? (
-        <div className="animate-slide-in" style={{ borderTop: `1px solid ${colors.border}` }}>
+        <div className="animate-slide-in">
             <button
                 onClick={() => setShowStoreCart((v) => !v)}
                 className="w-full flex items-center gap-3 px-4 py-3 transition hover:opacity-80"
@@ -957,9 +957,9 @@ export function ProductClientPage({
 
     return (
         <div className="relative min-h-dvh" style={{ background: colors.background }}>
-            {/* Barra do topo (mobile): voltar + nome do produto, depois quantidade/adicionar,
-                e o carrinho da loja por último. Fica grudada no topo enquanto rola —
-                antes os controles ficavam embaixo, onde a barra do iPhone atrapalha. */}
+            {/* Barra do topo (mobile): tudo na mesma linha — voltar, quantidade e adicionar.
+                Fica grudada no topo enquanto rola (antes ficava embaixo, onde a barra
+                do iPhone atrapalha). */}
             <div
                 className="md:hidden sticky top-0 z-30"
                 style={{
@@ -969,7 +969,7 @@ export function ProductClientPage({
                     paddingTop: 'env(safe-area-inset-top)',
                 }}
             >
-                <div className="flex items-center gap-3 px-4 pt-3">
+                <div className="flex items-center gap-2 px-4 py-3">
                     <button
                         onClick={() => router.back()}
                         aria-label="Voltar"
@@ -978,16 +978,15 @@ export function ProductClientPage({
                     >
                         <ArrowLeft size={20} />
                     </button>
-                    <h1 className="flex-1 min-w-0 truncate text-base font-black" style={{ color: colors.textPrimary }}>
-                        {product.name || 'Sem título'}
-                    </h1>
-                </div>
-
-                <div className="flex items-center gap-3 px-4 py-3">
                     {cartControls}
                 </div>
+            </div>
 
-                {storeCartBar}
+            {/* Nome do produto (mobile) - em cima da imagem */}
+            <div className="md:hidden px-5 pt-4 pb-3">
+                <h1 className="text-2xl font-black leading-tight" style={{ color: colors.textPrimary }}>
+                    {product.name || 'Sem título'}
+                </h1>
             </div>
 
             {/* Header no fluxo normal (web) */}
@@ -1009,7 +1008,7 @@ export function ProductClientPage({
             <div className={`pb-8 md:pb-0 md:max-w-6xl md:mx-auto md:px-6 md:pt-6`}>
                 <div className="md:grid md:grid-cols-2 md:gap-10 md:items-start">
                     {/* Imagem em destaque, tipo capa de produto */}
-                    <div className="relative w-full h-[24vh] min-h-[185px] max-h-[300px] md:h-auto md:aspect-square md:rounded-3xl md:overflow-hidden md:sticky md:top-6">
+                    <div className="relative mx-4 md:mx-0 h-[26vh] min-h-[200px] max-h-[320px] rounded-3xl overflow-hidden md:h-auto md:aspect-square md:sticky md:top-6">
                         {(imageUrl || finalStoreImage) ? (
                             <img
                                 src={imageUrl || finalStoreImage || ''}
@@ -1071,11 +1070,7 @@ export function ProductClientPage({
 
                     {/* Sheet de conteúdo (mobile: sobreposto à imagem / web: coluna ao lado) */}
                     <main className="relative z-10" style={{ background: colors.background }}>
-                        <div className="flex justify-center pt-2.5 pb-1 md:hidden">
-                            <div className="w-10 h-1 rounded-full" style={{ background: colors.border }} />
-                        </div>
-
-                        <div className="px-5 pt-2 md:px-0 md:pt-0 space-y-2.5">
+                        <div className="px-5 pt-4 md:px-0 md:pt-0 space-y-3">
                             {/* Preço - o nome do produto já está no cabeçalho flutuante */}
                             <div className="flex items-center gap-3">
                                 <span className="text-2xl md:text-3xl font-black" style={{ color: colors.accent }}>
@@ -1177,9 +1172,9 @@ export function ProductClientPage({
                                 {cartControls}
                             </div>
 
-                            {/* Carrinho da loja (web: cartão abaixo dos controles) */}
+                            {/* Carrinho da loja: abaixo da descrição; "outras pessoas pediram" vem depois */}
                             {storeCartBar && (
-                                <div className="hidden md:block rounded-2xl overflow-hidden" style={{ border: `1px solid ${colors.border}` }}>
+                                <div className="rounded-2xl overflow-hidden" style={{ border: `1px solid ${colors.border}`, background: colors.surface }}>
                                     {storeCartBar}
                                 </div>
                             )}
