@@ -1020,6 +1020,26 @@ export function Store({
                     </button>
                 )}
 
+                {isOwner && (
+                    <button
+                        onClick={() => setShowAgendaDialog(true)}
+                        className="w-full flex items-center gap-3 p-3 rounded-xl text-left transition-all hover:scale-[1.01]"
+                        style={{ background: glassBg, border: `1px ${owner.allow_scheduling ? 'solid' : 'dashed'} ${owner.allow_scheduling ? colors.border : '#f97316'}` }}
+                    >
+                        <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: owner.allow_scheduling ? 'rgba(249,115,22,0.15)' : GRADIENT, color: owner.allow_scheduling ? '#f97316' : '#fff' }}>
+                            <Calendar size={18} />
+                        </div>
+                        <div className="min-w-0">
+                            <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>
+                                {owner.allow_scheduling ? 'Agenda ativa' : 'Ativar agenda'}
+                            </p>
+                            <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>
+                                {owner.allow_scheduling ? 'Toque para ver os custos ou desativar' : 'Receba pedidos de agendamento na sua loja'}
+                            </p>
+                        </div>
+                    </button>
+                )}
+
                 {owner.allow_scheduling && (
                     <button
                         onClick={() => setShowScheduleModal(true)}
@@ -1162,7 +1182,7 @@ export function Store({
                             <Spinner size={20} color="#f97316" />
                         </div>
                     ) : (
-                        <div className={`flex items-start gap-3 overflow-x-auto pb-1 scrollbar-hide ${publications.length + (isOwner ? 2 : 0) <= 4 ? 'justify-center' : ''}`}>
+                        <div className={`flex items-start gap-3 overflow-x-auto pb-1 scrollbar-hide ${publications.length + (isOwner ? 1 : 0) <= 4 ? 'justify-center' : ''}`}>
                             {isOwner && (
                                 <button
                                     onClick={() => setIsCreatingPublication(true)}
@@ -1176,22 +1196,6 @@ export function Store({
                                     </div>
                                     <span className="text-[10px] font-bold truncate w-full text-center" style={{ color: colors.textSecondary }}>
                                         Nova
-                                    </span>
-                                </button>
-                            )}
-                            {isOwner && (
-                                <button
-                                    onClick={() => setShowAgendaDialog(true)}
-                                    className="flex flex-col items-center gap-1 flex-shrink-0 w-16"
-                                >
-                                    <div
-                                        className="w-16 h-16 rounded-full border-2 border-dashed flex items-center justify-center transition-all hover:scale-105"
-                                        style={{ borderColor: owner.allow_scheduling ? '#f97316' : colors.border }}
-                                    >
-                                        <Calendar size={20} style={{ color: '#f97316' }} />
-                                    </div>
-                                    <span className="text-[10px] font-bold truncate w-full text-center" style={{ color: colors.textSecondary }}>
-                                        {owner.allow_scheduling ? 'Agenda ativa' : 'Ativar agenda'}
                                     </span>
                                 </button>
                             )}
@@ -1429,17 +1433,6 @@ export function Store({
                                     title="Adicionar produto"
                                 >
                                     <Plus size={18} />
-                                </button>
-                            )}
-                            {isOwner && storeSubscriptionActive !== false && (
-                                <button
-                                    onClick={() => setShowAgendaDialog(true)}
-                                    className="flex items-center justify-center gap-1.5 h-9 px-3 rounded-xl shadow-md hover:scale-105 transition-transform text-xs font-bold whitespace-nowrap"
-                                    style={{ background: owner.allow_scheduling ? 'transparent' : GRADIENT, color: owner.allow_scheduling ? '#f97316' : '#ffffff', border: owner.allow_scheduling ? '1px solid #f97316' : 'none' }}
-                                    title={owner.allow_scheduling ? 'Agenda ativa' : 'Ativar agenda'}
-                                >
-                                    <Calendar size={14} />
-                                    {owner.allow_scheduling ? 'Agenda ativa' : 'Ativar agenda'}
                                 </button>
                             )}
                         </div>

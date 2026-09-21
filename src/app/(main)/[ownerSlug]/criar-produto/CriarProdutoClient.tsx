@@ -397,10 +397,10 @@ export function CriarProdutoClient() {
                                 </label>
                                 <div>
                                     <span className="text-sm font-bold block" style={{ color: colors.textPrimary }}>
-                                        Este produto tem adicionais?
+                                        Oferecer adicional para os produtos?
                                     </span>
                                     <span className="text-xs" style={{ color: colors.textSecondary }}>
-                                        Ex: bacon extra, queijo a mais — você cadastra o preço de cada um depois de criar
+                                        Ofereça mais itens para adicionar, com o preço que você quiser. Você cadastra cada um logo depois de criar, e eles ficam salvos na loja para oferecer em outros produtos.
                                     </span>
                                 </div>
                             </div>

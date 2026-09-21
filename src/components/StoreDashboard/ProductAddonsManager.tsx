@@ -32,6 +32,8 @@ export default function ProductAddonsManager({ productId, storeId, colors }: Pro
     const [newName, setNewName] = useState('')
     const [newPrice, setNewPrice] = useState('')
     const [saving, setSaving] = useState(false)
+    // Adicionais já cadastrados na loja (em qualquer produto), prontos pra reaproveitar.
+    const [library, setLibrary] = useState<{ id: string; name: string; price: number }[]>([])
 
     const load = async () => {
         setLoading(true)
@@ -44,7 +46,54 @@ export default function ProductAddonsManager({ productId, storeId, colors }: Pro
         setLoading(false)
     }
 
+    const loadLibrary = async () => {
+        const { data } = await supabase
+            .from('store_addon_library')
+            .select('id, name, price')
+            .eq('store_id', storeId)
+            .order('name', { ascending: true })
+        setLibrary((data || []) as { id: string; name: string; price: number }[])
+    }
+
     useEffect(() => { load() }, [productId])
+    useEffect(() => { loadLibrary() }, [storeId])
+
+    // Guarda (ou atualiza o preço de) um adicional na biblioteca da loja.
+    const saveToLibrary = async (name: string, price: number) => {
+        const existing = library.find((l) => l.name.trim().toLowerCase() === name.trim().toLowerCase())
+        if (existing) {
+            if (Number(existing.price) !== price) {
+                await supabase.from('store_addon_library').update({ price }).eq('id', existing.id)
+            }
+        } else {
+            await supabase.from('store_addon_library').insert({ store_id: storeId, name, price })
+        }
+        loadLibrary()
+    }
+
+    const addFromLibrary = async (item: { name: string; price: number }) => {
+        const { error } = await supabase.from('product_addons').insert({
+            product_id: productId,
+            store_id: storeId,
+            name: item.name,
+            price: item.price,
+            sort_order: addons.length,
+        })
+        if (error) {
+            toast.error('Erro ao adicionar: ' + error.message)
+            return
+        }
+        load()
+    }
+
+    const removeFromLibrary = async (id: string) => {
+        const { error } = await supabase.from('store_addon_library').delete().eq('id', id)
+        if (error) {
+            toast.error('Erro ao remover: ' + error.message)
+            return
+        }
+        setLibrary((prev) => prev.filter((l) => l.id !== id))
+    }
 
     const handleAdd = async () => {
         if (!newName.trim()) {
@@ -52,13 +101,15 @@ export default function ProductAddonsManager({ productId, storeId, colors }: Pro
             return
         }
         setSaving(true)
+        const price = parseFloat(newPrice.replace(',', '.')) || 0
         const { error } = await supabase.from('product_addons').insert({
             product_id: productId,
             store_id: storeId,
             name: newName.trim(),
-            price: parseFloat(newPrice.replace(',', '.')) || 0,
+            price,
             sort_order: addons.length,
         })
+        if (!error) await saveToLibrary(newName.trim(), price)
         setSaving(false)
         if (error) {
             toast.error('Erro ao adicionar: ' + error.message)
@@ -135,6 +186,46 @@ export default function ProductAddonsManager({ productId, storeId, colors }: Pro
                     ))}
                 </div>
             )}
+
+            {/* Salvos na loja: reaproveita em outros produtos sem digitar de novo */}
+            {(() => {
+                const onProduct = new Set(addons.map((a) => a.name.trim().toLowerCase()))
+                const available = library.filter((l) => !onProduct.has(l.name.trim().toLowerCase()))
+                if (available.length === 0) return null
+                return (
+                    <div className="space-y-1.5">
+                        <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: colors.textSecondary }}>
+                            Salvos na sua loja — toque para oferecer aqui
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                            {available.map((item) => (
+                                <div
+                                    key={item.id}
+                                    className="flex items-center rounded-full overflow-hidden text-xs font-bold"
+                                    style={{ border: `1px solid ${colors.border}`, background: 'rgba(255,255,255,0.05)' }}
+                                >
+                                    <button
+                                        onClick={() => addFromLibrary(item)}
+                                        className="pl-3 pr-2 py-1.5 flex items-center gap-1 hover:bg-white/10 transition-colors"
+                                        style={{ color: colors.textPrimary }}
+                                    >
+                                        <Plus size={12} style={{ color: '#f97316' }} />
+                                        {item.name} · {formatPrice(Number(item.price))}
+                                    </button>
+                                    <button
+                                        onClick={() => removeFromLibrary(item.id)}
+                                        title="Tirar dos salvos"
+                                        className="px-2 py-1.5 hover:bg-red-500/10 transition-colors"
+                                        style={{ color: '#ef4444' }}
+                                    >
+                                        ×
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )
+            })()}
 
             <div className="flex gap-2">
                 <input

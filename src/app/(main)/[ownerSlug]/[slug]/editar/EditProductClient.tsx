@@ -63,6 +63,12 @@ export function EditProductClient() {
         return () => { isMounted = false }
     }, [slug, ownerSlug, userId, profileLoading])
 
+    // O produto guarda só o caminho no storage: sem virar URL pública o <img> quebra.
+    const resolveImageUrl = (path: string) => {
+        if (path.startsWith('http')) return path
+        return supabase.storage.from('product-images').getPublicUrl(path).data.publicUrl
+    }
+
     const fileInputRef = useRef<HTMLInputElement>(null)
     const [loading, setLoading] = useState(false)
     const [imageFile, setImageFile] = useState<File | null>(null)
@@ -74,16 +80,12 @@ export function EditProductClient() {
     const [description, setDescription] = useState('')
     const [price, setPrice] = useState('')
     const [category, setCategory] = useState('')
-    const [listingType, setListingType] = useState('sale')
     const [productType, setProductType] = useState('physical')
     const [priceType, setPriceType] = useState('fixed')
     const [durationMinutes, setDurationMinutes] = useState('')
     const [stockQuantity, setStockQuantity] = useState('')
     const [isActive, setIsActive] = useState(true)
     const [hasAddons, setHasAddons] = useState(false)
-    const [specifications, setSpecifications] = useState<Record<string, string>>({})
-    const [newSpecKey, setNewSpecKey] = useState('')
-    const [newSpecValue, setNewSpecValue] = useState('')
     const [deleting, setDeleting] = useState(false)
 
     const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -91,20 +93,18 @@ export function EditProductClient() {
     // Preenche o formulário assim que o produto chega.
     useEffect(() => {
         if (!product) return
-        setImagePreview(product.image_url || null)
+        setImagePreview(product.image_url ? resolveImageUrl(product.image_url) : null)
         setCurrentImagePath(product.image_url || null)
         setName(product.name || '')
         setDescription(product.description || '')
         setPrice(product.price?.toString() || '')
         setCategory(product.category || '')
-        setListingType(product.listing_type || 'sale')
         setProductType(product.type || 'physical')
         setPriceType(product.price_type || 'fixed')
         setDurationMinutes(product.duration_minutes?.toString() || '')
         setStockQuantity(product.stock_quantity?.toString() || '')
         setIsActive(product.is_active !== false)
         setHasAddons(product.has_addons === true)
-        setSpecifications(product.specifications || {})
     }, [product])
 
     // Preview da imagem
@@ -160,7 +160,6 @@ export function EditProductClient() {
                 description: description.trim() || null,
                 price: price ? parseFloat(price) : 0,
                 category: category.trim() || null,
-                listing_type: listingType,
                 type: productType,
                 price_type: priceType,
                 duration_minutes: durationMinutes ? parseInt(durationMinutes) : null,
@@ -168,8 +167,6 @@ export function EditProductClient() {
                 is_active: isActive,
                 has_addons: hasAddons,
                 image_url: imagePath,
-                specifications: Object.keys(specifications).length > 0 ? specifications : null,
-                updated_at: new Date().toISOString(),
             }
 
             const { error: updateError } = await supabase
@@ -221,24 +218,6 @@ export function EditProductClient() {
         } finally {
             setDeleting(false)
         }
-    }
-
-    // Adicionar especificação
-    const addSpecification = () => {
-        if (!newSpecKey.trim() || !newSpecValue.trim()) return
-        setSpecifications(prev => ({
-            ...prev,
-            [newSpecKey.trim()]: newSpecValue.trim()
-        }))
-        setNewSpecKey('')
-        setNewSpecValue('')
-    }
-
-    // Remover especificação
-    const removeSpecification = (key: string) => {
-        const newSpecs = { ...specifications }
-        delete newSpecs[key]
-        setSpecifications(newSpecs)
     }
 
     if (profileLoading || loadingProduct) {
@@ -543,35 +522,6 @@ export function EditProductClient() {
                                 </div>
                             </div>
 
-                            {/* Tipo de Listagem */}
-                            <div className="space-y-2">
-                                <label className="text-sm font-bold" style={{ color: colors.textPrimary }}>
-                                    Tipo de Listagem
-                                </label>
-                                <div className="flex gap-4">
-                                    <label className="flex items-center gap-2 cursor-pointer">
-                                        <input
-                                            type="radio"
-                                            value="sale"
-                                            checked={listingType === 'sale'}
-                                            onChange={(e) => setListingType(e.target.value)}
-                                            className="w-4 h-4 accent-orange-500"
-                                        />
-                                        <span className="text-sm" style={{ color: colors.textPrimary }}>Produto</span>
-                                    </label>
-                                    <label className="flex items-center gap-2 cursor-pointer">
-                                        <input
-                                            type="radio"
-                                            value="publication"
-                                            checked={listingType === 'publication'}
-                                            onChange={(e) => setListingType(e.target.value)}
-                                            className="w-4 h-4 accent-orange-500"
-                                        />
-                                        <span className="text-sm" style={{ color: colors.textPrimary }}>Publicação</span>
-                                    </label>
-                                </div>
-                            </div>
-
                             {/* Ativo */}
                             <div className="flex items-center gap-3">
                                 <label className="relative inline-flex items-center cursor-pointer">
@@ -602,10 +552,10 @@ export function EditProductClient() {
                                     </label>
                                     <div>
                                         <span className="text-sm font-bold block" style={{ color: colors.textPrimary }}>
-                                            Este produto tem adicionais?
+                                            Oferecer adicional para os produtos?
                                         </span>
                                         <span className="text-xs" style={{ color: colors.textSecondary }}>
-                                            Ex: bacon extra, queijo a mais — o cliente escolhe e paga a mais ao adicionar no carrinho
+                                            Ofereça mais itens para adicionar, com o preço que você quiser. O cliente escolhe e paga a mais ao adicionar no carrinho.
                                         </span>
                                     </div>
                                 </div>
@@ -613,79 +563,6 @@ export function EditProductClient() {
                                 {hasAddons && (
                                     <ProductAddonsManager productId={product.id} storeId={product.store_id} colors={colors} />
                                 )}
-                            </div>
-
-                            {/* Especificações */}
-                            <div className="space-y-3">
-                                <label className="text-sm font-bold" style={{ color: colors.textPrimary }}>
-                                    Especificações
-                                </label>
-
-                                {/* Lista de especificações */}
-                                {Object.keys(specifications).length > 0 && (
-                                    <div className="space-y-2">
-                                        {Object.entries(specifications).map(([key, value]) => (
-                                            <div key={key} className="flex items-center gap-2 p-2 rounded-lg" style={{
-                                                background: `rgba(255,255,255,0.05)`,
-                                                border: `1px solid ${colors.border}`
-                                            }}>
-                                                <span className="text-sm font-bold" style={{ color: colors.textPrimary }}>
-                                                    {key}:
-                                                </span>
-                                                <span className="text-sm" style={{ color: colors.textSecondary }}>
-                                                    {value}
-                                                </span>
-                                                <button
-                                                    onClick={() => removeSpecification(key)}
-                                                    className="ml-auto p-1 hover:bg-red-50 rounded transition-colors"
-                                                    style={{ color: '#ef4444' }}
-                                                >
-                                                    <X size={14} />
-                                                </button>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-
-                                {/* Adicionar especificação */}
-                                <div className="flex gap-2">
-                                    <input
-                                        type="text"
-                                        value={newSpecKey}
-                                        onChange={(e) => setNewSpecKey(e.target.value)}
-                                        placeholder="Chave (ex: Cor)"
-                                        className="flex-1 px-3 py-2 rounded-lg border focus:outline-none focus:ring-2 transition-all text-sm"
-                                        style={{
-                                            background: colors.surface,
-                                            borderColor: colors.border,
-                                            color: colors.textPrimary,
-                                            '--tw-ring-color': '#f97316',
-                                        } as React.CSSProperties}
-                                    />
-                                    <input
-                                        type="text"
-                                        value={newSpecValue}
-                                        onChange={(e) => setNewSpecValue(e.target.value)}
-                                        placeholder="Valor (ex: Vermelho)"
-                                        className="flex-1 px-3 py-2 rounded-lg border focus:outline-none focus:ring-2 transition-all text-sm"
-                                        style={{
-                                            background: colors.surface,
-                                            borderColor: colors.border,
-                                            color: colors.textPrimary,
-                                            '--tw-ring-color': '#f97316',
-                                        } as React.CSSProperties}
-                                    />
-                                    <button
-                                        onClick={addSpecification}
-                                        className="px-4 py-2 rounded-lg font-bold text-sm transition-all hover:scale-105"
-                                        style={{
-                                            background: GRADIENT,
-                                            color: '#ffffff'
-                                        }}
-                                    >
-                                        Adicionar
-                                    </button>
-                                </div>
                             </div>
 
                             {/* Botão de deletar */}
