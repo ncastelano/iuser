@@ -22,6 +22,12 @@ self.addEventListener('push', (event) => {
     icon: '/android-chrome-192x192.png',
     badge: '/favicon-128x128.png',
     tag: data.tag || `iuser-${Date.now()}`,
+    // Som e vibração do sistema: renotify faz tocar de novo mesmo com a mesma tag;
+    // urgent (corrida nova, motorista chegando) fica na tela até a pessoa tocar.
+    renotify: true,
+    silent: false,
+    vibrate: data.urgent ? [300, 120, 300, 120, 500] : [200, 100, 200],
+    requireInteraction: !!data.urgent,
     data: { url: data.url || '/' },
   }
 

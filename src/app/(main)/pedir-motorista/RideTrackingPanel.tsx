@@ -15,6 +15,7 @@ import { DRIVER_SERVICE_OPTIONS } from '@/lib/driverServices'
 import RideChat from '@/components/RideChat'
 import { kindForRideType, type VehicleType } from '@/lib/rideVehicle'
 import { notifyRideStatus } from '@/lib/notifyRideStatus'
+import { playNotificationSound } from '@/lib/rideAlertSound'
 import { handleShareLink } from '@/lib/share'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -304,6 +305,13 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady }: Rid
         load()
     }, [load])
 
+    const lastStageRef = useRef({ enRoute: false, arrived: false, started: false })
+    // Estado atual como ponto de partida: não toca som pelo que já tinha acontecido antes de abrir a tela.
+    useEffect(() => {
+        if (!ride) return
+        lastStageRef.current = { enRoute: !!ride.driver_en_route, arrived: !!ride.driver_arrived_at, started: !!ride.ride_started_at }
+    }, [ride?.id, ride?.driver_en_route, ride?.driver_arrived_at, ride?.ride_started_at])
+
     // ===== TEMPO REAL: candidaturas novas/alteradas e mudança de status do pedido =====
     useEffect(() => {
         const channel = supabase
@@ -318,11 +326,20 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady }: Rid
                 { event: 'UPDATE', schema: 'public', table: 'ride_requests', filter: `id=eq.${rideId}` },
                 (payload) => {
                     const prevStatus = (payload.old as { status?: RideStatus } | null)?.status
-                    const newStatus = (payload.new as { status?: RideStatus } | null)?.status
+                    const row = payload.new as { status?: RideStatus; driver_en_route?: boolean; driver_arrived_at?: string | null; ride_started_at?: string | null } | null
+                    const newStatus = row?.status
                     if (newStatus && newStatus !== prevStatus) {
-                        if (newStatus === 'accepted') toast.success('Motorista escolhido! Ele está a caminho.')
-                        if (newStatus === 'completed') toast.success('Corrida concluída!')
-                        if (newStatus === 'cancelled') toast.info('Pedido cancelado.')
+                        if (newStatus === 'accepted') { toast.success('Motorista escolhido! Ele está a caminho.'); playNotificationSound('default') }
+                        if (newStatus === 'completed') { toast.success('Corrida concluída!'); playNotificationSound('completed') }
+                        if (newStatus === 'cancelled') { toast.info('Pedido cancelado.'); playNotificationSound('default') }
+                    }
+                    // Etapas do motorista (som só na mudança, não a cada atualização).
+                    const last = lastStageRef.current
+                    if (row) {
+                        if (row.driver_arrived_at && !last.arrived) { toast.success('O motorista chegou ao local!'); playNotificationSound('arrived') }
+                        else if (row.driver_en_route && !last.enRoute && !row.driver_arrived_at) { toast.info('O motorista saiu e está a caminho.'); playNotificationSound('default') }
+                        if (row.ride_started_at && !last.started) { playNotificationSound('default') }
+                        lastStageRef.current = { enRoute: !!row.driver_en_route, arrived: !!row.driver_arrived_at, started: !!row.ride_started_at }
                     }
                     load()
                 }

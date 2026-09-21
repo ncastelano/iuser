@@ -20,7 +20,7 @@ export function isFirebasePushConfigured() {
 
 export async function sendFcmToTokens(
     tokens: string[],
-    notification: { title: string; body: string; url?: string; tag?: string }
+    notification: { title: string; body: string; url?: string; tag?: string; urgent?: boolean }
 ): Promise<{ successCount: number; invalidTokens: string[] }> {
     const app = getFirebaseApp()
     if (!app || tokens.length === 0) return { successCount: 0, invalidTokens: [] }
@@ -35,6 +35,14 @@ export async function sendFcmToTokens(
         data: {
             url: notification.url || '/',
             tag: notification.tag || '',
+        },
+        // Android: prioridade alta + som padrão do sistema, pra tocar mesmo com o app fechado.
+        android: {
+            priority: 'high',
+            notification: {
+                sound: 'default',
+                ...(notification.urgent ? { defaultVibrateTimings: true, priority: 'max' as const } : {}),
+            },
         },
     })
 

@@ -17,7 +17,7 @@ import { Spinner } from '@/components/Spinner'
 import { shortAddress } from '@/lib/serviceBoard'
 import { getAvatarUrl } from '@/lib/avatar'
 import { computeSuggestedPrice, computeConditionExtras, getEffectivePricing, getCustomPricing, PLATFORM_DEFAULT_PRICING_BY_VEHICLE, DriverPricing, type RideConditionFlags } from '@/lib/driverPricing'
-import { playRideAlertSound } from '@/lib/rideAlertSound'
+import { playRideAlertSound, playNotificationSound } from '@/lib/rideAlertSound'
 import { getProfileRideRatingsBatch, ProfileRideRating } from '@/lib/rideReviews'
 import { VehicleType, VehicleKind, VEHICLE_TYPE_LABELS, ridesAcceptableForVehicleKind, kindForRideType } from '@/lib/rideVehicle'
 import { buildRideSpecRows } from '@/lib/rideSpecs'
@@ -282,6 +282,42 @@ export default function AceitarCorridasPage() {
 
         return () => watch.clear()
     }, [liveLocationSync])
+
+    // ===== "CHEGANDO": avisa o passageiro (push com som) quando o motorista chega perto =====
+    // Fase 1 (a caminho da partida): perto do ponto de partida. Fase 2 (corrida
+    // iniciada): perto do destino — no caso de objeto, é o "seu objeto está chegando".
+    // Uma vez por fase e por corrida.
+    const APPROACH_RADIUS_METERS = 300
+    const approachNotifiedRef = useRef<Set<string>>(new Set())
+    useEffect(() => {
+        if (!acceptedRide) return
+        const ride = acceptedRide
+        const phase = ride.ride_started_at ? 'approaching_destination' : (ride.driver_en_route && !ride.driver_arrived_at) ? 'approaching_pickup' : null
+        if (!phase) return
+        const target = phase === 'approaching_destination'
+            ? [ride.destination_lng, ride.destination_lat]
+            : [ride.origin_lng, ride.origin_lat]
+        if (target[0] == null || target[1] == null) return
+        const key = `iuser-approach:${ride.id}:${phase}`
+        try { if (sessionStorage.getItem(key)) return } catch { /* sem sessionStorage */ }
+        if (approachNotifiedRef.current.has(key)) return
+
+        const watch = watchNativePosition(
+            (pos) => {
+                if (approachNotifiedRef.current.has(key)) return
+                const meters = haversineKm([pos.coords.longitude, pos.coords.latitude], target as [number, number]) * 1000
+                if (meters <= APPROACH_RADIUS_METERS) {
+                    approachNotifiedRef.current.add(key)
+                    try { sessionStorage.setItem(key, '1') } catch { /* ok */ }
+                    notifyRideStatus(ride.id, phase)
+                    watch.clear()
+                }
+            },
+            () => { /* sem GPS: só não avisa a aproximação */ },
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
+        )
+        return () => watch.clear()
+    }, [acceptedRide?.id, acceptedRide?.driver_en_route, acceptedRide?.driver_arrived_at, acceptedRide?.ride_started_at])
 
     // Nome exibido no cabeçalho enquanto sincronizado: o do local ao vivo
     // (GPS), não o do local salvo — só busca de novo quando a posição muda.
@@ -571,6 +607,15 @@ export default function AceitarCorridasPage() {
             lastAcceptedRideIdRef.current = acceptedDetail.id
             setActiveTab('aceita')
         } else if (!acceptedDetail && lastAcceptedRideIdRef.current != null) {
+            // A corrida saiu de "aceita" sem ser pelo botão do motorista: se o
+            // passageiro a finalizou, toca o som de fim de corrida.
+            const goneId = lastAcceptedRideIdRef.current
+            supabase.from('ride_requests').select('status').eq('id', goneId).maybeSingle().then(({ data: gone }) => {
+                if (gone?.status === 'completed') {
+                    playNotificationSound('completed')
+                    toast.success('Corrida finalizada pelo passageiro!')
+                }
+            })
             lastAcceptedRideIdRef.current = null
             setActiveTab((prev) => (prev === 'aceita' ? 'servicos' : prev))
         }
@@ -901,6 +946,7 @@ export default function AceitarCorridasPage() {
                         .eq('driver_id', user.id)
                     if (error) throw error
                     toast.success('Corrida finalizada!')
+                    playNotificationSound('completed')
                     notifyRideStatus(acceptedRide.id, 'completed')
                     lastAcceptedRideIdRef.current = null
                     setAcceptedRide(null)

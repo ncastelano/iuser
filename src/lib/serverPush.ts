@@ -20,6 +20,8 @@ export interface PushPayload {
     body: string
     url?: string
     tag?: string
+    /** Aviso que não pode passar batido (corrida nova, motorista chegando): fica na tela e vibra mais. */
+    urgent?: boolean
 }
 
 // Manda pra todos os canais (web + nativo) cadastrados pro user_id, em
@@ -55,6 +57,7 @@ async function sendWebPush(userId: string, payload: PushPayload): Promise<number
         body: payload.body,
         url: payload.url || '/',
         tag: payload.tag,
+        urgent: !!payload.urgent,
     })
 
     const results = await Promise.allSettled(

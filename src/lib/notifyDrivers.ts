@@ -58,6 +58,7 @@ export async function notifyDriversOfRide(ride: {
                 body: `${short(ride.origin_address)} → ${short(ride.destination_address)}${priceText}`,
                 url: '/aceitar-corridas',
                 tag: `new-ride-${ride.id}`,
+                urgent: true,
             })
         )
     )

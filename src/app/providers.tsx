@@ -12,6 +12,7 @@ import { NavigationProgressBar } from '@/components/NavigationProgressBar'
 import { FinishedRideTrigger } from '@/components/ratings/FinishedRideTrigger'
 import { RideAcceptedDialog } from '@/components/RideAcceptedDialog'
 import { DriverLiveLocationBroadcaster } from '@/components/DriverLiveLocationBroadcaster'
+import { DriverRideAlertListener } from '@/components/DriverRideAlertListener'
 import { Toaster } from 'sonner'
 import { ProfileProvider } from './contexts/ProfileContext'
 
@@ -48,6 +49,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <FinishedRideTrigger />
         <RideAcceptedDialog />
         <DriverLiveLocationBroadcaster />
+        <DriverRideAlertListener />
         <PwaCleanup />
         <PwaInstallPrompt />
         <PushNotificationSetup />
