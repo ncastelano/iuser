@@ -957,34 +957,37 @@ export function ProductClientPage({
 
     return (
         <div className="relative min-h-dvh" style={{ background: colors.background }}>
-            {/* Header flutuante sobre a imagem (mobile) - nome do produto aqui, embaixo do
-                botão de voltar, já que o título saiu do topo do sheet de conteúdo. */}
-            <div className="md:hidden absolute top-0 inset-x-0 z-20 flex items-center gap-2 px-4 pt-4">
-                <button
-                    onClick={() => router.back()}
-                    aria-label="Voltar"
-                    className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 backdrop-blur-md transition hover:scale-105"
-                    style={{ background: 'rgba(17,17,17,0.4)' }}
-                >
-                    <ArrowLeft size={20} color="#ffffff" />
-                </button>
-                <h1
-                    className="flex-1 min-w-0 truncate text-center text-xs font-bold px-3 py-2 rounded-full backdrop-blur-md"
-                    style={{ background: 'rgba(17,17,17,0.4)', color: '#ffffff' }}
-                >
-                    {product.name || 'Sem título'}
-                </h1>
-                <button
-                    onClick={() => handleShareLink({
-                        title: `${product.name || 'Produto'} | ${storeDisplay.name}`,
-                        text: product.description || 'Confira no iUser!'
-                    })}
-                    aria-label="Compartilhar"
-                    className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 backdrop-blur-md transition hover:scale-105"
-                    style={{ background: 'rgba(17,17,17,0.4)' }}
-                >
-                    <Share2 size={18} color="#ffffff" />
-                </button>
+            {/* Barra do topo (mobile): voltar + nome do produto, depois quantidade/adicionar,
+                e o carrinho da loja por último. Fica grudada no topo enquanto rola —
+                antes os controles ficavam embaixo, onde a barra do iPhone atrapalha. */}
+            <div
+                className="md:hidden sticky top-0 z-30"
+                style={{
+                    background: colors.background,
+                    borderBottom: `1px solid ${colors.border}`,
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.08)',
+                    paddingTop: 'env(safe-area-inset-top)',
+                }}
+            >
+                <div className="flex items-center gap-3 px-4 pt-3">
+                    <button
+                        onClick={() => router.back()}
+                        aria-label="Voltar"
+                        className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition hover:scale-105"
+                        style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                    >
+                        <ArrowLeft size={20} />
+                    </button>
+                    <h1 className="flex-1 min-w-0 truncate text-base font-black" style={{ color: colors.textPrimary }}>
+                        {product.name || 'Sem título'}
+                    </h1>
+                </div>
+
+                <div className="flex items-center gap-3 px-4 py-3">
+                    {cartControls}
+                </div>
+
+                {storeCartBar}
             </div>
 
             {/* Header no fluxo normal (web) */}
@@ -1003,7 +1006,7 @@ export function ProductClientPage({
                 </h1>
             </div>
 
-            <div className={`${storeCartBar ? 'pb-48' : 'pb-32'} md:pb-0 md:max-w-6xl md:mx-auto md:px-6 md:pt-6`}>
+            <div className={`pb-8 md:pb-0 md:max-w-6xl md:mx-auto md:px-6 md:pt-6`}>
                 <div className="md:grid md:grid-cols-2 md:gap-10 md:items-start">
                     {/* Imagem em destaque, tipo capa de produto */}
                     <div className="relative w-full h-[24vh] min-h-[185px] max-h-[300px] md:h-auto md:aspect-square md:rounded-3xl md:overflow-hidden md:sticky md:top-6">
@@ -1020,50 +1023,50 @@ export function ProductClientPage({
                             </div>
                         )}
 
-                        {/* Compartilhar - flutua sobre a imagem também no web */}
-                        <button
-                            onClick={() => handleShareLink({
-                                title: `${product.name || 'Produto'} | ${storeDisplay.name}`,
-                                text: product.description || 'Confira no iUser!'
-                            })}
-                            aria-label="Compartilhar"
-                            className="hidden md:flex absolute top-4 right-4 w-10 h-10 rounded-full items-center justify-center backdrop-blur-md transition hover:scale-105"
-                            style={{ background: 'rgba(17,17,17,0.4)' }}
-                        >
-                            <Share2 size={18} color="#ffffff" />
-                        </button>
-
-                        {/* Loja + data - flutua no rodapé da foto, na divisa com o sheet de
-                            conteúdo (mobile e web) - lugar do cartão de loja que antes ficava
-                            solto no meio do texto. */}
-                        <button
-                            onClick={goToStore}
-                            className="absolute bottom-0 inset-x-0 flex items-center gap-2 px-4 pb-4 pt-8 text-left transition hover:opacity-90"
+                        {/* Loja + data + compartilhar - no rodapé da foto. Tocar na loja (avatar/nome)
+                            abre a loja; o compartilhar ocupa o lugar do antigo botão "ir pra loja". */}
+                        <div
+                            className="absolute bottom-0 inset-x-0 flex items-center gap-2 px-4 pb-4 pt-8"
                             style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.72), transparent)' }}
                         >
-                            <div
-                                className="w-8 h-8 rounded-full overflow-hidden border flex-shrink-0"
-                                style={{ borderColor: 'rgba(255,255,255,0.6)', background: 'rgba(255,255,255,0.15)' }}
+                            <button
+                                onClick={goToStore}
+                                className="flex items-center gap-2 min-w-0 flex-1 text-left transition hover:opacity-90"
                             >
-                                {finalStoreImage ? (
-                                    <img src={finalStoreImage} alt={storeDisplay.name} className="w-full h-full object-cover" />
-                                ) : (
-                                    <div className="w-full h-full flex items-center justify-center">
-                                        <Store size={14} color="#ffffff" />
-                                    </div>
-                                )}
-                            </div>
-                            <div className="min-w-0 flex-1">
-                                <p className="text-xs font-bold truncate" style={{ color: '#ffffff' }}>
-                                    {storeDisplay.name}
-                                </p>
-                                <p className="flex items-center gap-1 text-[10px]" style={{ color: 'rgba(255,255,255,0.8)' }}>
-                                    <Calendar size={9} />
-                                    {formattedDate}
-                                </p>
-                            </div>
-                            <ChevronRight size={16} style={{ color: 'rgba(255,255,255,0.7)' }} />
-                        </button>
+                                <div
+                                    className="w-8 h-8 rounded-full overflow-hidden border flex-shrink-0"
+                                    style={{ borderColor: 'rgba(255,255,255,0.6)', background: 'rgba(255,255,255,0.15)' }}
+                                >
+                                    {finalStoreImage ? (
+                                        <img src={finalStoreImage} alt={storeDisplay.name} className="w-full h-full object-cover" />
+                                    ) : (
+                                        <div className="w-full h-full flex items-center justify-center">
+                                            <Store size={14} color="#ffffff" />
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                    <p className="text-xs font-bold truncate" style={{ color: '#ffffff' }}>
+                                        {storeDisplay.name}
+                                    </p>
+                                    <p className="flex items-center gap-1 text-[10px]" style={{ color: 'rgba(255,255,255,0.8)' }}>
+                                        <Calendar size={9} />
+                                        {formattedDate}
+                                    </p>
+                                </div>
+                            </button>
+                            <button
+                                onClick={() => handleShareLink({
+                                    title: `${product.name || 'Produto'} | ${storeDisplay.name}`,
+                                    text: product.description || 'Confira no iUser!'
+                                })}
+                                aria-label="Compartilhar"
+                                className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 backdrop-blur-md transition hover:scale-105"
+                                style={{ background: 'rgba(17,17,17,0.4)' }}
+                            >
+                                <Share2 size={18} color="#ffffff" />
+                            </button>
+                        </div>
                     </div>
 
                     {/* Sheet de conteúdo (mobile: sobreposto à imagem / web: coluna ao lado) */}
@@ -1236,31 +1239,6 @@ export function ProductClientPage({
                                 )
                             })}
                         </div>
-                    </div>
-                )}
-            </div>
-
-            {/* Barra fixa (mobile): controles de quantidade em cima, carrinho da loja
-                embaixo — ao adicionar o primeiro item, o carrinho aparece por baixo
-                e "empurra" os controles de quantidade pra cima. */}
-            <div
-                className="md:hidden fixed bottom-0 inset-x-0 z-20"
-                style={{
-                    background: colors.background,
-                    borderTop: `1px solid ${colors.border}`,
-                    boxShadow: '0 -8px 24px rgba(0,0,0,0.08)',
-                }}
-            >
-                <div
-                    className="flex items-center gap-3 px-4 pt-3"
-                    style={{ paddingBottom: storeCartBar ? 12 : 'calc(env(safe-area-inset-bottom) + 12px)' }}
-                >
-                    {cartControls}
-                </div>
-
-                {storeCartBar && (
-                    <div style={{ paddingBottom: 'calc(env(safe-area-inset-bottom))' }}>
-                        {storeCartBar}
                     </div>
                 )}
             </div>
