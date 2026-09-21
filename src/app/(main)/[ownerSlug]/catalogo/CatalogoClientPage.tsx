@@ -869,7 +869,7 @@ export default function CatalogoClientPage() {
             try {
                 const { data: storeData } = await supabase
                     .from('stores')
-                    .select('whatsapp, owner_id')
+                    .select('whatsapp, owner_id, whatsapp_orders_enabled')
                     .eq('id', storeInfo.id)
                     .single()
                 let whatsapp = storeData?.whatsapp
@@ -881,7 +881,7 @@ export default function CatalogoClientPage() {
                         .single()
                     whatsapp = owner?.whatsapp
                 }
-                if (whatsapp) {
+                if (whatsapp && storeData?.whatsapp_orders_enabled !== false) {
                     const paymentLabel = paymentMethod === 'pix' ? 'PIX' : paymentMethod === 'cartao' ? 'Cartão' : 'Dinheiro'
                     const deliveryLabel = deliveryOption === 'entrega'
                         ? `Entrega (${address})${deliveryFee > 0 ? ` - Taxa: R$ ${deliveryFee.toFixed(2)}` : ' - Grátis'}`

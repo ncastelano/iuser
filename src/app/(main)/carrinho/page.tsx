@@ -1026,7 +1026,7 @@ export default function CarrinhoPage() {
                 try {
                     const { data: storeForWa } = await supabase
                         .from('stores')
-                        .select('whatsapp, owner_id')
+                        .select('whatsapp, owner_id, whatsapp_orders_enabled')
                         .eq('storeSlug', slug)
                         .single()
                     let whatsapp = storeForWa?.whatsapp
@@ -1038,7 +1038,7 @@ export default function CarrinhoPage() {
                             .single()
                         whatsapp = owner?.whatsapp
                     }
-                    if (whatsapp) {
+                    if (whatsapp && storeForWa?.whatsapp_orders_enabled !== false) {
                         const paymentLabel = paymentOpt === 'pix' ? 'PIX' : paymentOpt === 'cartao' ? 'Cartão' : 'Dinheiro'
                         const deliveryLabel = deliveryOpt === 'entrega'
                             ? `Entrega (${address})${deliveryFee > 0 ? ` - Taxa: R$ ${deliveryFee.toFixed(2)}` : ' - Grátis'}`

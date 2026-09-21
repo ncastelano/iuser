@@ -42,6 +42,7 @@ export default function StoreDeliverySettings({ storeId, onRefresh }: StoreDeliv
     const [acceptsDelivery, setAcceptsDelivery] = useState(true)
     const [acceptsPickup, setAcceptsPickup] = useState(true)
     const [iuserDelivery, setIuserDelivery] = useState(false)
+    const [whatsappOrders, setWhatsappOrders] = useState(true)
     const [deliveryMode, setDeliveryMode] = useState<'free' | 'fixed' | 'distance'>('fixed')
     const [fixedDeliveryFee, setFixedDeliveryFee] = useState('')
     const [deliveryBaseDistance, setDeliveryBaseDistance] = useState('5')
@@ -54,7 +55,7 @@ export default function StoreDeliverySettings({ storeId, onRefresh }: StoreDeliv
 
         const { data: store, error } = await supabase
             .from('stores')
-            .select('accepts_delivery, accepts_pickup, iuser_delivery_enabled, delivery_type, delivery_fee, delivery_base_distance, delivery_base_fee, delivery_fee_per_km')
+            .select('accepts_delivery, accepts_pickup, iuser_delivery_enabled, whatsapp_orders_enabled, delivery_type, delivery_fee, delivery_base_distance, delivery_base_fee, delivery_fee_per_km')
             .eq('id', storeId)
             .single()
 
@@ -68,6 +69,7 @@ export default function StoreDeliverySettings({ storeId, onRefresh }: StoreDeliv
             setAcceptsDelivery(store.accepts_delivery ?? true)
             setAcceptsPickup(store.accepts_pickup ?? true)
             setIuserDelivery(!!store.iuser_delivery_enabled)
+            setWhatsappOrders(store.whatsapp_orders_enabled ?? true)
 
             if (store.delivery_type === 'free') {
                 setDeliveryMode('free')
@@ -123,6 +125,7 @@ export default function StoreDeliverySettings({ storeId, onRefresh }: StoreDeliv
                 accepts_delivery: acceptsDelivery,
                 accepts_pickup: acceptsPickup,
                 iuser_delivery_enabled: acceptsDelivery && iuserDelivery,
+                whatsapp_orders_enabled: whatsappOrders,
                 delivery_type: deliveryType,
                 delivery_fee: savedDeliveryFee,
                 delivery_fee_per_km: savedFeePerKm,
@@ -447,6 +450,29 @@ export default function StoreDeliverySettings({ storeId, onRefresh }: StoreDeliv
                                 </p>
                             </div>
                         )}
+
+                        {/* Pedidos por WhatsApp (opcional) */}
+                        <div
+                            className="p-3 rounded-2xl flex flex-col gap-2"
+                            style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`, border: `1px solid ${colors.border}` }}
+                        >
+                            <div className="flex items-center justify-between gap-3">
+                                <span className="text-xs font-bold" style={{ color: colors.textPrimary }}>
+                                    Receber pedidos também no WhatsApp
+                                </span>
+                                <button
+                                    onClick={() => setWhatsappOrders(!whatsappOrders)}
+                                    className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${whatsappOrders ? 'bg-orange-500' : 'bg-gray-400'}`}
+                                >
+                                    <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm transition-all ${whatsappOrders ? 'right-1' : 'left-1'}`} />
+                                </button>
+                            </div>
+                            <p className="text-[11px]" style={{ color: colors.textSecondary }}>
+                                {whatsappOrders
+                                    ? 'Ao finalizar, o cliente é direcionado direto ao WhatsApp da loja para enviar o pedido. Quando a mensagem chegar no WhatsApp, o pedido já terá aparecido no iUser: verifique os pedidos na aba onde fica a sua loja.'
+                                    : 'Os pedidos chegam só pelo iUser, na aba onde fica a sua loja. O cliente não é levado ao WhatsApp.'}
+                            </p>
+                        </div>
 
                         {/* Toggle Retirada no local */}
                         <div

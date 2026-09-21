@@ -458,13 +458,13 @@ export function useStoreCheckout(ownerSlug: string | undefined, cartItems: CartI
             }
 
             try {
-                const { data: storeData } = await supabase.from('stores').select('whatsapp, owner_id').eq('id', storeConfig.id).single()
+                const { data: storeData } = await supabase.from('stores').select('whatsapp, owner_id, whatsapp_orders_enabled').eq('id', storeConfig.id).single()
                 let whatsapp = storeData?.whatsapp
                 if (!whatsapp && storeData?.owner_id) {
                     const { data: owner } = await supabase.from('profiles').select('whatsapp').eq('id', storeData.owner_id).single()
                     whatsapp = owner?.whatsapp
                 }
-                if (whatsapp) {
+                if (whatsapp && storeData?.whatsapp_orders_enabled !== false) {
                     const paymentLabel = paymentMethod === 'pix' ? 'PIX' : paymentMethod === 'cartao' ? 'Cartão' : 'Dinheiro'
                     const deliveryLabel = deliveryOption === 'entrega'
                         ? `Entrega (${address})${deliveryFee > 0 ? ` - Taxa: R$ ${deliveryFee.toFixed(2)}` : ' - Grátis'}`

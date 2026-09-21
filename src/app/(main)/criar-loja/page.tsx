@@ -182,6 +182,7 @@ export default function CriarLoja() {
   const [selectedCategorySlug, setSelectedCategorySlug] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
   const [whatsappError, setWhatsappError] = useState("");
+  const [whatsappOrders, setWhatsappOrders] = useState(true);
 
   const [selectedPosition, setSelectedPosition] = useState<{ lat: number; lng: number }>({
     lat: -15.7801,
@@ -598,6 +599,11 @@ export default function CriarLoja() {
       return;
     }
 
+    // Opcional: só grava quando a pessoa desligou (o padrão do banco é ligado).
+    if (!whatsappOrders) {
+      await supabase.from("stores").update({ whatsapp_orders_enabled: false }).eq("storeSlug", storeSlug);
+    }
+
     setLoading(false);
 
     // ✅ REDIRECIONA PARA A NOVA ESTRUTURA /[storeSlug]
@@ -783,7 +789,26 @@ export default function CriarLoja() {
                 <div className="flex items-start gap-1.5 mt-1.5">
                   <Shield className="w-3 h-3 text-orange-400 flex-shrink-0 mt-0.5" />
                   <p className="text-[8px] text-gray-400 leading-relaxed">
-                    As notificações de pedidos e mensagens dos clientes serão enviadas para este número
+                    Este número fica visível como contato da loja.
+                  </p>
+                </div>
+                <div className="mt-2 p-3 rounded-xl border" style={{ borderColor: '#fbd5a4', background: '#fff7ed' }}>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-gray-700">
+                      Receber pedidos também no WhatsApp (opcional)
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setWhatsappOrders(!whatsappOrders)}
+                      className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${whatsappOrders ? 'bg-orange-500' : 'bg-gray-400'}`}
+                    >
+                      <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm transition-all ${whatsappOrders ? 'right-1' : 'left-1'}`} />
+                    </button>
+                  </div>
+                  <p className="text-[9px] text-gray-500 leading-relaxed mt-1.5">
+                    {whatsappOrders
+                      ? 'Ao finalizar, o cliente é direcionado direto ao WhatsApp da loja para enviar o pedido. Quando a mensagem chegar no WhatsApp, o pedido já terá aparecido no iUser: verifique os pedidos na aba onde fica a sua loja.'
+                      : 'Os pedidos chegam só pelo iUser, na aba onde fica a sua loja. O cliente não será levado ao WhatsApp.'}
                   </p>
                 </div>
               </div>
