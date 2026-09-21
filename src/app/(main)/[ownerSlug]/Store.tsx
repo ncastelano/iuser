@@ -1406,6 +1406,16 @@ export function Store({
                                     Fechado
                                 </span>
                             )}
+                            {isOwner && storeSubscriptionActive !== false && (
+                                <button
+                                    onClick={() => router.push(`/${ownerSlug}/criar-produto`)}
+                                    className="ml-auto flex items-center gap-1.5 h-8 px-3 rounded-full shadow-md hover:scale-105 transition-transform text-xs font-bold whitespace-nowrap"
+                                    style={{ background: GRADIENT, color: '#ffffff' }}
+                                >
+                                    <Plus size={14} />
+                                    Adicionar produto
+                                </button>
+                            )}
                         </div>
 
                         <div className="flex items-center gap-2 mb-4">
@@ -1425,16 +1435,6 @@ export function Store({
                                     } as React.CSSProperties}
                                 />
                             </div>
-                            {isOwner && storeSubscriptionActive !== false && (
-                                <button
-                                    onClick={() => router.push(`/${ownerSlug}/criar-produto`)}
-                                    className="flex items-center justify-center w-9 h-9 rounded-xl shadow-md hover:scale-110 transition-transform"
-                                    style={{ background: GRADIENT, color: '#ffffff' }}
-                                    title="Adicionar produto"
-                                >
-                                    <Plus size={18} />
-                                </button>
-                            )}
                         </div>
 
                         {storeSubscriptionActive === false ? (
