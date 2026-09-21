@@ -2,6 +2,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import Link from 'next/link'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { toast } from 'sonner'
@@ -128,6 +129,9 @@ export default function DriverDebtBanner({ userId }: { userId: string | null }) 
                             ? 'Quite pra continuar aceitando novas corridas'
                             : 'Cada serviço oferecido (corrida, serviço ou pedido de loja) usa R$ 0,50 de crédito — pague via Pix ao chegar em R$ 50'}
                     </p>
+                    <Link href="/planos/pos-pago" className="inline-block mt-1 text-[11px] font-black underline" style={{ color: '#f97316' }}>
+                        Saber mais
+                    </Link>
                 </div>
                 {isBlocking && (
                     <button
