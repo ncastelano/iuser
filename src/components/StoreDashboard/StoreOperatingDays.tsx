@@ -63,7 +63,7 @@ export default function StoreOperatingDays({ storeId }: StoreOperatingDaysProps)
     const [blockedDateInput, setBlockedDateInput] = useState('')
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
-    const [isExpanded, setIsExpanded] = useState(false)
+    const [isExpanded, setIsExpanded] = useState(true)
     const [isRefreshing, setIsRefreshing] = useState(false)
 
     // ===== ESTADO PARA STATUS ATUAL =====

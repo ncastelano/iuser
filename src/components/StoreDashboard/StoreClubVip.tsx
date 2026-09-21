@@ -84,7 +84,7 @@ export default function StoreClubVip({ storeId }: StoreClubVipProps) {
     const surfaceRgb = hexToRgb(colors.surface)
     const fileInputRef = useRef<HTMLInputElement>(null)
 
-    const [isExpanded, setIsExpanded] = useState(false)
+    const [isExpanded, setIsExpanded] = useState(true)
     const [loading, setLoading] = useState(false)
     const [vipEnabled, setVipEnabled] = useState(false)
     const [vipPrice, setVipPrice] = useState<number | null>(null)

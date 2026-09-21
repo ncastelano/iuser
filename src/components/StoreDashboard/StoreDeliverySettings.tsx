@@ -37,7 +37,7 @@ export default function StoreDeliverySettings({ storeId, onRefresh }: StoreDeliv
 
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
-    const [isExpanded, setIsExpanded] = useState(false)
+    const [isExpanded, setIsExpanded] = useState(true)
 
     const [acceptsDelivery, setAcceptsDelivery] = useState(true)
     const [acceptsPickup, setAcceptsPickup] = useState(true)

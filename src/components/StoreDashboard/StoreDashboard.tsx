@@ -114,11 +114,11 @@ export default function StoreDashboard({
     const [sortBy, setSortBy] = useState<'mostSold' | 'leastSold' | 'mostExpensive' | 'cheapest'>('mostSold')
     const [employees, setEmployees] = useState<any[]>([])
     const [expandedEmployee, setExpandedEmployee] = useState<string | null>(null)
-    const [isProductsExpanded, setIsProductsExpanded] = useState(false)
+    const [isProductsExpanded, setIsProductsExpanded] = useState(true)
     const [showScheduleModal, setShowScheduleModal] = useState(false)
 
     // ===== ESTADO PARA StoreDescription =====
-    const [isStoreDescriptionExpanded, setIsStoreDescriptionExpanded] = useState(false)
+    const [isStoreDescriptionExpanded, setIsStoreDescriptionExpanded] = useState(true)
     const [savingDescription, setSavingDescription] = useState(false)
 
     // ===== ESTADOS PARA StoreDescription =====
@@ -243,7 +243,7 @@ export default function StoreDashboard({
             setPreview(store.logo_url || null)
         }
         setImageFile(null)
-        setIsStoreDescriptionExpanded(false)
+        setIsStoreDescriptionExpanded(true)
         setSlugStatus('idle')
     }
 

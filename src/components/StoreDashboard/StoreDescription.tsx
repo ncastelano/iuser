@@ -73,7 +73,7 @@ export function StoreDescription({
     const surfaceRgb = hexToRgb(colors.surface)
 
     // Estado interno para controle de expansão (caso não seja controlado externamente)
-    const [internalExpanded, setInternalExpanded] = useState(false)
+    const [internalExpanded, setInternalExpanded] = useState(true)
     const [selectedCategorySlug, setSelectedCategorySlug] = useState('')
 
     // Inicializa a categoria selecionada

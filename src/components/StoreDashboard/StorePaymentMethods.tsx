@@ -37,14 +37,14 @@ export default function StorePaymentMethods({ storeId, onRefresh }: StorePayment
 
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
-    const [isExpanded, setIsExpanded] = useState(false)
+    const [isExpanded, setIsExpanded] = useState(true)
 
     const [acceptsPix, setAcceptsPix] = useState(true)
     const [acceptsCard, setAcceptsCard] = useState(true)
     const [acceptsCash, setAcceptsCash] = useState(true)
     const [pixKey, setPixKey] = useState('')
     const [pixKeyType, setPixKeyType] = useState<'cpf' | 'email' | 'phone' | 'random'>('cpf')
-    const [isPixExpanded, setIsPixExpanded] = useState(false)
+    const [isPixExpanded, setIsPixExpanded] = useState(true)
 
     const loadConfig = useCallback(async () => {
         if (!storeId) return

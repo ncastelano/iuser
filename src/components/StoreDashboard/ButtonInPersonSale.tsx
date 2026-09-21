@@ -58,7 +58,7 @@ export default function ButtonInPersonSale({
     onSaleCompleted,
 }: ButtonInPersonSaleProps) {
     const { colors } = useTheme()
-    const [isOpen, setIsOpen] = useState(false)
+    const [isOpen, setIsOpen] = useState(true)
     const [products, setProducts] = useState<Product[]>([])
     const [searchQuery, setSearchQuery] = useState('')
     const [cart, setCart] = useState<CartItem[]>([])

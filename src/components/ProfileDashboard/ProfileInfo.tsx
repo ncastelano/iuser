@@ -61,7 +61,7 @@ export function ProfileInfo({ profile, onProfileUpdate }: ProfileInfoProps) {
     const fileInputRef = useRef<HTMLInputElement>(null)
     const surfaceRgb = hexToRgb(colors.surface)
 
-    const [isExpanded, setIsExpanded] = useState(false)
+    const [isExpanded, setIsExpanded] = useState(true)
     const [name, setName] = useState(profile.name || '')
     const [slug, setSlug] = useState(profile.profileSlug || '')
     const [description, setDescription] = useState(profile.description || '')
