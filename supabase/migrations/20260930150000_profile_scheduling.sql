@@ -11,7 +11,7 @@ LANGUAGE sql SECURITY DEFINER SET search_path = public STABLE AS $$
       AND a.direction = 'outgoing'
       AND a.provider_profile_id = p_profile_id
       AND a.customer_id IS DISTINCT FROM p_profile_id
-      AND a.status NOT IN ('cancelled', 'declined')
+      AND a.status::text NOT IN ('cancelled', 'declined', 'rejected')
       AND a.date::date BETWEEN p_from AND p_to;
 $$;
 REVOKE ALL ON FUNCTION public.get_profile_busy_slots(uuid, date, date) FROM public;
@@ -46,7 +46,7 @@ BEGIN
         WHERE a.store_id IS NULL AND a.direction = 'outgoing'
           AND a.provider_profile_id = NEW.provider_profile_id
           AND a.customer_id IS DISTINCT FROM a.provider_profile_id
-          AND a.status NOT IN ('cancelled', 'declined')
+          AND a.status::text NOT IN ('cancelled', 'declined', 'rejected')
           AND a.date::date = NEW.date::date
           AND v_start < (EXTRACT(EPOCH FROM a.time::time) / 60)::integer + COALESCE(a.duration_minutes, 60)
           AND (EXTRACT(EPOCH FROM a.time::time) / 60)::integer < v_end
