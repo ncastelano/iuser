@@ -64,6 +64,19 @@ export default function PosPagoPage() {
     const [isPostpaid, setIsPostpaid] = useState(false)
     const [charges, setCharges] = useState<Charge[]>([])
     const [details, setDetails] = useState<Record<string, string>>({})
+    const [servicePrices, setServicePrices] = useState<Record<string, number>>({})
+
+    // Preço vivo por tipo de serviço — o admin pode ajustar cada um a
+    // qualquer momento (até 3x uma referência), então o texto aqui nunca
+    // cravamos um valor fixo, buscamos sempre o atual.
+    useEffect(() => {
+        let cancelled = false
+        supabase.from('service_pricing').select('service_type, postpaid_price').then(({ data }) => {
+            if (cancelled || !data) return
+            setServicePrices(Object.fromEntries(data.map((r: any) => [r.service_type, Number(r.postpaid_price)])))
+        })
+        return () => { cancelled = true }
+    }, [])
 
     useEffect(() => {
         if (profileLoading) return
@@ -150,7 +163,7 @@ export default function PosPagoPage() {
                     <div>
                         <h1 className="text-2xl font-black" style={{ color: colors.textPrimary }}>Plano Pós-pago</h1>
                         <p className="text-sm mt-1" style={{ color: colors.textSecondary }}>
-                            Sem mensalidade. Você usa R$ 0,50 de crédito a cada serviço realizado e paga via Pix quando o total chegar a R$ 50,00.
+                            Sem mensalidade. Cada serviço realizado gera um crédito (o valor varia por tipo — veja abaixo) e você paga via Pix quando o total chegar a R$ 50,00.
                         </p>
                     </div>
 
@@ -186,7 +199,7 @@ export default function PosPagoPage() {
                                     <Info size={18} className="flex-shrink-0 mt-0.5" style={{ color: '#f97316' }} />
                                     <div>
                                         <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>Você ainda não está no plano Pós-pago</p>
-                                        <p className="text-xs mt-1" style={{ color: colors.textSecondary }}>Ative em Planos: sem mensalidade, só R$ 0,50 por serviço.</p>
+                                        <p className="text-xs mt-1" style={{ color: colors.textSecondary }}>Ative em Planos: sem mensalidade, você paga só pelo que usar.</p>
                                         <Link href="/planos" className="inline-block mt-3 px-5 py-2 rounded-full text-xs font-black text-white" style={{ background: GRADIENT }}>
                                             Ver planos
                                         </Link>
@@ -252,16 +265,22 @@ export default function PosPagoPage() {
 
                             {/* O que gera cobrança */}
                             <div className="rounded-2xl p-5" style={card}>
-                                <h2 className="text-sm font-black mb-1" style={{ color: colors.textPrimary }}>O que consome R$ 0,50</h2>
-                                <p className="text-xs mb-3" style={{ color: colors.textSecondary }}>Só quem está no plano Pós-pago é cobrado. Quem tem plano mensal não paga por serviço.</p>
+                                <h2 className="text-sm font-black mb-1" style={{ color: colors.textPrimary }}>O que gera cobrança</h2>
+                                <p className="text-xs mb-3" style={{ color: colors.textSecondary }}>Só quem está no plano Pós-pago é cobrado. Quem tem o Pré-pago não paga por serviço.</p>
                                 <div className="flex flex-col gap-2.5">
                                     {(Object.keys(TYPE_INFO) as ChargeType[]).filter((t) => t !== 'payment').map((t) => {
                                         const Icon = TYPE_INFO[t].icon
+                                        const price = servicePrices[t]
                                         return (
                                             <div key={t} className="flex items-start gap-3">
                                                 <Icon size={16} className="flex-shrink-0 mt-0.5" style={{ color: '#f97316' }} />
-                                                <div>
-                                                    <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>{TYPE_INFO[t].label}</p>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>{TYPE_INFO[t].label}</p>
+                                                        {price != null && (
+                                                            <p className="text-sm font-black flex-shrink-0" style={{ color: '#f97316' }}>{brl(price)}</p>
+                                                        )}
+                                                    </div>
                                                     <p className="text-[11px]" style={{ color: colors.textSecondary }}>{TYPE_INFO[t].how}</p>
                                                 </div>
                                             </div>

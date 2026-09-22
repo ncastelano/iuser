@@ -93,6 +93,7 @@ export default function AdminDashboard() {
                 <div className="space-y-5">
                     <PlanManageSection cardStyle={cardStyle} colors={colors} />
                     <PlanPricingSection cardStyle={cardStyle} colors={colors} />
+                    <ServicePricingSection cardStyle={cardStyle} colors={colors} />
                     <PlanGrantsSection cardStyle={cardStyle} colors={colors} />
                     <PlanCodesSection cardStyle={cardStyle} colors={colors} />
                 </div>
@@ -883,6 +884,148 @@ function PlanPricingSection({ cardStyle, colors }: SectionProps) {
                 >
                     {saving ? <Spinner size={14} /> : 'Salvar'}
                 </button>
+            </div>
+        </div>
+    )
+}
+
+interface ServicePricingRow {
+    service_type: string
+    label: string
+    base_price: number
+    postpaid_price: number
+}
+
+// Preço por tipo de serviço do plano Pós-pago (corrida, serviço, pedido de
+// loja, produto, agenda, agendamento...) — antes era um valor 0,50 fixo
+// cravado no banco, agora cada tipo tem seu próprio preço, com teto de 3x a
+// referência (base_price), garantido tanto aqui quanto por CHECK no banco.
+function ServicePricingSection({ cardStyle, colors }: SectionProps) {
+    const [rows, setRows] = useState<ServicePricingRow[]>([])
+    const [loading, setLoading] = useState(true)
+    const [editingType, setEditingType] = useState<string | null>(null)
+    const [baseInput, setBaseInput] = useState('')
+    const [postpaidInput, setPostpaidInput] = useState('')
+    const [saving, setSaving] = useState(false)
+
+    const load = useCallback(async () => {
+        setLoading(true)
+        const { data } = await supabase.from('service_pricing').select('*').order('service_type', { ascending: true })
+        setRows((data as ServicePricingRow[]) || [])
+        setLoading(false)
+    }, [])
+
+    useEffect(() => { load() }, [load])
+
+    const inputStyle: React.CSSProperties = {
+        background: colors.background,
+        border: `1px solid ${colors.border}`,
+        color: colors.textPrimary,
+        borderRadius: 12,
+        padding: '8px 12px',
+        fontSize: 13,
+    }
+
+    const startEdit = (row: ServicePricingRow) => {
+        setEditingType(editingType === row.service_type ? null : row.service_type)
+        setBaseInput(String(row.base_price))
+        setPostpaidInput(String(row.postpaid_price))
+    }
+
+    const cap = baseInput ? Number(baseInput.replace(',', '.')) * 3 : null
+
+    const save = async (serviceType: string) => {
+        const base = Number(baseInput.replace(',', '.'))
+        const postpaid = Number(postpaidInput.replace(',', '.'))
+        if (!base || base <= 0 || !postpaid || postpaid <= 0) {
+            toast.error('Preço inválido')
+            return
+        }
+        if (cap != null && postpaid > cap) {
+            toast.error(`O preço do pós-pago não pode passar de 3x a referência (máx. R$ ${cap.toFixed(2)})`)
+            return
+        }
+        setSaving(true)
+        try {
+            await callAdminApi('/api/admin/service-pricing/update', { serviceType, basePrice: base, postpaidPrice: postpaid })
+            toast.success('Preço atualizado!')
+            setEditingType(null)
+            await load()
+        } catch (err: any) {
+            toast.error(err.message || 'Erro ao salvar preço')
+        } finally {
+            setSaving(false)
+        }
+    }
+
+    if (loading) {
+        return <div style={cardStyle} className="flex justify-center py-8"><Spinner size={24} color={colors.accent} /></div>
+    }
+
+    return (
+        <div style={cardStyle} className="space-y-3">
+            <p className="text-xs font-black uppercase tracking-wider flex items-center gap-1.5" style={{ color: colors.textSecondary }}>
+                <Tag size={12} />
+                Preços do pós-pago (por tipo de serviço)
+            </p>
+            <p className="text-xs" style={{ color: colors.textSecondary }}>
+                O preço cobrado (postpaid_price) não pode passar de 3x a referência (base_price) — o mesmo teto que o banco garante. Some pra quem está no plano pós-pago.
+            </p>
+            <div className="space-y-2">
+                {rows.map((row) => (
+                    <div key={row.service_type} className="space-y-2 pb-2 border-b last:border-b-0" style={{ borderColor: colors.border }}>
+                        <div className="flex items-center justify-between gap-2">
+                            <div>
+                                <p className="text-xs font-black" style={{ color: colors.textPrimary }}>{row.label}</p>
+                                <p className="text-[11px]" style={{ color: colors.textSecondary }}>
+                                    Cobrado: R$ {Number(row.postpaid_price).toFixed(2)} · referência: R$ {Number(row.base_price).toFixed(2)}
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => startEdit(row)}
+                                className="text-[10px] font-bold px-2.5 py-1.5 rounded-full flex-shrink-0"
+                                style={{ background: `${colors.border}30`, color: colors.textPrimary }}
+                            >
+                                Editar
+                            </button>
+                        </div>
+
+                        {editingType === row.service_type && (
+                            <div className="flex flex-wrap gap-2 items-center pt-1">
+                                <div className="flex flex-col gap-0.5">
+                                    <span className="text-[10px]" style={{ color: colors.textSecondary }}>Referência</span>
+                                    <input
+                                        type="text"
+                                        inputMode="decimal"
+                                        value={baseInput}
+                                        onChange={(e) => setBaseInput(e.target.value)}
+                                        style={{ ...inputStyle, width: 100 }}
+                                    />
+                                </div>
+                                <div className="flex flex-col gap-0.5">
+                                    <span className="text-[10px]" style={{ color: colors.textSecondary }}>
+                                        Cobrado {cap != null && `(máx. R$ ${cap.toFixed(2)})`}
+                                    </span>
+                                    <input
+                                        type="text"
+                                        inputMode="decimal"
+                                        value={postpaidInput}
+                                        onChange={(e) => setPostpaidInput(e.target.value)}
+                                        style={{ ...inputStyle, width: 100 }}
+                                    />
+                                </div>
+                                <button
+                                    onClick={() => save(row.service_type)}
+                                    disabled={saving}
+                                    className="px-4 py-2 rounded-xl font-bold text-xs text-white disabled:opacity-50 self-end"
+                                    style={{ background: colors.accent }}
+                                >
+                                    {saving ? <Spinner size={14} /> : 'Salvar'}
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                ))}
             </div>
         </div>
     )

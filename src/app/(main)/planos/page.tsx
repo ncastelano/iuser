@@ -71,6 +71,7 @@ const PLAN_ICON: Record<string, typeof Car> = {
     recrutador: Users,
     combo: Sparkles,
     beta: Gift,
+    pre_pago: Sparkles,
     pos_pago: Wallet,
 }
 
@@ -378,7 +379,7 @@ function PlanosContent() {
                                     Escolha seu plano
                                 </h1>
                                 <p className="text-sm mt-2" style={{ color: colors.textSecondary }}>
-                                    Assine pra ativar modo motorista, modo prestador, manter a loja aberta pra vender, ou tudo junto no combo — o jeito mais barato de liberar tudo.
+                                    Pré-pago: mensalidade única, sem cobrança por uso. Pós-pago: sem mensalidade, mas cada serviço tem um custo — pague só quando usar.
                                 </p>
                             </div>
 
@@ -399,12 +400,12 @@ function PlanosContent() {
                                     const Icon = PLAN_ICON[plan.code] || Sparkles
                                     const sub = getActiveSub(plan.id)
                                     const active = isSuperAdmin || !!sub
-                                    const remaining = sub ? daysLeft(sub.current_period_end) : null
+                                    // Pós-pago não tem validade de verdade (grava um vencimento
+                                    // sintético lá no fim de 2099 só pra reaproveitar o mesmo campo)
+                                    // — "faltam N dias" não faz sentido pra ele.
+                                    const remaining = sub && sub.source !== 'postpaid' ? daysLeft(sub.current_period_end) : null
                                     const highlighted = highlightPlan === plan.code
-                                    const isCombo = plan.code === 'combo'
-                                    const soloPlans = plans.filter((p) => p.code !== 'combo' && p.code !== 'pos_pago' && p.max_active_subscriptions == null)
-                                    const soloSum = soloPlans.reduce((acc, p) => acc + Number(p.price), 0)
-                                    const savings = isCombo ? soloSum - Number(plan.price) : 0
+                                    const isCombo = plan.code === 'pre_pago'
                                     const remainingSlots = plan.max_active_subscriptions != null
                                         ? Math.max(0, plan.max_active_subscriptions - (subscriberCounts[plan.id] || 0))
                                         : null
@@ -465,12 +466,6 @@ function PlanosContent() {
                                                     style={{ background: '#22c55e20', color: '#22c55e' }}
                                                 >
                                                     Promoção por tempo limitado
-                                                </span>
-                                            )}
-
-                                            {isCombo && savings > 0 && (
-                                                <span className="text-[11px] font-bold" style={{ color: '#22c55e' }}>
-                                                    Economize R$ {savings.toFixed(2)} vs. assinar os {soloPlans.length} separados
                                                 </span>
                                             )}
 

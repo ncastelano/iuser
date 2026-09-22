@@ -1521,11 +1521,11 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                                     A agenda é recomendada para quem precisa marcar compromisso, como psicólogos, professores, personal trainers, barbeiros e afins.
                                 </p>
                                 <div className="rounded-xl p-3 text-xs space-y-1" style={{ background: 'rgba(249,115,22,0.08)', border: '1px dashed #f97316', color: colors.textPrimary }}>
-                                    <p className="font-black" style={{ color: '#f97316' }}>Custo</p>
-                                    <p>• Ativar a agenda: <strong>R$ 0,50</strong> (uma única vez)</p>
-                                    <p>• Cada pessoa que agendar com você e você aceitar: <strong>R$ 0,50</strong></p>
+                                    <p className="font-black" style={{ color: '#f97316' }}>Custo (só no plano Pós-pago)</p>
+                                    <p>• Ativar a agenda: valor único cobrado uma vez</p>
+                                    <p>• Cada pessoa que agendar com você e você aceitar: valor por agendamento</p>
                                     <p style={{ color: colors.textSecondary }}>
-                                        Os valores são somados à sua dívida do plano pós-pago e pagos via Pix quando ela chegar a R$ 50.
+                                        Os valores são somados à sua dívida do plano pós-pago e pagos via Pix quando ela chegar a R$ 50 — veja os valores atuais em Planos → Pós-pago.
                                     </p>
                                 </div>
                                 <div className="flex gap-2">

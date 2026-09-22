@@ -560,7 +560,7 @@ function ConviteContent() {
                                     }}
                                 >
                                     <Sparkles className="w-3 h-3" />
-                                    <span>Taxa 0% no plano ou R$ 0,50 por transação</span>
+                                    <span>Taxa 0% no Pré-pago ou pague só pelo que usar no Pós-pago</span>
                                 </div>
                             </div>
                         </div>
