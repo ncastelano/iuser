@@ -27,14 +27,35 @@ function marker(color: string, label?: string): HTMLDivElement {
     return el
 }
 
-// Marcador do motorista ("Você"): ícone do veículo (carro/moto/bicicleta) que
-// desliza suavemente até a posição nova em vez de pular — a transição CSS no
-// próprio elemento funciona porque o mapbox-gl só mexe no `transform` dele.
+// Marcador do motorista ("Você"): ícone do veículo (carro/moto/bicicleta).
+// NÃO usa transition de CSS — o mapbox-gl mexe no transform do elemento
+// tanto quando a posição real muda quanto (a cada frame) só pra reprojetar
+// o marcador enquanto A PRÓPRIA PESSOA arrasta o mapa; uma transition fixa
+// no elemento anima os dois casos, e o ícone parecia "derrapar" atrás do
+// dedo ao mover o mapa manualmente. O deslize suave é feito à mão, abaixo
+// (animateMarkerTo), só quando é de fato uma posição de GPS nova.
 function driverMarkerElement(kind: VehicleKind): HTMLDivElement {
     const el = document.createElement('div')
     el.innerHTML = vehicleMarkerHtml(kind, TO_PICKUP_COLOR, 'Você')
-    el.style.transition = 'transform 1s linear'
     return el
+}
+
+// Anima o marcador da posição atual dele até `to`, interpolando alguns
+// quadros em vez de pular — só entra em ação quando ESTE código chama
+// setLngLat (ou seja, numa posição de GPS nova), nunca quando o mapbox só
+// reprojeta o marcador por causa do usuário arrastando o mapa.
+function animateMarkerTo(marker: mapboxgl.Marker, to: [number, number], duration = 700) {
+    const from = marker.getLngLat()
+    if (from.lng === to[0] && from.lat === to[1]) return
+    const start = performance.now()
+    const startLng = from.lng
+    const startLat = from.lat
+    const step = (now: number) => {
+        const t = Math.min(1, (now - start) / duration)
+        marker.setLngLat([startLng + (to[0] - startLng) * t, startLat + (to[1] - startLat) * t])
+        if (t < 1) requestAnimationFrame(step)
+    }
+    requestAnimationFrame(step)
 }
 
 interface RideMapDialogProps {
@@ -173,7 +194,7 @@ export default function RideMapDialog({ originLat, originLng, destLat, destLng, 
                 .addTo(map)
             driverMarkerKindRef.current = vehicleKind
         } else {
-            driverMarkerRef.current.setLngLat([driverLng as number, driverLat as number])
+            animateMarkerTo(driverMarkerRef.current, [driverLng as number, driverLat as number])
         }
 
         const reqId = ++toPickupReqIdRef.current

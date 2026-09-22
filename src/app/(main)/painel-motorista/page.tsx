@@ -10,7 +10,7 @@ import Header from '@/components/Header'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import LoginAndRegister from '@/components/LoginAndRegister/LoginAndRegister'
 import { toast } from 'sonner'
-import { TrendingUp, Car, Camera, Star, MessageSquare, Clock, CheckCircle2, Volume2, VolumeX } from 'lucide-react'
+import { TrendingUp, Car, Camera, Star, MessageSquare, Clock, CheckCircle2, Volume2, VolumeX, Navigation2 } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import { computeSuggestedPrice, PLATFORM_DEFAULT_PRICING_BY_VEHICLE, PLATFORM_DEFAULT_EXTRA_FEES, PLATFORM_DEFAULT_CONDITION_EXTRA_FEES, PricingMode } from '@/lib/driverPricing'
 import { VehicleKind, VEHICLE_KIND_LABELS } from '@/lib/rideVehicle'
@@ -92,6 +92,7 @@ function PainelMotoristaContent() {
     // ===== MODO MOTORISTA (liga/desliga) =====
     const [driverModeActive, setDriverModeActive] = useState(false)
     const [alertSoundEnabled, setAlertSoundEnabled] = useState(true)
+    const [voiceNavEnabled, setVoiceNavEnabled] = useState(true)
     const [togglingMode, setTogglingMode] = useState(false)
 
     // ===== MEU VEÍCULO =====
@@ -192,7 +193,7 @@ function PainelMotoristaContent() {
 
         const { data } = await supabase
             .from('driver_pricing')
-            .select('pricing_mode, base_distance_km, base_fee, price_per_km_after_base, extra_fee_pessoa, extra_fee_animal, extra_fee_objeto, extra_fee_condominio, extra_fee_compras, extra_fee_necessidade_especial, extra_fee_pet_sem_caixa, extra_fee_entrega_interna, extra_fee_ar_condicionado, driver_mode_active, alert_sound_enabled')
+            .select('pricing_mode, base_distance_km, base_fee, price_per_km_after_base, extra_fee_pessoa, extra_fee_animal, extra_fee_objeto, extra_fee_condominio, extra_fee_compras, extra_fee_necessidade_especial, extra_fee_pet_sem_caixa, extra_fee_entrega_interna, extra_fee_ar_condicionado, driver_mode_active, alert_sound_enabled, voice_navigation_enabled')
             .eq('driver_id', userId)
             .maybeSingle()
 
@@ -213,6 +214,7 @@ function PainelMotoristaContent() {
             if (data.extra_fee_ar_condicionado != null) setExtraFeeArCondicionado(String(data.extra_fee_ar_condicionado))
             setDriverModeActive(!!data.driver_mode_active)
             setAlertSoundEnabled(data.alert_sound_enabled !== false)
+            setVoiceNavEnabled(data.voice_navigation_enabled !== false)
         }
 
         const { data: vehicleRows } = await supabase
@@ -457,6 +459,15 @@ function PainelMotoristaContent() {
         toast.success(next ? 'Som do alerta ligado' : 'Som do alerta desligado')
     }
 
+    const handleToggleVoiceNav = async () => {
+        const next = !voiceNavEnabled
+        setVoiceNavEnabled(next)
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) return
+        await supabase.from('driver_pricing').update({ voice_navigation_enabled: next }).eq('driver_id', user.id)
+        toast.success(next ? 'Orientação por voz ligada' : 'Orientação por voz desligada')
+    }
+
     const handleToggleDriverMode = async () => {
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) {
@@ -607,6 +618,26 @@ function PainelMotoristaContent() {
                                     </span>
                                     <span className="block text-[11px]" style={{ color: colors.textSecondary }}>
                                         {alertSoundEnabled ? 'Toca quando chegar uma corrida nova — toque pra silenciar' : 'Silenciado — toque pra ligar'}
+                                    </span>
+                                </span>
+                            </button>
+                            <button
+                                onClick={handleToggleVoiceNav}
+                                className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all"
+                                style={{ background: colors.surface, border: `1px solid ${colors.border}` }}
+                            >
+                                <span
+                                    className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
+                                    style={voiceNavEnabled ? { background: GRADIENT, color: '#fff' } : { background: `${colors.border}40`, color: colors.textSecondary }}
+                                >
+                                    <Navigation2 size={18} />
+                                </span>
+                                <span className="flex-1 text-left">
+                                    <span className="block text-sm font-black" style={{ color: colors.textPrimary }}>
+                                        Orientação por voz na corrida
+                                    </span>
+                                    <span className="block text-[11px]" style={{ color: colors.textSecondary }}>
+                                        {voiceNavEnabled ? 'Fala as manobras a caminho da partida e da chegada — toque pra desligar' : 'Desligada — toque pra ligar'}
                                     </span>
                                 </span>
                             </button>

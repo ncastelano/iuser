@@ -18,6 +18,7 @@ import { shortAddress } from '@/lib/serviceBoard'
 import { getAvatarUrl } from '@/lib/avatar'
 import { computeSuggestedPrice, computeConditionExtras, getEffectivePricing, getCustomPricing, PLATFORM_DEFAULT_PRICING_BY_VEHICLE, DriverPricing, type RideConditionFlags } from '@/lib/driverPricing'
 import { playRideAlertSound, playNotificationSound } from '@/lib/rideAlertSound'
+import { useVoiceNavigation } from '@/lib/voiceNavigation'
 import { getProfileRideRatingsBatch, ProfileRideRating } from '@/lib/rideReviews'
 import { VehicleType, VehicleKind, VEHICLE_TYPE_LABELS, ridesAcceptableForVehicleKind, rideAcceptsAnyVehicle, kindForRideType } from '@/lib/rideVehicle'
 
@@ -248,6 +249,7 @@ export default function AceitarCorridasPage() {
     const knownRideIdsRef = useRef<Set<string>>(new Set())
     const firstLoadDoneRef = useRef(false)
     const alertSoundRef = useRef(true)
+    const [voiceNavEnabled, setVoiceNavEnabled] = useState(true)
     const [candidacies, setCandidacies] = useState<CandidacyCardData[]>([])
     const [acceptedRide, setAcceptedRide] = useState<AcceptedRideDetail | null>(null)
     const [myVehicleKinds, setMyVehicleKinds] = useState<VehicleKind[]>(['carro'])
@@ -340,6 +342,29 @@ export default function AceitarCorridasPage() {
         return () => watch.clear()
     }, [acceptedRide?.id, acceptedRide?.driver_en_route, acceptedRide?.driver_arrived_at, acceptedRide?.ride_started_at])
 
+    // ===== ORIENTAÇÃO POR VOZ: fala as manobras a caminho da partida, e
+    // depois a caminho da chegada (troca de etapa quando a corrida começa) =====
+    const voiceNavPhase: 'pickup' | 'trip' | null = !acceptedRide
+        ? null
+        : acceptedRide.ride_started_at
+            ? 'trip'
+            : acceptedRide.driver_en_route && !acceptedRide.driver_arrived_at
+                ? 'pickup'
+                : null
+    const voiceNavTarget: [number, number] | null =
+        voiceNavPhase === 'pickup' && acceptedRide?.origin_lat != null && acceptedRide?.origin_lng != null
+            ? [acceptedRide.origin_lng, acceptedRide.origin_lat]
+            : voiceNavPhase === 'trip' && acceptedRide?.destination_lat != null && acceptedRide?.destination_lng != null
+                ? [acceptedRide.destination_lng, acceptedRide.destination_lat]
+                : null
+    useVoiceNavigation({
+        enabled: voiceNavEnabled,
+        active: !!voiceNavPhase && !!voiceNavTarget,
+        driverCoords,
+        targetCoords: voiceNavTarget,
+        legKey: acceptedRide && voiceNavPhase ? `${acceptedRide.id}-${voiceNavPhase}` : null,
+    })
+
     // Nome exibido no cabeçalho enquanto sincronizado: o do local ao vivo
     // (GPS), não o do local salvo — só busca de novo quando a posição muda.
     useEffect(() => {
@@ -372,7 +397,7 @@ export default function AceitarCorridasPage() {
         const [{ data: pricing }, { data: profile }, { data: vehicleRows }] = await Promise.all([
             supabase
                 .from('driver_pricing')
-                .select('pricing_mode, base_distance_km, base_fee, price_per_km_after_base, extra_fee_pessoa, extra_fee_animal, extra_fee_objeto, extra_fee_condominio, extra_fee_compras, extra_fee_necessidade_especial, extra_fee_pet_sem_caixa, extra_fee_entrega_interna, extra_fee_ar_condicionado, alert_sound_enabled')
+                .select('pricing_mode, base_distance_km, base_fee, price_per_km_after_base, extra_fee_pessoa, extra_fee_animal, extra_fee_objeto, extra_fee_condominio, extra_fee_compras, extra_fee_necessidade_especial, extra_fee_pet_sem_caixa, extra_fee_entrega_interna, extra_fee_ar_condicionado, alert_sound_enabled, voice_navigation_enabled')
                 .eq('driver_id', contextUserId)
                 .maybeSingle(),
             supabase
@@ -395,6 +420,7 @@ export default function AceitarCorridasPage() {
         // corridas de todos eles. Sem cadastro de veículo (conta antiga, de
         // antes dessa coluna existir) cai no padrão "carro".
         alertSoundRef.current = pricing.alert_sound_enabled !== false
+        setVoiceNavEnabled(pricing.voice_navigation_enabled !== false)
         const vehicleKinds = (vehicleRows || []).map((v) => v.vehicle_kind as VehicleKind)
         if (vehicleKinds.length === 0) vehicleKinds.push('carro')
         const acceptableVehicleTypes = new Set(vehicleKinds.flatMap((k) => ridesAcceptableForVehicleKind(k)))

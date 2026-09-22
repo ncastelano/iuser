@@ -38,6 +38,39 @@ export async function fetchRoute(from: [number, number], to: [number, number]): 
     return { coords: [from, to], distanceKm, durationMin: (distanceKm / FALLBACK_SPEED_KMH) * 60 }
 }
 
+export interface RouteStep {
+    /** Frase pronta (em português) tipo "Vire à direita na Rua X". */
+    instruction: string
+    /** Onde a manobra acontece. */
+    location: [number, number]
+}
+
+export interface RouteWithSteps extends RouteResult {
+    steps: RouteStep[]
+}
+
+// Como fetchRoute, mas pede as manobras passo a passo (curva a curva) pra
+// orientação por voz — usado só quando precisa disso (o mapa comum não).
+export async function fetchRouteWithSteps(from: [number, number], to: [number, number]): Promise<RouteWithSteps | null> {
+    try {
+        const res = await fetch(
+            `https://api.mapbox.com/directions/v5/mapbox/driving/${from[0]},${from[1]};${to[0]},${to[1]}?geometries=geojson&overview=full&steps=true&language=pt&access_token=${process.env.NEXT_PUBLIC_MAPBOX_TOKEN}`
+        )
+        const data = await res.json()
+        const route = data.routes?.[0]
+        const coords = route?.geometry?.coordinates
+        if (!coords || coords.length < 2) return null
+
+        const steps: RouteStep[] = ((route.legs?.[0]?.steps || []) as any[])
+            .map((s) => ({ instruction: String(s.maneuver?.instruction || '').trim(), location: s.maneuver?.location as [number, number] }))
+            .filter((s) => s.instruction && s.location)
+
+        return { coords, distanceKm: route.distance / 1000, durationMin: route.duration / 60, steps }
+    } catch {
+        return null
+    }
+}
+
 // Desloca uma polyline perpendicularmente à sua própria direção por uma
 // distância fixa (em metros). Usado pra separar visualmente duas rotas que
 // percorrem a mesma via (ex: motorista tem que ir e voltar pelo mesmo
