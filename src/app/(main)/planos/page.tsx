@@ -13,6 +13,7 @@ import { Spinner } from '@/components/Spinner'
 import { toast } from 'sonner'
 import { callAdminApi } from '@/lib/callAdminApi'
 import { getDeviceId } from '@/lib/deviceId'
+import { useMyStatus } from '@/lib/benefits/useMyStatus'
 import { Car, Briefcase, Sparkles, Store, Check, Copy, X, ShieldCheck, Gift, Users, CreditCard, User, Shield, LayoutDashboard, Wallet } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
@@ -93,6 +94,7 @@ function PlanosContent() {
     const searchParams = useSearchParams()
     const highlightPlan = searchParams.get('plan')
     const { userId, avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
+    const { canManageBenefits, hierarchyLabel } = useMyStatus(userId)
     const { colors } = useTheme()
 
     const [loading, setLoading] = useState(true)
@@ -205,6 +207,17 @@ function PlanosContent() {
             })
         }
 
+        if (canManageBenefits) {
+            allTabs.push({
+                id: 'gestao-beneficios',
+                label: hierarchyLabel,
+                icon: Gift,
+                imageUrl: null,
+                onClick: () => router.push('/'),
+                isActive: false,
+            })
+        }
+
         if (loadingOwnedStores) return allTabs
 
         if (ownedStores.length > 0) {
@@ -230,7 +243,7 @@ function PlanosContent() {
         }
 
         return allTabs
-    }, [profileSlug, profileLoading, avatarUrl, showLogin, isSuperAdmin, ownedStores, loadingOwnedStores, router])
+    }, [profileSlug, profileLoading, avatarUrl, showLogin, isSuperAdmin, canManageBenefits, hierarchyLabel, ownedStores, loadingOwnedStores, router])
 
     const stopPolling = () => {
         if (pollRef.current) {

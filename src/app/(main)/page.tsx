@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { User, Store, Home, MapPin, LayoutDashboard, X, Radar, Shield } from 'lucide-react'
+import { User, Store, Home, MapPin, LayoutDashboard, X, Radar, Shield, Gift } from 'lucide-react'
 
 import CategoriasSection from './inicio/sections/CanIhelp'
 import LookForAService from './inicio/sections/LookForAService'
@@ -33,6 +33,8 @@ import LocationPicker from '@/components/LocationPicker'
 import StoreList from './inicio/sections/StoreList'
 import StoreDashboard from '@/components/StoreDashboard/StoreDashboard'
 import AdminDashboard from '@/components/AdminDashboard/AdminDashboard'
+import BenefitsManagement from '@/components/BenefitsManagement/BenefitsManagement'
+import { useMyStatus } from '@/lib/benefits/useMyStatus'
 import { callAdminApi } from '@/lib/callAdminApi'
 import CareerPlans from './inicio/sections/CareerPlans'
 
@@ -124,6 +126,8 @@ export default function HomePage() {
     const [showStoreDashboard, setShowStoreDashboard] = useState<{ slug: string; name: string } | null>(null)
     const [showAdminDashboard, setShowAdminDashboard] = useState(false)
     const [isSuperAdmin, setIsSuperAdmin] = useState(false)
+    const [showBenefits, setShowBenefits] = useState(false)
+    const { canManageBenefits, hierarchyLabel } = useMyStatus(userId)
 
     const [savedLocation, setSavedLocation] = useState<{ lat: number; lng: number; address: string; addressNumber?: string; addressComplement?: string } | null>(null)
     const [showLocationDialog, setShowLocationDialog] = useState(false)
@@ -489,6 +493,7 @@ export default function HomePage() {
         setShowProfile(false)
         setShowStoreDashboard(null)
         setShowAdminDashboard(false)
+        setShowBenefits(false)
     }
 
     const handleLoginClick = () => {
@@ -497,6 +502,7 @@ export default function HomePage() {
         setShowProfile(false)
         setShowStoreDashboard(null)
         setShowAdminDashboard(false)
+        setShowBenefits(false)
     }
 
     const handleProfileClick = () => {
@@ -506,6 +512,7 @@ export default function HomePage() {
             setShowLogin(false)
             setShowStoreDashboard(null)
             setShowAdminDashboard(false)
+            setShowBenefits(false)
         } else {
             handleLoginClick()
         }
@@ -517,6 +524,7 @@ export default function HomePage() {
         setShowLogin(false)
         setShowProfile(false)
         setShowAdminDashboard(false)
+        setShowBenefits(false)
     }
 
     const handleAdminClick = () => {
@@ -525,6 +533,16 @@ export default function HomePage() {
         setShowLogin(false)
         setShowProfile(false)
         setShowStoreDashboard(null)
+        setShowBenefits(false)
+    }
+
+    const handleBenefitsClick = () => {
+        setShowBenefits(true)
+        setShowCreateStore(false)
+        setShowLogin(false)
+        setShowProfile(false)
+        setShowStoreDashboard(null)
+        setShowAdminDashboard(false)
     }
 
     const tabs = useMemo(() => {
@@ -552,6 +570,17 @@ export default function HomePage() {
                 imageUrl: null,
                 onClick: handleAdminClick,
                 isActive: showAdminDashboard,
+            })
+        }
+
+        if (canManageBenefits) {
+            allTabs.push({
+                id: 'gestao-beneficios',
+                label: hierarchyLabel,
+                icon: Gift,
+                imageUrl: null,
+                onClick: handleBenefitsClick,
+                isActive: showBenefits,
             })
         }
 
@@ -592,16 +621,16 @@ export default function HomePage() {
         }
 
         return allTabs
-    }, [profileSlug, loading, avatarUrl, showCreateStore, showLogin, showProfile, showStoreDashboard, isSuperAdmin, showAdminDashboard, stores, loadingStores, storeOrderCounts, pendingInvitesCount, profileOpenNow, router])
+    }, [profileSlug, loading, avatarUrl, showCreateStore, showLogin, showProfile, showStoreDashboard, isSuperAdmin, showAdminDashboard, canManageBenefits, hierarchyLabel, showBenefits, stores, loadingStores, storeOrderCounts, pendingInvitesCount, profileOpenNow, router])
 
-    const showFab = showCreateStore || showLogin || showProfile || showStoreDashboard || showAdminDashboard
-    const shouldShowCarrinho = !showProfile && !showStoreDashboard && !showLogin && !showAdminDashboard
+    const showFab = showCreateStore || showLogin || showProfile || showStoreDashboard || showAdminDashboard || showBenefits
+    const shouldShowCarrinho = !showProfile && !showStoreDashboard && !showLogin && !showAdminDashboard && !showBenefits
 
     // ===== VERIFICAR SE ESTÁ EM TELA DE LOGIN =====
     const isLoginScreen = showLogin || showCreateStore
 
     // ===== VERIFICAR SE ESTÁ EM DASHBOARD =====
-    const isDashboardScreen = showProfile || showStoreDashboard || showAdminDashboard
+    const isDashboardScreen = showProfile || showStoreDashboard || showAdminDashboard || showBenefits
 
     // ===== VERIFICAR SE ESTÁ PESQUISANDO =====
     const isSearching = searchQuery.trim().length > 0
@@ -701,6 +730,10 @@ export default function HomePage() {
                 ) : showAdminDashboard ? (
                     <div className="w-full px-4 md:px-6 py-6">
                         <AdminDashboard />
+                    </div>
+                ) : showBenefits ? (
+                    <div className="w-full px-4 md:px-6 py-6">
+                        <BenefitsManagement />
                     </div>
                 ) : (
                     <div className="mt-2 px-4 md:px-6">

@@ -18,7 +18,7 @@ import ProfileDashboard from '@/components/ProfileDashboard/ProfileDashboard'
 import StoreDashboard from '@/components/StoreDashboard/StoreDashboard'
 import AdminDashboard from '@/components/AdminDashboard/AdminDashboard'
 import BenefitsManagement from '@/components/BenefitsManagement/BenefitsManagement'
-import { hasAnyGrantPermission, type MyStatus } from '@/lib/benefits/types'
+import { useMyStatus } from '@/lib/benefits/useMyStatus'
 import { Profile } from './Profile'
 import { Store } from './Store'
 import { usePublicationsStore } from '@/store/usePublicationStore'
@@ -72,7 +72,7 @@ export default function OwnerClientPage() {
     const [showAdminDashboard, setShowAdminDashboard] = useState(false)
     const [isSuperAdmin, setIsSuperAdmin] = useState(false)
     const [showBenefits, setShowBenefits] = useState(false)
-    const [canManageBenefits, setCanManageBenefits] = useState(false)
+    const { canManageBenefits, hierarchyLabel } = useMyStatus(userId)
     const [storeDialogOpen, setStoreDialogOpen] = useState(false)
 
     const pendingInvitesCount = useMerchantStore(s => s.pendingInvitesCount)
@@ -210,20 +210,6 @@ export default function OwnerClientPage() {
         return () => { cancelled = true }
     }, [userId])
 
-    useEffect(() => {
-        if (!userId) {
-            setCanManageBenefits(false)
-            return
-        }
-
-        let cancelled = false
-        supabase.rpc('get_my_status').then(({ data }) => {
-            if (!cancelled) setCanManageBenefits(hasAnyGrantPermission((data as MyStatus) || null))
-        })
-
-        return () => { cancelled = true }
-    }, [userId])
-
     // ========== TABS DO HEADER ==========
     const handleProfileClick = () => {
         setShowProfile(true)
@@ -304,7 +290,7 @@ export default function OwnerClientPage() {
         if (canManageBenefits) {
             allTabs.push({
                 id: 'gestao-beneficios',
-                label: 'Gestão de Benefícios',
+                label: hierarchyLabel,
                 icon: Gift as any,
                 imageUrl: null,
                 onClick: handleBenefitsClick,
@@ -356,7 +342,7 @@ export default function OwnerClientPage() {
         }
 
         return allTabs
-    }, [loggedUserSlug, profileLoading, loggedUserAvatarUrl, stores, loadingStores, storeOrderCounts, pendingInvitesCount, profileOpenNow, showProfile, showStoreDashboard, isSuperAdmin, showAdminDashboard, canManageBenefits, showBenefits, router])
+    }, [loggedUserSlug, profileLoading, loggedUserAvatarUrl, stores, loadingStores, storeOrderCounts, pendingInvitesCount, profileOpenNow, showProfile, showStoreDashboard, isSuperAdmin, showAdminDashboard, canManageBenefits, hierarchyLabel, showBenefits, router])
 
     // ========== CARREGAR DADOS ==========
     useEffect(() => {
