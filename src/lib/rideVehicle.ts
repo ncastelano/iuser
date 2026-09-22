@@ -1,6 +1,6 @@
 // src/lib/rideVehicle.ts
 
-export type VehicleType = 'carro' | 'van' | 'van-grande' | 'moto' | 'bicicleta'
+export type VehicleType = 'carro' | 'van' | 'van-grande' | 'moto' | 'bicicleta' | 'qualquer'
 
 // O que o motorista cadastra em painel-motorista (o veículo que ele tem).
 // Carro cobre também van/van-grande — são classes de capacidade do mesmo
@@ -19,6 +19,7 @@ export const VEHICLE_TYPE_LABELS: Record<VehicleType, string> = {
     'van-grande': 'Van grande / Micro-ônibus',
     moto: 'Moto',
     bicicleta: 'Bicicleta',
+    qualquer: 'Qualquer um',
 }
 
 export const VEHICLE_KIND_LABELS: Record<VehicleKind, string> = {
@@ -27,8 +28,15 @@ export const VEHICLE_KIND_LABELS: Record<VehicleKind, string> = {
     bicicleta: 'Bicicleta',
 }
 
+// Corrida aberta pra "qualquer um": todo motorista vê, seja qual for o
+// veículo que ele tem cadastrado (carro, moto ou bicicleta).
+export function rideAcceptsAnyVehicle(type: VehicleType): boolean {
+    return type === 'qualquer'
+}
+
 // Quais tipos de corrida (vehicle_type de ride_requests) um motorista com
-// esse veículo cadastrado pode ver/aceitar em /aceitar-corridas.
+// esse veículo cadastrado pode ver/aceitar em /aceitar-corridas — fora as
+// corridas "qualquer um", que qualquer veículo vê (ver rideAcceptsAnyVehicle).
 export function ridesAcceptableForVehicleKind(kind: VehicleKind): VehicleType[] {
     if (kind === 'carro') return ['carro', 'van', 'van-grande']
     if (kind === 'moto') return ['moto']

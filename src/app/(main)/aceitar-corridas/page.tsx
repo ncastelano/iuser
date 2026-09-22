@@ -19,7 +19,7 @@ import { getAvatarUrl } from '@/lib/avatar'
 import { computeSuggestedPrice, computeConditionExtras, getEffectivePricing, getCustomPricing, PLATFORM_DEFAULT_PRICING_BY_VEHICLE, DriverPricing, type RideConditionFlags } from '@/lib/driverPricing'
 import { playRideAlertSound, playNotificationSound } from '@/lib/rideAlertSound'
 import { getProfileRideRatingsBatch, ProfileRideRating } from '@/lib/rideReviews'
-import { VehicleType, VehicleKind, VEHICLE_TYPE_LABELS, ridesAcceptableForVehicleKind, kindForRideType } from '@/lib/rideVehicle'
+import { VehicleType, VehicleKind, VEHICLE_TYPE_LABELS, ridesAcceptableForVehicleKind, rideAcceptsAnyVehicle, kindForRideType } from '@/lib/rideVehicle'
 import { buildRideSpecRows } from '@/lib/rideSpecs'
 import { notifyRideStatus } from '@/lib/notifyRideStatus'
 import { handleShareLink } from '@/lib/share'
@@ -432,7 +432,7 @@ export default function AceitarCorridasPage() {
             .order('scheduled_for', { ascending: true, nullsFirst: true })
             .order('created_at', { ascending: false })
 
-        const candidateRides = (openRides || []).filter((r) => !appliedIds.has(r.id) && acceptableVehicleTypes.has(r.vehicle_type))
+        const candidateRides = (openRides || []).filter((r) => !appliedIds.has(r.id) && (rideAcceptsAnyVehicle(r.vehicle_type) || acceptableVehicleTypes.has(r.vehicle_type)))
 
         // Consulta separada e best-effort: se a coluna ainda não existir (migração
         // pendente), isso não pode derrubar o quadro de corridas inteiro — só

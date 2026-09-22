@@ -426,7 +426,7 @@ export default function PedirMotoristaPage() {
     // Escolha de moto/bicicleta pra corrida de 1 pessoa ou de objeto —
     // fora desses casos (mais gente, animal, mala grande) segue o cálculo
     // automático por capacidade (getVehicleTypeForPassengers).
-    const [vehicleTypeChoice, setVehicleTypeChoice] = useState<'carro' | 'moto' | 'bicicleta'>('carro')
+    const [vehicleTypeChoice, setVehicleTypeChoice] = useState<'carro' | 'moto' | 'bicicleta' | 'qualquer'>('carro')
     const [origin, setOrigin] = useState<Place>({ address: '', coords: null })
     const [destination, setDestination] = useState<Place>({ address: '', coords: null })
     const [recentOrigins, setRecentOrigins] = useState<RecentRideOrigin[]>([])
@@ -536,8 +536,10 @@ export default function PedirMotoristaPage() {
                     : 'carro'
     // Moto e bicicleta levam uma coisa só (uma pessoa, um objeto ou um pet):
     // sem ar condicionado, compras, objeto extra nem pet junto do passageiro.
-    const isTwoWheels = effectiveVehicleType === 'moto' || effectiveVehicleType === 'bicicleta'
-    const chooseVehicle = (kind: 'carro' | 'moto' | 'bicicleta') => {
+    // "qualquer" entra na mesma restrição das duas rodas: como pode acabar
+    // com um motorista de moto ou bicicleta, não pode prometer o que só cabe em carro.
+    const isTwoWheels = effectiveVehicleType === 'moto' || effectiveVehicleType === 'bicicleta' || effectiveVehicleType === 'qualquer'
+    const chooseVehicle = (kind: 'carro' | 'moto' | 'bicicleta' | 'qualquer') => {
         setVehicleTypeChoice(kind)
         if (kind !== 'carro') {
             setExtraPeopleCount(0)
@@ -1955,7 +1957,7 @@ export default function PedirMotoristaPage() {
                                     <div className="flex flex-col gap-2">
                                         {totalPeople === 1 && (
                                             <div className="flex items-center gap-1.5">
-                                                {(['carro', 'moto', 'bicicleta'] as const).map((kind) => (
+                                                {(['carro', 'moto', 'bicicleta', 'qualquer'] as const).map((kind) => (
                                                     <button
                                                         key={kind}
                                                         type="button"
@@ -1975,7 +1977,9 @@ export default function PedirMotoristaPage() {
                                             <div className="px-3 py-2 rounded-lg text-xs font-semibold" style={{ background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }}>
                                                 {effectiveVehicleType === 'bicicleta'
                                                     ? 'De bicicleta vai só você, com no máximo uma sacola pequena na mão ou uma bolsa que não atrapalhe quem conduz o veículo.'
-                                                    : 'De moto vai só 1 pessoa — sem compras, objeto extra ou pet junto.'}
+                                                    : effectiveVehicleType === 'moto'
+                                                        ? 'De moto vai só 1 pessoa — sem compras, objeto extra ou pet junto.'
+                                                        : 'Aberta pra qualquer motorista (carro, moto ou bicicleta) — por garantia, vai só você, sem compras, objeto extra ou pet junto.'}
                                             </div>
                                         )}
 
@@ -2142,7 +2146,7 @@ export default function PedirMotoristaPage() {
                             ) : requestFor === 'animal' ? (
                                 <>
                                     <div className="flex items-center gap-1.5 mb-3">
-                                        {(['carro', 'moto', 'bicicleta'] as const).map((kind) => (
+                                        {(['carro', 'moto', 'bicicleta', 'qualquer'] as const).map((kind) => (
                                             <button
                                                 key={kind}
                                                 type="button"
@@ -2268,7 +2272,7 @@ export default function PedirMotoristaPage() {
                             ) : (
                                 <>
                                     <div className="flex items-center gap-1.5 mb-3">
-                                        {(['carro', 'moto', 'bicicleta'] as const).map((kind) => (
+                                        {(['carro', 'moto', 'bicicleta', 'qualquer'] as const).map((kind) => (
                                             <button
                                                 key={kind}
                                                 type="button"

@@ -45,7 +45,8 @@ export async function notifyDriversOfRide(ride: {
 
     const eligible = ids.filter((id) => {
         const kinds = kindsByDriver.get(id) || ['carro']
-        const canServe = kinds.some((k) => (ACCEPTABLE[k] || []).includes(ride.vehicle_type))
+        // Corrida "qualquer um": todo motorista é elegível, seja qual for o veículo dele.
+        const canServe = ride.vehicle_type === 'qualquer' || kinds.some((k) => (ACCEPTABLE[k] || []).includes(ride.vehicle_type))
         return canServe && (debtByDriver.get(id) || 0) < 50
     })
 
