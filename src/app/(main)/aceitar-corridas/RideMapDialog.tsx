@@ -8,6 +8,8 @@ import { X } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import { Spinner } from '@/components/Spinner'
 import { fetchRoute } from '@/lib/mapboxRoute'
+import { vehicleMarkerHtml } from '@/lib/vehicleMarkerIcon'
+import type { VehicleKind } from '@/lib/rideVehicle'
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
 
@@ -24,6 +26,16 @@ function marker(color: string, label?: string): HTMLDivElement {
     return el
 }
 
+// Marcador do motorista ("Você"): ícone do veículo (carro/moto/bicicleta) que
+// desliza suavemente até a posição nova em vez de pular — a transição CSS no
+// próprio elemento funciona porque o mapbox-gl só mexe no `transform` dele.
+function driverMarkerElement(kind: VehicleKind): HTMLDivElement {
+    const el = document.createElement('div')
+    el.innerHTML = vehicleMarkerHtml(kind, TO_PICKUP_COLOR, 'Você')
+    el.style.transition = 'transform 1s linear'
+    return el
+}
+
 interface RideMapDialogProps {
     originLat: number
     originLng: number
@@ -31,20 +43,27 @@ interface RideMapDialogProps {
     destLng: number
     driverLat: number | null
     driverLng: number | null
+    /** Veículo do motorista nessa corrida (carro/moto/bicicleta) — define o ícone do marcador "Você". */
+    vehicleKind?: VehicleKind
     onClose: () => void
 }
 
-export default function RideMapDialog({ originLat, originLng, destLat, destLng, driverLat, driverLng, onClose }: RideMapDialogProps) {
+export default function RideMapDialog({ originLat, originLng, destLat, destLng, driverLat, driverLng, vehicleKind = 'carro', onClose }: RideMapDialogProps) {
     const { colors } = useTheme()
     const containerRef = useRef<HTMLDivElement | null>(null)
     const mapRef = useRef<mapboxgl.Map | null>(null)
+    const driverMarkerRef = useRef<mapboxgl.Marker | null>(null)
+    const driverMarkerKindRef = useRef<VehicleKind | null>(null)
+    const toPickupReqIdRef = useRef(0)
     const [loading, setLoading] = useState(true)
+    const [mapReady, setMapReady] = useState(false)
     const [toPickupKm, setToPickupKm] = useState<number | null>(null)
     const [toPickupMin, setToPickupMin] = useState<number | null>(null)
     const [tripKm, setTripKm] = useState<number | null>(null)
     const [tripMin, setTripMin] = useState<number | null>(null)
     const hasDriver = driverLat != null && driverLng != null
 
+    // Mapa + trajeto fixo (partida → chegada): desenhado uma vez, na abertura.
     useEffect(() => {
         if (!containerRef.current) return
 
@@ -64,26 +83,6 @@ export default function RideMapDialog({ originLat, originLng, destLat, destLng, 
             const bounds = new mapboxgl.LngLatBounds([originLng, originLat], [originLng, originLat])
             bounds.extend([destLng, destLat])
 
-            if (hasDriver) {
-                const legToOrigin = await fetchRoute([driverLng as number, driverLat as number], [originLng, originLat])
-                if (cancelled) return
-                map.addSource('leg-to-pickup', { type: 'geojson', data: { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: legToOrigin.coords } } })
-                map.addLayer({
-                    id: 'leg-to-pickup-line',
-                    type: 'line',
-                    source: 'leg-to-pickup',
-                    layout: { 'line-join': 'round', 'line-cap': 'round' },
-                    // line-offset separa visualmente as duas pernas quando elas
-                    // percorrem a mesma via (motorista indo e voltando pelo
-                    // mesmo caminho) — sem isso uma cor cobre a outra por inteiro.
-                    paint: { 'line-color': TO_PICKUP_COLOR, 'line-width': 4, 'line-opacity': 0.9, 'line-offset': -2.5 },
-                })
-                legToOrigin.coords.forEach((c) => bounds.extend(c as [number, number]))
-                new mapboxgl.Marker({ element: marker(TO_PICKUP_COLOR, 'Você') }).setLngLat([driverLng as number, driverLat as number]).addTo(map)
-                setToPickupKm(legToOrigin.distanceKm)
-                setToPickupMin(legToOrigin.durationMin)
-            }
-
             const legTrip = await fetchRoute([originLng, originLat], [destLng, destLat])
             if (cancelled) return
             map.addSource('leg-trip', { type: 'geojson', data: { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: legTrip.coords } } })
@@ -98,20 +97,76 @@ export default function RideMapDialog({ originLat, originLng, destLat, destLng, 
             setTripKm(legTrip.distanceKm)
             setTripMin(legTrip.durationMin)
 
+            // O trecho "até a partida" (você → partida) é montado à parte,
+            // pelo efeito abaixo, porque precisa se atualizar ao vivo.
+            map.addSource('leg-to-pickup', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
+            map.addLayer({
+                id: 'leg-to-pickup-line',
+                type: 'line',
+                source: 'leg-to-pickup',
+                layout: { 'line-join': 'round', 'line-cap': 'round' },
+                paint: { 'line-color': TO_PICKUP_COLOR, 'line-width': 4, 'line-opacity': 0.9, 'line-offset': -2.5 },
+            })
+
             new mapboxgl.Marker({ element: marker('#22c55e', 'Partida') }).setLngLat([originLng, originLat]).addTo(map)
             new mapboxgl.Marker({ element: marker('#ef4444', 'Chegada') }).setLngLat([destLng, destLat]).addTo(map)
 
             map.fitBounds(bounds, { padding: 60, duration: 0 })
-            if (!cancelled) setLoading(false)
+            if (!cancelled) {
+                setLoading(false)
+                setMapReady(true)
+            }
         })
 
         return () => {
             cancelled = true
+            driverMarkerRef.current?.remove()
+            driverMarkerRef.current = null
             map.remove()
             mapRef.current = null
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
+
+    // Posição do motorista ao vivo: desliza o marcador (sem redesenhar o mapa
+    // inteiro) e reconstrói só a linha "até a partida" a cada atualização de GPS.
+    useEffect(() => {
+        const map = mapRef.current
+        if (!map || !mapReady) return
+
+        if (!hasDriver) {
+            driverMarkerRef.current?.remove()
+            driverMarkerRef.current = null
+            driverMarkerKindRef.current = null
+            const src = map.getSource('leg-to-pickup') as mapboxgl.GeoJSONSource | undefined
+            src?.setData({ type: 'FeatureCollection', features: [] })
+            setToPickupKm(null)
+            setToPickupMin(null)
+            return
+        }
+
+        if (!driverMarkerRef.current || driverMarkerKindRef.current !== vehicleKind) {
+            driverMarkerRef.current?.remove()
+            driverMarkerRef.current = new mapboxgl.Marker({ element: driverMarkerElement(vehicleKind) })
+                .setLngLat([driverLng as number, driverLat as number])
+                .addTo(map)
+            driverMarkerKindRef.current = vehicleKind
+        } else {
+            driverMarkerRef.current.setLngLat([driverLng as number, driverLat as number])
+        }
+
+        const reqId = ++toPickupReqIdRef.current
+        fetchRoute([driverLng as number, driverLat as number], [originLng, originLat])
+            .then((leg) => {
+                if (toPickupReqIdRef.current !== reqId) return // resposta antiga, já saiu outra atualização
+                const src = map.getSource('leg-to-pickup') as mapboxgl.GeoJSONSource | undefined
+                src?.setData({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: leg.coords } })
+                setToPickupKm(leg.distanceKm)
+                setToPickupMin(leg.durationMin)
+            })
+            .catch(() => { /* melhor esforço: a linha até a partida só não atualiza dessa vez */ })
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [mapReady, hasDriver, driverLat, driverLng, vehicleKind])
 
     return (
         <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4" style={{ background: 'rgba(0,0,0,0.6)' }}>

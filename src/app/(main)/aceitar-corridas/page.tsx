@@ -20,6 +20,17 @@ import { computeSuggestedPrice, computeConditionExtras, getEffectivePricing, get
 import { playRideAlertSound, playNotificationSound } from '@/lib/rideAlertSound'
 import { getProfileRideRatingsBatch, ProfileRideRating } from '@/lib/rideReviews'
 import { VehicleType, VehicleKind, VEHICLE_TYPE_LABELS, ridesAcceptableForVehicleKind, rideAcceptsAnyVehicle, kindForRideType } from '@/lib/rideVehicle'
+
+// Ícone do marcador "Você" no mapa: o veículo cadastrado que serve essa
+// corrida (moto/bicicleta são exclusivos; "qualquer" usa o que o motorista
+// tem, na ordem carro > moto > bicicleta).
+function vehicleIconForRide(rideVehicleType: VehicleType, myKinds: VehicleKind[]): VehicleKind {
+    if (rideVehicleType === 'moto' || rideVehicleType === 'bicicleta') return rideVehicleType
+    if (rideVehicleType === 'qualquer') {
+        return (['carro', 'moto', 'bicicleta'] as const).find((k) => myKinds.includes(k)) || 'carro'
+    }
+    return 'carro'
+}
 import { buildRideSpecRows } from '@/lib/rideSpecs'
 import { notifyRideStatus } from '@/lib/notifyRideStatus'
 import { handleShareLink } from '@/lib/share'
@@ -192,6 +203,7 @@ interface CandidacyCardData extends RideRow {
 
 interface AcceptedRideDetail {
     id: string
+    vehicle_type: VehicleType
     origin_address: string
     destination_address: string
     origin_complement: string | null
@@ -230,6 +242,7 @@ export default function AceitarCorridasPage() {
     const alertSoundRef = useRef(true)
     const [candidacies, setCandidacies] = useState<CandidacyCardData[]>([])
     const [acceptedRide, setAcceptedRide] = useState<AcceptedRideDetail | null>(null)
+    const [myVehicleKinds, setMyVehicleKinds] = useState<VehicleKind[]>(['carro'])
     const [departing, setDeparting] = useState(false)
     const [arriving, setArriving] = useState(false)
     const [starting, setStarting] = useState(false)
@@ -377,6 +390,7 @@ export default function AceitarCorridasPage() {
         const vehicleKinds = (vehicleRows || []).map((v) => v.vehicle_kind as VehicleKind)
         if (vehicleKinds.length === 0) vehicleKinds.push('carro')
         const acceptableVehicleTypes = new Set(vehicleKinds.flatMap((k) => ridesAcceptableForVehicleKind(k)))
+        setMyVehicleKinds(vehicleKinds)
 
         // Consulta separada e best-effort: se a coluna ainda não existir (migração
         // pendente), isso não pode derrubar a checagem de tarifa acima.
@@ -560,7 +574,7 @@ export default function AceitarCorridasPage() {
         // definido no momento em que o pedido dele vira "accepted".
         const { data: acceptedRow } = await supabase
             .from('ride_requests')
-            .select('id, requester_id, origin_address, destination_address, origin_complement, destination_complement, origin_lat, origin_lng, destination_lat, destination_lng, distance_km, duration_min, driver_en_route, driver_arrived_at, ride_started_at, extra_task_minutes, extra_task_fee, extra_task_description')
+            .select('id, requester_id, vehicle_type, origin_address, destination_address, origin_complement, destination_complement, origin_lat, origin_lng, destination_lat, destination_lng, distance_km, duration_min, driver_en_route, driver_arrived_at, ride_started_at, extra_task_minutes, extra_task_fee, extra_task_description')
             .eq('driver_id', contextUserId)
             .eq('status', 'accepted')
             .order('created_at', { ascending: false })
@@ -576,6 +590,7 @@ export default function AceitarCorridasPage() {
             ])
             acceptedDetail = {
                 id: acceptedRow.id,
+                vehicle_type: acceptedRow.vehicle_type,
                 origin_address: acceptedRow.origin_address,
                 destination_address: acceptedRow.destination_address,
                 origin_complement: acceptedRow.origin_complement,
@@ -1668,6 +1683,7 @@ export default function AceitarCorridasPage() {
                         destLng={ride.destination_lng}
                         driverLat={driverCoords ? driverCoords[1] : null}
                         driverLng={driverCoords ? driverCoords[0] : null}
+                        vehicleKind={vehicleIconForRide(ride.vehicle_type, myVehicleKinds)}
                         onClose={() => setMapDialogRideId(null)}
                     />
                 )
