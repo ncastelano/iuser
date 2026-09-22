@@ -305,6 +305,15 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady }: Rid
         load()
     }, [load])
 
+    // Reforço além do tempo real: se a conexão de tempo real cair ou perder
+    // um evento (acontece, sobretudo com o app em segundo plano no celular),
+    // essa varredura periódica garante que um candidato novo apareça de
+    // qualquer forma — mesmo padrão já usado em /aceitar-corridas.
+    useEffect(() => {
+        const poll = setInterval(load, 15000)
+        return () => clearInterval(poll)
+    }, [load])
+
     const lastStageRef = useRef({ enRoute: false, arrived: false, started: false })
     // Estado atual como ponto de partida: não toca som pelo que já tinha acontecido antes de abrir a tela.
     useEffect(() => {
