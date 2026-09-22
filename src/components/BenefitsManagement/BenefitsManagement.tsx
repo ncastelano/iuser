@@ -13,7 +13,7 @@ import { ptBR as ptBRLocale } from 'date-fns/locale'
 import { useRouter } from 'next/navigation'
 import { Spinner } from '@/components/Spinner'
 import InviteButton from '@/components/InviteButton'
-import { Gift, Check, X, Search, History, ShieldCheck, Users, UserPlus } from 'lucide-react'
+import { Gift, Check, X, Search, History, ShieldCheck, Users, UserPlus, Wallet, Clock } from 'lucide-react'
 import {
     SCOPE_LABEL,
     hasAnyGrantPermission,
@@ -34,7 +34,13 @@ interface DownlineMember {
     profile_slug: string | null
     joined_at: string
     active_plans: string | null
+    /** Quanto essa pessoa paga por ciclo no plano ativo (pré-pago tem preço; pós-pago é 0, cobra por evento). */
+    plan_price: number
+    /** Quanto ela já deve acumulado no pós-pago (quita ao chegar em R$50). */
+    postpaid_debt: number
 }
+
+const brl = (n: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n)
 
 // 31/12 23:59:59 (Brasília), em dias a partir de agora.
 function daysUntilEndOfYear(): number {
@@ -64,24 +70,25 @@ export default function BenefitsManagement() {
     const surfaceRgb = hexToRgb(colors.surface)
     const router = useRouter()
 
-    const [tab, setTab] = useState<Tab>('grant')
+    // "Minha rede" é a aba de entrada pra todo mundo — só quem tem permissão
+    // de concessão também enxerga conceder/histórico.
+    const [tab, setTab] = useState<Tab>('network')
     const [status, setStatus] = useState<MyStatus | null>(null)
     const [plans, setPlans] = useState<GrantablePlan[]>([])
     const [loading, setLoading] = useState(true)
 
-    // Quem não tem nenhuma permissão de concessão só vê a própria rede (e o
-    // próprio status) — as abas de conceder/histórico somem pra ele.
     const canManage = hasAnyGrantPermission(status)
     const tabs = useMemo<{ id: Tab; label: string; icon: typeof Gift }[]>(() => [
+        { id: 'network', label: 'Minha rede', icon: Users },
         ...(canManage ? [{ id: 'grant' as const, label: 'Conceder', icon: Gift }] : []),
         ...(canManage ? [{ id: 'history' as const, label: 'Histórico', icon: History }] : []),
-        { id: 'network', label: 'Minha rede', icon: Users },
         { id: 'status', label: 'Meu status', icon: ShieldCheck },
     ], [canManage])
 
     // rede
     const [downline, setDownline] = useState<DownlineMember[]>([])
     const [loadingNetwork, setLoadingNetwork] = useState(false)
+    const [walletBalance, setWalletBalance] = useState(0)
 
     // conceder
     const [query, setQuery] = useState('')
@@ -165,7 +172,12 @@ export default function BenefitsManagement() {
     // iUser" (Commission.tsx), sempre travada em auth.uid() no banco.
     const loadNetwork = useCallback(async () => {
         setLoadingNetwork(true)
-        const { data } = await supabase.rpc('get_referral_commission_summary')
+        const [{ data }, { data: walletRows }] = await Promise.all([
+            supabase.rpc('get_referral_commission_summary'),
+            // RLS (auth.uid() = user_id) já filtra pro próprio saldo — não
+            // precisa nem saber o userId aqui.
+            supabase.from('wallet_transactions').select('amount'),
+        ])
         setDownline(((data || []) as any[]).map((r) => ({
             id: r.downline_id,
             name: r.name,
@@ -173,7 +185,10 @@ export default function BenefitsManagement() {
             profile_slug: r.profile_slug,
             joined_at: r.joined_at,
             active_plans: r.active_plans,
+            plan_price: Number(r.plan_price) || 0,
+            postpaid_debt: Number(r.postpaid_debt) || 0,
         })))
+        setWalletBalance((walletRows || []).reduce((sum, r: any) => sum + Number(r.amount), 0))
         setLoadingNetwork(false)
     }, [])
 
@@ -424,6 +439,36 @@ export default function BenefitsManagement() {
                         <InviteButton />
                     </div>
 
+                    {!loadingNetwork && downline.length > 0 && (() => {
+                        const paidValue = downline.reduce((sum, m) => sum + m.plan_price, 0)
+                        const promisedValue = downline.reduce((sum, m) => sum + m.postpaid_debt, 0)
+                        return (
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                <div style={cardStyle}>
+                                    <p className="flex items-center gap-1 text-[10px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>
+                                        <Check size={11} /> Planos pagos (rede)
+                                    </p>
+                                    <p className="text-lg font-black mt-1" style={{ color: colors.textPrimary }}>{brl(paidValue)}</p>
+                                    <p className="text-[10px] mt-0.5" style={{ color: colors.textSecondary }}>Mensalidade do pré-pago de quem está ativo</p>
+                                </div>
+                                <div style={cardStyle}>
+                                    <p className="flex items-center gap-1 text-[10px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>
+                                        <Clock size={11} /> Prometido (pós-pago)
+                                    </p>
+                                    <p className="text-lg font-black mt-1" style={{ color: '#f97316' }}>{brl(promisedValue)}</p>
+                                    <p className="text-[10px] mt-0.5" style={{ color: colors.textSecondary }}>Dívida acumulada, ainda não quitada</p>
+                                </div>
+                                <div style={cardStyle}>
+                                    <p className="flex items-center gap-1 text-[10px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>
+                                        <Wallet size={11} /> Já disponível
+                                    </p>
+                                    <p className="text-lg font-black mt-1" style={{ color: '#22c55e' }}>{brl(walletBalance)}</p>
+                                    <p className="text-[10px] mt-0.5" style={{ color: colors.textSecondary }}>Sua comissão, pronta pra sacar</p>
+                                </div>
+                            </div>
+                        )
+                    })()}
+
                     {loadingNetwork ? (
                         <div className="flex justify-center py-8"><Spinner size={24} color={colors.accent} /></div>
                     ) : downline.length === 0 ? (
@@ -458,13 +503,21 @@ export default function BenefitsManagement() {
                                                 Entrou {formatDistanceToNow(new Date(m.joined_at), { addSuffix: true, locale: ptBRLocale })}
                                             </p>
                                         </div>
-                                        {m.active_plans ? (
-                                            <span className="text-[9px] font-bold px-2 py-0.5 rounded-full flex-shrink-0" style={{ background: '#22c55e20', color: '#22c55e' }}>
-                                                {m.active_plans}
-                                            </span>
-                                        ) : (
-                                            <span className="text-[9px] flex-shrink-0" style={{ color: colors.textSecondary }}>Sem plano ativo</span>
-                                        )}
+                                        <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                                            {m.active_plans ? (
+                                                <span className="text-[9px] font-bold px-2 py-0.5 rounded-full" style={{ background: '#22c55e20', color: '#22c55e' }}>
+                                                    {m.active_plans}
+                                                </span>
+                                            ) : (
+                                                <span className="text-[9px]" style={{ color: colors.textSecondary }}>Sem plano ativo</span>
+                                            )}
+                                            {m.plan_price > 0 && (
+                                                <span className="text-[9px] font-bold" style={{ color: colors.textPrimary }}>{brl(m.plan_price)}/mês</span>
+                                            )}
+                                            {m.postpaid_debt > 0 && (
+                                                <span className="text-[9px] font-bold" style={{ color: '#f97316' }}>Deve {brl(m.postpaid_debt)}</span>
+                                            )}
+                                        </div>
                                     </button>
                                 )
                             })}
