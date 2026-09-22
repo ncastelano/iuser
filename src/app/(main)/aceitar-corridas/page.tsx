@@ -221,6 +221,7 @@ interface AcceptedRideDetail {
     stop_complement: string | null
     stop_lat: number | null
     stop_lng: number | null
+    stop_reached_at: string | null
     distance_km: number | null
     duration_min: number | null
     driver_en_route: boolean
@@ -261,6 +262,7 @@ export default function AceitarCorridasPage() {
     const [extraTaskDescriptionInput, setExtraTaskDescriptionInput] = useState('')
     const [savingExtraTask, setSavingExtraTask] = useState(false)
     const [finishing, setFinishing] = useState(false)
+    const [arrivingStop, setArrivingStop] = useState(false)
     const [cancellingAccepted, setCancellingAccepted] = useState(false)
     const lastAcceptedRideIdRef = useRef<string | null>(null)
     const [withdrawingId, setWithdrawingId] = useState<string | null>(null)
@@ -356,21 +358,9 @@ export default function AceitarCorridasPage() {
 
     const hasVoiceNavStop = acceptedRide?.stop_lat != null && acceptedRide?.stop_lng != null
 
-    // Marca quando o motorista já passou pela parada (por perto dela), pra
-    // trocar o alvo da voz pro destino final — não existe isso salvo no
-    // banco, então é controlado só aqui, e reseta ao trocar de corrida.
-    const [stopReached, setStopReached] = useState(false)
-    useEffect(() => { setStopReached(false) }, [acceptedRide?.id])
-    useEffect(() => {
-        if (voiceNavPhase !== 'trip' || !hasVoiceNavStop || stopReached || !driverCoords || !acceptedRide) return
-        const meters = haversineKm(driverCoords, [acceptedRide.stop_lng as number, acceptedRide.stop_lat as number]) * 1000
-        if (meters <= 40) {
-            setStopReached(true)
-            if (voiceNavEnabled) speak('Parada concluída. Seguindo para o destino final.')
-        }
-    }, [driverCoords, voiceNavPhase, hasVoiceNavStop, stopReached, acceptedRide, voiceNavEnabled])
-
-    const voiceNavTargetsStop = voiceNavPhase === 'trip' && hasVoiceNavStop && !stopReached
+    // "Chegou na parada" agora é o motorista confirmando pelo botão (ver
+    // arriveAtStop) — a voz só segue esse mesmo estado, sem detectar sozinha.
+    const voiceNavTargetsStop = voiceNavPhase === 'trip' && hasVoiceNavStop && !acceptedRide?.stop_reached_at
 
     const voiceNavTarget: [number, number] | null =
         voiceNavPhase === 'pickup' && acceptedRide?.origin_lat != null && acceptedRide?.origin_lng != null
@@ -639,7 +629,7 @@ export default function AceitarCorridasPage() {
         // definido no momento em que o pedido dele vira "accepted".
         const { data: acceptedRow } = await supabase
             .from('ride_requests')
-            .select('id, requester_id, vehicle_type, origin_address, destination_address, origin_complement, destination_complement, origin_lat, origin_lng, destination_lat, destination_lng, stop_address, stop_complement, stop_lat, stop_lng, distance_km, duration_min, driver_en_route, driver_arrived_at, ride_started_at, extra_task_minutes, extra_task_fee, extra_task_description')
+            .select('id, requester_id, vehicle_type, origin_address, destination_address, origin_complement, destination_complement, origin_lat, origin_lng, destination_lat, destination_lng, stop_address, stop_complement, stop_lat, stop_lng, stop_reached_at, distance_km, duration_min, driver_en_route, driver_arrived_at, ride_started_at, extra_task_minutes, extra_task_fee, extra_task_description')
             .eq('driver_id', contextUserId)
             .eq('status', 'accepted')
             .order('created_at', { ascending: false })
@@ -668,6 +658,7 @@ export default function AceitarCorridasPage() {
                 stop_complement: acceptedRow.stop_complement,
                 stop_lat: acceptedRow.stop_lat,
                 stop_lng: acceptedRow.stop_lng,
+                stop_reached_at: acceptedRow.stop_reached_at,
                 distance_km: acceptedRow.distance_km,
                 duration_min: acceptedRow.duration_min,
                 driver_en_route: acceptedRow.driver_en_route,
@@ -995,10 +986,54 @@ export default function AceitarCorridasPage() {
     // finalizar a corrida antes de realmente chegar lá.
     const FINISH_RADIUS_METERS = 100
 
+    // Confirmação de chegada na parada — mesma trava por GPS de "cheguei ao
+    // destino". Precisa disso feito antes de poder concluir a corrida.
+    const arriveAtStop = async () => {
+        if (!acceptedRide || acceptedRide.stop_lat == null || acceptedRide.stop_lng == null) return
+        setArrivingStop(true)
+        getNativeCurrentPosition(
+            async (pos) => {
+                const distanceMeters = haversineKm(
+                    [pos.coords.longitude, pos.coords.latitude],
+                    [acceptedRide.stop_lng as number, acceptedRide.stop_lat as number]
+                ) * 1000
+                if (distanceMeters > FINISH_RADIUS_METERS) {
+                    toast.error(`Você está a ${Math.round(distanceMeters)} m da parada. Chegue a até ${FINISH_RADIUS_METERS} m pra confirmar.`)
+                    setArrivingStop(false)
+                    return
+                }
+                try {
+                    const now = new Date().toISOString()
+                    const { error } = await supabase
+                        .from('ride_requests')
+                        .update({ stop_reached_at: now })
+                        .eq('id', acceptedRide.id)
+                    if (error) throw error
+                    setAcceptedRide((prev) => (prev ? { ...prev, stop_reached_at: now } : prev))
+                    toast.success('Parada confirmada! Agora é seguir para o destino.')
+                    if (voiceNavEnabled) speak('Parada concluída. Seguindo para o destino final.')
+                } catch (err: any) {
+                    toast.error('Erro ao confirmar a parada: ' + (err.message || 'tente novamente'))
+                } finally {
+                    setArrivingStop(false)
+                }
+            },
+            () => {
+                toast.error('Não conseguimos confirmar sua localização. Ative o GPS pra confirmar a parada.')
+                setArrivingStop(false)
+            },
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        )
+    }
+
     const finishAcceptedRide = async () => {
         if (!acceptedRide) return
         if (!acceptedRide.ride_started_at) {
             toast.error('Inicie a corrida antes de concluir.')
+            return
+        }
+        if (acceptedRide.stop_lat != null && acceptedRide.stop_lng != null && !acceptedRide.stop_reached_at) {
+            toast.error('Confirme a chegada na parada antes de concluir a corrida.')
             return
         }
         if (acceptedRide.destination_lat == null || acceptedRide.destination_lng == null) {
@@ -1702,7 +1737,18 @@ export default function AceitarCorridasPage() {
                                 </button>
                             )}
 
-                            {acceptedRide.ride_started_at && (
+                            {acceptedRide.ride_started_at && acceptedRide.stop_lat != null && acceptedRide.stop_lng != null && !acceptedRide.stop_reached_at && (
+                                <button
+                                    onClick={arriveAtStop}
+                                    disabled={arrivingStop}
+                                    className="w-full mt-2 py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all disabled:opacity-70 flex items-center justify-center gap-2"
+                                    style={{ background: '#eab308', color: '#fff' }}
+                                >
+                                    {arrivingStop ? <Spinner size={14} /> : <><MapPin size={14} /> Cheguei na parada</>}
+                                </button>
+                            )}
+
+                            {acceptedRide.ride_started_at && (acceptedRide.stop_lat == null || acceptedRide.stop_lng == null || acceptedRide.stop_reached_at) && (
                                 <button
                                     onClick={finishAcceptedRide}
                                     disabled={finishing}
