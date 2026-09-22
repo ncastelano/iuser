@@ -43,6 +43,7 @@ import AtalhoCompromissosDaLoja from '@/app/(main)/compromissos/AtalhoCompromiss
 import StoreOrders from './StoreOrders'
 import StoreDeliverySettings from './StoreDeliverySettings'
 import StorePaymentMethods from './StorePaymentMethods'
+import StoreWhatsAppBot from './StoreWhatsAppBot'
 
 import { isStoreOpenNow, getStoreStatusWithLunch, getNextOpeningInfo } from '@/lib/storeHours'
 import StoreSchedule from '@/components/StoreSchedule'
@@ -780,6 +781,11 @@ export default function StoreDashboard({
                     storeId={store.id}
                     onRefresh={loadDashboard}
                 />
+            </div>
+
+            {/* ===== Atendimento automático por WhatsApp ===== */}
+            <div className="mb-6">
+                <StoreWhatsAppBot storeId={store.id} />
             </div>
 
             {/* ===== Formas de Pagamento ===== */}

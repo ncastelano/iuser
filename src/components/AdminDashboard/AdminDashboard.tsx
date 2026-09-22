@@ -7,16 +7,17 @@ import { supabase } from '@/lib/supabase/client'
 import { Spinner } from '@/components/Spinner'
 import { toast } from 'sonner'
 import { hexToRgb } from '@/lib/color'
-import { Check, X, Copy, Plus, ShieldOff, ShieldCheck, Send, CalendarClock, Wallet, Tag, Sparkles } from 'lucide-react'
+import { Check, X, Copy, Plus, ShieldOff, ShieldCheck, Send, CalendarClock, Wallet, Tag, Sparkles, MessageCircle, Search } from 'lucide-react'
 import HierarchyAdmin from './HierarchyAdmin'
 import { callAdminApi } from '@/lib/callAdminApi'
 
-type Section = 'pagamentos' | 'saques' | 'planos' | 'hierarquia'
+type Section = 'pagamentos' | 'saques' | 'planos' | 'hierarquia' | 'whatsapp'
 
 const SECTIONS: { id: Section; label: string; icon: typeof Send }[] = [
     { id: 'pagamentos', label: 'Pagamentos', icon: Wallet },
     { id: 'planos', label: 'Planos', icon: CalendarClock },
     { id: 'hierarquia', label: 'Hierarquia', icon: ShieldCheck },
+    { id: 'whatsapp', label: 'WhatsApp Bot', icon: MessageCircle },
     { id: 'saques', label: 'Saques', icon: Send },
 ]
 
@@ -89,6 +90,7 @@ export default function AdminDashboard() {
             {section === 'pagamentos' && <SubscriptionsSection cardStyle={cardStyle} colors={colors} />}
             {section === 'saques' && <WithdrawalsSection cardStyle={cardStyle} colors={colors} />}
             {section === 'hierarquia' && <HierarchyAdmin cardStyle={cardStyle} colors={colors} />}
+            {section === 'whatsapp' && <WhatsAppBotSection cardStyle={cardStyle} colors={colors} />}
             {section === 'planos' && (
                 <div className="space-y-5">
                     <PlanManageSection cardStyle={cardStyle} colors={colors} />
@@ -272,6 +274,201 @@ interface WithdrawalRow {
     failure_reason: string | null
     asaas_transfer_id: string | null
     profiles: { name: string | null; profileSlug: string | null } | null
+}
+
+interface WhatsAppBotStoreRow {
+    id: string
+    name: string
+    storeSlug: string
+    whatsapp_bot_opt_in: boolean
+    whatsapp_bot_phone_number_id: string | null
+    whatsapp_bot_display_number: string | null
+}
+
+// Lojas que pediram o atendimento automático (whatsapp_bot_opt_in) —
+// conectar de verdade é manual: você registra o número dessa loja no
+// painel da Meta (WhatsApp Manager), pega o phone_number_id de lá, e cola
+// aqui. Também dá pra buscar qualquer loja (mesmo sem ter pedido) pra
+// conectar ou desconectar na mão.
+function WhatsAppBotSection({ cardStyle, colors }: SectionProps) {
+    const [stores, setStores] = useState<WhatsAppBotStoreRow[]>([])
+    const [loading, setLoading] = useState(true)
+    const [query, setQuery] = useState('')
+    const [searchResults, setSearchResults] = useState<WhatsAppBotStoreRow[]>([])
+    const [searching, setSearching] = useState(false)
+    const [editingId, setEditingId] = useState<string | null>(null)
+    const [phoneNumberIdInput, setPhoneNumberIdInput] = useState('')
+    const [displayNumberInput, setDisplayNumberInput] = useState('')
+    const [saving, setSaving] = useState(false)
+
+    const load = useCallback(async () => {
+        setLoading(true)
+        const { data } = await supabase
+            .from('stores')
+            .select('id, name, storeSlug, whatsapp_bot_opt_in, whatsapp_bot_phone_number_id, whatsapp_bot_display_number')
+            .eq('whatsapp_bot_opt_in', true)
+            .order('whatsapp_bot_phone_number_id', { ascending: true, nullsFirst: true })
+        setStores((data as WhatsAppBotStoreRow[]) || [])
+        setLoading(false)
+    }, [])
+
+    useEffect(() => { load() }, [load])
+
+    useEffect(() => {
+        if (query.trim().length < 2) {
+            setSearchResults([])
+            return
+        }
+        setSearching(true)
+        const t = setTimeout(async () => {
+            const { data } = await supabase
+                .from('stores')
+                .select('id, name, storeSlug, whatsapp_bot_opt_in, whatsapp_bot_phone_number_id, whatsapp_bot_display_number')
+                .or(`name.ilike.%${query.trim()}%,storeSlug.ilike.%${query.trim()}%`)
+                .limit(10)
+            setSearchResults((data as WhatsAppBotStoreRow[]) || [])
+            setSearching(false)
+        }, 300)
+        return () => clearTimeout(t)
+    }, [query])
+
+    const startEdit = (store: WhatsAppBotStoreRow) => {
+        setEditingId(editingId === store.id ? null : store.id)
+        setPhoneNumberIdInput(store.whatsapp_bot_phone_number_id || '')
+        setDisplayNumberInput(store.whatsapp_bot_display_number || '')
+    }
+
+    const save = async (storeId: string) => {
+        setSaving(true)
+        try {
+            await callAdminApi('/api/admin/stores/whatsapp-bot/connect', {
+                storeId,
+                phoneNumberId: phoneNumberIdInput.trim(),
+                displayNumber: displayNumberInput.trim(),
+            })
+            toast.success(phoneNumberIdInput.trim() ? 'Número conectado!' : 'Número desconectado.')
+            setEditingId(null)
+            await load()
+            setSearchResults((prev) => prev.filter((s) => s.id !== storeId))
+        } catch (err: any) {
+            toast.error(err.message || 'Erro ao salvar')
+        } finally {
+            setSaving(false)
+        }
+    }
+
+    const inputStyle: React.CSSProperties = {
+        background: colors.background,
+        border: `1px solid ${colors.border}`,
+        color: colors.textPrimary,
+        borderRadius: 12,
+        padding: '8px 12px',
+        fontSize: 13,
+    }
+
+    const renderRow = (store: WhatsAppBotStoreRow) => (
+        <div key={store.id} style={cardStyle} className="space-y-2">
+            <div className="flex items-center justify-between gap-2">
+                <div>
+                    <p className="text-sm font-black" style={{ color: colors.textPrimary }}>{store.name}</p>
+                    <p className="text-xs" style={{ color: colors.textSecondary }}>
+                        {store.whatsapp_bot_phone_number_id
+                            ? `Conectado — ${store.whatsapp_bot_display_number || store.whatsapp_bot_phone_number_id}`
+                            : store.whatsapp_bot_opt_in
+                                ? 'Pediu — aguardando conexão'
+                                : 'Não pediu'}
+                    </p>
+                </div>
+                <button
+                    onClick={() => startEdit(store)}
+                    className="text-[10px] font-bold px-2.5 py-1.5 rounded-full flex-shrink-0"
+                    style={{ background: `${colors.border}30`, color: colors.textPrimary }}
+                >
+                    {store.whatsapp_bot_phone_number_id ? 'Editar' : 'Conectar'}
+                </button>
+            </div>
+
+            {editingId === store.id && (
+                <div className="space-y-2 pt-2 border-t" style={{ borderColor: colors.border }}>
+                    <input
+                        type="text"
+                        placeholder="phone_number_id (do painel da Meta)"
+                        value={phoneNumberIdInput}
+                        onChange={(e) => setPhoneNumberIdInput(e.target.value)}
+                        style={inputStyle}
+                        className="w-full"
+                    />
+                    <input
+                        type="text"
+                        placeholder="Número em E.164, ex: 5569999999999"
+                        value={displayNumberInput}
+                        onChange={(e) => setDisplayNumberInput(e.target.value)}
+                        style={inputStyle}
+                        className="w-full"
+                    />
+                    <div className="flex gap-2">
+                        <button
+                            onClick={() => save(store.id)}
+                            disabled={saving}
+                            className="px-4 py-2 rounded-xl font-bold text-xs text-white disabled:opacity-50"
+                            style={{ background: colors.accent }}
+                        >
+                            {saving ? <Spinner size={14} /> : 'Salvar'}
+                        </button>
+                        {store.whatsapp_bot_phone_number_id && (
+                            <button
+                                onClick={() => { setPhoneNumberIdInput(''); setDisplayNumberInput(''); save(store.id) }}
+                                disabled={saving}
+                                className="px-4 py-2 rounded-xl font-bold text-xs disabled:opacity-50"
+                                style={{ background: `${colors.border}30`, color: colors.textPrimary }}
+                            >
+                                Desconectar
+                            </button>
+                        )}
+                    </div>
+                </div>
+            )}
+        </div>
+    )
+
+    return (
+        <div className="space-y-3">
+            <div style={cardStyle} className="space-y-3">
+                <p className="text-xs font-black uppercase tracking-wider flex items-center gap-1.5" style={{ color: colors.textSecondary }}>
+                    <MessageCircle size={12} />
+                    Conectar loja a um número
+                </p>
+                <p className="text-xs" style={{ color: colors.textSecondary }}>
+                    Registre o número dessa loja no WhatsApp Manager da Meta primeiro — aqui você só associa o
+                    <code> phone_number_id</code> que ele te dá à loja certa.
+                </p>
+                <div className="relative">
+                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: colors.textSecondary }} />
+                    <input
+                        value={query}
+                        onChange={(e) => setQuery(e.target.value)}
+                        placeholder="Buscar qualquer loja pelo nome"
+                        style={{ ...inputStyle, paddingLeft: 32, width: '100%' }}
+                    />
+                </div>
+                {searching && <p className="text-[11px]" style={{ color: colors.textSecondary }}>Buscando...</p>}
+                {searchResults.length > 0 && <div className="space-y-2">{searchResults.map(renderRow)}</div>}
+            </div>
+
+            <p className="text-xs font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>
+                Lojas que pediram ({stores.length})
+            </p>
+            {loading ? (
+                <div className="flex justify-center py-8"><Spinner size={24} color={colors.accent} /></div>
+            ) : stores.length === 0 ? (
+                <div style={cardStyle} className="text-sm">
+                    <p style={{ color: colors.textSecondary }}>Nenhuma loja pediu o atendimento automático ainda.</p>
+                </div>
+            ) : (
+                <div className="space-y-2">{stores.map(renderRow)}</div>
+            )}
+        </div>
+    )
 }
 
 function WithdrawalsSection({ cardStyle, colors }: SectionProps) {
