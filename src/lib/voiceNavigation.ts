@@ -51,12 +51,14 @@ interface UseVoiceNavigationParams {
     targetCoords: [number, number] | null
     /** Muda quando a etapa muda (ex: `${rideId}-pickup` → `${rideId}-trip`) — refaz a rota do zero. */
     legKey: string | null
+    /** Frase dita ao começar essa etapa (troca de rota) — se omitida, usa a padrão. */
+    introMessage?: string
 }
 
 // Orientação de voz curva a curva: busca a rota com manobras (Mapbox
 // Directions) e vai anunciando cada uma conforme a posição ao vivo do
 // motorista se aproxima dela. Sem componente visual — só fala.
-export function useVoiceNavigation({ enabled, active, driverCoords, targetCoords, legKey }: UseVoiceNavigationParams) {
+export function useVoiceNavigation({ enabled, active, driverCoords, targetCoords, legKey, introMessage }: UseVoiceNavigationParams) {
     const stepsRef = useRef<RouteStep[]>([])
     const nextIndexRef = useRef(0)
     const announcedFarRef = useRef<Set<number>>(new Set())
@@ -84,7 +86,7 @@ export function useVoiceNavigation({ enabled, active, driverCoords, targetCoords
                     nextIndexRef.current = 0
                     announcedFarRef.current = new Set()
                     if (legChanged && stepsRef.current.length > 0) {
-                        speak('Iniciando orientação por voz.')
+                        speak(introMessage || 'Iniciando orientação por voz.')
                     }
                 })
                 .finally(() => {
@@ -113,7 +115,7 @@ export function useVoiceNavigation({ enabled, active, driverCoords, targetCoords
             nextIndexRef.current = idx + 1
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [enabled, active, driverCoords, targetCoords, legKey])
+    }, [enabled, active, driverCoords, targetCoords, legKey, introMessage])
 
     // Corta a voz se a pessoa sair da corrida com algo tocando.
     useEffect(() => {

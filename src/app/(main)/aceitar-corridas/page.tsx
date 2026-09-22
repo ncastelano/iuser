@@ -18,7 +18,7 @@ import { shortAddress } from '@/lib/serviceBoard'
 import { getAvatarUrl } from '@/lib/avatar'
 import { computeSuggestedPrice, computeConditionExtras, getEffectivePricing, getCustomPricing, PLATFORM_DEFAULT_PRICING_BY_VEHICLE, DriverPricing, type RideConditionFlags } from '@/lib/driverPricing'
 import { playRideAlertSound, playNotificationSound } from '@/lib/rideAlertSound'
-import { useVoiceNavigation } from '@/lib/voiceNavigation'
+import { useVoiceNavigation, speak } from '@/lib/voiceNavigation'
 import { getProfileRideRatingsBatch, ProfileRideRating } from '@/lib/rideReviews'
 import { VehicleType, VehicleKind, VEHICLE_TYPE_LABELS, ridesAcceptableForVehicleKind, rideAcceptsAnyVehicle, kindForRideType } from '@/lib/rideVehicle'
 
@@ -343,7 +343,9 @@ export default function AceitarCorridasPage() {
     }, [acceptedRide?.id, acceptedRide?.driver_en_route, acceptedRide?.driver_arrived_at, acceptedRide?.ride_started_at])
 
     // ===== ORIENTAÇÃO POR VOZ: fala as manobras a caminho da partida, e
-    // depois a caminho da chegada (troca de etapa quando a corrida começa) =====
+    // depois a caminho da chegada. Se a corrida tem parada, a "chegada" vira
+    // duas pernas — até a parada, depois até o destino final — e a voz avisa
+    // no começo da corrida que tem uma parada no caminho. =====
     const voiceNavPhase: 'pickup' | 'trip' | null = !acceptedRide
         ? null
         : acceptedRide.ride_started_at
@@ -351,18 +353,47 @@ export default function AceitarCorridasPage() {
             : acceptedRide.driver_en_route && !acceptedRide.driver_arrived_at
                 ? 'pickup'
                 : null
+
+    const hasVoiceNavStop = acceptedRide?.stop_lat != null && acceptedRide?.stop_lng != null
+
+    // Marca quando o motorista já passou pela parada (por perto dela), pra
+    // trocar o alvo da voz pro destino final — não existe isso salvo no
+    // banco, então é controlado só aqui, e reseta ao trocar de corrida.
+    const [stopReached, setStopReached] = useState(false)
+    useEffect(() => { setStopReached(false) }, [acceptedRide?.id])
+    useEffect(() => {
+        if (voiceNavPhase !== 'trip' || !hasVoiceNavStop || stopReached || !driverCoords || !acceptedRide) return
+        const meters = haversineKm(driverCoords, [acceptedRide.stop_lng as number, acceptedRide.stop_lat as number]) * 1000
+        if (meters <= 40) {
+            setStopReached(true)
+            if (voiceNavEnabled) speak('Parada concluída. Seguindo para o destino final.')
+        }
+    }, [driverCoords, voiceNavPhase, hasVoiceNavStop, stopReached, acceptedRide, voiceNavEnabled])
+
+    const voiceNavTargetsStop = voiceNavPhase === 'trip' && hasVoiceNavStop && !stopReached
+
     const voiceNavTarget: [number, number] | null =
         voiceNavPhase === 'pickup' && acceptedRide?.origin_lat != null && acceptedRide?.origin_lng != null
             ? [acceptedRide.origin_lng, acceptedRide.origin_lat]
-            : voiceNavPhase === 'trip' && acceptedRide?.destination_lat != null && acceptedRide?.destination_lng != null
-                ? [acceptedRide.destination_lng, acceptedRide.destination_lat]
+            : voiceNavPhase === 'trip'
+                ? voiceNavTargetsStop && acceptedRide?.stop_lat != null && acceptedRide?.stop_lng != null
+                    ? [acceptedRide.stop_lng, acceptedRide.stop_lat]
+                    : acceptedRide?.destination_lat != null && acceptedRide?.destination_lng != null
+                        ? [acceptedRide.destination_lng, acceptedRide.destination_lat]
+                        : null
                 : null
+
+    const voiceNavIntro = voiceNavTargetsStop && acceptedRide?.stop_address
+        ? `Iniciando orientação por voz. Você tem uma parada em ${shortAddress(acceptedRide.stop_address)} antes do destino final.`
+        : undefined
+
     useVoiceNavigation({
         enabled: voiceNavEnabled,
         active: !!voiceNavPhase && !!voiceNavTarget,
         driverCoords,
         targetCoords: voiceNavTarget,
-        legKey: acceptedRide && voiceNavPhase ? `${acceptedRide.id}-${voiceNavPhase}` : null,
+        legKey: acceptedRide && voiceNavPhase ? `${acceptedRide.id}-${voiceNavPhase}-${voiceNavTargetsStop ? 'stop' : 'final'}` : null,
+        introMessage: voiceNavIntro,
     })
 
     // Nome exibido no cabeçalho enquanto sincronizado: o do local ao vivo
