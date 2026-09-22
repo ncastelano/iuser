@@ -15,6 +15,7 @@ import { notifyNewRide } from '@/lib/notifyRideStatus'
 import { addRecentRideDestination, getRecentRideDestinations, RecentRideDestination } from '@/lib/recentRideDestinations'
 import { addRecentRideOrigin, getRecentRideOrigins, RecentRideOrigin } from '@/lib/recentRideOrigins'
 import { fetchSavedRidePlaces, saveRidePlace } from '@/lib/savedRidePlaces'
+import { saveRideDraft, loadRideDraft, clearRideDraft } from '@/lib/rideRequestDraft'
 import { getVehicleTypeForPassengers, VEHICLE_TYPE_LABELS, type VehicleType } from '@/lib/rideVehicle'
 import { createSquareImage } from '@/lib/image'
 import { PLATFORM_DEFAULT_CONDITION_EXTRA_FEES } from '@/lib/driverPricing'
@@ -385,34 +386,6 @@ async function fetchRoute(origin: [number, number], destination: [number, number
     }
 }
 
-// ===== RASCUNHO DO PEDIDO (sobrevive ao redirect pro login) =====
-const DRAFT_KEY = 'pedir_motorista_draft_v1'
-
-function saveDraft(draft: Record<string, unknown>) {
-    try {
-        sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft))
-    } catch {
-        // Ignora erros de armazenamento
-    }
-}
-
-function loadDraft(): Record<string, any> | null {
-    try {
-        const raw = sessionStorage.getItem(DRAFT_KEY)
-        return raw ? JSON.parse(raw) : null
-    } catch {
-        return null
-    }
-}
-
-function clearDraft() {
-    try {
-        sessionStorage.removeItem(DRAFT_KEY)
-    } catch {
-        // Ignora erros de armazenamento
-    }
-}
-
 export default function PedirMotoristaPage() {
     const router = useRouter()
     const { colors } = useTheme()
@@ -438,11 +411,6 @@ export default function PedirMotoristaPage() {
     const [stop, setStop] = useState<Place>({ address: '', coords: null })
     const [stopComplement, setStopComplement] = useState('')
     const [showStopComplement, setShowStopComplement] = useState(false)
-    // Escolher local no mapa (arrastando/movendo o mapa) em vez de escrever —
-    // vale pra partida, chegada e parada, um de cada vez.
-    const [pickingField, setPickingField] = useState<ActiveField>(null)
-    const [pickingAddress, setPickingAddress] = useState('')
-    const [pickingResolving, setPickingResolving] = useState(false)
     const [recentOrigins, setRecentOrigins] = useState<RecentRideOrigin[]>([])
     const [recentDestinations, setRecentDestinations] = useState<RecentRideDestination[]>([])
     const [activeField, setActiveField] = useState<ActiveField>(null)
@@ -778,9 +746,9 @@ export default function PedirMotoristaPage() {
 
     // ===== RESTAURA O RASCUNHO SE VOLTOU DE UM LOGIN =====
     useEffect(() => {
-        const draft = loadDraft()
+        const draft = loadRideDraft()
         if (!draft) return
-        clearDraft()
+        clearRideDraft()
 
         if (draft.step) setStep(draft.step)
         if (draft.requestFor) setRequestFor(draft.requestFor)
@@ -838,7 +806,7 @@ export default function PedirMotoristaPage() {
         if (draft.deliveryLocation !== undefined) setDeliveryLocation(draft.deliveryLocation)
         if (typeof draft.destinationAccessNotes === 'string') setDestinationAccessNotes(draft.destinationAccessNotes)
 
-        toast.info('Continuando de onde você parou.')
+        if (!draft.fromMapPicker) toast.info('Continuando de onde você parou.')
     }, [])
 
     // ===== MARCADORES NO MAPA =====
@@ -992,59 +960,14 @@ export default function PedirMotoristaPage() {
         setSuggestions([])
     }
 
-    // ===== ESCOLHER LOCAL NO MAPA (arrastar/mover o mapa até o pin, em vez
-    // de escrever o endereço) =====
-    const currentCoordsFor = (field: ActiveField): [number, number] | null =>
-        field === 'origin' ? origin.coords : field === 'destination' ? destination.coords : field === 'stop' ? stop.coords : null
-
+    // Escolher local no mapa: leva pra uma página própria (rota isolada,
+    // com seu próprio mapa) — mais estável do que uma camada por cima desta
+    // tela, que ficava conflitando com o mapa e as etapas do pedido.
     const startPickingOnMap = (field: ActiveField) => {
-        if (!field || !mapRef.current) return
-        const start = currentCoordsFor(field) || origin.coords || destination.coords || DEFAULT_CENTER
-        mapRef.current.jumpTo({ center: start, zoom: 16 })
-        setPickingAddress('')
-        setPickingField(field)
+        if (!field) return
+        saveRideDraft({ ...buildDraftPayload(), fromMapPicker: true })
+        router.push(`/pedir-motorista/escolher-local?field=${field}`)
     }
-
-    const cancelPickingOnMap = () => setPickingField(null)
-
-    const confirmPickingOnMap = () => {
-        if (!pickingField || !mapRef.current) return
-        const center = mapRef.current.getCenter()
-        const place: Place = { address: pickingAddress || `Local (${center.lat.toFixed(5)}, ${center.lng.toFixed(5)})`, coords: [center.lng, center.lat] }
-        if (pickingField === 'origin') {
-            setOrigin(place)
-            addRecentRideOrigin(place)
-            setRecentOrigins(getRecentRideOrigins())
-            persistPlace('origin', place)
-        } else if (pickingField === 'destination') {
-            setDestination(place)
-            addRecentRideDestination(place)
-            setRecentDestinations(getRecentRideDestinations())
-            persistPlace('destination', place)
-        } else {
-            setStop(place)
-        }
-        setPickingField(null)
-    }
-
-    // Reverse-geocodifica o centro do mapa sempre que ele para de se mover,
-    // enquanto está no modo "escolher no mapa".
-    useEffect(() => {
-        if (!pickingField || !mapRef.current) return
-        const map = mapRef.current
-
-        const resolveCenter = async () => {
-            const center = map.getCenter()
-            setPickingResolving(true)
-            const address = await reverseGeocode(center.lng, center.lat)
-            setPickingResolving(false)
-            setPickingAddress(address || `Local (${center.lat.toFixed(5)}, ${center.lng.toFixed(5)})`)
-        }
-
-        resolveCenter()
-        map.on('moveend', resolveCenter)
-        return () => { map.off('moveend', resolveCenter) }
-    }, [pickingField])
 
     // Guarda o local na conta (Supabase) pra aparecer de novo em qualquer
     // aparelho; o localStorage acima continua como cache/fallback.
@@ -1268,24 +1191,28 @@ export default function PedirMotoristaPage() {
         return supabase.storage.from('ride-object-photos').getPublicUrl(data.path).data.publicUrl
     }
 
+    // Tudo que precisa sobreviver a uma navegação pra outra página (login,
+    // ou escolher um local no mapa em rota própria) e voltar pra cá depois.
+    const buildDraftPayload = () => ({
+        step, requestFor, origin, destination, notes, scheduledFor,
+        extraPeopleCount, childrenCount, childAge, childNeedsCarSeat, bagCount, groceryBagSize,
+        extraObjectCount, extraObjectDescription,
+        petCount, petDescription, petWeightRange, petHasCarrier,
+        objectDescription, objectIsSensitive, objectSize,
+        senderName, senderWhatsapp, recipientName, recipientWhatsapp,
+        originComplement, destinationComplement,
+        showStop, stop, stopComplement,
+        originNeedsAccess, originAccessNotes, destinationNeedsAccess, destinationAccessNotes,
+        deliveryLocation,
+        hasSpecialNeeds, specialNeedsDescription,
+        specialNeedsWheelchair, specialNeedsWheelchairType, specialNeedsVisualImpairment, hasGuideDog,
+        paymentMethod, cashChangeFor, cardIsContactless,
+    })
+
     const handleSubmit = async () => {
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) {
-            saveDraft({
-                step, requestFor, origin, destination, notes, scheduledFor,
-                extraPeopleCount, childrenCount, childAge, childNeedsCarSeat, bagCount, groceryBagSize,
-                extraObjectCount, extraObjectDescription,
-                petCount, petDescription, petWeightRange, petHasCarrier,
-                objectDescription, objectIsSensitive, objectSize,
-                senderName, senderWhatsapp, recipientName, recipientWhatsapp,
-                originComplement, destinationComplement,
-                showStop, stop, stopComplement,
-                originNeedsAccess, originAccessNotes, destinationNeedsAccess, destinationAccessNotes,
-                deliveryLocation,
-                hasSpecialNeeds, specialNeedsDescription,
-                specialNeedsWheelchair, specialNeedsWheelchairType, specialNeedsVisualImpairment, hasGuideDog,
-                paymentMethod, cashChangeFor, cardIsContactless,
-            })
+            saveRideDraft(buildDraftPayload())
             router.push(`/login?redirect=${encodeURIComponent('/pedir-motorista')}`)
             return
         }
@@ -1370,7 +1297,7 @@ export default function PedirMotoristaPage() {
             }).select('id').single()
 
             if (error) throw error
-            clearDraft()
+            clearRideDraft()
             notifyNewRide(insertedRide.id)
             setActiveRideId(insertedRide.id)
         } catch (err: any) {
@@ -1503,53 +1430,6 @@ export default function PedirMotoristaPage() {
                         })}
                     </div>
                 </div>
-            )}
-
-            {/* Escolher local no mapa: arraste/mova o mapa até posicionar o pin no
-                lugar certo — o mapa de fundo (já visível) continua ativo por baixo. */}
-            {pickingField && (
-                <>
-                    <div className="absolute top-6 left-4 right-4 z-40 flex items-center gap-3">
-                        <button
-                            onClick={cancelPickingOnMap}
-                            className="w-11 h-11 rounded-full flex items-center justify-center shadow-xl flex-shrink-0"
-                            style={{ background: colors.surface, color: colors.textPrimary }}
-                        >
-                            <X size={20} />
-                        </button>
-                        <div className="flex-1 px-4 py-2.5 rounded-full shadow-xl text-center" style={{ background: colors.surface }}>
-                            <span className="text-xs font-black" style={{ color: colors.textPrimary }}>
-                                {pickingField === 'origin' ? 'Mova o mapa até a partida' : pickingField === 'destination' ? 'Mova o mapa até a chegada' : 'Mova o mapa até a parada'}
-                            </span>
-                        </div>
-                    </div>
-
-                    {/* Pin fixo no centro da tela — o mapa se move por baixo dele */}
-                    <div className="absolute z-40 pointer-events-none" style={{ left: '50%', top: '50%', transform: 'translate(-50%, -100%)' }}>
-                        <svg width="36" height="48" viewBox="0 0 24 32" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ filter: 'drop-shadow(0 3px 6px rgba(0,0,0,0.4))' }}>
-                            <path d="M12 0C5.383 0 0 5.383 0 12c0 9 12 20 12 20s12-11 12-20C24 5.383 18.617 0 12 0z" fill="#f97316" stroke="white" strokeWidth="1.5" />
-                            <circle cx="12" cy="12" r="4.5" fill="white" />
-                        </svg>
-                    </div>
-                    <div className="absolute z-30 pointer-events-none rounded-full" style={{ left: '50%', top: '50%', width: 10, height: 4, marginLeft: -5, marginTop: 2, background: 'rgba(0,0,0,0.35)', filter: 'blur(1px)' }} />
-
-                    <div className="absolute left-4 right-4 z-40" style={{ bottom: 28 }}>
-                        <div className="rounded-2xl p-4 shadow-2xl" style={{ background: GRADIENT }}>
-                            <p className="text-[10px] font-black uppercase tracking-wider text-white/80 mb-1">Local selecionado</p>
-                            <p className="text-sm font-bold text-white mb-3 min-h-[20px]">
-                                {pickingResolving ? 'Obtendo endereço...' : (pickingAddress || 'Mova o mapa para escolher')}
-                            </p>
-                            <button
-                                onClick={confirmPickingOnMap}
-                                disabled={pickingResolving}
-                                className="w-full py-3 rounded-xl font-black uppercase text-xs tracking-wider disabled:opacity-60"
-                                style={{ background: '#fff', color: '#dc2626' }}
-                            >
-                                Confirmar localização
-                            </button>
-                        </div>
-                    </div>
-                </>
             )}
 
             {/* Dialog de segurança: confira placa e cor antes de confirmar */}
