@@ -127,7 +127,7 @@ export default function HomePage() {
     const [showAdminDashboard, setShowAdminDashboard] = useState(false)
     const [isSuperAdmin, setIsSuperAdmin] = useState(false)
     const [showBenefits, setShowBenefits] = useState(false)
-    const { canManageBenefits, hierarchyLabel } = useMyStatus(userId)
+    const { hierarchyLabel } = useMyStatus(userId)
 
     const [savedLocation, setSavedLocation] = useState<{ lat: number; lng: number; address: string; addressNumber?: string; addressComplement?: string } | null>(null)
     const [showLocationDialog, setShowLocationDialog] = useState(false)
@@ -573,7 +573,10 @@ export default function HomePage() {
             })
         }
 
-        if (canManageBenefits) {
+        // Qualquer usuário logado vê a própria rede aqui — só quem tem
+        // permissão de concessão enxerga as abas de conceder/histórico
+        // dentro do componente; a aba em si é geral.
+        if (isLoggedIn) {
             allTabs.push({
                 id: 'gestao-beneficios',
                 label: hierarchyLabel,
@@ -621,7 +624,7 @@ export default function HomePage() {
         }
 
         return allTabs
-    }, [profileSlug, loading, avatarUrl, showCreateStore, showLogin, showProfile, showStoreDashboard, isSuperAdmin, showAdminDashboard, canManageBenefits, hierarchyLabel, showBenefits, stores, loadingStores, storeOrderCounts, pendingInvitesCount, profileOpenNow, router])
+    }, [profileSlug, loading, avatarUrl, showCreateStore, showLogin, showProfile, showStoreDashboard, isSuperAdmin, showAdminDashboard, hierarchyLabel, showBenefits, stores, loadingStores, storeOrderCounts, pendingInvitesCount, profileOpenNow, router])
 
     const showFab = showCreateStore || showLogin || showProfile || showStoreDashboard || showAdminDashboard || showBenefits
     const shouldShowCarrinho = !showProfile && !showStoreDashboard && !showLogin && !showAdminDashboard && !showBenefits

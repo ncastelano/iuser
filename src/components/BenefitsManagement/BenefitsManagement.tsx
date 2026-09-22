@@ -1,18 +1,22 @@
 // components/BenefitsManagement/BenefitsManagement.tsx
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { callAdminApi } from '@/lib/callAdminApi'
 import { useTheme } from '@/app/contexts/theme'
 import { hexToRgb } from '@/lib/color'
 import { getAvatarUrl } from '@/lib/avatar'
 import { toast } from 'sonner'
+import { formatDistanceToNow } from 'date-fns'
+import { ptBR as ptBRLocale } from 'date-fns/locale'
+import { useRouter } from 'next/navigation'
 import { Spinner } from '@/components/Spinner'
 import InviteButton from '@/components/InviteButton'
-import { Gift, Check, X, Search, History, ShieldCheck } from 'lucide-react'
+import { Gift, Check, X, Search, History, ShieldCheck, Users, UserPlus } from 'lucide-react'
 import {
     SCOPE_LABEL,
+    hasAnyGrantPermission,
     type BenefitHistoryRow,
     type GrantTarget,
     type GrantablePlan,
@@ -21,13 +25,16 @@ import {
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
-type Tab = 'grant' | 'history' | 'status'
+type Tab = 'grant' | 'history' | 'network' | 'status'
 
-const TABS: { id: Tab; label: string; icon: typeof Gift }[] = [
-    { id: 'grant', label: 'Conceder', icon: Gift },
-    { id: 'history', label: 'Histórico', icon: History },
-    { id: 'status', label: 'Meu status', icon: ShieldCheck },
-]
+interface DownlineMember {
+    id: string
+    name: string | null
+    avatar_url: string | null
+    profile_slug: string | null
+    joined_at: string
+    active_plans: string | null
+}
 
 // 31/12 23:59:59 (Brasília), em dias a partir de agora.
 function daysUntilEndOfYear(): number {
@@ -55,11 +62,26 @@ const fmt = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString('pt-
 export default function BenefitsManagement() {
     const { colors } = useTheme()
     const surfaceRgb = hexToRgb(colors.surface)
+    const router = useRouter()
 
     const [tab, setTab] = useState<Tab>('grant')
     const [status, setStatus] = useState<MyStatus | null>(null)
     const [plans, setPlans] = useState<GrantablePlan[]>([])
     const [loading, setLoading] = useState(true)
+
+    // Quem não tem nenhuma permissão de concessão só vê a própria rede (e o
+    // próprio status) — as abas de conceder/histórico somem pra ele.
+    const canManage = hasAnyGrantPermission(status)
+    const tabs = useMemo<{ id: Tab; label: string; icon: typeof Gift }[]>(() => [
+        ...(canManage ? [{ id: 'grant' as const, label: 'Conceder', icon: Gift }] : []),
+        ...(canManage ? [{ id: 'history' as const, label: 'Histórico', icon: History }] : []),
+        { id: 'network', label: 'Minha rede', icon: Users },
+        { id: 'status', label: 'Meu status', icon: ShieldCheck },
+    ], [canManage])
+
+    // rede
+    const [downline, setDownline] = useState<DownlineMember[]>([])
+    const [loadingNetwork, setLoadingNetwork] = useState(false)
 
     // conceder
     const [query, setQuery] = useState('')
@@ -106,6 +128,12 @@ export default function BenefitsManagement() {
 
     useEffect(() => { load() }, [load])
 
+    // Quem não pode conceder nada abre direto na própria rede (a aba
+    // "Conceder" nem aparece pra ele).
+    useEffect(() => {
+        if (!loading && !canManage && tab === 'grant') setTab('network')
+    }, [loading, canManage, tab])
+
     // Busca de pessoas (dentro do escopo, filtrado pelo banco).
     useEffect(() => {
         if (target || query.trim().length < 2) {
@@ -131,6 +159,27 @@ export default function BenefitsManagement() {
     useEffect(() => {
         if (tab === 'history') loadHistory()
     }, [tab, loadHistory])
+
+    // Rede: quem cada um colocou embaixo de si (upline_id = você), com o
+    // plano ativo de cada um — a mesma função já usada em "Convidei para o
+    // iUser" (Commission.tsx), sempre travada em auth.uid() no banco.
+    const loadNetwork = useCallback(async () => {
+        setLoadingNetwork(true)
+        const { data } = await supabase.rpc('get_referral_commission_summary')
+        setDownline(((data || []) as any[]).map((r) => ({
+            id: r.downline_id,
+            name: r.name,
+            avatar_url: r.avatar_url,
+            profile_slug: r.profile_slug,
+            joined_at: r.joined_at,
+            active_plans: r.active_plans,
+        })))
+        setLoadingNetwork(false)
+    }, [])
+
+    useEffect(() => {
+        if (tab === 'network') loadNetwork()
+    }, [tab, loadNetwork])
 
     const grant = async () => {
         if (!target || !planId) return
@@ -170,18 +219,22 @@ export default function BenefitsManagement() {
         <div className="space-y-5">
             <div style={cardStyle} className="flex items-center gap-3">
                 <div className="w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#fff' }}>
-                    <Gift size={20} />
+                    {canManage ? <Gift size={20} /> : <Users size={20} />}
                 </div>
                 <div>
-                    <h2 className="text-base font-black" style={{ color: colors.textPrimary }}>Gestão de Benefícios</h2>
+                    <h2 className="text-base font-black" style={{ color: colors.textPrimary }}>
+                        {canManage ? 'Gestão de Benefícios' : 'Minha Rede'}
+                    </h2>
                     <p className="text-xs" style={{ color: colors.textSecondary }}>
-                        {status ? `${status.name} · nível ${status.level}` : 'Conceda planos dentro do seu escopo'}
+                        {canManage
+                            ? (status ? `${status.name} · nível ${status.level}` : 'Conceda planos dentro do seu escopo')
+                            : 'As pessoas que você colocou na sua rede'}
                     </p>
                 </div>
             </div>
 
             <div className="flex gap-2 overflow-x-auto pb-1">
-                {TABS.map((t) => {
+                {tabs.map((t) => {
                     const Icon = t.icon
                     const active = tab === t.id
                     return (
@@ -356,6 +409,65 @@ export default function BenefitsManagement() {
                                     </span>
                                 </div>
                             ))}
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {tab === 'network' && (
+                <div className="space-y-3">
+                    <div style={cardStyle} className="flex items-center justify-between gap-3">
+                        <div>
+                            <p className="text-xs font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>Pessoas na sua rede</p>
+                            <p className="text-2xl font-black" style={{ color: colors.textPrimary }}>{downline.length}</p>
+                        </div>
+                        <InviteButton />
+                    </div>
+
+                    {loadingNetwork ? (
+                        <div className="flex justify-center py-8"><Spinner size={24} color={colors.accent} /></div>
+                    ) : downline.length === 0 ? (
+                        <div style={cardStyle} className="flex flex-col items-center gap-3 text-center py-6">
+                            <div className="w-14 h-14 rounded-full flex items-center justify-center" style={{ background: GRADIENT, color: '#fff' }}>
+                                <UserPlus size={24} />
+                            </div>
+                            <div>
+                                <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>Você ainda não colocou ninguém na sua rede</p>
+                                <p className="text-xs mt-1" style={{ color: colors.textSecondary }}>Convide alguém pra começar a construir sua rede.</p>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="space-y-2">
+                            {downline.map((m) => {
+                                const avatar = getAvatarUrl(supabase, m.avatar_url)
+                                return (
+                                    <button
+                                        key={m.id}
+                                        onClick={() => m.profile_slug && router.push(`/${m.profile_slug}`)}
+                                        className="w-full flex items-center gap-3 p-3 rounded-2xl text-left"
+                                        style={cardStyle}
+                                    >
+                                        <span className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0" style={{ background: `${colors.border}40` }}>
+                                            {avatar && <img src={avatar} alt="" className="w-full h-full object-cover" />}
+                                        </span>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-sm font-bold truncate" style={{ color: colors.textPrimary }}>
+                                                {m.name || (m.profile_slug ? `@${m.profile_slug}` : 'Usuário')}
+                                            </p>
+                                            <p className="text-[11px]" style={{ color: colors.textSecondary }}>
+                                                Entrou {formatDistanceToNow(new Date(m.joined_at), { addSuffix: true, locale: ptBRLocale })}
+                                            </p>
+                                        </div>
+                                        {m.active_plans ? (
+                                            <span className="text-[9px] font-bold px-2 py-0.5 rounded-full flex-shrink-0" style={{ background: '#22c55e20', color: '#22c55e' }}>
+                                                {m.active_plans}
+                                            </span>
+                                        ) : (
+                                            <span className="text-[9px] flex-shrink-0" style={{ color: colors.textSecondary }}>Sem plano ativo</span>
+                                        )}
+                                    </button>
+                                )
+                            })}
                         </div>
                     )}
                 </div>

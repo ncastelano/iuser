@@ -72,7 +72,7 @@ export default function OwnerClientPage() {
     const [showAdminDashboard, setShowAdminDashboard] = useState(false)
     const [isSuperAdmin, setIsSuperAdmin] = useState(false)
     const [showBenefits, setShowBenefits] = useState(false)
-    const { canManageBenefits, hierarchyLabel } = useMyStatus(userId)
+    const { hierarchyLabel } = useMyStatus(userId)
     const [storeDialogOpen, setStoreDialogOpen] = useState(false)
 
     const pendingInvitesCount = useMerchantStore(s => s.pendingInvitesCount)
@@ -287,7 +287,10 @@ export default function OwnerClientPage() {
             })
         }
 
-        if (canManageBenefits) {
+        // Qualquer usuário logado vê a própria rede aqui — só quem tem
+        // permissão de concessão (canManageBenefits) enxerga as abas de
+        // conceder/histórico dentro do componente; a aba em si é geral.
+        if (isLoggedIn) {
             allTabs.push({
                 id: 'gestao-beneficios',
                 label: hierarchyLabel,
@@ -342,7 +345,7 @@ export default function OwnerClientPage() {
         }
 
         return allTabs
-    }, [loggedUserSlug, profileLoading, loggedUserAvatarUrl, stores, loadingStores, storeOrderCounts, pendingInvitesCount, profileOpenNow, showProfile, showStoreDashboard, isSuperAdmin, showAdminDashboard, canManageBenefits, hierarchyLabel, showBenefits, router])
+    }, [loggedUserSlug, profileLoading, loggedUserAvatarUrl, stores, loadingStores, storeOrderCounts, pendingInvitesCount, profileOpenNow, showProfile, showStoreDashboard, isSuperAdmin, showAdminDashboard, hierarchyLabel, showBenefits, router])
 
     // ========== CARREGAR DADOS ==========
     useEffect(() => {

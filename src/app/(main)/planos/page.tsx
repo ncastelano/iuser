@@ -95,7 +95,7 @@ function PlanosContent() {
     const searchParams = useSearchParams()
     const highlightPlan = searchParams.get('plan')
     const { userId, avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
-    const { canManageBenefits, hierarchyLabel } = useMyStatus(userId)
+    const { hierarchyLabel } = useMyStatus(userId)
     const { colors } = useTheme()
 
     const [loading, setLoading] = useState(true)
@@ -208,7 +208,9 @@ function PlanosContent() {
             })
         }
 
-        if (canManageBenefits) {
+        // Qualquer usuário logado vê a própria rede — só quem tem permissão
+        // de concessão enxerga as abas de conceder/histórico lá dentro.
+        if (isLoggedIn) {
             allTabs.push({
                 id: 'gestao-beneficios',
                 label: hierarchyLabel,
@@ -244,7 +246,7 @@ function PlanosContent() {
         }
 
         return allTabs
-    }, [profileSlug, profileLoading, avatarUrl, showLogin, isSuperAdmin, canManageBenefits, hierarchyLabel, ownedStores, loadingOwnedStores, router])
+    }, [profileSlug, profileLoading, avatarUrl, showLogin, isSuperAdmin, hierarchyLabel, ownedStores, loadingOwnedStores, router])
 
     const stopPolling = () => {
         if (pollRef.current) {

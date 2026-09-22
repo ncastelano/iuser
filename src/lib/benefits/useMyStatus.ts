@@ -2,9 +2,11 @@
 //
 // Status hierárquico da pessoa logada (usuario/lider/supervisor/gestor/
 // administrador/...), usado por toda tela que monta a barra de abas do
-// Header pra decidir se mostra "Gestão de Benefícios" — e com QUE nome
-// (o tipo de hierarquia concedido: "Gestor", "Supervisor" etc.), em vez de
-// um rótulo genérico igual pra todo mundo.
+// Header pra decidir COM QUE NOME mostrar a aba de rede/benefícios — o tipo
+// de hierarquia concedido ("Gestor", "Supervisor" etc.) pra quem tem, ou
+// "Minha Rede" pra quem não tem nenhuma permissão de concessão (a aba em si
+// é mostrada pra qualquer usuário logado — todo mundo pode ver sua própria
+// rede, só quem tem permissão também concede benefício).
 'use client'
 
 import { useEffect, useState } from 'react'
@@ -28,8 +30,9 @@ export function useMyStatus(userId: string | null | undefined) {
 
     const canManageBenefits = hasAnyGrantPermission(status)
     // "usuario" é o status padrão de quem não recebeu nenhuma hierarquia —
-    // nesse caso não faz sentido usar o nome dele como rótulo da aba.
-    const hierarchyLabel = canManageBenefits && status && status.slug !== 'usuario' ? status.name : 'Gestão de Benefícios'
+    // nesse caso não faz sentido usar o nome dele como rótulo da aba, e como
+    // ele só vê a própria rede (não concede nada), o rótulo vira "Minha Rede".
+    const hierarchyLabel = canManageBenefits && status && status.slug !== 'usuario' ? status.name : 'Minha Rede'
 
     return { status, canManageBenefits, hierarchyLabel }
 }
