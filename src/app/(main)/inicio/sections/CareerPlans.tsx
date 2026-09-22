@@ -1,33 +1,80 @@
 // src/app/(main)/inicio/sections/CareerPlans.tsx
 'use client'
 
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Car, Briefcase, Store, Users, CheckCircle2, Circle, Sparkles } from 'lucide-react'
+import { Sparkles, Wallet, ArrowRight } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
-import { useActivePlans } from '@/hooks/useActivePlans'
+import { supabase } from '@/lib/supabase/client'
 import { hexToRgb } from '@/lib/color'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
-const ITEMS = [
-    { key: 'hasDriver', icon: Car, label: 'Motorista' },
-    { key: 'hasProvider', icon: Briefcase, label: 'Prestador de serviço' },
-    { key: 'hasStore', icon: Store, label: 'Loja' },
-    { key: 'hasRecruiter', icon: Users, label: 'Recrutador' },
-] as const
+interface ActivePlan {
+    code: string
+    name: string
+}
 
 export default function CareerPlans() {
     const { colors } = useTheme()
     const router = useRouter()
     const { userId } = useProfile()
-    const { loading, hasDriver, hasProvider, hasStore, hasRecruiter } = useActivePlans(userId)
+    const [loading, setLoading] = useState(true)
+    const [activePlan, setActivePlan] = useState<ActivePlan | null>(null)
 
-    const status: Record<string, boolean> = { hasDriver, hasProvider, hasStore, hasRecruiter }
-    const activeCount = ITEMS.filter((item) => status[item.key]).length
+    // Só 2 produtos de verdade hoje (Pré-pago/Pós-pago) — busca direto qual
+    // dos dois a pessoa tem, mesmo padrão de /planos/page.tsx, em vez de
+    // mostrar os 4 badges antigos (motorista/prestador/loja/recrutador) que
+    // eram de quando existiam 5+ planos separados.
+    useEffect(() => {
+        if (!userId) {
+            setActivePlan(null)
+            setLoading(false)
+            return
+        }
+        let cancelled = false
+        setLoading(true)
+        supabase
+            .from('subscriptions')
+            .select('status, current_period_end, plans(code, name)')
+            .eq('user_id', userId)
+            .eq('status', 'active')
+            .then(({ data }) => {
+                if (cancelled) return
+                const now = Date.now()
+                const row = (data || []).find((s: any) => s.current_period_end && new Date(s.current_period_end).getTime() > now)
+                const plan = (row as any)?.plans as ActivePlan | ActivePlan[] | undefined
+                setActivePlan(Array.isArray(plan) ? plan[0] || null : plan || null)
+                setLoading(false)
+            })
+        return () => { cancelled = true }
+    }, [userId])
 
     const surfaceRgb = hexToRgb(colors.surface)
+    const isPostpaid = activePlan?.code === 'pos_pago'
+
+    const title = !userId
+        ? 'Entre pra ver seu plano'
+        : loading
+            ? 'Carregando...'
+            : activePlan
+                ? activePlan.name
+                : 'Nenhum plano ativo'
+
+    const subtitle = !userId
+        ? 'Entre pra ver qual plano você tem e o que ele libera.'
+        : loading
+            ? ''
+            : activePlan
+                ? isPostpaid
+                    ? 'Sem mensalidade — você paga por serviço, veja seu extrato.'
+                    : 'Mensalidade única — motorista, prestador, loja e recrutador liberados.'
+                : 'Assine o Pré-pago ou ative o Pós-pago pra liberar motorista, prestador, loja e recrutador.'
+
+    const buttonLabel = activePlan ? 'Ver detalhes' : 'Ver planos'
+    const destination = isPostpaid ? '/planos/pos-pago' : '/planos'
 
     return (
         <section>
@@ -45,27 +92,25 @@ export default function CareerPlans() {
                     <div className="flex items-center gap-4">
                         <div
                             className="w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0"
-                            style={{ background: GRADIENT, color: '#ffffff', boxShadow: `0 4px 12px #f9731640` }}
+                            style={{ background: activePlan ? '#22c55e' : GRADIENT, color: '#ffffff', boxShadow: `0 4px 12px #f9731640` }}
                         >
-                            <Sparkles size={28} />
+                            {isPostpaid ? <Wallet size={28} /> : <Sparkles size={28} />}
                         </div>
 
                         <div>
                             <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
-                                Planos iUser
+                                {title}
                             </h3>
-                            <p className="text-sm mt-1" style={{ color: colors.textPrimary }}>
-                                {userId
-                                    ? activeCount > 0
-                                        ? `Você já tem ${activeCount} plano${activeCount > 1 ? 's' : ''} ativo${activeCount > 1 ? 's' : ''}. Veja o que mais dá pra liberar.`
-                                        : 'Assine pra virar motorista, prestador, lojista ou recrutador na plataforma.'
-                                    : 'Entre pra ver quais planos já tem e o que ainda falta liberar.'}
-                            </p>
+                            {subtitle && (
+                                <p className="text-sm mt-1" style={{ color: colors.textSecondary }}>
+                                    {subtitle}
+                                </p>
+                            )}
                         </div>
                     </div>
 
                     <button
-                        onClick={() => router.push('/planos')}
+                        onClick={() => router.push(destination)}
                         className="flex items-center justify-center gap-2 px-6 py-3 rounded-full font-bold text-sm transition-all shadow-lg whitespace-nowrap hover:scale-105 active:scale-95 flex-shrink-0"
                         style={{
                             background: GRADIENT,
@@ -74,38 +119,9 @@ export default function CareerPlans() {
                             boxShadow: `0 4px 12px #f9731640`,
                         }}
                     >
-                        <Sparkles size={16} />
-                        Ver planos
+                        {activePlan ? <ArrowRight size={16} /> : <Sparkles size={16} />}
+                        {buttonLabel}
                     </button>
-                </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-5">
-                    {ITEMS.map(({ key, icon: Icon, label }) => {
-                        const active = !loading && status[key]
-                        return (
-                            <div
-                                key={key}
-                                className="flex items-center gap-2 px-3 py-2.5 rounded-xl"
-                                style={{
-                                    background: active ? '#22c55e20' : `${colors.border}30`,
-                                    border: `1px solid ${active ? '#22c55e60' : colors.border}`,
-                                }}
-                            >
-                                <Icon size={15} style={{ color: active ? '#16a34a' : colors.textSecondary, flexShrink: 0 }} />
-                                <span
-                                    className="text-[11px] font-bold flex-1 truncate"
-                                    style={{ color: active ? '#16a34a' : colors.textSecondary }}
-                                >
-                                    {label}
-                                </span>
-                                {active ? (
-                                    <CheckCircle2 size={14} style={{ color: '#16a34a', flexShrink: 0 }} />
-                                ) : (
-                                    <Circle size={14} style={{ color: colors.textSecondary, opacity: 0.4, flexShrink: 0 }} />
-                                )}
-                            </div>
-                        )
-                    })}
                 </div>
             </div>
         </section>
