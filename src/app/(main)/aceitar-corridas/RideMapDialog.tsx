@@ -63,9 +63,8 @@ interface RideMapDialogProps {
     originLng: number
     destLat: number
     destLng: number
-    /** Parada opcional entre a partida e a chegada. */
-    stopLat?: number | null
-    stopLng?: number | null
+    /** Até 2 paradas opcionais entre a partida e a chegada, em ordem. */
+    stops?: { lat: number; lng: number }[]
     driverLat: number | null
     driverLng: number | null
     /** Veículo do motorista nessa corrida (carro/moto/bicicleta) — define o ícone do marcador "Você". */
@@ -73,7 +72,7 @@ interface RideMapDialogProps {
     onClose: () => void
 }
 
-export default function RideMapDialog({ originLat, originLng, destLat, destLng, stopLat = null, stopLng = null, driverLat, driverLng, vehicleKind = 'carro', onClose }: RideMapDialogProps) {
+export default function RideMapDialog({ originLat, originLng, destLat, destLng, stops = [], driverLat, driverLng, vehicleKind = 'carro', onClose }: RideMapDialogProps) {
     const { colors } = useTheme()
     const containerRef = useRef<HTMLDivElement | null>(null)
     const mapRef = useRef<mapboxgl.Map | null>(null)
@@ -87,7 +86,6 @@ export default function RideMapDialog({ originLat, originLng, destLat, destLng, 
     const [tripKm, setTripKm] = useState<number | null>(null)
     const [tripMin, setTripMin] = useState<number | null>(null)
     const hasDriver = driverLat != null && driverLng != null
-    const hasStop = stopLat != null && stopLng != null
 
     // Mapa + trajeto fixo (partida → chegada): desenhado uma vez, na abertura.
     useEffect(() => {
@@ -109,18 +107,15 @@ export default function RideMapDialog({ originLat, originLng, destLat, destLng, 
             const bounds = new mapboxgl.LngLatBounds([originLng, originLat], [originLng, originLat])
             bounds.extend([destLng, destLat])
 
-            // Com parada, soma as duas pernas (partida→parada, parada→chegada) num
+            // Com paradas, soma cada perna (partida→parada1→parada2→chegada) num
             // trajeto só — mesmo trecho laranja, sem distinguir visualmente as pernas.
-            const legTrip = hasStop
-                ? await Promise.all([
-                    fetchRoute([originLng, originLat], [stopLng as number, stopLat as number]),
-                    fetchRoute([stopLng as number, stopLat as number], [destLng, destLat]),
-                ]).then(([l1, l2]) => ({
-                    coords: [...l1.coords, ...l2.coords],
-                    distanceKm: l1.distanceKm + l2.distanceKm,
-                    durationMin: l1.durationMin + l2.durationMin,
-                }))
-                : await fetchRoute([originLng, originLat], [destLng, destLat])
+            const waypoints: [number, number][] = [[originLng, originLat], ...stops.map((s) => [s.lng, s.lat] as [number, number]), [destLng, destLat]]
+            const legs = await Promise.all(waypoints.slice(0, -1).map((from, i) => fetchRoute(from, waypoints[i + 1])))
+            const legTrip = {
+                coords: legs.flatMap((l) => l.coords),
+                distanceKm: legs.reduce((sum, l) => sum + l.distanceKm, 0),
+                durationMin: legs.reduce((sum, l) => sum + l.durationMin, 0),
+            }
             if (cancelled) return
             map.addSource('leg-trip', { type: 'geojson', data: { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: legTrip.coords } } })
             map.addLayer({
@@ -134,10 +129,10 @@ export default function RideMapDialog({ originLat, originLng, destLat, destLng, 
             setTripKm(legTrip.distanceKm)
             setTripMin(legTrip.durationMin)
 
-            if (hasStop) {
-                new mapboxgl.Marker({ element: marker(STOP_COLOR, 'Parada') }).setLngLat([stopLng as number, stopLat as number]).addTo(map)
-                bounds.extend([stopLng as number, stopLat as number])
-            }
+            stops.forEach((s, i) => {
+                new mapboxgl.Marker({ element: marker(STOP_COLOR, `Parada ${i + 1}`) }).setLngLat([s.lng, s.lat]).addTo(map)
+                bounds.extend([s.lng, s.lat])
+            })
 
             // O trecho "até a partida" (você → partida) é montado à parte,
             // pelo efeito abaixo, porque precisa se atualizar ao vivo.

@@ -18,7 +18,7 @@ import { shortAddress } from '@/lib/serviceBoard'
 import { getAvatarUrl } from '@/lib/avatar'
 import { computeSuggestedPrice, computeConditionExtras, getEffectivePricing, getCustomPricing, PLATFORM_DEFAULT_PRICING_BY_VEHICLE, DriverPricing, type RideConditionFlags } from '@/lib/driverPricing'
 import { playRideAlertSound, playNotificationSound } from '@/lib/rideAlertSound'
-import { useVoiceNavigation, speak } from '@/lib/voiceNavigation'
+import { useVoiceNavigation } from '@/lib/voiceNavigation'
 import { getProfileRideRatingsBatch, ProfileRideRating } from '@/lib/rideReviews'
 import { VehicleType, VehicleKind, VEHICLE_TYPE_LABELS, ridesAcceptableForVehicleKind, rideAcceptsAnyVehicle, kindForRideType } from '@/lib/rideVehicle'
 
@@ -171,14 +171,27 @@ interface RideRow {
     origin_lng: number | null
     destination_lat: number | null
     destination_lng: number | null
-    stop_address: string | null
-    stop_complement: string | null
-    stop_lat: number | null
-    stop_lng: number | null
+    stop1_address: string | null
+    stop1_complement: string | null
+    stop1_lat: number | null
+    stop1_lng: number | null
+    stop2_address: string | null
+    stop2_complement: string | null
+    stop2_lat: number | null
+    stop2_lng: number | null
     offered_price: number | null
     order_id: string | null
     store_id: string | null
     applicant_count: number
+}
+
+// Junta stop1/stop2 num array pro RideMiniMap/RideMapDialog (0 a 2 paradas,
+// só as que têm coordenada preenchida, na ordem).
+function rideStopsOf(ride: { stop1_lat: number | null; stop1_lng: number | null; stop2_lat: number | null; stop2_lng: number | null }): { lat: number; lng: number }[] {
+    const stops: { lat: number; lng: number }[] = []
+    if (ride.stop1_lat != null && ride.stop1_lng != null) stops.push({ lat: ride.stop1_lat, lng: ride.stop1_lng })
+    if (ride.stop2_lat != null && ride.stop2_lng != null) stops.push({ lat: ride.stop2_lat, lng: ride.stop2_lng })
+    return stops
 }
 
 const MAX_CANDIDATES = 5
@@ -217,11 +230,16 @@ interface AcceptedRideDetail {
     origin_lng: number | null
     destination_lat: number | null
     destination_lng: number | null
-    stop_address: string | null
-    stop_complement: string | null
-    stop_lat: number | null
-    stop_lng: number | null
-    stop_reached_at: string | null
+    stop1_address: string | null
+    stop1_complement: string | null
+    stop1_lat: number | null
+    stop1_lng: number | null
+    stop1_reached_at: string | null
+    stop2_address: string | null
+    stop2_complement: string | null
+    stop2_lat: number | null
+    stop2_lng: number | null
+    stop2_reached_at: string | null
     distance_km: number | null
     duration_min: number | null
     driver_en_route: boolean
@@ -345,9 +363,11 @@ export default function AceitarCorridasPage() {
     }, [acceptedRide?.id, acceptedRide?.driver_en_route, acceptedRide?.driver_arrived_at, acceptedRide?.ride_started_at])
 
     // ===== ORIENTAÇÃO POR VOZ: fala as manobras a caminho da partida, e
-    // depois a caminho da chegada. Se a corrida tem parada, a "chegada" vira
-    // duas pernas — até a parada, depois até o destino final — e a voz avisa
-    // no começo da corrida que tem uma parada no caminho. =====
+    // depois a caminho da chegada. Com paradas, a "chegada" vira uma sequência
+    // de pernas — 1ª parada (se não confirmada), 2ª parada (idem), destino
+    // final — a voz sempre mira na próxima ainda não confirmada. "Chegou na
+    // parada" é o motorista confirmando pelo botão (arriveAtStop), não a voz
+    // detectando sozinha. =====
     const voiceNavPhase: 'pickup' | 'trip' | null = !acceptedRide
         ? null
         : acceptedRide.ride_started_at
@@ -356,33 +376,50 @@ export default function AceitarCorridasPage() {
                 ? 'pickup'
                 : null
 
-    const hasVoiceNavStop = acceptedRide?.stop_lat != null && acceptedRide?.stop_lng != null
-
-    // "Chegou na parada" agora é o motorista confirmando pelo botão (ver
-    // arriveAtStop) — a voz só segue esse mesmo estado, sem detectar sozinha.
-    const voiceNavTargetsStop = voiceNavPhase === 'trip' && hasVoiceNavStop && !acceptedRide?.stop_reached_at
+    interface TripLeg { kind: 'stop1' | 'stop2' | 'destination'; lat: number; lng: number }
+    const tripLegs: TripLeg[] = []
+    if (acceptedRide?.stop1_lat != null && acceptedRide?.stop1_lng != null && !acceptedRide.stop1_reached_at) {
+        tripLegs.push({ kind: 'stop1', lat: acceptedRide.stop1_lat, lng: acceptedRide.stop1_lng })
+    }
+    if (acceptedRide?.stop2_lat != null && acceptedRide?.stop2_lng != null && !acceptedRide.stop2_reached_at) {
+        tripLegs.push({ kind: 'stop2', lat: acceptedRide.stop2_lat, lng: acceptedRide.stop2_lng })
+    }
+    if (acceptedRide?.destination_lat != null && acceptedRide?.destination_lng != null) {
+        tripLegs.push({ kind: 'destination', lat: acceptedRide.destination_lat, lng: acceptedRide.destination_lng })
+    }
+    const currentTripLeg = voiceNavPhase === 'trip' ? tripLegs[0] || null : null
 
     const voiceNavTarget: [number, number] | null =
         voiceNavPhase === 'pickup' && acceptedRide?.origin_lat != null && acceptedRide?.origin_lng != null
             ? [acceptedRide.origin_lng, acceptedRide.origin_lat]
-            : voiceNavPhase === 'trip'
-                ? voiceNavTargetsStop && acceptedRide?.stop_lat != null && acceptedRide?.stop_lng != null
-                    ? [acceptedRide.stop_lng, acceptedRide.stop_lat]
-                    : acceptedRide?.destination_lat != null && acceptedRide?.destination_lng != null
-                        ? [acceptedRide.destination_lng, acceptedRide.destination_lat]
-                        : null
+            : currentTripLeg
+                ? [currentTripLeg.lng, currentTripLeg.lat]
                 : null
 
-    const voiceNavIntro = voiceNavTargetsStop && acceptedRide?.stop_address
-        ? `Iniciando orientação por voz. Você tem uma parada em ${shortAddress(acceptedRide.stop_address)} antes do destino final.`
-        : undefined
+    const voiceNavIntro = (() => {
+        if (!currentTripLeg || !acceptedRide) return undefined
+        if (currentTripLeg.kind === 'stop1') {
+            const hasSecond = acceptedRide.stop2_lat != null && acceptedRide.stop2_lng != null
+            const first = acceptedRide.stop1_address ? shortAddress(acceptedRide.stop1_address) : 'perto dali'
+            return hasSecond
+                ? `Iniciando orientação por voz. Você tem 2 paradas antes do destino final. Primeira parada em ${first}.`
+                : `Iniciando orientação por voz. Você tem uma parada em ${first} antes do destino final.`
+        }
+        if (currentTripLeg.kind === 'stop2') {
+            const second = acceptedRide.stop2_address ? shortAddress(acceptedRide.stop2_address) : 'perto dali'
+            return `Parada concluída. Segunda parada em ${second}.`
+        }
+        // destination: só anuncia "seguindo pro destino" se veio de alguma parada
+        const hadAnyStop = acceptedRide.stop1_lat != null
+        return hadAnyStop ? 'Parada concluída. Seguindo para o destino final.' : undefined
+    })()
 
     useVoiceNavigation({
         enabled: voiceNavEnabled,
         active: !!voiceNavPhase && !!voiceNavTarget,
         driverCoords,
         targetCoords: voiceNavTarget,
-        legKey: acceptedRide && voiceNavPhase ? `${acceptedRide.id}-${voiceNavPhase}-${voiceNavTargetsStop ? 'stop' : 'final'}` : null,
+        legKey: acceptedRide && voiceNavPhase ? `${acceptedRide.id}-${voiceNavPhase}-${currentTripLeg?.kind || 'none'}` : null,
         introMessage: voiceNavIntro,
     })
 
@@ -495,7 +532,7 @@ export default function AceitarCorridasPage() {
 
         const { data: openRides } = await supabase
             .from('ride_requests')
-            .select('id, requester_id, ride_type, origin_address, destination_address, origin_complement, destination_complement, notes, passenger_count, vehicle_type, object_description, object_is_sensitive, pet_description, has_child, children_count, child_age, child_needs_car_seat, has_shopping, bag_count, has_extra_object, extra_object_description, has_pet, pet_weight_range, pet_has_carrier, has_special_needs, special_needs_description, special_needs_wheelchair, special_needs_wheelchair_type, special_needs_visual_impairment, has_guide_dog, delivery_location, payment_method, cash_change_for, card_is_contactless, origin_needs_access, origin_access_notes, destination_needs_access, destination_access_notes, grocery_bag_size, wants_air_conditioning, distance_km, duration_min, scheduled_for, created_at, origin_lat, origin_lng, destination_lat, destination_lng, stop_address, stop_complement, stop_lat, stop_lng, offered_price, order_id, store_id')
+            .select('id, requester_id, ride_type, origin_address, destination_address, origin_complement, destination_complement, notes, passenger_count, vehicle_type, object_description, object_is_sensitive, pet_description, has_child, children_count, child_age, child_needs_car_seat, has_shopping, bag_count, has_extra_object, extra_object_description, has_pet, pet_weight_range, pet_has_carrier, has_special_needs, special_needs_description, special_needs_wheelchair, special_needs_wheelchair_type, special_needs_visual_impairment, has_guide_dog, delivery_location, payment_method, cash_change_for, card_is_contactless, origin_needs_access, origin_access_notes, destination_needs_access, destination_access_notes, grocery_bag_size, wants_air_conditioning, distance_km, duration_min, scheduled_for, created_at, origin_lat, origin_lng, destination_lat, destination_lng, stop1_address, stop1_complement, stop1_lat, stop1_lng, stop2_address, stop2_complement, stop2_lat, stop2_lng, offered_price, order_id, store_id')
             .eq('status', 'pending')
             .neq('requester_id', contextUserId)
             .order('scheduled_for', { ascending: true, nullsFirst: true })
@@ -526,7 +563,7 @@ export default function AceitarCorridasPage() {
         if (myApplications.length > 0) {
             const { data } = await supabase
                 .from('ride_requests')
-                .select('id, requester_id, ride_type, origin_address, destination_address, origin_complement, destination_complement, notes, passenger_count, vehicle_type, object_description, object_is_sensitive, pet_description, has_child, children_count, child_age, child_needs_car_seat, has_shopping, bag_count, has_extra_object, extra_object_description, has_pet, pet_weight_range, pet_has_carrier, has_special_needs, special_needs_description, special_needs_wheelchair, special_needs_wheelchair_type, special_needs_visual_impairment, has_guide_dog, delivery_location, payment_method, cash_change_for, card_is_contactless, origin_needs_access, origin_access_notes, destination_needs_access, destination_access_notes, grocery_bag_size, wants_air_conditioning, distance_km, duration_min, scheduled_for, created_at, origin_lat, origin_lng, destination_lat, destination_lng, stop_address, stop_complement, stop_lat, stop_lng, offered_price, order_id, store_id')
+                .select('id, requester_id, ride_type, origin_address, destination_address, origin_complement, destination_complement, notes, passenger_count, vehicle_type, object_description, object_is_sensitive, pet_description, has_child, children_count, child_age, child_needs_car_seat, has_shopping, bag_count, has_extra_object, extra_object_description, has_pet, pet_weight_range, pet_has_carrier, has_special_needs, special_needs_description, special_needs_wheelchair, special_needs_wheelchair_type, special_needs_visual_impairment, has_guide_dog, delivery_location, payment_method, cash_change_for, card_is_contactless, origin_needs_access, origin_access_notes, destination_needs_access, destination_access_notes, grocery_bag_size, wants_air_conditioning, distance_km, duration_min, scheduled_for, created_at, origin_lat, origin_lng, destination_lat, destination_lng, stop1_address, stop1_complement, stop1_lat, stop1_lng, stop2_address, stop2_complement, stop2_lat, stop2_lng, offered_price, order_id, store_id')
                 .in('id', myApplications.map((a) => a.ride_request_id))
                 .eq('status', 'pending')
             myRideRows = data || []
@@ -629,7 +666,7 @@ export default function AceitarCorridasPage() {
         // definido no momento em que o pedido dele vira "accepted".
         const { data: acceptedRow } = await supabase
             .from('ride_requests')
-            .select('id, requester_id, vehicle_type, origin_address, destination_address, origin_complement, destination_complement, origin_lat, origin_lng, destination_lat, destination_lng, stop_address, stop_complement, stop_lat, stop_lng, stop_reached_at, distance_km, duration_min, driver_en_route, driver_arrived_at, ride_started_at, extra_task_minutes, extra_task_fee, extra_task_description')
+            .select('id, requester_id, vehicle_type, origin_address, destination_address, origin_complement, destination_complement, origin_lat, origin_lng, destination_lat, destination_lng, stop1_address, stop1_complement, stop1_lat, stop1_lng, stop1_reached_at, stop2_address, stop2_complement, stop2_lat, stop2_lng, stop2_reached_at, distance_km, duration_min, driver_en_route, driver_arrived_at, ride_started_at, extra_task_minutes, extra_task_fee, extra_task_description')
             .eq('driver_id', contextUserId)
             .eq('status', 'accepted')
             .order('created_at', { ascending: false })
@@ -654,11 +691,16 @@ export default function AceitarCorridasPage() {
                 origin_lng: acceptedRow.origin_lng,
                 destination_lat: acceptedRow.destination_lat,
                 destination_lng: acceptedRow.destination_lng,
-                stop_address: acceptedRow.stop_address,
-                stop_complement: acceptedRow.stop_complement,
-                stop_lat: acceptedRow.stop_lat,
-                stop_lng: acceptedRow.stop_lng,
-                stop_reached_at: acceptedRow.stop_reached_at,
+                stop1_address: acceptedRow.stop1_address,
+                stop1_complement: acceptedRow.stop1_complement,
+                stop1_lat: acceptedRow.stop1_lat,
+                stop1_lng: acceptedRow.stop1_lng,
+                stop1_reached_at: acceptedRow.stop1_reached_at,
+                stop2_address: acceptedRow.stop2_address,
+                stop2_complement: acceptedRow.stop2_complement,
+                stop2_lat: acceptedRow.stop2_lat,
+                stop2_lng: acceptedRow.stop2_lng,
+                stop2_reached_at: acceptedRow.stop2_reached_at,
                 distance_km: acceptedRow.distance_km,
                 duration_min: acceptedRow.duration_min,
                 driver_en_route: acceptedRow.driver_en_route,
@@ -986,16 +1028,19 @@ export default function AceitarCorridasPage() {
     // finalizar a corrida antes de realmente chegar lá.
     const FINISH_RADIUS_METERS = 100
 
-    // Confirmação de chegada na parada — mesma trava por GPS de "cheguei ao
-    // destino". Precisa disso feito antes de poder concluir a corrida.
-    const arriveAtStop = async () => {
-        if (!acceptedRide || acceptedRide.stop_lat == null || acceptedRide.stop_lng == null) return
+    // Confirmação de chegada numa parada (1ª ou 2ª) — mesma trava por GPS de
+    // "cheguei ao destino". Precisa disso feito antes de poder concluir a corrida.
+    const arriveAtStop = async (stopNumber: 1 | 2) => {
+        if (!acceptedRide) return
+        const lat = stopNumber === 1 ? acceptedRide.stop1_lat : acceptedRide.stop2_lat
+        const lng = stopNumber === 1 ? acceptedRide.stop1_lng : acceptedRide.stop2_lng
+        if (lat == null || lng == null) return
         setArrivingStop(true)
         getNativeCurrentPosition(
             async (pos) => {
                 const distanceMeters = haversineKm(
                     [pos.coords.longitude, pos.coords.latitude],
-                    [acceptedRide.stop_lng as number, acceptedRide.stop_lat as number]
+                    [lng as number, lat as number]
                 ) * 1000
                 if (distanceMeters > FINISH_RADIUS_METERS) {
                     toast.error(`Você está a ${Math.round(distanceMeters)} m da parada. Chegue a até ${FINISH_RADIUS_METERS} m pra confirmar.`)
@@ -1004,14 +1049,14 @@ export default function AceitarCorridasPage() {
                 }
                 try {
                     const now = new Date().toISOString()
+                    const field = stopNumber === 1 ? 'stop1_reached_at' : 'stop2_reached_at'
                     const { error } = await supabase
                         .from('ride_requests')
-                        .update({ stop_reached_at: now })
+                        .update({ [field]: now })
                         .eq('id', acceptedRide.id)
                     if (error) throw error
-                    setAcceptedRide((prev) => (prev ? { ...prev, stop_reached_at: now } : prev))
-                    toast.success('Parada confirmada! Agora é seguir para o destino.')
-                    if (voiceNavEnabled) speak('Parada concluída. Seguindo para o destino final.')
+                    setAcceptedRide((prev) => (prev ? { ...prev, [field]: now } : prev))
+                    toast.success('Parada confirmada!')
                 } catch (err: any) {
                     toast.error('Erro ao confirmar a parada: ' + (err.message || 'tente novamente'))
                 } finally {
@@ -1032,8 +1077,12 @@ export default function AceitarCorridasPage() {
             toast.error('Inicie a corrida antes de concluir.')
             return
         }
-        if (acceptedRide.stop_lat != null && acceptedRide.stop_lng != null && !acceptedRide.stop_reached_at) {
-            toast.error('Confirme a chegada na parada antes de concluir a corrida.')
+        if (acceptedRide.stop1_lat != null && acceptedRide.stop1_lng != null && !acceptedRide.stop1_reached_at) {
+            toast.error('Confirme a chegada na 1ª parada antes de concluir a corrida.')
+            return
+        }
+        if (acceptedRide.stop2_lat != null && acceptedRide.stop2_lng != null && !acceptedRide.stop2_reached_at) {
+            toast.error('Confirme a chegada na 2ª parada antes de concluir a corrida.')
             return
         }
         if (acceptedRide.destination_lat == null || acceptedRide.destination_lng == null) {
@@ -1294,8 +1343,7 @@ export default function AceitarCorridasPage() {
                                                 originLng={ride.origin_lng}
                                                 destLat={ride.destination_lat}
                                                 destLng={ride.destination_lng}
-                                                stopLat={ride.stop_lat}
-                                                stopLng={ride.stop_lng}
+                                                stops={rideStopsOf(ride)}
                                                 driverLat={driverCoords ? driverCoords[1] : null}
                                                 driverLng={driverCoords ? driverCoords[0] : null}
                                                 onExpand={() => setMapDialogRideId(ride.id)}
@@ -1304,7 +1352,7 @@ export default function AceitarCorridasPage() {
 
                                         <div className="flex items-start gap-2 text-xs mb-1" style={{ color: colors.textSecondary }}>
                                             <MapPin size={12} className="flex-shrink-0 mt-0.5" />
-                                            <span>{shortAddress(ride.origin_address)}{ride.stop_address ? ` → ${shortAddress(ride.stop_address)}` : ''} → {shortAddress(ride.destination_address)}</span>
+                                            <span>{shortAddress(ride.origin_address)}{ride.stop1_address ? ` → ${shortAddress(ride.stop1_address)}` : ''}{ride.stop2_address ? ` → ${shortAddress(ride.stop2_address)}` : ''} → {shortAddress(ride.destination_address)}</span>
                                         </div>
 
                                         <div className="flex items-center gap-2 text-[11px] mb-2" style={{ color: colors.textSecondary }}>
@@ -1508,8 +1556,7 @@ export default function AceitarCorridasPage() {
                                                 originLng={ride.origin_lng}
                                                 destLat={ride.destination_lat}
                                                 destLng={ride.destination_lng}
-                                                stopLat={ride.stop_lat}
-                                                stopLng={ride.stop_lng}
+                                                stops={rideStopsOf(ride)}
                                                 driverLat={driverCoords ? driverCoords[1] : null}
                                                 driverLng={driverCoords ? driverCoords[0] : null}
                                                 onExpand={() => setMapDialogRideId(ride.id)}
@@ -1518,7 +1565,7 @@ export default function AceitarCorridasPage() {
 
                                         <div className="flex items-start gap-2 text-xs mb-1" style={{ color: colors.textSecondary }}>
                                             <MapPin size={12} className="flex-shrink-0 mt-0.5" />
-                                            <span>{shortAddress(ride.origin_address)}{ride.stop_address ? ` → ${shortAddress(ride.stop_address)}` : ''} → {shortAddress(ride.destination_address)}</span>
+                                            <span>{shortAddress(ride.origin_address)}{ride.stop1_address ? ` → ${shortAddress(ride.stop1_address)}` : ''}{ride.stop2_address ? ` → ${shortAddress(ride.stop2_address)}` : ''} → {shortAddress(ride.destination_address)}</span>
                                         </div>
 
                                         <div className="flex items-center gap-2 text-[11px] mb-2" style={{ color: colors.textSecondary }}>
@@ -1601,8 +1648,7 @@ export default function AceitarCorridasPage() {
                                     originLng={acceptedRide.origin_lng}
                                     destLat={acceptedRide.destination_lat}
                                     destLng={acceptedRide.destination_lng}
-                                    stopLat={acceptedRide.stop_lat}
-                                    stopLng={acceptedRide.stop_lng}
+                                    stops={rideStopsOf(acceptedRide)}
                                     driverLat={driverCoords ? driverCoords[1] : null}
                                     driverLng={driverCoords ? driverCoords[0] : null}
                                     onExpand={() => setMapDialogRideId(acceptedRide.id)}
@@ -1611,15 +1657,18 @@ export default function AceitarCorridasPage() {
 
                             <div className="flex items-start gap-2 text-xs mb-1" style={{ color: colors.textSecondary }}>
                                 <MapPin size={12} className="flex-shrink-0 mt-0.5" />
-                                <span>{shortAddress(acceptedRide.origin_address)}{acceptedRide.stop_address ? ` → ${shortAddress(acceptedRide.stop_address)}` : ''} → {shortAddress(acceptedRide.destination_address)}</span>
+                                <span>{shortAddress(acceptedRide.origin_address)}{acceptedRide.stop1_address ? ` → ${shortAddress(acceptedRide.stop1_address)}` : ''}{acceptedRide.stop2_address ? ` → ${shortAddress(acceptedRide.stop2_address)}` : ''} → {shortAddress(acceptedRide.destination_address)}</span>
                             </div>
-                            {(acceptedRide.origin_complement || acceptedRide.stop_complement || acceptedRide.destination_complement) && (
+                            {(acceptedRide.origin_complement || acceptedRide.stop1_complement || acceptedRide.stop2_complement || acceptedRide.destination_complement) && (
                                 <div className="flex flex-col gap-0.5 text-[11px] mb-2" style={{ color: colors.textSecondary }}>
                                     {acceptedRide.origin_complement && (
                                         <span>📍 Origem: {acceptedRide.origin_complement}</span>
                                     )}
-                                    {acceptedRide.stop_complement && (
-                                        <span>🚩 Parada: {acceptedRide.stop_complement}</span>
+                                    {acceptedRide.stop1_complement && (
+                                        <span>🚩 Parada 1: {acceptedRide.stop1_complement}</span>
+                                    )}
+                                    {acceptedRide.stop2_complement && (
+                                        <span>🚩 Parada 2: {acceptedRide.stop2_complement}</span>
                                     )}
                                     {acceptedRide.destination_complement && (
                                         <span>📍 Destino: {acceptedRide.destination_complement}</span>
@@ -1737,27 +1786,48 @@ export default function AceitarCorridasPage() {
                                 </button>
                             )}
 
-                            {acceptedRide.ride_started_at && acceptedRide.stop_lat != null && acceptedRide.stop_lng != null && !acceptedRide.stop_reached_at && (
-                                <button
-                                    onClick={arriveAtStop}
-                                    disabled={arrivingStop}
-                                    className="w-full mt-2 py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all disabled:opacity-70 flex items-center justify-center gap-2"
-                                    style={{ background: '#eab308', color: '#fff' }}
-                                >
-                                    {arrivingStop ? <Spinner size={14} /> : <><MapPin size={14} /> Cheguei na parada</>}
-                                </button>
-                            )}
+                            {(() => {
+                                const hasStop1 = acceptedRide.stop1_lat != null && acceptedRide.stop1_lng != null
+                                const stop1Done = !hasStop1 || !!acceptedRide.stop1_reached_at
+                                const hasStop2 = acceptedRide.stop2_lat != null && acceptedRide.stop2_lng != null
+                                const stop2Done = !hasStop2 || !!acceptedRide.stop2_reached_at
+                                return (
+                                    <>
+                                        {acceptedRide.ride_started_at && hasStop1 && !stop1Done && (
+                                            <button
+                                                onClick={() => arriveAtStop(1)}
+                                                disabled={arrivingStop}
+                                                className="w-full mt-2 py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all disabled:opacity-70 flex items-center justify-center gap-2"
+                                                style={{ background: '#eab308', color: '#fff' }}
+                                            >
+                                                {arrivingStop ? <Spinner size={14} /> : <><MapPin size={14} /> Cheguei na 1ª parada</>}
+                                            </button>
+                                        )}
 
-                            {acceptedRide.ride_started_at && (acceptedRide.stop_lat == null || acceptedRide.stop_lng == null || acceptedRide.stop_reached_at) && (
-                                <button
-                                    onClick={finishAcceptedRide}
-                                    disabled={finishing}
-                                    className="w-full mt-2 py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all disabled:opacity-70 flex items-center justify-center gap-2"
-                                    style={{ background: '#22c55e', color: '#fff' }}
-                                >
-                                    {finishing ? <Spinner size={14} /> : <><Flag size={14} /> Cheguei ao destino</>}
-                                </button>
-                            )}
+                                        {acceptedRide.ride_started_at && stop1Done && hasStop2 && !stop2Done && (
+                                            <button
+                                                onClick={() => arriveAtStop(2)}
+                                                disabled={arrivingStop}
+                                                className="w-full mt-2 py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all disabled:opacity-70 flex items-center justify-center gap-2"
+                                                style={{ background: '#eab308', color: '#fff' }}
+                                            >
+                                                {arrivingStop ? <Spinner size={14} /> : <><MapPin size={14} /> Cheguei na 2ª parada</>}
+                                            </button>
+                                        )}
+
+                                        {acceptedRide.ride_started_at && stop1Done && stop2Done && (
+                                            <button
+                                                onClick={finishAcceptedRide}
+                                                disabled={finishing}
+                                                className="w-full mt-2 py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all disabled:opacity-70 flex items-center justify-center gap-2"
+                                                style={{ background: '#22c55e', color: '#fff' }}
+                                            >
+                                                {finishing ? <Spinner size={14} /> : <><Flag size={14} /> Cheguei ao destino</>}
+                                            </button>
+                                        )}
+                                    </>
+                                )
+                            })()}
 
                             <button
                                 onClick={cancelAcceptedRide}
@@ -1805,8 +1875,7 @@ export default function AceitarCorridasPage() {
                         originLng={ride.origin_lng}
                         destLat={ride.destination_lat}
                         destLng={ride.destination_lng}
-                        stopLat={ride.stop_lat}
-                        stopLng={ride.stop_lng}
+                        stops={rideStopsOf(ride)}
                         driverLat={driverCoords ? driverCoords[1] : null}
                         driverLng={driverCoords ? driverCoords[0] : null}
                         vehicleKind={vehicleIconForRide(ride.vehicle_type, myVehicleKinds)}

@@ -24,12 +24,13 @@ mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 const DEFAULT_CENTER: [number, number] = [-63.9039, -8.7612] // Porto Velho
 
-type FieldKind = 'origin' | 'destination' | 'stop'
+type FieldKind = 'origin' | 'destination' | 'stop0' | 'stop1'
 
 const FIELD_LABEL: Record<FieldKind, string> = {
     origin: 'Mova o mapa até a partida',
     destination: 'Mova o mapa até a chegada',
-    stop: 'Mova o mapa até a parada',
+    stop0: 'Mova o mapa até a 1ª parada',
+    stop1: 'Mova o mapa até a 2ª parada',
 }
 
 async function reverseGeocode(lng: number, lat: number): Promise<string | null> {
@@ -59,7 +60,7 @@ export default function EscolherLocalPage() {
     useEffect(() => {
         if (typeof window === 'undefined') return
         const f = new URLSearchParams(window.location.search).get('field')
-        if (f === 'origin' || f === 'destination' || f === 'stop') setField(f)
+        if (f === 'origin' || f === 'destination' || f === 'stop0' || f === 'stop1') setField(f)
         else router.replace('/pedir-motorista')
     }, [router])
 
@@ -69,8 +70,12 @@ export default function EscolherLocalPage() {
         if (!field || !mapContainerRef.current || mapRef.current) return
 
         const draft = loadRideDraft()
+        const currentForField =
+            field === 'origin' ? draft?.origin
+                : field === 'destination' ? draft?.destination
+                    : draft?.stops?.[field === 'stop0' ? 0 : 1]
         const start: [number, number] =
-            draft?.[field]?.coords || draft?.origin?.coords || draft?.destination?.coords || DEFAULT_CENTER
+            currentForField?.coords || draft?.origin?.coords || draft?.destination?.coords || DEFAULT_CENTER
 
         const map = new mapboxgl.Map({
             container: mapContainerRef.current,
@@ -114,7 +119,15 @@ export default function EscolherLocalPage() {
         }
 
         const draft = loadRideDraft() || {}
-        draft[field] = place
+        if (field === 'origin' || field === 'destination') {
+            draft[field] = place
+        } else {
+            const idx = field === 'stop0' ? 0 : 1
+            const stops = Array.isArray(draft.stops) ? [...draft.stops] : []
+            while (stops.length <= idx) stops.push({ address: '', coords: null, complement: '', complementOpen: false })
+            stops[idx] = { ...stops[idx], address: place.address, coords: place.coords }
+            draft.stops = stops
+        }
         saveRideDraft({ ...draft, fromMapPicker: true })
         router.push('/pedir-motorista')
     }

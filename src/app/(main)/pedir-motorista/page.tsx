@@ -62,12 +62,18 @@ const AVERAGE_SPEED_KMH = 40
 
 type Step = 'type' | 'where' | 'access' | 'details'
 type RequestFor = 'pessoa' | 'objeto' | 'animal'
-type ActiveField = 'origin' | 'destination' | 'stop' | null
+// 'stop0'/'stop1' = 1ª/2ª parada (até 2, por posição na lista `stops`).
+type ActiveField = 'origin' | 'destination' | 'stop0' | 'stop1' | null
 type ObjectSize = 'pequeno' | 'medio' | 'grande'
 
 interface Place {
     address: string
     coords: [number, number] | null
+}
+
+interface RideStop extends Place {
+    complement: string
+    complementOpen: boolean
 }
 
 interface RouteOption {
@@ -394,7 +400,7 @@ export default function PedirMotoristaPage() {
     const mapRef = useRef<mapboxgl.Map | null>(null)
     const originMarkerRef = useRef<mapboxgl.Marker | null>(null)
     const destMarkerRef = useRef<mapboxgl.Marker | null>(null)
-    const stopMarkerRef = useRef<mapboxgl.Marker | null>(null)
+    const stopMarkerRefs = useRef<(mapboxgl.Marker | null)[]>([null, null])
     const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
     const [mapReady, setMapReady] = useState(false)
@@ -406,11 +412,14 @@ export default function PedirMotoristaPage() {
     const [vehicleTypeChoice, setVehicleTypeChoice] = useState<'carro' | 'moto' | 'bicicleta' | 'qualquer'>('carro')
     const [origin, setOrigin] = useState<Place>({ address: '', coords: null })
     const [destination, setDestination] = useState<Place>({ address: '', coords: null })
-    // ===== PARADA (opcional, entre a partida e a chegada) =====
-    const [showStop, setShowStop] = useState(false)
-    const [stop, setStop] = useState<Place>({ address: '', coords: null })
-    const [stopComplement, setStopComplement] = useState('')
-    const [showStopComplement, setShowStopComplement] = useState(false)
+    // ===== PARADAS (opcional, até 2, entre a partida e a chegada) =====
+    const [stops, setStops] = useState<RideStop[]>([])
+    const addStop = () => setStops((prev) => (prev.length >= 2 ? prev : [...prev, { address: '', coords: null, complement: '', complementOpen: false }]))
+    const removeStop = (index: number) => setStops((prev) => prev.filter((_, i) => i !== index))
+    const updateStopComplement = (index: number, value: string) =>
+        setStops((prev) => prev.map((s, i) => (i === index ? { ...s, complement: value } : s)))
+    const openStopComplement = (index: number) =>
+        setStops((prev) => prev.map((s, i) => (i === index ? { ...s, complementOpen: true } : s)))
     const [recentOrigins, setRecentOrigins] = useState<RecentRideOrigin[]>([])
     const [recentDestinations, setRecentDestinations] = useState<RecentRideDestination[]>([])
     const [activeField, setActiveField] = useState<ActiveField>(null)
@@ -792,14 +801,7 @@ export default function PedirMotoristaPage() {
             setDestinationComplement(draft.destinationComplement)
             if (draft.destinationComplement.trim()) setShowDestinationComplement(true)
         }
-        if (draft.stop) {
-            setStop(draft.stop)
-            setShowStop(true)
-        }
-        if (typeof draft.stopComplement === 'string') {
-            setStopComplement(draft.stopComplement)
-            if (draft.stopComplement.trim()) setShowStopComplement(true)
-        }
+        if (Array.isArray(draft.stops)) setStops(draft.stops)
         if (typeof draft.originNeedsAccess === 'boolean') setOriginNeedsAccess(draft.originNeedsAccess)
         if (typeof draft.originAccessNotes === 'string') setOriginAccessNotes(draft.originAccessNotes)
         if (typeof draft.destinationNeedsAccess === 'boolean') setDestinationNeedsAccess(draft.destinationNeedsAccess)
@@ -838,27 +840,28 @@ export default function PedirMotoristaPage() {
             destMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: 'bottom' }).setLngLat(destination.coords).addTo(map)
         }
 
-        if (stopMarkerRef.current) stopMarkerRef.current.remove()
-        if (showStop && stop.coords) {
+        stopMarkerRefs.current.forEach((m) => m?.remove())
+        stopMarkerRefs.current = stops.map((s, i) => {
+            if (!s.coords) return null
             const el = document.createElement('div')
             el.style.cssText = 'display:flex;flex-direction:column;align-items:center;'
             el.innerHTML = `
-                <div style="background:#eab308;color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:9999px;margin-bottom:4px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,0.35);">Parada</div>
+                <div style="background:#eab308;color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:9999px;margin-bottom:4px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,0.35);">Parada ${i + 1}</div>
                 <div style="width:16px;height:16px;border-radius:50%;background:#eab308;border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.4);"></div>
             `
-            stopMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: 'bottom' }).setLngLat(stop.coords).addTo(map)
-        }
+            return new mapboxgl.Marker({ element: el, anchor: 'bottom' }).setLngLat(s.coords).addTo(map)
+        })
 
         if (origin.coords && destination.coords && !route) {
             const bounds = new mapboxgl.LngLatBounds(origin.coords, origin.coords)
             bounds.extend(destination.coords)
-            if (showStop && stop.coords) bounds.extend(stop.coords)
+            stops.forEach((s) => { if (s.coords) bounds.extend(s.coords as [number, number]) })
             map.fitBounds(bounds, { padding: 100, duration: 800 })
         }
-    }, [mapReady, origin.coords, destination.coords, route, showStop, stop.coords])
+    }, [mapReady, origin.coords, destination.coords, route, stops])
 
-    // ===== BUSCA DA ROTA (uma só, sem alternativas — com parada, soma as duas
-    // pernas: partida → parada → chegada, num único trajeto/distância) =====
+    // ===== BUSCA DA ROTA (uma só, sem alternativas — com paradas, soma cada
+    // perna: partida → parada 1 → parada 2 → chegada, num trajeto só) =====
     useEffect(() => {
         if (!origin.coords || !destination.coords) {
             setRoute(null)
@@ -868,22 +871,22 @@ export default function PedirMotoristaPage() {
         let cancelled = false
         setLoadingRoutes(true)
 
-        const stopCoords = showStop ? stop.coords : null
+        const waypoints: [number, number][] = [
+            origin.coords,
+            ...stops.filter((s) => s.coords).map((s) => s.coords as [number, number]),
+            destination.coords,
+        ]
 
         const build = async () => {
-            if (stopCoords) {
-                const [leg1, leg2] = await Promise.all([
-                    fetchRoute(origin.coords as [number, number], stopCoords),
-                    fetchRoute(stopCoords, destination.coords as [number, number]),
-                ])
-                if (!leg1 || !leg2) return null
-                return {
-                    coords: [...leg1.coords, ...leg2.coords],
-                    distanceKm: leg1.distanceKm + leg2.distanceKm,
-                    durationMin: leg1.durationMin + leg2.durationMin,
-                }
+            const legs = await Promise.all(
+                waypoints.slice(0, -1).map((from, i) => fetchRoute(from, waypoints[i + 1]))
+            )
+            if (legs.some((leg) => !leg)) return null
+            return {
+                coords: legs.flatMap((leg) => leg!.coords),
+                distanceKm: legs.reduce((sum, leg) => sum + leg!.distanceKm, 0),
+                durationMin: legs.reduce((sum, leg) => sum + leg!.durationMin, 0),
             }
-            return fetchRoute(origin.coords as [number, number], destination.coords as [number, number])
         }
 
         build().then((result) => {
@@ -895,7 +898,7 @@ export default function PedirMotoristaPage() {
         return () => {
             cancelled = true
         }
-    }, [origin.coords, destination.coords, showStop, stop.coords])
+    }, [origin.coords, destination.coords, stops])
 
     // ===== DESENHA A ROTA NO MAPA =====
     useEffect(() => {
@@ -933,10 +936,13 @@ export default function PedirMotoristaPage() {
     }, [mapReady, route])
 
     // ===== BUSCA DE ENDEREÇO (autocomplete) =====
-    const handleAddressChange = (field: 'origin' | 'destination' | 'stop', value: string) => {
+    const handleAddressChange = (field: 'origin' | 'destination' | 'stop0' | 'stop1', value: string) => {
         if (field === 'origin') setOrigin({ address: value, coords: null })
         else if (field === 'destination') setDestination({ address: value, coords: null })
-        else setStop({ address: value, coords: null })
+        else {
+            const idx = field === 'stop0' ? 0 : 1
+            setStops((prev) => prev.map((s, i) => (i === idx ? { ...s, address: value, coords: null } : s)))
+        }
 
         setActiveField(field)
 
@@ -960,6 +966,13 @@ export default function PedirMotoristaPage() {
         setSuggestions([])
     }
 
+    const addressForField = (field: ActiveField): string =>
+        field === 'origin' ? origin.address
+            : field === 'destination' ? destination.address
+                : field === 'stop0' ? stops[0]?.address || ''
+                    : field === 'stop1' ? stops[1]?.address || ''
+                        : ''
+
     // Escolher local no mapa: leva pra uma página própria (rota isolada,
     // com seu próprio mapa) — mais estável do que uma camada por cima desta
     // tela, que ficava conflitando com o mapa e as etapas do pedido.
@@ -976,20 +989,22 @@ export default function PedirMotoristaPage() {
         saveRidePlace(contextUserId, field, place).catch(() => {})
     }
 
-    const selectSuggestion = (field: 'origin' | 'destination' | 'stop', suggestion: AddressSuggestion) => {
+    const selectSuggestion = (field: 'origin' | 'destination' | 'stop0' | 'stop1', suggestion: AddressSuggestion) => {
         const place = { address: suggestion.place_name, coords: suggestion.center }
         if (field === 'origin') {
             setOrigin(place)
             addRecentRideOrigin(place)
             setRecentOrigins(getRecentRideOrigins())
+            persistPlace(field, place)
         } else if (field === 'destination') {
             setDestination(place)
             addRecentRideDestination(place)
             setRecentDestinations(getRecentRideDestinations())
+            persistPlace(field, place)
         } else {
-            setStop(place)
+            const idx = field === 'stop0' ? 0 : 1
+            setStops((prev) => prev.map((s, i) => (i === idx ? { ...s, address: place.address, coords: place.coords } : s)))
         }
-        if (field !== 'stop') persistPlace(field, place)
         setSuggestions([])
         setActiveField(null)
     }
@@ -1201,7 +1216,7 @@ export default function PedirMotoristaPage() {
         objectDescription, objectIsSensitive, objectSize,
         senderName, senderWhatsapp, recipientName, recipientWhatsapp,
         originComplement, destinationComplement,
-        showStop, stop, stopComplement,
+        stops,
         originNeedsAccess, originAccessNotes, destinationNeedsAccess, destinationAccessNotes,
         deliveryLocation,
         hasSpecialNeeds, specialNeedsDescription,
@@ -1287,10 +1302,14 @@ export default function PedirMotoristaPage() {
                 origin_lng: origin.coords ? origin.coords[0] : null,
                 destination_lat: destination.coords ? destination.coords[1] : null,
                 destination_lng: destination.coords ? destination.coords[0] : null,
-                stop_address: showStop && stop.address.trim() ? stop.address.trim() : null,
-                stop_complement: showStop && stop.address.trim() && stopComplement.trim() ? stopComplement.trim() : null,
-                stop_lat: showStop && stop.coords ? stop.coords[1] : null,
-                stop_lng: showStop && stop.coords ? stop.coords[0] : null,
+                stop1_address: stops[0]?.address.trim() ? stops[0].address.trim() : null,
+                stop1_complement: stops[0]?.address.trim() && stops[0]?.complement.trim() ? stops[0].complement.trim() : null,
+                stop1_lat: stops[0]?.coords ? stops[0].coords[1] : null,
+                stop1_lng: stops[0]?.coords ? stops[0].coords[0] : null,
+                stop2_address: stops[1]?.address.trim() ? stops[1].address.trim() : null,
+                stop2_complement: stops[1]?.address.trim() && stops[1]?.complement.trim() ? stops[1].complement.trim() : null,
+                stop2_lat: stops[1]?.coords ? stops[1].coords[1] : null,
+                stop2_lng: stops[1]?.coords ? stops[1].coords[0] : null,
                 distance_km: route?.distanceKm ?? null,
                 duration_min: route?.durationMin ?? null,
                 scheduled_for: isScheduled ? new Date(scheduledFor).toISOString() : null,
@@ -1351,16 +1370,16 @@ export default function PedirMotoristaPage() {
                             <input
                                 autoFocus
                                 type="text"
-                                value={activeField === 'origin' ? origin.address : activeField === 'destination' ? destination.address : stop.address}
-                                onChange={(e) => handleAddressChange(activeField, e.target.value)}
+                                value={addressForField(activeField)}
+                                onChange={(e) => handleAddressChange(activeField as 'origin' | 'destination' | 'stop0' | 'stop1', e.target.value)}
                                 onKeyDown={handleSearchKeyDown}
-                                placeholder={activeField === 'origin' ? 'De onde você vai sair?' : activeField === 'destination' ? 'Local de chegada' : 'Onde vai ser a parada?'}
+                                placeholder={activeField === 'origin' ? 'De onde você vai sair?' : activeField === 'destination' ? 'Local de chegada' : activeField === 'stop0' ? 'Onde vai ser a 1ª parada?' : 'Onde vai ser a 2ª parada?'}
                                 className="w-full pl-9 pr-8 py-2.5 rounded-xl text-sm focus:outline-none"
                                 style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
                             />
-                            {(activeField === 'origin' ? origin.address : activeField === 'destination' ? destination.address : stop.address) && (
+                            {addressForField(activeField) && (
                                 <button
-                                    onClick={() => handleAddressChange(activeField, '')}
+                                    onClick={() => handleAddressChange(activeField as 'origin' | 'destination' | 'stop0' | 'stop1', '')}
                                     className="absolute right-2.5 top-1/2 -translate-y-1/2"
                                     style={{ color: colors.textSecondary }}
                                 >
@@ -1694,63 +1713,70 @@ export default function PedirMotoristaPage() {
                                 </div>
                             )}
 
-                            {/* Parada (opcional) — um ponto entre a partida e a chegada */}
-                            {!showStop ? (
+                            {/* Paradas (opcional, até 2) — pontos entre a partida e a chegada */}
+                            {stops.map((s, idx) => {
+                                const fieldId = idx === 0 ? 'stop0' : 'stop1'
+                                return (
+                                    <div key={idx} className="mt-3">
+                                        <div className="flex items-center justify-between mb-1.5">
+                                            <h3 className="text-sm font-black" style={{ color: colors.textPrimary }}>
+                                                Parada {idx + 1}
+                                            </h3>
+                                            <button
+                                                onClick={() => removeStop(idx)}
+                                                className="flex items-center gap-1 text-xs font-bold"
+                                                style={{ color: colors.textSecondary }}
+                                            >
+                                                <Trash2 size={12} />
+                                                Remover
+                                            </button>
+                                        </div>
+                                        <div className="flex items-center gap-3 px-4 py-3 rounded-2xl" style={{ border: `1px solid ${colors.border}` }}>
+                                            <Flag size={14} className="flex-shrink-0" style={{ color: '#eab308' }} />
+                                            <input
+                                                readOnly
+                                                onClick={() => openField(fieldId)}
+                                                value={s.address}
+                                                placeholder={`Onde vai ser a ${idx + 1}ª parada?`}
+                                                className="flex-1 bg-transparent text-sm focus:outline-none cursor-pointer"
+                                                style={inputStyle}
+                                            />
+                                            <button onClick={() => startPickingOnMap(fieldId)} className="flex-shrink-0" title="Escolher no mapa" style={{ color: colors.accent }}>
+                                                <MapIcon size={16} />
+                                            </button>
+                                        </div>
+                                        {s.complementOpen ? (
+                                            <input
+                                                type="text"
+                                                value={s.complement}
+                                                onChange={(e) => updateStopComplement(idx, e.target.value)}
+                                                autoFocus
+                                                placeholder="Complemento (opcional): casa amarela, portão de ferro, perto de..."
+                                                className="w-full mt-2 px-3 py-2 rounded-lg text-xs focus:outline-none"
+                                                style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                                            />
+                                        ) : (
+                                            <button
+                                                onClick={() => openStopComplement(idx)}
+                                                className="text-xs font-bold mt-2"
+                                                style={{ color: colors.accent }}
+                                            >
+                                                + Adicionar complemento
+                                            </button>
+                                        )}
+                                    </div>
+                                )
+                            })}
+
+                            {stops.length < 2 && (
                                 <button
-                                    onClick={() => setShowStop(true)}
+                                    onClick={addStop}
                                     className="flex items-center gap-1.5 text-xs font-bold mt-3"
                                     style={{ color: colors.accent }}
                                 >
                                     <Plus size={14} />
-                                    Adicionar parada
+                                    {stops.length === 0 ? 'Adicionar parada' : 'Adicionar outra parada'}
                                 </button>
-                            ) : (
-                                <div className="mt-3">
-                                    <div className="flex items-center justify-between mb-1.5">
-                                        <h3 className="text-sm font-black" style={{ color: colors.textPrimary }}>Parada</h3>
-                                        <button
-                                            onClick={() => { setShowStop(false); setStop({ address: '', coords: null }); setStopComplement(''); setShowStopComplement(false) }}
-                                            className="flex items-center gap-1 text-xs font-bold"
-                                            style={{ color: colors.textSecondary }}
-                                        >
-                                            <Trash2 size={12} />
-                                            Remover
-                                        </button>
-                                    </div>
-                                    <div className="flex items-center gap-3 px-4 py-3 rounded-2xl" style={{ border: `1px solid ${colors.border}` }}>
-                                        <Flag size={14} className="flex-shrink-0" style={{ color: '#eab308' }} />
-                                        <input
-                                            readOnly
-                                            onClick={() => openField('stop')}
-                                            value={stop.address}
-                                            placeholder="Onde vai ser a parada?"
-                                            className="flex-1 bg-transparent text-sm focus:outline-none cursor-pointer"
-                                            style={inputStyle}
-                                        />
-                                        <button onClick={() => startPickingOnMap('stop')} className="flex-shrink-0" title="Escolher no mapa" style={{ color: colors.accent }}>
-                                            <MapIcon size={16} />
-                                        </button>
-                                    </div>
-                                    {showStopComplement ? (
-                                        <input
-                                            type="text"
-                                            value={stopComplement}
-                                            onChange={(e) => setStopComplement(e.target.value)}
-                                            autoFocus
-                                            placeholder="Complemento (opcional): casa amarela, portão de ferro, perto de..."
-                                            className="w-full mt-2 px-3 py-2 rounded-lg text-xs focus:outline-none"
-                                            style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
-                                        />
-                                    ) : (
-                                        <button
-                                            onClick={() => setShowStopComplement(true)}
-                                            className="text-xs font-bold mt-2"
-                                            style={{ color: colors.accent }}
-                                        >
-                                            + Adicionar complemento
-                                        </button>
-                                    )}
-                                </div>
                             )}
 
                             {/* Rota (uma só, sem alternativas) — a distância/tempo aparece no mapa, no marcador de chegada */}
@@ -1771,7 +1797,7 @@ export default function PedirMotoristaPage() {
                                 </button>
                                 <button
                                     onClick={() => setStep('access')}
-                                    disabled={!origin.address.trim() || !destination.address.trim() || (showStop && !stop.address.trim())}
+                                    disabled={!origin.address.trim() || !destination.address.trim() || stops.some((s) => !s.address.trim())}
                                     className="flex-1 py-3.5 rounded-xl font-black uppercase text-sm tracking-wider transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:hover:scale-100"
                                     style={{ background: GRADIENT, color: '#fff' }}
                                 >

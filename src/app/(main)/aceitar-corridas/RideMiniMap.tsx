@@ -50,15 +50,14 @@ interface RideMiniMapProps {
     originLat: number
     destLng: number
     destLat: number
-    /** Parada opcional entre a partida e a chegada. */
-    stopLng?: number | null
-    stopLat?: number | null
+    /** Até 2 paradas opcionais entre a partida e a chegada, em ordem. */
+    stops?: { lng: number; lat: number }[]
     driverLng: number | null
     driverLat: number | null
     onExpand?: () => void
 }
 
-export default function RideMiniMap({ originLng, originLat, destLng, destLat, stopLng = null, stopLat = null, driverLng, driverLat, onExpand }: RideMiniMapProps) {
+export default function RideMiniMap({ originLng, originLat, destLng, destLat, stops = [], driverLng, driverLat, onExpand }: RideMiniMapProps) {
     const { colors } = useTheme()
     const [imgUrl, setImgUrl] = useState<string | null>(null)
     const [failed, setFailed] = useState(false)
@@ -67,7 +66,7 @@ export default function RideMiniMap({ originLng, originLat, destLng, destLat, st
     const [tripKm, setTripKm] = useState<number | null>(null)
     const [tripMin, setTripMin] = useState<number | null>(null)
     const hasDriver = driverLng != null && driverLat != null
-    const hasStop = stopLng != null && stopLat != null
+    const stopsKey = stops.map((s) => `${s.lng},${s.lat}`).join('|')
 
     useEffect(() => {
         let cancelled = false
@@ -88,23 +87,20 @@ export default function RideMiniMap({ originLng, originLat, destLng, destLat, st
                 overlays.push(`path-3+${TO_PICKUP_COLOR}-0.85(${encodeURIComponent(encodePolyline(offsetPolyline(leg.coords, 5)))})`)
             }
 
-            // Com parada, soma as duas pernas (partida→parada, parada→chegada)
+            // Com paradas, soma cada perna (partida→parada1→parada2→chegada)
             // num trajeto só, igual ao que a pessoa viu ao pedir a corrida.
-            const trip = hasStop
-                ? await Promise.all([
-                    fetchRoute([originLng, originLat], [stopLng as number, stopLat as number]),
-                    fetchRoute([stopLng as number, stopLat as number], [destLng, destLat]),
-                ]).then(([leg1, leg2]) => ({
-                    coords: [...leg1.coords, ...leg2.coords],
-                    distanceKm: leg1.distanceKm + leg2.distanceKm,
-                    durationMin: leg1.durationMin + leg2.durationMin,
-                }))
-                : await fetchRoute([originLng, originLat], [destLng, destLat])
+            const waypoints: [number, number][] = [[originLng, originLat], ...stops.map((s) => [s.lng, s.lat] as [number, number]), [destLng, destLat]]
+            const legs = await Promise.all(waypoints.slice(0, -1).map((from, i) => fetchRoute(from, waypoints[i + 1])))
+            const trip = {
+                coords: legs.flatMap((leg) => leg.coords),
+                distanceKm: legs.reduce((sum, leg) => sum + leg.distanceKm, 0),
+                durationMin: legs.reduce((sum, leg) => sum + leg.durationMin, 0),
+            }
             overlays.push(`path-4+${TRIP_COLOR}-0.9(${encodeURIComponent(encodePolyline(offsetPolyline(trip.coords, -5)))})`)
 
             if (hasDriver) overlays.push(`pin-s+${TO_PICKUP_COLOR}(${driverLng},${driverLat})`)
             overlays.push(`pin-s+22c55e(${originLng},${originLat})`)
-            if (hasStop) overlays.push(`pin-s+${STOP_COLOR}(${stopLng},${stopLat})`)
+            for (const s of stops) overlays.push(`pin-s+${STOP_COLOR}(${s.lng},${s.lat})`)
             overlays.push(`pin-s+ef4444(${destLng},${destLat})`)
 
             const url = `https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/${overlays.join(',')}/auto/500x220@2x?padding=40&access_token=${MAPBOX_TOKEN}`
@@ -120,7 +116,8 @@ export default function RideMiniMap({ originLng, originLat, destLng, destLat, st
         build().catch(() => { if (!cancelled) setFailed(true) })
 
         return () => { cancelled = true }
-    }, [originLng, originLat, destLng, destLat, stopLng, stopLat, hasStop, driverLng, driverLat, hasDriver])
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [originLng, originLat, destLng, destLat, stopsKey, driverLng, driverLat, hasDriver])
 
     if (failed) return null
 
