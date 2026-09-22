@@ -9,6 +9,7 @@ import { fetchRoute, offsetPolyline } from '@/lib/mapboxRoute'
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
 const TO_PICKUP_COLOR = '3b82f6' // azul: de você até o ponto de partida
 const TRIP_COLOR = 'f97316' // laranja: do ponto de partida até o destino
+const STOP_COLOR = 'eab308' // amarelo: pin da parada, quando existe
 
 // ===== POLYLINE ENCODING (algoritmo do Google, precisão 5 — mesma usada pela Static Images API) =====
 function encodeNumber(num: number): string {
@@ -49,12 +50,15 @@ interface RideMiniMapProps {
     originLat: number
     destLng: number
     destLat: number
+    /** Parada opcional entre a partida e a chegada. */
+    stopLng?: number | null
+    stopLat?: number | null
     driverLng: number | null
     driverLat: number | null
     onExpand?: () => void
 }
 
-export default function RideMiniMap({ originLng, originLat, destLng, destLat, driverLng, driverLat, onExpand }: RideMiniMapProps) {
+export default function RideMiniMap({ originLng, originLat, destLng, destLat, stopLng = null, stopLat = null, driverLng, driverLat, onExpand }: RideMiniMapProps) {
     const { colors } = useTheme()
     const [imgUrl, setImgUrl] = useState<string | null>(null)
     const [failed, setFailed] = useState(false)
@@ -63,6 +67,7 @@ export default function RideMiniMap({ originLng, originLat, destLng, destLat, dr
     const [tripKm, setTripKm] = useState<number | null>(null)
     const [tripMin, setTripMin] = useState<number | null>(null)
     const hasDriver = driverLng != null && driverLat != null
+    const hasStop = stopLng != null && stopLat != null
 
     useEffect(() => {
         let cancelled = false
@@ -83,11 +88,23 @@ export default function RideMiniMap({ originLng, originLat, destLng, destLat, dr
                 overlays.push(`path-3+${TO_PICKUP_COLOR}-0.85(${encodeURIComponent(encodePolyline(offsetPolyline(leg.coords, 5)))})`)
             }
 
-            const trip = await fetchRoute([originLng, originLat], [destLng, destLat])
+            // Com parada, soma as duas pernas (partida→parada, parada→chegada)
+            // num trajeto só, igual ao que a pessoa viu ao pedir a corrida.
+            const trip = hasStop
+                ? await Promise.all([
+                    fetchRoute([originLng, originLat], [stopLng as number, stopLat as number]),
+                    fetchRoute([stopLng as number, stopLat as number], [destLng, destLat]),
+                ]).then(([leg1, leg2]) => ({
+                    coords: [...leg1.coords, ...leg2.coords],
+                    distanceKm: leg1.distanceKm + leg2.distanceKm,
+                    durationMin: leg1.durationMin + leg2.durationMin,
+                }))
+                : await fetchRoute([originLng, originLat], [destLng, destLat])
             overlays.push(`path-4+${TRIP_COLOR}-0.9(${encodeURIComponent(encodePolyline(offsetPolyline(trip.coords, -5)))})`)
 
             if (hasDriver) overlays.push(`pin-s+${TO_PICKUP_COLOR}(${driverLng},${driverLat})`)
             overlays.push(`pin-s+22c55e(${originLng},${originLat})`)
+            if (hasStop) overlays.push(`pin-s+${STOP_COLOR}(${stopLng},${stopLat})`)
             overlays.push(`pin-s+ef4444(${destLng},${destLat})`)
 
             const url = `https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/${overlays.join(',')}/auto/500x220@2x?padding=40&access_token=${MAPBOX_TOKEN}`
@@ -103,7 +120,7 @@ export default function RideMiniMap({ originLng, originLat, destLng, destLat, dr
         build().catch(() => { if (!cancelled) setFailed(true) })
 
         return () => { cancelled = true }
-    }, [originLng, originLat, destLng, destLat, driverLng, driverLat, hasDriver])
+    }, [originLng, originLat, destLng, destLat, stopLng, stopLat, hasStop, driverLng, driverLat, hasDriver])
 
     if (failed) return null
 

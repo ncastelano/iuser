@@ -170,6 +170,10 @@ interface RideRow {
     origin_lng: number | null
     destination_lat: number | null
     destination_lng: number | null
+    stop_address: string | null
+    stop_complement: string | null
+    stop_lat: number | null
+    stop_lng: number | null
     offered_price: number | null
     order_id: string | null
     store_id: string | null
@@ -212,6 +216,10 @@ interface AcceptedRideDetail {
     origin_lng: number | null
     destination_lat: number | null
     destination_lng: number | null
+    stop_address: string | null
+    stop_complement: string | null
+    stop_lat: number | null
+    stop_lng: number | null
     distance_km: number | null
     duration_min: number | null
     driver_en_route: boolean
@@ -440,7 +448,7 @@ export default function AceitarCorridasPage() {
 
         const { data: openRides } = await supabase
             .from('ride_requests')
-            .select('id, requester_id, ride_type, origin_address, destination_address, origin_complement, destination_complement, notes, passenger_count, vehicle_type, object_description, object_is_sensitive, pet_description, has_child, children_count, child_age, child_needs_car_seat, has_shopping, bag_count, has_extra_object, extra_object_description, has_pet, pet_weight_range, pet_has_carrier, has_special_needs, special_needs_description, special_needs_wheelchair, special_needs_wheelchair_type, special_needs_visual_impairment, has_guide_dog, delivery_location, payment_method, cash_change_for, card_is_contactless, origin_needs_access, origin_access_notes, destination_needs_access, destination_access_notes, grocery_bag_size, wants_air_conditioning, distance_km, duration_min, scheduled_for, created_at, origin_lat, origin_lng, destination_lat, destination_lng, offered_price, order_id, store_id')
+            .select('id, requester_id, ride_type, origin_address, destination_address, origin_complement, destination_complement, notes, passenger_count, vehicle_type, object_description, object_is_sensitive, pet_description, has_child, children_count, child_age, child_needs_car_seat, has_shopping, bag_count, has_extra_object, extra_object_description, has_pet, pet_weight_range, pet_has_carrier, has_special_needs, special_needs_description, special_needs_wheelchair, special_needs_wheelchair_type, special_needs_visual_impairment, has_guide_dog, delivery_location, payment_method, cash_change_for, card_is_contactless, origin_needs_access, origin_access_notes, destination_needs_access, destination_access_notes, grocery_bag_size, wants_air_conditioning, distance_km, duration_min, scheduled_for, created_at, origin_lat, origin_lng, destination_lat, destination_lng, stop_address, stop_complement, stop_lat, stop_lng, offered_price, order_id, store_id')
             .eq('status', 'pending')
             .neq('requester_id', contextUserId)
             .order('scheduled_for', { ascending: true, nullsFirst: true })
@@ -471,7 +479,7 @@ export default function AceitarCorridasPage() {
         if (myApplications.length > 0) {
             const { data } = await supabase
                 .from('ride_requests')
-                .select('id, requester_id, ride_type, origin_address, destination_address, origin_complement, destination_complement, notes, passenger_count, vehicle_type, object_description, object_is_sensitive, pet_description, has_child, children_count, child_age, child_needs_car_seat, has_shopping, bag_count, has_extra_object, extra_object_description, has_pet, pet_weight_range, pet_has_carrier, has_special_needs, special_needs_description, special_needs_wheelchair, special_needs_wheelchair_type, special_needs_visual_impairment, has_guide_dog, delivery_location, payment_method, cash_change_for, card_is_contactless, origin_needs_access, origin_access_notes, destination_needs_access, destination_access_notes, grocery_bag_size, wants_air_conditioning, distance_km, duration_min, scheduled_for, created_at, origin_lat, origin_lng, destination_lat, destination_lng, offered_price, order_id, store_id')
+                .select('id, requester_id, ride_type, origin_address, destination_address, origin_complement, destination_complement, notes, passenger_count, vehicle_type, object_description, object_is_sensitive, pet_description, has_child, children_count, child_age, child_needs_car_seat, has_shopping, bag_count, has_extra_object, extra_object_description, has_pet, pet_weight_range, pet_has_carrier, has_special_needs, special_needs_description, special_needs_wheelchair, special_needs_wheelchair_type, special_needs_visual_impairment, has_guide_dog, delivery_location, payment_method, cash_change_for, card_is_contactless, origin_needs_access, origin_access_notes, destination_needs_access, destination_access_notes, grocery_bag_size, wants_air_conditioning, distance_km, duration_min, scheduled_for, created_at, origin_lat, origin_lng, destination_lat, destination_lng, stop_address, stop_complement, stop_lat, stop_lng, offered_price, order_id, store_id')
                 .in('id', myApplications.map((a) => a.ride_request_id))
                 .eq('status', 'pending')
             myRideRows = data || []
@@ -574,7 +582,7 @@ export default function AceitarCorridasPage() {
         // definido no momento em que o pedido dele vira "accepted".
         const { data: acceptedRow } = await supabase
             .from('ride_requests')
-            .select('id, requester_id, vehicle_type, origin_address, destination_address, origin_complement, destination_complement, origin_lat, origin_lng, destination_lat, destination_lng, distance_km, duration_min, driver_en_route, driver_arrived_at, ride_started_at, extra_task_minutes, extra_task_fee, extra_task_description')
+            .select('id, requester_id, vehicle_type, origin_address, destination_address, origin_complement, destination_complement, origin_lat, origin_lng, destination_lat, destination_lng, stop_address, stop_complement, stop_lat, stop_lng, distance_km, duration_min, driver_en_route, driver_arrived_at, ride_started_at, extra_task_minutes, extra_task_fee, extra_task_description')
             .eq('driver_id', contextUserId)
             .eq('status', 'accepted')
             .order('created_at', { ascending: false })
@@ -599,6 +607,10 @@ export default function AceitarCorridasPage() {
                 origin_lng: acceptedRow.origin_lng,
                 destination_lat: acceptedRow.destination_lat,
                 destination_lng: acceptedRow.destination_lng,
+                stop_address: acceptedRow.stop_address,
+                stop_complement: acceptedRow.stop_complement,
+                stop_lat: acceptedRow.stop_lat,
+                stop_lng: acceptedRow.stop_lng,
                 distance_km: acceptedRow.distance_km,
                 duration_min: acceptedRow.duration_min,
                 driver_en_route: acceptedRow.driver_en_route,
@@ -1190,6 +1202,8 @@ export default function AceitarCorridasPage() {
                                                 originLng={ride.origin_lng}
                                                 destLat={ride.destination_lat}
                                                 destLng={ride.destination_lng}
+                                                stopLat={ride.stop_lat}
+                                                stopLng={ride.stop_lng}
                                                 driverLat={driverCoords ? driverCoords[1] : null}
                                                 driverLng={driverCoords ? driverCoords[0] : null}
                                                 onExpand={() => setMapDialogRideId(ride.id)}
@@ -1198,7 +1212,7 @@ export default function AceitarCorridasPage() {
 
                                         <div className="flex items-start gap-2 text-xs mb-1" style={{ color: colors.textSecondary }}>
                                             <MapPin size={12} className="flex-shrink-0 mt-0.5" />
-                                            <span>{shortAddress(ride.origin_address)} → {shortAddress(ride.destination_address)}</span>
+                                            <span>{shortAddress(ride.origin_address)}{ride.stop_address ? ` → ${shortAddress(ride.stop_address)}` : ''} → {shortAddress(ride.destination_address)}</span>
                                         </div>
 
                                         <div className="flex items-center gap-2 text-[11px] mb-2" style={{ color: colors.textSecondary }}>
@@ -1402,6 +1416,8 @@ export default function AceitarCorridasPage() {
                                                 originLng={ride.origin_lng}
                                                 destLat={ride.destination_lat}
                                                 destLng={ride.destination_lng}
+                                                stopLat={ride.stop_lat}
+                                                stopLng={ride.stop_lng}
                                                 driverLat={driverCoords ? driverCoords[1] : null}
                                                 driverLng={driverCoords ? driverCoords[0] : null}
                                                 onExpand={() => setMapDialogRideId(ride.id)}
@@ -1410,7 +1426,7 @@ export default function AceitarCorridasPage() {
 
                                         <div className="flex items-start gap-2 text-xs mb-1" style={{ color: colors.textSecondary }}>
                                             <MapPin size={12} className="flex-shrink-0 mt-0.5" />
-                                            <span>{shortAddress(ride.origin_address)} → {shortAddress(ride.destination_address)}</span>
+                                            <span>{shortAddress(ride.origin_address)}{ride.stop_address ? ` → ${shortAddress(ride.stop_address)}` : ''} → {shortAddress(ride.destination_address)}</span>
                                         </div>
 
                                         <div className="flex items-center gap-2 text-[11px] mb-2" style={{ color: colors.textSecondary }}>
@@ -1493,6 +1509,8 @@ export default function AceitarCorridasPage() {
                                     originLng={acceptedRide.origin_lng}
                                     destLat={acceptedRide.destination_lat}
                                     destLng={acceptedRide.destination_lng}
+                                    stopLat={acceptedRide.stop_lat}
+                                    stopLng={acceptedRide.stop_lng}
                                     driverLat={driverCoords ? driverCoords[1] : null}
                                     driverLng={driverCoords ? driverCoords[0] : null}
                                     onExpand={() => setMapDialogRideId(acceptedRide.id)}
@@ -1501,12 +1519,15 @@ export default function AceitarCorridasPage() {
 
                             <div className="flex items-start gap-2 text-xs mb-1" style={{ color: colors.textSecondary }}>
                                 <MapPin size={12} className="flex-shrink-0 mt-0.5" />
-                                <span>{shortAddress(acceptedRide.origin_address)} → {shortAddress(acceptedRide.destination_address)}</span>
+                                <span>{shortAddress(acceptedRide.origin_address)}{acceptedRide.stop_address ? ` → ${shortAddress(acceptedRide.stop_address)}` : ''} → {shortAddress(acceptedRide.destination_address)}</span>
                             </div>
-                            {(acceptedRide.origin_complement || acceptedRide.destination_complement) && (
+                            {(acceptedRide.origin_complement || acceptedRide.stop_complement || acceptedRide.destination_complement) && (
                                 <div className="flex flex-col gap-0.5 text-[11px] mb-2" style={{ color: colors.textSecondary }}>
                                     {acceptedRide.origin_complement && (
                                         <span>📍 Origem: {acceptedRide.origin_complement}</span>
+                                    )}
+                                    {acceptedRide.stop_complement && (
+                                        <span>🚩 Parada: {acceptedRide.stop_complement}</span>
                                     )}
                                     {acceptedRide.destination_complement && (
                                         <span>📍 Destino: {acceptedRide.destination_complement}</span>
@@ -1681,6 +1702,8 @@ export default function AceitarCorridasPage() {
                         originLng={ride.origin_lng}
                         destLat={ride.destination_lat}
                         destLng={ride.destination_lng}
+                        stopLat={ride.stop_lat}
+                        stopLng={ride.stop_lng}
                         driverLat={driverCoords ? driverCoords[1] : null}
                         driverLng={driverCoords ? driverCoords[0] : null}
                         vehicleKind={vehicleIconForRide(ride.vehicle_type, myVehicleKinds)}

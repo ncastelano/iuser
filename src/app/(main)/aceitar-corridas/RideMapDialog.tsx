@@ -15,6 +15,7 @@ mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
 
 const TO_PICKUP_COLOR = '#3b82f6'
 const TRIP_COLOR = '#f97316'
+const STOP_COLOR = '#eab308'
 
 function marker(color: string, label?: string): HTMLDivElement {
     const el = document.createElement('div')
@@ -41,6 +42,9 @@ interface RideMapDialogProps {
     originLng: number
     destLat: number
     destLng: number
+    /** Parada opcional entre a partida e a chegada. */
+    stopLat?: number | null
+    stopLng?: number | null
     driverLat: number | null
     driverLng: number | null
     /** Veículo do motorista nessa corrida (carro/moto/bicicleta) — define o ícone do marcador "Você". */
@@ -48,7 +52,7 @@ interface RideMapDialogProps {
     onClose: () => void
 }
 
-export default function RideMapDialog({ originLat, originLng, destLat, destLng, driverLat, driverLng, vehicleKind = 'carro', onClose }: RideMapDialogProps) {
+export default function RideMapDialog({ originLat, originLng, destLat, destLng, stopLat = null, stopLng = null, driverLat, driverLng, vehicleKind = 'carro', onClose }: RideMapDialogProps) {
     const { colors } = useTheme()
     const containerRef = useRef<HTMLDivElement | null>(null)
     const mapRef = useRef<mapboxgl.Map | null>(null)
@@ -62,6 +66,7 @@ export default function RideMapDialog({ originLat, originLng, destLat, destLng, 
     const [tripKm, setTripKm] = useState<number | null>(null)
     const [tripMin, setTripMin] = useState<number | null>(null)
     const hasDriver = driverLat != null && driverLng != null
+    const hasStop = stopLat != null && stopLng != null
 
     // Mapa + trajeto fixo (partida → chegada): desenhado uma vez, na abertura.
     useEffect(() => {
@@ -83,7 +88,18 @@ export default function RideMapDialog({ originLat, originLng, destLat, destLng, 
             const bounds = new mapboxgl.LngLatBounds([originLng, originLat], [originLng, originLat])
             bounds.extend([destLng, destLat])
 
-            const legTrip = await fetchRoute([originLng, originLat], [destLng, destLat])
+            // Com parada, soma as duas pernas (partida→parada, parada→chegada) num
+            // trajeto só — mesmo trecho laranja, sem distinguir visualmente as pernas.
+            const legTrip = hasStop
+                ? await Promise.all([
+                    fetchRoute([originLng, originLat], [stopLng as number, stopLat as number]),
+                    fetchRoute([stopLng as number, stopLat as number], [destLng, destLat]),
+                ]).then(([l1, l2]) => ({
+                    coords: [...l1.coords, ...l2.coords],
+                    distanceKm: l1.distanceKm + l2.distanceKm,
+                    durationMin: l1.durationMin + l2.durationMin,
+                }))
+                : await fetchRoute([originLng, originLat], [destLng, destLat])
             if (cancelled) return
             map.addSource('leg-trip', { type: 'geojson', data: { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: legTrip.coords } } })
             map.addLayer({
@@ -96,6 +112,11 @@ export default function RideMapDialog({ originLat, originLng, destLat, destLng, 
             legTrip.coords.forEach((c) => bounds.extend(c as [number, number]))
             setTripKm(legTrip.distanceKm)
             setTripMin(legTrip.durationMin)
+
+            if (hasStop) {
+                new mapboxgl.Marker({ element: marker(STOP_COLOR, 'Parada') }).setLngLat([stopLng as number, stopLat as number]).addTo(map)
+                bounds.extend([stopLng as number, stopLat as number])
+            }
 
             // O trecho "até a partida" (você → partida) é montado à parte,
             // pelo efeito abaixo, porque precisa se atualizar ao vivo.
