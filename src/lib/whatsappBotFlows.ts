@@ -3,8 +3,9 @@
 // A conversa do bot em si — função pura (recebe o estado atual, devolve o
 // próximo), separada da rota do webhook pra dar pra testar sem servidor
 // rodando (um script chama handleIncomingMessage direto com um cliente
-// Supabase de teste). O único efeito colateral é a criação do pedido no
-// passo "finalizar" — todo o resto só lê.
+// Supabase de teste). Só lê do banco — "finalizar" não cria o pedido por
+// aqui, manda pro carrinho do site (com os itens já adicionados) pra
+// terminar lá, onde endereço/pagamento/login já existem prontos.
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getStoreStatusText, type BusinessHours } from '@/lib/storeHours'
 
@@ -23,6 +24,7 @@ export interface StoreRow {
     name: string
     storeSlug: string
     business_hours: BusinessHours | null
+    logo_url: string | null
 }
 
 export interface FlowResult {
@@ -91,13 +93,49 @@ function formatProductList(products: { name: string; price: number | null }[]): 
 async function loadActiveProducts(admin: SupabaseClient, storeId: string) {
     const { data } = await admin
         .from('products')
-        .select('id, name, price')
+        .select('id, name, price, image_url, slug')
         .eq('store_id', storeId)
         .eq('is_active', true)
         .eq('listing_type', 'sale') // exclui publicações e campanhas VIP, que ficam na mesma tabela
         .order('name')
         .limit(20)
     return data || []
+}
+
+// Storage do Supabase é público — dá pra montar a URL direto do nome do
+// arquivo sem precisar do client JS (esse módulo roda só no servidor).
+function publicStorageUrl(bucket: string, path: string | null | undefined): string | null {
+    if (!path) return null
+    if (path.startsWith('http://') || path.startsWith('https://')) return path
+    const base = process.env.NEXT_PUBLIC_SUPABASE_URL
+    if (!base) return null
+    return `${base}/storage/v1/object/public/${bucket}/${path}`
+}
+
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://www.iuser.com.br'
+
+// Em vez de criar o pedido direto por aqui (sem endereço, sem forma de
+// pagamento de verdade), manda a pessoa pro carrinho do site com os itens
+// já adicionados — o checkout de lá já tem entrega/pagamento/login prontos.
+function buildCartUrl(
+    store: StoreRow,
+    items: { id: string; name: string; price: number | null; image_url?: string | null; slug?: string; quantity: number }[]
+): string {
+    const payload = {
+        slug: store.storeSlug,
+        store: { name: store.name, logo_url: publicStorageUrl('store-logos', store.logo_url) },
+        items: items.map((it) => ({
+            id: it.id,
+            name: it.name,
+            price: Number(it.price) || 0,
+            image_url: publicStorageUrl('product-images', it.image_url),
+            slug: it.slug,
+            quantity: it.quantity,
+        })),
+    }
+    const url = new URL('/carrinho', APP_URL)
+    url.searchParams.set('addCart', JSON.stringify(payload))
+    return url.toString()
 }
 
 export async function handleIncomingMessage(
@@ -141,7 +179,10 @@ export async function handleIncomingMessage(
             return {
                 reply: `*Escolha o item pelo número:*\n\n${formatProductList(products)}\n\n(Digite *cancelar* pra voltar ao menu)`,
                 newState: 'ordering_pick_item',
-                newContext: { products: products.map((p: any) => ({ id: p.id, name: p.name, price: p.price })), items: [] },
+                newContext: {
+                    products: products.map((p: any) => ({ id: p.id, name: p.name, price: p.price, image_url: p.image_url, slug: p.slug })),
+                    items: [],
+                },
             }
         }
         if (trimmed === '4') {
@@ -185,62 +226,19 @@ export async function handleIncomingMessage(
 
     // ===== FAZER PEDIDO: escolher item (ou finalizar) =====
     if (convo.state === 'ordering_pick_item') {
-        const items: { id: string; name: string; price: number | null; quantity: number }[] = convo.context.items || []
-        const products: { id: string; name: string; price: number | null }[] = convo.context.products || []
+        const items: { id: string; name: string; price: number | null; image_url?: string | null; slug?: string; quantity: number }[] = convo.context.items || []
+        const products: { id: string; name: string; price: number | null; image_url?: string | null; slug?: string }[] = convo.context.products || []
 
         if (lower === 'finalizar') {
             if (items.length === 0) {
                 return { reply: 'Você ainda não adicionou nenhum item. Escolha um da lista, ou digite *cancelar*.', newState: 'ordering_pick_item', newContext: convo.context }
             }
             const total = items.reduce((sum, it) => sum + (Number(it.price) || 0) * it.quantity, 0)
-
-            let buyerName = convo.wa_contact_name || 'Cliente WhatsApp'
-            let buyerSlug: string = convo.wa_phone
-            if (convo.matched_profile_id) {
-                const { data: profile } = await admin.from('profiles').select('name, profileSlug').eq('id', convo.matched_profile_id).maybeSingle()
-                if (profile?.name) buyerName = profile.name
-                if (profile?.profileSlug) buyerSlug = profile.profileSlug
-            }
-
-            const { data: order, error: orderError } = await admin
-                .from('orders')
-                .insert({
-                    store_id: store.id,
-                    buyer_id: convo.matched_profile_id,
-                    buyer_name: buyerName,
-                    buyer_profile_slug: buyerSlug,
-                    total_amount: total,
-                    delivery_fee: 0,
-                    delivery_option: 'retirada',
-                    payment_method: 'combinar',
-                    status: 'pending',
-                    channel: 'whatsapp_bot',
-                    checkout_id: crypto.randomUUID(),
-                })
-                .select('id')
-                .single()
-
-            if (orderError || !order) {
-                return { reply: 'Ops, deu um erro ao registrar seu pedido. Tente de novo em instantes.\n\n' + menuText(store.name), newState: 'menu', newContext: {} }
-            }
-
-            const orderItems = items.map((it) => ({
-                order_id: order.id,
-                product_id: it.id,
-                product_name: it.name,
-                quantity: it.quantity,
-                unit_price: it.price,
-                total_price: (Number(it.price) || 0) * it.quantity,
-            }))
-            const { error: itemsError } = await admin.from('order_items').insert(orderItems)
-            if (itemsError) {
-                await admin.from('orders').delete().eq('id', order.id)
-                return { reply: 'Ops, deu um erro ao salvar os itens do pedido. Tente de novo.\n\n' + menuText(store.name), newState: 'menu', newContext: {} }
-            }
-
             const summary = items.map((it) => `${it.quantity}x ${it.name}`).join(', ')
+            const cartUrl = buildCartUrl(store, items)
+
             return {
-                reply: `✅ Pedido registrado! #${String(order.id).slice(0, 8)}\n${summary}\n*Total: R$ ${total.toFixed(2)}*\n\nA loja vai confirmar por aqui. Combine a forma de pagamento e retirada com ela.\n\nDigite *menu* pra voltar.`,
+                reply: `Prontinho! ${summary}\n*Total: R$ ${total.toFixed(2)}*\n\nAbra o link pra finalizar — endereço, forma de pagamento e confirmação ficam por lá:\n${cartUrl}\n\nDigite *menu* pra voltar.`,
                 newState: 'menu',
                 newContext: {},
             }
@@ -267,9 +265,12 @@ export async function handleIncomingMessage(
         if (isNaN(qty) || qty <= 0) {
             return { reply: 'Digite uma quantidade válida (só número).', newState: 'ordering_quantity', newContext: convo.context }
         }
-        const products: { id: string; name: string; price: number | null }[] = convo.context.products || []
+        const products: { id: string; name: string; price: number | null; image_url?: string | null; slug?: string }[] = convo.context.products || []
         const product = products[convo.context.pendingProductIdx]
-        const items = [...(convo.context.items || []), { id: product.id, name: product.name, price: product.price, quantity: qty }]
+        const items = [
+            ...(convo.context.items || []),
+            { id: product.id, name: product.name, price: product.price, image_url: product.image_url, slug: product.slug, quantity: qty },
+        ]
         return {
             reply: `Adicionado: ${qty}x ${product.name}.\n\nQuer adicionar mais algum item? Digite o número dele, ou *finalizar* pra confirmar o pedido.\n\n${formatProductList(products)}`,
             newState: 'ordering_pick_item',

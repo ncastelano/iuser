@@ -153,6 +153,11 @@ export default function CarrinhoPage() {
     // dono dessa loja vira quem indicou ela pro iUser.
     const [pendingReferralStoreSlug, setPendingReferralStoreSlug] = useState<string | null>(null)
 
+    // Loja de um carrinho recebido por link (bot do WhatsApp, ?addCart=...)
+    // — assim que soubermos se a pessoa está logada, já abrimos a etapa de
+    // identificação ou direto o checkout dessa loja.
+    const [pendingCartSlug, setPendingCartSlug] = useState<string | null>(null)
+
     const applyAuthAvatarFile = (file: File) => {
         setAuthAvatarFile(file)
         const reader = new FileReader()
@@ -443,6 +448,50 @@ export default function CarrinhoPage() {
     useEffect(() => {
         setMounted(true)
     }, [])
+
+    // Chegou por um link de carrinho do bot do WhatsApp (?addCart=...) —
+    // adiciona os itens na sacola local e limpa a URL. Roda uma vez só, no
+    // mount, antes de qualquer login resolver: o efeito de merge com o
+    // Supabase (mais abaixo) preserva esses itens quando o login carregar.
+    useEffect(() => {
+        if (typeof window === 'undefined') return
+        const raw = new URLSearchParams(window.location.search).get('addCart')
+        if (!raw) return
+        try {
+            const payload = JSON.parse(raw) as {
+                slug: string
+                store: { name: string; logo_url: string | null }
+                items: { id: string; name: string; price: number; image_url: string | null; slug?: string; quantity: number }[]
+            }
+            if (payload.slug && Array.isArray(payload.items) && payload.items.length > 0) {
+                for (const item of payload.items) {
+                    const product = { id: item.id, name: item.name, price: item.price, image_url: item.image_url, slug: item.slug }
+                    useCartStore.getState().addItem(payload.slug, payload.store, product)
+                    if (item.quantity > 1) {
+                        useCartStore.getState().updateQuantity(payload.slug, item.id, item.quantity - 1)
+                    }
+                }
+                setPendingCartSlug(payload.slug)
+            }
+        } catch {
+            // link malformado — ignora silenciosamente
+        }
+        router.replace('/carrinho', { scroll: false })
+    }, [router])
+
+    // Assim que soubermos se a pessoa está logada, abre direto a etapa
+    // certa pra essa loja: checkout (se já logada) ou o pedido de
+    // identificação (se não) — mesmo caminho que o botão "Finalizar" usa.
+    useEffect(() => {
+        if (!pendingCartSlug || globalLoading) return
+        if (currentUserId) {
+            setCheckoutStepByStore((prev) => ({ ...prev, [pendingCartSlug]: 'delivery' }))
+        } else {
+            setPendingReferralStoreSlug(pendingCartSlug)
+            toast.info('Identifique-se para continuar')
+        }
+        setPendingCartSlug(null)
+    }, [pendingCartSlug, globalLoading, currentUserId])
 
     useEffect(() => {
         if (profileLoading) return

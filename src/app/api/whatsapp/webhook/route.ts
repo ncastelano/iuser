@@ -64,7 +64,7 @@ export async function POST(req: Request) {
 
         const { data: store } = await supabaseAdmin
             .from('stores')
-            .select('id, name, storeSlug, business_hours')
+            .select('id, name, storeSlug, business_hours, logo_url')
             .eq('whatsapp_bot_phone_number_id', phoneNumberId)
             .maybeSingle()
         if (!store) {
