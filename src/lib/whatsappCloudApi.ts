@@ -16,6 +16,20 @@ export class WhatsAppNotConfiguredError extends Error {
     }
 }
 
+// A Meta manda o "from" de contatos brasileiros sem o 9º dígito (ex:
+// 556999693632), mas pra ENVIAR de volta ela espera o número completo
+// com o 9 (5569999693632) — sem isso a API recusa com "(#131030)
+// Recipient phone number not in allowed list" em números de teste.
+function withNinthDigit(waId: string): string {
+    const digits = waId.replace(/\D/g, '')
+    if (digits.startsWith('55') && digits.length === 12) {
+        const ddd = digits.slice(2, 4)
+        const local = digits.slice(4)
+        if (local.length === 8) return `55${ddd}9${local}`
+    }
+    return digits
+}
+
 // Manda uma mensagem de texto livre pelo número (phoneNumberId) de uma
 // loja específica. Assume que está dentro da janela de 24h de "serviço"
 // (resposta a quem escreveu primeiro) — é assim que o fluxo inteiro do
@@ -31,7 +45,7 @@ export async function sendWhatsAppText(phoneNumberId: string, to: string, body: 
         },
         body: JSON.stringify({
             messaging_product: 'whatsapp',
-            to,
+            to: withNinthDigit(to),
             type: 'text',
             text: { body, preview_url: false },
         }),
