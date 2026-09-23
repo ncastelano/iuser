@@ -94,6 +94,7 @@ async function loadActiveProducts(admin: SupabaseClient, storeId: string) {
         .select('id, name, price')
         .eq('store_id', storeId)
         .eq('is_active', true)
+        .eq('listing_type', 'sale') // exclui publicações e campanhas VIP, que ficam na mesma tabela
         .order('name')
         .limit(20)
     return data || []
