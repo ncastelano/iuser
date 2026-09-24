@@ -44,6 +44,7 @@ const IGNORED_ROUTES = [
 const IGNORED_PREFIXES = [
     '/_next',
     '/api',
+    '/s/', // encurtador de links (iuser.com.br/s/<code>) — não é slug de perfil/loja
 ]
 
 // ===== EXTENSÕES IGNORADAS =====
