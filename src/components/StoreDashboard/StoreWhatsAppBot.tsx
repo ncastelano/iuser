@@ -12,7 +12,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { toast } from 'sonner'
-import { MessageCircle, Check, Copy, Clock, Loader2 } from 'lucide-react'
+import { MessageCircle, Check, Copy, Clock, Loader2, X, ShieldCheck, ArrowLeft } from 'lucide-react'
 import { hexToRgb } from '@/lib/color'
 import { Spinner } from '@/components/Spinner'
 
@@ -41,6 +41,8 @@ export default function StoreWhatsAppBot({ storeId }: StoreWhatsAppBotProps) {
     const [phoneNumberId, setPhoneNumberId] = useState<string | null>(null)
     const [displayNumber, setDisplayNumber] = useState<string | null>(null)
     const [requestedNumber, setRequestedNumber] = useState('')
+    const [dialogStep, setDialogStep] = useState<'closed' | 'terms' | 'number'>('closed')
+    const [feePrice, setFeePrice] = useState<number | null>(null)
 
     const load = useCallback(async () => {
         if (!storeId) return
@@ -60,6 +62,15 @@ export default function StoreWhatsAppBot({ storeId }: StoreWhatsAppBotProps) {
 
     useEffect(() => { load() }, [load])
 
+    useEffect(() => {
+        supabase
+            .from('service_pricing')
+            .select('postpaid_price')
+            .eq('service_type', 'whatsapp_bot_message_fee')
+            .maybeSingle()
+            .then(({ data }) => setFeePrice(data?.postpaid_price ?? null))
+    }, [])
+
     const request = async () => {
         const cleanNumber = requestedNumber.trim()
         if (!cleanNumber) {
@@ -76,6 +87,7 @@ export default function StoreWhatsAppBot({ storeId }: StoreWhatsAppBotProps) {
         } else {
             setOptIn(true)
             setStatus('requested')
+            setDialogStep('closed')
             toast.success('Pedido registrado! Em breve conectamos seu número.')
         }
         setSaving(false)
@@ -173,19 +185,10 @@ export default function StoreWhatsAppBot({ storeId }: StoreWhatsAppBotProps) {
                         </p>
                     )}
                 </div>
-            ) : (
-                <input
-                    type="tel"
-                    value={requestedNumber}
-                    onChange={(e) => setRequestedNumber(e.target.value)}
-                    placeholder="WhatsApp da loja, ex: 5569999999999"
-                    style={inputStyle}
-                    className="w-full"
-                />
-            )}
+            ) : null}
 
             <button
-                onClick={() => (phoneNumberId ? undefined : optIn ? cancel() : request())}
+                onClick={() => (phoneNumberId ? undefined : optIn ? cancel() : setDialogStep('terms'))}
                 disabled={saving || !!phoneNumberId}
                 className="px-4 py-2.5 rounded-full font-black uppercase text-xs tracking-wider transition-all disabled:opacity-60 self-start"
                 style={optIn
@@ -194,6 +197,98 @@ export default function StoreWhatsAppBot({ storeId }: StoreWhatsAppBotProps) {
             >
                 {saving ? <Spinner size={14} /> : phoneNumberId ? 'Conectado' : optIn ? 'Cancelar pedido' : 'Quero ativar'}
             </button>
+
+            {dialogStep !== 'closed' && (
+                <div
+                    className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4"
+                    style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}
+                    onClick={() => setDialogStep('closed')}
+                >
+                    <div
+                        className="w-full max-w-sm rounded-2xl p-6 space-y-4"
+                        style={{ background: colors.background, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        {dialogStep === 'terms' ? (
+                            <>
+                                <div className="flex items-start justify-between gap-3">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#fff' }}>
+                                            <MessageCircle size={18} />
+                                        </div>
+                                        <h3 className="text-base font-black" style={{ color: colors.textPrimary }}>Ativar atendimento automático</h3>
+                                    </div>
+                                    <button onClick={() => setDialogStep('closed')} style={{ color: colors.textSecondary }}>
+                                        <X size={18} />
+                                    </button>
+                                </div>
+
+                                <p className="text-xs leading-relaxed" style={{ color: colors.textSecondary }}>
+                                    O bot responde sozinho no WhatsApp da sua loja: catálogo, horário, pedido e status.
+                                </p>
+
+                                <div className="rounded-xl p-3 flex items-start gap-2" style={{ background: '#f9731615', border: '1px solid #f9731640' }}>
+                                    <ShieldCheck size={16} style={{ color: '#f97316' }} className="flex-shrink-0 mt-0.5" />
+                                    <p className="text-[11px] leading-relaxed" style={{ color: colors.textPrimary }}>
+                                        Mensagens do bot além da cota gratuita mensal da Meta são cobradas à parte
+                                        {feePrice != null ? ` (${feePrice.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} por mensagem, estimativa)` : ' (custo estimado + R$0,15)'}
+                                        , descontadas do extrato da loja — vale pro pré-pago e pro pós-pago.
+                                    </p>
+                                </div>
+
+                                <div className="flex gap-3 pt-1">
+                                    <button
+                                        onClick={() => setDialogStep('closed')}
+                                        className="flex-1 py-3 rounded-xl font-black uppercase text-[10px] tracking-wider"
+                                        style={{ background: `${colors.border}30`, color: colors.textPrimary }}
+                                    >
+                                        Cancelar
+                                    </button>
+                                    <button
+                                        onClick={() => setDialogStep('number')}
+                                        className="flex-1 py-3 rounded-xl font-black uppercase text-[10px] tracking-wider"
+                                        style={{ background: GRADIENT, color: '#fff' }}
+                                    >
+                                        Concordo, continuar
+                                    </button>
+                                </div>
+                            </>
+                        ) : (
+                            <>
+                                <div className="flex items-center gap-2">
+                                    <button onClick={() => setDialogStep('terms')} style={{ color: colors.textSecondary }}>
+                                        <ArrowLeft size={18} />
+                                    </button>
+                                    <h3 className="text-base font-black" style={{ color: colors.textPrimary }}>Qual o WhatsApp da loja?</h3>
+                                </div>
+
+                                <p className="text-xs leading-relaxed" style={{ color: colors.textSecondary }}>
+                                    Informe o número de WhatsApp que você já comprou/separou só pra ativar o bot.
+                                </p>
+
+                                <input
+                                    type="tel"
+                                    autoFocus
+                                    value={requestedNumber}
+                                    onChange={(e) => setRequestedNumber(e.target.value)}
+                                    placeholder="Ex: 5569999999999"
+                                    style={inputStyle}
+                                    className="w-full"
+                                />
+
+                                <button
+                                    onClick={request}
+                                    disabled={saving}
+                                    className="w-full py-3 rounded-xl font-black uppercase text-[10px] tracking-wider disabled:opacity-60 flex items-center justify-center"
+                                    style={{ background: GRADIENT, color: '#fff' }}
+                                >
+                                    {saving ? <Spinner size={14} /> : 'Ativar'}
+                                </button>
+                            </>
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
     )
 }
