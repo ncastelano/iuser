@@ -17,6 +17,7 @@ import { kindForRideType, type VehicleType } from '@/lib/rideVehicle'
 import { notifyRideStatus } from '@/lib/notifyRideStatus'
 import { playNotificationSound } from '@/lib/rideAlertSound'
 import { handleShareLink } from '@/lib/share'
+import { speak } from '@/lib/voiceNavigation'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 const TRIP_ROUTE_COLOR = '#ef4444'
@@ -338,16 +339,17 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady }: Rid
                     const row = payload.new as { status?: RideStatus; driver_en_route?: boolean; driver_arrived_at?: string | null; ride_started_at?: string | null } | null
                     const newStatus = row?.status
                     if (newStatus && newStatus !== prevStatus) {
-                        if (newStatus === 'accepted') { toast.success('Motorista escolhido! Ele está a caminho.'); playNotificationSound('default') }
-                        if (newStatus === 'completed') { toast.success('Corrida concluída!'); playNotificationSound('completed') }
-                        if (newStatus === 'cancelled') { toast.info('Pedido cancelado.'); playNotificationSound('default') }
+                        if (newStatus === 'accepted') { toast.success('Motorista escolhido! Ele está a caminho.'); playNotificationSound('default'); if (!row?.driver_en_route && !row?.driver_arrived_at) speak('Motorista aceito. Aguardando ele sair para te buscar.') }
+                        if (newStatus === 'completed') { toast.success('Corrida concluída!'); playNotificationSound('completed'); speak('Corrida concluída. Obrigado por usar o iUser!') }
+                        if (newStatus === 'cancelled') { toast.info('Pedido cancelado.'); playNotificationSound('default'); speak('Pedido cancelado.') }
                     }
-                    // Etapas do motorista (som só na mudança, não a cada atualização).
+                    // Etapas do motorista (som e voz só na mudança, não a cada atualização) —
+                    // o cliente ouve exatamente o que está acontecendo, sem precisar olhar a tela.
                     const last = lastStageRef.current
                     if (row) {
-                        if (row.driver_arrived_at && !last.arrived) { toast.success('O motorista chegou ao local!'); playNotificationSound('arrived') }
-                        else if (row.driver_en_route && !last.enRoute && !row.driver_arrived_at) { toast.info('O motorista saiu e está a caminho.'); playNotificationSound('default') }
-                        if (row.ride_started_at && !last.started) { playNotificationSound('default') }
+                        if (row.ride_started_at && !last.started) { playNotificationSound('default'); speak('Corrida em andamento. Aproveite a viagem!') }
+                        else if (row.driver_arrived_at && !last.arrived) { toast.success('O motorista chegou ao local!'); playNotificationSound('arrived'); speak('Motorista chegou! Confira a placa e a cor do carro antes de entrar.') }
+                        else if (row.driver_en_route && !last.enRoute && !row.driver_arrived_at) { toast.info('O motorista saiu e está a caminho.'); playNotificationSound('default'); speak('Motorista a caminho. Ele já saiu para te buscar.') }
                         lastStageRef.current = { enRoute: !!row.driver_en_route, arrived: !!row.driver_arrived_at, started: !!row.ride_started_at }
                     }
                     load()
