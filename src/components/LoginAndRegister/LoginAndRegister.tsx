@@ -20,11 +20,13 @@ import {
     EyeOff,
     LogIn,
     Camera,
+    IdCard,
 } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import { toast } from 'sonner'
 import RecoverPassword from './RecoverPassword'
 import { checkSlugAvailability } from '@/lib/slugUtils'
+import { getDeviceId } from '@/lib/deviceId'
 
 interface LoginAndRegisterProps {
     onLoginSuccess?: () => void
@@ -47,6 +49,7 @@ function LoginAndRegisterContent({ onLoginSuccess }: LoginAndRegisterProps) {
     const [name, setName] = useState('')
     const [profileSlug, setProfileSlug] = useState('')
     const [registerEmail, setRegisterEmail] = useState('')
+    const [cpfCnpj, setCpfCnpj] = useState('')
     const [registerPassword, setRegisterPassword] = useState('')
     const [confirmPassword, setConfirmPassword] = useState('')
     const [registerError, setRegisterError] = useState<string | null>(null)
@@ -135,6 +138,13 @@ function LoginAndRegisterContent({ onLoginSuccess }: LoginAndRegisterProps) {
             return
         }
 
+        const cleanCpfCnpj = cpfCnpj.replace(/\D/g, '')
+        if (cleanCpfCnpj.length !== 11 && cleanCpfCnpj.length !== 14) {
+            setRegisterError('Informe um CPF (11 dígitos) ou CNPJ (14 dígitos) válido')
+            setRegisterLoading(false)
+            return
+        }
+
         try {
             // Verificar disponibilidade do slug de conta (perfis, lojas, rotas reservadas —
             // produtos/publicações são ignorados, pois vivem numa URL aninhada e não competem)
@@ -208,6 +218,7 @@ function LoginAndRegisterContent({ onLoginSuccess }: LoginAndRegisterProps) {
                 profileSlug: profileSlug,
                 upline_id: uplineId,
                 email: registerEmail,
+                cpf_cnpj: cleanCpfCnpj,
                 avatar_url: avatarUrl,
                 is_active: true,
                 created_at: new Date().toISOString(),
@@ -238,6 +249,30 @@ function LoginAndRegisterContent({ onLoginSuccess }: LoginAndRegisterProps) {
                 toast.error('Conta criada, mas não foi possível fazer login automático. Faça login manualmente.')
                 setRegistered(true)
                 return
+            }
+
+            // Ativa o plano Pós-pago automaticamente — todo mundo já começa
+            // nele, sem precisar passar por /planos antes de criar loja ou
+            // ativar motorista/prestador. CPF e aparelho (mesma trava
+            // anti-fraude de sempre) já foram coletados acima.
+            try {
+                const { data: { session: newSession } } = await supabase.auth.getSession()
+                const { data: posPagoPlan } = await supabase.from('plans').select('id').eq('code', 'pos_pago').maybeSingle()
+                if (newSession && posPagoPlan) {
+                    const activateRes = await fetch('/api/subscriptions/purchase', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${newSession.access_token}` },
+                        body: JSON.stringify({ planId: posPagoPlan.id, cpfCnpj: cleanCpfCnpj, deviceId: getDeviceId() }),
+                    })
+                    if (!activateRes.ok) {
+                        const activateJson = await activateRes.json().catch(() => ({}))
+                        toast.error(activateJson.error || 'Não deu pra ativar o Pós-pago agora — você pode ativar depois em /planos.')
+                    }
+                }
+            } catch (postpaidErr) {
+                console.error('Erro ao ativar Pós-pago automaticamente:', postpaidErr)
+                // Não bloqueia o cadastro — a conta já foi criada, dá pra
+                // ativar depois em /planos.
             }
 
             // ✅ Login automático bem sucedido!
@@ -668,6 +703,32 @@ function LoginAndRegisterContent({ onLoginSuccess }: LoginAndRegisterProps) {
                                         required
                                         disabled={registerLoading}
                                     />
+                                </div>
+
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-black uppercase tracking-wider flex items-center gap-2" style={{ color: textSecondary }}>
+                                        <IdCard className="w-3.5 h-3.5" style={{ color: accentColor }} />
+                                        CPF OU CNPJ
+                                    </label>
+                                    <input
+                                        type="text"
+                                        inputMode="numeric"
+                                        className="w-full px-4 py-3 rounded-xl text-sm transition-all focus:outline-none focus:ring-2"
+                                        style={{
+                                            background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.4)`,
+                                            border: `2px solid ${borderColor}`,
+                                            color: textPrimary,
+                                            '--tw-ring-color': accentColor,
+                                        } as React.CSSProperties}
+                                        placeholder="Só números"
+                                        value={cpfCnpj}
+                                        onChange={(e) => setCpfCnpj(e.target.value)}
+                                        required
+                                        disabled={registerLoading}
+                                    />
+                                    <p className="text-[10px]" style={{ color: textSecondary }}>
+                                        Precisa pra já começar no plano Pós-pago (sem mensalidade)
+                                    </p>
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-3">

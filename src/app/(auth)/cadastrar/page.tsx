@@ -29,9 +29,11 @@ import {
   Percent,
   Home,
   Camera,
+  IdCard,
 } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import { toast } from 'sonner'
+import { getDeviceId } from '@/lib/deviceId'
 
 // Componente de badge animado com efeito rápido - CONTAINER TRANSPARENTE
 function AnimatedBadge({
@@ -114,6 +116,7 @@ function RegisterContent() {
   const [name, setName] = useState('')
   const [profileSlug, setProfileSlug] = useState('')
   const [email, setEmail] = useState('')
+  const [cpfCnpj, setCpfCnpj] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -212,6 +215,13 @@ function RegisterContent() {
       return
     }
 
+    const cleanCpfCnpj = cpfCnpj.replace(/\D/g, '')
+    if (cleanCpfCnpj.length !== 11 && cleanCpfCnpj.length !== 14) {
+      setError('Informe um CPF (11 dígitos) ou CNPJ (14 dígitos) válido')
+      setLoading(false)
+      return
+    }
+
     try {
       const { data: existingProfile } = await supabase
         .from('profiles')
@@ -285,6 +295,7 @@ function RegisterContent() {
         profileSlug: profileSlug,
         upline_id: uplineId,
         email: email,
+        cpf_cnpj: cleanCpfCnpj,
         avatar_url: avatarUrl,
         is_active: true,
         created_at: new Date().toISOString(),
@@ -315,6 +326,27 @@ function RegisterContent() {
         toast.error('Conta criada, mas não foi possível fazer login automático. Faça login manualmente.')
         setRegistered(true)
         return
+      }
+
+      // Ativa o plano Pós-pago automaticamente — todo mundo já começa
+      // nele, sem precisar passar por /planos antes de criar loja ou
+      // ativar motorista/prestador.
+      try {
+        const { data: { session: newSession } } = await supabase.auth.getSession()
+        const { data: posPagoPlan } = await supabase.from('plans').select('id').eq('code', 'pos_pago').maybeSingle()
+        if (newSession && posPagoPlan) {
+          const activateRes = await fetch('/api/subscriptions/purchase', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${newSession.access_token}` },
+            body: JSON.stringify({ planId: posPagoPlan.id, cpfCnpj: cleanCpfCnpj, deviceId: getDeviceId() }),
+          })
+          if (!activateRes.ok) {
+            const activateJson = await activateRes.json().catch(() => ({}))
+            toast.error(activateJson.error || 'Não deu pra ativar o Pós-pago agora — você pode ativar depois em /planos.')
+          }
+        }
+      } catch (postpaidErr) {
+        console.error('Erro ao ativar Pós-pago automaticamente:', postpaidErr)
       }
 
       setRegistered(true)
@@ -595,6 +627,32 @@ function RegisterContent() {
                   required
                   disabled={loading}
                 />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-black uppercase tracking-wider flex items-center gap-2" style={{ color: textSecondary }}>
+                  <IdCard className="w-3.5 h-3.5" style={{ color: accentColor }} />
+                  CPF ou CNPJ
+                </label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  className="w-full px-4 py-3 rounded-xl text-sm transition-all focus:outline-none focus:ring-2"
+                  style={{
+                    background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.4)`,
+                    border: `2px solid ${borderColor}`,
+                    color: textPrimary,
+                    '--tw-ring-color': accentColor,
+                  } as React.CSSProperties}
+                  placeholder="Só números"
+                  value={cpfCnpj}
+                  onChange={(e) => setCpfCnpj(e.target.value)}
+                  required
+                  disabled={loading}
+                />
+                <p className="text-[10px]" style={{ color: textSecondary }}>
+                  Precisa pra já começar no plano Pós-pago (sem mensalidade)
+                </p>
               </div>
 
               <div className="grid grid-cols-2 gap-3">

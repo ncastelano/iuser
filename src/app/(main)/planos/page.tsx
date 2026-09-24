@@ -14,6 +14,7 @@ import { toast } from 'sonner'
 import { callAdminApi } from '@/lib/callAdminApi'
 import { getDeviceId } from '@/lib/deviceId'
 import { useMyStatus } from '@/lib/benefits/useMyStatus'
+import InviteButton from '@/components/InviteButton'
 import { Car, Briefcase, Sparkles, Store, Check, Copy, X, ShieldCheck, Gift, Users, CreditCard, User, Shield, LayoutDashboard, Wallet } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
@@ -78,7 +79,7 @@ const PLAN_ICON: Record<string, typeof Car> = {
 const CYCLE_LABEL: Record<string, string> = {
     WEEKLY: '/semana',
     BIWEEKLY: '/quinzena',
-    MONTHLY: '/mês',
+    MONTHLY: 'a cada 30 dias',
     QUARTERLY: '/trimestre',
     SEMIANNUALLY: '/semestre',
     YEARLY: '/ano',
@@ -521,6 +522,18 @@ function PlanosContent() {
                                     )
                                 })}
                             </div>
+
+                            {userId && !isSuperAdmin && (
+                                <div className="rounded-2xl p-4 max-w-xl w-full mx-auto flex flex-col gap-2" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
+                                    <p className="text-xs font-black uppercase tracking-wider flex items-center gap-1.5" style={{ color: colors.textSecondary }}>
+                                        <Users size={12} /> Indique e ganhe
+                                    </p>
+                                    <p className="text-[11px]" style={{ color: colors.textSecondary }}>
+                                        Qualquer pessoa cadastrada pode convidar — não precisa de nenhum plano específico. Quando quem você indicou pagar um plano, metade do valor vira comissão sua.
+                                    </p>
+                                    <InviteButton />
+                                </div>
+                            )}
 
                             {userId && !isSuperAdmin && (
                                 <div className="rounded-2xl p-4 max-w-xl w-full mx-auto" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>

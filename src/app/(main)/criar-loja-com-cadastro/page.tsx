@@ -26,8 +26,10 @@ import {
     ArrowRight,
     ChevronLeft,
     ChevronRight,
+    IdCard,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { getDeviceId } from '@/lib/deviceId'
 import AnimatedBackground from '@/components/AnimatedBackground'
 import { createSquareImage } from '@/lib/image'
 import { checkSlugAvailability, getSlugSuggestions, sanitizeSlug } from '@/lib/slugUtils'
@@ -72,6 +74,7 @@ export default function CriarLojaComCadastro() {
     const [name, setName] = useState('')
     const [profileSlug, setProfileSlug] = useState('')
     const [email, setEmail] = useState('')
+    const [cpfCnpj, setCpfCnpj] = useState('')
     const [password, setPassword] = useState('')
     const [confirmPassword, setConfirmPassword] = useState('')
     const [showPassword, setShowPassword] = useState(false)
@@ -216,6 +219,13 @@ export default function CriarLojaComCadastro() {
             return
         }
 
+        const cleanCpfCnpj = cpfCnpj.replace(/\D/g, '')
+        if (cleanCpfCnpj.length !== 11 && cleanCpfCnpj.length !== 14) {
+            setAccountError('Informe um CPF (11 dígitos) ou CNPJ (14 dígitos) válido')
+            setLoading(false)
+            return
+        }
+
         if (!profileSlug || !/^[a-z0-9-]+$/.test(profileSlug)) {
             setAccountError('Seu link de perfil deve conter apenas letras minúsculas, números e hifens (-)')
             setLoading(false)
@@ -281,12 +291,34 @@ export default function CriarLojaComCadastro() {
                     id: userId,
                     name: name,
                     profileSlug: profileSlug,
+                    cpf_cnpj: cleanCpfCnpj,
                     avatar_url: accountAvatarUrl,
                 })
             if (profileError) {
                 console.error('Erro ao criar perfil:', profileError)
                 // ainda podemos tentar criar a loja mesmo se perfil falhar? Melhor parar.
                 throw new Error('Erro ao criar perfil')
+            }
+
+            // 3.1 Ativa o plano Pós-pago automaticamente — assim o gate de
+            // "assine pra criar loja" (StoreAccessGate, etapa seguinte) já
+            // passa direto, sem precisar visitar /planos.
+            try {
+                const { data: { session: newSession } } = await supabase.auth.getSession()
+                const { data: posPagoPlan } = await supabase.from('plans').select('id').eq('code', 'pos_pago').maybeSingle()
+                if (newSession && posPagoPlan) {
+                    const activateRes = await fetch('/api/subscriptions/purchase', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${newSession.access_token}` },
+                        body: JSON.stringify({ planId: posPagoPlan.id, cpfCnpj: cleanCpfCnpj, deviceId: getDeviceId() }),
+                    })
+                    if (!activateRes.ok) {
+                        const activateJson = await activateRes.json().catch(() => ({}))
+                        toast.error(activateJson.error || 'Não deu pra ativar o Pós-pago agora — você ainda precisa assinar um plano na próxima etapa.')
+                    }
+                }
+            } catch (postpaidErr) {
+                console.error('Erro ao ativar Pós-pago automaticamente:', postpaidErr)
             }
 
             // 4. Upload da logo (se houver)
@@ -695,6 +727,27 @@ export default function CriarLojaComCadastro() {
                                 required
                                 disabled={loading}
                             />
+                        </div>
+
+                        {/* CPF/CNPJ */}
+                        <div className="space-y-2">
+                            <label className="text-xs font-black uppercase tracking-wider text-gray-700 flex items-center gap-2 ml-1">
+                                <IdCard className="w-4 h-4 text-orange-500" />
+                                CPF OU CNPJ
+                            </label>
+                            <input
+                                type="text"
+                                inputMode="numeric"
+                                className="w-full px-4 py-3 bg-white border-2 border-orange-200 rounded-xl text-gray-900 placeholder:text-gray-400 text-sm transition-all focus:outline-none focus:border-orange-500"
+                                placeholder="Só números"
+                                value={cpfCnpj}
+                                onChange={(e) => setCpfCnpj(e.target.value)}
+                                required
+                                disabled={loading}
+                            />
+                            <p className="text-[11px] text-gray-500 ml-1">
+                                Precisa pra já começar no plano Pós-pago (sem mensalidade)
+                            </p>
                         </div>
 
                         {/* Senhas */}
