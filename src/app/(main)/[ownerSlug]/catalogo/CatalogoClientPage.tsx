@@ -304,6 +304,45 @@ export default function CatalogoClientPage() {
         setMounted(true)
     }, [])
 
+    // Chegou por um link do bot do WhatsApp (?addCart=...) — adiciona os
+    // itens na sacola dessa loja e limpa a URL. Só roda depois que
+    // storeInfo carrega (addItem precisa do nome/logo da loja).
+    const [pendingCartHydrate, setPendingCartHydrate] = useState(false)
+    useEffect(() => {
+        if (!storeInfo || !ownerSlug) return
+        if (typeof window === 'undefined') return
+        const raw = new URLSearchParams(window.location.search).get('addCart')
+        if (!raw) return
+        try {
+            const payload = JSON.parse(raw) as {
+                items: { id: string; name: string; price: number; image_url: string | null; slug?: string; quantity: number }[]
+            }
+            if (Array.isArray(payload.items) && payload.items.length > 0) {
+                for (const item of payload.items) {
+                    const product = { id: item.id, name: item.name, price: item.price, image_url: item.image_url, slug: item.slug }
+                    addItem(ownerSlug, { name: storeInfo.name, logo_url: storeInfo.logo_url }, product as any)
+                    if (item.quantity > 1) {
+                        updateQuantity(ownerSlug, item.id, item.quantity - 1)
+                    }
+                }
+                setIsBagExpanded(true)
+                setPendingCartHydrate(true)
+            }
+        } catch {
+            // link malformado — ignora silenciosamente
+        }
+        router.replace(`/${ownerSlug}/catalogo`, { scroll: false })
+    }, [storeInfo, ownerSlug, addItem, updateQuantity, router])
+
+    // Assim que soubermos se a pessoa está logada, abre direto a etapa
+    // certa: checkout (se já logada) ou o pedido de identificação (se
+    // não) — mesmo caminho do botão "Finalizar" da sacola.
+    useEffect(() => {
+        if (!pendingCartHydrate || profileLoading) return
+        setCheckoutStep(currentUserId ? 'delivery' : 'auth')
+        setPendingCartHydrate(false)
+    }, [pendingCartHydrate, profileLoading, currentUserId])
+
     // ========== FUNÇÕES DO USUÁRIO ==========
     const loadUserData = useCallback(async (uid: string) => {
         setCurrentUserId(uid)

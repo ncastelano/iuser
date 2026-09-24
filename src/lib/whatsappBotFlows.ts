@@ -25,7 +25,6 @@ export interface StoreRow {
     name: string
     storeSlug: string
     business_hours: BusinessHours | null
-    logo_url: string | null
 }
 
 export interface FlowResult {
@@ -116,18 +115,17 @@ function publicStorageUrl(bucket: string, path: string | null | undefined): stri
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://www.iuser.com.br'
 
 // Em vez de criar o pedido direto por aqui (sem endereço, sem forma de
-// pagamento de verdade), manda a pessoa pro carrinho do site com os itens
-// já adicionados — o checkout de lá já tem entrega/pagamento/login prontos.
-// A URL do carrinho com o pedido inteiro na query string fica enorme, por
-// isso passa pelo encurtador antes de virar link de verdade no WhatsApp.
+// pagamento de verdade), manda a pessoa pro catálogo da própria loja com
+// os itens já adicionados — o checkout de lá já tem entrega/pagamento/
+// login prontos. A URL com o pedido inteiro na query string fica enorme,
+// por isso passa pelo encurtador antes de virar link de verdade no
+// WhatsApp.
 async function buildCartUrl(
     admin: SupabaseClient,
     store: StoreRow,
     items: { id: string; name: string; price: number | null; image_url?: string | null; slug?: string; quantity: number }[]
 ): Promise<string> {
     const payload = {
-        slug: store.storeSlug,
-        store: { name: store.name, logo_url: publicStorageUrl('store-logos', store.logo_url) },
         items: items.map((it) => ({
             id: it.id,
             name: it.name,
@@ -137,7 +135,7 @@ async function buildCartUrl(
             quantity: it.quantity,
         })),
     }
-    const url = new URL('/carrinho', APP_URL)
+    const url = new URL(`/${store.storeSlug}/catalogo`, APP_URL)
     url.searchParams.set('addCart', JSON.stringify(payload))
     return createShortLink(admin, url.toString())
 }
