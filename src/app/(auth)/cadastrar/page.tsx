@@ -262,6 +262,17 @@ function RegisterContent() {
         }
       }
 
+      // Quem entra direto (sem link de convite de ninguém) vira indicado
+      // do admin por padrão — assim toda conta cadastrada tem um upline.
+      if (!uplineId) {
+        const { data: adminProfile } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('email', 'ncastelano@gmail.com')
+          .maybeSingle()
+        if (adminProfile) uplineId = adminProfile.id
+      }
+
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,

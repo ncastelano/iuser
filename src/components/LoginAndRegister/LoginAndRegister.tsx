@@ -184,6 +184,19 @@ function LoginAndRegisterContent({ onLoginSuccess }: LoginAndRegisterProps) {
                 }
             }
 
+            // Quem entra direto (sem link de convite de ninguém) vira
+            // indicado do admin por padrão — assim toda conta cadastrada
+            // tem um upline, em vez de a comissão de indicação simplesmente
+            // não existir pra quem chegou sem link.
+            if (!uplineId) {
+                const { data: adminProfile } = await supabase
+                    .from('profiles')
+                    .select('id')
+                    .eq('email', 'ncastelano@gmail.com')
+                    .maybeSingle()
+                if (adminProfile) uplineId = adminProfile.id
+            }
+
             // Criar usuário no Auth
             const { data: authData, error: authError } = await supabase.auth.signUp({
                 email: registerEmail,

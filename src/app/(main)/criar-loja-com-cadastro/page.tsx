@@ -2,8 +2,8 @@
 
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useRef, useEffect, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { getCurrentPosition as getNativeCurrentPosition } from '@/lib/nativeGeolocation'
 import {
@@ -48,8 +48,9 @@ interface PendingStorePayload {
     store_lng: number | null
 }
 
-export default function CriarLojaComCadastro() {
+function CriarLojaComCadastroContent() {
     const router = useRouter()
+    const searchParams = useSearchParams()
     const fileInputRef = useRef<HTMLInputElement | null>(null)
 
     // Step control
@@ -255,6 +256,41 @@ export default function CriarLojaComCadastro() {
                 return
             }
 
+            // 1.2 Descobrir upline (quem indicou) — via ?ref= ou cookie de indicação;
+            // sem indicação de ninguém, vira indicado do admin por padrão.
+            let referralSlug = null
+            const refParam = searchParams.get('ref')
+            if (refParam) {
+                referralSlug = refParam
+            } else {
+                try {
+                    const res = await fetch('/api/get-referral-cookie')
+                    const data = await res.json()
+                    referralSlug = data.referralSlug || null
+                } catch (error) {
+                    console.error('Erro ao ler cookie:', error)
+                }
+            }
+
+            let uplineId = null
+            if (referralSlug) {
+                const { data: upline } = await supabase
+                    .from('profiles')
+                    .select('id')
+                    .eq('profileSlug', referralSlug)
+                    .maybeSingle()
+                if (upline) uplineId = upline.id
+            }
+
+            if (!uplineId) {
+                const { data: adminProfile } = await supabase
+                    .from('profiles')
+                    .select('id')
+                    .eq('email', 'ncastelano@gmail.com')
+                    .maybeSingle()
+                if (adminProfile) uplineId = adminProfile.id
+            }
+
             // 2. Criar usuário (auth)
             const { data: authData, error: authError } = await supabase.auth.signUp({
                 email,
@@ -291,6 +327,7 @@ export default function CriarLojaComCadastro() {
                     id: userId,
                     name: name,
                     profileSlug: profileSlug,
+                    upline_id: uplineId,
                     cpf_cnpj: cleanCpfCnpj,
                     avatar_url: accountAvatarUrl,
                 })
@@ -871,5 +908,20 @@ export default function CriarLojaComCadastro() {
                 )}
             </div>
         </div>
+    )
+}
+
+export default function CriarLojaComCadastro() {
+    return (
+        <Suspense fallback={
+            <div className="min-h-screen flex items-center justify-center" style={{ background: '#000' }}>
+                <div className="text-center">
+                    <Spinner size={48} color="#f97316" className="mx-auto mb-4" />
+                    <p className="text-sm font-bold" style={{ color: '#ffffff' }}>Carregando...</p>
+                </div>
+            </div>
+        }>
+            <CriarLojaComCadastroContent />
+        </Suspense>
     )
 }
