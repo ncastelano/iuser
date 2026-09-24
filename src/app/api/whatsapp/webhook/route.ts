@@ -25,6 +25,42 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: 'Verificação inválida' }, { status: 403 })
 }
 
+// A partir de 1º de outubro de 2026 a Meta cobra por mensagem de serviço
+// (a que o bot manda) depois que a cota gratuita mensal do número acaba
+// — antes disso era sempre grátis. O aviso de cobrança vem separado, num
+// webhook de "status" (entrega/leitura), não junto da mensagem em si:
+// value.statuses[i].pricing.billable. Quando vier true, lança a cobrança
+// (estimativa da Meta + margem, ver service_pricing) na dívida da loja —
+// vale pra pré-pago também, a mensalidade não cobre custo de terceiro.
+async function chargeWhatsAppBotMessage(phoneNumberId: string, waMessageId: string) {
+    const { data: store } = await supabaseAdmin
+        .from('stores')
+        .select('id, owner_id')
+        .eq('whatsapp_bot_phone_number_id', phoneNumberId)
+        .maybeSingle()
+    if (!store?.owner_id) return
+
+    const { data: pricing } = await supabaseAdmin
+        .from('service_pricing')
+        .select('postpaid_price')
+        .eq('service_type', 'whatsapp_bot_message_fee')
+        .maybeSingle()
+
+    const { error } = await supabaseAdmin
+        .from('driver_postpaid_charges')
+        .insert({
+            driver_id: store.owner_id,
+            store_id: store.id,
+            type: 'whatsapp_bot_message_fee',
+            amount: pricing?.postpaid_price ?? 0.25,
+            wa_message_id: waMessageId,
+        })
+    // unique_violation (23505) = mesmo webhook reentregue, já cobramos essa mensagem.
+    if (error && error.code !== '23505') {
+        console.error('Erro ao cobrar mensagem de WhatsApp:', error)
+    }
+}
+
 export async function POST(req: Request) {
     const rawBody = await req.text()
     const signature = req.headers.get('x-hub-signature-256')
@@ -39,9 +75,25 @@ export async function POST(req: Request) {
     try {
         const payload = JSON.parse(rawBody)
         const change = payload?.entry?.[0]?.changes?.[0]?.value
+        const phoneNumberId: string | undefined = change?.metadata?.phone_number_id
+
+        // Webhook de status (entrega/leitura/falha) — é aqui que vem o aviso
+        // de cobrança, nunca junto de "messages".
+        const statuses = change?.statuses
+        if (Array.isArray(statuses) && statuses.length > 0) {
+            if (phoneNumberId) {
+                for (const status of statuses) {
+                    if (status?.pricing?.billable) {
+                        await chargeWhatsAppBotMessage(phoneNumberId, status.id)
+                    }
+                }
+            }
+            return NextResponse.json({ ok: true })
+        }
+
         const message = change?.messages?.[0]
         if (!message || message.type !== 'text') {
-            // Status de entrega, reação, mídia não suportada etc. — ignora.
+            // Reação, mídia não suportada etc. — ignora.
             return NextResponse.json({ ok: true })
         }
 
@@ -54,7 +106,6 @@ export async function POST(req: Request) {
             return NextResponse.json({ ok: true })
         }
 
-        const phoneNumberId: string | undefined = change?.metadata?.phone_number_id
         const waPhone: string = message.from
         const contactName: string | null = change?.contacts?.[0]?.profile?.name || null
         const text: string = message.text?.body || ''
