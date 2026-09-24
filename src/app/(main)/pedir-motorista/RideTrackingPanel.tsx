@@ -650,12 +650,23 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady }: Rid
         )
     }
 
-    const steps: { key: RideStatus; label: string; icon: typeof Search }[] = [
-        { key: 'pending', label: 'Buscando motorista', icon: Search },
-        { key: 'accepted', label: 'Motorista a caminho', icon: Car },
-        { key: 'completed', label: 'Concluída', icon: CheckCircle2 },
-    ]
-    const currentStepIndex = ride.status === 'cancelled' ? -1 : steps.findIndex((s) => s.key === ride.status)
+    // Status bem grande e dinâmico — reflete exatamente o que o motorista
+    // mandou (saiu, chegou, iniciou a corrida), não só o status geral do
+    // pedido (pending/accepted/completed), que é grosso demais pra isso.
+    const bigStatus = (() => {
+        if (ride.status === 'completed') return { label: 'Corrida concluída', sub: 'Obrigado por usar o iUser!', color: '#22c55e', icon: CheckCircle2 }
+        if (ride.status === 'pending') {
+            return candidates.length > 0
+                ? { label: `${candidates.length} candidato${candidates.length > 1 ? 's' : ''} pra escolher`, sub: 'Compare e escolha um motorista abaixo', color: '#f97316', icon: Search }
+                : { label: 'Buscando motorista', sub: 'Assim que alguém se candidatar, você vê aqui', color: '#f97316', icon: Search }
+        }
+        // accepted
+        if (ride.ride_started_at) return { label: 'Corrida em andamento', sub: 'Aproveite a viagem!', color: '#22c55e', icon: Car }
+        if (ride.driver_arrived_at) return { label: 'Motorista chegou!', sub: 'Confira a placa e a cor do carro antes de entrar', color: '#22c55e', icon: MapPin }
+        if (ride.driver_en_route) return { label: 'Motorista a caminho', sub: 'Ele já saiu para te buscar', color: '#22c55e', icon: Car }
+        return { label: 'Motorista aceito', sub: 'Aguardando ele sair para te buscar', color: '#f97316', icon: CheckCircle2 }
+    })()
+    const BigStatusIcon = bigStatus.icon
 
     return (
         <div className="flex flex-col gap-4">
@@ -699,36 +710,21 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady }: Rid
                 )}
             </div>
 
-            {/* Barra de progresso */}
+            {/* Status bem grande — muda conforme o motorista manda a atualização dele */}
             {ride.status === 'cancelled' ? (
                 <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ background: '#ef444415', color: '#ef4444' }}>
                     <XCircle size={16} />
                     <span className="text-sm font-bold">Pedido cancelado</span>
                 </div>
             ) : (
-                <div className="flex items-center">
-                    {steps.map((s, i) => {
-                        const Icon = s.icon
-                        const active = i <= currentStepIndex
-                        return (
-                            <div key={s.key} className="flex items-center flex-1 last:flex-none">
-                                <div className="flex flex-col items-center gap-1">
-                                    <div
-                                        className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
-                                        style={active ? { background: GRADIENT, color: '#fff' } : { background: `${colors.border}30`, color: colors.textSecondary }}
-                                    >
-                                        <Icon size={14} />
-                                    </div>
-                                    <span className="text-[10px] font-bold text-center leading-tight w-16" style={{ color: active ? colors.textPrimary : colors.textSecondary }}>
-                                        {s.label}
-                                    </span>
-                                </div>
-                                {i < steps.length - 1 && (
-                                    <div className="flex-1 h-0.5 mx-1 -mt-4" style={{ background: i < currentStepIndex ? GRADIENT : colors.border }} />
-                                )}
-                            </div>
-                        )
-                    })}
+                <div className="flex items-center gap-3 px-4 py-4 rounded-2xl" style={{ background: `${bigStatus.color}15`, border: `1px solid ${bigStatus.color}40` }}>
+                    <div className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: bigStatus.color, color: '#fff' }}>
+                        <BigStatusIcon size={22} />
+                    </div>
+                    <div className="min-w-0">
+                        <p className="text-lg font-black leading-tight" style={{ color: bigStatus.color }}>{bigStatus.label}</p>
+                        <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>{bigStatus.sub}</p>
+                    </div>
                 </div>
             )}
 
@@ -745,9 +741,6 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady }: Rid
                     <div className="min-w-0">
                         <p className="text-sm font-black truncate" style={{ color: colors.textPrimary }}>
                             {driver.name || (driver.profileSlug ? `@${driver.profileSlug}` : 'Motorista')}
-                        </p>
-                        <p className="text-[11px] font-bold" style={{ color: (ride.driver_en_route || ride.driver_arrived_at || ride.ride_started_at) ? '#22c55e' : colors.textSecondary }}>
-                            {ride.ride_started_at ? 'Corrida em andamento' : ride.driver_arrived_at ? 'Chegou ao local de partida' : ride.driver_en_route ? 'A caminho do ponto de partida' : 'Aguardando ele sair para buscar você'}
                         </p>
                         <p className="text-[11px]" style={{ color: colors.textSecondary }}>
                             {ride.ride_started_at ? 'Aproveite a viagem!' : 'Confira a placa e a cor do carro antes de entrar.'}
@@ -863,12 +856,13 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady }: Rid
                                         </span>
                                     )}
 
-                                    {c.store && (
+                                    {c.store && (c.store.slug || c.profileSlug) && (
                                         <a
-                                            href={c.store.slug ? `/${c.store.slug}` : undefined}
+                                            href={`/${c.store.slug || c.profileSlug}`}
                                             target="_blank"
                                             rel="noopener noreferrer"
-                                            className="flex flex-col items-center gap-1 p-1.5 rounded-lg w-full min-w-0"
+                                            onClick={(e) => e.stopPropagation()}
+                                            className="flex flex-col items-center gap-1 p-1.5 rounded-lg w-full min-w-0 cursor-pointer transition-opacity hover:opacity-80"
                                             style={{ background: colors.surface, border: `1px solid ${colors.border}` }}
                                         >
                                             <div className="flex items-center gap-1 w-full min-w-0 justify-center">
