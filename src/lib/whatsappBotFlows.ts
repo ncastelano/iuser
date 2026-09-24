@@ -8,6 +8,7 @@
 // terminar lá, onde endereço/pagamento/login já existem prontos.
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getStoreStatusText, type BusinessHours } from '@/lib/storeHours'
+import { createShortLink } from '@/lib/shortLink'
 
 export interface ConversationRow {
     id: string
@@ -117,10 +118,13 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://www.iuser.com.br'
 // Em vez de criar o pedido direto por aqui (sem endereço, sem forma de
 // pagamento de verdade), manda a pessoa pro carrinho do site com os itens
 // já adicionados — o checkout de lá já tem entrega/pagamento/login prontos.
-function buildCartUrl(
+// A URL do carrinho com o pedido inteiro na query string fica enorme, por
+// isso passa pelo encurtador antes de virar link de verdade no WhatsApp.
+async function buildCartUrl(
+    admin: SupabaseClient,
     store: StoreRow,
     items: { id: string; name: string; price: number | null; image_url?: string | null; slug?: string; quantity: number }[]
-): string {
+): Promise<string> {
     const payload = {
         slug: store.storeSlug,
         store: { name: store.name, logo_url: publicStorageUrl('store-logos', store.logo_url) },
@@ -135,7 +139,7 @@ function buildCartUrl(
     }
     const url = new URL('/carrinho', APP_URL)
     url.searchParams.set('addCart', JSON.stringify(payload))
-    return url.toString()
+    return createShortLink(admin, url.toString())
 }
 
 export async function handleIncomingMessage(
@@ -235,7 +239,7 @@ export async function handleIncomingMessage(
             }
             const total = items.reduce((sum, it) => sum + (Number(it.price) || 0) * it.quantity, 0)
             const summary = items.map((it) => `${it.quantity}x ${it.name}`).join(', ')
-            const cartUrl = buildCartUrl(store, items)
+            const cartUrl = await buildCartUrl(admin, store, items)
 
             return {
                 reply: `Prontinho! ${summary}\n*Total: R$ ${total.toFixed(2)}*\n\nAbra o link pra finalizar — endereço, forma de pagamento e confirmação ficam por lá:\n${cartUrl}\n\nDigite *menu* pra voltar.`,
