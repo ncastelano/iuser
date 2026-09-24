@@ -276,6 +276,16 @@ interface WithdrawalRow {
     profiles: { name: string | null; profileSlug: string | null } | null
 }
 
+type WhatsAppBotStatus = 'none' | 'requested' | 'queued' | 'connecting' | 'connected'
+
+const WHATSAPP_BOT_STATUS_LABEL: Record<WhatsAppBotStatus, string> = {
+    none: 'Não pediu',
+    requested: 'Pediu — na fila',
+    queued: 'Na fila',
+    connecting: 'Conectando',
+    connected: 'Conectado',
+}
+
 interface WhatsAppBotStoreRow {
     id: string
     name: string
@@ -283,6 +293,8 @@ interface WhatsAppBotStoreRow {
     whatsapp_bot_opt_in: boolean
     whatsapp_bot_phone_number_id: string | null
     whatsapp_bot_display_number: string | null
+    whatsapp_bot_requested_number: string | null
+    whatsapp_bot_status: WhatsAppBotStatus
 }
 
 // Lojas que pediram o atendimento automático (whatsapp_bot_opt_in) —
@@ -305,7 +317,7 @@ function WhatsAppBotSection({ cardStyle, colors }: SectionProps) {
         setLoading(true)
         const { data } = await supabase
             .from('stores')
-            .select('id, name, storeSlug, whatsapp_bot_opt_in, whatsapp_bot_phone_number_id, whatsapp_bot_display_number')
+            .select('id, name, storeSlug, whatsapp_bot_opt_in, whatsapp_bot_phone_number_id, whatsapp_bot_display_number, whatsapp_bot_requested_number, whatsapp_bot_status')
             .eq('whatsapp_bot_opt_in', true)
             .order('whatsapp_bot_phone_number_id', { ascending: true, nullsFirst: true })
         setStores((data as WhatsAppBotStoreRow[]) || [])
@@ -323,7 +335,7 @@ function WhatsAppBotSection({ cardStyle, colors }: SectionProps) {
         const t = setTimeout(async () => {
             const { data } = await supabase
                 .from('stores')
-                .select('id, name, storeSlug, whatsapp_bot_opt_in, whatsapp_bot_phone_number_id, whatsapp_bot_display_number')
+                .select('id, name, storeSlug, whatsapp_bot_opt_in, whatsapp_bot_phone_number_id, whatsapp_bot_display_number, whatsapp_bot_requested_number, whatsapp_bot_status')
                 .or(`name.ilike.%${query.trim()}%,storeSlug.ilike.%${query.trim()}%`)
                 .limit(10)
             setSearchResults((data as WhatsAppBotStoreRow[]) || [])
@@ -357,6 +369,18 @@ function WhatsAppBotSection({ cardStyle, colors }: SectionProps) {
         }
     }
 
+    const setQueueStatus = async (storeId: string, status: WhatsAppBotStatus) => {
+        setSaving(true)
+        try {
+            await callAdminApi('/api/admin/stores/whatsapp-bot/status', { storeId, status })
+            await load()
+        } catch (err: any) {
+            toast.error(err.message || 'Erro ao mudar status')
+        } finally {
+            setSaving(false)
+        }
+    }
+
     const inputStyle: React.CSSProperties = {
         background: colors.background,
         border: `1px solid ${colors.border}`,
@@ -374,10 +398,13 @@ function WhatsAppBotSection({ cardStyle, colors }: SectionProps) {
                     <p className="text-xs" style={{ color: colors.textSecondary }}>
                         {store.whatsapp_bot_phone_number_id
                             ? `Conectado — ${store.whatsapp_bot_display_number || store.whatsapp_bot_phone_number_id}`
-                            : store.whatsapp_bot_opt_in
-                                ? 'Pediu — aguardando conexão'
-                                : 'Não pediu'}
+                            : WHATSAPP_BOT_STATUS_LABEL[store.whatsapp_bot_status || 'none']}
                     </p>
+                    {store.whatsapp_bot_requested_number && !store.whatsapp_bot_phone_number_id && (
+                        <p className="text-[11px]" style={{ color: colors.textSecondary }}>
+                            Número pedido: <span className="font-bold">{store.whatsapp_bot_requested_number}</span>
+                        </p>
+                    )}
                 </div>
                 <button
                     onClick={() => startEdit(store)}
@@ -387,6 +414,25 @@ function WhatsAppBotSection({ cardStyle, colors }: SectionProps) {
                     {store.whatsapp_bot_phone_number_id ? 'Editar' : 'Conectar'}
                 </button>
             </div>
+
+            {store.whatsapp_bot_opt_in && !store.whatsapp_bot_phone_number_id && (
+                <div className="flex gap-1.5 flex-wrap">
+                    {(['requested', 'queued', 'connecting'] as WhatsAppBotStatus[]).map((s) => (
+                        <button
+                            key={s}
+                            onClick={() => setQueueStatus(store.id, s)}
+                            disabled={saving || store.whatsapp_bot_status === s}
+                            className="text-[10px] font-bold px-2.5 py-1 rounded-full disabled:opacity-40"
+                            style={{
+                                background: store.whatsapp_bot_status === s ? colors.accent : `${colors.border}30`,
+                                color: store.whatsapp_bot_status === s ? '#fff' : colors.textPrimary,
+                            }}
+                        >
+                            {WHATSAPP_BOT_STATUS_LABEL[s]}
+                        </button>
+                    ))}
+                </div>
+            )}
 
             {editingId === store.id && (
                 <div className="space-y-2 pt-2 border-t" style={{ borderColor: colors.border }}>

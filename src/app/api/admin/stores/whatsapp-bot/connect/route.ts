@@ -27,6 +27,7 @@ export async function POST(req: Request) {
             whatsapp_bot_phone_number_id: cleanPhoneNumberId || null,
             whatsapp_bot_display_number: cleanDisplayNumber || null,
             whatsapp_bot_connected_at: cleanPhoneNumberId ? new Date().toISOString() : null,
+            whatsapp_bot_status: cleanPhoneNumberId ? 'connected' : 'requested',
         })
         .eq('id', storeId)
 
