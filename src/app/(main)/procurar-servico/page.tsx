@@ -10,7 +10,7 @@ import Header from '@/components/Header'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import LoginAndRegister from '@/components/LoginAndRegister/LoginAndRegister'
 import { toast } from 'sonner'
-import { Briefcase, MapPin, Plus } from 'lucide-react'
+import { Briefcase, MapPin, Plus, Building2 } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import { useActivePlans } from '@/hooks/useActivePlans'
 import DriverDebtBanner from '@/components/DriverDebtBanner'
@@ -203,6 +203,21 @@ export default function SerParceiroPage() {
                                         className="rounded-2xl p-4"
                                         style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
                                     >
+                                        {/* Quem está pedindo */}
+                                        <div className="flex items-center gap-2 mb-3">
+                                            {job.requester?.avatarUrl ? (
+                                                <img src={job.requester.avatarUrl} className="w-7 h-7 rounded-full object-cover flex-shrink-0" alt="" />
+                                            ) : (
+                                                <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-black" style={{ background: GRADIENT, color: '#fff' }}>
+                                                    {(job.requester?.name || '?').charAt(0).toUpperCase()}
+                                                </div>
+                                            )}
+                                            <span className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>
+                                                {job.requester?.name || (job.requester?.profileSlug ? `@${job.requester.profileSlug}` : 'Alguém')}
+                                            </span>
+                                            <span className="text-[10px] flex-shrink-0 ml-auto" style={{ color: colors.textSecondary }}>{relativeTime(job.created_at)}</span>
+                                        </div>
+
                                         <div className="flex items-start gap-3">
                                             <div
                                                 className="w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0"
@@ -211,19 +226,31 @@ export default function SerParceiroPage() {
                                                 <Icon size={20} />
                                             </div>
                                             <div className="flex-1 min-w-0">
-                                                <div className="flex items-center justify-between gap-2">
-                                                    <span className="text-sm font-black" style={{ color: colors.textPrimary }}>{label}</span>
-                                                    <span className="text-[10px] flex-shrink-0" style={{ color: colors.textSecondary }}>{relativeTime(job.created_at)}</span>
-                                                </div>
+                                                <span className="text-sm font-black" style={{ color: colors.textPrimary }}>{label}</span>
                                                 <span className="flex items-center gap-1 text-xs mt-0.5" style={{ color: colors.textSecondary }}>
                                                     <MapPin size={11} className="flex-shrink-0" />
                                                     {getItemAddress(job)}
                                                 </span>
+                                                {job.location_needs_access && (
+                                                    <span className="flex items-center gap-1 text-xs mt-0.5" style={{ color: colors.textSecondary }}>
+                                                        <Building2 size={11} className="flex-shrink-0" />
+                                                        Condomínio fechado{job.location_access_notes ? ` — ${job.location_access_notes}` : ''}
+                                                    </span>
+                                                )}
                                                 {detail && (
                                                     <p className="text-xs mt-1.5" style={{ color: colors.textSecondary }}>{detail}</p>
                                                 )}
                                             </div>
                                         </div>
+
+                                        {job.photo_urls.length > 0 && (
+                                            <div className="flex gap-2 overflow-x-auto mt-3 pb-0.5">
+                                                {job.photo_urls.map((url) => (
+                                                    <img key={url} src={url} className="w-16 h-16 rounded-xl object-cover flex-shrink-0" style={{ border: `1px solid ${colors.border}` }} alt="" />
+                                                ))}
+                                            </div>
+                                        )}
+
                                         {isMine ? (
                                             <div
                                                 className="w-full mt-3 py-2.5 rounded-full text-xs font-black uppercase tracking-wider text-center"

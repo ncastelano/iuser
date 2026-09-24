@@ -2,6 +2,7 @@
 import { LucideIcon } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { getServiceIcon, getServiceLabel } from '@/lib/serviceTypes'
+import { getAvatarUrl } from '@/lib/avatar'
 
 export interface ServiceRequestRow {
     id: string
@@ -9,11 +10,20 @@ export interface ServiceRequestRow {
     service_type: string
     custom_service: string | null
     location_address: string
+    location_needs_access: boolean
+    location_access_notes: string | null
     description: string
+    photo_urls: string[]
     created_at: string
 }
 
-export type BoardItem = { kind: 'service' } & ServiceRequestRow
+export interface BoardRequester {
+    name: string | null
+    profileSlug: string | null
+    avatarUrl: string | undefined
+}
+
+export type BoardItem = { kind: 'service'; requester: BoardRequester | null } & ServiceRequestRow
 
 export function itemKey(item: BoardItem): string {
     return `${item.kind}:${item.id}`
@@ -61,11 +71,32 @@ export function relativeTime(iso: string): string {
 export async function fetchOpenBoardItems(limit?: number): Promise<BoardItem[]> {
     const { data: serviceRequests } = await supabase
         .from('service_requests')
-        .select('id, requester_id, service_type, custom_service, location_address, description, created_at')
+        .select('id, requester_id, service_type, custom_service, location_address, location_needs_access, location_access_notes, description, photo_urls, created_at')
         .eq('status', 'pending')
         .order('created_at', { ascending: true })
 
-    const combined: BoardItem[] = (serviceRequests || []).map((row) => ({ kind: 'service' as const, ...row }))
+    const rows = serviceRequests || []
+
+    // Quem está pedindo — nome, link e avatar, pra aparecer no card em vez
+    // de só o tipo de serviço (o candidato precisa saber com quem vai falar).
+    const requesterIds = Array.from(new Set(rows.map((r) => r.requester_id)))
+    let requestersById = new Map<string, BoardRequester>()
+    if (requesterIds.length > 0) {
+        const { data: profiles } = await supabase
+            .from('profiles')
+            .select('id, name, profileSlug, avatar_url')
+            .in('id', requesterIds)
+        requestersById = new Map((profiles || []).map((p) => [
+            p.id,
+            { name: p.name, profileSlug: p.profileSlug, avatarUrl: getAvatarUrl(supabase, p.avatar_url) },
+        ]))
+    }
+
+    const combined: BoardItem[] = rows.map((row) => ({
+        kind: 'service' as const,
+        ...row,
+        requester: requestersById.get(row.requester_id) || null,
+    }))
 
     return limit ? combined.slice(0, limit) : combined
 }
