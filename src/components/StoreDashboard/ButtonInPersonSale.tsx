@@ -81,6 +81,7 @@ export default function ButtonInPersonSale({
                 .select('id, name, price, image_url, slug')
                 .eq('store_id', storeId)
                 .eq('is_active', true)
+                .eq('listing_type', 'sale')
                 .order('name')
             if (data) setProducts(data as Product[])
         }
