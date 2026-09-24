@@ -87,6 +87,8 @@ export default function ProfilePublication({ profileId, profileSlug, isOwner = t
     const [ownerName, setOwnerName] = useState<string>('')
     const [ownerAvatar, setOwnerAvatar] = useState<string | null>(null)
     const { userId: currentUserId } = useProfile()
+    const [deletingId, setDeletingId] = useState<string | null>(null)
+    const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
     // ===== Carrega curtidas e comentarios das publicacoes em duas queries =====
     const attachEngagement = async (pubs: Publication[]): Promise<Publication[]> => {
@@ -270,14 +272,32 @@ export default function ProfilePublication({ profileId, profileSlug, isOwner = t
         return new Date(iso).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short', year: 'numeric' })
     }
 
+    // Sem window.confirm() aqui: dentro do app nativo (Capacitor) esse
+    // diálogo do navegador pode nem aparecer, e o clique parecia não fazer
+    // nada — troca por um diálogo próprio, que funciona igual em qualquer
+    // ambiente.
     const handleDelete = async (id: string) => {
-        if (!confirm('Deletar esta publicação?')) return
-        const { error } = await supabase.from('products').delete().eq('id', id)
-        if (!error) {
+        setDeletingId(id)
+        try {
+            // Com RLS, um delete sem permissão não retorna erro — só apaga 0
+            // linhas em silêncio. Só confiamos que apagou de verdade se a
+            // linha voltar no .select() abaixo; senão avisamos em vez de
+            // fingir sucesso.
+            const { data, error } = await supabase.from('products').delete().eq('id', id).select('id')
+            if (error) {
+                console.error('[ProfilePublication] Erro ao deletar:', error)
+                toast.error('Erro ao remover: ' + error.message)
+                return
+            }
+            if (!data || data.length === 0) {
+                toast.error('Não foi possível remover essa publicação (sem permissão ou ela já não existe mais).')
+                return
+            }
             setPublications(prev => prev.filter(p => p.id !== id))
             toast.success('Publicação removida')
-        } else {
-            toast.error('Erro ao remover')
+        } finally {
+            setDeletingId(null)
+            setConfirmDeleteId(null)
         }
     }
 
@@ -364,7 +384,7 @@ export default function ProfilePublication({ profileId, profileSlug, isOwner = t
                                 </button>
                             )}
                             <button
-                                onClick={(e) => { e.stopPropagation(); handleDelete(pub.id) }}
+                                onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(pub.id) }}
                                 className="rounded-full hover:bg-red-50 transition-colors"
                                 style={{ padding: compact ? 4 : 6 }}
                                 title="Excluir"
@@ -771,6 +791,41 @@ export default function ProfilePublication({ profileId, profileSlug, isOwner = t
                     </div>
                 )}
             </div>
+
+            {confirmDeleteId && (
+                <div
+                    className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4"
+                    style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}
+                    onClick={() => (deletingId ? null : setConfirmDeleteId(null))}
+                >
+                    <div
+                        className="w-full max-w-sm rounded-2xl p-6 space-y-4"
+                        style={{ background: colors.background, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <h3 className="text-base font-black" style={{ color: textPrimary }}>Deletar esta publicação?</h3>
+                        <p className="text-xs" style={{ color: textSecondary }}>Essa ação não pode ser desfeita.</p>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => setConfirmDeleteId(null)}
+                                disabled={!!deletingId}
+                                className="flex-1 py-3 rounded-xl font-black uppercase text-[10px] tracking-wider disabled:opacity-50"
+                                style={{ background: `${colors.border}30`, color: textPrimary }}
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={() => handleDelete(confirmDeleteId)}
+                                disabled={!!deletingId}
+                                className="flex-1 py-3 rounded-xl font-black uppercase text-[10px] tracking-wider flex items-center justify-center disabled:opacity-70"
+                                style={{ background: '#ef4444', color: '#fff' }}
+                            >
+                                {deletingId ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : 'Deletar'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }
