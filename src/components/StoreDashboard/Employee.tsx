@@ -334,7 +334,9 @@ export default function Employee({
                                                     <div>
                                                         <p className="text-sm font-bold" style={{ color: textPrimary }}>{emp.name}</p>
                                                         <p className="text-xs" style={{ color: textSecondary }}>
-                                                            {route ? `${route.stops.length} parada${route.stops.length !== 1 ? 's' : ''}` : 'Sem entregas'}
+                                                            {route && route.stops.length > 0
+                                                                ? `${route.stops.length} entrega${route.stops.length !== 1 ? 's' : ''} atribuída${route.stops.length !== 1 ? 's' : ''} · R$ ${route.stops.reduce((sum, s) => sum + Number(s.total_amount || 0), 0).toFixed(2)}`
+                                                                : 'Sem entregas'}
                                                         </p>
                                                     </div>
                                                 </div>
