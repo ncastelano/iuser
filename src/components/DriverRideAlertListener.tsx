@@ -42,18 +42,39 @@ export function DriverRideAlertListener() {
             channel = supabase
                 .channel(`driver-new-ride-alert-${userId}`)
                 .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'ride_requests' }, (payload) => {
-                    const ride = payload.new as { requester_id?: string; status?: string; origin_address?: string; destination_address?: string; vehicle_type?: VehicleType }
+                    const ride = payload.new as { id: string; requester_id?: string; status?: string; origin_address?: string; destination_address?: string; vehicle_type?: VehicleType }
                     if (ride.requester_id === userId) return
                     if (ride.status && ride.status !== 'pending') return
                     if (ride.vehicle_type && !rideAcceptsAnyVehicle(ride.vehicle_type) && !acceptableVehicleTypes.has(ride.vehicle_type)) return
                     if (pathRef.current?.startsWith('/aceitar-corridas')) return
                     if (pricing.alert_sound_enabled !== false) playNotificationSound('new_ride')
                     const short = (a?: string) => (a || '').split(',')[0]
+                    const description = ride.origin_address ? `${short(ride.origin_address)} → ${short(ride.destination_address)}` : undefined
                     toast.info('Nova corrida disponível!', {
-                        description: ride.origin_address ? `${short(ride.origin_address)} → ${short(ride.destination_address)}` : undefined,
+                        description,
                         action: { label: 'Ver', onClick: () => router.push('/aceitar-corridas') },
                         duration: 10000,
                     })
+
+                    // Além do toast (só existe enquanto o app está aberto), dispara
+                    // também a notificação na barra do sistema na hora, direto pelo
+                    // navegador - não depende do push do servidor ter chegado (rede,
+                    // fila etc.), e usa a MESMA tag da corrida pra não duplicar caso
+                    // o push do servidor também chegue.
+                    if (typeof window !== 'undefined' && 'serviceWorker' in navigator && Notification.permission === 'granted') {
+                        navigator.serviceWorker.ready.then((registration) => {
+                            registration.showNotification('Nova corrida disponível!', {
+                                body: description,
+                                icon: '/android-chrome-192x192.png',
+                                badge: '/favicon-128x128.png',
+                                tag: `new-ride-${ride.id}`,
+                                renotify: true,
+                                requireInteraction: true,
+                                vibrate: [300, 120, 300, 120, 500],
+                                data: { url: '/aceitar-corridas' },
+                            } as NotificationOptions).catch(() => {})
+                        }).catch(() => {})
+                    }
                 })
                 .subscribe()
         }
