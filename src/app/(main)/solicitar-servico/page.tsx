@@ -28,6 +28,9 @@ import {
     History,
     Plus,
     Store,
+    Flame,
+    Check,
+    ChevronDown,
 } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 
@@ -64,6 +67,7 @@ interface PublishedService {
     lat: number | null
     lng: number | null
     viewCount: number
+    createdAt: string
     ownerName: string | null
     targetSlug: string | null
     ownerAvatarUrl: string | undefined
@@ -246,7 +250,10 @@ export default function PedirServicoPage() {
     const [publishedServices, setPublishedServices] = useState<PublishedService[]>([])
     const [serviceSearchQuery, setServiceSearchQuery] = useState('')
     const [selectedService, setSelectedService] = useState<PublishedService | null>(null)
+    const [serviceRankKey, setServiceRankKey] = useState<'views_desc' | 'views_asc' | 'recent_desc' | 'recent_asc'>('views_desc')
+    const [showServiceRankMenu, setShowServiceRankMenu] = useState(false)
     const serviceMarkersRef = useRef<mapboxgl.Marker[]>([])
+    const hasFitServiceBoundsRef = useRef(false)
 
     const stepIndex = STEPS.indexOf(step)
     const selectedType = SERVICE_TYPES.find((t) => t.id === serviceType) || null
@@ -342,12 +349,12 @@ export default function PedirServicoPage() {
             const [{ data: profileRows }, { data: storeRows }] = await Promise.all([
                 supabase
                     .from('products')
-                    .select('id, name, description, image_url, service_type, address, lat, lng, owner_id, view_count')
+                    .select('id, name, description, image_url, service_type, address, lat, lng, owner_id, view_count, created_at')
                     .eq('listing_type', 'service_offer')
                     .order('created_at', { ascending: false }),
                 supabase
                     .from('products')
-                    .select('id, name, description, image_url, store_id, view_count')
+                    .select('id, name, description, image_url, store_id, view_count, created_at')
                     .eq('type', 'service')
                     .eq('listing_type', 'sale')
                     .order('created_at', { ascending: false }),
@@ -388,6 +395,7 @@ export default function PedirServicoPage() {
                     lat: row.lat,
                     lng: row.lng,
                     viewCount: row.view_count || 0,
+                    createdAt: row.created_at,
                     ownerName: p?.name || null,
                     targetSlug: p?.profileSlug || null,
                     ownerAvatarUrl: getAvatarUrl(supabase, p?.avatar_url),
@@ -409,6 +417,7 @@ export default function PedirServicoPage() {
                         lat: s.store_lat,
                         lng: s.store_lng,
                         viewCount: row.view_count || 0,
+                        createdAt: row.created_at,
                         ownerName: s.name,
                         targetSlug: s.storeSlug,
                         ownerAvatarUrl: s.logo_url ? supabase.storage.from('store-logos').getPublicUrl(s.logo_url).data.publicUrl : undefined,
@@ -423,11 +432,28 @@ export default function PedirServicoPage() {
 
     const filteredPublishedServices = (() => {
         const q = serviceSearchQuery.trim().toLowerCase()
-        if (!q) return publishedServices
-        return publishedServices.filter((s) =>
-            s.name.toLowerCase().includes(q) || (s.ownerName || '').toLowerCase().includes(q)
-        )
+        const matched = q
+            ? publishedServices.filter((s) => s.name.toLowerCase().includes(q) || (s.ownerName || '').toLowerCase().includes(q))
+            : publishedServices
+        const sorted = [...matched].sort((a, b) => {
+            switch (serviceRankKey) {
+                case 'views_asc': return a.viewCount - b.viewCount
+                case 'recent_desc': return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+                case 'recent_asc': return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+                default: return b.viewCount - a.viewCount
+            }
+        })
+        return sorted
     })()
+
+    const serviceRankLabel = (key: typeof serviceRankKey) => {
+        switch (key) {
+            case 'views_asc': return 'Menos vistos'
+            case 'recent_desc': return 'Mais recentes'
+            case 'recent_asc': return 'Mais antigos'
+            default: return 'Mais vistos'
+        }
+    }
 
     // Clicar num serviço voa o mapa até o local dele — não navega pra fora
     // da página, é só uma forma de explorar (igual o /radar).
@@ -554,6 +580,21 @@ export default function PedirServicoPage() {
 
         serviceMarkersRef.current.forEach((m) => m.remove())
         serviceMarkersRef.current = []
+
+        // Sem isso os pins ficavam fora da área visível do mapa (o mapa abre
+        // centralizado em Porto Velho por padrão, sem relação nenhuma com
+        // onde os serviços publicados realmente estão) — só ajusta uma vez,
+        // pra não ficar puxando o mapa de volta toda vez que a pessoa mexe
+        // nele ou digita na busca.
+        if (!hasFitServiceBoundsRef.current) {
+            const withCoords = filteredPublishedServices.filter((s) => s.lat != null && s.lng != null)
+            if (withCoords.length > 0) {
+                hasFitServiceBoundsRef.current = true
+                const bounds = new mapboxgl.LngLatBounds()
+                withCoords.forEach((s) => bounds.extend([s.lng!, s.lat!]))
+                map.fitBounds(bounds, { padding: { top: 140, bottom: Math.round(window.innerHeight * 0.5), left: 40, right: 40 }, maxZoom: 15, duration: 800 })
+            }
+        }
 
         filteredPublishedServices.forEach((service, idx) => {
             if (service.lat == null || service.lng == null) return
@@ -804,6 +845,48 @@ export default function PedirServicoPage() {
                                 </button>
                             )
                         })}
+                    </div>
+
+                    {/* Filtro (mesmo padrão do /radar): sempre em pares mais/menos */}
+                    <div className="flex justify-end relative -mt-1">
+                        <button
+                            onClick={() => setShowServiceRankMenu((v) => !v)}
+                            className="flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[11px] font-black text-white shadow-lg"
+                            style={{ background: GRADIENT, boxShadow: '0 4px 14px #f9731660' }}
+                            aria-expanded={showServiceRankMenu}
+                        >
+                            <Flame className="w-3.5 h-3.5" />
+                            Filtro: {serviceRankLabel(serviceRankKey)}
+                            <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showServiceRankMenu ? 'rotate-180' : ''}`} />
+                        </button>
+                        {showServiceRankMenu && (
+                            <div className="absolute right-0 top-full mt-2 w-60 rounded-2xl bg-white shadow-2xl border border-orange-200 z-40 py-1.5">
+                                {[
+                                    { title: 'Visualizações', desc: { key: 'views_desc' as const, label: 'Mais vistos' }, asc: { key: 'views_asc' as const, label: 'Menos vistos' } },
+                                    { title: 'Novidade', desc: { key: 'recent_desc' as const, label: 'Mais recentes' }, asc: { key: 'recent_asc' as const, label: 'Mais antigos' } },
+                                ].map((g) => (
+                                    <div key={g.title} className="px-3 py-1.5">
+                                        <p className="text-[9px] font-black uppercase tracking-wider text-gray-400 mb-1">{g.title}</p>
+                                        <div className="grid grid-cols-2 gap-1.5">
+                                            {[g.desc, g.asc].map((opt) => {
+                                                const active = serviceRankKey === opt.key
+                                                return (
+                                                    <button
+                                                        key={opt.key}
+                                                        onClick={() => { setServiceRankKey(opt.key); setShowServiceRankMenu(false) }}
+                                                        className={`flex items-center justify-center gap-1 rounded-xl px-2 py-1.5 text-[11px] font-bold border transition ${active ? 'text-white border-transparent' : 'text-gray-700 border-gray-200 hover:bg-orange-50'}`}
+                                                        style={active ? { background: GRADIENT } : undefined}
+                                                    >
+                                                        {active && <Check className="w-3 h-3" />}
+                                                        {opt.label}
+                                                    </button>
+                                                )
+                                            })}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 </div>
             )}

@@ -35,21 +35,28 @@ function useFeaturedServices() {
         const load = async () => {
             setLoading(true)
             try {
-                const { data: rows, error } = await supabase
-                    .from('products')
-                    .select('id, name, image_url, service_type, owner_id')
-                    .eq('listing_type', 'service_offer')
-                    .eq('is_active', true)
-                    .order('created_at', { ascending: false })
-                    .limit(30)
+                // Dois tipos, igual em /solicitar-servico: serviços publicados por
+                // pessoas (ProfileDashboard) e serviços vendidos por lojas
+                // (products.type='service').
+                const [{ data: profileRows }, { data: storeRows }] = await Promise.all([
+                    supabase
+                        .from('products')
+                        .select('id, name, image_url, service_type, owner_id, view_count')
+                        .eq('listing_type', 'service_offer')
+                        .eq('is_active', true)
+                        .order('created_at', { ascending: false })
+                        .limit(30),
+                    supabase
+                        .from('products')
+                        .select('id, name, image_url, store_id, view_count')
+                        .eq('type', 'service')
+                        .eq('listing_type', 'sale')
+                        .eq('is_active', true)
+                        .order('created_at', { ascending: false })
+                        .limit(30),
+                ])
 
-                if (error || !rows || rows.length === 0) {
-                    setServices([])
-                    setLoading(false)
-                    return
-                }
-
-                const ownerIds = [...new Set(rows.map(r => r.owner_id).filter(Boolean))] as string[]
+                const ownerIds = [...new Set((profileRows || []).map(r => r.owner_id).filter(Boolean))] as string[]
                 let profileMap = new Map<string, { name: string | null; profileSlug: string | null; avatar_url: string | null }>()
                 if (ownerIds.length > 0) {
                     const { data: profiles } = await supabase
@@ -59,7 +66,17 @@ function useFeaturedServices() {
                     profileMap = new Map((profiles || []).map(p => [p.id, p]))
                 }
 
-                const cards: ServiceCard[] = rows.map(row => {
+                const storeIds = [...new Set((storeRows || []).map(r => r.store_id).filter(Boolean))] as string[]
+                let storeMap = new Map<string, { name: string | null; storeSlug: string | null; logo_url: string | null }>()
+                if (storeIds.length > 0) {
+                    const { data: stores } = await supabase
+                        .from('stores')
+                        .select('id, name, storeSlug, logo_url')
+                        .in('id', storeIds)
+                    storeMap = new Map((stores || []).map(s => [s.id, s]))
+                }
+
+                const fromProfiles: (ServiceCard & { viewCount: number })[] = (profileRows || []).map(row => {
                     const p = profileMap.get(row.owner_id)
                     return {
                         id: row.id,
@@ -71,10 +88,29 @@ function useFeaturedServices() {
                         providerName: p?.name || 'Prestador',
                         providerSlug: p?.profileSlug || '',
                         providerImageUrl: getAvatarUrl(supabase, p?.avatar_url),
+                        viewCount: row.view_count || 0,
                     }
                 })
 
-                setServices(cards)
+                const fromStores: (ServiceCard & { viewCount: number })[] = (storeRows || [])
+                    .filter(row => row.store_id && storeMap.has(row.store_id))
+                    .map(row => {
+                        const s = storeMap.get(row.store_id)!
+                        return {
+                            id: row.id,
+                            imageUrl: row.image_url
+                                ? supabase.storage.from('product-images').getPublicUrl(row.image_url).data.publicUrl
+                                : null,
+                            title: row.name,
+                            serviceType: null,
+                            providerName: s.name || 'Loja',
+                            providerSlug: s.storeSlug || '',
+                            providerImageUrl: s.logo_url ? supabase.storage.from('store-logos').getPublicUrl(s.logo_url).data.publicUrl : undefined,
+                            viewCount: row.view_count || 0,
+                        }
+                    })
+
+                setServices([...fromProfiles, ...fromStores].sort((a, b) => b.viewCount - a.viewCount))
             } finally {
                 setLoading(false)
             }
