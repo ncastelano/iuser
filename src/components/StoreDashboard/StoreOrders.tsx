@@ -21,6 +21,10 @@ import {
 } from 'lucide-react'
 import CallIuserDriverDialog from './CallIuserDriverDialog'
 import { OrderModal } from '@/components/OrderModal'
+import { fetchOptimizedRoute } from '@/lib/mapboxRoute'
+import { ensureEmployeeAccessToken, buildCourierRouteMessage } from '@/lib/courierLink'
+import { getWhatsAppLink } from '@/lib/whatsapp'
+import { handleShareLink } from '@/lib/share'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -61,7 +65,10 @@ function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: numbe
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 }
 
-function optimizeRoute(storeLat: number, storeLng: number, stops: { id: string; lat: number; lng: number }[]) {
+// Fallback por linha reta (vizinho mais próximo) - usado quando a rota real
+// por ruas (fetchOptimizedRoute, em mapboxRoute.ts) falha ou não dá conta
+// (mais de 11 paradas de uma vez).
+function optimizeRouteFallback(storeLat: number, storeLng: number, stops: { id: string; lat: number; lng: number }[]) {
     if (stops.length === 0) return []
     const remaining = [...stops]
     const sequence: { id: string; sequence: number }[] = []
@@ -563,7 +570,7 @@ export default function StoreOrders({
             }
 
             const stops = ordersToAssign.map(o => ({ id: o.checkout_id, lat: o.delivery_lat, lng: o.delivery_lng }))
-            const optimized = optimizeRoute(store_lat, store_lng, stops)
+            const optimized = (await fetchOptimizedRoute(store_lat, store_lng, stops)) || optimizeRouteFallback(store_lat, store_lng, stops)
             const inserts = optimized.map(stop => ({
                 store_id: store.id,
                 employee_id: empId,
@@ -580,7 +587,7 @@ export default function StoreOrders({
                 return
             }
 
-            toast.success('Entregas atribuídas com sucesso!')
+            notifyEmployeeOfRoute(empId)
             setSelectedOrderIds(new Set())
             setShowAssignModal(false)
             setSelectedEmployeeId(null)
@@ -610,7 +617,7 @@ export default function StoreOrders({
 
             if (error) throw error
 
-            toast.success(`Pedido atribuído ao entregador!`)
+            notifyEmployeeOfRoute(employeeId)
             setSingleAssignOpen(null)
             await loadOrders()
             await fetchEmployeeRoutes()
@@ -619,6 +626,33 @@ export default function StoreOrders({
         } finally {
             setAssigning(false)
         }
+    }
+
+    // Manda o link de "minhas entregas" pro WhatsApp do entregador - funciona
+    // pra quem tem conta no iUser e pra quem não tem, é sempre o mesmo link.
+    const sendRouteToEmployee = async (emp: any) => {
+        try {
+            const token = await ensureEmployeeAccessToken(supabase, emp.id, emp.access_token)
+            const url = `${window.location.origin}/entregador/${token}`
+            const message = buildCourierRouteMessage(emp.name, storeName, url)
+
+            if (emp.phone) {
+                window.open(getWhatsAppLink(emp.phone, encodeURIComponent(message)), '_blank')
+            } else {
+                await handleShareLink({ title: 'Rota de entregas', text: message, url })
+            }
+        } catch (err: any) {
+            toast.error(err.message || 'Erro ao gerar o link')
+        }
+    }
+
+    // Depois de atribuir, oferece mandar a rota pro WhatsApp na hora (em vez
+    // de a pessoa ter que ir até "Funcionários" fazer isso separado).
+    const notifyEmployeeOfRoute = (employeeId: string) => {
+        const emp = employees.find(e => e.id === employeeId)
+        toast.success('Entregas atribuídas com sucesso!', emp ? {
+            action: { label: 'Enviar rota no WhatsApp', onClick: () => sendRouteToEmployee(emp) },
+        } : undefined)
     }
 
     const ensureOwnerEmployee = async (): Promise<string | null> => {

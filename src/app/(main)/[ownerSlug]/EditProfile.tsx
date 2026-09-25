@@ -25,7 +25,8 @@ import {
     Plus,
 } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
-import { formatBrazilianPhone, cleanPhoneNumber, geocodeAddress, reverseGeocode } from './Profile'
+import { formatBrazilianPhone, cleanPhoneNumber } from '@/lib/phone'
+import { geocodeAddress, reverseGeocode } from './Profile'
 
 interface OwnerData {
     id: string

@@ -7,6 +7,10 @@ import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { toast } from 'sonner'
 import { hexToRgb } from '@/lib/color'
+import { formatBrazilianPhone, cleanPhoneNumber } from '@/lib/phone'
+import { ensureEmployeeAccessToken, buildCourierRouteMessage } from '@/lib/courierLink'
+import { getWhatsAppLink } from '@/lib/whatsapp'
+import { handleShareLink } from '@/lib/share'
 import {
     Truck,
     ChevronRight,
@@ -15,6 +19,8 @@ import {
     Pencil,
     Trash2,
     Save,
+    Send,
+    RefreshCw,
     ChevronDown,
     ChevronUp,
 } from 'lucide-react'
@@ -43,6 +49,7 @@ interface EmployeeType {
     name: string
     phone?: string
     is_active: boolean
+    access_token?: string | null
 }
 
 interface RouteStop {
@@ -71,6 +78,7 @@ interface EmployeeProps {
     expandedEmployee: string | null
     onToggleExpand: (id: string | null) => void
     storeId: string
+    storeName: string
     onRefresh: () => void
 }
 
@@ -80,6 +88,7 @@ export default function Employee({
     expandedEmployee,
     onToggleExpand,
     storeId,
+    storeName,
     onRefresh,
 }: EmployeeProps) {
     const { colors } = useTheme()
@@ -96,6 +105,12 @@ export default function Employee({
 
     const [isExpanded, setIsExpanded] = useState(true)
 
+    // Guarda os tokens já gerados/lidos nesta sessão - onRefresh() do
+    // dashboard não recarrega a lista de funcionários, então sem isso cada
+    // clique em "Enviar rota" geraria um token novo antes do refresh chegar.
+    const [resolvedTokens, setResolvedTokens] = useState<Record<string, string>>({})
+    const [regenerating, setRegenerating] = useState(false)
+
     const handleAdd = () => {
         setEditingEmployee(null)
         setFormName('')
@@ -106,7 +121,7 @@ export default function Employee({
     const handleEdit = (emp: EmployeeType) => {
         setEditingEmployee(emp)
         setFormName(emp.name)
-        setFormPhone(emp.phone || '')
+        setFormPhone(cleanPhoneNumber(emp.phone || ''))
         setDialogOpen(true)
     }
 
@@ -120,7 +135,7 @@ export default function Employee({
             if (editingEmployee) {
                 const { error } = await supabase
                     .from('employees')
-                    .update({ name: formName.trim(), phone: formPhone.trim() })
+                    .update({ name: formName.trim(), phone: formPhone })
                     .eq('id', editingEmployee.id)
                 if (error) throw error
                 toast.success('Funcionário atualizado!')
@@ -128,8 +143,10 @@ export default function Employee({
                 const { error } = await supabase.from('employees').insert({
                     store_id: storeId,
                     name: formName.trim(),
-                    phone: formPhone.trim(),
+                    phone: formPhone,
                     is_active: true,
+                    // Já nasce com link pra ver as entregas - sem passo extra.
+                    access_token: crypto.randomUUID(),
                 })
                 if (error) throw error
                 toast.success('Funcionário adicionado!')
@@ -140,6 +157,43 @@ export default function Employee({
             toast.error(err.message || 'Erro ao salvar')
         } finally {
             setSaving(false)
+        }
+    }
+
+    // Manda o link de "minhas entregas" pro WhatsApp do entregador (mensagem
+    // já pronta, a pessoa só aperta enviar) - funciona pra quem tem conta no
+    // iUser e pra quem não tem, é sempre o mesmo link.
+    const handleSendRoute = async (emp: EmployeeType) => {
+        try {
+            const token = await ensureEmployeeAccessToken(supabase, emp.id, resolvedTokens[emp.id] || emp.access_token)
+            setResolvedTokens((prev) => ({ ...prev, [emp.id]: token }))
+            const url = `${window.location.origin}/entregador/${token}`
+            const message = buildCourierRouteMessage(emp.name, storeName, url)
+
+            if (emp.phone) {
+                window.open(getWhatsAppLink(emp.phone, encodeURIComponent(message)), '_blank')
+            } else {
+                await handleShareLink({ title: 'Rota de entregas', text: message, url })
+            }
+        } catch (err: any) {
+            toast.error(err.message || 'Erro ao gerar o link')
+        }
+    }
+
+    // Invalida o link anterior (quem tiver o link antigo deixa de conseguir
+    // ver as entregas) - útil se o link vazou ou trocou de entregador.
+    const handleRegenerateLink = async (emp: EmployeeType) => {
+        setRegenerating(true)
+        try {
+            const token = crypto.randomUUID()
+            const { error } = await supabase.from('employees').update({ access_token: token }).eq('id', emp.id)
+            if (error) throw error
+            setResolvedTokens((prev) => ({ ...prev, [emp.id]: token }))
+            toast.success('Link renovado! O link antigo parou de funcionar.')
+        } catch (err: any) {
+            toast.error(err.message || 'Erro ao gerar novo link')
+        } finally {
+            setRegenerating(false)
         }
     }
 
@@ -285,6 +339,16 @@ export default function Employee({
                                                     </div>
                                                 </div>
                                                 <div className="flex items-center gap-2">
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation()
+                                                            handleSendRoute(emp)
+                                                        }}
+                                                        className="p-1.5 rounded-full hover:bg-white/10 transition-colors"
+                                                        title="Enviar rota pro WhatsApp"
+                                                    >
+                                                        <Send size={14} style={{ color: '#22c55e' }} />
+                                                    </button>
                                                     <button
                                                         onClick={(e) => {
                                                             e.stopPropagation()
@@ -460,7 +524,7 @@ export default function Employee({
                                 onChange={e => setFormName(e.target.value)}
                             />
                             <input
-                                type="text"
+                                type="tel"
                                 placeholder="Telefone (opcional)"
                                 className="w-full border rounded-full px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
                                 style={{
@@ -468,9 +532,27 @@ export default function Employee({
                                     borderColor: borderColor,
                                     color: textPrimary,
                                 }}
-                                value={formPhone}
-                                onChange={e => setFormPhone(e.target.value)}
+                                value={formatBrazilianPhone(formPhone)}
+                                onChange={e => setFormPhone(cleanPhoneNumber(e.target.value))}
                             />
+                            {editingEmployee && (
+                                <button
+                                    onClick={() => handleRegenerateLink(editingEmployee)}
+                                    disabled={regenerating}
+                                    style={{
+                                        ...pillButtonStyle,
+                                        width: '100%',
+                                        background: 'transparent',
+                                        border: `1px solid ${borderColor}`,
+                                        color: textSecondary,
+                                        opacity: regenerating ? 0.5 : 1,
+                                    }}
+                                    className="hover:opacity-80 transition-opacity"
+                                >
+                                    <RefreshCw size={14} />
+                                    Gerar novo link de entregas
+                                </button>
+                            )}
                             <button
                                 onClick={handleSave}
                                 disabled={saving || !formName.trim()}

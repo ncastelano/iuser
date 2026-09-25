@@ -9,6 +9,7 @@ import { supabase } from '@/lib/supabase/client'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { hexToRgb } from '@/lib/color'
 import { pickImageFile, isNativePlatform } from '@/lib/nativeCamera'
+import { formatBrazilianPhone, cleanPhoneNumber } from '@/lib/phone'
 import {
     AlertTriangle,
     ArrowLeft,
@@ -120,18 +121,11 @@ interface Comment {
 
 type ProfileTab = 'publications' | 'profile_comments'
 
-// Função para formatar telefone brasileiro
-export const formatBrazilianPhone = (value: string) => {
-    const numbers = value.replace(/\D/g, '')
-    if (numbers.length === 0) return ''
-    if (numbers.length <= 2) return `(${numbers}`
-    if (numbers.length <= 6) return `(${numbers.slice(0, 2)}) ${numbers.slice(2)}`
-    if (numbers.length <= 10) return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 6)}-${numbers.slice(6)}`
-    return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 7)}-${numbers.slice(7, 11)}`
-}
-
-// Função para limpar formatação (apenas números)
-export const cleanPhoneNumber = (value: string) => value.replace(/\D/g, '')
+// formatBrazilianPhone/cleanPhoneNumber moraram aqui antes; agora vêm de
+// @/lib/phone (reaproveitadas fora desta pasta, ex: cadastro de entregador
+// em StoreDashboard/Employee.tsx) - reexportadas pra não quebrar quem já
+// importa daqui.
+export { formatBrazilianPhone, cleanPhoneNumber }
 
 // ========== FUNÇÕES DE GEOLOCALIZAÇÃO (compartilhadas) ==========
 export const geocodeCache: Map<string, { lat: number; lng: number; address: string } | null> = new Map()

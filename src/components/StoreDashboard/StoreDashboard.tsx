@@ -639,6 +639,7 @@ export default function StoreDashboard({
                     expandedEmployee={expandedEmployee}
                     onToggleExpand={setExpandedEmployee}
                     storeId={store.id}
+                    storeName={store.name}
                     onRefresh={() => { }}
                 />
             </div>
