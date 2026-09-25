@@ -352,6 +352,10 @@ export async function generateProductOrPublicationMetadata(
 
 /**
  * Generates OpenGraph and Twitter metadata for /publicacoes/[slug]
+ * Mesma resolução loja-vs-perfil de generateProductOrPublicationMetadata: o
+ * dono da publicação pode ser uma loja (store_id) ou uma pessoa (owner_id),
+ * e o preview do link deve mostrar o nome e a imagem de quem publicou, com
+ * fallback pra logo/avatar do dono quando a publicação não tem imagem própria.
  */
 export async function generatePublicationMetadata(slug: string): Promise<Metadata> {
     const defaultLogoUrl = `${BASE_URL}/logo.png`
@@ -368,15 +372,29 @@ export async function generatePublicationMetadata(slug: string): Promise<Metadat
     try {
         const { data: publication } = await supabase
             .from('products')
-            .select('*')
+            .select('*, store:store_id(name, logo_url), owner:owner_id(name, avatar_url)')
             .eq('slug', slug)
             .eq('listing_type', 'publication')
             .maybeSingle()
 
         if (publication) {
-            const title = `${publication.name || 'Publicação'} | iUser`
+            let ownerName: string | null = null
+            let ownerImage: string | null = null
+
+            const store = (publication as any).store
+            const owner = (publication as any).owner
+
+            if (store) {
+                if (store.name) ownerName = store.name
+                if (store.logo_url) ownerImage = getPublicStorageUrl('store-logos', store.logo_url)
+            } else if (owner) {
+                if (owner.name) ownerName = owner.name
+                if (owner.avatar_url) ownerImage = getPublicStorageUrl('avatars', owner.avatar_url)
+            }
+
+            const title = `${publication.name || 'Publicação'} | ${ownerName || 'iUser'}`
             const description = publication.description || 'Confira esta publicação no iUser!'
-            const rawImageUrl = getPublicStorageUrl('product-images', publication.image_url)
+            const rawImageUrl = getPublicStorageUrl('product-images', publication.image_url) || ownerImage
             const imageUrl = rawImageUrl ? toThumbUrl(rawImageUrl) : defaultLogoUrl
             const dimensions = { width: THUMB_SIZE, height: THUMB_SIZE }
 
