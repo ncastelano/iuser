@@ -69,6 +69,22 @@ function parseCoords(location: any): [number, number] | null {
     return null
 }
 
+// Coordenadas de um item de loja/produto/serviço: primeiro tenta o campo
+// geográfico `location`, depois `lat`/`lng` soltos (é o que fica preenchido
+// nos serviços publicados por perfil - listing_type='service_offer', criados
+// em ProfileServiceListing.tsx - que nunca gravam `location`, só lat/lng;
+// sem esse fallback esses pins somem do /radar mas continuam aparecendo no
+// /solicitar-servico, que lê lat/lng direto), e por último a localização da
+// loja dona do item.
+function resolveItemCoords(item: any, mode: Mode, stores: any[]): [number, number] | null {
+    if (mode === 'lojas') return parseCoords(item.location)
+    const ownCoords = parseCoords(item.location)
+        || (isFinite(item.lat) && isFinite(item.lng) ? [item.lng, item.lat] as [number, number] : null)
+    if (ownCoords) return ownCoords
+    const store = stores.find(s => s.id === item.store_id)
+    return parseCoords(store?.location)
+}
+
 // Função para buscar endereço a partir de coordenadas (reverse geocoding)
 async function reverseGeocode(lng: number, lat: number): Promise<string> {
     try {
@@ -647,14 +663,7 @@ export default function MapPage() {
         const coordGroups: Record<string, any[]> = {}
 
         filtered.forEach(item => {
-            let coords: [number, number] | null = null
-
-            if (mode === 'lojas') {
-                coords = parseCoords(item.location)
-            } else if (mode === 'produtos' || mode === 'servicos') {
-                const store = stores.find(s => s.id === item.store_id)
-                coords = parseCoords(item.location) || parseCoords(store?.location)
-            }
+            const coords = resolveItemCoords(item, mode, stores)
 
             if (!coords) {
                 console.warn('[MapPage] ⚠️ Sem coordenadas para item:', item.name)
@@ -794,15 +803,11 @@ export default function MapPage() {
         if (!mapReady || !mapRef.current) return
         const map = mapRef.current
 
-        const top3 = filtered.slice(0, 3).map((item, i) => {
-            let coords: [number, number] | null = null
-            if (mode === 'lojas') coords = parseCoords(item.location)
-            else {
-                const store = stores.find(s => s.id === item.store_id)
-                coords = parseCoords(item.location) || parseCoords(store?.location)
-            }
-            return { item, rank: i + 1, coords }
-        }).filter((t): t is { item: any; rank: number; coords: [number, number] } => !!t.coords)
+        const top3 = filtered.slice(0, 3).map((item, i) => ({
+            item,
+            rank: i + 1,
+            coords: resolveItemCoords(item, mode, stores),
+        })).filter((t): t is { item: any; rank: number; coords: [number, number] } => !!t.coords)
 
         if (top3.length === 0) { setEdgeIndicators([]); return }
 
