@@ -45,6 +45,7 @@ import AtalhoCompromissosPessoal from '@/app/(main)/compromissos/AtalhoCompromis
 import { ProfileInfo } from './ProfileInfo'
 import ProfileVisitors from './ProfileVisitors'
 import PublicationProfile from './ProfilePublication'
+import ProfileServiceListing from './ProfileServiceListing'
 import Commission from './Commission'
 import DeleteConfirmDialog from '@/components/DeleteConfirmDialog'
 import { callAdminApi } from '@/lib/callAdminApi'
@@ -1329,11 +1330,14 @@ export default function ProfileDashboard({
         />
     )
     const publicacoesNode = (
-        <PublicationProfile
-            profileId={profile.id}
-            profileSlug={profileSlug || ''}
-            onLatestUpdate={onPublicacoesUpdate}
-        />
+        <>
+            <PublicationProfile
+                profileId={profile.id}
+                profileSlug={profileSlug || ''}
+                onLatestUpdate={onPublicacoesUpdate}
+            />
+            <ProfileServiceListing profileId={profile.id} />
+        </>
     )
     const indicacoesNode = (
         <div className="mb-6">

@@ -11,8 +11,9 @@ import { useTheme, ThemeColors } from '@/app/contexts/theme'
 import { toast } from 'sonner'
 import { addRecentServiceLocation, getRecentServiceLocations, RecentServiceLocation } from '@/lib/recentServiceLocations'
 import { createSquareImage } from '@/lib/image'
-import { SERVICE_TYPES, ServiceType } from '@/lib/serviceTypes'
+import { SERVICE_TYPES, ServiceType, getServiceLabel } from '@/lib/serviceTypes'
 import MyOpenServiceRequests from '@/components/MyOpenServiceRequests'
+import { getAvatarUrl } from '@/lib/avatar'
 import {
     Wrench,
     Briefcase,
@@ -49,6 +50,20 @@ const MAX_PHOTOS = 20
 interface PhotoItem {
     file: File
     preview: string
+}
+
+interface PublishedService {
+    id: string
+    name: string
+    description: string | null
+    image_url: string | null
+    service_type: string | null
+    address: string | null
+    lat: number | null
+    lng: number | null
+    providerName: string | null
+    providerSlug: string | null
+    providerAvatarUrl: string | undefined
 }
 
 function shortAddress(address: string): string {
@@ -180,6 +195,9 @@ export default function PedirServicoPage() {
     const [showConfirmDialog, setShowConfirmDialog] = useState(false)
 
     const [popularCustomServices, setPopularCustomServices] = useState<{ label: string; count: number }[]>([])
+    const [publishedServices, setPublishedServices] = useState<PublishedService[]>([])
+    const [serviceFilter, setServiceFilter] = useState<ServiceType | 'todos'>('todos')
+    const serviceMarkersRef = useRef<mapboxgl.Marker[]>([])
 
     const stepIndex = STEPS.indexOf(step)
     const selectedType = SERVICE_TYPES.find((t) => t.id === serviceType) || null
@@ -263,6 +281,57 @@ export default function PedirServicoPage() {
         loadPopular()
         return () => { cancelled = true }
     }, [])
+
+    // ===== SERVIÇOS PUBLICADOS NA PLATAFORMA (ProfileDashboard > Meus serviços publicados) =====
+    useEffect(() => {
+        let cancelled = false
+        const loadPublished = async () => {
+            const { data } = await supabase
+                .from('products')
+                .select('id, name, description, image_url, service_type, address, lat, lng, owner_id')
+                .eq('listing_type', 'service_offer')
+                .order('created_at', { ascending: false })
+            if (cancelled || !data || data.length === 0) return
+
+            const ownerIds = Array.from(new Set(data.map((row) => row.owner_id).filter(Boolean)))
+            let profilesById = new Map<string, { name: string | null; profileSlug: string | null; avatar_url: string | null }>()
+            if (ownerIds.length > 0) {
+                const { data: profiles } = await supabase
+                    .from('profiles')
+                    .select('id, name, profileSlug, avatar_url')
+                    .in('id', ownerIds)
+                profilesById = new Map((profiles || []).map((p) => [p.id, p]))
+            }
+
+            if (cancelled) return
+            setPublishedServices(data.map((row) => {
+                const p = profilesById.get(row.owner_id)
+                return {
+                    id: row.id,
+                    name: row.name,
+                    description: row.description,
+                    image_url: row.image_url,
+                    service_type: row.service_type,
+                    address: row.address,
+                    lat: row.lat,
+                    lng: row.lng,
+                    providerName: p?.name || null,
+                    providerSlug: p?.profileSlug || null,
+                    providerAvatarUrl: getAvatarUrl(supabase, p?.avatar_url),
+                }
+            }))
+        }
+        loadPublished()
+        return () => { cancelled = true }
+    }, [])
+
+    const filteredPublishedServices = publishedServices.filter(
+        (s) => serviceFilter === 'todos' || s.service_type === serviceFilter
+    )
+
+    const goToProvider = (providerSlug: string | null) => {
+        if (providerSlug) router.push(`/${providerSlug}`)
+    }
 
     // ===== INIT MAP =====
     useEffect(() => {
@@ -372,6 +441,40 @@ export default function PedirServicoPage() {
             map.flyTo({ center: location.coords, zoom: 15, duration: 800 })
         }
     }, [mapReady, location.coords])
+
+    // ===== PINS DOS SERVIÇOS PUBLICADOS NA PLATAFORMA =====
+    useEffect(() => {
+        if (!mapReady || !mapRef.current) return
+        const map = mapRef.current
+
+        serviceMarkersRef.current.forEach((m) => m.remove())
+        serviceMarkersRef.current = []
+
+        filteredPublishedServices.forEach((service) => {
+            if (service.lat == null || service.lng == null) return
+
+            const el = document.createElement('div')
+            el.style.cssText = 'cursor:pointer;'
+            el.innerHTML = `
+                <div style="width:34px;height:34px;border-radius:9999px;overflow:hidden;border:3px solid #f97316;box-shadow:0 2px 8px rgba(0,0,0,0.4);background:#f97316;display:flex;align-items:center;justify-content:center;">
+                    ${service.providerAvatarUrl
+                        ? `<img src="${service.providerAvatarUrl}" style="width:100%;height:100%;object-fit:cover;" />`
+                        : `<span style="color:#fff;font-size:13px;font-weight:800;">${(service.providerName || '?').charAt(0).toUpperCase()}</span>`
+                    }
+                </div>
+            `
+            el.addEventListener('click', () => goToProvider(service.providerSlug))
+
+            const marker = new mapboxgl.Marker({ element: el, anchor: 'center' }).setLngLat([service.lng!, service.lat!]).addTo(map)
+            serviceMarkersRef.current.push(marker)
+        })
+
+        return () => {
+            serviceMarkersRef.current.forEach((m) => m.remove())
+            serviceMarkersRef.current = []
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [mapReady, filteredPublishedServices])
 
     // ===== BUSCA DE ENDEREÇO (autocomplete) =====
     const handleAddressChange = (value: string) => {
@@ -713,15 +816,9 @@ export default function PedirServicoPage() {
                     {/* ===== ETAPA 1: TIPO DE SERVIÇO ===== */}
                     {step === 'type' && (
                         <>
-                            {/* Meus pedidos de serviço em aberto + candidatos de cada um */}
-                            <div className="mb-5">
-                                <MyOpenServiceRequests limit={5} title="Meus pedidos de serviços em aberto" />
-                            </div>
-
-                            <h2 className="text-lg font-black mb-1" style={{ color: colors.textPrimary }}>Qual serviço você precisa?</h2>
-                            <p className="text-xs mb-4" style={{ color: colors.textSecondary }}>Escolha uma opção pra começar</p>
-
-                            <div className="grid grid-cols-3 gap-2">
+                            {/* Escolha uma opção pra começar — agora uma lista horizontal, em cima do título */}
+                            <p className="text-xs mb-2" style={{ color: colors.textSecondary }}>Escolha uma opção pra começar</p>
+                            <div className="flex gap-2 overflow-x-auto pb-2 mb-3 -mx-1 px-1">
                                 {SERVICE_TYPES.map((type) => {
                                     const Icon = type.icon
                                     const active = serviceType === type.id
@@ -729,7 +826,7 @@ export default function PedirServicoPage() {
                                         <button
                                             key={type.id}
                                             onClick={() => handleSelectType(type.id)}
-                                            className="flex flex-col items-center gap-1.5 py-4 px-1 rounded-2xl transition-all hover:scale-[1.03] active:scale-95"
+                                            className="flex-shrink-0 flex flex-col items-center gap-1.5 py-3 px-4 rounded-2xl transition-all hover:scale-[1.03] active:scale-95"
                                             style={
                                                 active
                                                     ? { background: GRADIENT, color: '#fff' }
@@ -737,12 +834,12 @@ export default function PedirServicoPage() {
                                             }
                                         >
                                             <div
-                                                className="w-10 h-10 rounded-full flex items-center justify-center"
+                                                className="w-9 h-9 rounded-full flex items-center justify-center"
                                                 style={active ? { background: 'rgba(255,255,255,0.25)', color: '#fff' } : { background: GRADIENT, color: '#fff' }}
                                             >
-                                                <Icon size={20} />
+                                                <Icon size={18} />
                                             </div>
-                                            <span className="text-[11px] font-bold text-center leading-tight" style={{ color: active ? '#fff' : colors.textPrimary }}>
+                                            <span className="text-[11px] font-bold text-center leading-tight whitespace-nowrap" style={{ color: active ? '#fff' : colors.textPrimary }}>
                                                 {type.label}
                                             </span>
                                         </button>
@@ -755,7 +852,7 @@ export default function PedirServicoPage() {
                                         <button
                                             key={service.label}
                                             onClick={() => { setServiceType('outro'); setCustomService(service.label); setStep('where') }}
-                                            className="flex flex-col items-center gap-1.5 py-4 px-1 rounded-2xl transition-all hover:scale-[1.03] active:scale-95"
+                                            className="flex-shrink-0 flex flex-col items-center gap-1.5 py-3 px-4 rounded-2xl transition-all hover:scale-[1.03] active:scale-95"
                                             style={
                                                 active
                                                     ? { background: GRADIENT, color: '#fff' }
@@ -763,12 +860,12 @@ export default function PedirServicoPage() {
                                             }
                                         >
                                             <div
-                                                className="w-10 h-10 rounded-full flex items-center justify-center"
+                                                className="w-9 h-9 rounded-full flex items-center justify-center"
                                                 style={active ? { background: 'rgba(255,255,255,0.25)', color: '#fff' } : { background: GRADIENT, color: '#fff' }}
                                             >
-                                                <Briefcase size={20} />
+                                                <Briefcase size={18} />
                                             </div>
-                                            <span className="text-[11px] font-bold text-center leading-tight capitalize" style={{ color: active ? '#fff' : colors.textPrimary }}>
+                                            <span className="text-[11px] font-bold text-center leading-tight capitalize whitespace-nowrap" style={{ color: active ? '#fff' : colors.textPrimary }}>
                                                 {service.label}
                                             </span>
                                         </button>
@@ -776,8 +873,10 @@ export default function PedirServicoPage() {
                                 })}
                             </div>
 
+                            <h2 className="text-lg font-black mb-1" style={{ color: colors.textPrimary }}>Qual serviço você precisa?</h2>
+
                             {serviceType === 'outro' && (
-                                <div className="mt-4">
+                                <div className="mt-3">
                                     <input
                                         type="text"
                                         value={customService}
@@ -795,6 +894,77 @@ export default function PedirServicoPage() {
                                     >
                                         Continuar
                                     </button>
+                                </div>
+                            )}
+
+                            {/* Meus pedidos de serviço em aberto + candidatos de cada um */}
+                            <div className="mt-5 mb-5">
+                                <MyOpenServiceRequests limit={5} title="Meus pedidos de serviços em aberto" />
+                            </div>
+
+                            {/* Serviços disponíveis na plataforma — publicados por outras pessoas no ProfileDashboard */}
+                            {publishedServices.length > 0 && (
+                                <div className="mt-2">
+                                    <h3 className="text-sm font-black mb-2" style={{ color: colors.textPrimary }}>Serviços disponíveis na plataforma</h3>
+
+                                    <div className="flex gap-2 overflow-x-auto pb-2 mb-3 -mx-1 px-1">
+                                        <button
+                                            onClick={() => setServiceFilter('todos')}
+                                            className="flex-shrink-0 px-3 py-1.5 rounded-full text-[11px] font-black transition-all"
+                                            style={serviceFilter === 'todos' ? { background: GRADIENT, color: '#fff' } : { background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                                        >
+                                            Todos
+                                        </button>
+                                        {SERVICE_TYPES.map((t) => (
+                                            <button
+                                                key={t.id}
+                                                onClick={() => setServiceFilter(t.id)}
+                                                className="flex-shrink-0 px-3 py-1.5 rounded-full text-[11px] font-black transition-all"
+                                                style={serviceFilter === t.id ? { background: GRADIENT, color: '#fff' } : { background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                                            >
+                                                {t.label}
+                                            </button>
+                                        ))}
+                                    </div>
+
+                                    {filteredPublishedServices.length === 0 ? (
+                                        <p className="text-xs py-4 text-center" style={{ color: colors.textSecondary }}>Nenhum serviço publicado nessa categoria ainda.</p>
+                                    ) : (
+                                        <div className="flex flex-col gap-2">
+                                            {filteredPublishedServices.map((service) => (
+                                                <button
+                                                    key={service.id}
+                                                    onClick={() => goToProvider(service.providerSlug)}
+                                                    className="w-full flex items-center gap-3 p-3 rounded-2xl text-left transition-all hover:scale-[1.01]"
+                                                    style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}
+                                                >
+                                                    {service.image_url ? (
+                                                        <img src={service.image_url} className="w-12 h-12 rounded-xl object-cover flex-shrink-0" alt="" />
+                                                    ) : (
+                                                        <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#fff' }}>
+                                                            <Wrench size={18} />
+                                                        </div>
+                                                    )}
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-xs font-black truncate" style={{ color: colors.textPrimary }}>{service.name}</p>
+                                                        <p className="text-[10px]" style={{ color: colors.accent }}>{getServiceLabel(service.service_type || 'outro')}</p>
+                                                        <div className="flex items-center gap-1.5 mt-0.5">
+                                                            {service.providerAvatarUrl ? (
+                                                                <img src={service.providerAvatarUrl} className="w-4 h-4 rounded-full object-cover flex-shrink-0" alt="" />
+                                                            ) : (
+                                                                <div className="w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 text-[8px] font-black" style={{ background: GRADIENT, color: '#fff' }}>
+                                                                    {(service.providerName || '?').charAt(0).toUpperCase()}
+                                                                </div>
+                                                            )}
+                                                            <span className="text-[10px] truncate" style={{ color: colors.textSecondary }}>
+                                                                {service.providerName || (service.providerSlug ? `@${service.providerSlug}` : 'Prestador')}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </>
