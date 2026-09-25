@@ -1,4 +1,4 @@
-// app/(main)/pedir-servico/page.tsx
+// app/(main)/solicitar-servico/page.tsx
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
@@ -27,6 +27,8 @@ import {
     Camera,
     History,
     Plus,
+    Map as MapIcon,
+    List as ListIcon,
 } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 
@@ -173,6 +175,7 @@ export default function PedirServicoPage() {
     const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
     const [mapReady, setMapReady] = useState(false)
+    const [viewMode, setViewMode] = useState<'map' | 'list'>('map')
     const [step, setStep] = useState<Step>('type')
     const [serviceType, setServiceType] = useState<ServiceType | null>(null)
     const [customService, setCustomService] = useState('')
@@ -591,7 +594,7 @@ export default function PedirServicoPage() {
                 locationNeedsAccess, locationAccessNotes,
                 description, notes,
             })
-            router.push(`/login?redirect=${encodeURIComponent('/pedir-servico')}`)
+            router.push(`/login?redirect=${encodeURIComponent('/solicitar-servico')}`)
             return
         }
         if (!location.address.trim() || !description.trim() || photos.length === 0) {
@@ -639,7 +642,11 @@ export default function PedirServicoPage() {
 
     return (
         <div className="fixed inset-0" style={{ zIndex: 0 }}>
-            <div ref={mapContainerRef} className="absolute inset-0 w-full h-full" style={{ background: '#111' }} />
+            <div
+                ref={mapContainerRef}
+                className="absolute inset-0 w-full h-full"
+                style={{ background: '#111', visibility: viewMode === 'list' ? 'hidden' : 'visible' }}
+            />
 
             {/* Botão voltar flutuante */}
             <button
@@ -649,6 +656,27 @@ export default function PedirServicoPage() {
             >
                 <ArrowLeft size={20} />
             </button>
+
+            {/* Alternar entre mapa e lista */}
+            {!activeField && !submitted && (
+                <button
+                    onClick={() => setViewMode((v) => (v === 'map' ? 'list' : 'map'))}
+                    className="absolute top-6 right-4 z-30 flex items-center gap-1.5 px-4 h-11 rounded-full shadow-xl font-bold text-xs"
+                    style={{ background: colors.surface, color: colors.textPrimary }}
+                >
+                    {viewMode === 'map' ? (
+                        <>
+                            <ListIcon size={16} />
+                            Lista
+                        </>
+                    ) : (
+                        <>
+                            <MapIcon size={16} />
+                            Mapa
+                        </>
+                    )}
+                </button>
+            )}
 
             {/* Overlay de busca em tela cheia */}
             {activeField && (
@@ -791,10 +819,11 @@ export default function PedirServicoPage() {
                 </div>
             )}
 
-            {/* Bottom sheet estilo Uber, por etapas */}
+            {/* Bottom sheet estilo Uber, por etapas — no modo lista, o mapa fica
+                escondido e a folha ocupa a tela toda no lugar dele */}
             {!activeField && !submitted && (
                 <div
-                    className="absolute bottom-0 inset-x-0 z-20 rounded-t-3xl px-5 pt-4 pb-8 max-h-[75vh] overflow-y-auto"
+                    className={`absolute inset-x-0 z-20 px-5 pt-4 pb-8 overflow-y-auto transition-all ${viewMode === 'list' ? 'top-20 bottom-0 rounded-t-3xl' : 'bottom-0 rounded-t-3xl max-h-[75vh]'}`}
                     style={{ background: colors.surface, boxShadow: '0 -8px 30px rgba(0,0,0,0.35)' }}
                 >
                     <div className="w-10 h-1 rounded-full mx-auto mb-4" style={{ background: colors.border }} />

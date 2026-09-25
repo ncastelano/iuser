@@ -675,7 +675,7 @@ export default function ProfilePublication({ profileId, profileSlug, isOwner = t
                                     Nova Publicação
                                 </h4>
 
-                                <div className="space-y-2">
+                                <div className="space-y-2 flex flex-col items-center">
                                     <label className="text-[10px] font-bold uppercase" style={{ color: textSecondary }}>
                                         Imagem (opcional)
                                     </label>
@@ -702,7 +702,7 @@ export default function ProfilePublication({ profileId, profileSlug, isOwner = t
                                 </div>
 
                                 <div className="space-y-2">
-                                    <label className="text-[10px] font-bold uppercase" style={{ color: textSecondary }}>
+                                    <label className="text-[10px] font-bold uppercase block text-center" style={{ color: textSecondary }}>
                                         Título da publicação
                                     </label>
                                     <input

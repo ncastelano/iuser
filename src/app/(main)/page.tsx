@@ -9,7 +9,6 @@ import CategoriasSection from './inicio/sections/CanIhelp'
 import LookForAService from './inicio/sections/LookForAService'
 import MotoristaSection from './inicio/sections/MotoristaSection'
 import HireAService from './inicio/sections/HireAService'
-import AcceptARider from './inicio/sections/AcceptARider'
 import SortableSection from './inicio/sections/SortableSection'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { useProfile } from '../contexts/ProfileContext'
@@ -28,6 +27,7 @@ import { isProfileOpenNow } from '@/lib/profileHours'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
 import ProductShowcase from './inicio/sections/ProductShowcase'
 import FeaturedPublications from './inicio/sections/FeaturePublications'
+import FeaturedServices from './inicio/sections/FeaturedServices'
 import FeaturedProfiles from './inicio/sections/FeaturedProfiles'
 import LocationPicker from '@/components/LocationPicker'
 import StoreList from './inicio/sections/StoreList'
@@ -53,7 +53,7 @@ const DEFAULT_SECTIONS = [
     'profileShowcase',
     'motorista',
     'servico',
-    'canalMotorista',
+    'servicoShowcase',
     'transporte',
     'careerPlans',
     'orderSection',
@@ -137,7 +137,6 @@ export default function HomePage() {
 
     const [breveMap, setBreveMap] = useState<Record<string, boolean>>({})
     const [motoristaUrgent, setMotoristaUrgent] = useState(false)
-    const [canalMotoristaUrgent, setCanalMotoristaUrgent] = useState(false)
 
     const storeOrderCounts = useMerchantStore(s => s.storeOrderCounts)
     const setMerchantStoreOrderCounts = useMerchantStore(s => s.setStoreOrderCounts)
@@ -336,16 +335,14 @@ export default function HomePage() {
     }
 
     // ---------- SEÇÕES EXIBIDAS (categorias sempre em primeiro, exceto quando
-    // Motorista Particular ou Canal do Motorista estão com atualização
-    // urgente — pedido com candidato/motorista a caminho, ou corrida aceita
-    // em andamento — aí a seção urgente sobe pra frente de Categorias até
-    // resolver) ----------
+    // Motorista Particular está com atualização urgente — pedido com
+    // candidato a caminho, ou corrida aceita em andamento — aí a seção
+    // urgente sobe pra frente de Categorias até resolver) ----------
     const urgentSections = useMemo(() => {
         const list: string[] = []
-        if (canalMotoristaUrgent) list.push('canalMotorista')
         if (motoristaUrgent) list.push('motorista')
         return list
-    }, [motoristaUrgent, canalMotoristaUrgent])
+    }, [motoristaUrgent])
 
     const displayedSections = useMemo(() => {
         const uniqueSections = Array.from(new Set(sections))
@@ -478,10 +475,10 @@ export default function HomePage() {
                 return <LookForAService onBreveStatusChange={breveCallbacks.transporte} />
             case 'motorista':
                 return <MotoristaSection onBreveStatusChange={breveCallbacks.motorista} onUrgentChange={setMotoristaUrgent} />
-            case 'canalMotorista':
-                return <AcceptARider onUrgentChange={setCanalMotoristaUrgent} />
             case 'servico':
                 return <HireAService />
+            case 'servicoShowcase':
+                return <FeaturedServices />
             default:
                 return null
         }

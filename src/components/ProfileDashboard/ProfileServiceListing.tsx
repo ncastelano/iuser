@@ -2,7 +2,7 @@
 //
 // "Meus serviços publicados" — um anúncio do serviço que a pessoa presta,
 // igual uma Publicação (mesma tabela products, listing_type='service_offer'),
-// mas com localização: aparece como pin no mapa de /pedir-servico, onde
+// mas com localização: aparece como pin no mapa de /solicitar-servico, onde
 // clientes veem todos os serviços disponíveis na plataforma.
 'use client'
 
@@ -300,7 +300,7 @@ export default function ProfileServiceListing({ profileId }: ProfileServiceListi
                 {isExpanded && (
                     <div className="flex flex-col gap-5">
                         <button
-                            onClick={() => router.push('/pedir-servico')}
+                            onClick={() => router.push('/solicitar-servico')}
                             style={{ ...pillButtonStyle, width: '100%', padding: '0.625rem', background: `${colors.border}30`, color: colors.accent, border: `1px solid ${colors.border}` }}
                             className="hover:opacity-80 transition-opacity"
                         >
@@ -400,7 +400,7 @@ export default function ProfileServiceListing({ profileId }: ProfileServiceListi
                                     Novo serviço
                                 </h4>
 
-                                <div className="space-y-2">
+                                <div className="space-y-2 flex flex-col items-center">
                                     <label className="text-[10px] font-bold uppercase" style={{ color: textSecondary }}>Foto (opcional)</label>
                                     <div
                                         onClick={() => fileInputRef.current?.click()}
@@ -443,7 +443,7 @@ export default function ProfileServiceListing({ profileId }: ProfileServiceListi
                                 </div>
 
                                 <div className="space-y-2">
-                                    <label className="text-[10px] font-bold uppercase" style={{ color: textSecondary }}>Título do anúncio</label>
+                                    <label className="text-[10px] font-bold uppercase block text-center" style={{ color: textSecondary }}>Título do anúncio</label>
                                     <input
                                         type="text"
                                         placeholder="Ex: Pintura residencial com garantia"

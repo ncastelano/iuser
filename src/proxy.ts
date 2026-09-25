@@ -31,7 +31,7 @@ const IGNORED_ROUTES = [
     '/social',
     '/comunidade',
     '/pedir-motorista',
-    '/pedir-servico',
+    '/solicitar-servico',
     '/procurar-servico',
     '/aceitar-corridas',
     '/painel-motorista',

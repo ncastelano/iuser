@@ -80,7 +80,7 @@ export default function HireAService({ dragHandle }: HireAServiceProps) {
                     </div>
 
                     <button
-                        onClick={() => { startNavProgress(); router.push('/pedir-servico') }}
+                        onClick={() => { startNavProgress(); router.push('/solicitar-servico') }}
                         className="flex items-center justify-center gap-2 px-6 py-3 rounded-full font-bold text-sm transition-all shadow-lg whitespace-nowrap hover:scale-105 active:scale-95"
                         style={buttonStyle}
                     >

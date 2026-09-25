@@ -1,9 +1,18 @@
 // src/lib/serviceTypes.ts
-import { PaintRoller, Wrench, Leaf, Zap, Sparkles, Hammer, Briefcase, LucideIcon } from 'lucide-react'
+import { PaintRoller, Wrench, Leaf, Zap, Sparkles, Hammer, Briefcase, Brain, PawPrint, Smile, Scissors, HandHeart, GraduationCap, Dumbbell, LucideIcon } from 'lucide-react'
 
-export type ServiceType = 'pintor' | 'encanador' | 'jardineiro' | 'eletricista' | 'diarista' | 'montador' | 'outro'
+export type ServiceType =
+    | 'psicologa' | 'veterinario' | 'dentista' | 'cabeleireiro' | 'massageador' | 'instrutor' | 'personal'
+    | 'pintor' | 'encanador' | 'jardineiro' | 'eletricista' | 'diarista' | 'montador' | 'outro'
 
 export const SERVICE_TYPES: { id: ServiceType; label: string; icon: LucideIcon }[] = [
+    { id: 'psicologa', label: 'Psicóloga', icon: Brain },
+    { id: 'veterinario', label: 'Veterinário', icon: PawPrint },
+    { id: 'dentista', label: 'Dentista', icon: Smile },
+    { id: 'cabeleireiro', label: 'Cabeleireiro', icon: Scissors },
+    { id: 'massageador', label: 'Massageador', icon: HandHeart },
+    { id: 'instrutor', label: 'Instrutor', icon: GraduationCap },
+    { id: 'personal', label: 'Personal', icon: Dumbbell },
     { id: 'pintor', label: 'Pintor', icon: PaintRoller },
     { id: 'encanador', label: 'Encanador', icon: Wrench },
     { id: 'jardineiro', label: 'Jardineiro', icon: Leaf },
