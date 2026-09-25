@@ -481,6 +481,22 @@ export default function StoreDashboard({
         return () => { supabase.removeChannel(channel) }
     }, [store?.id, loadEmployeeRoutes])
 
+    // Atualiza sozinho quando um funcionário é adicionado/editado/removido -
+    // não depende só do onRefresh do próprio diálogo (cobre também qualquer
+    // outra aba/dispositivo mexendo na mesma loja ao mesmo tempo).
+    useEffect(() => {
+        if (!store?.id) return
+        const channel = supabase
+            .channel(`store-dashboard-employees-${store.id}`)
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'employees', filter: `store_id=eq.${store.id}` },
+                () => loadEmployees()
+            )
+            .subscribe()
+        return () => { supabase.removeChannel(channel) }
+    }, [store?.id, loadEmployees])
+
     const goToPublicStore = () => {
         if (storeSlug) {
             router.push(`/${storeSlug}`)
