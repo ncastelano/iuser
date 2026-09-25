@@ -244,7 +244,8 @@ export default function PedirServicoPage() {
 
     const [popularCustomServices, setPopularCustomServices] = useState<{ label: string; count: number }[]>([])
     const [publishedServices, setPublishedServices] = useState<PublishedService[]>([])
-    const [serviceFilter, setServiceFilter] = useState<ServiceType | 'todos'>('todos')
+    const [serviceSearchQuery, setServiceSearchQuery] = useState('')
+    const [selectedService, setSelectedService] = useState<PublishedService | null>(null)
     const serviceMarkersRef = useRef<mapboxgl.Marker[]>([])
 
     const stepIndex = STEPS.indexOf(step)
@@ -420,12 +421,21 @@ export default function PedirServicoPage() {
         return () => { cancelled = true }
     }, [])
 
-    const filteredPublishedServices = publishedServices.filter(
-        (s) => serviceFilter === 'todos' || s.service_type === serviceFilter
-    )
+    const filteredPublishedServices = (() => {
+        const q = serviceSearchQuery.trim().toLowerCase()
+        if (!q) return publishedServices
+        return publishedServices.filter((s) =>
+            s.name.toLowerCase().includes(q) || (s.ownerName || '').toLowerCase().includes(q)
+        )
+    })()
 
-    const goToService = (service: PublishedService) => {
-        if (service.targetSlug) router.push(`/${service.targetSlug}`)
+    // Clicar num serviço voa o mapa até o local dele — não navega pra fora
+    // da página, é só uma forma de explorar (igual o /radar).
+    const flyToService = (service: PublishedService) => {
+        setSelectedService(service)
+        if (service.lat != null && service.lng != null && mapRef.current) {
+            mapRef.current.flyTo({ center: [service.lng, service.lat], zoom: 16, duration: 1000 })
+        }
     }
 
     // ===== INIT MAP =====
@@ -563,7 +573,7 @@ export default function PedirServicoPage() {
                     }
                 </div>
             `
-            el.addEventListener('click', () => goToService(service))
+            el.addEventListener('click', () => flyToService(service))
 
             const marker = new mapboxgl.Marker({ element: el, anchor: 'center' }).setLngLat([service.lng!, service.lat!]).addTo(map)
             serviceMarkersRef.current.push(marker)
@@ -754,6 +764,94 @@ export default function PedirServicoPage() {
                 <ArrowLeft size={20} />
             </button>
 
+            {/* Serviços disponíveis, em cima do mapa (igual o widget do /radar) —
+                clicar num item só voa o mapa até o local, não navega pra fora */}
+            {!activeField && !submitted && filteredPublishedServices.length > 0 && (
+                <div className="absolute top-24 left-1/2 -translate-x-1/2 w-[92%] max-w-2xl z-20">
+                    <div className="flex gap-2.5 overflow-x-auto pt-6 pb-1 scrollbar-hide snap-x items-end">
+                        {filteredPublishedServices.map((service, idx) => {
+                            const rank = idx < 3 ? idx + 1 : 0
+                            const size = rank ? 62 : 52
+                            const isSelected = selectedService?.id === service.id
+                            const shape = service.kind === 'store' ? 'rounded-xl' : 'rounded-full'
+                            return (
+                                <button
+                                    key={service.id}
+                                    onClick={() => flyToService(service)}
+                                    className={`snap-center flex-shrink-0 relative transition-all duration-300 ${isSelected ? 'ring-4 ring-orange-500 scale-110 shadow-xl' : 'opacity-95 hover:scale-105'}`}
+                                    style={{ width: `${size}px`, height: `${size}px` }}
+                                >
+                                    {rank > 0 && (
+                                        <span className="absolute left-1/2 -translate-x-1/2 z-10" style={{ top: -22 }}>
+                                            <CrownBadge rank={rank} size={30} />
+                                        </span>
+                                    )}
+                                    <div
+                                        className={`w-full h-full ${shape} overflow-hidden shadow-md bg-white`}
+                                        style={rank ? { border: `3px solid ${RANK_COLORS[rank].fill}`, boxShadow: `0 0 0 3px ${RANK_COLORS[rank].fill}55, 0 6px 16px rgba(0,0,0,0.35)` } : { border: '2px solid #fb923c' }}
+                                    >
+                                        {service.image_url ? (
+                                            <img src={service.image_url} className="w-full h-full object-cover" alt="" />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center text-xs font-black italic bg-gradient-to-br from-orange-100 to-red-100 text-orange-500">
+                                                {service.name.charAt(0)}
+                                            </div>
+                                        )}
+                                    </div>
+                                </button>
+                            )
+                        })}
+                    </div>
+                </div>
+            )}
+
+            {/* Ficha do serviço selecionado */}
+            {selectedService && !activeField && !submitted && (
+                <div className="absolute z-20 left-1/2 -translate-x-1/2 w-[92%] max-w-sm top-48">
+                    <div
+                        className="rounded-2xl p-3 flex items-center gap-3 shadow-2xl"
+                        style={{ background: colors.surface, border: `1px solid ${colors.border}` }}
+                    >
+                        {selectedService.image_url ? (
+                            <img src={selectedService.image_url} className="w-12 h-12 rounded-xl object-cover flex-shrink-0" alt="" />
+                        ) : (
+                            <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#fff' }}>
+                                <Wrench size={18} />
+                            </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5">
+                                <p className="text-xs font-black truncate" style={{ color: colors.textPrimary }}>{selectedService.name}</p>
+                                {selectedService.kind === 'store' && (
+                                    <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[8px] font-black uppercase flex-shrink-0" style={{ background: `${colors.accent}20`, color: colors.accent }}>
+                                        <Store size={9} />
+                                        Loja
+                                    </span>
+                                )}
+                            </div>
+                            <p className="text-[10px]" style={{ color: colors.accent }}>
+                                {selectedService.kind === 'store' ? 'Serviço da loja' : getServiceLabel(selectedService.service_type || 'outro')}
+                            </p>
+                            <p className="text-[10px] truncate" style={{ color: colors.textSecondary }}>{selectedService.ownerName}</p>
+                        </div>
+                        <button
+                            onClick={() => selectedService.targetSlug && router.push(`/${selectedService.targetSlug}`)}
+                            className="flex-shrink-0 px-3 py-2 rounded-full text-[10px] font-black uppercase"
+                            style={{ background: GRADIENT, color: '#fff' }}
+                        >
+                            Ver
+                        </button>
+                        <button
+                            onClick={() => setSelectedService(null)}
+                            className="flex-shrink-0"
+                            style={{ color: colors.textSecondary }}
+                        >
+                            <X size={16} />
+                        </button>
+                    </div>
+                </div>
+            )}
+
             {/* Overlay de busca em tela cheia */}
             {activeField && (
                 <div className="absolute inset-0 z-40" style={{ background: colors.background }}>
@@ -937,8 +1035,18 @@ export default function PedirServicoPage() {
                     {/* ===== ETAPA 1: TIPO DE SERVIÇO ===== */}
                     {step === 'type' && (
                         <>
-                            {/* Escolha uma opção pra começar — agora uma lista horizontal, em cima do título */}
-                            <p className="text-xs mb-2" style={{ color: colors.textSecondary }}>Escolha uma opção pra começar</p>
+                            {/* Buscar serviço, no lugar da antiga legenda "Escolha uma opção pra começar" */}
+                            <div className="relative mb-3">
+                                <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color: colors.textSecondary }} />
+                                <input
+                                    type="text"
+                                    value={serviceSearchQuery}
+                                    onChange={(e) => setServiceSearchQuery(e.target.value)}
+                                    placeholder="Buscar serviço ou profissional..."
+                                    className="w-full pl-10 pr-4 py-2.5 rounded-full text-sm focus:outline-none"
+                                    style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                                />
+                            </div>
                             <div className="flex gap-2 overflow-x-auto pb-2 mb-3 -mx-1 px-1">
                                 {SERVICE_TYPES.map((type) => {
                                     const Icon = type.icon
@@ -1019,95 +1127,9 @@ export default function PedirServicoPage() {
                             )}
 
                             {/* Meus pedidos de serviço em aberto + candidatos de cada um */}
-                            <div className="mt-5 mb-5">
+                            <div className="mt-5">
                                 <MyOpenServiceRequests limit={5} title="Meus pedidos de serviços em aberto" />
                             </div>
-
-                            {/* Serviços disponíveis na plataforma — publicados por outras pessoas no ProfileDashboard */}
-                            {publishedServices.length > 0 && (
-                                <div className="mt-2">
-                                    <h3 className="text-sm font-black mb-2" style={{ color: colors.textPrimary }}>Serviços disponíveis na plataforma</h3>
-
-                                    <div className="flex gap-2 overflow-x-auto pb-2 mb-3 -mx-1 px-1">
-                                        <button
-                                            onClick={() => setServiceFilter('todos')}
-                                            className="flex-shrink-0 px-3 py-1.5 rounded-full text-[11px] font-black transition-all"
-                                            style={serviceFilter === 'todos' ? { background: GRADIENT, color: '#fff' } : { background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
-                                        >
-                                            Todos
-                                        </button>
-                                        {SERVICE_TYPES.map((t) => (
-                                            <button
-                                                key={t.id}
-                                                onClick={() => setServiceFilter(t.id)}
-                                                className="flex-shrink-0 px-3 py-1.5 rounded-full text-[11px] font-black transition-all"
-                                                style={serviceFilter === t.id ? { background: GRADIENT, color: '#fff' } : { background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
-                                            >
-                                                {t.label}
-                                            </button>
-                                        ))}
-                                    </div>
-
-                                    {filteredPublishedServices.length === 0 ? (
-                                        <p className="text-xs py-4 text-center" style={{ color: colors.textSecondary }}>Nenhum serviço publicado nessa categoria ainda.</p>
-                                    ) : (
-                                        <div className="flex flex-col gap-2">
-                                            {filteredPublishedServices.map((service, idx) => {
-                                                const rank = idx < 3 ? idx + 1 : 0
-                                                return (
-                                                    <button
-                                                        key={service.id}
-                                                        onClick={() => goToService(service)}
-                                                        className="relative w-full flex items-center gap-3 p-3 rounded-2xl text-left transition-all hover:scale-[1.01]"
-                                                        style={rank
-                                                            ? { background: `${colors.border}30`, border: `2px solid ${RANK_COLORS[rank].fill}`, boxShadow: `0 0 0 2px ${RANK_COLORS[rank].fill}40` }
-                                                            : { background: `${colors.border}30`, border: `1px solid ${colors.border}` }}
-                                                    >
-                                                        {rank > 0 && (
-                                                            <span className="absolute -top-3 left-3 z-10">
-                                                                <CrownBadge rank={rank} size={24} />
-                                                            </span>
-                                                        )}
-                                                        {service.image_url ? (
-                                                            <img src={service.image_url} className="w-12 h-12 rounded-xl object-cover flex-shrink-0" alt="" />
-                                                        ) : (
-                                                            <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#fff' }}>
-                                                                <Wrench size={18} />
-                                                            </div>
-                                                        )}
-                                                        <div className="flex-1 min-w-0">
-                                                            <div className="flex items-center gap-1.5">
-                                                                <p className="text-xs font-black truncate" style={{ color: colors.textPrimary }}>{service.name}</p>
-                                                                {service.kind === 'store' && (
-                                                                    <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[8px] font-black uppercase flex-shrink-0" style={{ background: `${colors.accent}20`, color: colors.accent }}>
-                                                                        <Store size={9} />
-                                                                        Loja
-                                                                    </span>
-                                                                )}
-                                                            </div>
-                                                            <p className="text-[10px]" style={{ color: colors.accent }}>
-                                                                {service.kind === 'store' ? 'Serviço da loja' : getServiceLabel(service.service_type || 'outro')}
-                                                            </p>
-                                                            <div className="flex items-center gap-1.5 mt-0.5">
-                                                                {service.ownerAvatarUrl ? (
-                                                                    <img src={service.ownerAvatarUrl} className="w-4 h-4 rounded-full object-cover flex-shrink-0" alt="" />
-                                                                ) : (
-                                                                    <div className="w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 text-[8px] font-black" style={{ background: GRADIENT, color: '#fff' }}>
-                                                                        {(service.ownerName || '?').charAt(0).toUpperCase()}
-                                                                    </div>
-                                                                )}
-                                                                <span className="text-[10px] truncate" style={{ color: colors.textSecondary }}>
-                                                                    {service.ownerName || (service.targetSlug ? `@${service.targetSlug}` : 'Prestador')}
-                                                                </span>
-                                                            </div>
-                                                        </div>
-                                                    </button>
-                                                )
-                                            })}
-                                        </div>
-                                    )}
-                                </div>
-                            )}
                         </>
                     )}
 
