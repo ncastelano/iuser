@@ -27,8 +27,6 @@ import {
     Camera,
     History,
     Plus,
-    Map as MapIcon,
-    List as ListIcon,
 } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 
@@ -175,7 +173,35 @@ export default function PedirServicoPage() {
     const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
     const [mapReady, setMapReady] = useState(false)
-    const [viewMode, setViewMode] = useState<'map' | 'list'>('map')
+
+    // ===== FOLHA ARRASTÁVEL (sobe/desce pra ver mais, em vez de um botão) =====
+    const SHEET_MIN_VH = 32
+    const SHEET_DEFAULT_VH = 75
+    const SHEET_MAX_VH = 94
+    const [sheetHeightVh, setSheetHeightVh] = useState(SHEET_DEFAULT_VH)
+    const sheetDragRef = useRef<{ startY: number; startHeightVh: number } | null>(null)
+    const [isDraggingSheet, setIsDraggingSheet] = useState(false)
+
+    const handleSheetDragStart = (clientY: number) => {
+        sheetDragRef.current = { startY: clientY, startHeightVh: sheetHeightVh }
+        setIsDraggingSheet(true)
+    }
+    const handleSheetDragMove = (clientY: number) => {
+        const drag = sheetDragRef.current
+        if (!drag) return
+        const deltaVh = ((drag.startY - clientY) / window.innerHeight) * 100
+        setSheetHeightVh(Math.min(SHEET_MAX_VH, Math.max(SHEET_MIN_VH, drag.startHeightVh + deltaVh)))
+    }
+    const handleSheetDragEnd = () => {
+        if (!sheetDragRef.current) return
+        sheetDragRef.current = null
+        setIsDraggingSheet(false)
+        // Encaixa no ponto mais próximo: recolhida, padrão ou expandida.
+        setSheetHeightVh((h) => {
+            const points = [SHEET_MIN_VH, SHEET_DEFAULT_VH, SHEET_MAX_VH]
+            return points.reduce((closest, p) => Math.abs(p - h) < Math.abs(closest - h) ? p : closest, points[0])
+        })
+    }
     const [step, setStep] = useState<Step>('type')
     const [serviceType, setServiceType] = useState<ServiceType | null>(null)
     const [customService, setCustomService] = useState('')
@@ -645,7 +671,7 @@ export default function PedirServicoPage() {
             <div
                 ref={mapContainerRef}
                 className="absolute inset-0 w-full h-full"
-                style={{ background: '#111', visibility: viewMode === 'list' ? 'hidden' : 'visible' }}
+                style={{ background: '#111' }}
             />
 
             {/* Botão voltar flutuante */}
@@ -656,27 +682,6 @@ export default function PedirServicoPage() {
             >
                 <ArrowLeft size={20} />
             </button>
-
-            {/* Alternar entre mapa e lista */}
-            {!activeField && !submitted && (
-                <button
-                    onClick={() => setViewMode((v) => (v === 'map' ? 'list' : 'map'))}
-                    className="absolute top-6 right-4 z-30 flex items-center gap-1.5 px-4 h-11 rounded-full shadow-xl font-bold text-xs"
-                    style={{ background: colors.surface, color: colors.textPrimary }}
-                >
-                    {viewMode === 'map' ? (
-                        <>
-                            <ListIcon size={16} />
-                            Lista
-                        </>
-                    ) : (
-                        <>
-                            <MapIcon size={16} />
-                            Mapa
-                        </>
-                    )}
-                </button>
-            )}
 
             {/* Overlay de busca em tela cheia */}
             {activeField && (
@@ -819,14 +824,30 @@ export default function PedirServicoPage() {
                 </div>
             )}
 
-            {/* Bottom sheet estilo Uber, por etapas — no modo lista, o mapa fica
-                escondido e a folha ocupa a tela toda no lugar dele */}
+            {/* Bottom sheet estilo Uber, por etapas — arraste a alça pra cima ou
+                pra baixo pra ver mais (ou menos) sem precisar de um botão */}
             {!activeField && !submitted && (
                 <div
-                    className={`absolute inset-x-0 z-20 px-5 pt-4 pb-8 overflow-y-auto transition-all ${viewMode === 'list' ? 'top-20 bottom-0 rounded-t-3xl' : 'bottom-0 rounded-t-3xl max-h-[75vh]'}`}
-                    style={{ background: colors.surface, boxShadow: '0 -8px 30px rgba(0,0,0,0.35)' }}
+                    className="absolute bottom-0 inset-x-0 z-20 rounded-t-3xl px-5 pt-4 pb-8 overflow-y-auto"
+                    style={{
+                        background: colors.surface,
+                        boxShadow: '0 -8px 30px rgba(0,0,0,0.35)',
+                        height: `${sheetHeightVh}vh`,
+                        transition: isDraggingSheet ? 'none' : 'height 0.25s ease-out',
+                    }}
                 >
-                    <div className="w-10 h-1 rounded-full mx-auto mb-4" style={{ background: colors.border }} />
+                    <div
+                        className="w-full flex justify-center pb-3 -mt-1 touch-none cursor-grab active:cursor-grabbing"
+                        onPointerDown={(e) => {
+                            e.currentTarget.setPointerCapture(e.pointerId)
+                            handleSheetDragStart(e.clientY)
+                        }}
+                        onPointerMove={(e) => handleSheetDragMove(e.clientY)}
+                        onPointerUp={handleSheetDragEnd}
+                        onPointerCancel={handleSheetDragEnd}
+                    >
+                        <div className="w-10 h-1 rounded-full" style={{ background: colors.border }} />
+                    </div>
 
                     {/* Indicador de progresso das etapas */}
                     <div className="flex items-center gap-1.5 justify-center mb-4">
