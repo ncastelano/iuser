@@ -3,7 +3,7 @@
 
 import CategorySuggestions from '@/components/StoreDashboard/CategorySuggestions'
 import { useState, useRef, useEffect } from 'react'
-import { useRouter, useParams } from 'next/navigation'
+import { useRouter, useParams, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
@@ -20,6 +20,7 @@ const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 export function CriarProdutoClient() {
     const router = useRouter()
     const params = useParams()
+    const searchParams = useSearchParams()
     const ownerSlug = (Array.isArray(params.ownerSlug) ? params.ownerSlug[0] : params.ownerSlug) ?? ''
     const { colors } = useTheme()
     const { userId, avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
@@ -61,7 +62,7 @@ export function CriarProdutoClient() {
     const [price, setPrice] = useState('')
     const [priceType, setPriceType] = useState('fixed')
     const [category, setCategory] = useState('')
-    const [productType, setProductType] = useState('physical')
+    const [productType, setProductType] = useState(searchParams.get('type') === 'service' ? 'service' : 'physical')
     const [hasAddons, setHasAddons] = useState(false)
 
     useEffect(() => {
@@ -163,7 +164,7 @@ export function CriarProdutoClient() {
 
             <main className="relative z-10 min-h-dvh pb-28">
                 <Header
-                    title="Criar Produto"
+                    title={productType === 'service' ? 'Criar Serviço' : 'Criar Produto'}
                     showBack={true}
                     onBack={() => router.back()}
                     greeting={`Olá, ${profileLoading ? '...' : profileSlug ? `@${profileSlug}` : 'Visitante'}`}
@@ -179,7 +180,7 @@ export function CriarProdutoClient() {
                     }}>
                         <div className="flex items-center justify-between mb-6">
                             <h1 className="text-2xl font-black" style={{ color: colors.textPrimary }}>
-                                Criar Produto
+                                {productType === 'service' ? 'Criar Serviço' : 'Criar Produto'}
                             </h1>
                             <div className="flex gap-2">
                                 <button

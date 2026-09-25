@@ -1336,7 +1336,7 @@ export default function ProfileDashboard({
                 profileSlug={profileSlug || ''}
                 onLatestUpdate={onPublicacoesUpdate}
             />
-            <ProfileServiceListing profileId={profile.id} />
+            <ProfileServiceListing profileId={profile.id} profileSlug={profileSlug || ''} />
         </>
     )
     const indicacoesNode = (

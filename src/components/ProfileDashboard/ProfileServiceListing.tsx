@@ -25,6 +25,7 @@ import {
     MapPin,
     MapPinPlus,
     Map as MapIcon,
+    Pencil,
 } from 'lucide-react'
 import { generateUniqueGlobalSlug } from '@/lib/slugUtils'
 import { Spinner } from '@/components/Spinner'
@@ -44,6 +45,7 @@ interface ServiceListing {
 
 interface ProfileServiceListingProps {
     profileId: string
+    profileSlug: string
 }
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -76,7 +78,7 @@ async function reverseGeocode(lng: number, lat: number): Promise<string | null> 
     }
 }
 
-export default function ProfileServiceListing({ profileId }: ProfileServiceListingProps) {
+export default function ProfileServiceListing({ profileId, profileSlug }: ProfileServiceListingProps) {
     const { colors } = useTheme()
     const surfaceRgb = hexToRgb(colors.surface)
     const router = useRouter()
@@ -336,40 +338,49 @@ export default function ProfileServiceListing({ profileId }: ProfileServiceListi
                         ) : (
                             <>
                                 {listings.length > 0 && (
-                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                    <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-gray-400">
                                         {listings.map(listing => {
                                             const imgUrl = getImageUrl(listing.image_url)
                                             return (
                                                 <div
                                                     key={listing.id}
-                                                    className="rounded-2xl border p-3 flex flex-col gap-2 relative"
+                                                    className="flex-shrink-0 w-40 rounded-2xl border p-3 flex flex-col gap-2 cursor-pointer hover:shadow-md transition-shadow relative"
                                                     style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`, borderColor: colors.border }}
+                                                    onClick={() => router.push(`/${profileSlug}/${listing.slug}/editar`)}
                                                 >
-                                                    <div className="w-full aspect-square rounded-xl overflow-hidden bg-gray-100 flex items-center justify-center">
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(listing.id) }}
+                                                        className="absolute top-2 left-2 w-7 h-7 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center hover:bg-red-500/80 transition-colors z-10"
+                                                        title="Excluir serviço"
+                                                    >
+                                                        <Trash2 size={13} color="white" />
+                                                    </button>
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); router.push(`/${profileSlug}/${listing.slug}/editar`) }}
+                                                        className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center hover:bg-black/50 transition-colors z-10"
+                                                        title="Editar serviço"
+                                                    >
+                                                        <Pencil size={13} color="white" />
+                                                    </button>
+
+                                                    <div className="w-full h-28 rounded-xl overflow-hidden bg-gray-100">
                                                         {imgUrl ? (
                                                             <img src={imgUrl} className="w-full h-full object-cover" alt={listing.name} />
                                                         ) : (
-                                                            <Wrench size={28} style={{ color: textSecondary }} />
+                                                            <div className="w-full h-full flex items-center justify-center" style={{ color: textSecondary }}>
+                                                                <Wrench size={28} />
+                                                            </div>
                                                         )}
                                                     </div>
-                                                    <p className="text-[9px] font-black uppercase tracking-wider" style={{ color: colors.accent }}>
-                                                        {serviceLabel(listing.service_type)}
-                                                    </p>
-                                                    <p className="text-xs font-bold truncate" style={{ color: textPrimary }}>{listing.name}</p>
-                                                    {listing.address && (
-                                                        <span className="flex items-center gap-1 text-[10px] truncate" style={{ color: textSecondary }}>
-                                                            <MapPin size={10} className="flex-shrink-0" />
-                                                            {listing.address}
-                                                        </span>
-                                                    )}
-                                                    <div className="flex items-center justify-end mt-auto">
-                                                        <button
-                                                            onClick={() => setConfirmDeleteId(listing.id)}
-                                                            className="p-1.5 rounded-full hover:bg-red-50 transition-colors"
-                                                            title="Excluir"
-                                                        >
-                                                            <Trash2 size={14} style={{ color: '#ef4444' }} />
-                                                        </button>
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-xs font-bold truncate" style={{ color: textPrimary }}>{listing.name}</p>
+                                                        <p className="text-xs font-bold mt-1" style={{ color: '#f97316' }}>{serviceLabel(listing.service_type)}</p>
+                                                        {listing.address && (
+                                                            <div className="flex items-center gap-1 text-[10px] mt-1" style={{ color: textSecondary }}>
+                                                                <MapPin size={10} className="flex-shrink-0" />
+                                                                <span className="truncate">{listing.address}</span>
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 </div>
                                             )

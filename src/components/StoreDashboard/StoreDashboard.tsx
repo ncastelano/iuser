@@ -11,17 +11,11 @@ import { toast } from 'sonner'
 import { hexToRgb } from '@/lib/color'
 import {
     Settings,
-    Plus,
     RefreshCw,
     DollarSign,
-    Package,
-    ArrowUpDown,
-    Pencil,
     Store as StoreIcon,
     Copy,
     ExternalLink,
-    ChevronDown,
-    ChevronUp,
     Clock,
     Eye,
     Store,
@@ -31,6 +25,7 @@ import {
 import Employee from './Employee'
 import ButtonInPersonSale from './ButtonInPersonSale'
 import Publication from './StorePublication'
+import StoreCatalog from './StoreCatalog'
 import DeleteConfirmDialog from '@/components/DeleteConfirmDialog'
 import DriverDebtBanner from '@/components/DriverDebtBanner'
 import { useProfile } from '@/app/contexts/ProfileContext'
@@ -140,10 +135,8 @@ export default function StoreDashboard({
     }, [extractPeriod, showDeleteStore, onDialogOpenChange])
     useEffect(() => () => onDialogOpenChange?.(false), [onDialogOpenChange])
     const [products, setProducts] = useState<any[]>([])
-    const [sortBy, setSortBy] = useState<'mostSold' | 'leastSold' | 'mostExpensive' | 'cheapest'>('mostSold')
     const [employees, setEmployees] = useState<any[]>([])
     const [expandedEmployee, setExpandedEmployee] = useState<string | null>(null)
-    const [isProductsExpanded, setIsProductsExpanded] = useState(true)
     const [showScheduleModal, setShowScheduleModal] = useState(false)
 
     // ===== ESTADO PARA StoreDescription =====
@@ -394,16 +387,6 @@ export default function StoreDashboard({
         }
     }
 
-    const sortedProducts = [...products].sort((a, b) => {
-        switch (sortBy) {
-            case 'mostSold': return b.salesCount - a.salesCount
-            case 'leastSold': return a.salesCount - b.salesCount
-            case 'mostExpensive': return b.price - a.price
-            case 'cheapest': return a.price - b.price
-            default: return 0
-        }
-    })
-
     if (loading) return (
         <div className="min-h-screen flex items-center justify-center" style={{ background: colors.background }}>
             <div className="text-center">
@@ -618,162 +601,10 @@ export default function StoreDashboard({
                 </div>
             </div>
 
-            {/* ===== Produtos ===== */}
-            <div className="mb-6">
-                <div
-                    className="rounded-2xl p-6 pt-7 flex flex-col gap-5 relative"
-                    style={{
-                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
-                        backdropFilter: 'blur(12px)',
-                        WebkitBackdropFilter: 'blur(12px)',
-                        border: `1px solid ${colors.border}`,
-                        boxShadow: colors.shadow,
-                    }}
-                >
-                    <button
-                        onClick={() => setIsProductsExpanded(!isProductsExpanded)}
-                        className="w-full flex items-center justify-between text-left"
-                        style={{
-                            padding: '0.5rem 0.75rem',
-                            borderRadius: '9999px',
-                            background: 'transparent',
-                            border: 'none',
-                            cursor: 'pointer',
-                        }}
-                    >
-                        <div className="flex items-center gap-3">
-                            <div
-                                className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
-                                style={{
-                                    background: GRADIENT,
-                                    color: '#ffffff',
-                                }}
-                            >
-                                <Package size={24} />
-                            </div>
-                            <div>
-                                <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
-                                    Produtos
-                                </h3>
-                                <div className="flex items-center gap-3 text-xs mt-0.5" style={{ color: colors.textSecondary }}>
-                                    <span>{products.length} cadastrados</span>
-                                </div>
-                            </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            {products.length > 0 && (
-                                <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: '#f9731620', color: '#f97316' }}>
-                                    {products.length}
-                                </span>
-                            )}
-                            {isProductsExpanded ? (
-                                <ChevronUp size={22} style={{ color: colors.textSecondary }} />
-                            ) : (
-                                <ChevronDown size={22} style={{ color: colors.textSecondary }} />
-                            )}
-                        </div>
-                    </button>
+            {/* ===== Produtos e Serviços da Loja ===== */}
+            <StoreCatalog storeId={store.id} storeSlug={storeSlug} kind="product" />
+            <StoreCatalog storeId={store.id} storeSlug={storeSlug} kind="service" />
 
-                    {isProductsExpanded && (
-                        <>
-                            <div className="flex flex-wrap items-center justify-between gap-2">
-                                <div className="flex items-center gap-2">
-                                    <div className="flex items-center gap-1 text-xs" style={{ color: colors.textSecondary }}>
-                                        <ArrowUpDown size={14} />
-                                        <select
-                                            value={sortBy}
-                                            onChange={e => setSortBy(e.target.value as any)}
-                                            className="bg-transparent border rounded-full px-3 py-1 text-xs"
-                                            style={{ borderColor: colors.border, color: colors.textPrimary }}
-                                        >
-                                            <option value="mostSold">Mais vendidos</option>
-                                            <option value="leastSold">Menos vendidos</option>
-                                            <option value="mostExpensive">Mais caro</option>
-                                            <option value="cheapest">Mais barato</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                <button
-                                    onClick={() => router.push(`/${storeSlug}/criar-produto`)}
-                                    style={{
-                                        ...pillButtonStyle,
-                                        background: GRADIENT,
-                                        color: '#ffffff',
-                                        boxShadow: `0 4px 12px #f9731640`,
-                                    }}
-                                    className="hover:scale-105 transition-transform"
-                                >
-                                    <Plus size={14} /> Adicionar
-                                </button>
-                            </div>
-
-                            {products.length === 0 ? (
-                                <div
-                                    className="rounded-xl p-6 text-center"
-                                    style={{
-                                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
-                                        border: `1px dashed ${colors.border}`,
-                                    }}
-                                >
-                                    <p className="text-sm" style={{ color: colors.textSecondary }}>
-                                        Nenhum produto cadastrado.
-                                    </p>
-                                    <button
-                                        onClick={() => router.push(`/${storeSlug}/criar-produto`)}
-                                        style={{
-                                            ...pillButtonStyle,
-                                            background: GRADIENT,
-                                            color: '#ffffff',
-                                        }}
-                                        className="mx-auto hover:opacity-80 transition-opacity"
-                                    >
-                                        <Plus size={14} /> Criar primeiro produto
-                                    </button>
-                                </div>
-                            ) : (
-                                <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-gray-400">
-                                    {sortedProducts.map(prod => {
-                                        const imgUrl = prod.image_url ? supabase.storage.from('product-images').getPublicUrl(prod.image_url).data.publicUrl : null
-                                        return (
-                                            <div
-                                                key={prod.id}
-                                                className="flex-shrink-0 w-40 rounded-2xl border p-3 flex flex-col gap-2 cursor-pointer hover:shadow-md transition-shadow relative"
-                                                style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`, borderColor: colors.border }}
-                                                onClick={() => router.push(`/${storeSlug}/${prod.slug || prod.id}`)}
-                                            >
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation()
-                                                        router.push(`/${storeSlug}/${prod.slug || prod.id}/editar`)
-                                                    }}
-                                                    className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center hover:bg-black/50 transition-colors z-10"
-                                                    title="Editar produto"
-                                                >
-                                                    <Pencil size={14} color="white" />
-                                                </button>
-
-                                                <div className="w-full h-28 rounded-xl overflow-hidden bg-gray-100">
-                                                    {imgUrl ? <img src={imgUrl} className="w-full h-full object-cover" alt="" /> : <div className="w-full h-full flex items-center justify-center text-2xl" style={{ color: colors.textSecondary }}>📦</div>}
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <p className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>{prod.name}</p>
-                                                    <p className="text-xs font-bold mt-1" style={{ color: '#f97316' }}>R$ {Number(prod.price).toFixed(2)}</p>
-                                                    <div className="flex flex-col text-[10px] mt-1 space-y-0.5" style={{ color: colors.textSecondary }}>
-                                                        <span>👁 {prod.viewsToday} hoje</span>
-                                                        <span>🛒 {prod.inCart} no carrinho</span>
-                                                        <span>📊 {prod.viewsTotal} views</span>
-                                                        <span>💰 {prod.salesCount} vendas</span>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        )
-                                    })}
-                                </div>
-                            )}
-                        </>
-                    )}
-                </div>
-            </div>
 
             {/* ===== Configurações de Entrega ===== */}
             <div className="mb-6">
