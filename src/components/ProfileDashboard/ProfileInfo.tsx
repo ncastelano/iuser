@@ -9,6 +9,7 @@ import { toast } from 'sonner'
 import { hexToRgb } from '@/lib/color'
 import { supabase } from '@/lib/supabase/client'
 import { checkSlugAvailability } from '@/lib/slugUtils'
+import { handleShareLink } from '@/lib/share'
 import InviteButton from '@/components/InviteButton'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
@@ -145,10 +146,13 @@ export function ProfileInfo({ profile, onProfileUpdate }: ProfileInfoProps) {
 
     const goToPublicProfile = () => router.push(`/${profile.profileSlug}`)
 
-    const copyProfileLink = () => {
+    const shareProfileLink = () => {
         const url = `${window.location.origin}/${profile.profileSlug}`
-        navigator.clipboard.writeText(url)
-        toast.success('Link copiado!')
+        handleShareLink({
+            title: profile.name ? `${profile.name} | iUser` : 'iUser',
+            text: `Confira o perfil de ${profile.name || `@${profile.profileSlug}`} no iUser!`,
+            url,
+        })
     }
 
     const handleCancel = () => {
@@ -461,7 +465,7 @@ export function ProfileInfo({ profile, onProfileUpdate }: ProfileInfoProps) {
                     Ver meu Perfil
                 </button>
                 <button
-                    onClick={copyProfileLink}
+                    onClick={shareProfileLink}
                     style={{ ...pillButtonFullStyle, background: GRADIENT, color: '#ffffff', boxShadow: '0 4px 12px #f9731640' }}
                     className="hover:scale-105 transition-transform"
                 >

@@ -9,6 +9,7 @@ import { useTheme } from '@/app/contexts/theme'
 import { Spinner } from '@/components/Spinner'
 import { toast } from 'sonner'
 import { hexToRgb } from '@/lib/color'
+import { handleShareLink } from '@/lib/share'
 import {
     Settings,
     RefreshCw,
@@ -379,12 +380,14 @@ export default function StoreDashboard({
         }
     }
 
-    const copyStoreLink = () => {
-        if (storeSlug) {
-            const url = `${window.location.origin}/${storeSlug}`
-            navigator.clipboard.writeText(url)
-            toast.success('Link copiado!')
-        }
+    const shareStoreLink = () => {
+        if (!storeSlug) return
+        const url = `${window.location.origin}/${storeSlug}`
+        handleShareLink({
+            title: store?.name ? `${store.name} | iUser` : 'iUser',
+            text: `Confira ${store?.name || 'minha loja'} no iUser!`,
+            url,
+        })
     }
 
     if (loading) return (
@@ -508,7 +511,7 @@ export default function StoreDashboard({
                         Ver minha Loja
                     </button>
                     <button
-                        onClick={copyStoreLink}
+                        onClick={shareStoreLink}
                         style={{
                             ...pillButtonFullStyle,
                             background: GRADIENT,
