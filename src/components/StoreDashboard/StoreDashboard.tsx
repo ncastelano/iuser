@@ -394,30 +394,47 @@ export default function StoreDashboard({
     // pra sempre.
     const loadEmployeeRoutes = useCallback(async () => {
         if (!store?.id) return
-        const startOfToday = new Date()
-        startOfToday.setHours(0, 0, 0, 0)
 
-        const { data: assignments } = await supabase
+        const { data: assignments, error: assignError } = await supabase
             .from('delivery_assignments')
             .select('employee_id, checkout_id, sequence_order, status, picked_up_at, delivered_at')
             .eq('store_id', store.id)
-            .or(`status.neq.delivered,delivered_at.gte.${startOfToday.toISOString()}`)
             .order('sequence_order')
 
+        if (assignError) {
+            console.error('[StoreDashboard] Erro ao buscar atribuições de entrega:', assignError)
+            return
+        }
         if (!assignments || assignments.length === 0) {
             setEmployeeRoutes([])
             return
         }
 
-        const checkoutIds = [...new Set(assignments.map((a) => a.checkout_id))]
-        const { data: orders } = await supabase
+        // Filtra "entregue" pra só contar o de hoje (evita acumular
+        // histórico pra sempre) - feito aqui no client pra não depender de
+        // sintaxe de filtro combinado (.or()) que pode variar entre versões.
+        const startOfToday = new Date()
+        startOfToday.setHours(0, 0, 0, 0)
+        const relevant = assignments.filter(
+            (a) => a.status !== 'delivered' || (a.delivered_at && new Date(a.delivered_at) >= startOfToday)
+        )
+        if (relevant.length === 0) {
+            setEmployeeRoutes([])
+            return
+        }
+
+        const checkoutIds = [...new Set(relevant.map((a) => a.checkout_id))]
+        const { data: orders, error: ordersError } = await supabase
             .from('orders')
             .select('checkout_id, delivery_lat, delivery_lng, delivery_address, payment_method, total_amount, delivery_fee, order_items(product_name, quantity)')
             .in('checkout_id', checkoutIds)
+        if (ordersError) {
+            console.error('[StoreDashboard] Erro ao buscar pedidos das rotas:', ordersError)
+        }
         const ordersMap = new Map((orders || []).map((o) => [o.checkout_id, o]))
 
         const byEmployee = new Map<string, any[]>()
-        assignments.forEach((a) => {
+        relevant.forEach((a) => {
             const order = ordersMap.get(a.checkout_id)
             if (!byEmployee.has(a.employee_id)) byEmployee.set(a.employee_id, [])
             byEmployee.get(a.employee_id)!.push({
