@@ -4,8 +4,9 @@
 import { ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
-import { Wrench } from 'lucide-react'
+import { Wrench, Megaphone } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
+import { useProfile } from '@/app/contexts/ProfileContext'
 import MyOpenServiceRequests from '@/components/MyOpenServiceRequests'
 import { hexToRgb } from '@/lib/color'
 
@@ -20,6 +21,7 @@ export default function HireAService({ dragHandle }: HireAServiceProps) {
     const { colors } = useTheme()
     const router = useRouter()
     const startNavProgress = useNavProgressStore((s) => s.start)
+    const { profileSlug } = useProfile()
 
     const surfaceRgb = hexToRgb(colors.surface)
 
@@ -38,6 +40,22 @@ export default function HireAService({ dragHandle }: HireAServiceProps) {
         border: 'none',
         boxShadow: `0 4px 12px #f9731640`,
         cursor: 'pointer',
+        whiteSpace: 'nowrap' as const,
+    }
+
+    const outlineButtonStyle = {
+        ...buttonStyle,
+        background: 'transparent',
+        color: colors.accent,
+        border: `2px solid ${colors.accent}`,
+        boxShadow: 'none',
+    }
+
+    // Publicar leva pro próprio perfil (onde fica "Meus serviços publicados",
+    // no ProfileDashboard) — sem perfil ainda (visitante), manda pro login.
+    const goPublish = () => {
+        startNavProgress()
+        router.push(profileSlug ? `/${profileSlug}` : '/login')
     }
 
     return (
@@ -71,22 +89,32 @@ export default function HireAService({ dragHandle }: HireAServiceProps) {
 
                         <div>
                             <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
-                                Solicitar um serviço
+                                Solicitar ou Publicar um serviço
                             </h3>
                             <p className="text-sm mt-1" style={{ color: colors.textPrimary }}>
-                                Encontre pintor, encanador, jardineiro e outros profissionais perto de você
+                                Encontre um profissional ou anuncie o serviço que você presta
                             </p>
                         </div>
                     </div>
 
-                    <button
-                        onClick={() => { startNavProgress(); router.push('/solicitar-servico') }}
-                        className="flex items-center justify-center gap-2 px-6 py-3 rounded-full font-bold text-sm transition-all shadow-lg whitespace-nowrap hover:scale-105 active:scale-95"
-                        style={buttonStyle}
-                    >
-                        <Wrench size={16} />
-                        solicitar serviço
-                    </button>
+                    <div className="flex flex-row flex-wrap gap-2 justify-center sm:justify-end">
+                        <button
+                            onClick={() => { startNavProgress(); router.push('/solicitar-servico') }}
+                            className="flex items-center justify-center gap-2 px-6 py-3 rounded-full font-bold text-sm transition-all shadow-lg hover:scale-105 active:scale-95"
+                            style={buttonStyle}
+                        >
+                            <Wrench size={16} />
+                            solicitar serviço
+                        </button>
+                        <button
+                            onClick={goPublish}
+                            className="flex items-center justify-center gap-2 px-6 py-3 rounded-full font-bold text-sm transition-all hover:scale-105 active:scale-95"
+                            style={outlineButtonStyle}
+                        >
+                            <Megaphone size={16} />
+                            publicar serviço
+                        </button>
+                    </div>
                 </div>
 
                 {/* Meus pedidos de serviço em aberto, com os candidatos de cada um */}

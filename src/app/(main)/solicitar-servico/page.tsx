@@ -27,6 +27,7 @@ import {
     Camera,
     History,
     Plus,
+    Store,
 } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 
@@ -54,6 +55,7 @@ interface PhotoItem {
 
 interface PublishedService {
     id: string
+    kind: 'profile' | 'store'
     name: string
     description: string | null
     image_url: string | null
@@ -61,9 +63,26 @@ interface PublishedService {
     address: string | null
     lat: number | null
     lng: number | null
-    providerName: string | null
-    providerSlug: string | null
-    providerAvatarUrl: string | undefined
+    viewCount: number
+    ownerName: string | null
+    targetSlug: string | null
+    ownerAvatarUrl: string | undefined
+}
+
+// Cores e ícone de coroa dos 3 primeiros (mesmo padrão do /radar).
+const RANK_COLORS: Record<number, { fill: string; stroke: string; text: string }> = {
+    1: { fill: '#fbbf24', stroke: '#92400e', text: '#451a03' },
+    2: { fill: '#e2e8f0', stroke: '#64748b', text: '#334155' },
+    3: { fill: '#d97706', stroke: '#7c2d12', text: '#431407' },
+}
+
+function crownSvg(rank: number, size: number): string {
+    const c = RANK_COLORS[rank]
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24"><path d="M2.5 18.5h19l1.2-11.2-5.4 4.2L12 4 7.7 11.5 2.3 7.3z" fill="${c.fill}" stroke="${c.stroke}" stroke-width="1.4" stroke-linejoin="round"/><rect x="3" y="18.5" width="18" height="2.6" rx="1.1" fill="${c.fill}" stroke="${c.stroke}" stroke-width="1.2"/><text x="12" y="17" text-anchor="middle" font-size="8.5" font-weight="900" fill="${c.text}" font-family="system-ui,sans-serif">${rank}</text></svg>`
+}
+
+function CrownBadge({ rank, size = 26 }: { rank: number; size?: number }) {
+    return <span aria-label={`Top ${rank}`} style={{ display: 'inline-block', lineHeight: 0, filter: 'drop-shadow(0 2px 3px rgba(0,0,0,0.35))' }} dangerouslySetInnerHTML={{ __html: crownSvg(rank, size) }} />
 }
 
 function shortAddress(address: string): string {
@@ -311,18 +330,30 @@ export default function PedirServicoPage() {
         return () => { cancelled = true }
     }, [])
 
-    // ===== SERVIÇOS PUBLICADOS NA PLATAFORMA (ProfileDashboard > Meus serviços publicados) =====
+    // ===== SERVIÇOS DISPONÍVEIS NA PLATAFORMA =====
+    // Dois tipos, unificados numa lista só: serviços publicados por pessoas no
+    // ProfileDashboard (listing_type='service_offer') e serviços vendidos por
+    // lojas (products.type='service', mesmo filtro que o /radar usa no modo
+    // "serviços") — a loja usa sua própria localização (store_lat/store_lng).
     useEffect(() => {
         let cancelled = false
         const loadPublished = async () => {
-            const { data } = await supabase
-                .from('products')
-                .select('id, name, description, image_url, service_type, address, lat, lng, owner_id')
-                .eq('listing_type', 'service_offer')
-                .order('created_at', { ascending: false })
-            if (cancelled || !data || data.length === 0) return
+            const [{ data: profileRows }, { data: storeRows }] = await Promise.all([
+                supabase
+                    .from('products')
+                    .select('id, name, description, image_url, service_type, address, lat, lng, owner_id, view_count')
+                    .eq('listing_type', 'service_offer')
+                    .order('created_at', { ascending: false }),
+                supabase
+                    .from('products')
+                    .select('id, name, description, image_url, store_id, view_count')
+                    .eq('type', 'service')
+                    .eq('listing_type', 'sale')
+                    .order('created_at', { ascending: false }),
+            ])
+            if (cancelled) return
 
-            const ownerIds = Array.from(new Set(data.map((row) => row.owner_id).filter(Boolean)))
+            const ownerIds = Array.from(new Set((profileRows || []).map((row) => row.owner_id).filter(Boolean)))
             let profilesById = new Map<string, { name: string | null; profileSlug: string | null; avatar_url: string | null }>()
             if (ownerIds.length > 0) {
                 const { data: profiles } = await supabase
@@ -332,11 +363,22 @@ export default function PedirServicoPage() {
                 profilesById = new Map((profiles || []).map((p) => [p.id, p]))
             }
 
+            const storeIds = Array.from(new Set((storeRows || []).map((row) => row.store_id).filter(Boolean)))
+            let storesById = new Map<string, { name: string | null; storeSlug: string | null; logo_url: string | null; store_lat: number | null; store_lng: number | null; address: string | null }>()
+            if (storeIds.length > 0) {
+                const { data: stores } = await supabase
+                    .from('stores')
+                    .select('id, name, storeSlug, logo_url, store_lat, store_lng, address')
+                    .in('id', storeIds)
+                storesById = new Map((stores || []).map((s) => [s.id, s]))
+            }
             if (cancelled) return
-            setPublishedServices(data.map((row) => {
+
+            const fromProfiles: PublishedService[] = (profileRows || []).map((row) => {
                 const p = profilesById.get(row.owner_id)
                 return {
                     id: row.id,
+                    kind: 'profile',
                     name: row.name,
                     description: row.description,
                     image_url: row.image_url,
@@ -344,11 +386,35 @@ export default function PedirServicoPage() {
                     address: row.address,
                     lat: row.lat,
                     lng: row.lng,
-                    providerName: p?.name || null,
-                    providerSlug: p?.profileSlug || null,
-                    providerAvatarUrl: getAvatarUrl(supabase, p?.avatar_url),
+                    viewCount: row.view_count || 0,
+                    ownerName: p?.name || null,
+                    targetSlug: p?.profileSlug || null,
+                    ownerAvatarUrl: getAvatarUrl(supabase, p?.avatar_url),
                 }
-            }))
+            })
+
+            const fromStores: PublishedService[] = (storeRows || [])
+                .filter((row) => row.store_id && storesById.has(row.store_id))
+                .map((row) => {
+                    const s = storesById.get(row.store_id)!
+                    return {
+                        id: row.id,
+                        kind: 'store',
+                        name: row.name,
+                        description: row.description,
+                        image_url: row.image_url,
+                        service_type: null,
+                        address: s.address,
+                        lat: s.store_lat,
+                        lng: s.store_lng,
+                        viewCount: row.view_count || 0,
+                        ownerName: s.name,
+                        targetSlug: s.storeSlug,
+                        ownerAvatarUrl: s.logo_url ? supabase.storage.from('store-logos').getPublicUrl(s.logo_url).data.publicUrl : undefined,
+                    }
+                })
+
+            setPublishedServices([...fromProfiles, ...fromStores].sort((a, b) => b.viewCount - a.viewCount))
         }
         loadPublished()
         return () => { cancelled = true }
@@ -358,8 +424,8 @@ export default function PedirServicoPage() {
         (s) => serviceFilter === 'todos' || s.service_type === serviceFilter
     )
 
-    const goToProvider = (providerSlug: string | null) => {
-        if (providerSlug) router.push(`/${providerSlug}`)
+    const goToService = (service: PublishedService) => {
+        if (service.targetSlug) router.push(`/${service.targetSlug}`)
     }
 
     // ===== INIT MAP =====
@@ -479,20 +545,25 @@ export default function PedirServicoPage() {
         serviceMarkersRef.current.forEach((m) => m.remove())
         serviceMarkersRef.current = []
 
-        filteredPublishedServices.forEach((service) => {
+        filteredPublishedServices.forEach((service, idx) => {
             if (service.lat == null || service.lng == null) return
 
+            const rank = idx < 3 ? idx + 1 : 0
+            const ringColor = rank ? RANK_COLORS[rank].fill : '#f97316'
+            const shape = service.kind === 'store' ? '20%' : '9999px' // loja: cantos arredondados; pessoa: círculo
+
             const el = document.createElement('div')
-            el.style.cssText = 'cursor:pointer;'
+            el.style.cssText = 'cursor:pointer;position:relative;'
             el.innerHTML = `
-                <div style="width:34px;height:34px;border-radius:9999px;overflow:hidden;border:3px solid #f97316;box-shadow:0 2px 8px rgba(0,0,0,0.4);background:#f97316;display:flex;align-items:center;justify-content:center;">
-                    ${service.providerAvatarUrl
-                        ? `<img src="${service.providerAvatarUrl}" style="width:100%;height:100%;object-fit:cover;" />`
-                        : `<span style="color:#fff;font-size:13px;font-weight:800;">${(service.providerName || '?').charAt(0).toUpperCase()}</span>`
+                ${rank ? `<span style="position:absolute;left:50%;top:-20px;transform:translateX(-50%);">${crownSvg(rank, 26)}</span>` : ''}
+                <div style="width:34px;height:34px;border-radius:${shape};overflow:hidden;border:3px solid ${ringColor};box-shadow:0 2px 8px rgba(0,0,0,0.4);background:${ringColor};display:flex;align-items:center;justify-content:center;">
+                    ${service.ownerAvatarUrl
+                        ? `<img src="${service.ownerAvatarUrl}" style="width:100%;height:100%;object-fit:cover;" />`
+                        : `<span style="color:#fff;font-size:13px;font-weight:800;">${(service.ownerName || '?').charAt(0).toUpperCase()}</span>`
                     }
                 </div>
             `
-            el.addEventListener('click', () => goToProvider(service.providerSlug))
+            el.addEventListener('click', () => goToService(service))
 
             const marker = new mapboxgl.Marker({ element: el, anchor: 'center' }).setLngLat([service.lng!, service.lat!]).addTo(map)
             serviceMarkersRef.current.push(marker)
@@ -981,38 +1052,58 @@ export default function PedirServicoPage() {
                                         <p className="text-xs py-4 text-center" style={{ color: colors.textSecondary }}>Nenhum serviço publicado nessa categoria ainda.</p>
                                     ) : (
                                         <div className="flex flex-col gap-2">
-                                            {filteredPublishedServices.map((service) => (
-                                                <button
-                                                    key={service.id}
-                                                    onClick={() => goToProvider(service.providerSlug)}
-                                                    className="w-full flex items-center gap-3 p-3 rounded-2xl text-left transition-all hover:scale-[1.01]"
-                                                    style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}
-                                                >
-                                                    {service.image_url ? (
-                                                        <img src={service.image_url} className="w-12 h-12 rounded-xl object-cover flex-shrink-0" alt="" />
-                                                    ) : (
-                                                        <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#fff' }}>
-                                                            <Wrench size={18} />
-                                                        </div>
-                                                    )}
-                                                    <div className="flex-1 min-w-0">
-                                                        <p className="text-xs font-black truncate" style={{ color: colors.textPrimary }}>{service.name}</p>
-                                                        <p className="text-[10px]" style={{ color: colors.accent }}>{getServiceLabel(service.service_type || 'outro')}</p>
-                                                        <div className="flex items-center gap-1.5 mt-0.5">
-                                                            {service.providerAvatarUrl ? (
-                                                                <img src={service.providerAvatarUrl} className="w-4 h-4 rounded-full object-cover flex-shrink-0" alt="" />
-                                                            ) : (
-                                                                <div className="w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 text-[8px] font-black" style={{ background: GRADIENT, color: '#fff' }}>
-                                                                    {(service.providerName || '?').charAt(0).toUpperCase()}
-                                                                </div>
-                                                            )}
-                                                            <span className="text-[10px] truncate" style={{ color: colors.textSecondary }}>
-                                                                {service.providerName || (service.providerSlug ? `@${service.providerSlug}` : 'Prestador')}
+                                            {filteredPublishedServices.map((service, idx) => {
+                                                const rank = idx < 3 ? idx + 1 : 0
+                                                return (
+                                                    <button
+                                                        key={service.id}
+                                                        onClick={() => goToService(service)}
+                                                        className="relative w-full flex items-center gap-3 p-3 rounded-2xl text-left transition-all hover:scale-[1.01]"
+                                                        style={rank
+                                                            ? { background: `${colors.border}30`, border: `2px solid ${RANK_COLORS[rank].fill}`, boxShadow: `0 0 0 2px ${RANK_COLORS[rank].fill}40` }
+                                                            : { background: `${colors.border}30`, border: `1px solid ${colors.border}` }}
+                                                    >
+                                                        {rank > 0 && (
+                                                            <span className="absolute -top-3 left-3 z-10">
+                                                                <CrownBadge rank={rank} size={24} />
                                                             </span>
+                                                        )}
+                                                        {service.image_url ? (
+                                                            <img src={service.image_url} className="w-12 h-12 rounded-xl object-cover flex-shrink-0" alt="" />
+                                                        ) : (
+                                                            <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#fff' }}>
+                                                                <Wrench size={18} />
+                                                            </div>
+                                                        )}
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="flex items-center gap-1.5">
+                                                                <p className="text-xs font-black truncate" style={{ color: colors.textPrimary }}>{service.name}</p>
+                                                                {service.kind === 'store' && (
+                                                                    <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[8px] font-black uppercase flex-shrink-0" style={{ background: `${colors.accent}20`, color: colors.accent }}>
+                                                                        <Store size={9} />
+                                                                        Loja
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            <p className="text-[10px]" style={{ color: colors.accent }}>
+                                                                {service.kind === 'store' ? 'Serviço da loja' : getServiceLabel(service.service_type || 'outro')}
+                                                            </p>
+                                                            <div className="flex items-center gap-1.5 mt-0.5">
+                                                                {service.ownerAvatarUrl ? (
+                                                                    <img src={service.ownerAvatarUrl} className="w-4 h-4 rounded-full object-cover flex-shrink-0" alt="" />
+                                                                ) : (
+                                                                    <div className="w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 text-[8px] font-black" style={{ background: GRADIENT, color: '#fff' }}>
+                                                                        {(service.ownerName || '?').charAt(0).toUpperCase()}
+                                                                    </div>
+                                                                )}
+                                                                <span className="text-[10px] truncate" style={{ color: colors.textSecondary }}>
+                                                                    {service.ownerName || (service.targetSlug ? `@${service.targetSlug}` : 'Prestador')}
+                                                                </span>
+                                                            </div>
                                                         </div>
-                                                    </div>
-                                                </button>
-                                            ))}
+                                                    </button>
+                                                )
+                                            })}
                                         </div>
                                     )}
                                 </div>

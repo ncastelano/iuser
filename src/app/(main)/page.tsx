@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation'
 import { User, Store, Home, MapPin, LayoutDashboard, X, Radar, Shield, Gift } from 'lucide-react'
 
 import CategoriasSection from './inicio/sections/CanIhelp'
-import LookForAService from './inicio/sections/LookForAService'
 import MotoristaSection from './inicio/sections/MotoristaSection'
 import HireAService from './inicio/sections/HireAService'
 import SortableSection from './inicio/sections/SortableSection'
@@ -54,7 +53,6 @@ const DEFAULT_SECTIONS = [
     'motorista',
     'servico',
     'servicoShowcase',
-    'transporte',
     'careerPlans',
     'orderSection',
 ]
@@ -142,9 +140,6 @@ export default function HomePage() {
     const setMerchantStoreOrderCounts = useMerchantStore(s => s.setStoreOrderCounts)
 
     const breveCallbacks = useMemo(() => ({
-        transporte: (isBreve: boolean) => {
-            setBreveMap(prev => ({ ...prev, transporte: isBreve }))
-        },
         motorista: (isBreve: boolean) => {
             setBreveMap(prev => ({ ...prev, motorista: isBreve }))
         },
@@ -471,8 +466,6 @@ export default function HomePage() {
                 return <FeaturedPublications />
             case 'profileShowcase':
                 return <FeaturedProfiles />
-            case 'transporte':
-                return <LookForAService onBreveStatusChange={breveCallbacks.transporte} />
             case 'motorista':
                 return <MotoristaSection onBreveStatusChange={breveCallbacks.motorista} onUrgentChange={setMotoristaUrgent} />
             case 'servico':
