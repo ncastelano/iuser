@@ -13,7 +13,8 @@ import { ptBR as ptBRLocale } from 'date-fns/locale'
 import { useRouter } from 'next/navigation'
 import { Spinner } from '@/components/Spinner'
 import InviteButton from '@/components/InviteButton'
-import { Gift, Check, X, Search, History, ShieldCheck, Users, UserPlus, Wallet, Clock } from 'lucide-react'
+import { Gift, Check, X, Search, History, ShieldCheck, Shield, Users, UserPlus, Wallet, Clock } from 'lucide-react'
+import AdminDashboard from '@/components/AdminDashboard/AdminDashboard'
 import {
     SCOPE_LABEL,
     hasAnyGrantPermission,
@@ -25,7 +26,7 @@ import {
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
-type Tab = 'grant' | 'history' | 'network' | 'status'
+type Tab = 'grant' | 'history' | 'network' | 'status' | 'admin'
 
 interface DownlineMember {
     id: string
@@ -62,10 +63,19 @@ const DURATIONS = [
 
 const fmt = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString('pt-BR') : '—')
 
+interface BenefitsManagementProps {
+    // Quando true, mostra a aba "Admin" (ferramentas de administrador geral
+    // da plataforma - antes uma aba própria no Header, agora reunida aqui
+    // dentro pra não ter dois lugares de "admin" separados). O componente
+    // que ela renderiza (AdminDashboard) já reconfirma isso sozinho no
+    // servidor, então esse prop é só pra decidir se o botão da aba aparece.
+    isSuperAdmin?: boolean
+}
+
 // Área única de gestão de benefícios. O que aparece (planos, pessoas,
 // histórico) vem do banco já filtrado pelas permissões e pelo escopo de
 // quem está logado — esconder aqui é só conforto; quem decide é o servidor.
-export default function BenefitsManagement() {
+export default function BenefitsManagement({ isSuperAdmin = false }: BenefitsManagementProps) {
     const { colors } = useTheme()
     const surfaceRgb = hexToRgb(colors.surface)
     const router = useRouter()
@@ -83,7 +93,8 @@ export default function BenefitsManagement() {
         ...(canManage ? [{ id: 'grant' as const, label: 'Conceder', icon: Gift }] : []),
         ...(canManage ? [{ id: 'history' as const, label: 'Histórico', icon: History }] : []),
         { id: 'status', label: 'Meu status', icon: ShieldCheck },
-    ], [canManage])
+        ...(isSuperAdmin ? [{ id: 'admin' as const, label: 'Admin', icon: Shield }] : []),
+    ], [canManage, isSuperAdmin])
 
     // rede
     const [downline, setDownline] = useState<DownlineMember[]>([])
@@ -557,6 +568,8 @@ export default function BenefitsManagement() {
                     </div>
                 </div>
             )}
+
+            {tab === 'admin' && isSuperAdmin && <AdminDashboard />}
         </div>
     )
 }
