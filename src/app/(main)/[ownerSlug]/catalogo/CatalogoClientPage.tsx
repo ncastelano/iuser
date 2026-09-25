@@ -18,6 +18,7 @@ import CatalogBag, { type CartItemWithComment } from './CatalogBag'
 import { hexToRgb } from '@/lib/color'
 import AddToCartModal from '@/components/AddToCartModal'
 import FallbackImage from '@/components/FallbackImage'
+import { captureReferral } from '@/lib/referralCapture'
 
 interface Product {
     id: string
@@ -270,6 +271,13 @@ export default function CatalogoClientPage() {
                     business_hours: store.business_hours,
                     owner_id: store.owner_id,
                 })
+
+                // Link do catálogo compartilhado também vale como convite:
+                // visitante ainda não logado vira indicado do dono da loja
+                // se se cadastrar depois.
+                if (!userId) {
+                    captureReferral(supabase, { ownerId: store.owner_id })
+                }
 
                 setStoreConfig({
                     accepts_delivery: store.accepts_delivery || false,

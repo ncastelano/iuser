@@ -27,6 +27,7 @@ import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import Header from '@/components/Header'
 import { handleShareLink } from '@/lib/share'
 import { getAvatarUrl } from '@/lib/avatar'
+import { captureReferral } from '@/lib/referralCapture'
 import { formatDistanceToNow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { toast } from 'sonner'
@@ -164,7 +165,8 @@ export default function PublicationClientPage() {
                             id,
                             name,
                             storeSlug,
-                            logo_url
+                            logo_url,
+                            owner_id
                         `)
                         .eq('id', pubData.store_id)
                         .maybeSingle()
@@ -174,6 +176,13 @@ export default function PublicationClientPage() {
                             ...pubData,
                             store: storeData,
                             profile: null
+                        }
+
+                        // Link da publicação compartilhado também vale como
+                        // convite: visitante ainda não logado vira indicado
+                        // da loja dona da publicação se se cadastrar depois.
+                        if (!currentUserId) {
+                            captureReferral(supabase, { ownerId: storeData.owner_id })
                         }
                     }
                 }
@@ -189,6 +198,10 @@ export default function PublicationClientPage() {
                         ...pubData,
                         store: null,
                         profile: profile || null
+                    }
+
+                    if (!currentUserId && profile?.profileSlug) {
+                        captureReferral(supabase, { profileSlug: profile.profileSlug })
                     }
                 }
 

@@ -10,6 +10,7 @@ import { useProfile } from '@/app/contexts/ProfileContext'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { ProductClientPage } from './ProductClientPage'
 import { PublicationClientPage } from './PublicationClientePage'
+import { captureReferral } from '@/lib/referralCapture'
 
 type ItemType = 'publication' | 'product' | null
 
@@ -17,7 +18,7 @@ export default function SlugClientPage() {
     const params = useParams()
     const router = useRouter()
     const { colors } = useTheme()
-    const { avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
+    const { userId, avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
 
     const ownerSlug = (Array.isArray(params.ownerSlug) ? params.ownerSlug[0] : params.ownerSlug) ?? ''
     const slug = (Array.isArray(params.slug) ? params.slug[0] : params.slug) ?? ''
@@ -100,6 +101,18 @@ export default function SlugClientPage() {
                 setItemType(item.listing_type === 'publication' ? 'publication' : 'product')
                 setItemData(item)
                 setStoreData(store)
+
+                // Link de produto/serviço/publicação compartilhado também
+                // vale como convite: visitante ainda não logado vira
+                // indicado da loja (ou da pessoa) dona do item se se
+                // cadastrar depois.
+                if (!userId) {
+                    if (store) {
+                        captureReferral(supabase, { ownerId: store.owner_id })
+                    } else if (item.owner_id) {
+                        captureReferral(supabase, { profileSlug: ownerSlug })
+                    }
+                }
 
             } catch (err: any) {
                 console.error('Erro ao detectar tipo do item:', err)
