@@ -599,55 +599,117 @@ export default function PedirServicoPage() {
         }
 
         // Agrupa por coordenada (arredondada) — vários serviços da mesma loja
-        // caem todos no mesmo ponto, então em vez de empilhar pin por cima de
-        // pin (like antes), mostra só o primeiro do grupo com uma bolinha de
-        // contagem, igual o /radar faz. Rank (coroa) é sempre do índice na
-        // lista já ordenada, não muda com o agrupamento.
-        const groups = new Map<string, { services: PublishedService[]; rank: number }>()
-        filteredPublishedServices.forEach((service, idx) => {
+        // caem todos no mesmo ponto. Igual o /radar: empilha um marcador por
+        // item (com z-index decrescente), só o de cima fica visível, e uma
+        // bolinha de contagem no topo do monte abre a lista pra escolher.
+        // Rank (coroa) é sempre do índice na lista já ordenada.
+        const rankOf = new Map<string, number>(filteredPublishedServices.slice(0, 3).map((s, i) => [s.id, i + 1] as [string, number]))
+        const coordGroups = new Map<string, PublishedService[]>()
+        filteredPublishedServices.forEach((service) => {
             if (service.lat == null || service.lng == null) return
             const key = `${service.lng.toFixed(4)},${service.lat.toFixed(4)}`
-            const rank = idx < 3 ? idx + 1 : 0
-            const existing = groups.get(key)
-            if (existing) {
-                existing.services.push(service)
-                if (rank && (!existing.rank || rank < existing.rank)) existing.rank = rank
-            } else {
-                groups.set(key, { services: [service], rank })
-            }
+            if (!coordGroups.has(key)) coordGroups.set(key, [])
+            coordGroups.get(key)!.push(service)
         })
 
-        groups.forEach(({ services: group, rank }) => {
-            const service = group[0]
-            const ringColor = rank ? RANK_COLORS[rank].fill : '#f97316'
-            const shape = service.kind === 'store' ? '20%' : '9999px' // loja: cantos arredondados; pessoa: círculo
+        const serviceSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a4 4 0 0 1 4 4v1h1a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h1V6a4 4 0 0 1 4-4Z"/><path d="M8 7V6a4 4 0 0 1 8 0v1"/></svg>`
 
-            const el = document.createElement('div')
-            el.style.cssText = 'cursor:pointer;position:relative;'
-            el.innerHTML = `
-                ${rank ? `<span style="position:absolute;left:50%;top:-20px;transform:translateX(-50%);">${crownSvg(rank, 26)}</span>` : ''}
-                <div style="width:34px;height:34px;border-radius:${shape};overflow:hidden;border:3px solid ${ringColor};box-shadow:0 2px 8px rgba(0,0,0,0.4);background:${ringColor};display:flex;align-items:center;justify-content:center;">
-                    ${service.ownerAvatarUrl
-                        ? `<img src="${service.ownerAvatarUrl}" style="width:100%;height:100%;object-fit:cover;" />`
-                        : `<span style="color:#fff;font-size:13px;font-weight:800;">${(service.ownerName || '?').charAt(0).toUpperCase()}</span>`
+        coordGroups.forEach((group) => {
+            group.forEach((service, index) => {
+                const lng = service.lng!
+                const lat = service.lat!
+
+                const el = document.createElement('div')
+                const inner = document.createElement('div')
+
+                let borderColor = '#f97316'
+                const rank = rankOf.get(service.id)
+                if (rank) borderColor = RANK_COLORS[rank].fill
+                const boxSize = rank ? 58 : 48
+                const baseZ = rank ? '600' : (100 - index).toString()
+                el.style.zIndex = baseZ
+
+                inner.style.cssText = `
+                    width: ${boxSize}px;
+                    height: ${boxSize}px;
+                    border-radius: 12px;
+                    overflow: hidden;
+                    border: 3px solid ${borderColor};
+                    cursor: pointer;
+                    background: white;
+                    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+                    box-shadow: ${rank ? `0 0 0 3px ${RANK_COLORS[rank].fill}55, 0 6px 20px rgba(0,0,0,0.4)` : '0 4px 15px rgba(0,0,0,0.3)'};
+                `
+
+                inner.onmouseenter = () => {
+                    inner.style.transform = 'scale(1.15) rotate(3deg)'
+                    inner.style.boxShadow = '0 8px 25px rgba(249,115,22,0.4)'
+                    el.style.zIndex = '999'
+                }
+                inner.onmouseleave = () => {
+                    inner.style.transform = 'scale(1) rotate(0deg)'
+                    inner.style.boxShadow = rank ? `0 0 0 3px ${RANK_COLORS[rank].fill}55, 0 6px 20px rgba(0,0,0,0.4)` : '0 4px 15px rgba(0,0,0,0.3)'
+                    el.style.zIndex = baseZ
+                }
+
+                if (service.image_url) {
+                    const img = document.createElement('img')
+                    img.src = service.image_url
+                    img.style.cssText = 'width:100%;height:100%;object-fit:cover;'
+                    img.onerror = () => {
+                        inner.innerHTML = `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;">${serviceSvg}</div>`
                     }
-                </div>
-                ${group.length > 1 ? `
-                    <div style="position:absolute;bottom:-6px;right:-6px;background:linear-gradient(135deg,#f97316,#ef4444);color:#fff;font-size:10px;font-weight:900;padding:2px 6px;border-radius:9999px;border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3);">${group.length}</div>
-                ` : ''}
-            `
-            el.addEventListener('click', () => {
-                if (group.length > 1) {
-                    setClusterItems(group)
-                    setClusterLocation({ lng: service.lng!, lat: service.lat! })
-                    map.flyTo({ center: [service.lng!, service.lat!], zoom: 17, duration: 600 })
+                    inner.appendChild(img)
                 } else {
+                    inner.innerHTML = `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;">${serviceSvg}</div>`
+                }
+
+                el.appendChild(inner)
+
+                if (rank) {
+                    const crown = document.createElement('div')
+                    crown.innerHTML = crownSvg(rank, 32)
+                    crown.style.cssText = 'position:absolute;top:-26px;left:50%;transform:translateX(-50%);pointer-events:none;line-height:0;filter:drop-shadow(0 2px 3px rgba(0,0,0,0.4));'
+                    el.appendChild(crown)
+                }
+
+                if (index === 0 && group.length > 1) {
+                    const badge = document.createElement('div')
+                    badge.innerHTML = `${group.length}`
+                    badge.style.cssText = `
+                        position: absolute;
+                        bottom: -8px;
+                        right: -8px;
+                        background: linear-gradient(135deg, #f97316, #ef4444);
+                        color: white;
+                        font-size: 10px;
+                        font-weight: 900;
+                        padding: 3px 8px;
+                        border-radius: 20px;
+                        border: 2px solid white;
+                        z-index: 10;
+                        cursor: pointer;
+                        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+                    `
+                    badge.onclick = (e) => {
+                        e.stopPropagation()
+                        setClusterItems(group)
+                        setClusterLocation({ lng, lat })
+                        map.flyTo({ center: [lng, lat], zoom: 18, duration: 600 })
+                    }
+                    el.appendChild(badge)
+                }
+
+                el.onclick = () => {
                     flyToService(service)
                 }
-            })
 
-            const marker = new mapboxgl.Marker({ element: el, anchor: 'center' }).setLngLat([service.lng!, service.lat!]).addTo(map)
-            serviceMarkersRef.current.push(marker)
+                const marker = new mapboxgl.Marker({ element: el, anchor: 'bottom' })
+                    .setLngLat([lng, lat])
+                    .addTo(map)
+
+                serviceMarkersRef.current.push(marker)
+            })
         })
 
         return () => {
