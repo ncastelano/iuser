@@ -7,7 +7,10 @@ import './globals.css'
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  themeColor: '#f97316',
+  // Cor inicial (antes do JS assumir) igual ao fundo do tema claro, que é o
+  // padrão - dali em diante o ThemeColorSync mantém isso acompanhando o
+  // tema que a pessoa estiver usando (claro/escuro).
+  themeColor: '#ffffff',
   colorScheme: 'light',
   viewportFit: 'cover',
 }
