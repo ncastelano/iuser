@@ -254,6 +254,8 @@ export default function PedirServicoPage() {
     const [showServiceRankMenu, setShowServiceRankMenu] = useState(false)
     const serviceMarkersRef = useRef<mapboxgl.Marker[]>([])
     const hasFitServiceBoundsRef = useRef(false)
+    const [clusterItems, setClusterItems] = useState<PublishedService[] | null>(null)
+    const [clusterLocation, setClusterLocation] = useState<{ lng: number; lat: number } | null>(null)
 
     const stepIndex = STEPS.indexOf(step)
     const selectedType = SERVICE_TYPES.find((t) => t.id === serviceType) || null
@@ -596,10 +598,27 @@ export default function PedirServicoPage() {
             }
         }
 
+        // Agrupa por coordenada (arredondada) — vários serviços da mesma loja
+        // caem todos no mesmo ponto, então em vez de empilhar pin por cima de
+        // pin (like antes), mostra só o primeiro do grupo com uma bolinha de
+        // contagem, igual o /radar faz. Rank (coroa) é sempre do índice na
+        // lista já ordenada, não muda com o agrupamento.
+        const groups = new Map<string, { services: PublishedService[]; rank: number }>()
         filteredPublishedServices.forEach((service, idx) => {
             if (service.lat == null || service.lng == null) return
-
+            const key = `${service.lng.toFixed(4)},${service.lat.toFixed(4)}`
             const rank = idx < 3 ? idx + 1 : 0
+            const existing = groups.get(key)
+            if (existing) {
+                existing.services.push(service)
+                if (rank && (!existing.rank || rank < existing.rank)) existing.rank = rank
+            } else {
+                groups.set(key, { services: [service], rank })
+            }
+        })
+
+        groups.forEach(({ services: group, rank }) => {
+            const service = group[0]
             const ringColor = rank ? RANK_COLORS[rank].fill : '#f97316'
             const shape = service.kind === 'store' ? '20%' : '9999px' // loja: cantos arredondados; pessoa: círculo
 
@@ -613,8 +632,19 @@ export default function PedirServicoPage() {
                         : `<span style="color:#fff;font-size:13px;font-weight:800;">${(service.ownerName || '?').charAt(0).toUpperCase()}</span>`
                     }
                 </div>
+                ${group.length > 1 ? `
+                    <div style="position:absolute;bottom:-6px;right:-6px;background:linear-gradient(135deg,#f97316,#ef4444);color:#fff;font-size:10px;font-weight:900;padding:2px 6px;border-radius:9999px;border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3);">${group.length}</div>
+                ` : ''}
             `
-            el.addEventListener('click', () => flyToService(service))
+            el.addEventListener('click', () => {
+                if (group.length > 1) {
+                    setClusterItems(group)
+                    setClusterLocation({ lng: service.lng!, lat: service.lat! })
+                    map.flyTo({ center: [service.lng!, service.lat!], zoom: 17, duration: 600 })
+                } else {
+                    flyToService(service)
+                }
+            })
 
             const marker = new mapboxgl.Marker({ element: el, anchor: 'center' }).setLngLat([service.lng!, service.lat!]).addTo(map)
             serviceMarkersRef.current.push(marker)
@@ -887,6 +917,58 @@ export default function PedirServicoPage() {
                                 ))}
                             </div>
                         )}
+                    </div>
+                </div>
+            )}
+
+            {/* Vários serviços no mesmo ponto (mesma loja): lista pra escolher,
+                igual o cluster do /radar */}
+            {clusterItems && clusterLocation && (
+                <div className="absolute top-24 left-1/2 -translate-x-1/2 w-[92%] max-w-sm z-30">
+                    <div className="rounded-2xl px-4 py-3 shadow-lg flex items-center justify-between" style={{ background: GRADIENT }}>
+                        <div className="flex items-center gap-2">
+                            <Store className="w-5 h-5 text-white" />
+                            <div>
+                                <p className="text-xs font-bold text-white">{clusterItems[0].ownerName}</p>
+                                <p className="text-[10px] text-white/80">{clusterItems.length} serviços neste local</p>
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => { setClusterItems(null); setClusterLocation(null) }}
+                            className="p-1.5 bg-white/20 rounded-xl hover:bg-white/30 transition-colors"
+                        >
+                            <X className="w-4 h-4 text-white" />
+                        </button>
+                    </div>
+                    <div className="mt-2 rounded-2xl shadow-xl overflow-hidden max-h-72 overflow-y-auto" style={{ background: colors.surface }}>
+                        {clusterItems.map((item) => (
+                            <button
+                                key={item.id}
+                                onClick={() => {
+                                    setSelectedService(item)
+                                    setClusterItems(null)
+                                    setClusterLocation(null)
+                                }}
+                                className="w-full p-3 flex items-center gap-3 border-b hover:opacity-80 transition-all"
+                                style={{ borderColor: colors.border }}
+                            >
+                                <div className="w-10 h-10 rounded-xl overflow-hidden bg-gray-100 flex-shrink-0">
+                                    {item.image_url ? (
+                                        <img src={item.image_url} className="w-full h-full object-cover" alt="" />
+                                    ) : (
+                                        <div className="w-full h-full flex items-center justify-center" style={{ color: colors.textSecondary }}>
+                                            <Wrench size={16} />
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="flex-1 text-left min-w-0">
+                                    <p className="text-sm font-semibold truncate" style={{ color: colors.textPrimary }}>{item.name}</p>
+                                    <p className="text-xs" style={{ color: colors.textSecondary }}>
+                                        {item.kind === 'store' ? 'Serviço da loja' : getServiceLabel(item.service_type || 'outro')}
+                                    </p>
+                                </div>
+                            </button>
+                        ))}
                     </div>
                 </div>
             )}
