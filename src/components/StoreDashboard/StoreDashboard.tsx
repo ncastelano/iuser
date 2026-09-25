@@ -374,6 +374,17 @@ export default function StoreDashboard({
 
     const handleRefresh = () => { setRefreshing(true); loadDashboard().finally(() => setRefreshing(false)) }
 
+    // Recarrega só os funcionários (sem refazer o resto do dashboard) -
+    // Employee.tsx chama isso depois de adicionar/editar/remover, senão a
+    // lista mostrada ali fica presa no que foi carregado na abertura da
+    // página (o "Atribuir pedidos" parece atualizado só porque StoreOrders
+    // tem sua própria busca de funcionários, independente desta).
+    const loadEmployees = useCallback(async () => {
+        if (!store?.id) return
+        const { data } = await supabase.from('employees').select('*').eq('store_id', store.id).eq('is_active', true)
+        setEmployees(data || [])
+    }, [store?.id])
+
     const goToPublicStore = () => {
         if (storeSlug) {
             router.push(`/${storeSlug}`)
@@ -640,7 +651,7 @@ export default function StoreDashboard({
                     onToggleExpand={setExpandedEmployee}
                     storeId={store.id}
                     storeName={store.name}
-                    onRefresh={() => { }}
+                    onRefresh={loadEmployees}
                 />
             </div>
 
