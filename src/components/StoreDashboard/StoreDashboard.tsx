@@ -387,17 +387,21 @@ export default function StoreDashboard({
         setEmployees(data || [])
     }, [store?.id])
 
-    // O que cada funcionário está com entregas atribuídas pra fazer agora -
-    // mostrado embaixo do nome dele em "Funcionários" (quantidade + valor) e
-    // no detalhe ao expandir. Só conta o que ainda não foi entregue: é "o
-    // que o funcionário está levando ou tem que fazer", não histórico.
+    // O que cada funcionário está com entregas atribuídas - mostrado embaixo
+    // do nome dele em "Funcionários" (contagem por status) e no quadro
+    // completo ao expandir (a fazer / fazendo agora / concluídas hoje). O
+    // que já foi entregue só entra se foi hoje, pra não acumular histórico
+    // pra sempre.
     const loadEmployeeRoutes = useCallback(async () => {
         if (!store?.id) return
+        const startOfToday = new Date()
+        startOfToday.setHours(0, 0, 0, 0)
+
         const { data: assignments } = await supabase
             .from('delivery_assignments')
-            .select('employee_id, checkout_id, sequence_order, status')
+            .select('employee_id, checkout_id, sequence_order, status, picked_up_at, delivered_at')
             .eq('store_id', store.id)
-            .neq('status', 'delivered')
+            .or(`status.neq.delivered,delivered_at.gte.${startOfToday.toISOString()}`)
             .order('sequence_order')
 
         if (!assignments || assignments.length === 0) {
@@ -422,6 +426,8 @@ export default function StoreDashboard({
                 label: String(a.sequence_order),
                 address: order?.delivery_address || '',
                 status: a.status,
+                pickedUpAt: a.picked_up_at,
+                deliveredAt: a.delivered_at,
                 payment_method: order?.payment_method || '',
                 total_amount: order?.total_amount || 0,
                 delivery_fee: order?.delivery_fee || 0,

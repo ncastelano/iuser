@@ -14,6 +14,7 @@ import 'mapbox-gl/dist/mapbox-gl.css'
 import { useTheme } from '@/app/contexts/theme'
 import { Spinner } from '@/components/Spinner'
 import { fetchRoute } from '@/lib/mapboxRoute'
+import { paymentMethodLabel } from '@/lib/payment'
 import { MapPin, Package, XCircle, ShieldCheck, CheckCircle2, CreditCard, Banknote } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -52,13 +53,6 @@ function marker(color: string, label: string): HTMLDivElement {
         <div style="width:16px;height:16px;border-radius:50%;background:${color};border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.4);"></div>
     `
     return el
-}
-
-function paymentLabel(method: string): { text: string; warning: string | null } {
-    if (method === 'credit_card') return { text: '💳 Cartão', warning: 'Levar máquina' }
-    if (method === 'pix') return { text: '🔷 Pix', warning: null }
-    if (method === 'money') return { text: '💵 Dinheiro', warning: 'Levar troco' }
-    return { text: method || '—', warning: null }
 }
 
 const STATUS_INFO: Record<Stop['status'], { label: string; color: string }> = {
@@ -223,7 +217,7 @@ export default function EntregadorPage() {
                     </div>
                 ) : (
                     data.stops.map((stop) => {
-                        const payment = paymentLabel(stop.paymentMethod)
+                        const payment = paymentMethodLabel(stop.paymentMethod)
                         const status = STATUS_INFO[stop.status]
                         const isUpdating = updatingId === stop.assignmentId
                         return (

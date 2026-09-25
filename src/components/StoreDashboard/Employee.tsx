@@ -11,6 +11,7 @@ import { formatBrazilianPhone, cleanPhoneNumber } from '@/lib/phone'
 import { ensureEmployeeAccessToken, buildCourierRouteMessage } from '@/lib/courierLink'
 import { getWhatsAppLink } from '@/lib/whatsapp'
 import { handleShareLink } from '@/lib/share'
+import { paymentMethodLabel } from '@/lib/payment'
 import {
     Truck,
     ChevronRight,
@@ -23,6 +24,10 @@ import {
     RefreshCw,
     ChevronDown,
     ChevronUp,
+    Clock,
+    Bike,
+    CheckCircle2,
+    MapPin,
 } from 'lucide-react'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
@@ -58,6 +63,8 @@ interface RouteStop {
     label: string
     address: string
     status: string
+    pickedUpAt?: string | null
+    deliveredAt?: string | null
     payment_method: string
     total_amount: number
     delivery_fee: number
@@ -69,6 +76,21 @@ interface RouteData {
     employeeName: string
     color: string
     stops: RouteStop[]
+}
+
+// Quadro do funcionário: o que ele vai fazer, o que está fazendo agora, e o
+// que já entregou - sempre nessa ordem, pra loja ver o andamento num relance.
+const BOARD_BUCKETS = [
+    { status: 'pending', title: 'A fazer', icon: Clock, color: '#94a3b8' },
+    { status: 'in_transit', title: 'Fazendo agora', icon: Bike, color: '#f59e0b' },
+    { status: 'delivered', title: 'Concluídas hoje', icon: CheckCircle2, color: '#22c55e' },
+] as const
+
+function bucketStops(stops: RouteStop[]) {
+    return BOARD_BUCKETS.map((bucket) => ({
+        ...bucket,
+        stops: stops.filter((s) => s.status === bucket.status),
+    }))
 }
 
 interface EmployeeProps {
@@ -333,11 +355,25 @@ export default function Employee({
                                                     </div>
                                                     <div>
                                                         <p className="text-sm font-bold" style={{ color: textPrimary }}>{emp.name}</p>
-                                                        <p className="text-xs" style={{ color: textSecondary }}>
-                                                            {route && route.stops.length > 0
-                                                                ? `${route.stops.length} entrega${route.stops.length !== 1 ? 's' : ''} atribuída${route.stops.length !== 1 ? 's' : ''} · R$ ${route.stops.reduce((sum, s) => sum + Number(s.total_amount || 0), 0).toFixed(2)}`
-                                                                : 'Sem entregas'}
-                                                        </p>
+                                                        {route && route.stops.length > 0 ? (
+                                                            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                                                                {bucketStops(route.stops).map((bucket) => bucket.stops.length > 0 && (
+                                                                    <span
+                                                                        key={bucket.status}
+                                                                        className="flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold"
+                                                                        style={{ background: `${bucket.color}20`, color: bucket.color }}
+                                                                    >
+                                                                        <bucket.icon size={10} />
+                                                                        {bucket.stops.length}
+                                                                    </span>
+                                                                ))}
+                                                                <span className="text-[10px]" style={{ color: textSecondary }}>
+                                                                    R$ {route.stops.reduce((sum, s) => sum + Number(s.total_amount || 0), 0).toFixed(2)}
+                                                                </span>
+                                                            </div>
+                                                        ) : (
+                                                            <p className="text-xs" style={{ color: textSecondary }}>Sem entregas</p>
+                                                        )}
                                                     </div>
                                                 </div>
                                                 <div className="flex items-center gap-2">
@@ -371,24 +407,6 @@ export default function Employee({
                                                     >
                                                         <Trash2 size={14} style={{ color: '#ef4444' }} />
                                                     </button>
-                                                    {route && route.stops.length > 0 && (
-                                                        <div className="flex -space-x-1">
-                                                            {route.stops.slice(0, 3).map((stop, i) => (
-                                                                <div
-                                                                    key={i}
-                                                                    className="w-5 h-5 rounded-full flex items-center justify-center text-[8px] text-white border border-black/20"
-                                                                    style={{ background: route.color }}
-                                                                >
-                                                                    {stop.label}
-                                                                </div>
-                                                            ))}
-                                                            {route.stops.length > 3 && (
-                                                                <div className="w-5 h-5 rounded-full flex items-center justify-center text-[8px] text-white bg-gray-600 border border-black/20">
-                                                                    +{route.stops.length - 3}
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    )}
                                                     <ChevronRight
                                                         size={16}
                                                         className={`transition-transform ${isExpandedEmp ? 'rotate-90' : ''}`}
@@ -397,100 +415,85 @@ export default function Employee({
                                                 </div>
                                             </div>
 
-                                            {isExpandedEmp && route && (
-                                                <div className="px-3 pb-3 pt-0">
-                                                    <div className="space-y-2 mt-2">
-                                                        <p className="text-xs font-bold" style={{ color: textSecondary }}>
-                                                            Entregas atribuídas:
+                                            {isExpandedEmp && (
+                                                <div className="px-3 pb-3 pt-0 space-y-4">
+                                                    {!route || route.stops.length === 0 ? (
+                                                        <p className="text-xs text-center py-2" style={{ color: textSecondary }}>
+                                                            Nenhuma entrega atribuída no momento.
                                                         </p>
-                                                        {route.stops.map((stop: RouteStop, idx: number) => (
-                                                            <div
-                                                                key={idx}
-                                                                className="p-3 rounded-2xl text-xs"
-                                                                style={{ background: `${route.color}10`, border: `1px solid ${route.color}30` }}
-                                                            >
-                                                                <div className="flex items-center justify-between mb-2">
-                                                                    <div className="flex items-center gap-2">
-                                                                        <span
-                                                                            className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] text-white font-bold"
-                                                                            style={{ background: route.color }}
-                                                                        >
-                                                                            {stop.label}
-                                                                        </span>
-                                                                        <span className="font-medium" style={{ color: textPrimary }}>
-                                                                            {stop.address
-                                                                                ? stop.address.substring(0, 40) + (stop.address.length > 40 ? '...' : '')
-                                                                                : 'Sem endereço'}
-                                                                        </span>
-                                                                    </div>
+                                                    ) : (
+                                                        bucketStops(route.stops).map((bucket) => bucket.stops.length > 0 && (
+                                                            <div key={bucket.status} className="space-y-2">
+                                                                <div className="flex items-center gap-1.5">
+                                                                    <bucket.icon size={13} style={{ color: bucket.color }} />
+                                                                    <p className="text-xs font-black uppercase tracking-wide" style={{ color: bucket.color }}>
+                                                                        {bucket.title}
+                                                                    </p>
                                                                     <span
-                                                                        className="px-1.5 py-0.5 rounded-full text-[10px] font-bold"
-                                                                        style={{
-                                                                            background:
-                                                                                stop.status === 'delivered' ? '#22c55e' :
-                                                                                    stop.status === 'in_transit' ? '#f59e0b' : '#94a3b8',
-                                                                            color: 'white',
-                                                                        }}
+                                                                        className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                                                                        style={{ background: `${bucket.color}20`, color: bucket.color }}
                                                                     >
-                                                                        {stop.status === 'pending' ? 'Pendente' :
-                                                                            stop.status === 'in_transit' ? 'A caminho' : 'Entregue'}
+                                                                        {bucket.stops.length}
                                                                     </span>
                                                                 </div>
 
-                                                                <div className="ml-7 space-y-2">
-                                                                    {stop.items && stop.items.length > 0 && (
-                                                                        <div>
-                                                                            <p className="text-[10px] font-bold mb-1" style={{ color: textSecondary }}>
-                                                                                Produtos:
-                                                                            </p>
-                                                                            <ul className="list-disc list-inside text-[10px]" style={{ color: textPrimary }}>
-                                                                                {stop.items.map((item, i) => (
-                                                                                    <li key={i}>
-                                                                                        {item.product_name} x{item.quantity}
-                                                                                    </li>
-                                                                                ))}
-                                                                            </ul>
-                                                                        </div>
-                                                                    )}
-
-                                                                    <div className="flex flex-col gap-1 text-[10px]" style={{ color: textSecondary }}>
-                                                                        <div className="flex items-center gap-1">
-                                                                            <span className="font-bold">Pagamento:</span>
-                                                                            <span className="capitalize" style={{ color: textPrimary }}>
-                                                                                {stop.payment_method === 'credit_card' ? '💳 Cartão' :
-                                                                                    stop.payment_method === 'pix' ? '🔷 Pix' :
-                                                                                        stop.payment_method === 'money' ? '💵 Dinheiro' :
-                                                                                            stop.payment_method || '—'}
-                                                                            </span>
-                                                                            {stop.payment_method === 'credit_card' && (
-                                                                                <span className="text-red-400 font-bold">(Levar máquina)</span>
-                                                                            )}
-                                                                            {stop.payment_method === 'money' && (
-                                                                                <span className="text-yellow-400 font-bold">(Levar troco)</span>
-                                                                            )}
-                                                                        </div>
-                                                                        <div className="flex items-center gap-1">
-                                                                            <span className="font-bold">Total:</span>
-                                                                            <span style={{ color: textPrimary }}>
-                                                                                R$ {Number(stop.total_amount || 0).toFixed(2)}
-                                                                            </span>
-                                                                            {stop.delivery_fee > 0 && (
-                                                                                <span style={{ color: textSecondary }}>
-                                                                                    (frete R$ {Number(stop.delivery_fee).toFixed(2)})
+                                                                {bucket.stops.map((stop: RouteStop, idx: number) => {
+                                                                    const payment = paymentMethodLabel(stop.payment_method)
+                                                                    return (
+                                                                        <div
+                                                                            key={idx}
+                                                                            className="p-3 rounded-2xl text-xs"
+                                                                            style={{ background: `${bucket.color}10`, border: `1px solid ${bucket.color}30` }}
+                                                                        >
+                                                                            <div className="flex items-center gap-2 mb-2">
+                                                                                <span
+                                                                                    className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] text-white font-bold flex-shrink-0"
+                                                                                    style={{ background: bucket.color }}
+                                                                                >
+                                                                                    {stop.label}
                                                                                 </span>
-                                                                            )}
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        ))}
+                                                                                <div className="flex items-center gap-1 min-w-0">
+                                                                                    <MapPin size={11} className="flex-shrink-0" style={{ color: textSecondary }} />
+                                                                                    <span className="font-medium truncate" style={{ color: textPrimary }}>
+                                                                                        {stop.address || 'Sem endereço'}
+                                                                                    </span>
+                                                                                </div>
+                                                                            </div>
 
-                                                        {route.stops.length === 0 && (
-                                                            <p className="text-xs text-center py-2" style={{ color: textSecondary }}>
-                                                                Nenhuma entrega mapeada.
-                                                            </p>
-                                                        )}
-                                                    </div>
+                                                                            <div className="ml-7 space-y-2">
+                                                                                {stop.items && stop.items.length > 0 && (
+                                                                                    <ul className="list-disc list-inside text-[10px]" style={{ color: textPrimary }}>
+                                                                                        {stop.items.map((item, i) => (
+                                                                                            <li key={i}>{item.product_name} x{item.quantity}</li>
+                                                                                        ))}
+                                                                                    </ul>
+                                                                                )}
+
+                                                                                <div className="flex items-center gap-1.5 flex-wrap text-[10px]" style={{ color: textSecondary }}>
+                                                                                    <span style={{ color: textPrimary }}>{payment.text}</span>
+                                                                                    {payment.warning ? (
+                                                                                        <span className="font-bold px-1.5 py-0.5 rounded-full" style={{ background: '#ef444420', color: '#ef4444' }}>
+                                                                                            ⚠️ {payment.warning}
+                                                                                        </span>
+                                                                                    ) : (
+                                                                                        <span className="font-bold px-1.5 py-0.5 rounded-full" style={{ background: '#22c55e20', color: '#22c55e' }}>
+                                                                                            Já pago
+                                                                                        </span>
+                                                                                    )}
+                                                                                    <span className="font-bold" style={{ color: textPrimary }}>
+                                                                                        R$ {Number(stop.total_amount || 0).toFixed(2)}
+                                                                                    </span>
+                                                                                    {stop.delivery_fee > 0 && (
+                                                                                        <span>(frete R$ {Number(stop.delivery_fee).toFixed(2)})</span>
+                                                                                    )}
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    )
+                                                                })}
+                                                            </div>
+                                                        ))
+                                                    )}
                                                 </div>
                                             )}
                                         </div>
