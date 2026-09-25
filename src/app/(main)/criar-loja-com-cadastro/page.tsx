@@ -516,11 +516,9 @@ function CriarLojaComCadastroContent() {
         setLoadingLocation(false)
     }
 
-    useEffect(() => {
-        if (!searchQuery.trim() || searchQuery.trim().length < 4) return
-        const timer = setTimeout(() => { handleSearchAddress() }, 800)
-        return () => clearTimeout(timer)
-    }, [searchQuery])
+    // Sem busca automática enquanto digita: com endereços longos, uma pausa
+    // no meio da digitação (ex: parou pra pensar no número) já disparava a
+    // busca com o endereço incompleto. Busca só ao apertar Enter ou "Ir".
 
     const handleConfirmLocation = () => {
         setAddress(pendingAddress)
