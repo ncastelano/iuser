@@ -229,10 +229,14 @@ export default function SocialList() {
         if (!dateString) return ''
         const date = new Date(dateString)
         const now = new Date()
-        const diffTime = Math.abs(now.getTime() - date.getTime())
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+        // Compara por dia de calendário (não por 24h corridas) - senão um
+        // perfil criado hoje às 23h já contava quase 1 dia inteiro de
+        // diferença e o Math.ceil arredondava pra cima, mostrando "Ontem"
+        // pra algo criado minutos atrás.
+        const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate())
+        const diffDays = Math.round((startOfDay(now).getTime() - startOfDay(date).getTime()) / (1000 * 60 * 60 * 24))
 
-        if (diffDays === 0) return 'Hoje'
+        if (diffDays <= 0) return 'Hoje'
         if (diffDays === 1) return 'Ontem'
         if (diffDays < 7) return `${diffDays} dias atrás`
         if (diffDays < 30) return `${Math.floor(diffDays / 7)} semanas atrás`
