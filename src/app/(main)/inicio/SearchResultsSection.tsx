@@ -270,10 +270,12 @@ export default function SearchResultsSection({ searchQuery, onSearchSelect }: Se
         if (!dateString) return ''
         const date = new Date(dateString)
         const now = new Date()
-        const diffTime = Math.abs(now.getTime() - date.getTime())
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+        // Compara por dia de calendário (não por 24h corridas) - senão algo
+        // criado hoje mesmo já podia arredondar pra "Ontem" (ver social/page.tsx).
+        const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate())
+        const diffDays = Math.round((startOfDay(now).getTime() - startOfDay(date).getTime()) / (1000 * 60 * 60 * 24))
 
-        if (diffDays === 0) return 'Hoje'
+        if (diffDays <= 0) return 'Hoje'
         if (diffDays === 1) return 'Ontem'
         if (diffDays < 7) return `${diffDays} dias atrás`
         if (diffDays < 30) return `${Math.floor(diffDays / 7)} semanas atrás`

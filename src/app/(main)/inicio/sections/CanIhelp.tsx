@@ -106,7 +106,19 @@ export default function CanIhelp({ dragHandle }: CanIhelpProps) {
                     if (!resolved) continue
                     counts[resolved.slug] = (counts[resolved.slug] || 0) + 1
                 }
-                setCategoryCounts(counts)
+                setCategoryCounts((prev) => ({ ...prev, ...counts }))
+            })
+
+        // "Social" não é categoria de loja (nenhuma loja é salva com essa
+        // categoria) - o badge dela conta gente, não loja: total de perfis
+        // ativos na plataforma.
+        supabase
+            .from('profiles')
+            .select('id', { count: 'exact', head: true })
+            .eq('is_active', true)
+            .then(({ count }) => {
+                if (count == null) return
+                setCategoryCounts((prev) => ({ ...prev, social: count }))
             })
     }, [])
 
