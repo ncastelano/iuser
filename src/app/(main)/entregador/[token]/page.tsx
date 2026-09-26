@@ -23,15 +23,19 @@ mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 const STOP_COLOR = '#f97316'
 
+type OrderStatus = 'pending' | 'preparing' | 'ready' | 'paid' | string
+
 interface Stop {
     assignmentId: string
     sequence: number
     status: 'pending' | 'in_transit' | 'delivered'
+    orderStatus: OrderStatus
     address: string
     lat: number | null
     lng: number | null
     buyerName: string
     paymentMethod: string
+    cashChangeFor: number | null
     totalAmount: number
     deliveryFee: number
     items: { productName: string; quantity: number }[]
@@ -59,6 +63,16 @@ const STATUS_INFO: Record<Stop['status'], { label: string; color: string }> = {
     pending: { label: 'Pendente', color: '#94a3b8' },
     in_transit: { label: 'A caminho', color: '#f59e0b' },
     delivered: { label: 'Entregue', color: '#22c55e' },
+}
+
+// Status do preparo do pedido, na loja - o mesmo vocabulário de /pedidos
+// (cliente) e do painel da loja. Só quando chega em "ready" o entregador
+// pode marcar "Peguei o pedido".
+const ORDER_STATUS_INFO: Record<string, { label: string; color: string }> = {
+    pending: { label: 'Pedido pendente', color: '#3b82f6' },
+    preparing: { label: 'Em preparo', color: '#eab308' },
+    ready: { label: 'Pronto pra retirar', color: '#a855f7' },
+    paid: { label: 'Finalizado', color: '#22c55e' },
 }
 
 export default function EntregadorPage() {
@@ -100,10 +114,17 @@ export default function EntregadorPage() {
     // Constrói o mapa uma única vez, quando os dados chegam pela primeira
     // vez - atualizações seguintes (polling) só atualizam status na lista,
     // sem refazer a rota (evita chamar a API de rotas de novo a cada 15s).
+    // mapState existe pra nunca deixar um quadrado vazio/preto sem
+    // explicação: ou tem mapa, ou uma mensagem dizendo por quê não tem.
+    const [mapState, setMapState] = useState<'loading' | 'ready' | 'empty' | 'error'>('loading')
+
     useEffect(() => {
         if (mapBuiltRef.current || !data || !mapContainerRef.current) return
         const stopsWithCoords = data.stops.filter((s) => s.lat != null && s.lng != null)
-        if (data.store.lat == null || data.store.lng == null || stopsWithCoords.length === 0) return
+        if (data.store.lat == null || data.store.lng == null || stopsWithCoords.length === 0) {
+            setMapState('empty')
+            return
+        }
 
         mapBuiltRef.current = true
         const origin: [number, number] = [data.store.lng, data.store.lat]
@@ -116,30 +137,36 @@ export default function EntregadorPage() {
             attributionControl: false,
         })
         map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'bottom-right')
+        map.on('error', () => setMapState('error'))
 
         map.on('load', async () => {
-            const bounds = new mapboxgl.LngLatBounds(origin, origin)
-            const waypoints: [number, number][] = [origin, ...stopsWithCoords.map((s) => [s.lng!, s.lat!] as [number, number])]
-            const legs = await Promise.all(waypoints.slice(0, -1).map((from, i) => fetchRoute(from, waypoints[i + 1])))
-            const coords = legs.flatMap((l) => l.coords)
-
-            map.addSource('courier-route', { type: 'geojson', data: { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: coords } } })
-            map.addLayer({
-                id: 'courier-route-line',
-                type: 'line',
-                source: 'courier-route',
-                layout: { 'line-join': 'round', 'line-cap': 'round' },
-                paint: { 'line-color': STOP_COLOR, 'line-width': 5, 'line-opacity': 0.9 },
-            })
-            coords.forEach((c) => bounds.extend(c as [number, number]))
-
             new mapboxgl.Marker({ element: marker('#22c55e', 'Loja') }).setLngLat(origin).addTo(map)
             stopsWithCoords.forEach((s) => {
                 new mapboxgl.Marker({ element: marker(STOP_COLOR, `${s.sequence}`) }).setLngLat([s.lng!, s.lat!]).addTo(map)
-                bounds.extend([s.lng!, s.lat!])
             })
 
+            const bounds = new mapboxgl.LngLatBounds(origin, origin)
+            stopsWithCoords.forEach((s) => bounds.extend([s.lng!, s.lat!] as [number, number]))
             map.fitBounds(bounds, { padding: 60, duration: 0 })
+            setMapState('ready')
+
+            try {
+                const waypoints: [number, number][] = [origin, ...stopsWithCoords.map((s) => [s.lng!, s.lat!] as [number, number])]
+                const legs = await Promise.all(waypoints.slice(0, -1).map((from, i) => fetchRoute(from, waypoints[i + 1])))
+                const coords = legs.flatMap((l) => l.coords)
+
+                map.addSource('courier-route', { type: 'geojson', data: { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: coords } } })
+                map.addLayer({
+                    id: 'courier-route-line',
+                    type: 'line',
+                    source: 'courier-route',
+                    layout: { 'line-join': 'round', 'line-cap': 'round' },
+                    paint: { 'line-color': STOP_COLOR, 'line-width': 5, 'line-opacity': 0.9 },
+                })
+            } catch {
+                // Sem linha de rota, mas o mapa com a loja e as paradas já
+                // apareceu - não é motivo pra esconder tudo atrás de um erro.
+            }
         })
 
         return () => {
@@ -159,10 +186,13 @@ export default function EntregadorPage() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ assignmentId: stop.assignmentId, status: nextStatus }),
             })
-            if (!res.ok) throw new Error()
-        } catch {
+            if (!res.ok) {
+                const json = await res.json().catch(() => ({}))
+                throw new Error(json.error || '')
+            }
+        } catch (err) {
             setData(previous)
-            toast.error('Não foi possível atualizar. Tenta de novo.')
+            toast.error(err instanceof Error && err.message ? err.message : 'Não foi possível atualizar. Tenta de novo.')
         } finally {
             setUpdatingId(null)
         }
@@ -205,10 +235,28 @@ export default function EntregadorPage() {
                 </div>
 
                 <div
-                    ref={mapContainerRef}
-                    className="w-full rounded-2xl overflow-hidden"
+                    className="relative w-full rounded-2xl overflow-hidden"
                     style={{ height: 260, background: '#111', border: `1px solid ${colors.border}` }}
-                />
+                >
+                    <div ref={mapContainerRef} className="absolute inset-0" />
+                    {mapState !== 'ready' && (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-6 text-center">
+                            {mapState === 'loading' && <Spinner size={28} color={STOP_COLOR} />}
+                            {mapState === 'empty' && (
+                                <>
+                                    <MapPin size={24} style={{ color: '#666' }} />
+                                    <p className="text-xs font-bold text-white/70">Nenhum endereço com localização pra mostrar no mapa ainda.</p>
+                                </>
+                            )}
+                            {mapState === 'error' && (
+                                <>
+                                    <XCircle size={24} style={{ color: '#ef4444' }} />
+                                    <p className="text-xs font-bold text-white/70">Não foi possível carregar o mapa agora.</p>
+                                </>
+                            )}
+                        </div>
+                    )}
+                </div>
 
                 {data.stops.length === 0 ? (
                     <div className="rounded-2xl p-8 text-center" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
@@ -219,7 +267,10 @@ export default function EntregadorPage() {
                     data.stops.map((stop) => {
                         const payment = paymentMethodLabel(stop.paymentMethod)
                         const status = STATUS_INFO[stop.status]
+                        const orderStatus = ORDER_STATUS_INFO[stop.orderStatus] || null
                         const isUpdating = updatingId === stop.assignmentId
+                        const readyToPickUp = stop.orderStatus === 'ready' || stop.status !== 'pending'
+                        const troco = stop.cashChangeFor != null ? stop.cashChangeFor - Number(stop.totalAmount || 0) : null
                         return (
                             <div
                                 key={stop.assignmentId}
@@ -229,6 +280,7 @@ export default function EntregadorPage() {
                                 <div className="flex items-center justify-between mb-2">
                                     <div className="flex items-center gap-2">
                                         <span
+                                            title="Ordem dessa parada na rota (mesmo número do marcador no mapa)"
                                             className="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-black text-white"
                                             style={{ background: STOP_COLOR }}
                                         >
@@ -244,6 +296,15 @@ export default function EntregadorPage() {
                                     </span>
                                 </div>
 
+                                {orderStatus && stop.status === 'pending' && (
+                                    <div
+                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold mb-2"
+                                        style={{ background: `${orderStatus.color}20`, color: orderStatus.color }}
+                                    >
+                                        {orderStatus.label}
+                                    </div>
+                                )}
+
                                 <div className="flex items-start gap-2 text-xs mb-2" style={{ color: colors.textPrimary }}>
                                     <MapPin size={13} className="flex-shrink-0 mt-0.5" style={{ color: STOP_COLOR }} />
                                     <span>{stop.address}</span>
@@ -257,15 +318,34 @@ export default function EntregadorPage() {
                                     </ul>
                                 )}
 
-                                <div className="flex items-center gap-2 text-[11px] mb-3" style={{ color: colors.textSecondary }}>
-                                    {stop.paymentMethod === 'credit_card' ? <CreditCard size={12} /> : <Banknote size={12} />}
-                                    <span>{payment.text} · R$ {Number(stop.totalAmount || 0).toFixed(2)}</span>
-                                    {payment.warning && <span className="font-bold" style={{ color: '#ef4444' }}>({payment.warning})</span>}
+                                <div className="text-[11px] mb-1" style={{ color: colors.textSecondary }}>
+                                    <div className="flex items-center gap-2">
+                                        {stop.paymentMethod === 'cartao' ? <CreditCard size={12} /> : <Banknote size={12} />}
+                                        <span>{payment.text} · Total R$ {Number(stop.totalAmount || 0).toFixed(2)}</span>
+                                    </div>
+                                    <div className="mt-1">
+                                        Frete: {Number(stop.deliveryFee || 0) > 0 ? `R$ ${Number(stop.deliveryFee).toFixed(2)}` : 'Grátis'}
+                                    </div>
                                 </div>
+
+                                {payment.warning && (
+                                    <div className="text-[11px] font-bold mb-3" style={{ color: '#ef4444' }}>
+                                        {payment.warning}
+                                        {troco != null && troco > 0 && ` · Levar R$ ${troco.toFixed(2)} de troco (cliente paga com R$ ${Number(stop.cashChangeFor).toFixed(2)})`}
+                                    </div>
+                                )}
 
                                 {stop.status !== 'delivered' && (
                                     <div className="flex gap-2">
-                                        {stop.status === 'pending' && (
+                                        {stop.status === 'pending' && !readyToPickUp && (
+                                            <div
+                                                className="flex-1 py-2 rounded-full text-xs font-bold text-center opacity-70"
+                                                style={{ background: colors.border, color: colors.textSecondary }}
+                                            >
+                                                Aguardando a loja preparar
+                                            </div>
+                                        )}
+                                        {stop.status === 'pending' && readyToPickUp && (
                                             <button
                                                 onClick={() => updateStatus(stop, 'in_transit')}
                                                 disabled={isUpdating}
@@ -275,14 +355,16 @@ export default function EntregadorPage() {
                                                 {isUpdating ? <Spinner size={14} /> : 'Peguei o pedido'}
                                             </button>
                                         )}
-                                        <button
-                                            onClick={() => updateStatus(stop, 'delivered')}
-                                            disabled={isUpdating}
-                                            className="flex-1 py-2 rounded-full text-xs font-bold text-white disabled:opacity-50 flex items-center justify-center gap-1"
-                                            style={{ background: GRADIENT }}
-                                        >
-                                            {isUpdating ? <Spinner size={14} /> : <><CheckCircle2 size={14} /> Entreguei</>}
-                                        </button>
+                                        {readyToPickUp && (
+                                            <button
+                                                onClick={() => updateStatus(stop, 'delivered')}
+                                                disabled={isUpdating}
+                                                className="flex-1 py-2 rounded-full text-xs font-bold text-white disabled:opacity-50 flex items-center justify-center gap-1"
+                                                style={{ background: GRADIENT }}
+                                            >
+                                                {isUpdating ? <Spinner size={14} /> : <><CheckCircle2 size={14} /> Entreguei</>}
+                                            </button>
+                                        )}
                                     </div>
                                 )}
                             </div>

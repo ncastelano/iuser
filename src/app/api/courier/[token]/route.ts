@@ -51,7 +51,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ token: 
     if (checkoutIds.length > 0) {
         const { data: orders } = await supabaseAdmin
             .from('orders')
-            .select('checkout_id, buyer_name, payment_method, total_amount, delivery_fee, delivery_address, delivery_lat, delivery_lng, order_items(product_name, quantity)')
+            .select('checkout_id, buyer_name, status, payment_method, cash_change_for, total_amount, delivery_fee, delivery_address, delivery_lat, delivery_lng, order_items(product_name, quantity)')
             .in('checkout_id', checkoutIds)
         ordersByCheckoutId = new Map((orders || []).map((o) => [o.checkout_id, o]))
     }
@@ -64,11 +64,13 @@ export async function GET(_req: Request, { params }: { params: Promise<{ token: 
                 assignmentId: a.id,
                 sequence: a.sequence_order,
                 status: a.status,
+                orderStatus: order.status,
                 address: order.delivery_address,
                 lat: order.delivery_lat,
                 lng: order.delivery_lng,
                 buyerName: order.buyer_name,
                 paymentMethod: order.payment_method,
+                cashChangeFor: order.cash_change_for,
                 totalAmount: order.total_amount,
                 deliveryFee: order.delivery_fee,
                 items: (order.order_items || []).map((i: any) => ({ productName: i.product_name, quantity: i.quantity })),
