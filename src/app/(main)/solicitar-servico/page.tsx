@@ -888,7 +888,7 @@ export default function PedirServicoPage() {
             <div
                 ref={mapContainerRef}
                 className="absolute inset-0 w-full h-full"
-                style={{ background: '#111' }}
+                style={{ background: '#111', isolation: 'isolate' }}
             />
 
             {/* Botão voltar flutuante */}

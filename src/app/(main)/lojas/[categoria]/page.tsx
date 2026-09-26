@@ -34,6 +34,10 @@ import { RatingStars } from '@/components/ratings/RatingStars'
 // ===== GRADIENTE =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
+// Incentivo mostrado só até a 3ª publicação da categoria - da 4ª em diante o
+// botão "Nova" já é auto-explicativo, igual em Store.tsx.
+const PUBLICATION_INCENTIVE = ['seja a primeira publicação', 'seja a segunda publicação', 'seja a terceira publicação']
+
 // ===== TIPAGEM =====
 interface StoreCardData {
     id: string
@@ -282,7 +286,7 @@ function CreateStoreCard({ colors, category }: { colors: any; category: string }
             </h3>
 
             <p className="text-sm mb-4 max-w-xs" style={{ color: colors.textSecondary }}>
-                Seja o primeiro a cadastrar uma loja nesta categoria e comece a vender seus produtos!
+                Adicione sua loja aqui também e comece a vender seus produtos!
             </p>
 
             <div
@@ -540,6 +544,10 @@ export default function ListaCategoriaPage() {
 
     useEffect(() => { loadStores() }, [loadStores])
 
+    // Loja de quem está olhando, dentro desta mesma categoria - dono de
+    // loja aqui é quem pode publicar pra ela (botão "Nova" das Publicações).
+    const myStoreInCategory = useMemo(() => stores.find((s) => s.owner_id === userId) || null, [stores, userId])
+
     // ===== FILTRO LOCAL =====
     const filteredStores = useMemo(() => {
         if (!searchQuery.trim()) return stores
@@ -633,8 +641,12 @@ export default function ListaCategoriaPage() {
                     {!loadingData && !error && (
                         <>
                             {/* Publicações das lojas desta categoria - mesmo estilo
-                                "stories" usado em Store.tsx, acima do "Lojas em X". */}
-                            {(publications.length > 0 || loadingPublications) && (
+                                "stories" usado em Store.tsx, acima do "Lojas em X".
+                                Continua aparecendo (com o botão de criar) mesmo com
+                                zero publicações quando quem está olhando tem uma
+                                loja aqui - senão a seção só existia pra quem via
+                                publicação alheia, nunca pra criar a própria. */}
+                            {(publications.length > 0 || loadingPublications || myStoreInCategory) && (
                                 <div className="mt-4">
                                     <h3 className="text-xs font-black uppercase tracking-widest mb-2" style={{ color: colors.textPrimary }}>
                                         Publicações
@@ -645,28 +657,56 @@ export default function ListaCategoriaPage() {
                                             <Spinner size={20} color={colors.accent} />
                                         </div>
                                     ) : (
-                                        <div className={`flex items-start gap-3 overflow-x-auto pb-1 scrollbar-hide ${publications.length <= 4 ? 'justify-center' : ''}`}>
-                                            {publications.map((pub) => (
-                                                <button
-                                                    key={pub.id}
-                                                    onClick={() => router.push(`/${pub.storeSlug}/${pub.slug || pub.id}`)}
-                                                    className="flex flex-col items-center gap-1 flex-shrink-0 w-16"
-                                                >
-                                                    <div className="w-16 h-16 rounded-full p-[2px]" style={{ background: GRADIENT }}>
-                                                        <div className="w-full h-full rounded-full overflow-hidden bg-white flex items-center justify-center">
-                                                            {pub.image_url ? (
-                                                                <img src={pub.image_url} className="w-full h-full object-cover" alt={pub.name} />
-                                                            ) : (
-                                                                <Megaphone size={20} style={{ color: '#f97316' }} />
-                                                            )}
+                                        <>
+                                            <div className={`flex items-start gap-3 overflow-x-auto pb-1 scrollbar-hide ${publications.length + (myStoreInCategory ? 1 : 0) <= 4 ? 'justify-center' : ''}`}>
+                                                {myStoreInCategory && (
+                                                    <button
+                                                        onClick={() => router.push(`/${myStoreInCategory.storeSlug}`)}
+                                                        className="flex flex-col items-center gap-1 flex-shrink-0 w-16"
+                                                    >
+                                                        <div
+                                                            className="w-16 h-16 rounded-full border-2 border-dashed flex items-center justify-center transition-all hover:scale-105"
+                                                            style={{ borderColor: colors.border }}
+                                                        >
+                                                            <PlusCircle size={20} style={{ color: '#f97316' }} />
                                                         </div>
-                                                    </div>
-                                                    <span className="text-[10px] font-medium truncate w-full text-center" style={{ color: colors.textSecondary }}>
-                                                        {pub.name}
-                                                    </span>
-                                                </button>
-                                            ))}
-                                        </div>
+                                                        <span className="text-[10px] font-bold truncate w-full text-center" style={{ color: colors.textSecondary }}>
+                                                            Nova
+                                                        </span>
+                                                    </button>
+                                                )}
+
+                                                {publications.map((pub) => (
+                                                    <button
+                                                        key={pub.id}
+                                                        onClick={() => router.push(`/${pub.storeSlug}/${pub.slug || pub.id}`)}
+                                                        className="flex flex-col items-center gap-1 flex-shrink-0 w-16"
+                                                    >
+                                                        <div className="w-16 h-16 rounded-full p-[2px]" style={{ background: GRADIENT }}>
+                                                            <div className="w-full h-full rounded-full overflow-hidden bg-white flex items-center justify-center">
+                                                                {pub.image_url ? (
+                                                                    <img src={pub.image_url} className="w-full h-full object-cover" alt={pub.name} />
+                                                                ) : (
+                                                                    <Megaphone size={20} style={{ color: '#f97316' }} />
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                        <span className="text-[10px] font-medium truncate w-full text-center" style={{ color: colors.textSecondary }}>
+                                                            {pub.name}
+                                                        </span>
+                                                    </button>
+                                                ))}
+                                            </div>
+
+                                            {/* Incentivo só até a 3ª publicação da categoria - a partir
+                                                daí o botão "Nova" acima já fala por si, igual em Store.tsx. */}
+                                            {myStoreInCategory && publications.length < 3 && (
+                                                <p className="text-[11px] text-center mt-2" style={{ color: colors.textSecondary }}>
+                                                    Você tem uma loja em <strong style={{ color: colors.textPrimary }}>{info.nome}</strong> —{' '}
+                                                    {PUBLICATION_INCENTIVE[publications.length]} da categoria e apareça pra quem visita ela.
+                                                </p>
+                                            )}
+                                        </>
                                     )}
                                 </div>
                             )}
@@ -705,10 +745,14 @@ export default function ListaCategoriaPage() {
 
                                         <div className="text-center">
                                             <h3 className="text-xl font-bold mb-2" style={{ color: colors.textPrimary }}>
-                                                Nenhuma loja nesta categoria
+                                                {stores.length === 0 ? 'Nenhuma loja nesta categoria' : 'Nenhuma loja encontrada'}
                                             </h3>
                                             <p className="text-sm max-w-md" style={{ color: colors.textSecondary }}>
-                                                Seja o primeiro a cadastrar uma loja em <strong style={{ color: colors.textPrimary }}>{info.nome}</strong> e comece a vender seus produtos!
+                                                {stores.length === 0 ? (
+                                                    <>Seja o primeiro a cadastrar uma loja em <strong style={{ color: colors.textPrimary }}>{info.nome}</strong> e comece a vender seus produtos!</>
+                                                ) : (
+                                                    <>Nenhuma loja em <strong style={{ color: colors.textPrimary }}>{info.nome}</strong> bate com "{searchQuery}". Que tal adicionar a sua aqui também?</>
+                                                )}
                                             </p>
                                         </div>
 
@@ -728,7 +772,7 @@ export default function ListaCategoriaPage() {
                                             }}
                                         >
                                             <PlusCircle size={20} />
-                                            Cadastrar Loja Agora
+                                            {stores.length === 0 ? 'Cadastrar Loja Agora' : 'Cadastrar Minha Loja'}
                                         </button>
 
                                         <p className="text-[10px] opacity-50 flex items-center gap-1" style={{ color: colors.textSecondary }}>
