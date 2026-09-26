@@ -29,6 +29,7 @@ import { getAvatarUrl } from '@/lib/avatar'
 import { formatDistanceToNow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { toast } from 'sonner'
+import { getWhatsAppLink } from '@/lib/whatsapp'
 
 // ===== TIPOS =====
 interface PublicationWithOwner {
@@ -40,11 +41,14 @@ interface PublicationWithOwner {
     view_count: number | null
     created_at: string
     store_id: string
+    show_whatsapp: boolean
     store?: {
         id: string
         name: string
         storeSlug: string
         logo_url: string | null
+        whatsapp: string | null
+        show_whatsapp: boolean | null
     } | null
 }
 
@@ -126,7 +130,8 @@ export function PublicationClientPage({
                         image_url,
                         view_count,
                         created_at,
-                        store_id
+                        store_id,
+                        show_whatsapp
                     `)
                     .eq('slug', slug)
                     .eq('listing_type', 'publication')
@@ -143,7 +148,8 @@ export function PublicationClientPage({
                             image_url,
                             view_count,
                             created_at,
-                            store_id
+                            store_id,
+                            show_whatsapp
                         `)
                         .eq('id', slug)
                         .eq('listing_type', 'publication')
@@ -161,7 +167,7 @@ export function PublicationClientPage({
                 if (pubData?.store_id) {
                     const { data: store } = await supabase
                         .from('stores')
-                        .select('id, name, "storeSlug", logo_url')
+                        .select('id, name, "storeSlug", logo_url, whatsapp, show_whatsapp')
                         .eq('id', pubData.store_id)
                         .maybeSingle()
                     storeData = store
@@ -827,6 +833,19 @@ export function PublicationClientPage({
                                     <Share2 size={18} />
                                     Compartilhar
                                 </button>
+
+                                {publication.show_whatsapp && publication.store?.whatsapp && publication.store?.show_whatsapp !== false && (
+                                    <a
+                                        href={getWhatsAppLink(publication.store.whatsapp, encodeURIComponent(`Olá! Vi "${publication.name}" no iUser e quero saber mais.`))}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-medium transition hover:scale-105"
+                                        style={{ background: '#25D366', color: '#fff' }}
+                                    >
+                                        <MessageCircle size={18} />
+                                        Falar no WhatsApp
+                                    </a>
+                                )}
                             </div>
                         </div>
                     </div>
