@@ -675,7 +675,7 @@ export default function ListaCategoriaPage() {
                                 <div className="mt-4">
                                     <div className="flex items-center justify-between mb-4">
                                         <h2 className="text-lg font-bold" style={{ color: colors.textPrimary }}>
-                                            Lojas em {info.nome}
+                                            Lojas
                                         </h2>
                                         <span className="text-xs font-medium" style={{ color: colors.textSecondary }}>
                                             0 loja(s)
@@ -740,7 +740,7 @@ export default function ListaCategoriaPage() {
                                 <div className="mt-4">
                                     <div className="flex items-center justify-between mb-4">
                                         <h2 className="text-lg font-bold" style={{ color: colors.textPrimary }}>
-                                            Lojas em {info.nome}
+                                            Lojas
                                         </h2>
                                         <span className="text-xs font-medium" style={{ color: colors.textSecondary }}>
                                             {filteredStores.length} loja(s)
