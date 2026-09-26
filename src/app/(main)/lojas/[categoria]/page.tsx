@@ -354,6 +354,13 @@ export default function ListaCategoriaPage() {
         try {
             const info = categoriasMap[categoria]
             const categoryName = info?.nome || categoria
+            // stores.category vem às vezes como slug ("saude"), às vezes como
+            // nome de exibição ("Saúde e Bem-estar") - dependendo de qual
+            // tela criou a loja (mesma inconsistência do badge de
+            // categorias na home, ver lib/categorias.ts:resolveCategoria).
+            // Comparar só com o nome deixava lojas ativas de verdade
+            // invisíveis aqui, mesmo contando no badge.
+            const categorySlug = info?.slug || categoria
 
             const { data: storesData, error: storesError } = await supabase
                 .from('stores')
@@ -371,7 +378,7 @@ export default function ListaCategoriaPage() {
                     business_hours,
                     view_count
                 `)
-                .eq('category', categoryName)
+                .in('category', [categoryName, categorySlug])
                 .eq('is_active', true)
                 .order('ratings_avg', { ascending: false })
                 .limit(50)
