@@ -801,14 +801,17 @@ export default function PublicationClientPage() {
                     loading={profileLoading}
                 />
 
-                <div className="w-full px-4 md:px-6 py-6">
+                {/* max-w-md + imagem em pé (9/16, estilo Shorts do YouTube) - sem
+                    isso, no navegador do PC a imagem esticava 16:9 na largura
+                    inteira da tela, ficando gigante e sem cara de publicação. */}
+                <div className="w-full px-4 md:px-6 py-6 max-w-md mx-auto">
                     <div className="rounded-2xl overflow-hidden border" style={{
                         background: colors.surface,
                         borderColor: colors.border,
                     }}>
                         {/* Imagem */}
                         {imageUrl ? (
-                            <div className="relative w-full" style={{ aspectRatio: '16/9' }}>
+                            <div className="relative w-full" style={{ aspectRatio: '9/16' }}>
                                 <img
                                     src={imageUrl}
                                     alt={publication.name || 'Publicação'}
