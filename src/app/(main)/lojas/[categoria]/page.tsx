@@ -30,6 +30,7 @@ import Header from '@/components/Header'
 import { categoriasMap } from '@/lib/categorias'
 import { isStoreOpenNow, type BusinessHours } from '@/lib/storeHours'
 import { RatingStars } from '@/components/ratings/RatingStars'
+import CreatePublicationDialog from '@/components/CreatePublicationDialog'
 
 // ===== GRADIENTE =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -547,6 +548,7 @@ export default function ListaCategoriaPage() {
     // Loja de quem está olhando, dentro desta mesma categoria - dono de
     // loja aqui é quem pode publicar pra ela (botão "Nova" das Publicações).
     const myStoreInCategory = useMemo(() => stores.find((s) => s.owner_id === userId) || null, [stores, userId])
+    const [isCreatingPublication, setIsCreatingPublication] = useState(false)
 
     // ===== FILTRO LOCAL =====
     const filteredStores = useMemo(() => {
@@ -661,7 +663,7 @@ export default function ListaCategoriaPage() {
                                             <div className={`flex items-start gap-3 overflow-x-auto pb-1 scrollbar-hide ${publications.length + (myStoreInCategory ? 1 : 0) <= 4 ? 'justify-center' : ''}`}>
                                                 {myStoreInCategory && (
                                                     <button
-                                                        onClick={() => router.push(`/${myStoreInCategory.storeSlug}`)}
+                                                        onClick={() => setIsCreatingPublication(true)}
                                                         className="flex flex-col items-center gap-1 flex-shrink-0 w-16"
                                                     >
                                                         <div
@@ -709,6 +711,15 @@ export default function ListaCategoriaPage() {
                                         </>
                                     )}
                                 </div>
+                            )}
+
+                            {myStoreInCategory && (
+                                <CreatePublicationDialog
+                                    open={isCreatingPublication}
+                                    onClose={() => setIsCreatingPublication(false)}
+                                    storeId={myStoreInCategory.id}
+                                    onCreated={loadStores}
+                                />
                             )}
 
                             {filteredStores.length === 0 ? (
