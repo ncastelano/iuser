@@ -603,7 +603,7 @@ export default function HomePage() {
         } else {
             allTabs.push({
                 id: 'criar-loja',
-                label: 'Cadastrar loja?',
+                label: 'Cadastrar loja',
                 icon: Store,
                 imageUrl: null,
                 onClick: isLoggedIn

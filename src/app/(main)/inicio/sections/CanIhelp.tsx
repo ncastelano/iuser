@@ -4,7 +4,7 @@
 import Link from 'next/link'
 import { ReactNode, useEffect, useState } from 'react'
 import { useTheme } from '@/app/contexts/theme'
-import { categorias, type Categoria } from '@/lib/categorias'
+import { categorias, resolveCategoria, type Categoria } from '@/lib/categorias'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
 import { hexToRgb } from '@/lib/color'
 import { supabase } from '@/lib/supabase/client'
@@ -99,8 +99,12 @@ export default function CanIhelp({ dragHandle }: CanIhelpProps) {
                 if (!data) return
                 const counts: Record<string, number> = {}
                 for (const row of data as { category: string | null }[]) {
-                    if (!row.category) continue
-                    counts[row.category] = (counts[row.category] || 0) + 1
+                    // stores.category vem às vezes como slug, às vezes como nome de
+                    // exibição - resolveCategoria() normaliza os dois pro mesmo slug
+                    // canônico, senão metade das lojas nunca entrava na contagem.
+                    const resolved = resolveCategoria(row.category)
+                    if (!resolved) continue
+                    counts[resolved.slug] = (counts[resolved.slug] || 0) + 1
                 }
                 setCategoryCounts(counts)
             })
@@ -142,7 +146,7 @@ export default function CanIhelp({ dragHandle }: CanIhelpProps) {
 
                         const href = cat.slug === 'social' ? '/social' : cat.slug === 'comunidades' ? '/comunidade' : `/lojas/${cat.slug}`
 
-                        const count = categoryCounts[cat.nome] || 0
+                        const count = categoryCounts[cat.slug] || 0
                         const showBadge = count > 0 && !dismissedBadges.has(cat.slug)
 
                         return (

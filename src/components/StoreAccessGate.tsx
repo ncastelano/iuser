@@ -38,16 +38,16 @@ export function StoreAccessGate({ userId, children }: StoreAccessGateProps) {
                 <Store className="w-7 h-7 text-white" />
             </div>
             <div className="space-y-1">
-                <h2 className="text-lg font-black text-gray-800">Assine pra criar sua loja</h2>
+                <h2 className="text-lg font-black text-gray-800">Crie sua loja no iUser</h2>
                 <p className="text-xs text-gray-500">
-                    Criar e manter sua loja aberta pra vender exige o plano Loja ou o Combo.
+                    Escolha o plano Loja ou Combo para começar a vender.
                 </p>
             </div>
             <Link
                 href="/planos?plan=loja"
                 className="w-full inline-flex items-center justify-center gap-2 py-3.5 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl font-black uppercase text-xs tracking-wider hover:shadow-lg transition-all"
             >
-                Ver planos
+                VER PLANOS
                 <ArrowRight className="w-4 h-4" />
             </Link>
         </div>
