@@ -117,6 +117,7 @@ interface SubscriptionRow {
     created_at: string
     plans: { code: string; name: string; price: number } | { code: string; name: string; price: number }[] | null
     profiles: { name: string | null; profileSlug: string | null } | { name: string | null; profileSlug: string | null }[] | null
+    postpaidDebt: number
 }
 
 interface GrantedFreeSummary {
@@ -248,6 +249,11 @@ function SubscriptionsSection({ cardStyle, colors }: SectionProps) {
                                 <p className="text-[11px]" style={{ color: colors.textSecondary }}>
                                     R$ {plan ? Number(plan.price).toFixed(2) : '—'} · {SUBSCRIPTION_SOURCE_LABEL[s.source]} · {new Date(s.created_at).toLocaleDateString('pt-BR')}
                                 </p>
+                                {s.postpaidDebt > 0 && (
+                                    <p className="text-[10px] font-bold mt-0.5" style={{ color: '#f97316' }}>
+                                        Deve R$ {s.postpaidDebt.toFixed(2)} no pós-pago
+                                    </p>
+                                )}
                             </div>
                             <span
                                 className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full flex-shrink-0"

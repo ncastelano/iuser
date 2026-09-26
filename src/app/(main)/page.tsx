@@ -1,8 +1,8 @@
 // src/app/(main)/page.tsx
 'use client'
 
-import { useState, useEffect, useMemo, useRef } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect, useMemo, useRef, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { User, Store, Home, MapPin, LayoutDashboard, X, Radar, Gift } from 'lucide-react'
 
 import CategoriasSection from './inicio/sections/CanIhelp'
@@ -97,8 +97,9 @@ export interface StoreInfo {
     business_hours?: BusinessHours | null
 }
 
-export default function HomePage() {
+function HomePageContent() {
     const router = useRouter()
+    const searchParams = useSearchParams()
     const startNavProgress = useNavProgressStore((s) => s.start)
     const {
         userId,
@@ -475,49 +476,45 @@ export default function HomePage() {
         }
     }
 
-    const showHomeSections = () => {
-        setShowCreateStore(false)
-        setShowLogin(false)
-        setShowProfile(false)
-        setShowStoreDashboard(null)
-        setShowBenefits(false)
-    }
-
-    const handleLoginClick = () => {
-        setShowLogin(true)
-        setShowCreateStore(false)
-        setShowProfile(false)
-        setShowStoreDashboard(null)
-        setShowBenefits(false)
-    }
-
+    // As "abas" da home (perfil, minha rede, loja, criar loja, login) viviam
+    // só em useState - trocar de aba nunca mudava a URL. Resultado: sair pra
+    // outra página e apertar "voltar" sempre caía na home (nenhuma aba tinha
+    // ficado registrada no histórico do navegador). Agora cada aba é
+    // refletida em ?view=.../&store=... com router.push (cria uma entrada
+    // de histórico de verdade) e um efeito abaixo sincroniza os estados a
+    // partir da URL sempre que ela muda - inclusive via botão "voltar".
+    const showHomeSections = () => router.push('/')
+    const handleLoginClick = () => router.push('/?view=login')
     const handleProfileClick = () => {
-        if (profileSlug && !loading) {
-            setShowProfile(true)
-                setShowCreateStore(false)
-            setShowLogin(false)
-            setShowStoreDashboard(null)
-            setShowBenefits(false)
+        router.push(profileSlug && !loading ? '/?view=perfil' : '/?view=login')
+    }
+    const handleStoreDashboardClick = (storeSlug: string) => {
+        router.push(`/?view=loja&store=${encodeURIComponent(storeSlug)}`)
+    }
+    const handleBenefitsClick = () => router.push('/?view=rede')
+    const handleCreateStoreClick = () => router.push('/?view=criar-loja')
+
+    useEffect(() => {
+        const view = searchParams.get('view')
+        if (view === 'perfil') {
+            setShowProfile(true); setShowLogin(false); setShowCreateStore(false); setShowStoreDashboard(null); setShowBenefits(false)
+        } else if (view === 'login') {
+            setShowLogin(true); setShowProfile(false); setShowCreateStore(false); setShowStoreDashboard(null); setShowBenefits(false)
+        } else if (view === 'criar-loja') {
+            setShowCreateStore(true); setShowLogin(false); setShowProfile(false); setShowStoreDashboard(null); setShowBenefits(false)
+        } else if (view === 'rede') {
+            setShowBenefits(true); setShowCreateStore(false); setShowLogin(false); setShowProfile(false); setShowStoreDashboard(null)
+        } else if (view === 'loja') {
+            const storeSlugParam = searchParams.get('store')
+            const store = stores.find((s) => s.slug === storeSlugParam)
+            if (store) {
+                setShowStoreDashboard({ slug: store.slug, name: store.name })
+                setShowCreateStore(false); setShowLogin(false); setShowProfile(false); setShowBenefits(false)
+            }
         } else {
-            handleLoginClick()
+            setShowCreateStore(false); setShowLogin(false); setShowProfile(false); setShowStoreDashboard(null); setShowBenefits(false)
         }
-    }
-
-    const handleStoreDashboardClick = (storeSlug: string, storeName: string) => {
-        setShowStoreDashboard({ slug: storeSlug, name: storeName })
-        setShowCreateStore(false)
-        setShowLogin(false)
-        setShowProfile(false)
-        setShowBenefits(false)
-    }
-
-    const handleBenefitsClick = () => {
-        setShowBenefits(true)
-        setShowCreateStore(false)
-        setShowLogin(false)
-        setShowProfile(false)
-        setShowStoreDashboard(null)
-    }
+    }, [searchParams, stores])
 
     const tabs = useMemo(() => {
         const isLoggedIn = !!profileSlug && !loading
@@ -565,7 +562,7 @@ export default function HomePage() {
                     label: s.name,
                     icon: LayoutDashboard,
                     imageUrl: s.logoUrl,
-                    onClick: () => handleStoreDashboardClick(s.slug, s.name),
+                    onClick: () => handleStoreDashboardClick(s.slug),
                     isActive: showStoreDashboard?.slug === s.slug,
                     indicator: hasActive ? counts : null,
                     statusColor,
@@ -579,7 +576,7 @@ export default function HomePage() {
                 imageUrl: null,
                 onClick: isLoggedIn
                     ? () => { startNavProgress(); router.push('/criar-loja') }
-                    : () => setShowCreateStore(true),
+                    : handleCreateStoreClick,
                 isActive: !isLoggedIn && showCreateStore,
             })
         }
@@ -675,10 +672,10 @@ export default function HomePage() {
                 {showCreateStore ? (
                     <CreateStoreAndRegisterProfile
                         embedded
-                        onBack={() => setShowCreateStore(false)}
+                        onBack={showHomeSections}
                     />
                 ) : showLogin ? (
-                    <LoginAndRegister onLoginSuccess={() => setShowLogin(false)} />
+                    <LoginAndRegister onLoginSuccess={showHomeSections} />
                 ) : showProfile ? (
                     <ProfileDashboard
                         profileSlug={profileSlug}
@@ -688,7 +685,7 @@ export default function HomePage() {
                     <StoreDashboard
                         profileSlug={profileSlug || ''}
                         storeSlug={showStoreDashboard.slug}
-                        onBack={() => setShowStoreDashboard(null)}
+                        onBack={showHomeSections}
                         onOrderCountsChange={handleOrderCountsChange}
                     />
                 ) : showBenefits ? (
@@ -857,5 +854,16 @@ export default function HomePage() {
                 .animate-badge-pop { animation: badge-pop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
             `}</style>
         </div>
+    )
+}
+
+// useSearchParams() (usado pra manter a aba ativa na URL, ver comentário
+// acima de showHomeSections) exige um Suspense boundary explícito, senão o
+// build falha na página "/" (bailout de CSR sem Suspense).
+export default function HomePage() {
+    return (
+        <Suspense fallback={null}>
+            <HomePageContent />
+        </Suspense>
     )
 }

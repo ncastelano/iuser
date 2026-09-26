@@ -19,7 +19,7 @@ export async function POST(req: Request) {
 
     const { data, error } = await supabaseAdmin
         .from('subscriptions')
-        .select('id, status, source, current_period_end, created_at, plans(code, name, price), profiles!subscriptions_user_id_fkey(name, profileSlug)')
+        .select('id, user_id, status, source, current_period_end, created_at, plans(code, name, price), profiles!subscriptions_user_id_fkey(name, profileSlug)')
         .order('created_at', { ascending: false })
         .limit(500)
 
@@ -28,6 +28,23 @@ export async function POST(req: Request) {
     }
 
     const rows = data || []
+
+    // Saldo pendente no pós-pago de cada assinante - mesma dívida que já
+    // aparece em "Minha rede" (get_driver_postpaid_debt), só que aqui pra
+    // todo mundo de uma vez, não só a própria rede de quem está olhando.
+    const userIds = [...new Set(rows.map((r) => r.user_id).filter(Boolean))]
+    let debtByUserId = new Map<string, number>()
+    if (userIds.length > 0) {
+        const { data: charges } = await supabaseAdmin
+            .from('driver_postpaid_charges')
+            .select('driver_id, amount')
+            .in('driver_id', userIds)
+        debtByUserId = new Map()
+        for (const c of charges || []) {
+            debtByUserId.set(c.driver_id, (debtByUserId.get(c.driver_id) || 0) + Number(c.amount))
+        }
+    }
+    const rowsWithDebt = rows.map((r) => ({ ...r, postpaidDebt: debtByUserId.get(r.user_id) || 0 }))
     const now = new Date()
     const isActiveRow = (row: (typeof rows)[number]) =>
         row.status === 'active' && (!row.current_period_end || new Date(row.current_period_end) > now)
@@ -85,7 +102,7 @@ export async function POST(req: Request) {
     const paidActiveCount = rows.filter((r) => r.source === 'asaas' && isActiveRow(r)).length
 
     return NextResponse.json({
-        subscriptions: rows,
+        subscriptions: rowsWithDebt,
         summary: Array.from(summaryByPlan.values()),
         grantedFree: { activeCount: grantedActiveCount, plans: Array.from(grantedByPlan.values()) },
         paid: { onceCount, multipleCount, activeCount: paidActiveCount, totalRevenue },
