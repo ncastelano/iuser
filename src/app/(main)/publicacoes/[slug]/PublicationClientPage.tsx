@@ -31,6 +31,7 @@ import { captureReferral } from '@/lib/referralCapture'
 import { formatDistanceToNow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { toast } from 'sonner'
+import { getWhatsAppLink } from '@/lib/whatsapp'
 
 // ===== TIPOS =====
 interface PublicationWithStore {
@@ -43,11 +44,14 @@ interface PublicationWithStore {
     created_at: string
     store_id: string | null
     owner_id: string | null
+    show_whatsapp: boolean
     store?: {
         id: string
         name: string
         storeSlug: string
         logo_url: string | null
+        whatsapp: string | null
+        show_whatsapp: boolean | null
     } | null
     profile?: {
         id: string
@@ -120,7 +124,8 @@ export default function PublicationClientPage() {
                         view_count,
                         created_at,
                         store_id,
-                        owner_id
+                        owner_id,
+                        show_whatsapp
                     `)
                     .eq('slug', slug)
                     .eq('listing_type', 'publication')
@@ -138,7 +143,8 @@ export default function PublicationClientPage() {
                             view_count,
                             created_at,
                             store_id,
-                            owner_id
+                            owner_id,
+                            show_whatsapp
                         `)
                         .eq('id', slug)
                         .eq('listing_type', 'publication')
@@ -166,7 +172,9 @@ export default function PublicationClientPage() {
                             name,
                             storeSlug,
                             logo_url,
-                            owner_id
+                            owner_id,
+                            whatsapp,
+                            show_whatsapp
                         `)
                         .eq('id', pubData.store_id)
                         .maybeSingle()
@@ -931,6 +939,19 @@ export default function PublicationClientPage() {
                                     <Share2 size={18} />
                                     Compartilhar
                                 </button>
+
+                                {publication.show_whatsapp && publication.store?.whatsapp && publication.store?.show_whatsapp !== false && (
+                                    <a
+                                        href={getWhatsAppLink(publication.store.whatsapp, encodeURIComponent(`Olá! Vi "${publication.name}" no iUser e quero saber mais.`))}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-medium transition hover:scale-105"
+                                        style={{ background: '#25D366', color: '#fff' }}
+                                    >
+                                        <MessageCircle size={18} />
+                                        Falar no WhatsApp
+                                    </a>
+                                )}
                             </div>
                         </div>
                     </div>

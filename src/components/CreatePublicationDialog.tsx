@@ -40,6 +40,11 @@ export default function CreatePublicationDialog({
     const [pubImageFile, setPubImageFile] = useState<File | null>(null)
     const [pubPreview, setPubPreview] = useState<string | null>(null)
     const [pubSaving, setPubSaving] = useState(false)
+    const [pubShowWhatsapp, setPubShowWhatsapp] = useState(true)
+
+    // Só oferece a opção quando a loja realmente tem WhatsApp configurado e
+    // habilitado - senão não tem WhatsApp nenhum pra oferecer contato.
+    const canOfferWhatsapp = showWhatsapp && !!storeWhatsapp
 
     useEffect(() => {
         if (!pubImageFile) return
@@ -53,6 +58,7 @@ export default function CreatePublicationDialog({
         setPubDescription('')
         setPubImageFile(null)
         setPubPreview(null)
+        setPubShowWhatsapp(true)
     }
 
     const handleClose = () => {
@@ -91,6 +97,7 @@ export default function CreatePublicationDialog({
                 listing_type: 'publication',
                 image_url: imagePath,
                 store_id: storeId,
+                show_whatsapp: canOfferWhatsapp && pubShowWhatsapp,
             })
 
             if (insertError) throw insertError
@@ -186,11 +193,19 @@ export default function CreatePublicationDialog({
                     />
                 </div>
 
-                {showWhatsapp && storeWhatsapp && (
-                    <div className="flex items-center gap-2 text-xs text-green-700 bg-green-50/50 px-3 py-2 rounded-lg">
-                        <MessageCircle size={14} />
-                        <span>O cliente será direcionado para o WhatsApp da loja: <strong>{storeWhatsapp}</strong></span>
-                    </div>
+                {canOfferWhatsapp && (
+                    <label className="flex items-start gap-2 text-xs px-3 py-2 rounded-lg cursor-pointer bg-green-50/50 text-green-700">
+                        <input
+                            type="checkbox"
+                            checked={pubShowWhatsapp}
+                            onChange={(e) => setPubShowWhatsapp(e.target.checked)}
+                            className="mt-0.5"
+                        />
+                        <span className="flex items-start gap-2">
+                            <MessageCircle size={14} className="flex-shrink-0 mt-0.5" />
+                            Mostrar botão de WhatsApp nesta publicação (<strong>{storeWhatsapp}</strong>)
+                        </span>
+                    </label>
                 )}
 
                 <div className="flex gap-2 pt-2">

@@ -52,6 +52,8 @@ interface StoreCardData {
     owner_id: string
     business_hours?: BusinessHours | null
     view_count?: number
+    whatsapp?: string | null
+    show_whatsapp?: boolean | null
     top_products?: {
         id: string
         name: string
@@ -381,7 +383,9 @@ export default function ListaCategoriaPage() {
                     category,
                     address,
                     business_hours,
-                    view_count
+                    view_count,
+                    whatsapp,
+                    show_whatsapp
                 `)
                 .in('category', [categoryName, categorySlug])
                 .eq('is_active', true)
@@ -407,7 +411,9 @@ export default function ListaCategoriaPage() {
                         category,
                         address,
                         business_hours,
-                        view_count
+                        view_count,
+                        whatsapp,
+                        show_whatsapp
                     `)
                     .or(`name.ilike.%${categoryName}%, description.ilike.%${categoryName}%`)
                     .eq('is_active', true)
@@ -527,6 +533,8 @@ export default function ListaCategoriaPage() {
                     owner_id: store.owner_id,
                     business_hours: convertBusinessHours(store.business_hours),
                     view_count: store.view_count || 0,
+                    whatsapp: store.whatsapp,
+                    show_whatsapp: store.show_whatsapp,
                     top_products: mappedProducts,
                     recent_reviews: mappedReviews,
                 }
@@ -718,6 +726,8 @@ export default function ListaCategoriaPage() {
                                     open={isCreatingPublication}
                                     onClose={() => setIsCreatingPublication(false)}
                                     storeId={myStoreInCategory.id}
+                                    storeWhatsapp={myStoreInCategory.whatsapp}
+                                    showWhatsapp={myStoreInCategory.show_whatsapp !== false}
                                     onCreated={loadStores}
                                 />
                             )}
