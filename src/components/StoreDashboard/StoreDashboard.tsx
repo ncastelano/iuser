@@ -9,6 +9,7 @@ import { useTheme } from '@/app/contexts/theme'
 import { Spinner } from '@/components/Spinner'
 import { toast } from 'sonner'
 import { hexToRgb } from '@/lib/color'
+import { handleShareLink } from '@/lib/share'
 import {
     Settings,
     RefreshCw,
@@ -46,6 +47,7 @@ import { StoreDescription } from './StoreDescription'
 import { checkSlugAvailability } from '@/lib/slugUtils'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
+const ROUTE_COLORS = ['#f97316', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#eab308']
 
 function startOfDay(date: Date = new Date()): string {
     date.setHours(0, 0, 0, 0)
@@ -136,6 +138,7 @@ export default function StoreDashboard({
     useEffect(() => () => onDialogOpenChange?.(false), [onDialogOpenChange])
     const [products, setProducts] = useState<any[]>([])
     const [employees, setEmployees] = useState<any[]>([])
+    const [employeeRoutes, setEmployeeRoutes] = useState<any[]>([])
     const [expandedEmployee, setExpandedEmployee] = useState<string | null>(null)
     const [showScheduleModal, setShowScheduleModal] = useState(false)
 
@@ -373,18 +376,141 @@ export default function StoreDashboard({
 
     const handleRefresh = () => { setRefreshing(true); loadDashboard().finally(() => setRefreshing(false)) }
 
+    // Recarrega só os funcionários (sem refazer o resto do dashboard) -
+    // Employee.tsx chama isso depois de adicionar/editar/remover, senão a
+    // lista mostrada ali fica presa no que foi carregado na abertura da
+    // página (o "Atribuir pedidos" parece atualizado só porque StoreOrders
+    // tem sua própria busca de funcionários, independente desta).
+    const loadEmployees = useCallback(async () => {
+        if (!store?.id) return
+        const { data } = await supabase.from('employees').select('*').eq('store_id', store.id).eq('is_active', true)
+        setEmployees(data || [])
+    }, [store?.id])
+
+    // O que cada funcionário está com entregas atribuídas - mostrado embaixo
+    // do nome dele em "Funcionários" (contagem por status) e no quadro
+    // completo ao expandir (a fazer / fazendo agora / concluídas hoje). O
+    // que já foi entregue só entra se foi hoje, pra não acumular histórico
+    // pra sempre.
+    const loadEmployeeRoutes = useCallback(async () => {
+        if (!store?.id) return
+
+        const { data: assignments, error: assignError } = await supabase
+            .from('delivery_assignments')
+            .select('employee_id, checkout_id, sequence_order, status, picked_up_at, delivered_at')
+            .eq('store_id', store.id)
+            .order('sequence_order')
+
+        if (assignError) {
+            console.error('[StoreDashboard] Erro ao buscar atribuições de entrega:', assignError)
+            return
+        }
+        if (!assignments || assignments.length === 0) {
+            setEmployeeRoutes([])
+            return
+        }
+
+        // Filtra "entregue" pra só contar o de hoje (evita acumular
+        // histórico pra sempre) - feito aqui no client pra não depender de
+        // sintaxe de filtro combinado (.or()) que pode variar entre versões.
+        const startOfToday = new Date()
+        startOfToday.setHours(0, 0, 0, 0)
+        const relevant = assignments.filter(
+            (a) => a.status !== 'delivered' || (a.delivered_at && new Date(a.delivered_at) >= startOfToday)
+        )
+        if (relevant.length === 0) {
+            setEmployeeRoutes([])
+            return
+        }
+
+        const checkoutIds = [...new Set(relevant.map((a) => a.checkout_id))]
+        const { data: orders, error: ordersError } = await supabase
+            .from('orders')
+            .select('checkout_id, delivery_lat, delivery_lng, delivery_address, payment_method, total_amount, delivery_fee, order_items(product_name, quantity)')
+            .in('checkout_id', checkoutIds)
+        if (ordersError) {
+            console.error('[StoreDashboard] Erro ao buscar pedidos das rotas:', ordersError)
+        }
+        const ordersMap = new Map((orders || []).map((o) => [o.checkout_id, o]))
+
+        const byEmployee = new Map<string, any[]>()
+        relevant.forEach((a) => {
+            const order = ordersMap.get(a.checkout_id)
+            if (!byEmployee.has(a.employee_id)) byEmployee.set(a.employee_id, [])
+            byEmployee.get(a.employee_id)!.push({
+                lat: order?.delivery_lat ?? null,
+                lng: order?.delivery_lng ?? null,
+                label: String(a.sequence_order),
+                address: order?.delivery_address || '',
+                status: a.status,
+                pickedUpAt: a.picked_up_at,
+                deliveredAt: a.delivered_at,
+                payment_method: order?.payment_method || '',
+                total_amount: order?.total_amount || 0,
+                delivery_fee: order?.delivery_fee || 0,
+                items: (order?.order_items || []).map((i: any) => ({ product_name: i.product_name, quantity: i.quantity })),
+            })
+        })
+
+        const routes = Array.from(byEmployee.entries()).map(([eid, stops], idx) => {
+            const emp = employees.find((e) => e.id === eid)
+            return {
+                employeeId: eid,
+                employeeName: emp?.name || 'Entregador',
+                color: ROUTE_COLORS[idx % ROUTE_COLORS.length],
+                stops,
+            }
+        })
+        setEmployeeRoutes(routes)
+    }, [store?.id, employees])
+
+    useEffect(() => { loadEmployeeRoutes() }, [loadEmployeeRoutes])
+
+    // Atualiza sozinho quando um pedido é atribuído/reatribuído na aba de
+    // Pedidos (StoreOrders), sem precisar trocar de aba pra ver o reflexo.
+    useEffect(() => {
+        if (!store?.id) return
+        const channel = supabase
+            .channel(`store-dashboard-assignments-${store.id}`)
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'delivery_assignments', filter: `store_id=eq.${store.id}` },
+                () => loadEmployeeRoutes()
+            )
+            .subscribe()
+        return () => { supabase.removeChannel(channel) }
+    }, [store?.id, loadEmployeeRoutes])
+
+    // Atualiza sozinho quando um funcionário é adicionado/editado/removido -
+    // não depende só do onRefresh do próprio diálogo (cobre também qualquer
+    // outra aba/dispositivo mexendo na mesma loja ao mesmo tempo).
+    useEffect(() => {
+        if (!store?.id) return
+        const channel = supabase
+            .channel(`store-dashboard-employees-${store.id}`)
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'employees', filter: `store_id=eq.${store.id}` },
+                () => loadEmployees()
+            )
+            .subscribe()
+        return () => { supabase.removeChannel(channel) }
+    }, [store?.id, loadEmployees])
+
     const goToPublicStore = () => {
         if (storeSlug) {
             router.push(`/${storeSlug}`)
         }
     }
 
-    const copyStoreLink = () => {
-        if (storeSlug) {
-            const url = `${window.location.origin}/${storeSlug}`
-            navigator.clipboard.writeText(url)
-            toast.success('Link copiado!')
-        }
+    const shareStoreLink = () => {
+        if (!storeSlug) return
+        const url = `${window.location.origin}/${storeSlug}`
+        handleShareLink({
+            title: store?.name ? `${store.name} | iUser` : 'iUser',
+            text: `Confira ${store?.name || 'minha loja'} no iUser!`,
+            url,
+        })
     }
 
     if (loading) return (
@@ -508,7 +634,7 @@ export default function StoreDashboard({
                         Ver minha Loja
                     </button>
                     <button
-                        onClick={copyStoreLink}
+                        onClick={shareStoreLink}
                         style={{
                             ...pillButtonFullStyle,
                             background: GRADIENT,
@@ -631,12 +757,13 @@ export default function StoreDashboard({
             <div className="mb-6">
                 <Employee
                     employees={employees}
-                    employeeRoutes={[]}
+                    employeeRoutes={employeeRoutes}
                     assignmentMap={new Map()}
                     expandedEmployee={expandedEmployee}
                     onToggleExpand={setExpandedEmployee}
                     storeId={store.id}
-                    onRefresh={() => { }}
+                    storeName={store.name}
+                    onRefresh={loadEmployees}
                 />
             </div>
 

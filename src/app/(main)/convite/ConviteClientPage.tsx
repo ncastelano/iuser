@@ -146,7 +146,11 @@ function ConviteContent() {
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({
-                        referralSlug: inviter.profileSlug
+                        referralSlug: inviter.profileSlug,
+                        // Aceitar um convite explícito sempre vale, mesmo que
+                        // a pessoa já carregasse um convite passivo de outra
+                        // loja/perfil visitado antes.
+                        force: true,
                     }),
                 })
 

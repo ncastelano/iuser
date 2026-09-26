@@ -7,6 +7,11 @@ import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { toast } from 'sonner'
 import { hexToRgb } from '@/lib/color'
+import { formatBrazilianPhone, cleanPhoneNumber } from '@/lib/phone'
+import { ensureEmployeeAccessToken, buildCourierRouteMessage } from '@/lib/courierLink'
+import { getWhatsAppLink } from '@/lib/whatsapp'
+import { handleShareLink } from '@/lib/share'
+import { paymentMethodLabel } from '@/lib/payment'
 import {
     Truck,
     ChevronRight,
@@ -15,8 +20,14 @@ import {
     Pencil,
     Trash2,
     Save,
+    Send,
+    RefreshCw,
     ChevronDown,
     ChevronUp,
+    Clock,
+    Bike,
+    CheckCircle2,
+    MapPin,
 } from 'lucide-react'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
@@ -43,6 +54,7 @@ interface EmployeeType {
     name: string
     phone?: string
     is_active: boolean
+    access_token?: string | null
 }
 
 interface RouteStop {
@@ -51,6 +63,8 @@ interface RouteStop {
     label: string
     address: string
     status: string
+    pickedUpAt?: string | null
+    deliveredAt?: string | null
     payment_method: string
     total_amount: number
     delivery_fee: number
@@ -64,6 +78,21 @@ interface RouteData {
     stops: RouteStop[]
 }
 
+// Quadro do funcionário: o que ele vai fazer, o que está fazendo agora, e o
+// que já entregou - sempre nessa ordem, pra loja ver o andamento num relance.
+const BOARD_BUCKETS = [
+    { status: 'pending', title: 'A fazer', icon: Clock, color: '#94a3b8' },
+    { status: 'in_transit', title: 'Fazendo agora', icon: Bike, color: '#f59e0b' },
+    { status: 'delivered', title: 'Concluídas hoje', icon: CheckCircle2, color: '#22c55e' },
+] as const
+
+function bucketStops(stops: RouteStop[]) {
+    return BOARD_BUCKETS.map((bucket) => ({
+        ...bucket,
+        stops: stops.filter((s) => s.status === bucket.status),
+    }))
+}
+
 interface EmployeeProps {
     employees: EmployeeType[]
     employeeRoutes: RouteData[]
@@ -71,6 +100,7 @@ interface EmployeeProps {
     expandedEmployee: string | null
     onToggleExpand: (id: string | null) => void
     storeId: string
+    storeName: string
     onRefresh: () => void
 }
 
@@ -80,6 +110,7 @@ export default function Employee({
     expandedEmployee,
     onToggleExpand,
     storeId,
+    storeName,
     onRefresh,
 }: EmployeeProps) {
     const { colors } = useTheme()
@@ -96,6 +127,12 @@ export default function Employee({
 
     const [isExpanded, setIsExpanded] = useState(true)
 
+    // Guarda os tokens já gerados/lidos nesta sessão - onRefresh() do
+    // dashboard não recarrega a lista de funcionários, então sem isso cada
+    // clique em "Enviar rota" geraria um token novo antes do refresh chegar.
+    const [resolvedTokens, setResolvedTokens] = useState<Record<string, string>>({})
+    const [regenerating, setRegenerating] = useState(false)
+
     const handleAdd = () => {
         setEditingEmployee(null)
         setFormName('')
@@ -106,7 +143,7 @@ export default function Employee({
     const handleEdit = (emp: EmployeeType) => {
         setEditingEmployee(emp)
         setFormName(emp.name)
-        setFormPhone(emp.phone || '')
+        setFormPhone(cleanPhoneNumber(emp.phone || ''))
         setDialogOpen(true)
     }
 
@@ -120,7 +157,7 @@ export default function Employee({
             if (editingEmployee) {
                 const { error } = await supabase
                     .from('employees')
-                    .update({ name: formName.trim(), phone: formPhone.trim() })
+                    .update({ name: formName.trim(), phone: formPhone })
                     .eq('id', editingEmployee.id)
                 if (error) throw error
                 toast.success('Funcionário atualizado!')
@@ -128,8 +165,10 @@ export default function Employee({
                 const { error } = await supabase.from('employees').insert({
                     store_id: storeId,
                     name: formName.trim(),
-                    phone: formPhone.trim(),
+                    phone: formPhone,
                     is_active: true,
+                    // Já nasce com link pra ver as entregas - sem passo extra.
+                    access_token: crypto.randomUUID(),
                 })
                 if (error) throw error
                 toast.success('Funcionário adicionado!')
@@ -140,6 +179,43 @@ export default function Employee({
             toast.error(err.message || 'Erro ao salvar')
         } finally {
             setSaving(false)
+        }
+    }
+
+    // Manda o link de "minhas entregas" pro WhatsApp do entregador (mensagem
+    // já pronta, a pessoa só aperta enviar) - funciona pra quem tem conta no
+    // iUser e pra quem não tem, é sempre o mesmo link.
+    const handleSendRoute = async (emp: EmployeeType) => {
+        try {
+            const token = await ensureEmployeeAccessToken(supabase, emp.id, resolvedTokens[emp.id] || emp.access_token)
+            setResolvedTokens((prev) => ({ ...prev, [emp.id]: token }))
+            const url = `${window.location.origin}/entregador/${token}`
+            const message = buildCourierRouteMessage(emp.name, storeName, url)
+
+            if (emp.phone) {
+                window.open(getWhatsAppLink(emp.phone, encodeURIComponent(message)), '_blank')
+            } else {
+                await handleShareLink({ title: 'Rota de entregas', text: message, url })
+            }
+        } catch (err: any) {
+            toast.error(err.message || 'Erro ao gerar o link')
+        }
+    }
+
+    // Invalida o link anterior (quem tiver o link antigo deixa de conseguir
+    // ver as entregas) - útil se o link vazou ou trocou de entregador.
+    const handleRegenerateLink = async (emp: EmployeeType) => {
+        setRegenerating(true)
+        try {
+            const token = crypto.randomUUID()
+            const { error } = await supabase.from('employees').update({ access_token: token }).eq('id', emp.id)
+            if (error) throw error
+            setResolvedTokens((prev) => ({ ...prev, [emp.id]: token }))
+            toast.success('Link renovado! O link antigo parou de funcionar.')
+        } catch (err: any) {
+            toast.error(err.message || 'Erro ao gerar novo link')
+        } finally {
+            setRegenerating(false)
         }
     }
 
@@ -279,12 +355,38 @@ export default function Employee({
                                                     </div>
                                                     <div>
                                                         <p className="text-sm font-bold" style={{ color: textPrimary }}>{emp.name}</p>
-                                                        <p className="text-xs" style={{ color: textSecondary }}>
-                                                            {route ? `${route.stops.length} parada${route.stops.length !== 1 ? 's' : ''}` : 'Sem entregas'}
-                                                        </p>
+                                                        {route && route.stops.length > 0 ? (
+                                                            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                                                                {bucketStops(route.stops).map((bucket) => bucket.stops.length > 0 && (
+                                                                    <span
+                                                                        key={bucket.status}
+                                                                        className="flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold"
+                                                                        style={{ background: `${bucket.color}20`, color: bucket.color }}
+                                                                    >
+                                                                        <bucket.icon size={10} />
+                                                                        {bucket.stops.length}
+                                                                    </span>
+                                                                ))}
+                                                                <span className="text-[10px]" style={{ color: textSecondary }}>
+                                                                    R$ {route.stops.reduce((sum, s) => sum + Number(s.total_amount || 0), 0).toFixed(2)}
+                                                                </span>
+                                                            </div>
+                                                        ) : (
+                                                            <p className="text-xs" style={{ color: textSecondary }}>Sem entregas</p>
+                                                        )}
                                                     </div>
                                                 </div>
                                                 <div className="flex items-center gap-2">
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation()
+                                                            handleSendRoute(emp)
+                                                        }}
+                                                        className="p-1.5 rounded-full hover:bg-white/10 transition-colors"
+                                                        title="Enviar rota pro WhatsApp"
+                                                    >
+                                                        <Send size={14} style={{ color: '#22c55e' }} />
+                                                    </button>
                                                     <button
                                                         onClick={(e) => {
                                                             e.stopPropagation()
@@ -305,24 +407,6 @@ export default function Employee({
                                                     >
                                                         <Trash2 size={14} style={{ color: '#ef4444' }} />
                                                     </button>
-                                                    {route && route.stops.length > 0 && (
-                                                        <div className="flex -space-x-1">
-                                                            {route.stops.slice(0, 3).map((stop, i) => (
-                                                                <div
-                                                                    key={i}
-                                                                    className="w-5 h-5 rounded-full flex items-center justify-center text-[8px] text-white border border-black/20"
-                                                                    style={{ background: route.color }}
-                                                                >
-                                                                    {stop.label}
-                                                                </div>
-                                                            ))}
-                                                            {route.stops.length > 3 && (
-                                                                <div className="w-5 h-5 rounded-full flex items-center justify-center text-[8px] text-white bg-gray-600 border border-black/20">
-                                                                    +{route.stops.length - 3}
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    )}
                                                     <ChevronRight
                                                         size={16}
                                                         className={`transition-transform ${isExpandedEmp ? 'rotate-90' : ''}`}
@@ -331,100 +415,85 @@ export default function Employee({
                                                 </div>
                                             </div>
 
-                                            {isExpandedEmp && route && (
-                                                <div className="px-3 pb-3 pt-0">
-                                                    <div className="space-y-2 mt-2">
-                                                        <p className="text-xs font-bold" style={{ color: textSecondary }}>
-                                                            Entregas atribuídas:
+                                            {isExpandedEmp && (
+                                                <div className="px-3 pb-3 pt-0 space-y-4">
+                                                    {!route || route.stops.length === 0 ? (
+                                                        <p className="text-xs text-center py-2" style={{ color: textSecondary }}>
+                                                            Nenhuma entrega atribuída no momento.
                                                         </p>
-                                                        {route.stops.map((stop: RouteStop, idx: number) => (
-                                                            <div
-                                                                key={idx}
-                                                                className="p-3 rounded-2xl text-xs"
-                                                                style={{ background: `${route.color}10`, border: `1px solid ${route.color}30` }}
-                                                            >
-                                                                <div className="flex items-center justify-between mb-2">
-                                                                    <div className="flex items-center gap-2">
-                                                                        <span
-                                                                            className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] text-white font-bold"
-                                                                            style={{ background: route.color }}
-                                                                        >
-                                                                            {stop.label}
-                                                                        </span>
-                                                                        <span className="font-medium" style={{ color: textPrimary }}>
-                                                                            {stop.address
-                                                                                ? stop.address.substring(0, 40) + (stop.address.length > 40 ? '...' : '')
-                                                                                : 'Sem endereço'}
-                                                                        </span>
-                                                                    </div>
+                                                    ) : (
+                                                        bucketStops(route.stops).map((bucket) => bucket.stops.length > 0 && (
+                                                            <div key={bucket.status} className="space-y-2">
+                                                                <div className="flex items-center gap-1.5">
+                                                                    <bucket.icon size={13} style={{ color: bucket.color }} />
+                                                                    <p className="text-xs font-black uppercase tracking-wide" style={{ color: bucket.color }}>
+                                                                        {bucket.title}
+                                                                    </p>
                                                                     <span
-                                                                        className="px-1.5 py-0.5 rounded-full text-[10px] font-bold"
-                                                                        style={{
-                                                                            background:
-                                                                                stop.status === 'delivered' ? '#22c55e' :
-                                                                                    stop.status === 'in_transit' ? '#f59e0b' : '#94a3b8',
-                                                                            color: 'white',
-                                                                        }}
+                                                                        className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                                                                        style={{ background: `${bucket.color}20`, color: bucket.color }}
                                                                     >
-                                                                        {stop.status === 'pending' ? 'Pendente' :
-                                                                            stop.status === 'in_transit' ? 'A caminho' : 'Entregue'}
+                                                                        {bucket.stops.length}
                                                                     </span>
                                                                 </div>
 
-                                                                <div className="ml-7 space-y-2">
-                                                                    {stop.items && stop.items.length > 0 && (
-                                                                        <div>
-                                                                            <p className="text-[10px] font-bold mb-1" style={{ color: textSecondary }}>
-                                                                                Produtos:
-                                                                            </p>
-                                                                            <ul className="list-disc list-inside text-[10px]" style={{ color: textPrimary }}>
-                                                                                {stop.items.map((item, i) => (
-                                                                                    <li key={i}>
-                                                                                        {item.product_name} x{item.quantity}
-                                                                                    </li>
-                                                                                ))}
-                                                                            </ul>
-                                                                        </div>
-                                                                    )}
-
-                                                                    <div className="flex flex-col gap-1 text-[10px]" style={{ color: textSecondary }}>
-                                                                        <div className="flex items-center gap-1">
-                                                                            <span className="font-bold">Pagamento:</span>
-                                                                            <span className="capitalize" style={{ color: textPrimary }}>
-                                                                                {stop.payment_method === 'credit_card' ? '💳 Cartão' :
-                                                                                    stop.payment_method === 'pix' ? '🔷 Pix' :
-                                                                                        stop.payment_method === 'money' ? '💵 Dinheiro' :
-                                                                                            stop.payment_method || '—'}
-                                                                            </span>
-                                                                            {stop.payment_method === 'credit_card' && (
-                                                                                <span className="text-red-400 font-bold">(Levar máquina)</span>
-                                                                            )}
-                                                                            {stop.payment_method === 'money' && (
-                                                                                <span className="text-yellow-400 font-bold">(Levar troco)</span>
-                                                                            )}
-                                                                        </div>
-                                                                        <div className="flex items-center gap-1">
-                                                                            <span className="font-bold">Total:</span>
-                                                                            <span style={{ color: textPrimary }}>
-                                                                                R$ {Number(stop.total_amount || 0).toFixed(2)}
-                                                                            </span>
-                                                                            {stop.delivery_fee > 0 && (
-                                                                                <span style={{ color: textSecondary }}>
-                                                                                    (frete R$ {Number(stop.delivery_fee).toFixed(2)})
+                                                                {bucket.stops.map((stop: RouteStop, idx: number) => {
+                                                                    const payment = paymentMethodLabel(stop.payment_method)
+                                                                    return (
+                                                                        <div
+                                                                            key={idx}
+                                                                            className="p-3 rounded-2xl text-xs"
+                                                                            style={{ background: `${bucket.color}10`, border: `1px solid ${bucket.color}30` }}
+                                                                        >
+                                                                            <div className="flex items-center gap-2 mb-2">
+                                                                                <span
+                                                                                    className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] text-white font-bold flex-shrink-0"
+                                                                                    style={{ background: bucket.color }}
+                                                                                >
+                                                                                    {stop.label}
                                                                                 </span>
-                                                                            )}
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        ))}
+                                                                                <div className="flex items-center gap-1 min-w-0">
+                                                                                    <MapPin size={11} className="flex-shrink-0" style={{ color: textSecondary }} />
+                                                                                    <span className="font-medium truncate" style={{ color: textPrimary }}>
+                                                                                        {stop.address || 'Sem endereço'}
+                                                                                    </span>
+                                                                                </div>
+                                                                            </div>
 
-                                                        {route.stops.length === 0 && (
-                                                            <p className="text-xs text-center py-2" style={{ color: textSecondary }}>
-                                                                Nenhuma entrega mapeada.
-                                                            </p>
-                                                        )}
-                                                    </div>
+                                                                            <div className="ml-7 space-y-2">
+                                                                                {stop.items && stop.items.length > 0 && (
+                                                                                    <ul className="list-disc list-inside text-[10px]" style={{ color: textPrimary }}>
+                                                                                        {stop.items.map((item, i) => (
+                                                                                            <li key={i}>{item.product_name} x{item.quantity}</li>
+                                                                                        ))}
+                                                                                    </ul>
+                                                                                )}
+
+                                                                                <div className="flex items-center gap-1.5 flex-wrap text-[10px]" style={{ color: textSecondary }}>
+                                                                                    <span style={{ color: textPrimary }}>{payment.text}</span>
+                                                                                    {payment.warning ? (
+                                                                                        <span className="font-bold px-1.5 py-0.5 rounded-full" style={{ background: '#ef444420', color: '#ef4444' }}>
+                                                                                            ⚠️ {payment.warning}
+                                                                                        </span>
+                                                                                    ) : (
+                                                                                        <span className="font-bold px-1.5 py-0.5 rounded-full" style={{ background: '#22c55e20', color: '#22c55e' }}>
+                                                                                            Já pago
+                                                                                        </span>
+                                                                                    )}
+                                                                                    <span className="font-bold" style={{ color: textPrimary }}>
+                                                                                        R$ {Number(stop.total_amount || 0).toFixed(2)}
+                                                                                    </span>
+                                                                                    {stop.delivery_fee > 0 && (
+                                                                                        <span>(frete R$ {Number(stop.delivery_fee).toFixed(2)})</span>
+                                                                                    )}
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    )
+                                                                })}
+                                                            </div>
+                                                        ))
+                                                    )}
                                                 </div>
                                             )}
                                         </div>
@@ -460,7 +529,7 @@ export default function Employee({
                                 onChange={e => setFormName(e.target.value)}
                             />
                             <input
-                                type="text"
+                                type="tel"
                                 placeholder="Telefone (opcional)"
                                 className="w-full border rounded-full px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
                                 style={{
@@ -468,9 +537,27 @@ export default function Employee({
                                     borderColor: borderColor,
                                     color: textPrimary,
                                 }}
-                                value={formPhone}
-                                onChange={e => setFormPhone(e.target.value)}
+                                value={formatBrazilianPhone(formPhone)}
+                                onChange={e => setFormPhone(cleanPhoneNumber(e.target.value))}
                             />
+                            {editingEmployee && (
+                                <button
+                                    onClick={() => handleRegenerateLink(editingEmployee)}
+                                    disabled={regenerating}
+                                    style={{
+                                        ...pillButtonStyle,
+                                        width: '100%',
+                                        background: 'transparent',
+                                        border: `1px solid ${borderColor}`,
+                                        color: textSecondary,
+                                        opacity: regenerating ? 0.5 : 1,
+                                    }}
+                                    className="hover:opacity-80 transition-opacity"
+                                >
+                                    <RefreshCw size={14} />
+                                    Gerar novo link de entregas
+                                </button>
+                            )}
                             <button
                                 onClick={handleSave}
                                 disabled={saving || !formName.trim()}

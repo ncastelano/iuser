@@ -38,6 +38,45 @@ export async function fetchRoute(from: [number, number], to: [number, number]): 
     return { coords: [from, to], distanceKm, durationMin: (distanceKm / FALLBACK_SPEED_KMH) * 60 }
 }
 
+export interface OptimizedStop {
+    id: string
+    sequence: number
+}
+
+// Ordem ótima de visita por ruas de verdade (Mapbox Optimization API v1),
+// em vez da heurística por linha reta - considera mão única, pontes etc.
+// Limite da API: 12 coordenadas (1 origem + até 11 paradas). Retorna null
+// em qualquer falha (rede, limite excedido, resposta inesperada) pra quem
+// chamar cair no fallback por linha reta.
+export async function fetchOptimizedRoute(
+    storeLat: number,
+    storeLng: number,
+    stops: { id: string; lat: number; lng: number }[]
+): Promise<OptimizedStop[] | null> {
+    if (stops.length === 0 || stops.length > 11) return null
+
+    try {
+        const coords = [[storeLng, storeLat], ...stops.map((s) => [s.lng, s.lat])]
+            .map((c) => c.join(','))
+            .join(';')
+        const res = await fetch(
+            `https://api.mapbox.com/optimized-trips/v1/mapbox/driving/${coords}?source=first&roundtrip=false&access_token=${process.env.NEXT_PUBLIC_MAPBOX_TOKEN}`
+        )
+        const data = await res.json()
+        if (data.code !== 'Ok' || !Array.isArray(data.waypoints)) return null
+
+        // waypoints[] vem na mesma ordem da entrada (índice 0 = a loja); cada
+        // item traz waypoint_index = posição dele na rota otimizada.
+        return (data.waypoints as { waypoint_index: number }[])
+            .map((w, i) => (i === 0 ? null : { id: stops[i - 1].id, waypointIndex: w.waypoint_index }))
+            .filter((w): w is { id: string; waypointIndex: number } => w !== null)
+            .sort((a, b) => a.waypointIndex - b.waypointIndex)
+            .map((w, i) => ({ id: w.id, sequence: i + 1 }))
+    } catch {
+        return null
+    }
+}
+
 export interface RouteStep {
     /** Frase pronta (em português) tipo "Vire à direita na Rua X". */
     instruction: string

@@ -9,6 +9,7 @@ import { PwaCleanup } from '@/components/PwaCleanup'
 import { PwaInstallPrompt } from '@/components/PwaInstallPrompt'
 import { PushNotificationSetup } from '@/components/PushNotificationSetup'
 import { NavigationProgressBar } from '@/components/NavigationProgressBar'
+import { ThemeColorSync } from '@/components/ThemeColorSync'
 import { FinishedRideTrigger } from '@/components/ratings/FinishedRideTrigger'
 import { RideAcceptedDialog } from '@/components/RideAcceptedDialog'
 import { DriverLiveLocationBroadcaster } from '@/components/DriverLiveLocationBroadcaster'
@@ -43,6 +44,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <ProfileProvider>
+        <ThemeColorSync />
         <NavigationProgressBar />
         <FontLoader />
         <OrderNotification />

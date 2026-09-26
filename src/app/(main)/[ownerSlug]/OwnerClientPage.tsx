@@ -12,11 +12,10 @@ import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import Header from '@/components/Header'
 import { useMerchantStore } from '@/store/useMerchantStore'
-import { User, Store as StoreIcon, LayoutDashboard, Home, Shield, Gift } from 'lucide-react'
+import { User, Store as StoreIcon, LayoutDashboard, Home, Gift } from 'lucide-react'
 import type { Tab } from '@/components/Header'
 import ProfileDashboard from '@/components/ProfileDashboard/ProfileDashboard'
 import StoreDashboard from '@/components/StoreDashboard/StoreDashboard'
-import AdminDashboard from '@/components/AdminDashboard/AdminDashboard'
 import BenefitsManagement from '@/components/BenefitsManagement/BenefitsManagement'
 import { useMyStatus } from '@/lib/benefits/useMyStatus'
 import { Profile } from './Profile'
@@ -25,6 +24,7 @@ import { usePublicationsStore } from '@/store/usePublicationStore'
 import { PublicationsListView } from './PublicationsListView'
 import { isStoreOpenNow, type BusinessHours } from '@/lib/storeHours'
 import { isProfileOpenNow } from '@/lib/profileHours'
+import { captureReferral } from '@/lib/referralCapture'
 
 type OwnerType = 'profile' | 'store'
 
@@ -69,7 +69,6 @@ export default function OwnerClientPage() {
     const [showProfile, setShowProfile] = useState(false)
     const [showStoreDashboard, setShowStoreDashboard] = useState<{ slug: string; name: string } | null>(null)
     const [showPublications, setShowPublications] = useState(false)
-    const [showAdminDashboard, setShowAdminDashboard] = useState(false)
     const [isSuperAdmin, setIsSuperAdmin] = useState(false)
     const [showBenefits, setShowBenefits] = useState(false)
     const { hierarchyLabel } = useMyStatus(userId)
@@ -87,7 +86,6 @@ export default function OwnerClientPage() {
         setShowPublications(true)
         setShowProfile(false)
         setShowStoreDashboard(null)
-        setShowAdminDashboard(false)
         setShowBenefits(false)
     }, [publicationsStore])
 
@@ -108,18 +106,18 @@ export default function OwnerClientPage() {
             .maybeSingle()
 
         if (profile && !profileError) {
-            return { type: 'profile' as OwnerType, id: profile.id }
+            return { type: 'profile' as OwnerType, id: profile.id, ownerProfileId: profile.id }
         }
 
         // Tenta encontrar como loja
         const { data: store, error: storeError } = await supabase
             .from('stores')
-            .select('id')
+            .select('id, owner_id')
             .eq('storeSlug', slug)
             .maybeSingle()
 
         if (store && !storeError) {
-            return { type: 'store' as OwnerType, id: store.id }
+            return { type: 'store' as OwnerType, id: store.id, ownerProfileId: store.owner_id as string | null }
         }
 
         return null
@@ -215,22 +213,12 @@ export default function OwnerClientPage() {
         setShowProfile(true)
         setShowStoreDashboard(null)
         setShowPublications(false)
-        setShowAdminDashboard(false)
         setShowBenefits(false)
     }
 
     const handleStoreDashboardClick = (storeSlug: string, storeName: string) => {
         setShowStoreDashboard({ slug: storeSlug, name: storeName })
         setShowProfile(false)
-        setShowPublications(false)
-        setShowAdminDashboard(false)
-        setShowBenefits(false)
-    }
-
-    const handleAdminClick = () => {
-        setShowAdminDashboard(true)
-        setShowProfile(false)
-        setShowStoreDashboard(null)
         setShowPublications(false)
         setShowBenefits(false)
     }
@@ -240,14 +228,12 @@ export default function OwnerClientPage() {
         setShowProfile(false)
         setShowStoreDashboard(null)
         setShowPublications(false)
-        setShowAdminDashboard(false)
     }
 
     const showMainContent = () => {
         setShowProfile(false)
         setShowStoreDashboard(null)
         setShowPublications(false)
-        setShowAdminDashboard(false)
         setShowBenefits(false)
         // Voltar para a URL base quando fechar
         router.replace(`/${ownerSlug}`, { scroll: false })
@@ -273,19 +259,6 @@ export default function OwnerClientPage() {
                 statusColor: isLoggedIn ? (profileOpenNow ? '#22c55e' : '#ef4444') : undefined,
             },
         ]
-
-        // Logo depois do perfil, antes das lojas - assim não fica escondida
-        // atrás das abas de loja quando a barra precisa rolar (celular).
-        if (isSuperAdmin) {
-            allTabs.push({
-                id: 'admin',
-                label: 'Admin',
-                icon: Shield as any,
-                imageUrl: null,
-                onClick: handleAdminClick,
-                isActive: showAdminDashboard,
-            })
-        }
 
         // Qualquer usuário logado vê a própria rede aqui — só quem tem
         // permissão de concessão (canManageBenefits) enxerga as abas de
@@ -345,9 +318,11 @@ export default function OwnerClientPage() {
         }
 
         return allTabs
-    }, [loggedUserSlug, profileLoading, loggedUserAvatarUrl, stores, loadingStores, storeOrderCounts, pendingInvitesCount, profileOpenNow, showProfile, showStoreDashboard, isSuperAdmin, showAdminDashboard, hierarchyLabel, showBenefits, router])
+    }, [loggedUserSlug, profileLoading, loggedUserAvatarUrl, stores, loadingStores, storeOrderCounts, pendingInvitesCount, profileOpenNow, showProfile, showStoreDashboard, isSuperAdmin, hierarchyLabel, showBenefits, router])
 
     // ========== CARREGAR DADOS ==========
+    const [referralOwnerProfileId, setReferralOwnerProfileId] = useState<string | null>(null)
+
     useEffect(() => {
         const loadOwner = async () => {
             if (!ownerSlug) {
@@ -369,6 +344,7 @@ export default function OwnerClientPage() {
 
                 setOwnerType(result.type)
                 setOwnerId(result.id)
+                setReferralOwnerProfileId(result.ownerProfileId)
             } catch (err: any) {
                 console.error('Erro ao detectar owner:', err)
                 setError(err.message || 'Erro ao carregar página')
@@ -379,6 +355,14 @@ export default function OwnerClientPage() {
 
         loadOwner()
     }, [ownerSlug])
+
+    // Qualquer link de loja/perfil compartilhado vale como convite:
+    // visitante ainda não logado vira indicado do dono desta página se
+    // se cadastrar depois.
+    useEffect(() => {
+        if (!referralOwnerProfileId || userId || profileLoading) return
+        captureReferral(supabase, { ownerId: referralOwnerProfileId })
+    }, [referralOwnerProfileId, userId, profileLoading])
 
     useEffect(() => {
         setMounted(true)
@@ -484,13 +468,9 @@ export default function OwnerClientPage() {
                             }}
                         />
                     </div>
-                ) : showAdminDashboard ? (
-                    <div className="w-full px-4 md:px-6 py-6">
-                        <AdminDashboard />
-                    </div>
                 ) : showBenefits ? (
                     <div className="w-full px-4 md:px-6 py-6">
-                        <BenefitsManagement />
+                        <BenefitsManagement isSuperAdmin={isSuperAdmin} />
                     </div>
                 ) : showPublications ? (
                     <PublicationsListView
