@@ -238,7 +238,7 @@ function PlanosContent() {
         } else {
             allTabs.push({
                 id: 'criar-loja',
-                label: 'Cadastrar loja?',
+                label: 'Cadastrar loja',
                 icon: Store,
                 imageUrl: null,
                 onClick: () => (isLoggedIn ? router.push('/criar-loja') : setShowLogin(true)),

@@ -662,7 +662,7 @@ function RegisterContent() {
                   disabled={loading}
                 />
                 <p className="text-[10px]" style={{ color: textSecondary }}>
-                  Precisa pra já começar no plano Pós-pago (sem mensalidade)
+                  Necessário para ativar o plano Pós-pago (sem mensalidade).
                 </p>
               </div>
 
