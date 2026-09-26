@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { User, Store, Home, MapPin, LayoutDashboard, X, Radar, Shield, Gift } from 'lucide-react'
+import { User, Store, Home, MapPin, LayoutDashboard, X, Radar, Gift } from 'lucide-react'
 
 import CategoriasSection from './inicio/sections/CanIhelp'
 import MotoristaSection from './inicio/sections/MotoristaSection'
@@ -31,7 +31,6 @@ import FeaturedProfiles from './inicio/sections/FeaturedProfiles'
 import LocationPicker from '@/components/LocationPicker'
 import StoreList from './inicio/sections/StoreList'
 import StoreDashboard from '@/components/StoreDashboard/StoreDashboard'
-import AdminDashboard from '@/components/AdminDashboard/AdminDashboard'
 import BenefitsManagement from '@/components/BenefitsManagement/BenefitsManagement'
 import { useMyStatus } from '@/lib/benefits/useMyStatus'
 import { callAdminApi } from '@/lib/callAdminApi'
@@ -122,7 +121,6 @@ export default function HomePage() {
     const [showLogin, setShowLogin] = useState(false)
     const [showProfile, setShowProfile] = useState(false)
     const [showStoreDashboard, setShowStoreDashboard] = useState<{ slug: string; name: string } | null>(null)
-    const [showAdminDashboard, setShowAdminDashboard] = useState(false)
     const [isSuperAdmin, setIsSuperAdmin] = useState(false)
     const [showBenefits, setShowBenefits] = useState(false)
     const { hierarchyLabel } = useMyStatus(userId)
@@ -482,7 +480,6 @@ export default function HomePage() {
         setShowLogin(false)
         setShowProfile(false)
         setShowStoreDashboard(null)
-        setShowAdminDashboard(false)
         setShowBenefits(false)
     }
 
@@ -491,7 +488,6 @@ export default function HomePage() {
         setShowCreateStore(false)
         setShowProfile(false)
         setShowStoreDashboard(null)
-        setShowAdminDashboard(false)
         setShowBenefits(false)
     }
 
@@ -501,7 +497,6 @@ export default function HomePage() {
                 setShowCreateStore(false)
             setShowLogin(false)
             setShowStoreDashboard(null)
-            setShowAdminDashboard(false)
             setShowBenefits(false)
         } else {
             handleLoginClick()
@@ -513,16 +508,6 @@ export default function HomePage() {
         setShowCreateStore(false)
         setShowLogin(false)
         setShowProfile(false)
-        setShowAdminDashboard(false)
-        setShowBenefits(false)
-    }
-
-    const handleAdminClick = () => {
-        setShowAdminDashboard(true)
-        setShowCreateStore(false)
-        setShowLogin(false)
-        setShowProfile(false)
-        setShowStoreDashboard(null)
         setShowBenefits(false)
     }
 
@@ -532,7 +517,6 @@ export default function HomePage() {
         setShowLogin(false)
         setShowProfile(false)
         setShowStoreDashboard(null)
-        setShowAdminDashboard(false)
     }
 
     const tabs = useMemo(() => {
@@ -549,19 +533,6 @@ export default function HomePage() {
                 statusColor: isLoggedIn ? (profileOpenNow ? '#22c55e' : '#ef4444') : undefined,
             },
         ]
-
-        // Logo depois do perfil, antes das lojas - assim não fica escondida
-        // atrás das abas de loja quando a barra precisa rolar (celular).
-        if (isSuperAdmin) {
-            allTabs.push({
-                id: 'admin',
-                label: 'Admin',
-                icon: Shield,
-                imageUrl: null,
-                onClick: handleAdminClick,
-                isActive: showAdminDashboard,
-            })
-        }
 
         // Qualquer usuário logado vê a própria rede aqui — só quem tem
         // permissão de concessão enxerga as abas de conceder/histórico
@@ -614,16 +585,16 @@ export default function HomePage() {
         }
 
         return allTabs
-    }, [profileSlug, loading, avatarUrl, showCreateStore, showLogin, showProfile, showStoreDashboard, isSuperAdmin, showAdminDashboard, hierarchyLabel, showBenefits, stores, loadingStores, storeOrderCounts, pendingInvitesCount, profileOpenNow, router])
+    }, [profileSlug, loading, avatarUrl, showCreateStore, showLogin, showProfile, showStoreDashboard, isSuperAdmin, hierarchyLabel, showBenefits, stores, loadingStores, storeOrderCounts, pendingInvitesCount, profileOpenNow, router])
 
-    const showFab = showCreateStore || showLogin || showProfile || showStoreDashboard || showAdminDashboard || showBenefits
-    const shouldShowCarrinho = !showProfile && !showStoreDashboard && !showLogin && !showAdminDashboard && !showBenefits
+    const showFab = showCreateStore || showLogin || showProfile || showStoreDashboard || showBenefits
+    const shouldShowCarrinho = !showProfile && !showStoreDashboard && !showLogin && !showBenefits
 
     // ===== VERIFICAR SE ESTÁ EM TELA DE LOGIN =====
     const isLoginScreen = showLogin || showCreateStore
 
     // ===== VERIFICAR SE ESTÁ EM DASHBOARD =====
-    const isDashboardScreen = showProfile || showStoreDashboard || showAdminDashboard || showBenefits
+    const isDashboardScreen = showProfile || showStoreDashboard || showBenefits
 
     // ===== VERIFICAR SE ESTÁ PESQUISANDO =====
     const isSearching = searchQuery.trim().length > 0
@@ -720,13 +691,9 @@ export default function HomePage() {
                         onBack={() => setShowStoreDashboard(null)}
                         onOrderCountsChange={handleOrderCountsChange}
                     />
-                ) : showAdminDashboard ? (
-                    <div className="w-full px-4 md:px-6 py-6">
-                        <AdminDashboard />
-                    </div>
                 ) : showBenefits ? (
                     <div className="w-full px-4 md:px-6 py-6">
-                        <BenefitsManagement />
+                        <BenefitsManagement isSuperAdmin={isSuperAdmin} />
                     </div>
                 ) : (
                     <div className="mt-2 px-4 md:px-6">

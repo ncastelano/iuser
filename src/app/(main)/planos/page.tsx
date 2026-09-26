@@ -15,7 +15,7 @@ import { callAdminApi } from '@/lib/callAdminApi'
 import { getDeviceId } from '@/lib/deviceId'
 import { useMyStatus } from '@/lib/benefits/useMyStatus'
 import InviteButton from '@/components/InviteButton'
-import { Car, Briefcase, Sparkles, Store, Check, Copy, X, ShieldCheck, Gift, Users, CreditCard, User, Shield, LayoutDashboard, Wallet } from 'lucide-react'
+import { Car, Briefcase, Sparkles, Store, Check, Copy, X, ShieldCheck, Gift, Users, CreditCard, User, LayoutDashboard, Wallet } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
@@ -197,17 +197,6 @@ function PlanosContent() {
                 isActive: !isLoggedIn && showLogin,
             },
         ]
-
-        if (isSuperAdmin) {
-            allTabs.push({
-                id: 'admin',
-                label: 'Admin',
-                icon: Shield,
-                imageUrl: null,
-                onClick: () => router.push('/'),
-                isActive: false,
-            })
-        }
 
         // Qualquer usuário logado vê a própria rede — só quem tem permissão
         // de concessão enxerga as abas de conceder/histórico lá dentro.
