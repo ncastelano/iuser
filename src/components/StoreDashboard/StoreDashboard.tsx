@@ -478,7 +478,18 @@ export default function StoreDashboard({
                 () => loadEmployeeRoutes()
             )
             .subscribe()
-        return () => { supabase.removeChannel(channel) }
+
+        // Reforço: independente do realtime disparar ou não (depende de a
+        // tabela estar habilitada na publicação supabase_realtime, algo que
+        // já causou esse mesmo problema antes), recarrega sozinho de tempos
+        // em tempos - a seção nunca fica presa indefinidamente numa
+        // atribuição feita em outra aba.
+        const poll = setInterval(loadEmployeeRoutes, 20000)
+
+        return () => {
+            supabase.removeChannel(channel)
+            clearInterval(poll)
+        }
     }, [store?.id, loadEmployeeRoutes])
 
     // Atualiza sozinho quando um funcionário é adicionado/editado/removido -
