@@ -32,7 +32,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
 
     const { data: assignment } = await supabaseAdmin
         .from('delivery_assignments')
-        .select('id, employee_id, picked_up_at, delivered_at')
+        .select('id, employee_id, checkout_id, picked_up_at, delivered_at')
         .eq('id', assignmentId)
         .maybeSingle()
     if (!assignment) {
@@ -44,6 +44,21 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
 
     const now = new Date().toISOString()
     const nextStatus = status as AllowedStatus
+
+    // O entregador só pode "pegar" o pedido depois que a loja marcar como
+    // pronto - senão ele sai da loja com um pedido que ainda nem foi
+    // preparado. "Entregar" não tem essa trava (já está com ele de qualquer
+    // forma nesse ponto).
+    if (nextStatus === 'in_transit') {
+        const { data: order } = await supabaseAdmin
+            .from('orders')
+            .select('status')
+            .eq('checkout_id', assignment.checkout_id)
+            .maybeSingle()
+        if (order && order.status !== 'ready') {
+            return NextResponse.json({ error: 'A loja ainda não marcou esse pedido como pronto.' }, { status: 409 })
+        }
+    }
     const update: Record<string, any> = { status: nextStatus }
     if (nextStatus === 'in_transit') {
         update.picked_up_at = assignment.picked_up_at || now

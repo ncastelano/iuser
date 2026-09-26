@@ -38,6 +38,19 @@ export default function PedidosPage() {
             .eq('buyer_id', userId)
             .order('created_at', { ascending: false })
 
+        // Status da entrega (quando a loja atribuiu a um entregador próprio)
+        // pra mostrar "A caminho"/"Entregue" pro cliente, além do status de
+        // preparo do pedido em si.
+        const checkoutIds = (ordersData || []).map((o: any) => o.checkout_id)
+        let deliveryStatusByCheckoutId = new Map<string, string>()
+        if (checkoutIds.length > 0) {
+            const { data: assignments } = await supabase
+                .from('delivery_assignments')
+                .select('checkout_id, status')
+                .in('checkout_id', checkoutIds)
+            deliveryStatusByCheckoutId = new Map((assignments || []).map((a: any) => [a.checkout_id, a.status]))
+        }
+
         let allPurchases: any[] = []
 
         if (ordersData) {
@@ -50,6 +63,7 @@ export default function PedidosPage() {
                     price: item.total_price,
                     created_at: order.created_at,
                     status: order.status,
+                    delivery_status: deliveryStatusByCheckoutId.get(order.checkout_id) || null,
                     checkout_id: order.checkout_id,
                     buyer_id: order.buyer_id,
                     buyer_name: order.buyer_name,
@@ -124,6 +138,7 @@ export default function PedidosPage() {
                     store_name: p.store_name,
                     created_at: p.created_at,
                     status: p.status,
+                    delivery_status: p.delivery_status,
                     total: 0,
                     items: [],
                 }
@@ -204,16 +219,20 @@ export default function PedidosPage() {
                                         </p>
                                         <h3 className="text-sm font-black italic uppercase tracking-tighter text-foreground mt-0.5">{order.store_name}</h3>
                                     </div>
-                                    <div className={`self-start sm:self-center px-3 py-1 text-[8px] font-black uppercase tracking-wider border ${order.status === 'pending' ? 'border-blue-500/30 bg-blue-500/10 text-blue-500' :
-                                            order.status === 'preparing' ? 'border-yellow-500/30 bg-yellow-500/10 text-yellow-500' :
-                                                order.status === 'ready' ? 'border-purple-500/30 bg-purple-500/10 text-purple-500' :
-                                                    order.status === 'paid' ? 'border-green-500/30 bg-green-500/10 text-green-500' :
-                                                        'border-destructive/30 bg-destructive/10 text-destructive'
+                                    <div className={`self-start sm:self-center px-3 py-1 text-[8px] font-black uppercase tracking-wider border ${order.delivery_status === 'in_transit' ? 'border-orange-500/30 bg-orange-500/10 text-orange-500' :
+                                            order.delivery_status === 'delivered' ? 'border-green-500/30 bg-green-500/10 text-green-500' :
+                                                order.status === 'pending' ? 'border-blue-500/30 bg-blue-500/10 text-blue-500' :
+                                                    order.status === 'preparing' ? 'border-yellow-500/30 bg-yellow-500/10 text-yellow-500' :
+                                                        order.status === 'ready' ? 'border-purple-500/30 bg-purple-500/10 text-purple-500' :
+                                                            order.status === 'paid' ? 'border-green-500/30 bg-green-500/10 text-green-500' :
+                                                                'border-destructive/30 bg-destructive/10 text-destructive'
                                         }`}>
-                                        {order.status === 'pending' ? 'Pendente' :
-                                            order.status === 'preparing' ? 'Preparo' :
-                                                order.status === 'ready' ? 'Pronto' :
-                                                    order.status === 'paid' ? 'Finalizado' : 'Cancelado/Recusado'}
+                                        {order.delivery_status === 'in_transit' ? 'A caminho' :
+                                            order.delivery_status === 'delivered' ? 'Entregue' :
+                                                order.status === 'pending' ? 'Pendente' :
+                                                    order.status === 'preparing' ? 'Preparo' :
+                                                        order.status === 'ready' ? 'Pronto' :
+                                                            order.status === 'paid' ? 'Finalizado' : 'Cancelado/Recusado'}
                                     </div>
                                 </div>
 
