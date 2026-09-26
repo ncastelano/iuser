@@ -459,7 +459,7 @@ function PlanosContent() {
                                                     {plan.code === 'pos_pago' ? 'R$ 0,50' : `R$ ${(promoPrice ?? plan.price).toFixed(2)}`}
                                                 </span>
                                                 <span className="text-xs font-bold" style={{ color: colors.textSecondary }}>
-                                                    {plan.code === 'pos_pago' ? 'por serviço' : (CYCLE_LABEL[plan.billing_cycle] || '/mês')}
+                                                    {plan.code === 'pos_pago' ? 'por uso' : (CYCLE_LABEL[plan.billing_cycle] || '/mês')}
                                                 </span>
                                             </div>
 
