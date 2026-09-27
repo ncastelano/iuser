@@ -16,7 +16,7 @@ import {
     Calendar,
     Search,
     Clock,
-    ExternalLink,
+    Pencil,
     Star,
     X,
     Plus,
@@ -1365,23 +1365,32 @@ export function Store({
                                                             <p className="text-[10px] line-clamp-1 mt-0.5 opacity-75" style={{ color: colors.textSecondary }}>
                                                                 {product.description || 'Sem descrição'}
                                                             </p>
-                                                            <div className="mt-2 flex items-center justify-between">
-                                                                <div className="flex items-center">
-                                                                    <span className="text-sm font-extrabold" style={{ color: '#f97316' }}>
-                                                                        R$ {(product.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                                                    </span>
-                                                                    {isHourly && <span className="text-[10px] ml-1 opacity-75">/h</span>}
-                                                                </div>
-                                                                {isOwner && (
+                                                            <div className="mt-2 flex items-center">
+                                                                <span className="text-sm font-extrabold" style={{ color: '#f97316' }}>
+                                                                    R$ {(product.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                                                </span>
+                                                                {isHourly && <span className="text-[10px] ml-1 opacity-75">/h</span>}
+                                                            </div>
+                                                            {isOwner && (
+                                                                <div className="mt-1.5 flex items-center gap-1.5">
                                                                     <button
                                                                         onClick={e => { e.stopPropagation(); setEditingProductId(product.id) }}
-                                                                        className="w-7 h-7 rounded-full border flex items-center justify-center text-xs product-action-button"
+                                                                        className="flex-1 min-w-0 h-7 rounded-full border flex items-center justify-center gap-1 text-[9px] font-bold truncate product-action-button"
                                                                         style={{ borderColor: colors.border, color: '#f97316' }}
                                                                     >
-                                                                        <ExternalLink size={12} />
+                                                                        <Pencil size={11} />
+                                                                        Editar
                                                                     </button>
-                                                                )}
-                                                            </div>
+                                                                    <button
+                                                                        onClick={e => { e.stopPropagation(); handleShareLink({ title: product.name, text: product.description || 'Confira no iUser!', url: `${window.location.origin}/${ownerSlug}/${product.slug || product.id}` }) }}
+                                                                        className="flex-1 min-w-0 h-7 rounded-full border flex items-center justify-center gap-1 text-[9px] font-bold truncate product-action-button"
+                                                                        style={{ borderColor: colors.border, color: colors.textSecondary }}
+                                                                    >
+                                                                        <Share2 size={11} />
+                                                                        Compartilhar
+                                                                    </button>
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 )
@@ -1419,23 +1428,32 @@ export function Store({
                                                         <p className="text-[10px] line-clamp-1 mt-0.5 opacity-75" style={{ color: colors.textSecondary }}>
                                                             {product.description || 'Sem descrição'}
                                                         </p>
-                                                        <div className="mt-2 flex items-center justify-between">
-                                                            <div className="flex items-center">
-                                                                <span className="text-sm font-extrabold" style={{ color: '#f97316' }}>
-                                                                    R$ {(product.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                                                </span>
-                                                                {isHourly && <span className="text-[10px] ml-1 opacity-75">/h</span>}
-                                                            </div>
-                                                            {isOwner && (
+                                                        <div className="mt-2 flex items-center">
+                                                            <span className="text-sm font-extrabold" style={{ color: '#f97316' }}>
+                                                                R$ {(product.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                                            </span>
+                                                            {isHourly && <span className="text-[10px] ml-1 opacity-75">/h</span>}
+                                                        </div>
+                                                        {isOwner && (
+                                                            <div className="mt-1.5 flex items-center gap-1.5">
                                                                 <button
                                                                     onClick={e => { e.stopPropagation(); setEditingProductId(product.id) }}
-                                                                    className="w-7 h-7 rounded-full border flex items-center justify-center text-xs product-action-button"
+                                                                    className="flex-1 min-w-0 h-7 rounded-full border flex items-center justify-center gap-1 text-[9px] font-bold truncate product-action-button"
                                                                     style={{ borderColor: colors.border, color: '#f97316' }}
                                                                 >
-                                                                    <ExternalLink size={12} />
+                                                                    <Pencil size={11} />
+                                                                    Editar
                                                                 </button>
-                                                            )}
-                                                        </div>
+                                                                <button
+                                                                    onClick={e => { e.stopPropagation(); handleShareLink({ title: product.name, text: product.description || 'Confira no iUser!', url: `${window.location.origin}/${ownerSlug}/${product.slug || product.id}` }) }}
+                                                                    className="flex-1 min-w-0 h-7 rounded-full border flex items-center justify-center gap-1 text-[9px] font-bold truncate product-action-button"
+                                                                    style={{ borderColor: colors.border, color: colors.textSecondary }}
+                                                                >
+                                                                    <Share2 size={11} />
+                                                                    Compartilhar
+                                                                </button>
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 </div>
                                             )
