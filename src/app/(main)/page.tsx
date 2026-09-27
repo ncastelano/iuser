@@ -35,6 +35,7 @@ import BenefitsManagement from '@/components/BenefitsManagement/BenefitsManageme
 import { useMyStatus } from '@/lib/benefits/useMyStatus'
 import { callAdminApi } from '@/lib/callAdminApi'
 import CareerPlans from './inicio/sections/CareerPlans'
+import LookForAService from './inicio/sections/LookForAService'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -50,6 +51,7 @@ const DEFAULT_SECTIONS = [
     'publicationShowcase',
     'profileShowcase',
     'motorista',
+    'procurarServico',
     'servico',
     'servicoShowcase',
     'careerPlans',
@@ -134,6 +136,7 @@ function HomePageContent() {
 
     const [breveMap, setBreveMap] = useState<Record<string, boolean>>({})
     const [motoristaUrgent, setMotoristaUrgent] = useState(false)
+    const [procurarServicoUrgent, setProcurarServicoUrgent] = useState(false)
 
     const storeOrderCounts = useMerchantStore(s => s.storeOrderCounts)
     const setMerchantStoreOrderCounts = useMerchantStore(s => s.setStoreOrderCounts)
@@ -331,12 +334,16 @@ function HomePageContent() {
     // ---------- SEÇÕES EXIBIDAS (categorias sempre em primeiro, exceto quando
     // Motorista Particular está com atualização urgente — pedido com
     // candidato a caminho, ou corrida aceita em andamento — aí a seção
-    // urgente sobe pra frente de Categorias até resolver) ----------
+    // urgente sobe pra frente de Categorias até resolver. "Procurar Serviço"
+    // (tem pedido de serviço aberto esperando prestador) funciona igual,
+    // mas motorista empurrado primeiro na lista sempre ganha prioridade
+    // quando os dois estão urgentes ao mesmo tempo) ----------
     const urgentSections = useMemo(() => {
         const list: string[] = []
         if (motoristaUrgent) list.push('motorista')
+        if (procurarServicoUrgent) list.push('procurarServico')
         return list
-    }, [motoristaUrgent])
+    }, [motoristaUrgent, procurarServicoUrgent])
 
     const displayedSections = useMemo(() => {
         const uniqueSections = Array.from(new Set(sections))
@@ -467,6 +474,8 @@ function HomePageContent() {
                 return <FeaturedProfiles />
             case 'motorista':
                 return <MotoristaSection onBreveStatusChange={breveCallbacks.motorista} onUrgentChange={setMotoristaUrgent} />
+            case 'procurarServico':
+                return <LookForAService onUrgentChange={setProcurarServicoUrgent} />
             case 'servico':
                 return <HireAService />
             case 'servicoShowcase':

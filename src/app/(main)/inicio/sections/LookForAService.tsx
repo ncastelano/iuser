@@ -25,9 +25,12 @@ const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 interface LookForAServiceProps {
     dragHandle?: ReactNode
     onBreveStatusChange?: (isBreve: boolean) => void
+    /** Avisa quando há pedidos de serviço abertos — sobe a seção pra frente
+     * de Categorias na home, igual o Motorista faz quando está urgente. */
+    onUrgentChange?: (urgent: boolean) => void
 }
 
-export default function LookForAService({ dragHandle, onBreveStatusChange }: LookForAServiceProps) {
+export default function LookForAService({ dragHandle, onBreveStatusChange, onUrgentChange }: LookForAServiceProps) {
     const { colors } = useTheme()
     const router = useRouter()
     const startNavProgress = useNavProgressStore((s) => s.start)
@@ -42,6 +45,12 @@ export default function LookForAService({ dragHandle, onBreveStatusChange }: Loo
     useEffect(() => {
         fetchOpenBoardItems(10).then(setOpenItems).catch(() => setOpenItems([]))
     }, [])
+
+    useEffect(() => {
+        onUrgentChange?.(openItems.length > 0)
+        return () => { onUrgentChange?.(false) }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [openItems.length])
 
     useEffect(() => {
         if (!userId) return
