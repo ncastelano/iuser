@@ -47,6 +47,7 @@ import StoreOperatingDays from '@/components/StoreDashboard/StoreOperatingDays'
 import { handleShareLink } from '@/lib/share'
 import { Follows } from './Follows'
 import StoreVipClubMember from './StoreVipClubMember'
+import EditProductDialog from '@/components/EditProductDialog'
 
 interface StoreProps {
     ownerSlug: string
@@ -153,14 +154,17 @@ export function Store({
     const [selectedProduct, setSelectedProduct] = useState<any | null>(null)
     const [showProductModal, setShowProductModal] = useState(false)
 
+    // ===== DIÁLOGO DE EDIÇÃO DE PRODUTO (dono da loja) =====
+    const [editingProductId, setEditingProductId] = useState<string | null>(null)
+
     // Avisa o componente pai (OwnerClientPage) quando algum dialog em tela
     // cheia está aberto, pra ele esconder os botões flutuantes ("Ver
     // Catálogo" / Home) que senão ficam por cima do dialog.
     useEffect(() => {
-        onDialogOpenChange?.(showAllHours || showScheduleModal || showAgendaDialog || showProductModal || showFollowers)
+        onDialogOpenChange?.(showAllHours || showScheduleModal || showAgendaDialog || showProductModal || showFollowers || !!editingProductId)
         return () => { onDialogOpenChange?.(false) }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [showAllHours, showScheduleModal, showAgendaDialog, showProductModal, showFollowers])
+    }, [showAllHours, showScheduleModal, showAgendaDialog, showProductModal, showFollowers, editingProductId])
 
     // States para Publicações
     const [isCreatingPublication, setIsCreatingPublication] = useState(false)
@@ -378,7 +382,7 @@ export function Store({
         }
 
         if (isOwner) {
-            router.push(`/${ownerSlug}/${productIdentifier}/editar-produto`)
+            setEditingProductId(product.id)
             return
         }
 
@@ -848,6 +852,22 @@ export function Store({
                 </div>
             )}
 
+            {/* ===== DIÁLOGO DE EDIÇÃO DE PRODUTO ===== */}
+            {editingProductId && (
+                <EditProductDialog
+                    productId={editingProductId}
+                    colors={colors}
+                    onClose={() => setEditingProductId(null)}
+                    onSaved={(updated) => {
+                        setProducts(prev => prev.map(p => p.id === updated.id ? { ...p, ...updated } : p))
+                        setEditingProductId(null)
+                    }}
+                    onDeleted={(id) => {
+                        setProducts(prev => prev.filter(p => p.id !== id))
+                        setEditingProductId(null)
+                    }}
+                />
+            )}
 
             {/* ===== CARD DA LOJA (CABEÇALHO) ===== */}
             <div className="relative rounded-2xl p-6 space-y-4" style={cardStyle}>
@@ -1354,7 +1374,7 @@ export function Store({
                                                                 </div>
                                                                 {isOwner && (
                                                                     <button
-                                                                        onClick={e => { e.stopPropagation(); router.push(`/${ownerSlug}/${product.slug || product.id}/editar-produto`) }}
+                                                                        onClick={e => { e.stopPropagation(); setEditingProductId(product.id) }}
                                                                         className="w-7 h-7 rounded-full border flex items-center justify-center text-xs product-action-button"
                                                                         style={{ borderColor: colors.border, color: '#f97316' }}
                                                                     >
@@ -1408,7 +1428,7 @@ export function Store({
                                                             </div>
                                                             {isOwner && (
                                                                 <button
-                                                                    onClick={e => { e.stopPropagation(); router.push(`/${ownerSlug}/${product.slug || product.id}/editar-produto`) }}
+                                                                    onClick={e => { e.stopPropagation(); setEditingProductId(product.id) }}
                                                                     className="w-7 h-7 rounded-full border flex items-center justify-center text-xs product-action-button"
                                                                     style={{ borderColor: colors.border, color: '#f97316' }}
                                                                 >

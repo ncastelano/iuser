@@ -21,9 +21,7 @@ import {
     X,
     Trash2,
 } from 'lucide-react'
-import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { useProfile } from '@/app/contexts/ProfileContext'
-import Header from '@/components/Header'
 import { handleShareLink } from '@/lib/share'
 import { getAvatarUrl } from '@/lib/avatar'
 import { formatDistanceToNow } from 'date-fns'
@@ -108,6 +106,14 @@ export function PublicationClientPage({
     const [submittingComment, setSubmittingComment] = useState(false)
     const [replyTo, setReplyTo] = useState<Comment | null>(null)
     const [expandedComments, setExpandedComments] = useState<Set<string>>(new Set())
+
+    // ===== OUTRAS PUBLICAÇÕES DA MESMA LOJA =====
+    const [otherPublications, setOtherPublications] = useState<{
+        id: string
+        name: string
+        slug: string
+        image_url: string | null
+    }[]>([])
 
     const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -206,6 +212,32 @@ export function PublicationClientPage({
 
         fetchPublication()
     }, [slug])
+
+    // ===== OUTRAS PUBLICAÇÕES DA MESMA LOJA =====
+    useEffect(() => {
+        const storeId = publication?.store_id
+        const currentId = publication?.id
+        if (!storeId || !currentId) {
+            setOtherPublications([])
+            return
+        }
+
+        let isMounted = true
+
+        supabase
+            .from('products')
+            .select('id, name, slug, image_url')
+            .eq('store_id', storeId)
+            .eq('listing_type', 'publication')
+            .neq('id', currentId)
+            .order('created_at', { ascending: false })
+            .limit(12)
+            .then(({ data }) => {
+                if (isMounted) setOtherPublications(data || [])
+            })
+
+        return () => { isMounted = false }
+    }, [publication?.store_id, publication?.id])
 
     // ========== CARREGAR COMENTÁRIOS ==========
     const loadPublicationComments = async (publicationId: string) => {
@@ -696,145 +728,144 @@ export function PublicationClientPage({
         : ''
 
     return (
-        <div className="relative min-h-dvh">
+        <div className="relative min-h-dvh" style={{ background: colors.background }}>
+            {/* Barra do topo (mobile): fica grudada no topo enquanto rola. */}
+            <div
+                className="md:hidden sticky top-0 z-30"
+                style={{
+                    background: colors.background,
+                    borderBottom: `1px solid ${colors.border}`,
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.08)',
+                    paddingTop: 'env(safe-area-inset-top)',
+                }}
+            >
+                <div className="flex items-center gap-2 px-4 py-3">
+                    <button
+                        onClick={() => router.push(`/${ownerSlug}`)}
+                        aria-label="Voltar"
+                        className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition hover:scale-105"
+                        style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                    >
+                        <ArrowLeft size={20} />
+                    </button>
+                    <h1 className="flex-1 min-w-0 truncate text-base font-black" style={{ color: colors.textPrimary }}>
+                        {publication.name || 'Publicação'}
+                    </h1>
+                </div>
+            </div>
 
+            {/* Header no fluxo normal (web) */}
+            <div className="hidden md:flex items-center gap-3 max-w-4xl mx-auto px-6 pt-6">
+                <button
+                    onClick={() => router.push(`/${ownerSlug}`)}
+                    aria-label="Voltar"
+                    className="flex items-center gap-2 pl-3 pr-4 py-2 rounded-full text-sm font-medium flex-shrink-0 transition hover:scale-105"
+                    style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                >
+                    <ArrowLeft size={16} />
+                    Voltar
+                </button>
+                <h1 className="flex-1 min-w-0 truncate text-lg font-black" style={{ color: colors.textPrimary }}>
+                    {publication.name || 'Sem título'}
+                </h1>
+            </div>
 
-            <main className="relative z-10 min-h-dvh">
-                <Header
-                    title="Publicação"
-                    showBack={true}
-                    onBack={() => router.push(`/${ownerSlug}`)}
-                    greeting={`Olá, ${profileLoading ? '...' : profileSlug ? `@${profileSlug}` : 'Visitante'}`}
-                    avatarUrl={avatarUrl || null}
-                    loading={profileLoading}
-                />
-
-                {/* max-w-md + imagem em pé (9/16, estilo Shorts do YouTube) - sem
-                    isso, no navegador do PC a imagem esticava 16:9 na largura
-                    inteira da tela, ficando gigante e sem cara de publicação. */}
-                <div className="w-full px-4 md:px-6 py-6 max-w-md mx-auto">
-                    <div className="rounded-2xl overflow-hidden border" style={{
-                        background: colors.surface,
-                        borderColor: colors.border,
-                    }}>
-                        {/* Imagem */}
+            <div className="pb-8 md:pb-0 md:max-w-4xl md:mx-auto md:px-6 md:pt-6">
+                <div className="md:grid md:grid-cols-2 md:gap-10 md:items-start">
+                    {/* Imagem em destaque, tipo capa de publicação */}
+                    <div className="relative mx-4 md:mx-0 mt-4 md:mt-0 h-[26vh] min-h-[200px] max-h-[320px] rounded-3xl overflow-hidden md:h-auto md:aspect-square md:sticky md:top-6">
                         {imageUrl ? (
-                            <div className="relative w-full" style={{ aspectRatio: '9/16' }}>
-                                <img
-                                    src={imageUrl}
-                                    alt={publication.name || 'Publicação'}
-                                    className="w-full h-full object-cover"
-                                />
-                            </div>
+                            <img
+                                src={imageUrl}
+                                alt={publication.name || 'Publicação'}
+                                className="w-full h-full object-cover"
+                            />
                         ) : (
-                            <div className="w-full flex items-center justify-center py-16" style={{
-                                background: `${colors.border}50`
-                            }}>
-                                <Store size={64} style={{ color: colors.textSecondary }} />
+                            <div className="w-full h-full flex items-center justify-center" style={{ background: `${colors.accentLight}25` }}>
+                                <Store size={72} style={{ color: colors.accent, opacity: 0.5 }} />
                             </div>
                         )}
 
-                        {/* Conteúdo */}
-                        <div className="p-6 space-y-4">
-                            {/* Cabeçalho - Dono da publicação */}
-                            <div
-                                className="flex items-center gap-3 cursor-pointer group"
+                        {/* Loja + data + compartilhar - no rodapé da foto. */}
+                        <div
+                            className="absolute bottom-0 inset-x-0 flex items-center gap-2 px-4 pb-4 pt-8"
+                            style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.72), transparent)' }}
+                        >
+                            <button
                                 onClick={goToStore}
+                                className="flex items-center gap-2 min-w-0 flex-1 text-left transition hover:opacity-90"
                             >
                                 <div
-                                    className="w-12 h-12 rounded-full overflow-hidden border-2 flex-shrink-0 transition-all duration-300 group-hover:scale-105"
-                                    style={{ borderColor: colors.border }}
+                                    className="w-8 h-8 rounded-full overflow-hidden border flex-shrink-0"
+                                    style={{ borderColor: 'rgba(255,255,255,0.6)', background: 'rgba(255,255,255,0.15)' }}
                                 >
                                     {finalOwnerImage ? (
-                                        <img
-                                            src={finalOwnerImage}
-                                            alt={ownerDisplay.name}
-                                            className="w-full h-full object-cover"
-                                        />
+                                        <img src={finalOwnerImage} alt={ownerDisplay.name} className="w-full h-full object-cover" />
                                     ) : (
-                                        <div className="w-full h-full flex items-center justify-center" style={{ background: colors.border }}>
-                                            <Store size={20} style={{ color: colors.textSecondary }} />
+                                        <div className="w-full h-full flex items-center justify-center">
+                                            <Store size={14} color="#ffffff" />
                                         </div>
                                     )}
                                 </div>
-
                                 <div className="min-w-0 flex-1">
-                                    <h3
-                                        className="font-bold truncate transition-colors duration-300 group-hover:text-opacity-70"
-                                        style={{ color: colors.textPrimary }}
-                                    >
+                                    <p className="text-xs font-bold truncate" style={{ color: '#ffffff' }}>
                                         {ownerDisplay.name}
-                                        <span className="ml-2 text-[10px] font-medium px-2 py-0.5 rounded-full" style={{
-                                            background: 'rgba(249, 115, 22, 0.15)',
-                                            color: '#f97316'
-                                        }}>
-                                            Loja
-                                        </span>
-                                        <span className="ml-1 text-xs opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                                            →
-                                        </span>
-                                    </h3>
-                                    <div className="flex flex-wrap items-center gap-3 text-xs" style={{ color: colors.textSecondary }}>
-                                        <span className="flex items-center gap-1">
-                                            <Calendar size={14} />
-                                            {formattedDate}
-                                        </span>
-                                        {publication.view_count !== null && publication.view_count !== undefined && publication.view_count > 0 && (
-                                            <span className="flex items-center gap-1">
-                                                <Eye size={14} />
-                                                {publication.view_count} visualizações
-                                            </span>
-                                        )}
-                                    </div>
+                                    </p>
+                                    <p className="flex items-center gap-1 text-[10px]" style={{ color: 'rgba(255,255,255,0.8)' }}>
+                                        <Calendar size={9} />
+                                        {formattedDate}
+                                    </p>
                                 </div>
+                            </button>
+                            <button
+                                onClick={() => handleShareLink({
+                                    title: `${publication.name || 'Publicação'} | ${ownerDisplay.name}`,
+                                    text: publication.description || 'Confira no iUser!'
+                                })}
+                                aria-label="Compartilhar"
+                                className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 backdrop-blur-md transition hover:scale-105"
+                                style={{ background: 'rgba(17,17,17,0.4)' }}
+                            >
+                                <Share2 size={18} color="#ffffff" />
+                            </button>
+                        </div>
+                    </div>
 
-                                <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                                    <User size={18} style={{ color: colors.accent }} />
-                                </div>
-                            </div>
-
-                            {/* Título */}
-                            <h1 className="text-2xl font-bold" style={{ color: colors.textPrimary }}>
+                    {/* Sheet de conteúdo (mobile: sobreposto à imagem / web: coluna ao lado) */}
+                    <main className="relative z-10" style={{ background: colors.background }}>
+                        <div className="px-5 pt-4 md:px-0 md:pt-0 space-y-3">
+                            {/* Título (mobile - no header web já mostra) */}
+                            <h1 className="md:hidden text-2xl font-black leading-tight" style={{ color: colors.textPrimary }}>
                                 {publication.name || 'Sem título'}
                             </h1>
 
+                            {publication.view_count !== null && publication.view_count !== undefined && publication.view_count > 0 && (
+                                <span className="flex items-center gap-1 text-xs font-medium" style={{ color: colors.textSecondary, opacity: 0.7 }}>
+                                    <Eye size={13} />
+                                    {publication.view_count} visualizações
+                                </span>
+                            )}
+
                             {/* Descrição */}
                             {publication.description && (
-                                <div className="p-4 rounded-xl" style={{ background: `${colors.border}30` }}>
-                                    <p style={{ color: colors.textSecondary, lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>
+                                <div>
+                                    <h2 className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: colors.textSecondary, opacity: 0.6 }}>
+                                        Sobre a publicação
+                                    </h2>
+                                    <p className="text-sm" style={{ color: colors.textSecondary, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>
                                         {publication.description}
                                     </p>
                                 </div>
                             )}
 
-                            {/* Botões de ação */}
-                            <div className="pt-4 flex flex-wrap gap-3">
+                            <div className="flex flex-wrap gap-2">
                                 <button
                                     onClick={goToStore}
-                                    className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-medium transition hover:scale-105"
-                                    style={{
-                                        background: colors.accent,
-                                        color: '#fff',
-                                    }}
+                                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition hover:scale-105"
+                                    style={{ background: GRADIENT, color: '#fff' }}
                                 >
-                                    <Store size={18} />
+                                    <Store size={16} />
                                     Visitar Loja
-                                </button>
-
-                                <button
-                                    onClick={() => handleShareLink({
-                                        title: `${publication.name || 'Publicação'} | ${ownerDisplay.name}`,
-                                        text: publication.description || 'Confira no iUser!'
-                                    })}
-                                    className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-medium transition hover:scale-105"
-                                    style={{
-                                        background: colors.surface,
-                                        border: `1px solid ${colors.border}`,
-                                        color: colors.textPrimary,
-                                    }}
-                                >
-                                    <Share2 size={18} />
-                                    Compartilhar
                                 </button>
 
                                 {publication.show_whatsapp && publication.store?.whatsapp && publication.store?.show_whatsapp !== false && (
@@ -842,7 +873,7 @@ export function PublicationClientPage({
                                         href={getWhatsAppLink(publication.store.whatsapp, encodeURIComponent(`Olá! Vi "${publication.name}" no iUser e quero saber mais.`))}
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-medium transition hover:scale-105"
+                                        className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition hover:scale-105"
                                         style={{ background: '#25D366', color: '#fff' }}
                                     >
                                         <MessageCircle size={18} />
@@ -851,13 +882,62 @@ export function PublicationClientPage({
                                 )}
                             </div>
                         </div>
-                    </div>
+                    </main>
+                </div>
 
-                    {/* ===== SEÇÃO DE COMENTÁRIOS ===== */}
-                    <div className="mt-6 rounded-2xl border p-6" style={{
-                        background: colors.surface,
-                        borderColor: colors.border,
-                    }}>
+                {/* Outras publicações da loja */}
+                {otherPublications.length > 0 && (
+                    <div className="px-5 md:px-0 mt-3 md:mt-6">
+                        <h2 className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: colors.textSecondary, opacity: 0.6 }}>
+                            Outras publicações desta loja
+                        </h2>
+                        <div className="flex gap-3 overflow-x-auto pb-1 -mx-5 px-5 md:mx-0 md:px-0 scrollbar-hide">
+                            {otherPublications.map((other) => {
+                                const otherImageUrl = other.image_url
+                                    ? supabase.storage.from('product-images').getPublicUrl(other.image_url).data.publicUrl
+                                    : finalOwnerImage
+
+                                return (
+                                    <button
+                                        key={other.id}
+                                        onClick={() => router.push(`/${ownerSlug}/${other.slug}`)}
+                                        className="text-left rounded-2xl overflow-hidden flex-shrink-0 w-36 md:w-44 transition-transform hover:scale-[1.02]"
+                                        style={{
+                                            background: colors.surface,
+                                            border: `1px solid ${colors.border}`,
+                                            boxShadow: colors.shadow,
+                                        }}
+                                    >
+                                        <div className="w-full aspect-square" style={{ background: `${colors.accentLight}20` }}>
+                                            {otherImageUrl ? (
+                                                <img
+                                                    src={otherImageUrl}
+                                                    alt={other.name}
+                                                    className="w-full h-full object-cover"
+                                                />
+                                            ) : (
+                                                <div className="w-full h-full flex items-center justify-center">
+                                                    <Store size={24} style={{ color: colors.textSecondary }} />
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="p-2.5">
+                                            <p className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>
+                                                {other.name}
+                                            </p>
+                                        </div>
+                                    </button>
+                                )
+                            })}
+                        </div>
+                    </div>
+                )}
+
+                {/* ===== SEÇÃO DE COMENTÁRIOS ===== */}
+                <div className="mx-5 md:mx-0 mt-6 rounded-2xl border p-6" style={{
+                    background: colors.surface,
+                    borderColor: colors.border,
+                }}>
                         <div className="flex items-center gap-2 mb-4">
                             <MessageCircle size={20} style={{ color: '#f97316' }} />
                             <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
@@ -960,7 +1040,6 @@ export function PublicationClientPage({
                         )}
                     </div>
                 </div>
-            </main>
 
             <style jsx global>{`
                 @keyframes slideUp {
