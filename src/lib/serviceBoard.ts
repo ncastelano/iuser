@@ -15,6 +15,7 @@ export interface ServiceRequestRow {
     description: string
     photo_urls: string[]
     created_at: string
+    view_count: number
 }
 
 export interface BoardRequester {
@@ -71,9 +72,9 @@ export function relativeTime(iso: string): string {
 export async function fetchOpenBoardItems(limit?: number): Promise<BoardItem[]> {
     const { data: serviceRequests } = await supabase
         .from('service_requests')
-        .select('id, requester_id, service_type, custom_service, location_address, location_needs_access, location_access_notes, description, photo_urls, created_at')
+        .select('id, requester_id, service_type, custom_service, location_address, location_needs_access, location_access_notes, description, photo_urls, created_at, view_count')
         .eq('status', 'pending')
-        .order('created_at', { ascending: true })
+        .order('created_at', { ascending: false })
 
     const rows = serviceRequests || []
 

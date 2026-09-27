@@ -881,6 +881,22 @@ export default function PedirServicoPage() {
         }
     }
 
+    // Fecha a ficha de "pedido enviado" e limpa o formulário — a pessoa fica
+    // na página (não navega pra fora), pronta pra pedir outro serviço ou só
+    // acompanhar as candidaturas do pedido que acabou de mandar.
+    const closeSubmittedDialog = () => {
+        setSubmitted(false)
+        setStep('type')
+        setServiceType(null)
+        setCustomService('')
+        setLocation({ address: '', coords: null })
+        setLocationNeedsAccess(false)
+        setLocationAccessNotes('')
+        setDescription('')
+        setPhotos([])
+        setNotes('')
+    }
+
     const inputStyle = { color: colors.textPrimary }
 
     return (
@@ -1163,14 +1179,14 @@ export default function PedirServicoPage() {
                         </div>
                         <h2 className="text-lg font-black" style={{ color: colors.textPrimary }}>Pedido enviado!</h2>
                         <p className="text-sm" style={{ color: colors.textSecondary }}>
-                            Assim que tivermos profissionais parceiros disponíveis na sua região, vamos avisar você.
+                            Pode levar um tempo até um profissional parceiro ver seu pedido. Assim que alguém se candidatar, você recebe uma notificação — pode acompanhar as candidaturas aqui embaixo, a qualquer momento.
                         </p>
                         <button
-                            onClick={() => router.push('/')}
+                            onClick={closeSubmittedDialog}
                             className="mt-2 w-full py-3 rounded-full font-bold text-sm"
                             style={{ background: GRADIENT, color: '#fff' }}
                         >
-                            Voltar ao início
+                            Entendi
                         </button>
                     </div>
                 </div>
@@ -1201,6 +1217,10 @@ export default function PedirServicoPage() {
                         <div className="w-10 h-1 rounded-full" style={{ background: colors.border }} />
                     </div>
 
+                    {/* No web, sem isso o conteúdo (fotos, cards) esticava até a
+                        borda da tela e ficava enorme — no mobile a folha já é
+                        estreita, então isso não muda nada lá. */}
+                    <div className="md:max-w-md md:mx-auto">
                     {/* Indicador de progresso das etapas */}
                     <div className="flex items-center gap-1.5 justify-center mb-4">
                         {STEPS.map((s, i) => (
@@ -1502,6 +1522,7 @@ export default function PedirServicoPage() {
                             </button>
                         </>
                     )}
+                    </div>
                 </div>
             )}
         </div>

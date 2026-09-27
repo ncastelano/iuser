@@ -41,3 +41,15 @@ export function notifyNewFollower(followingId: string) {
         }).catch(() => { /* silencioso */ })
     })
 }
+
+// Best-effort: avisa quem pediu o serviço que alguém se candidatou.
+export function notifyServiceApplication(serviceRequestId: string) {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+        if (!session) return
+        fetch('/api/service-requests/notify-owner', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+            body: JSON.stringify({ serviceRequestId }),
+        }).catch(() => { /* silencioso */ })
+    })
+}
