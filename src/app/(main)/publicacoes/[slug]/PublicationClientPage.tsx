@@ -24,7 +24,6 @@ import {
 } from 'lucide-react'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
-import Header from '@/components/Header'
 import { handleShareLink } from '@/lib/share'
 import { getAvatarUrl } from '@/lib/avatar'
 import { captureReferral } from '@/lib/referralCapture'
@@ -86,7 +85,7 @@ export default function PublicationClientPage() {
     const params = useParams()
     const router = useRouter()
     const { colors } = useTheme()
-    const { userId: currentUserId, avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
+    const { userId: currentUserId, bgMode, customBgUrl } = useProfile()
 
     const slug = Array.isArray(params.slug) ? params.slug[0] : params.slug
 
@@ -791,116 +790,123 @@ export default function PublicationClientPage() {
                 <AnimatedBackgroundiUser bgMode={bgMode} customBgUrl={customBgUrl} />
             </div>
 
-            <main className="relative z-10 min-h-dvh">
-                <Header
-                    title="Publicação"
-                    showBack={true}
-                    onBack={() => router.back()}
-                    greeting={`Olá, ${profileLoading ? '...' : profileSlug ? `@${profileSlug}` : 'Visitante'}`}
-                    avatarUrl={avatarUrl}
-                    loading={profileLoading}
-                />
+            {/* Barra do topo (mobile) - igual ao ProductClientPage.tsx, pra ficar
+                com a mesma cara em modo celular e web. */}
+            <div
+                className="relative z-10 md:hidden sticky top-0"
+                style={{
+                    background: colors.background,
+                    borderBottom: `1px solid ${colors.border}`,
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.08)',
+                    paddingTop: 'env(safe-area-inset-top)',
+                }}
+            >
+                <div className="flex items-center gap-2 px-4 py-3">
+                    <button
+                        onClick={() => router.back()}
+                        aria-label="Voltar"
+                        className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition hover:scale-105"
+                        style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                    >
+                        <ArrowLeft size={20} />
+                    </button>
+                </div>
+            </div>
 
-                {/* max-w-md + imagem em pé (9/16, estilo Shorts do YouTube) - sem
-                    isso, no navegador do PC a imagem esticava 16:9 na largura
-                    inteira da tela, ficando gigante e sem cara de publicação. */}
-                <div className="w-full px-4 md:px-6 py-6 max-w-md mx-auto">
-                    <div className="rounded-2xl overflow-hidden border" style={{
-                        background: colors.surface,
-                        borderColor: colors.border,
-                    }}>
-                        {/* Imagem */}
+            {/* Nome da publicação (mobile) - em cima da imagem */}
+            <div className="relative z-10 md:hidden px-5 pt-4 pb-3">
+                <h1 className="text-2xl font-black leading-tight" style={{ color: colors.textPrimary }}>
+                    {publication.name || 'Sem título'}
+                </h1>
+            </div>
+
+            {/* Header no fluxo normal (web) */}
+            <div className="relative z-10 hidden md:flex items-center gap-3 max-w-6xl mx-auto px-6 pt-6">
+                <button
+                    onClick={() => router.back()}
+                    aria-label="Voltar"
+                    className="flex items-center gap-2 pl-3 pr-4 py-2 rounded-full text-sm font-medium flex-shrink-0 transition hover:scale-105"
+                    style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                >
+                    <ArrowLeft size={16} />
+                    Voltar
+                </button>
+                <h1 className="flex-1 min-w-0 truncate text-lg font-black" style={{ color: colors.textPrimary }}>
+                    {publication.name || 'Sem título'}
+                </h1>
+            </div>
+
+            <div className="relative z-10 pb-8 md:pb-0 md:max-w-6xl md:mx-auto md:px-6 md:pt-6">
+                <div className="md:grid md:grid-cols-2 md:gap-10 md:items-start">
+                    {/* Imagem em destaque, mesmo tratamento do produto */}
+                    <div className="relative mx-4 md:mx-0 h-[26vh] min-h-[200px] max-h-[320px] rounded-3xl overflow-hidden md:h-auto md:aspect-square md:sticky md:top-6">
                         {imageUrl ? (
-                            <div className="relative w-full" style={{ aspectRatio: '9/16' }}>
-                                <img
-                                    src={imageUrl}
-                                    alt={publication.name || 'Publicação'}
-                                    className="w-full h-full object-cover"
-                                />
-                            </div>
+                            <img
+                                src={imageUrl}
+                                alt={publication.name || 'Publicação'}
+                                className="w-full h-full object-cover"
+                            />
                         ) : (
-                            <div className="w-full flex items-center justify-center py-16" style={{
-                                background: `${colors.border}50`
-                            }}>
+                            <div className="w-full h-full flex items-center justify-center" style={{ background: `${colors.border}50` }}>
                                 <Store size={64} style={{ color: colors.textSecondary }} />
                             </div>
                         )}
 
-                        {/* Conteúdo */}
-                        <div className="p-6 space-y-4">
-                            {/* Cabeçalho - Dono da publicação (Loja ou Perfil) */}
-                            <div
-                                className="flex items-center gap-3 cursor-pointer group"
-                                onClick={goToOwner}
-                            >
+                        {/* Dono (loja ou perfil) + data + compartilhar - no rodapé da
+                            foto, igual ao produto. Tocar no dono abre a loja/perfil;
+                            compartilhar fica aqui em vez de duplicar um botão
+                            "Visitar Loja/Perfil" separado embaixo. */}
+                        <div
+                            className="absolute bottom-0 inset-x-0 flex items-center gap-2 px-4 pb-4 pt-8"
+                            style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.72), transparent)' }}
+                        >
+                            <button onClick={goToOwner} className="flex items-center gap-2 min-w-0 flex-1 text-left transition hover:opacity-90">
                                 <div
-                                    className="w-12 h-12 rounded-full overflow-hidden border-2 flex-shrink-0 transition-all duration-300 group-hover:scale-105"
-                                    style={{ borderColor: colors.border }}
+                                    className="w-8 h-8 rounded-full overflow-hidden border flex-shrink-0"
+                                    style={{ borderColor: 'rgba(255,255,255,0.6)', background: 'rgba(255,255,255,0.15)' }}
                                 >
                                     {finalOwnerImage ? (
-                                        <img
-                                            src={finalOwnerImage}
-                                            alt={ownerDisplay.name}
-                                            className="w-full h-full object-cover"
-                                        />
+                                        <img src={finalOwnerImage} alt={ownerDisplay.name} className="w-full h-full object-cover" />
                                     ) : (
-                                        <div className="w-full h-full flex items-center justify-center" style={{ background: colors.border }}>
-                                            <OwnerIcon size={20} style={{ color: colors.textSecondary }} />
+                                        <div className="w-full h-full flex items-center justify-center">
+                                            <OwnerIcon size={14} color="#ffffff" />
                                         </div>
                                     )}
                                 </div>
-
                                 <div className="min-w-0 flex-1">
-                                    <h3
-                                        className="font-bold truncate transition-colors duration-300 group-hover:text-opacity-70"
-                                        style={{ color: colors.textPrimary }}
-                                    >
+                                    <p className="text-xs font-bold truncate" style={{ color: '#ffffff' }}>
                                         {ownerDisplay.name}
-                                        {ownerDisplay.type === 'store' && (
-                                            <span className="ml-2 text-[10px] font-medium px-2 py-0.5 rounded-full" style={{
-                                                background: `${colors.accent}20`,
-                                                color: colors.accent
-                                            }}>
-                                                Loja
-                                            </span>
-                                        )}
-                                        {ownerDisplay.type === 'profile' && (
-                                            <span className="ml-2 text-[10px] font-medium px-2 py-0.5 rounded-full" style={{
-                                                background: 'rgba(249, 115, 22, 0.15)',
-                                                color: '#f97316'
-                                            }}>
-                                                Perfil
-                                            </span>
-                                        )}
-                                        <span className="ml-1 text-xs opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                                            →
-                                        </span>
-                                    </h3>
-                                    <div className="flex flex-wrap items-center gap-3 text-xs" style={{ color: colors.textSecondary }}>
-                                        <span className="flex items-center gap-1">
-                                            <Calendar size={14} />
-                                            {formattedDate}
-                                        </span>
-                                        {publication.view_count !== null && publication.view_count !== undefined && publication.view_count > 0 && (
-                                            <span className="flex items-center gap-1">
-                                                <Eye size={14} />
-                                                {publication.view_count} visualizações
-                                            </span>
-                                        )}
-                                    </div>
+                                    </p>
+                                    <p className="flex items-center gap-1 text-[10px]" style={{ color: 'rgba(255,255,255,0.8)' }}>
+                                        <Calendar size={9} />
+                                        {formattedDate}
+                                    </p>
                                 </div>
+                            </button>
+                            <button
+                                onClick={() => handleShareLink({
+                                    title: `${publication.name || 'Publicação'} | ${ownerDisplay.name}`,
+                                    text: publication.description || 'Confira no iUser!'
+                                })}
+                                aria-label="Compartilhar"
+                                className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 backdrop-blur-md transition hover:scale-105"
+                                style={{ background: 'rgba(17,17,17,0.4)' }}
+                            >
+                                <Share2 size={18} color="#ffffff" />
+                            </button>
+                        </div>
+                    </div>
 
-                                <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                                    <User size={18} style={{ color: colors.accent }} />
-                                </div>
-                            </div>
+                    {/* Conteúdo (mobile: abaixo da imagem / web: coluna ao lado) */}
+                    <main className="relative z-10" style={{ background: colors.background }}>
+                        <div className="px-5 pt-4 md:px-0 md:pt-0 space-y-3">
+                            {publication.view_count !== null && publication.view_count !== undefined && publication.view_count > 0 && (
+                                <span className="flex items-center gap-1 text-xs font-medium" style={{ color: colors.textSecondary, opacity: 0.7 }}>
+                                    <Eye size={13} />
+                                    {publication.view_count} visualizações
+                                </span>
+                            )}
 
-                            {/* Título */}
-                            <h1 className="text-2xl font-bold" style={{ color: colors.textPrimary }}>
-                                {publication.name || 'Sem título'}
-                            </h1>
-
-                            {/* Descrição */}
                             {publication.description && (
                                 <div className="p-4 rounded-xl" style={{ background: `${colors.border}30` }}>
                                     <p style={{ color: colors.textSecondary, lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>
@@ -909,164 +915,129 @@ export default function PublicationClientPage() {
                                 </div>
                             )}
 
-                            {/* Botões de ação */}
-                            <div className="pt-4 flex flex-wrap gap-3">
-                                <button
-                                    onClick={goToOwner}
-                                    className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-medium transition hover:scale-105"
-                                    style={{
-                                        background: colors.accent,
-                                        color: '#fff',
-                                    }}
+                            {ownerDisplay.type === 'store' && publication.show_whatsapp && publication.store?.whatsapp && publication.store?.show_whatsapp !== false && (
+                                <a
+                                    href={getWhatsAppLink(publication.store.whatsapp, encodeURIComponent(`Olá! Vi "${publication.name}" no iUser e quero saber mais.`))}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl text-sm font-medium transition hover:scale-105 w-fit"
+                                    style={{ background: '#25D366', color: '#fff' }}
                                 >
-                                    {ownerDisplay.type === 'store' ? (
-                                        <Store size={18} />
-                                    ) : (
-                                        <UserCircle size={18} />
-                                    )}
-                                    Visitar {ownerDisplay.type === 'store' ? 'Loja' : 'Perfil'}
-                                </button>
-
-                                <button
-                                    onClick={() => handleShareLink({
-                                        title: `${publication.name || 'Publicação'} | ${ownerDisplay.name}`,
-                                        text: publication.description || 'Confira no iUser!'
-                                    })}
-                                    className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-medium transition hover:scale-105"
-                                    style={{
-                                        background: colors.surface,
-                                        border: `1px solid ${colors.border}`,
-                                        color: colors.textPrimary,
-                                    }}
-                                >
-                                    <Share2 size={18} />
-                                    Compartilhar
-                                </button>
-
-                                {publication.show_whatsapp && publication.store?.whatsapp && publication.store?.show_whatsapp !== false && (
-                                    <a
-                                        href={getWhatsAppLink(publication.store.whatsapp, encodeURIComponent(`Olá! Vi "${publication.name}" no iUser e quero saber mais.`))}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-medium transition hover:scale-105"
-                                        style={{ background: '#25D366', color: '#fff' }}
-                                    >
-                                        <MessageCircle size={18} />
-                                        Falar no WhatsApp
-                                    </a>
-                                )}
-                            </div>
+                                    <MessageCircle size={18} />
+                                    Falar no WhatsApp
+                                </a>
+                            )}
                         </div>
+                    </main>
+                </div>
+
+                {/* ===== SEÇÃO DE COMENTÁRIOS (largura cheia, abaixo da grade) ===== */}
+                <div className="mt-6 md:mt-10 mx-4 md:mx-0 rounded-2xl border p-6" style={{
+                    background: colors.surface,
+                    borderColor: colors.border,
+                }}>
+                    <div className="flex items-center gap-2 mb-4">
+                        <MessageCircle size={20} style={{ color: '#f97316' }} />
+                        <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
+                            Comentários
+                        </h3>
+                        <span className="text-sm font-bold px-3 py-1 rounded-full" style={{ background: '#f9731620', color: '#f97316' }}>
+                            {comments.length}
+                        </span>
                     </div>
 
-                    {/* ===== SEÇÃO DE COMENTÁRIOS ===== */}
-                    <div className="mt-6 rounded-2xl border p-6" style={{
-                        background: colors.surface,
-                        borderColor: colors.border,
-                    }}>
-                        <div className="flex items-center gap-2 mb-4">
-                            <MessageCircle size={20} style={{ color: '#f97316' }} />
-                            <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
-                                Comentários
-                            </h3>
-                            <span className="text-sm font-bold px-3 py-1 rounded-full" style={{ background: '#f9731620', color: '#f97316' }}>
-                                {comments.length}
-                            </span>
-                        </div>
-
-                        {/* Input para novo comentário */}
-                        {currentUserId ? (
-                            <div className="flex gap-2 mb-4">
-                                <input
-                                    type="text"
-                                    value={commentContent}
-                                    onChange={(e) => {
-                                        setCommentContent(e.target.value)
-                                        if (replyTo) setReplyTo(null)
+                    {/* Input para novo comentário */}
+                    {currentUserId ? (
+                        <div className="flex gap-2 mb-4">
+                            <input
+                                type="text"
+                                value={commentContent}
+                                onChange={(e) => {
+                                    setCommentContent(e.target.value)
+                                    if (replyTo) setReplyTo(null)
+                                }}
+                                placeholder={replyTo ? `Respondendo a ${replyTo.profiles?.name}...` : "Escreva um comentário..."}
+                                className="flex-1 rounded-xl py-2 px-3 text-sm focus:outline-none transition"
+                                style={{
+                                    background: 'rgba(255,255,255,0.05)',
+                                    border: `1px solid ${colors.border}`,
+                                    color: colors.textPrimary,
+                                }}
+                                disabled={submittingComment}
+                            />
+                            {replyTo && (
+                                <button
+                                    onClick={() => {
+                                        setReplyTo(null)
+                                        setCommentContent('')
                                     }}
-                                    placeholder={replyTo ? `Respondendo a ${replyTo.profiles?.name}...` : "Escreva um comentário..."}
-                                    className="flex-1 rounded-xl py-2 px-3 text-sm focus:outline-none transition"
+                                    className="px-3 py-2 rounded-xl text-xs font-bold transition-all hover:scale-105"
                                     style={{
                                         background: 'rgba(255,255,255,0.05)',
+                                        color: colors.textSecondary,
                                         border: `1px solid ${colors.border}`,
-                                        color: colors.textPrimary,
-                                    }}
-                                    disabled={submittingComment}
-                                />
-                                {replyTo && (
-                                    <button
-                                        onClick={() => {
-                                            setReplyTo(null)
-                                            setCommentContent('')
-                                        }}
-                                        className="px-3 py-2 rounded-xl text-xs font-bold transition-all hover:scale-105"
-                                        style={{
-                                            background: 'rgba(255,255,255,0.05)',
-                                            color: colors.textSecondary,
-                                            border: `1px solid ${colors.border}`,
-                                        }}
-                                    >
-                                        <X size={16} />
-                                    </button>
-                                )}
-                                <button
-                                    onClick={handleAddComment}
-                                    disabled={!commentContent.trim() || submittingComment}
-                                    className="px-4 py-2 rounded-xl transition-all hover:scale-105 disabled:opacity-50 flex items-center gap-1"
-                                    style={{
-                                        background: GRADIENT,
-                                        color: '#ffffff',
-                                        boxShadow: '0 2px 10px rgba(249, 115, 22, 0.3)',
                                     }}
                                 >
-                                    {submittingComment ? (
-                                        <Spinner size={16} />
-                                    ) : (
-                                        <Send size={16} />
-                                    )}
+                                    <X size={16} />
                                 </button>
-                            </div>
-                        ) : (
-                            <div className="p-3 rounded-xl text-center mb-4" style={{
-                                background: 'rgba(255,255,255,0.05)',
-                                border: `1px dashed ${colors.border}`
-                            }}>
-                                <p className="text-sm" style={{ color: colors.textSecondary }}>
-                                    <button
-                                        onClick={() => router.push('/login')}
-                                        className="font-bold hover:underline inline-flex items-center gap-1"
-                                        style={{ color: '#f97316' }}
-                                    >
-                                        <LogIn size={16} />
-                                        Faça login
-                                    </button>
-                                    {' '}para comentar
-                                </p>
-                            </div>
-                        )}
+                            )}
+                            <button
+                                onClick={handleAddComment}
+                                disabled={!commentContent.trim() || submittingComment}
+                                className="px-4 py-2 rounded-xl transition-all hover:scale-105 disabled:opacity-50 flex items-center gap-1"
+                                style={{
+                                    background: GRADIENT,
+                                    color: '#ffffff',
+                                    boxShadow: '0 2px 10px rgba(249, 115, 22, 0.3)',
+                                }}
+                            >
+                                {submittingComment ? (
+                                    <Spinner size={16} />
+                                ) : (
+                                    <Send size={16} />
+                                )}
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="p-3 rounded-xl text-center mb-4" style={{
+                            background: 'rgba(255,255,255,0.05)',
+                            border: `1px dashed ${colors.border}`
+                        }}>
+                            <p className="text-sm" style={{ color: colors.textSecondary }}>
+                                <button
+                                    onClick={() => router.push('/login')}
+                                    className="font-bold hover:underline inline-flex items-center gap-1"
+                                    style={{ color: '#f97316' }}
+                                >
+                                    <LogIn size={16} />
+                                    Faça login
+                                </button>
+                                {' '}para comentar
+                            </p>
+                        </div>
+                    )}
 
-                        {/* Lista de comentários */}
-                        {loadingComments ? (
-                            <div className="flex justify-center py-8">
-                                <Spinner size={24} color={colors.textSecondary} />
-                            </div>
-                        ) : comments.length === 0 ? (
-                            <div className="py-8 text-center rounded-xl" style={{
-                                background: `rgba(255,255,255,0.02)`,
-                                border: `1px dashed ${colors.border}`,
-                            }}>
-                                <MessageCircle className="w-10 h-10 mx-auto mb-3" style={{ color: colors.textSecondary }} />
-                                <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>Nenhum comentário ainda</p>
-                                <p className="text-xs" style={{ color: colors.textSecondary }}>Seja o primeiro a comentar!</p>
-                            </div>
-                        ) : (
-                            <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
-                                {renderCommentTree(comments)}
-                            </div>
-                        )}
-                    </div>
+                    {/* Lista de comentários */}
+                    {loadingComments ? (
+                        <div className="flex justify-center py-8">
+                            <Spinner size={24} color={colors.textSecondary} />
+                        </div>
+                    ) : comments.length === 0 ? (
+                        <div className="py-8 text-center rounded-xl" style={{
+                            background: `rgba(255,255,255,0.02)`,
+                            border: `1px dashed ${colors.border}`,
+                        }}>
+                            <MessageCircle className="w-10 h-10 mx-auto mb-3" style={{ color: colors.textSecondary }} />
+                            <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>Nenhum comentário ainda</p>
+                            <p className="text-xs" style={{ color: colors.textSecondary }}>Seja o primeiro a comentar!</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
+                            {renderCommentTree(comments)}
+                        </div>
+                    )}
                 </div>
-            </main>
+            </div>
 
             <style jsx global>{`
                 @keyframes slideUp {
