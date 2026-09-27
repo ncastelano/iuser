@@ -24,6 +24,7 @@ interface FollowUser {
     profileSlug: string
     avatar_url: string | null
     isFollowing?: boolean
+    kind: 'profile' | 'store'
 }
 
 export function Follows({
@@ -75,11 +76,13 @@ export function Follows({
                 setLoadingMore(true)
             }
 
-            let query
+            let rawUsers: FollowUser[] = []
+            let count = 0
 
             if (type === 'followers') {
-                // Buscar seguidores (quem segue o perfil)
-                query = supabase
+                // Buscar seguidores (quem segue o perfil) - sempre são perfis,
+                // só gente segue, loja nunca segue ninguém.
+                const { data, error, count: c } = await supabase
                     .from('follows')
                     .select(`
                         follower_id,
@@ -93,43 +96,76 @@ export function Follows({
                     .eq('following_id', profileId)
                     .order('created_at', { ascending: false })
                     .range(from, to)
+
+                if (error) throw error
+                count = c || 0
+
+                if (data && data.length > 0) {
+                    rawUsers = data.map((item: any) => {
+                        const profile = Array.isArray(item.profiles) ? item.profiles[0] : item.profiles
+                        return {
+                            id: profile.id,
+                            name: profile.name || 'Usuário',
+                            profileSlug: profile.profileSlug || profile.id,
+                            avatar_url: profile.avatar_url,
+                            isFollowing: false,
+                            kind: 'profile' as const,
+                        }
+                    })
+                }
             } else {
-                // Buscar seguindo (quem o perfil segue)
-                query = supabase
+                // Buscar seguindo (quem o perfil segue) - pode ser tanto perfil
+                // quanto loja, então busca só os ids aqui e resolve os dois tipos
+                // em paralelo (não dá pra fazer join direto pros dois ao mesmo tempo).
+                const { data, error, count: c } = await supabase
                     .from('follows')
-                    .select(`
-                        following_id,
-                        profiles!following_id (
-                            id,
-                            name,
-                            avatar_url,
-                            profileSlug
-                        )
-                    `, { count: 'exact' })
+                    .select('following_id', { count: 'exact' })
                     .eq('follower_id', profileId)
                     .order('created_at', { ascending: false })
                     .range(from, to)
-            }
 
-            const { data, error, count } = await query
+                if (error) throw error
+                count = c || 0
 
-            if (error) throw error
+                const ids = (data || []).map((d: any) => d.following_id)
+                if (ids.length > 0) {
+                    const [{ data: profilesData }, { data: storesData }] = await Promise.all([
+                        supabase.from('profiles').select('id, name, avatar_url, profileSlug').in('id', ids),
+                        supabase.from('stores').select('id, name, logo_url, storeSlug').in('id', ids),
+                    ])
 
-            // Extrair os dados do perfil
-            let rawUsers: FollowUser[] = []
-            if (data && data.length > 0) {
-                rawUsers = data.map((item: any) => {
-                    const profile = item.profiles
-                    const profileData = Array.isArray(profile) ? profile[0] : profile
+                    const profileById = new Map((profilesData || []).map((p: any) => [p.id, p]))
+                    const storeById = new Map((storesData || []).map((s: any) => [s.id, s]))
 
-                    return {
-                        id: profileData.id,
-                        name: profileData.name || 'Usuário',
-                        profileSlug: profileData.profileSlug || profileData.id,
-                        avatar_url: profileData.avatar_url,
-                        isFollowing: false
-                    }
-                })
+                    rawUsers = ids.reduce<FollowUser[]>((acc, id) => {
+                        const profile = profileById.get(id)
+                        if (profile) {
+                            acc.push({
+                                id: profile.id,
+                                name: profile.name || 'Usuário',
+                                profileSlug: profile.profileSlug || profile.id,
+                                avatar_url: profile.avatar_url,
+                                isFollowing: false,
+                                kind: 'profile',
+                            })
+                            return acc
+                        }
+                        const store = storeById.get(id)
+                        if (store) {
+                            acc.push({
+                                id: store.id,
+                                name: store.name || 'Loja',
+                                profileSlug: store.storeSlug || store.id,
+                                avatar_url: store.logo_url
+                                    ? supabase.storage.from('store-logos').getPublicUrl(store.logo_url).data.publicUrl
+                                    : null,
+                                isFollowing: false,
+                                kind: 'store',
+                            })
+                        }
+                        return acc
+                    }, [])
+                }
             }
 
             setTotalCount(count || 0)

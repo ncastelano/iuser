@@ -558,11 +558,23 @@ export function Store({
         if (isFollowing) {
             setIsFollowing(false)
             setFollowersCount(prev => prev - 1)
-            await supabase.from('follows').delete().eq('follower_id', currentUserId).eq('following_id', owner.id)
+            const { error } = await supabase.from('follows').delete().eq('follower_id', currentUserId).eq('following_id', owner.id)
+            if (error) {
+                setIsFollowing(true)
+                setFollowersCount(prev => prev + 1)
+                toast.error('Erro ao deixar de seguir: ' + error.message)
+            }
         } else {
             setIsFollowing(true)
             setFollowersCount(prev => prev + 1)
-            { const { error: fe } = await supabase.from('follows').insert({ follower_id: currentUserId, following_id: owner.id }); if (!fe) notifyNewFollower(owner.id) }
+            const { error } = await supabase.from('follows').insert({ follower_id: currentUserId, following_id: owner.id })
+            if (error) {
+                setIsFollowing(false)
+                setFollowersCount(prev => prev - 1)
+                toast.error('Erro ao seguir: ' + error.message)
+            } else {
+                notifyNewFollower(owner.id)
+            }
         }
     }
 
