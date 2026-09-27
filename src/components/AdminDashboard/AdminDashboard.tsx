@@ -7,13 +7,15 @@ import { supabase } from '@/lib/supabase/client'
 import { Spinner } from '@/components/Spinner'
 import { toast } from 'sonner'
 import { hexToRgb } from '@/lib/color'
-import { Check, X, Copy, Plus, ShieldOff, ShieldCheck, Send, CalendarClock, Wallet, Tag, Sparkles, MessageCircle, Search } from 'lucide-react'
+import { Check, X, Copy, Plus, ShieldOff, ShieldCheck, Send, CalendarClock, Wallet, Tag, Sparkles, MessageCircle, Search, Activity } from 'lucide-react'
 import HierarchyAdmin from './HierarchyAdmin'
+import ActivitySection from './ActivitySection'
 import { callAdminApi } from '@/lib/callAdminApi'
 
-type Section = 'pagamentos' | 'saques' | 'planos' | 'hierarquia' | 'whatsapp'
+type Section = 'pagamentos' | 'saques' | 'planos' | 'hierarquia' | 'whatsapp' | 'atividade'
 
 const SECTIONS: { id: Section; label: string; icon: typeof Send }[] = [
+    { id: 'atividade', label: 'Atividade', icon: Activity },
     { id: 'pagamentos', label: 'Pagamentos', icon: Wallet },
     { id: 'planos', label: 'Planos', icon: CalendarClock },
     { id: 'hierarquia', label: 'Hierarquia', icon: ShieldCheck },
@@ -28,7 +30,7 @@ const SECTIONS: { id: Section; label: string; icon: typeof Send }[] = [
 export default function AdminDashboard() {
     const { colors } = useTheme()
     const surfaceRgb = hexToRgb(colors.surface)
-    const [section, setSection] = useState<Section>('pagamentos')
+    const [section, setSection] = useState<Section>('atividade')
     const [checking, setChecking] = useState(true)
     const [authorized, setAuthorized] = useState(false)
 
@@ -87,6 +89,7 @@ export default function AdminDashboard() {
                 })}
             </div>
 
+            {section === 'atividade' && <ActivitySection cardStyle={cardStyle} colors={colors} />}
             {section === 'pagamentos' && <SubscriptionsSection cardStyle={cardStyle} colors={colors} />}
             {section === 'saques' && <WithdrawalsSection cardStyle={cardStyle} colors={colors} />}
             {section === 'hierarquia' && <HierarchyAdmin cardStyle={cardStyle} colors={colors} />}
