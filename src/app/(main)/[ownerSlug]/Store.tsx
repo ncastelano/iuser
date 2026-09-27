@@ -608,7 +608,7 @@ export function Store({
     }
 
     return (
-        <div className="w-full px-4 md:px-6 py-4 flex flex-col gap-5">
+        <div className="w-full px-4 md:px-6 py-4 md:max-w-3xl md:mx-auto flex flex-col gap-5">
             <style jsx global>{`
                 @keyframes float {
                     0%, 100% { transform: translateY(0px) rotate(0deg); }
@@ -1342,7 +1342,7 @@ export function Store({
                                     <h4 className="text-[10px] font-black uppercase tracking-wider" style={{ color: '#f97316' }}>
                                         {category}
                                     </h4>
-                                    <div className="grid grid-cols-2 gap-2">
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                                         {products.map(product => {
                                             const isHourly = product.price_type === 'hourly'
                                             const hasImage = !!product.image_url
