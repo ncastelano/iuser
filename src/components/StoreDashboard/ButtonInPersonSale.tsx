@@ -253,7 +253,7 @@ export default function ButtonInPersonSale({
                         {products.length === 0 ? 'Nenhum produto cadastrado.' : 'Nenhum produto encontrado.'}
                     </p>
                 ) : (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-h-72 overflow-y-auto pr-0.5">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5 max-h-72 overflow-y-auto pr-0.5">
                         {filteredProducts.map(product => {
                             const qty = qtyInCart(product.id)
                             return (
@@ -263,7 +263,7 @@ export default function ButtonInPersonSale({
                                     className="relative text-left rounded-2xl border overflow-hidden transition-all hover:scale-[1.02] active:scale-95"
                                     style={{ borderColor: qty > 0 ? '#f97316' : colors.border, background: qty > 0 ? '#f9731610' : 'transparent' }}
                                 >
-                                    <div className="w-full aspect-[4/3] bg-gray-100 flex items-center justify-center">
+                                    <div className="w-full aspect-square bg-gray-100 flex items-center justify-center">
                                         {product.image_url ? (
                                             <img
                                                 src={supabase.storage.from('product-images').getPublicUrl(product.image_url).data.publicUrl}

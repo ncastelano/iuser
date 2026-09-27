@@ -11,6 +11,7 @@ import { supabase } from '@/lib/supabase/client'
 import { checkSlugAvailability } from '@/lib/slugUtils'
 import { handleShareLink } from '@/lib/share'
 import InviteButton from '@/components/InviteButton'
+import { usePersistedExpanded } from '@/hooks/usePersistedExpanded'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -66,7 +67,7 @@ export function ProfileInfo({ profile, onProfileUpdate }: ProfileInfoProps) {
     const fileInputRef = useRef<HTMLInputElement>(null)
     const surfaceRgb = hexToRgb(colors.surface)
 
-    const [isExpanded, setIsExpanded] = useState(true)
+    const [isExpanded, setIsExpanded] = usePersistedExpanded('profileInfo', true)
     const [name, setName] = useState(profile.name || '')
     const [slug, setSlug] = useState(profile.profileSlug || '')
     const [description, setDescription] = useState(profile.description || '')
@@ -317,7 +318,7 @@ export function ProfileInfo({ profile, onProfileUpdate }: ProfileInfoProps) {
 
                 {isExpanded && (
                     <>
-                        <div className="space-y-4">
+                        <div className="space-y-4 w-full md:max-w-xl md:mx-auto">
                             {/* Foto */}
                             <div className="space-y-2">
                                 <label className="block text-[10px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>
@@ -344,59 +345,61 @@ export function ProfileInfo({ profile, onProfileUpdate }: ProfileInfoProps) {
                                 </p>
                             </div>
 
-                            {/* Nome */}
-                            <div className="space-y-2">
-                                <label className="block text-[10px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>
-                                    Nome *
-                                </label>
-                                <div
-                                    className="flex items-center gap-2 px-4 py-3 rounded-xl transition-all focus-within:border-orange-500 focus-within:ring-2 focus-within:ring-orange-500/20"
-                                    style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.2)`, border: `2px solid ${colors.border}` }}
-                                >
-                                    <User size={16} className="text-orange-400 flex-shrink-0" />
-                                    <input
-                                        type="text"
-                                        placeholder="Seu nome"
-                                        value={name}
-                                        onChange={(e) => setName(e.target.value)}
-                                        className="flex-1 bg-transparent text-sm outline-none"
-                                        style={{ color: colors.textPrimary }}
-                                    />
-                                </div>
-                            </div>
-
-                            {/* URL/slug */}
-                            <div className="space-y-2">
-                                <label className="block text-[10px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>
-                                    URL do perfil *
-                                </label>
-                                <div
-                                    className="flex rounded-xl overflow-hidden transition-all focus-within:border-orange-500 focus-within:ring-2 focus-within:ring-orange-500/20"
-                                    style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.2)`, border: `2px solid ${colors.border}` }}
-                                >
-                                    <span
-                                        className="flex items-center px-3 text-[10px] font-bold flex-shrink-0"
-                                        style={{ background: `${colors.border}30`, color: colors.textSecondary }}
+                            {/* Nome + URL/slug — lado a lado no desktop, um input gigante
+                            sozinho fica esquisito numa tela larga. */}
+                            <div className="md:grid md:grid-cols-2 md:gap-4 space-y-4 md:space-y-0">
+                                <div className="space-y-2">
+                                    <label className="block text-[10px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>
+                                        Nome *
+                                    </label>
+                                    <div
+                                        className="flex items-center gap-2 px-4 py-3 rounded-xl transition-all focus-within:border-orange-500 focus-within:ring-2 focus-within:ring-orange-500/20"
+                                        style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.2)`, border: `2px solid ${colors.border}` }}
                                     >
-                                        <LinkIcon size={12} className="mr-1.5" />
-                                        iuser.com.br/
-                                    </span>
-                                    <input
-                                        type="text"
-                                        placeholder="seu-nome"
-                                        value={slug}
-                                        onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
-                                        className="w-full px-4 py-3 bg-transparent text-sm outline-none"
-                                        style={{ color: colors.textPrimary }}
-                                    />
-                                </div>
-                                {slugStatusInfo && (
-                                    <div className="flex items-center gap-1.5 text-[9px] font-bold" style={{ color: slugStatusInfo.color }}>
-                                        {slugStatus === 'available' && <CheckCircle2 size={12} />}
-                                        {slugStatus === 'taken' && <AlertCircle size={12} />}
-                                        {slugStatusInfo.text}
+                                        <User size={16} className="text-orange-400 flex-shrink-0" />
+                                        <input
+                                            type="text"
+                                            placeholder="Seu nome"
+                                            value={name}
+                                            onChange={(e) => setName(e.target.value)}
+                                            className="flex-1 bg-transparent text-sm outline-none"
+                                            style={{ color: colors.textPrimary }}
+                                        />
                                     </div>
-                                )}
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="block text-[10px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>
+                                        URL do perfil *
+                                    </label>
+                                    <div
+                                        className="flex rounded-xl overflow-hidden transition-all focus-within:border-orange-500 focus-within:ring-2 focus-within:ring-orange-500/20"
+                                        style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.2)`, border: `2px solid ${colors.border}` }}
+                                    >
+                                        <span
+                                            className="flex items-center px-3 text-[10px] font-bold flex-shrink-0"
+                                            style={{ background: `${colors.border}30`, color: colors.textSecondary }}
+                                        >
+                                            <LinkIcon size={12} className="mr-1.5" />
+                                            iuser.com.br/
+                                        </span>
+                                        <input
+                                            type="text"
+                                            placeholder="seu-nome"
+                                            value={slug}
+                                            onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                                            className="w-full px-4 py-3 bg-transparent text-sm outline-none"
+                                            style={{ color: colors.textPrimary }}
+                                        />
+                                    </div>
+                                    {slugStatusInfo && (
+                                        <div className="flex items-center gap-1.5 text-[9px] font-bold" style={{ color: slugStatusInfo.color }}>
+                                            {slugStatus === 'available' && <CheckCircle2 size={12} />}
+                                            {slugStatus === 'taken' && <AlertCircle size={12} />}
+                                            {slugStatusInfo.text}
+                                        </div>
+                                    )}
+                                </div>
                             </div>
 
                             {/* Descrição */}
@@ -419,7 +422,7 @@ export function ProfileInfo({ profile, onProfileUpdate }: ProfileInfoProps) {
                         </div>
 
                         {/* Botões de ação - PILL */}
-                        <div className="flex gap-3 mt-2">
+                        <div className="flex gap-3 mt-2 w-full md:max-w-xl md:mx-auto">
                             <button
                                 onClick={handleCancel}
                                 disabled={saving}

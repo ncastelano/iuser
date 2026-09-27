@@ -31,6 +31,7 @@ import { formatDistanceToNow } from 'date-fns'
 import { ptBR as ptBRLocale } from 'date-fns/locale'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import { usePersistedExpanded } from '@/hooks/usePersistedExpanded'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -157,7 +158,7 @@ export default function Commission({ userId, profileSlug, onLatestUpdate }: Comm
 
     const [loading, setLoading] = useState(true)
     const [members, setMembers] = useState<CommissionMember[]>([])
-    const [isExpanded, setIsExpanded] = useState(true)
+    const [isExpanded, setIsExpanded] = usePersistedExpanded('commission', true)
     const [copied, setCopied] = useState(false)
     const [showShareModal, setShowShareModal] = useState(false)
     const [shareLink, setShareLink] = useState('')
@@ -499,6 +500,11 @@ export default function Commission({ userId, profileSlug, onLatestUpdate }: Comm
 
                     {isExpanded && (
                         <div className="flex flex-col gap-5">
+                            {/* Carteira/saque/lançamentos são formulários estreitos — no
+                            desktop, deixar isso esticar a largura toda do card fica com
+                            muito espaço vazio, então trava numa largura de "mobile" e
+                            centraliza, igual já fazemos nas páginas de produto/loja. */}
+                            <div className="w-full md:max-w-md md:mx-auto flex flex-col gap-5">
                             {/* ===== CARTEIRA (saldo + saque) ===== */}
                             <div className="w-full rounded-2xl p-6 flex flex-col items-center gap-2" style={{ background: GRADIENT }}>
                                 <Wallet size={28} color="#fff" />
@@ -671,10 +677,11 @@ export default function Commission({ userId, profileSlug, onLatestUpdate }: Comm
                                 <UserPlus size={16} />
                                 Convidar
                             </button>
+                            </div>
 
                             {loading ? (
                                 <div
-                                    className="rounded-2xl p-8 text-center"
+                                    className="w-full md:max-w-md md:mx-auto rounded-2xl p-8 text-center"
                                     style={{
                                         background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
                                         border: `1px solid ${borderColor}`,
@@ -687,7 +694,7 @@ export default function Commission({ userId, profileSlug, onLatestUpdate }: Comm
                                 </div>
                             ) : members.length === 0 ? (
                                 <div
-                                    className="rounded-2xl p-6 text-center flex flex-col items-center gap-4"
+                                    className="w-full md:max-w-md md:mx-auto rounded-2xl p-6 text-center flex flex-col items-center gap-4"
                                     style={{
                                         background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
                                         border: `1px dashed ${borderColor}`,
@@ -709,7 +716,7 @@ export default function Commission({ userId, profileSlug, onLatestUpdate }: Comm
                                     </div>
                                 </div>
                             ) : (
-                                <div className="flex flex-col gap-3">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                     {members.map(member => {
                                         const avatarUrl = getImageUrl(member.avatar_url)
                                         const hasSales = member.sales.length > 0

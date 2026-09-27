@@ -45,6 +45,7 @@ import { isStoreOpenNow, getStoreStatusWithLunch, getNextOpeningInfo } from '@/l
 import StoreSchedule from '@/components/StoreSchedule'
 import { StoreDescription } from './StoreDescription'
 import { checkSlugAvailability } from '@/lib/slugUtils'
+import { usePersistedExpanded } from '@/hooks/usePersistedExpanded'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 const ROUTE_COLORS = ['#f97316', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#eab308']
@@ -143,7 +144,7 @@ export default function StoreDashboard({
     const [showScheduleModal, setShowScheduleModal] = useState(false)
 
     // ===== ESTADO PARA StoreDescription =====
-    const [isStoreDescriptionExpanded, setIsStoreDescriptionExpanded] = useState(true)
+    const [isStoreDescriptionExpanded, setIsStoreDescriptionExpanded] = usePersistedExpanded('storeDescription', true)
     const [savingDescription, setSavingDescription] = useState(false)
 
     // ===== ESTADOS PARA StoreDescription =====
