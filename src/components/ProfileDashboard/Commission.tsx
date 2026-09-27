@@ -502,13 +502,15 @@ export default function Commission({ userId, profileSlug, onLatestUpdate }: Comm
                         <div className="flex flex-col gap-5">
                             {/* Carteira/saque/lançamentos são formulários estreitos — no
                             desktop, deixar isso esticar a largura toda do card fica com
-                            muito espaço vazio, então trava numa largura de "mobile" e
-                            centraliza, igual já fazemos nas páginas de produto/loja. */}
-                            <div className="w-full md:max-w-md md:mx-auto flex flex-col gap-5">
-                            {/* ===== CARTEIRA (saldo + saque) ===== */}
-                            <div className="w-full rounded-2xl p-6 flex flex-col items-center gap-2" style={{ background: GRADIENT }}>
+                            muito espaço vazio. Trava numa largura de "mobile" e no
+                            desktop separa em duas colunas: o saldo na esquerda, o
+                            resto (saque, pedidos, lançamentos, convidar) na direita —
+                            no celular continua tudo empilhado numa coluna só. */}
+                            <div className="w-full md:max-w-2xl md:mx-auto flex flex-col gap-5 md:grid md:grid-cols-[220px_1fr] md:items-start md:gap-6">
+                            {/* ===== CARTEIRA (saldo) — esquerda no desktop ===== */}
+                            <div className="w-full rounded-2xl p-6 flex flex-col items-center gap-2 md:sticky md:top-4" style={{ background: GRADIENT }}>
                                 <Wallet size={28} color="#fff" />
-                                <span className="text-xs font-bold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.85)' }}>
+                                <span className="text-xs font-bold uppercase tracking-wider text-center" style={{ color: 'rgba(255,255,255,0.85)' }}>
                                     Saldo disponível
                                 </span>
                                 <span className="text-3xl font-black" style={{ color: '#fff' }}>
@@ -516,6 +518,8 @@ export default function Commission({ userId, profileSlug, onLatestUpdate }: Comm
                                 </span>
                             </div>
 
+                            {/* ===== Saque, pedidos, lançamentos, convidar — direita no desktop ===== */}
+                            <div className="flex flex-col gap-5 min-w-0">
                             {!showWithdrawForm ? (
                                 <div className="flex flex-col gap-2">
                                     <button
@@ -677,6 +681,7 @@ export default function Commission({ userId, profileSlug, onLatestUpdate }: Comm
                                 <UserPlus size={16} />
                                 Convidar
                             </button>
+                            </div>
                             </div>
 
                             {loading ? (
