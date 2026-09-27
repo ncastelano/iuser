@@ -17,8 +17,11 @@ import {
     Smartphone,
     Package,
     Tag,
+    ChevronDown,
+    ChevronUp,
 } from 'lucide-react'
 import { validateCampaignCode, calculateCampaignDiscountAmount, consumeCampaignCode, type CampaignDiscount } from '@/lib/campaignRedemption'
+import { usePersistedExpanded } from '@/hooks/usePersistedExpanded'
 
 interface Product {
     id: string
@@ -58,6 +61,7 @@ export default function ButtonInPersonSale({
     onSaleCompleted,
 }: ButtonInPersonSaleProps) {
     const { colors } = useTheme()
+    const [isExpanded, setIsExpanded] = usePersistedExpanded('buttonInPersonSale', true)
     const [products, setProducts] = useState<Product[]>([])
     const [searchQuery, setSearchQuery] = useState('')
     const [cart, setCart] = useState<CartItem[]>([])
@@ -216,8 +220,12 @@ export default function ButtonInPersonSale({
             className="mb-6 rounded-3xl border overflow-hidden"
             style={{ background: colors.surface, borderColor: colors.border, boxShadow: colors.shadow }}
         >
-            {/* Cabeçalho: sempre aberto, sem botão de abrir/fechar */}
-            <div className="flex items-center gap-3 px-4 py-3.5" style={{ background: GRADIENT }}>
+            {/* Cabeçalho — clicável, lembra se a pessoa deixou aberto ou fechado */}
+            <button
+                onClick={() => setIsExpanded(!isExpanded)}
+                className="w-full flex items-center gap-3 px-4 py-3.5 text-left"
+                style={{ background: GRADIENT, border: 'none', cursor: 'pointer' }}
+            >
                 <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0">
                     <ShoppingCart size={20} color="#ffffff" />
                 </div>
@@ -226,12 +234,18 @@ export default function ButtonInPersonSale({
                     <p className="text-[11px] text-white/80">Toque nos produtos para montar a venda do balcão</p>
                 </div>
                 {itemsCount > 0 && (
-                    <span className="px-2.5 py-1 rounded-full bg-white text-xs font-black" style={{ color: '#dc2626' }}>
+                    <span className="px-2.5 py-1 rounded-full bg-white text-xs font-black flex-shrink-0" style={{ color: '#dc2626' }}>
                         {itemsCount} {itemsCount === 1 ? 'item' : 'itens'}
                     </span>
                 )}
-            </div>
+                {isExpanded ? (
+                    <ChevronUp size={20} className="text-white flex-shrink-0" />
+                ) : (
+                    <ChevronDown size={20} className="text-white flex-shrink-0" />
+                )}
+            </button>
 
+            {isExpanded && (
             <div className="p-4 space-y-4">
                 {/* Busca */}
                 <div className="relative">
@@ -440,6 +454,7 @@ export default function ButtonInPersonSale({
                     </>
                 )}
             </div>
+            )}
         </div>
     )
 }

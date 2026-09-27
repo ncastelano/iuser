@@ -2,6 +2,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { usePersistedExpanded } from '@/hooks/usePersistedExpanded'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { toast } from 'sonner'
@@ -84,7 +85,7 @@ export default function StoreClubVip({ storeId }: StoreClubVipProps) {
     const surfaceRgb = hexToRgb(colors.surface)
     const fileInputRef = useRef<HTMLInputElement>(null)
 
-    const [isExpanded, setIsExpanded] = useState(true)
+    const [isExpanded, setIsExpanded] = usePersistedExpanded('storeClubVip', true)
     const [loading, setLoading] = useState(false)
     const [vipEnabled, setVipEnabled] = useState(false)
     const [vipPrice, setVipPrice] = useState<number | null>(null)

@@ -22,6 +22,8 @@ import {
     Store,
     TrendingUp,
     TrendingDown,
+    ChevronUp,
+    ChevronDown,
 } from 'lucide-react'
 import Employee from './Employee'
 import ButtonInPersonSale from './ButtonInPersonSale'
@@ -145,6 +147,7 @@ export default function StoreDashboard({
 
     // ===== ESTADO PARA StoreDescription =====
     const [isStoreDescriptionExpanded, setIsStoreDescriptionExpanded] = usePersistedExpanded('storeDescription', true)
+    const [isSalesExpanded, setIsSalesExpanded] = usePersistedExpanded('storeSales', true)
     const [savingDescription, setSavingDescription] = useState(false)
 
     // ===== ESTADOS PARA StoreDescription =====
@@ -674,21 +677,34 @@ export default function StoreDashboard({
                         boxShadow: colors.shadow,
                     }}
                 >
-                    <div className="flex items-center gap-3">
-                        <div
-                            className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
-                            style={{
-                                background: GRADIENT,
-                                color: '#ffffff',
-                            }}
-                        >
-                            <DollarSign size={24} />
+                    <button
+                        onClick={() => setIsSalesExpanded(!isSalesExpanded)}
+                        className="w-full flex items-center justify-between gap-3 text-left"
+                        style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}
+                    >
+                        <div className="flex items-center gap-3">
+                            <div
+                                className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
+                                style={{
+                                    background: GRADIENT,
+                                    color: '#ffffff',
+                                }}
+                            >
+                                <DollarSign size={24} />
+                            </div>
+                            <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
+                                Vendas
+                            </h3>
                         </div>
-                        <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
-                            Vendas
-                        </h3>
-                    </div>
+                        {isSalesExpanded ? (
+                            <ChevronUp size={22} style={{ color: colors.textSecondary }} className="flex-shrink-0" />
+                        ) : (
+                            <ChevronDown size={22} style={{ color: colors.textSecondary }} className="flex-shrink-0" />
+                        )}
+                    </button>
 
+                    {isSalesExpanded && (
+                    <>
                     <div className="grid grid-cols-3 gap-2">
                         {([
                             { label: 'Hoje', period: 'daily' as const, data: metrics.daily },
@@ -736,6 +752,8 @@ export default function StoreDashboard({
                             </div>
                         )
                     })()}
+                    </>
+                    )}
                 </div>
             </div>
 

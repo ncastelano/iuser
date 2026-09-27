@@ -4,6 +4,7 @@
 import { ReactNode, useMemo, useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { Plus, X, Earth, Lock, User, Store, Check, Eye, EyeOff, Clock, Calendar, ChevronDown, ChevronUp } from 'lucide-react'
+import { usePersistedExpanded } from '@/hooks/usePersistedExpanded'
 import { useAppointments, useDeleteAppointment } from '@/app/(main)/compromissos/dadosDoCompromisso'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
@@ -101,7 +102,7 @@ export default function AtalhoCompromissosDaLoja({
     const { userId } = useProfile()
 
     const [showPending, setShowPending] = useState(true)
-    const [isExpanded, setIsExpanded] = useState(false)
+    const [isExpanded, setIsExpanded] = usePersistedExpanded('atalhoCompromissosLoja', false)
 
     // Filtra apenas compromissos da loja (com store_id)
     const storeAppointments = useMemo(() => {

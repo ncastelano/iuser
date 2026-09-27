@@ -3,6 +3,7 @@
 'use client'
 
 import React, { useState } from 'react'
+import { usePersistedExpanded } from '@/hooks/usePersistedExpanded'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { toast } from 'sonner'
@@ -125,7 +126,7 @@ export default function Employee({
     const [deleteConfirmOpen, setDeleteConfirmOpen] = useState<EmployeeType | null>(null)
     const [deleting, setDeleting] = useState(false)
 
-    const [isExpanded, setIsExpanded] = useState(true)
+    const [isExpanded, setIsExpanded] = usePersistedExpanded('storeEmployees', true)
 
     // Guarda os tokens já gerados/lidos nesta sessão - onRefresh() do
     // dashboard não recarrega a lista de funcionários, então sem isso cada

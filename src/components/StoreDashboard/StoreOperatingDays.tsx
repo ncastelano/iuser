@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { toast } from 'sonner'
 import { X, Clock, ChevronDown, ChevronUp, AlertCircle, RefreshCw } from 'lucide-react'
+import { usePersistedExpanded } from '@/hooks/usePersistedExpanded'
 import { isStoreOpenNow, getStoreStatusWithLunch, getNextOpeningInfo } from '@/lib/storeHours'
 import { hexToRgb } from '@/lib/color'
 
@@ -67,7 +68,7 @@ export default function StoreOperatingDays({ storeId, onSaved }: StoreOperatingD
     const [blockedDateInput, setBlockedDateInput] = useState('')
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
-    const [isExpanded, setIsExpanded] = useState(true)
+    const [isExpanded, setIsExpanded] = usePersistedExpanded('storeOperatingDays', true)
     const [isRefreshing, setIsRefreshing] = useState(false)
 
     // ===== ESTADO PARA STATUS ATUAL =====

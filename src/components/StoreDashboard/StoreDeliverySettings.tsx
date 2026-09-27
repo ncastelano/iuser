@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { toast } from 'sonner'
 import { Truck, ChevronDown, ChevronUp, TrendingUp } from 'lucide-react'
+import { usePersistedExpanded } from '@/hooks/usePersistedExpanded'
 import { hexToRgb } from '@/lib/color'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
@@ -37,7 +38,7 @@ export default function StoreDeliverySettings({ storeId, onRefresh }: StoreDeliv
 
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
-    const [isExpanded, setIsExpanded] = useState(true)
+    const [isExpanded, setIsExpanded] = usePersistedExpanded('storeDeliverySettings', true)
 
     const [acceptsDelivery, setAcceptsDelivery] = useState(true)
     const [acceptsPickup, setAcceptsPickup] = useState(true)

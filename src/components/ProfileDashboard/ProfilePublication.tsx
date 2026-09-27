@@ -2,6 +2,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { usePersistedExpanded } from '@/hooks/usePersistedExpanded'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
@@ -72,7 +73,7 @@ export default function ProfilePublication({ profileId, profileSlug, isOwner = t
     const router = useRouter()
     const fileInputRef = useRef<HTMLInputElement>(null)
 
-    const [isExpanded, setIsExpanded] = useState(true)
+    const [isExpanded, setIsExpanded] = usePersistedExpanded('profilePublication', true)
     const [isCreating, setIsCreating] = useState(false)
     const [publications, setPublications] = useState<Publication[]>([])
     const [loading, setLoading] = useState(false)

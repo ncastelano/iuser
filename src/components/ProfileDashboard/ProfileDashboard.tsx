@@ -40,6 +40,8 @@ import {
     Image as ImageIcon,
     Camera,
     Palette,
+    ChevronUp,
+    ChevronDown,
 } from 'lucide-react'
 import AtalhoCompromissosPessoal from '@/app/(main)/compromissos/AtalhoCompromissosPessoal'
 import { ProfileInfo } from './ProfileInfo'
@@ -49,6 +51,7 @@ import ProfileServiceListing from './ProfileServiceListing'
 import Commission from './Commission'
 import DeleteConfirmDialog from '@/components/DeleteConfirmDialog'
 import { callAdminApi } from '@/lib/callAdminApi'
+import { usePersistedExpanded } from '@/hooks/usePersistedExpanded'
 import { format, subDays, startOfDay, eachDayOfInterval, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subMonths, addMonths } from 'date-fns'
 import { ptBR as ptBRLocale } from 'date-fns/locale'
 
@@ -104,6 +107,9 @@ export default function ProfileDashboard({
     const [spendingCache, setSpendingCache] = useState<Map<string, { data: { date: string; amount: number }[]; total: number; label: string }>>(new Map())
     const [dailySpendingData, setDailySpendingData] = useState<{ date: string; amount: number }[]>([])
     const [spendingPeriod, setSpendingPeriod] = useState<'week' | 'month'>('week')
+    const [isFinanceiroExpanded, setIsFinanceiroExpanded] = usePersistedExpanded('financeiro', true)
+    const [isRecentViewsExpanded, setIsRecentViewsExpanded] = usePersistedExpanded('produtosVisualizados', true)
+    const [isConfigExpanded, setIsConfigExpanded] = usePersistedExpanded('configuracoes', true)
     const [currentDate, setCurrentDate] = useState(new Date())
     const [totalPeriodSpent, setTotalPeriodSpent] = useState(0)
     const [periodLabel, setPeriodLabel] = useState('')
@@ -831,6 +837,40 @@ export default function ProfileDashboard({
 
     const financeiroNode = (
         <>
+            {/* Cabeçalho — clicável, lembra aberto/fechado; agrupa Gastos + Pedidos ativos + Compras/Favoritas/Avaliações */}
+            <div className="mb-3">
+                <button
+                    onClick={() => setIsFinanceiroExpanded(!isFinanceiroExpanded)}
+                    className="w-full rounded-2xl p-4 flex items-center justify-between gap-3 text-left"
+                    style={{
+                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
+                        backdropFilter: 'blur(12px)',
+                        border: `1px solid ${colors.border}`,
+                        boxShadow: colors.shadow,
+                        cursor: 'pointer',
+                    }}
+                >
+                    <div className="flex items-center gap-3">
+                        <div
+                            className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+                            style={{ background: GRADIENT, color: '#ffffff' }}
+                        >
+                            <DollarSign size={16} />
+                        </div>
+                        <h3 className="text-sm font-black" style={{ color: colors.textPrimary }}>
+                            Financeiro
+                        </h3>
+                    </div>
+                    {isFinanceiroExpanded ? (
+                        <ChevronUp size={18} style={{ color: colors.textSecondary }} className="flex-shrink-0" />
+                    ) : (
+                        <ChevronDown size={18} style={{ color: colors.textSecondary }} className="flex-shrink-0" />
+                    )}
+                </button>
+            </div>
+
+            {isFinanceiroExpanded && (
+            <>
             <div className="mb-6">
                 <div
                     className="rounded-2xl p-5"
@@ -1319,6 +1359,8 @@ export default function ProfileDashboard({
                     </div>
                 </div>
             </div>
+            </>
+            )}
         </>
     )
     const agendaNode = (
@@ -1463,13 +1505,25 @@ export default function ProfileDashboard({
                             boxShadow: colors.shadow,
                         }}
                     >
-                        <div className="flex items-center gap-2 mb-3">
-                            <Eye size={18} style={{ color: '#f97316' }} />
-                            <h3 className="text-sm font-black" style={{ color: colors.textPrimary }}>
-                                Vistos Recentemente
-                            </h3>
-                        </div>
+                        <button
+                            onClick={() => setIsRecentViewsExpanded(!isRecentViewsExpanded)}
+                            className="w-full flex items-center justify-between gap-2 mb-3 text-left"
+                            style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}
+                        >
+                            <div className="flex items-center gap-2">
+                                <Eye size={18} style={{ color: '#f97316' }} />
+                                <h3 className="text-sm font-black" style={{ color: colors.textPrimary }}>
+                                    Vistos Recentemente
+                                </h3>
+                            </div>
+                            {isRecentViewsExpanded ? (
+                                <ChevronUp size={18} style={{ color: colors.textSecondary }} className="flex-shrink-0" />
+                            ) : (
+                                <ChevronDown size={18} style={{ color: colors.textSecondary }} className="flex-shrink-0" />
+                            )}
+                        </button>
 
+                        {isRecentViewsExpanded && (
                         <div className="flex gap-2 overflow-x-auto pb-1">
                             {recentViews.map((view: any, idx: number) => (
                                 <div
@@ -1497,6 +1551,7 @@ export default function ProfileDashboard({
                                 </div>
                             ))}
                         </div>
+                        )}
                     </div>
                 </div>
             )}
@@ -1594,6 +1649,37 @@ export default function ProfileDashboard({
 
             {/* ===== CONFIGURAÇÕES (tema, plano de fundo, whatsapp, fonte) ===== */}
             <div ref={cfgSectionRef} className="mb-6 mt-4 space-y-6">
+                        <button
+                            onClick={() => setIsConfigExpanded(!isConfigExpanded)}
+                            className="w-full rounded-2xl p-4 flex items-center justify-between gap-3 text-left"
+                            style={{
+                                background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
+                                backdropFilter: 'blur(12px)',
+                                border: `1px solid ${colors.border}`,
+                                boxShadow: colors.shadow,
+                                cursor: 'pointer',
+                            }}
+                        >
+                            <div className="flex items-center gap-3">
+                                <div
+                                    className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+                                    style={{ background: GRADIENT, color: '#ffffff' }}
+                                >
+                                    <Settings size={16} />
+                                </div>
+                                <h3 className="text-sm font-black" style={{ color: colors.textPrimary }}>
+                                    Configurações
+                                </h3>
+                            </div>
+                            {isConfigExpanded ? (
+                                <ChevronUp size={18} style={{ color: colors.textSecondary }} className="flex-shrink-0" />
+                            ) : (
+                                <ChevronDown size={18} style={{ color: colors.textSecondary }} className="flex-shrink-0" />
+                            )}
+                        </button>
+
+                        {isConfigExpanded && (
+                        <>
                         {/* Tema do iUser */}
                         <div
                             className="rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4"
@@ -1959,6 +2045,8 @@ export default function ProfileDashboard({
                                 onConfirm={handleDeleteAccount}
                                 onClose={() => setShowDeleteAccount(false)}
                             />
+                        )}
+                        </>
                         )}
             </div>
         </div>

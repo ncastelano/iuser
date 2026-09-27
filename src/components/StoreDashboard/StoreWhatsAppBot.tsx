@@ -12,9 +12,10 @@ import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { toast } from 'sonner'
-import { MessageCircle, Check, Copy, Clock, Loader2, X, ShieldCheck, ArrowLeft } from 'lucide-react'
+import { MessageCircle, Check, Copy, Clock, Loader2, X, ShieldCheck, ArrowLeft, ChevronDown, ChevronUp } from 'lucide-react'
 import { hexToRgb } from '@/lib/color'
 import { Spinner } from '@/components/Spinner'
+import { usePersistedExpanded } from '@/hooks/usePersistedExpanded'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -34,6 +35,7 @@ export default function StoreWhatsAppBot({ storeId }: StoreWhatsAppBotProps) {
     const { colors } = useTheme()
     const surfaceRgb = hexToRgb(colors.surface)
 
+    const [isExpanded, setIsExpanded] = usePersistedExpanded('storeWhatsAppBot', true)
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
     const [optIn, setOptIn] = useState(false)
@@ -134,18 +136,31 @@ export default function StoreWhatsAppBot({ storeId }: StoreWhatsAppBotProps) {
 
     return (
         <div className="rounded-2xl p-6 flex flex-col gap-4" style={cardStyle}>
-            <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#fff' }}>
-                    <MessageCircle size={24} />
+            <button
+                onClick={() => setIsExpanded(!isExpanded)}
+                className="w-full flex items-center justify-between gap-3 text-left"
+                style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}
+            >
+                <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#fff' }}>
+                        <MessageCircle size={24} />
+                    </div>
+                    <div>
+                        <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>Atendimento automático por WhatsApp</h3>
+                        <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>
+                            Cliente conversa com o WhatsApp da sua loja e o bot responde: catálogo, horário, pedido e status — sozinho.
+                        </p>
+                    </div>
                 </div>
-                <div>
-                    <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>Atendimento automático por WhatsApp</h3>
-                    <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>
-                        Cliente conversa com o WhatsApp da sua loja e o bot responde: catálogo, horário, pedido e status — sozinho.
-                    </p>
-                </div>
-            </div>
+                {isExpanded ? (
+                    <ChevronUp size={22} style={{ color: colors.textSecondary }} className="flex-shrink-0" />
+                ) : (
+                    <ChevronDown size={22} style={{ color: colors.textSecondary }} className="flex-shrink-0" />
+                )}
+            </button>
 
+            {isExpanded && (
+            <>
             {phoneNumberId ? (
                 <div className="rounded-xl p-4 flex flex-col gap-2" style={{ background: '#22c55e15', border: '1px solid #22c55e40' }}>
                     <p className="text-xs font-black flex items-center gap-1.5" style={{ color: '#16a34a' }}>
@@ -288,6 +303,8 @@ export default function StoreWhatsAppBot({ storeId }: StoreWhatsAppBotProps) {
                         )}
                     </div>
                 </div>
+            )}
+            </>
             )}
         </div>
     )

@@ -4,6 +4,7 @@
 import { ReactNode, useMemo, useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { Plus, Check, X, Calendar, User, Lock, Earth, Eye, EyeOff, Clock, ChevronDown, ChevronUp } from 'lucide-react'
+import { usePersistedExpanded } from '@/hooks/usePersistedExpanded'
 import { useAppointments, useDeleteAppointment } from '@/app/(main)/compromissos/dadosDoCompromisso'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
@@ -134,7 +135,7 @@ export default function AtalhoCompromissosPessoal({
     const { userId } = useProfile()
 
     const [showPending, setShowPending] = useState(true)
-    const [isExpanded, setIsExpanded] = useState(true)
+    const [isExpanded, setIsExpanded] = usePersistedExpanded('agendaPessoal', true)
 
     // ===== HORÁRIOS PERMITIDOS PARA AGENDAMENTOS =====
     const [hoursExpanded, setHoursExpanded] = useState(false)

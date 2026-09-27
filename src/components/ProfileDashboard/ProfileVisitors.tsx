@@ -16,10 +16,13 @@ import {
     Tablet,
     BarChart3,
     ExternalLink,
+    ChevronDown,
+    ChevronUp,
 } from 'lucide-react'
 import { format, formatDistanceToNow, subDays, startOfDay, eachDayOfInterval } from 'date-fns'
 import { ptBR as ptBRLocale } from 'date-fns/locale'
 import { useRouter } from 'next/navigation'
+import { usePersistedExpanded } from '@/hooks/usePersistedExpanded'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -52,6 +55,7 @@ export default function ProfileVisitors({ profileId, onLatestUpdate }: ProfileVi
     const surfaceRgb = hexToRgb(colors.surface)
     const router = useRouter()
 
+    const [isExpanded, setIsExpanded] = usePersistedExpanded('profileVisitors', true)
     const [loading, setLoading] = useState(true)
     const [period, setPeriod] = useState<Period>('7days')
 
@@ -273,46 +277,59 @@ export default function ProfileVisitors({ profileId, onLatestUpdate }: ProfileVi
                     boxShadow: colors.shadow,
                 }}
             >
-                {/* Cabeçalho com ícone arredondado */}
-                <div className="flex items-center gap-3">
-                    <div
-                        className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
-                        style={{
-                            background: GRADIENT,
-                            color: '#ffffff',
-                        }}
-                    >
-                        <Users size={24} />
-                    </div>
-                    <div>
-                        <h3 className="text-lg font-black" style={{ color: textPrimary }}>
-                            Visitantes do Perfil
-                        </h3>
-                        <div className="flex items-center gap-3 text-xs mt-0.5" style={{ color: textSecondary }}>
-                            <span>
-                                <span className="font-bold" style={{ color: '#f97316' }}>
-                                    {totalUnique}
-                                </span>{' '}
-                                únicos
-                            </span>
-                            <span>•</span>
-                            <span>
-                                <span className="font-bold" style={{ color: '#10b981' }}>
-                                    {todayVisitors}
-                                </span>{' '}
-                                hoje
-                            </span>
-                            <span>•</span>
-                            <span>
-                                <span className="font-bold" style={{ color: '#f59e0b' }}>
-                                    {onlineNow}
-                                </span>{' '}
-                                online
-                            </span>
+                {/* Cabeçalho com ícone arredondado — clicável, lembra aberto/fechado */}
+                <button
+                    onClick={() => setIsExpanded(!isExpanded)}
+                    className="w-full flex items-center justify-between gap-3 text-left"
+                    style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}
+                >
+                    <div className="flex items-center gap-3">
+                        <div
+                            className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
+                            style={{
+                                background: GRADIENT,
+                                color: '#ffffff',
+                            }}
+                        >
+                            <Users size={24} />
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-black" style={{ color: textPrimary }}>
+                                Visitantes do Perfil
+                            </h3>
+                            <div className="flex items-center gap-3 text-xs mt-0.5" style={{ color: textSecondary }}>
+                                <span>
+                                    <span className="font-bold" style={{ color: '#f97316' }}>
+                                        {totalUnique}
+                                    </span>{' '}
+                                    únicos
+                                </span>
+                                <span>•</span>
+                                <span>
+                                    <span className="font-bold" style={{ color: '#10b981' }}>
+                                        {todayVisitors}
+                                    </span>{' '}
+                                    hoje
+                                </span>
+                                <span>•</span>
+                                <span>
+                                    <span className="font-bold" style={{ color: '#f59e0b' }}>
+                                        {onlineNow}
+                                    </span>{' '}
+                                    online
+                                </span>
+                            </div>
                         </div>
                     </div>
-                </div>
+                    {isExpanded ? (
+                        <ChevronUp size={22} style={{ color: textSecondary }} className="flex-shrink-0" />
+                    ) : (
+                        <ChevronDown size={22} style={{ color: textSecondary }} className="flex-shrink-0" />
+                    )}
+                </button>
 
+                {isExpanded && (
+                <>
                 {/* Métricas principais - PILL */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     <div className="p-3 rounded-full border" style={{ borderColor: colors.border, background: cardStyle.background }}>
@@ -500,6 +517,8 @@ export default function ProfileVisitors({ profileId, onLatestUpdate }: ProfileVi
                             </p>
                         )}
                     </div>
+                )}
+                </>
                 )}
             </div>
         </div>

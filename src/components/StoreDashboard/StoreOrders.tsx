@@ -2,6 +2,7 @@
 'use client'
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { usePersistedExpanded } from '@/hooks/usePersistedExpanded'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { toast } from 'sonner'
@@ -148,7 +149,7 @@ export default function StoreOrders({
         dispatchedIds: dispatchedOrderIds,
         onCall: (order: any) => setCallDriverOrder(order),
     }
-    const [isOrdersExpanded, setIsOrdersExpanded] = useState(true)
+    const [isOrdersExpanded, setIsOrdersExpanded] = usePersistedExpanded('storeOrders', true)
 
     // Ref para evitar múltiplas chamadas
     const isLoadingRef = useRef(false)

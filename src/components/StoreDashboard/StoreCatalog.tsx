@@ -13,6 +13,7 @@ import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { hexToRgb } from '@/lib/color'
 import { Package, Wrench, ChevronDown, ChevronUp, Plus, Pencil, ArrowUpDown } from 'lucide-react'
+import { usePersistedExpanded } from '@/hooks/usePersistedExpanded'
 import { startOfDay } from 'date-fns'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -56,7 +57,7 @@ export default function StoreCatalog({ storeId, storeSlug, kind }: StoreCatalogP
 
     const [items, setItems] = useState<CatalogItem[]>([])
     const [loading, setLoading] = useState(true)
-    const [isExpanded, setIsExpanded] = useState(true)
+    const [isExpanded, setIsExpanded] = usePersistedExpanded(`storeCatalog_${kind}`, true)
     const [sortBy, setSortBy] = useState<'mostSold' | 'leastSold' | 'mostExpensive' | 'cheapest'>('mostSold')
 
     const load = useCallback(async () => {
