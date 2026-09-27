@@ -499,13 +499,8 @@ export default function Commission({ userId, profileSlug, onLatestUpdate }: Comm
                     </button>
 
                     {isExpanded && (
-                        <div className="flex flex-col gap-5 md:grid md:grid-cols-2 md:gap-6 md:items-start">
-                            {/* Coluna esquerda no desktop: a carteira inteira (saldo,
-                            saque, pedidos, lançamentos, convidar), do mesmo jeito que
-                            já era antes — só passa a ficar do lado da lista de
-                            indicados em vez de em cima dela. No celular continua
-                            tudo empilhado numa coluna só. */}
-                            <div className="flex flex-col gap-5">
+                        <div className="flex flex-col gap-5">
+                            {/* ===== CARTEIRA (saldo + saque) ===== */}
                             <div className="w-full rounded-2xl p-6 flex flex-col items-center gap-2" style={{ background: GRADIENT }}>
                                 <Wallet size={28} color="#fff" />
                                 <span className="text-xs font-bold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.85)' }}>
@@ -677,13 +672,10 @@ export default function Commission({ userId, profileSlug, onLatestUpdate }: Comm
                                 <UserPlus size={16} />
                                 Convidar
                             </button>
-                            </div>
 
-                            {/* Coluna direita no desktop: lista de indicados (o que
-                            já era "as duas colunas debaixo") */}
                             {loading ? (
                                 <div
-                                    className="w-full rounded-2xl p-8 text-center"
+                                    className="rounded-2xl p-8 text-center"
                                     style={{
                                         background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
                                         border: `1px solid ${borderColor}`,
@@ -696,7 +688,7 @@ export default function Commission({ userId, profileSlug, onLatestUpdate }: Comm
                                 </div>
                             ) : members.length === 0 ? (
                                 <div
-                                    className="w-full rounded-2xl p-6 text-center flex flex-col items-center gap-4"
+                                    className="rounded-2xl p-6 text-center flex flex-col items-center gap-4"
                                     style={{
                                         background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
                                         border: `1px dashed ${borderColor}`,
@@ -718,7 +710,7 @@ export default function Commission({ userId, profileSlug, onLatestUpdate }: Comm
                                     </div>
                                 </div>
                             ) : (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div className="flex flex-col gap-3">
                                     {members.map(member => {
                                         const avatarUrl = getImageUrl(member.avatar_url)
                                         const hasSales = member.sales.length > 0
