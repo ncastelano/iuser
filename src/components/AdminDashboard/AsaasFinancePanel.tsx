@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { Spinner } from '@/components/Spinner'
 import { callAdminApi } from '@/lib/callAdminApi'
-import { Landmark, RefreshCw, Wallet, HandCoins, TrendingUp, AlertTriangle, Pencil, History, ArrowDownCircle, ArrowUpCircle, CircleDollarSign } from 'lucide-react'
+import { Landmark, RefreshCw, Wallet, HandCoins, TrendingUp, AlertTriangle, Pencil, History, ArrowDownCircle, ArrowUpCircle } from 'lucide-react'
 import type { ThemeColors } from '@/app/contexts/theme'
 import { ExpenseForm, type ExpenseRow } from './ExpenseForm'
 
@@ -34,22 +34,35 @@ interface AsaasOverview {
     asaasBalanceError: string | null
     isSandbox: boolean
     expense: ExpenseRow | null
+    receivedGrossTotal: number
+    receivedNetTotal: number
+    asaasFeesTotal: number
+    pendingPaymentsTotal: number
+    overduePaymentsTotal: number
+    asaasActivityError: string | null
     activity: ActivityItem[]
 }
 
 interface ActivityItem {
-    type: 'subscription_payment' | 'postpaid_payment' | 'withdrawal'
+    kind: 'payment' | 'transfer'
+    status: string
     date: string
-    amount: number
+    value: number
+    netValue: number
     personName: string | null
     detail: string | null
+    linked: boolean
     asaasId: string | null
 }
 
-const ACTIVITY_LABEL: Record<ActivityItem['type'], string> = {
-    subscription_payment: 'Assinatura recebida',
-    postpaid_payment: 'Pós-pago quitado',
-    withdrawal: 'Saque pago',
+const STATUS_LABEL: Record<string, { label: string; color: string }> = {
+    RECEIVED: { label: 'recebido', color: '#22c55e' },
+    CONFIRMED: { label: 'confirmado', color: '#22c55e' },
+    DONE: { label: 'concluído', color: '#22c55e' },
+    PENDING: { label: 'pendente', color: '#94a3b8' },
+    OVERDUE: { label: 'vencido', color: '#ef4444' },
+    REFUNDED: { label: 'estornado', color: '#ef4444' },
+    FAILED: { label: 'falhou', color: '#ef4444' },
 }
 
 function money(v: number | null | undefined): string {
@@ -158,6 +171,16 @@ export default function AsaasFinancePanel({ cardStyle, colors }: AsaasFinancePan
                                 {overview.asaasBalanceError || 'Não configurado'}
                             </p>
                         )}
+                        {row('Recebido bruto (últimas 20 cobranças)', money(overview.receivedGrossTotal))}
+                        {row('Taxa da Asaas descontada', `-${money(overview.asaasFeesTotal)}`, { color: '#ef4444' })}
+                        {row('Ficou líquido pra plataforma', money(overview.receivedNetTotal), { color: '#22c55e' })}
+                        {(overview.pendingPaymentsTotal > 0 || overview.overduePaymentsTotal > 0) && (
+                            <p className="text-[9px] pt-0.5" style={{ color: colors.textSecondary }}>
+                                {overview.pendingPaymentsTotal > 0 && `${money(overview.pendingPaymentsTotal)} pendente`}
+                                {overview.pendingPaymentsTotal > 0 && overview.overduePaymentsTotal > 0 && ' · '}
+                                {overview.overduePaymentsTotal > 0 && `${money(overview.overduePaymentsTotal)} vencido, não recebido`}
+                            </p>
+                        )}
                     </div>
 
                     {/* ===== 2. Na aplicação (nosso banco) ===== */}
@@ -218,29 +241,46 @@ export default function AsaasFinancePanel({ cardStyle, colors }: AsaasFinancePan
                             <History size={11} /> Atividade recente na Asaas
                         </p>
                         <p className="text-[9px] -mt-1" style={{ color: colors.textSecondary }}>
-                            Cada linha é uma cobrança ou transferência real que passou pela Asaas (rastreada pelo ID deles).
+                            Direto da Asaas (últimas 20 cobranças + transferências) — inclui até cobrança criada manualmente
+                            no dashboard deles. "Fora do app" = não bate com nenhuma assinatura/saque registrado no nosso banco.
                         </p>
+                        {overview.asaasActivityError && (
+                            <p className="text-[10px] py-1" style={{ color: '#ef4444' }}>{overview.asaasActivityError}</p>
+                        )}
                         {overview.activity.length === 0 ? (
                             <p className="text-[10px] py-2" style={{ color: colors.textSecondary }}>Nenhuma atividade ainda.</p>
                         ) : overview.activity.map((a, i) => {
-                            const isOutflow = a.type === 'withdrawal'
-                            const Icon = isOutflow ? ArrowUpCircle : a.type === 'postpaid_payment' ? CircleDollarSign : ArrowDownCircle
+                            const isOutflow = a.kind === 'transfer'
+                            const Icon = isOutflow ? ArrowUpCircle : ArrowDownCircle
+                            const statusInfo = STATUS_LABEL[a.status] || { label: a.status.toLowerCase(), color: colors.textSecondary }
+                            const isReceived = a.status === 'RECEIVED' || a.status === 'CONFIRMED' || a.status === 'DONE'
                             return (
-                                <div key={`${a.type}-${a.asaasId}-${i}`} className="flex items-center justify-between gap-2 text-[11px] py-1">
+                                <div key={`${a.kind}-${a.asaasId}-${i}`} className="flex items-center justify-between gap-2 text-[11px] py-1">
                                     <div className="flex items-center gap-2 min-w-0">
-                                        <Icon size={14} style={{ color: isOutflow ? '#ef4444' : '#22c55e', flexShrink: 0 }} />
+                                        <Icon size={14} style={{ color: statusInfo.color, flexShrink: 0 }} />
                                         <div className="min-w-0">
-                                            <p className="font-bold truncate" style={{ color: colors.textPrimary }}>
-                                                {ACTIVITY_LABEL[a.type]}{a.personName && ` · ${a.personName}`}
+                                            <p className="font-bold truncate flex items-center gap-1" style={{ color: colors.textPrimary }}>
+                                                {isOutflow ? 'Transferência' : 'Cobrança'}{a.personName && ` · ${a.personName}`}
+                                                <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ background: `${statusInfo.color}20`, color: statusInfo.color }}>
+                                                    {statusInfo.label}
+                                                </span>
+                                                {!a.linked && (
+                                                    <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ background: `${colors.border}30`, color: colors.textSecondary }}>
+                                                        fora do app
+                                                    </span>
+                                                )}
                                             </p>
                                             <p className="text-[9px] truncate" style={{ color: colors.textSecondary }}>
-                                                {new Date(a.date).toLocaleDateString('pt-BR')}
+                                                {new Date(a.date + 'T00:00:00').toLocaleDateString('pt-BR')}
                                                 {a.detail && ` · ${a.detail}`}
                                             </p>
                                         </div>
                                     </div>
-                                    <span className="font-black flex-shrink-0" style={{ color: isOutflow ? '#ef4444' : '#22c55e' }}>
-                                        {isOutflow ? '-' : '+'}{money(a.amount)}
+                                    <span className="font-black flex-shrink-0 text-right" style={{ color: isOutflow ? '#ef4444' : isReceived ? '#22c55e' : colors.textSecondary }}>
+                                        {isOutflow ? '-' : '+'}{money(a.value)}
+                                        {!isOutflow && a.value !== a.netValue && (
+                                            <span className="block text-[8px] font-normal" style={{ color: colors.textSecondary }}>líquido {money(a.netValue)}</span>
+                                        )}
                                     </span>
                                 </div>
                             )

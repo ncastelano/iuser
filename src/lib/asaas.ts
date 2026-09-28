@@ -203,6 +203,44 @@ export async function getBalance(): Promise<AsaasBalance> {
     return asaasFetch<AsaasBalance>('/finance/balance')
 }
 
+export interface AsaasPaymentListItem {
+    id: string
+    dateCreated: string
+    value: number
+    netValue: number
+    status: string
+    description: string | null
+    subscription: string | null
+    externalReference: string | null
+}
+
+// Lista bruta de cobranças na Asaas — pega qualquer cobrança que exista lá,
+// mesmo uma criada manualmente no dashboard deles (fora do fluxo de compra
+// do app, sem subscriptions.id correspondente no nosso banco). É a única
+// forma de mapear "o que foi feito na Asaas" de verdade, já que uma
+// cobrança avulsa criada direto lá nunca aparece em subscription_payments.
+export async function listPayments(limit = 20): Promise<AsaasPaymentListItem[]> {
+    const result = await asaasFetch<{ data: AsaasPaymentListItem[] }>(`/payments?limit=${limit}&order=desc&sort=dateCreated`)
+    return result.data || []
+}
+
+export interface AsaasTransferListItem {
+    id: string
+    dateCreated: string
+    value: number
+    netValue: number
+    status: string
+    description: string | null
+}
+
+// Lista de transferências (saques) feitas na conta Asaas — inclui tanto
+// saque automático via /wallet/request-withdrawal quanto qualquer
+// transferência manual feita direto no dashboard deles.
+export async function listTransfers(limit = 20): Promise<AsaasTransferListItem[]> {
+    const result = await asaasFetch<{ data: AsaasTransferListItem[] }>(`/transfers?limit=${limit}&order=desc&sort=dateCreated`)
+    return result.data || []
+}
+
 export type AsaasPixKeyType = 'CPF' | 'CNPJ' | 'EMAIL' | 'PHONE' | 'EVP'
 
 interface AsaasTransfer {

@@ -2,14 +2,17 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { requireSuperAdmin } from '@/lib/adminAuth'
-import { getBalance } from '@/lib/asaas'
+import { getBalance, listPayments, listTransfers } from '@/lib/asaas'
 
 // Mapeamento financeiro do Asaas pro painel Financeiro > Asaas: o que está
-// na conta Asaas de verdade (externo, via API deles), o que está no nosso
-// banco (assinaturas + pós-pago) e o que devemos/nos devem (carteira +
-// dívida de pós-pago). Tudo calculado em get_asaas_financial_overview()
-// (uma função só, ver migration 20261012000000) exceto o saldo Asaas, que
-// só existe do lado deles.
+// na conta Asaas de verdade (externo, via API deles — saldo, cobranças e
+// transferências reais, mesmo as feitas direto no dashboard deles), o que
+// está no nosso banco (assinaturas + pós-pago) e o que devemos/nos devem
+// (carteira + dívida de pós-pago). Os totais agregados por usuário vêm de
+// get_asaas_financial_overview() (migration 20261012000000); a atividade
+// e os totais de recebido/taxa vêm direto da API da Asaas, porque uma
+// cobrança criada manualmente lá (fora do fluxo de compra do app) nunca
+// aparece em subscription_payments.
 export async function POST(req: Request) {
     const admin = await requireSuperAdmin(req)
     if (!admin) {
@@ -44,58 +47,82 @@ export async function POST(req: Request) {
         .eq('service_name', 'Asaas')
         .maybeSingle()
 
-    // Atividade recente: o que de fato aconteceu na Asaas, não só os totais
-    // agregados acima — cada linha aqui corresponde a uma cobrança ou
-    // transferência real que passou pela API deles (asaas_payment_id /
-    // asaas_transfer_id), pra dar rastreabilidade de "o que foi feito lá".
-    const [subPayments, postpaidPayments, paidWithdrawals] = await Promise.all([
-        supabaseAdmin
-            .from('subscription_payments')
-            .select('id, amount, created_at, asaas_payment_id, subscriptions(profiles:user_id(name), plans(name))')
-            .order('created_at', { ascending: false })
-            .limit(15),
-        supabaseAdmin
-            .from('driver_postpaid_charges')
-            .select('id, amount, created_at, asaas_payment_id, profiles:driver_id(name)')
-            .eq('type', 'payment')
-            .order('created_at', { ascending: false })
-            .limit(15),
-        supabaseAdmin
-            .from('withdrawal_requests')
-            .select('id, amount, resolved_at, asaas_transfer_id, profiles:user_id(name)')
-            .eq('status', 'paid')
-            .order('resolved_at', { ascending: false })
-            .limit(15),
+    // Atividade e totais de verdade direto da Asaas — não só o que o nosso
+    // banco registrou. Uma cobrança criada manualmente no dashboard deles
+    // (fora do fluxo de compra do app, sem subscriptions.id correspondente)
+    // nunca aparece em subscription_payments, então olhar só o nosso banco
+    // sub-representa o que de fato aconteceu na conta. netValue já vem sem
+    // a taxa da Asaas — é o que efetivamente ficou pra plataforma.
+    let payments: Awaited<ReturnType<typeof listPayments>> = []
+    let transfers: Awaited<ReturnType<typeof listTransfers>> = []
+    let asaasActivityError: string | null = null
+    try {
+        ;[payments, transfers] = await Promise.all([listPayments(20), listTransfers(20)])
+    } catch (err: any) {
+        asaasActivityError = err.message || 'Erro ao consultar atividade na Asaas'
+    }
+
+    const receivedPayments = payments.filter((p) => p.status === 'RECEIVED' || p.status === 'CONFIRMED')
+    const receivedGrossTotal = receivedPayments.reduce((sum, p) => sum + Number(p.value), 0)
+    const receivedNetTotal = receivedPayments.reduce((sum, p) => sum + Number(p.netValue), 0)
+    const asaasFeesTotal = receivedGrossTotal - receivedNetTotal
+    const pendingPaymentsTotal = payments.filter((p) => p.status === 'PENDING').reduce((sum, p) => sum + Number(p.value), 0)
+    const overduePaymentsTotal = payments.filter((p) => p.status === 'OVERDUE').reduce((sum, p) => sum + Number(p.value), 0)
+
+    // Pra dizer se cada cobrança/transferência da Asaas tem um registro
+    // correspondente no nosso banco (comprou pelo app) ou foi feita direto
+    // no dashboard deles (ex: assinatura de teste avulsa).
+    const subExternalRefs = payments.map((p) => p.externalReference).filter(Boolean) as string[]
+    const paymentIds = payments.map((p) => p.id)
+    const transferIds = transfers.map((t) => t.id)
+    const [subsLookup, postpaidLookup, withdrawalsLookup] = await Promise.all([
+        subExternalRefs.length
+            ? supabaseAdmin.from('subscriptions').select('id, profiles:user_id(name), plans(name)').in('id', subExternalRefs)
+            : Promise.resolve({ data: [] as any[] }),
+        paymentIds.length
+            ? supabaseAdmin.from('driver_postpaid_charges').select('asaas_payment_id, profiles:driver_id(name)').in('asaas_payment_id', paymentIds)
+            : Promise.resolve({ data: [] as any[] }),
+        transferIds.length
+            ? supabaseAdmin.from('withdrawal_requests').select('asaas_transfer_id, profiles:user_id(name)').in('asaas_transfer_id', transferIds)
+            : Promise.resolve({ data: [] as any[] }),
     ])
+    const subMap = new Map((subsLookup.data || []).map((s: any) => [s.id, s]))
+    const postpaidMap = new Map((postpaidLookup.data || []).map((p: any) => [p.asaas_payment_id, p]))
+    const withdrawalMap = new Map((withdrawalsLookup.data || []).map((w: any) => [w.asaas_transfer_id, w]))
 
     const activity = [
-        ...(subPayments.data || []).map((p: any) => ({
-            type: 'subscription_payment' as const,
-            date: p.created_at,
-            amount: Number(p.amount),
-            personName: p.subscriptions?.profiles?.name || null,
-            detail: p.subscriptions?.plans?.name || null,
-            asaasId: p.asaas_payment_id,
-        })),
-        ...(postpaidPayments.data || []).map((p: any) => ({
-            type: 'postpaid_payment' as const,
-            date: p.created_at,
-            amount: Math.abs(Number(p.amount)),
-            personName: p.profiles?.name || null,
-            detail: null,
-            asaasId: p.asaas_payment_id,
-        })),
-        ...(paidWithdrawals.data || []).map((w: any) => ({
-            type: 'withdrawal' as const,
-            date: w.resolved_at,
-            amount: Number(w.amount),
-            personName: w.profiles?.name || null,
-            detail: null,
-            asaasId: w.asaas_transfer_id,
-        })),
+        ...payments.map((p) => {
+            const sub = p.externalReference ? subMap.get(p.externalReference) : null
+            const postpaid = postpaidMap.get(p.id)
+            return {
+                kind: 'payment' as const,
+                status: p.status,
+                date: p.dateCreated,
+                value: Number(p.value),
+                netValue: Number(p.netValue),
+                personName: (sub as any)?.profiles?.name || (postpaid as any)?.profiles?.name || null,
+                detail: (sub as any)?.plans?.name || p.description || null,
+                linked: !!(sub || postpaid),
+                asaasId: p.id,
+            }
+        }),
+        ...transfers.map((t) => {
+            const wd = withdrawalMap.get(t.id)
+            return {
+                kind: 'transfer' as const,
+                status: t.status,
+                date: t.dateCreated,
+                value: Number(t.value),
+                netValue: Number(t.netValue),
+                personName: (wd as any)?.profiles?.name || null,
+                detail: t.description,
+                linked: !!wd,
+                asaasId: t.id,
+            }
+        }),
     ]
         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-        .slice(0, 15)
+        .slice(0, 20)
 
     return NextResponse.json({
         ...data,
@@ -103,6 +130,12 @@ export async function POST(req: Request) {
         asaasBalanceError,
         isSandbox,
         expense: expenseRow || null,
+        receivedGrossTotal,
+        receivedNetTotal,
+        asaasFeesTotal,
+        pendingPaymentsTotal,
+        overduePaymentsTotal,
+        asaasActivityError,
         activity,
     })
 }
