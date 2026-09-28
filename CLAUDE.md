@@ -14,6 +14,16 @@ Esse projeto **não usa** o `middleware.ts` padrão do Next.js — o roteamento 
 
 **Sempre que criar uma página nova de 1 segmento na raiz** (`/algo`, ex: `/meus-servicos`, `/planos`), adicione o caminho em `IGNORED_ROUTES` em `src/proxy.ts`. Sem isso, o proxy tenta casar `/algo` com `profiles.profileSlug` / `stores.storeSlug`, não acha, e redireciona pra "Perfil ou loja não encontrado" — a página existe mas nunca é alcançada em produção (em dev o proxy deixa passar de qualquer jeito, então o bug só aparece depois do deploy). Rotas aninhadas (`/algo/[param]`) normalmente não precisam disso — só a raiz de 1 segmento é verificada contra perfil/loja.
 
+## Telemetria própria de Egress/Realtime — não mexer sem saber
+
+O Supabase não expõe Egress nem Realtime Messages por nenhuma API pública documentada (confirmado testando ao vivo os endpoints da Management API — ver commit `b1b81d8`). Por isso o iUser mede isso sozinho:
+
+- `src/lib/usageTelemetry.ts` acumula bytes/mensagens em memória no navegador e manda pro banco a cada 20s via RPC `track_usage` (SECURITY DEFINER, grava em `usage_telemetry_daily`).
+- `src/lib/supabase/client.ts` é o único ponto de instrumentação: um `fetch` customizado mede o tamanho de toda resposta (Egress), e `.channel()` é envolvido uma vez só pra contar toda mensagem de Realtime recebida (`.on(...)` callback). Isso cobre o app inteiro automaticamente — **não precisa (e não deve) instrumentar chamada por chamada** nos ~17 arquivos que usam `.channel()` nem nos componentes que usam `supabase.from(...)`.
+- Painel: `src/components/AdminDashboard/SupabaseUsagePanel.tsx`, sincronizado a cada carregamento via `/api/admin/expenses/supabase-stats`. É aproximado (não bate com o número exato do Supabase, que conta overhead de protocolo) — serve pra ver a tendência de crescimento, não pra bater com a fatura.
+
+Se `src/lib/supabase/client.ts` for reescrito no futuro (ex: trocar `createBrowserClient` por outra forma de inicializar o client), **preserva o `global: { fetch: trackedFetch }` e o wrap de `.channel()`**, ou a telemetria para de funcionar silenciosamente (sem erro, só para de contar).
+
 ## Supabase CLI e o token do MCP
 
 O MCP do Supabase (`.mcp.json`) usa um token só de leitura (`SUPABASE_ACCESS_TOKEN`, configurado em `.claude/settings.local.json`, não versionado). Esse mesmo env var também é lido pelo `npx supabase` (CLI) e, sendo só leitura, **quebra `supabase db push`** com erro 403 (`Missing required permission(s): database_write`).
