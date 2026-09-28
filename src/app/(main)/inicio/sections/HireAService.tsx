@@ -51,11 +51,12 @@ export default function HireAService({ dragHandle }: HireAServiceProps) {
         boxShadow: 'none',
     }
 
-    // Publicar leva pro próprio perfil (onde fica "Meus serviços publicados",
-    // no ProfileDashboard) — sem perfil ainda (visitante), manda pro login.
+    // Publicar leva pra /meus-servicos — página dedicada que junta os
+    // serviços da(s) loja(s) da pessoa com os pessoais (antes mandava pro
+    // perfil e só mostrava a parte pessoal). Sem perfil ainda, manda pro login.
     const goPublish = () => {
         startNavProgress()
-        router.push(profileSlug ? `/${profileSlug}` : '/login')
+        router.push(profileSlug ? '/meus-servicos' : '/login')
     }
 
     return (
