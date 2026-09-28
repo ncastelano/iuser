@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { Spinner } from '@/components/Spinner'
 import { callAdminApi } from '@/lib/callAdminApi'
-import { Database, ExternalLink, Pencil, RefreshCw, Table2, AlertTriangle } from 'lucide-react'
+import { Database, ExternalLink, Pencil, RefreshCw, Table2, AlertTriangle, Activity } from 'lucide-react'
 import type { ThemeColors } from '@/app/contexts/theme'
 
 const SUPABASE_PROJECT_REF = 'mqtwehsmkuknkrtrqbnf'
@@ -29,6 +29,15 @@ interface DbStats {
     top_tables: TopTable[]
     planName: string | null
     cycleEndsAt: string | null
+}
+
+interface RequestCounts {
+    configured: boolean
+    windowHours?: number
+    auth?: number
+    realtime?: number
+    rest?: number
+    storage?: number
 }
 
 interface UsageMetric {
@@ -67,6 +76,8 @@ function usageColor(used: number, included: number): string {
 export default function SupabaseUsagePanel({ cardStyle, colors }: SupabaseUsagePanelProps) {
     const [dbStats, setDbStats] = useState<DbStats | null>(null)
     const [loadingStats, setLoadingStats] = useState(true)
+    const [requests, setRequests] = useState<RequestCounts | null>(null)
+    const [loadingRequests, setLoadingRequests] = useState(true)
     const [metrics, setMetrics] = useState<UsageMetric[]>([])
     const [loadingMetrics, setLoadingMetrics] = useState(true)
     const [editingId, setEditingId] = useState<string | null>(null)
@@ -87,6 +98,18 @@ export default function SupabaseUsagePanel({ cardStyle, colors }: SupabaseUsageP
         }
     }, [])
 
+    const loadRequests = useCallback(async () => {
+        setLoadingRequests(true)
+        try {
+            const res = await callAdminApi<RequestCounts>('/api/admin/expenses/supabase-requests')
+            setRequests(res)
+        } catch (err: any) {
+            toast.error(err.message || 'Erro ao carregar requisições')
+        } finally {
+            setLoadingRequests(false)
+        }
+    }, [])
+
     const loadMetrics = useCallback(async () => {
         setLoadingMetrics(true)
         try {
@@ -104,7 +127,8 @@ export default function SupabaseUsagePanel({ cardStyle, colors }: SupabaseUsageP
         // ler a lista — se rodassem em paralelo, loadMetrics podia pegar o
         // valor antigo dessas duas métricas por uma corrida de carregamento.
         loadStats().then(loadMetrics)
-    }, [loadStats, loadMetrics])
+        loadRequests()
+    }, [loadStats, loadMetrics, loadRequests])
 
     const startEdit = (m: UsageMetric) => {
         setEditingId(m.id)
@@ -232,6 +256,36 @@ export default function SupabaseUsagePanel({ cardStyle, colors }: SupabaseUsageP
                         </div>
                     ))}
                 </div>
+            )}
+
+            {/* ===== Auto: requisições por serviço (API de administração do Supabase) ===== */}
+            {!loadingRequests && requests?.configured && (
+                <div className="space-y-1.5 pt-2 border-t" style={{ borderColor: colors.border }}>
+                    <p className="text-[10px] font-black uppercase tracking-wider flex items-center gap-1" style={{ color: colors.textSecondary }}>
+                        <Activity size={11} /> Requisições por serviço (últimas {requests.windowHours}h, auto)
+                    </p>
+                    <p className="text-[9px] -mt-1" style={{ color: colors.textSecondary }}>
+                        Contagem de chamadas de API — sinal de atividade, não é a mesma métrica de Egress/Realtime Messages do billing.
+                    </p>
+                    <div className="grid grid-cols-4 gap-2">
+                        {[
+                            { label: 'Auth', value: requests.auth || 0 },
+                            { label: 'Realtime', value: requests.realtime || 0 },
+                            { label: 'REST', value: requests.rest || 0 },
+                            { label: 'Storage', value: requests.storage || 0 },
+                        ].map((r) => (
+                            <div key={r.label} className="text-center p-2 rounded-xl" style={{ background: `${colors.border}20` }}>
+                                <p className="text-sm font-black" style={{ color: colors.textPrimary }}>{r.value.toLocaleString('pt-BR')}</p>
+                                <p className="text-[9px]" style={{ color: colors.textSecondary }}>{r.label}</p>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+            {!loadingRequests && requests && !requests.configured && (
+                <p className="text-[9px] pt-2 border-t" style={{ color: colors.textSecondary, borderColor: colors.border }}>
+                    SUPABASE_MANAGEMENT_API_TOKEN não configurado nesse ambiente — sem contagem de requisições automática aqui.
+                </p>
             )}
 
             {/* ===== Manual: uso x cota de cada recurso ===== */}
