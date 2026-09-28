@@ -192,6 +192,17 @@ export async function updateSubscriptionValue(subscriptionId: string, value: num
     })
 }
 
+interface AsaasBalance {
+    balance: number
+}
+
+// Saldo disponível na conta Asaas — o único número que só existe do lado
+// deles (nunca passou pelo nosso banco). Usado só pelo painel Financeiro >
+// Asaas do admin.
+export async function getBalance(): Promise<AsaasBalance> {
+    return asaasFetch<AsaasBalance>('/finance/balance')
+}
+
 export type AsaasPixKeyType = 'CPF' | 'CNPJ' | 'EMAIL' | 'PHONE' | 'EVP'
 
 interface AsaasTransfer {

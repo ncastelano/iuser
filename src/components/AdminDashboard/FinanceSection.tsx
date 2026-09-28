@@ -9,6 +9,7 @@ import { callAdminApi } from '@/lib/callAdminApi'
 import { Plus, Pencil, Trash2, AlertTriangle, TrendingUp, TrendingDown, Wallet, ExternalLink } from 'lucide-react'
 import type { ThemeColors } from '@/app/contexts/theme'
 import SupabaseUsagePanel from './SupabaseUsagePanel'
+import AsaasFinancePanel from './AsaasFinancePanel'
 import { ExpenseForm, BILLING_CYCLE_LABEL, normalizedMonthlyCost, daysUntil, type ExpenseRow } from './ExpenseForm'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -156,6 +157,7 @@ export default function FinanceSection({ cardStyle, colors }: FinanceSectionProp
             </div>
 
             <SupabaseUsagePanel cardStyle={cardStyle} colors={colors} />
+            <AsaasFinancePanel cardStyle={cardStyle} colors={colors} />
 
             {showForm && (
                 <ExpenseForm
@@ -168,11 +170,11 @@ export default function FinanceSection({ cardStyle, colors }: FinanceSectionProp
             )}
 
             <div className="space-y-2">
-                {/* Supabase tem card próprio acima (custo + uso/limites juntos, ver
-                SupabaseUsagePanel) — não repete aqui pra não separar a mesma coisa
-                em dois lugares diferentes na tela. */}
+                {/* Supabase e Asaas têm card próprio acima (custo + uso/mapeamento
+                juntos, ver SupabaseUsagePanel/AsaasFinancePanel) — não repetem aqui
+                pra não separar a mesma coisa em dois lugares diferentes na tela. */}
                 {(() => {
-                    const otherExpenses = expenses.filter((e) => e.service_name !== 'Supabase')
+                    const otherExpenses = expenses.filter((e) => e.service_name !== 'Supabase' && e.service_name !== 'Asaas')
                     return (
                         <>
                             <p className="text-xs font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>

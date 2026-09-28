@@ -1,0 +1,202 @@
+// components/AdminDashboard/AsaasFinancePanel.tsx
+'use client'
+
+import { useCallback, useEffect, useState } from 'react'
+import { toast } from 'sonner'
+import { Spinner } from '@/components/Spinner'
+import { callAdminApi } from '@/lib/callAdminApi'
+import { Landmark, RefreshCw, Wallet, HandCoins, TrendingUp, AlertTriangle, Pencil } from 'lucide-react'
+import type { ThemeColors } from '@/app/contexts/theme'
+import { ExpenseForm, type ExpenseRow } from './ExpenseForm'
+
+interface AsaasFinancePanelProps {
+    cardStyle: React.CSSProperties
+    colors: ThemeColors
+}
+
+interface AsaasOverview {
+    mrr: number
+    active_subscriptions: number
+    past_due_subscriptions: number
+    canceled_subscriptions: number
+    subscription_revenue_total: number
+    subscription_revenue_this_month: number
+    postpaid_collected_total: number
+    postpaid_collected_this_month: number
+    wallet_liability_total: number
+    wallet_positive_users: number
+    pending_withdrawals_total: number
+    pending_withdrawals_count: number
+    postpaid_debt_outstanding_total: number
+    postpaid_debt_users_count: number
+    postpaid_debt_blocked_count: number
+    asaasBalance: number | null
+    asaasBalanceError: string | null
+    isSandbox: boolean
+    expense: ExpenseRow | null
+}
+
+function money(v: number | null | undefined): string {
+    return `R$ ${Number(v || 0).toFixed(2)}`
+}
+
+// Painel "Asaas" dentro da aba Financeiro: o mapeamento completo de pra
+// onde vai/vem cada real — o que está de fato na conta Asaas (externo, só
+// eles sabem), o que o nosso banco registra como receita (assinatura +
+// pós-pago), quanto devemos às pessoas (carteira/comissão) e quanto as
+// pessoas nos devem (pós-pago em aberto). Tudo via get_asaas_financial_overview
+// (migration 20261012000000), exceto o saldo Asaas (getBalance, só existe do lado deles).
+export default function AsaasFinancePanel({ cardStyle, colors }: AsaasFinancePanelProps) {
+    const [overview, setOverview] = useState<AsaasOverview | null>(null)
+    const [loading, setLoading] = useState(true)
+    const [editingCost, setEditingCost] = useState(false)
+
+    const load = useCallback(async () => {
+        setLoading(true)
+        try {
+            const res = await callAdminApi<AsaasOverview>('/api/admin/expenses/asaas-overview')
+            setOverview(res)
+        } catch (err: any) {
+            toast.error(err.message || 'Erro ao carregar mapeamento do Asaas')
+        } finally {
+            setLoading(false)
+        }
+    }, [])
+
+    useEffect(() => { load() }, [load])
+
+    const row = (label: string, value: string, opts?: { color?: string; sub?: string }) => (
+        <div className="flex items-center justify-between gap-2 text-[11px]">
+            <span style={{ color: colors.textSecondary }}>{label}</span>
+            <span className="text-right">
+                <span className="font-black" style={{ color: opts?.color || colors.textPrimary }}>{value}</span>
+                {opts?.sub && <span className="block text-[9px]" style={{ color: colors.textSecondary }}>{opts.sub}</span>}
+            </span>
+        </div>
+    )
+
+    return (
+        <div style={cardStyle} className="space-y-4">
+            <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-black uppercase tracking-wider flex items-center gap-1.5" style={{ color: colors.textSecondary }}>
+                    <Landmark size={13} />
+                    Asaas — mapeamento financeiro
+                </p>
+                <button
+                    onClick={load}
+                    disabled={loading}
+                    className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+                    style={{ background: `${colors.border}30`, color: colors.textPrimary }}
+                >
+                    {loading ? <Spinner size={13} /> : <RefreshCw size={13} />}
+                </button>
+            </div>
+
+            {loading && !overview ? (
+                <div className="flex justify-center py-6"><Spinner size={20} color={colors.accent} /></div>
+            ) : overview && (
+                <>
+                    {overview.expense && !editingCost && (
+                        <div className="flex items-center justify-between gap-2 text-[11px] p-2.5 rounded-xl" style={{ background: `${colors.border}20` }}>
+                            <span style={{ color: colors.textSecondary }}>
+                                {overview.expense.notes || 'Cobrança de assinaturas e saques via PIX'}
+                                {' · '}Custo: <strong style={{ color: colors.textPrimary }}>
+                                    {overview.expense.billing_cycle === 'usage' ? 'variável (por transação)' : money(overview.expense.monthly_cost)}
+                                </strong>
+                            </span>
+                            <button onClick={() => setEditingCost(true)} style={{ color: colors.textSecondary }} className="flex-shrink-0">
+                                <Pencil size={12} />
+                            </button>
+                        </div>
+                    )}
+
+                    {editingCost && overview.expense && (
+                        <ExpenseForm
+                            colors={colors}
+                            cardStyle={{ background: 'transparent', padding: 0 }}
+                            initial={overview.expense}
+                            onCancel={() => setEditingCost(false)}
+                            onSaved={() => { setEditingCost(false); load() }}
+                        />
+                    )}
+
+                    {overview.isSandbox && (
+                        <div className="rounded-2xl p-3" style={{ background: '#f59e0b15', border: '1px solid #f59e0b40' }}>
+                            <p className="text-[11px]" style={{ color: colors.textPrimary }}>
+                                <strong>Ambiente sandbox</strong> (<code>ASAAS_API_BASE_URL</code>) — os valores abaixo do nosso banco são
+                                reais, mas nenhum PIX de verdade está circulando na Asaas ainda. Antes de ir pra produção, troque pra
+                                a URL de produção da Asaas e uma chave de API de produção.
+                            </p>
+                        </div>
+                    )}
+
+                    {/* ===== 1. Na conta Asaas (externo) ===== */}
+                    <div className="space-y-1.5">
+                        <p className="text-[10px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>
+                            Na conta Asaas (externo, via API deles)
+                        </p>
+                        {overview.asaasBalance !== null ? (
+                            row('Saldo disponível', money(overview.asaasBalance))
+                        ) : (
+                            <p className="text-[10px]" style={{ color: colors.textSecondary }}>
+                                {overview.asaasBalanceError || 'Não configurado'}
+                            </p>
+                        )}
+                    </div>
+
+                    {/* ===== 2. Na aplicação (nosso banco) ===== */}
+                    <div className="space-y-1.5 pt-2 border-t" style={{ borderColor: colors.border }}>
+                        <p className="text-[10px] font-black uppercase tracking-wider flex items-center gap-1" style={{ color: colors.textSecondary }}>
+                            <TrendingUp size={11} /> Na aplicação (banco, auto)
+                        </p>
+                        {row('MRR (assinaturas ativas)', money(overview.mrr))}
+                        {row(
+                            'Assinaturas',
+                            `${overview.active_subscriptions} ativas`,
+                            { sub: `${overview.past_due_subscriptions} atrasadas · ${overview.canceled_subscriptions} canceladas` }
+                        )}
+                        {row('Receita de assinatura (total)', money(overview.subscription_revenue_total))}
+                        {row('Receita de assinatura (mês)', money(overview.subscription_revenue_this_month), { color: '#22c55e' })}
+                        {row('Pós-pago recebido (total)', money(overview.postpaid_collected_total))}
+                        {row('Pós-pago recebido (mês)', money(overview.postpaid_collected_this_month), { color: '#22c55e' })}
+                    </div>
+
+                    {/* ===== 3. Carteira das pessoas (o que devemos) ===== */}
+                    <div className="space-y-1.5 pt-2 border-t" style={{ borderColor: colors.border }}>
+                        <p className="text-[10px] font-black uppercase tracking-wider flex items-center gap-1" style={{ color: colors.textSecondary }}>
+                            <Wallet size={11} /> Carteira das pessoas (o que devemos)
+                        </p>
+                        {row(
+                            'Passivo total (saldo somado)',
+                            money(overview.wallet_liability_total),
+                            { color: overview.wallet_liability_total > 0 ? '#ef4444' : colors.textPrimary, sub: `${overview.wallet_positive_users} pessoa(s) com saldo pra sacar` }
+                        )}
+                        {row(
+                            'Saques pendentes',
+                            money(overview.pending_withdrawals_total),
+                            { color: overview.pending_withdrawals_count > 0 ? '#f97316' : colors.textPrimary, sub: `${overview.pending_withdrawals_count} pedido(s) aguardando` }
+                        )}
+                    </div>
+
+                    {/* ===== 4. O que cada pessoa pode pagar (pós-pago em aberto) ===== */}
+                    <div className="space-y-1.5 pt-2 border-t" style={{ borderColor: colors.border }}>
+                        <p className="text-[10px] font-black uppercase tracking-wider flex items-center gap-1" style={{ color: colors.textSecondary }}>
+                            <HandCoins size={11} /> O que nos devem (pós-pago em aberto)
+                        </p>
+                        {row(
+                            'Dívida em aberto (total)',
+                            money(overview.postpaid_debt_outstanding_total),
+                            { color: '#22c55e', sub: `${overview.postpaid_debt_users_count} pessoa(s) devendo` }
+                        )}
+                        {overview.postpaid_debt_blocked_count > 0 && (
+                            <div className="flex items-center gap-1.5 text-[10px] pt-1" style={{ color: '#ef4444' }}>
+                                <AlertTriangle size={11} />
+                                {overview.postpaid_debt_blocked_count} pessoa(s) bloqueada(s) (dívida ≥ R$ 50)
+                            </div>
+                        )}
+                    </div>
+                </>
+            )}
+        </div>
+    )
+}
