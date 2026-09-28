@@ -2,7 +2,7 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { requireSuperAdmin } from '@/lib/adminAuth'
-import { getBalance, listPayments, listTransfers } from '@/lib/asaas'
+import { getBalance, listPayments, listTransfers, getCustomer } from '@/lib/asaas'
 
 // Mapeamento financeiro do Asaas pro painel Financeiro > Asaas: o que está
 // na conta Asaas de verdade (externo, via API deles — saldo, cobranças e
@@ -90,6 +90,32 @@ export async function POST(req: Request) {
     const postpaidMap = new Map((postpaidLookup.data || []).map((p: any) => [p.asaas_payment_id, p]))
     const withdrawalMap = new Map((withdrawalsLookup.data || []).map((w: any) => [w.asaas_transfer_id, w]))
 
+    // Quando a cobrança não tem vínculo no nosso banco (ex: assinatura de
+    // teste criada direto no dashboard da Asaas), o único jeito de saber
+    // quem pagou é perguntar pro customer da própria Asaas.
+    const unresolvedCustomerIds = Array.from(new Set(
+        payments
+            .filter((p) => !(p.externalReference && subMap.has(p.externalReference)) && !postpaidMap.has(p.id))
+            .map((p) => p.customer)
+            .filter(Boolean)
+    ))
+    const customerResults = await Promise.allSettled(unresolvedCustomerIds.map((id) => getCustomer(id)))
+    const customerNameMap = new Map<string, string>()
+    unresolvedCustomerIds.forEach((id, i) => {
+        const result = customerResults[i]
+        if (result.status === 'fulfilled') customerNameMap.set(id, result.value.name)
+    })
+
+    const resolvePayerName = (p: (typeof payments)[number]): string | null => {
+        const sub = p.externalReference ? subMap.get(p.externalReference) : null
+        const postpaid = postpaidMap.get(p.id)
+        return (sub as any)?.profiles?.name || (postpaid as any)?.profiles?.name || customerNameMap.get(p.customer) || null
+    }
+    const resolveTransferName = (t: (typeof transfers)[number]): string | null => {
+        const wd = withdrawalMap.get(t.id)
+        return (wd as any)?.profiles?.name || t.bankAccount?.ownerName || null
+    }
+
     // Pra onde foi o líquido (receivedNetTotal): quanto foi repasse de
     // comissão (transferência vinculada a um withdrawal_requests nosso,
     // pago pro indicador) x quanto foi retirada geral da conta (qualquer
@@ -118,7 +144,7 @@ export async function POST(req: Request) {
                 date: p.dateCreated,
                 value: Number(p.value),
                 netValue: Number(p.netValue),
-                personName: (sub as any)?.profiles?.name || (postpaid as any)?.profiles?.name || null,
+                personName: resolvePayerName(p),
                 detail: (sub as any)?.plans?.name || p.description || null,
                 linked: !!(sub || postpaid),
                 asaasId: p.id,
@@ -132,7 +158,7 @@ export async function POST(req: Request) {
                 date: t.dateCreated,
                 value: Number(t.value),
                 netValue: Number(t.netValue),
-                personName: (wd as any)?.profiles?.name || null,
+                personName: resolveTransferName(t),
                 detail: t.description,
                 linked: !!wd,
                 asaasId: t.id,
@@ -141,6 +167,32 @@ export async function POST(req: Request) {
     ]
         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
         .slice(0, 20)
+
+    // Resumo "quem pagou" (só cobrança de fato recebida) e "quem sacou"
+    // (só transferência concluída), agrupado por pessoa — pros dois
+    // blocos do painel que pedem "mostra quem foi" sem precisar vasculhar
+    // a lista de atividade inteira.
+    const groupByName = <T,>(items: T[], getName: (item: T) => string | null, getValue: (item: T) => number) => {
+        const map = new Map<string, number>()
+        for (const item of items) {
+            const name = getName(item) || 'Sem nome identificado'
+            map.set(name, (map.get(name) || 0) + getValue(item))
+        }
+        return Array.from(map.entries())
+            .map(([name, total]) => ({ name, total }))
+            .sort((a, b) => b.total - a.total)
+    }
+    const payers = groupByName(receivedPayments, resolvePayerName, (p) => Number(p.value))
+    const commissionWithdrawers = groupByName(
+        doneTransfers.filter((t) => withdrawalMap.has(t.id)),
+        resolveTransferName,
+        (t) => Number(t.value)
+    )
+    const otherWithdrawers = groupByName(
+        doneTransfers.filter((t) => !withdrawalMap.has(t.id)),
+        resolveTransferName,
+        (t) => Number(t.value)
+    )
 
     return NextResponse.json({
         ...data,
@@ -157,6 +209,9 @@ export async function POST(req: Request) {
         commissionTransfersTotal,
         otherTransfersTotal,
         unexplainedTotal,
+        payers,
+        commissionWithdrawers,
+        otherWithdrawers,
         asaasActivityError,
         activity,
     })

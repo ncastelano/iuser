@@ -43,8 +43,16 @@ interface AsaasOverview {
     commissionTransfersTotal: number
     otherTransfersTotal: number
     unexplainedTotal: number
+    payers: NameTotal[]
+    commissionWithdrawers: NameTotal[]
+    otherWithdrawers: NameTotal[]
     asaasActivityError: string | null
     activity: ActivityItem[]
+}
+
+interface NameTotal {
+    name: string
+    total: number
 }
 
 interface ActivityItem {
@@ -105,6 +113,17 @@ export default function AsaasFinancePanel({ cardStyle, colors }: AsaasFinancePan
                 <span className="font-black" style={{ color: opts?.color || colors.textPrimary }}>{value}</span>
                 {opts?.sub && <span className="block text-[9px]" style={{ color: colors.textSecondary }}>{opts.sub}</span>}
             </span>
+        </div>
+    )
+
+    const nameList = (items: NameTotal[]) => (
+        <div className="flex flex-col gap-0.5 pl-2 border-l-2" style={{ borderColor: `${colors.border}60` }}>
+            {items.map((p) => (
+                <div key={p.name} className="flex items-center justify-between gap-2 text-[10px]">
+                    <span className="truncate" style={{ color: colors.textSecondary }}>{p.name}</span>
+                    <span className="flex-shrink-0 font-bold" style={{ color: colors.textPrimary }}>{money(p.total)}</span>
+                </div>
+            ))}
         </div>
     )
 
@@ -176,6 +195,7 @@ export default function AsaasFinancePanel({ cardStyle, colors }: AsaasFinancePan
                             </p>
                         )}
                         {row('Recebido bruto (últimas 20 cobranças)', money(overview.receivedGrossTotal))}
+                        {overview.payers.length > 0 && nameList(overview.payers)}
                         {row('Taxa da Asaas descontada', `-${money(overview.asaasFeesTotal)}`, { color: '#ef4444' })}
                         {row('Ficou líquido pra plataforma', money(overview.receivedNetTotal), { color: '#22c55e' })}
                         {(overview.pendingPaymentsTotal > 0 || overview.overduePaymentsTotal > 0) && (
@@ -198,11 +218,13 @@ export default function AsaasFinancePanel({ cardStyle, colors }: AsaasFinancePan
                                 `-${money(overview.commissionTransfersTotal)}`,
                                 { color: overview.commissionTransfersTotal > 0 ? '#ef4444' : colors.textPrimary }
                             )}
+                            {overview.commissionWithdrawers.length > 0 && nameList(overview.commissionWithdrawers)}
                             {row(
                                 'Outras retiradas da conta',
                                 `-${money(overview.otherTransfersTotal)}`,
                                 { color: overview.otherTransfersTotal > 0 ? '#ef4444' : colors.textPrimary, sub: 'ex: o dono da conta sacando pra si, fora do fluxo de comissão' }
                             )}
+                            {overview.otherWithdrawers.length > 0 && nameList(overview.otherWithdrawers)}
                             {row(
                                 'Ainda não repassado (estimado)',
                                 money(overview.unexplainedTotal),

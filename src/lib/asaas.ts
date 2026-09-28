@@ -60,6 +60,13 @@ export async function createOrGetCustomer(params: {
     })
 }
 
+// Busca um customer pelo id — usado só pra descobrir o nome de quem pagou
+// uma cobrança criada direto no dashboard da Asaas (sem profiles.id
+// correspondente no nosso banco, então o nome não existe aqui).
+export async function getCustomer(customerId: string): Promise<AsaasCustomer> {
+    return asaasFetch<AsaasCustomer>(`/customers/${customerId}`)
+}
+
 // Garante que um customer já existente tenha CPF/CNPJ preenchido — precisa
 // disso pra criar cobrança de verdade. Sem isso, reaproveitar um customer
 // criado antes de a gente coletar o CPF (ex: em testes) trava toda
@@ -212,6 +219,7 @@ export interface AsaasPaymentListItem {
     description: string | null
     subscription: string | null
     externalReference: string | null
+    customer: string
 }
 
 // Lista bruta de cobranças na Asaas — pega qualquer cobrança que exista lá,
@@ -231,6 +239,7 @@ export interface AsaasTransferListItem {
     netValue: number
     status: string
     description: string | null
+    bankAccount: { ownerName: string | null } | null
 }
 
 // Lista de transferências (saques) feitas na conta Asaas — inclui tanto
