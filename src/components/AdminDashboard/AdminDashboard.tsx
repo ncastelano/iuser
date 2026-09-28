@@ -7,16 +7,18 @@ import { supabase } from '@/lib/supabase/client'
 import { Spinner } from '@/components/Spinner'
 import { toast } from 'sonner'
 import { hexToRgb } from '@/lib/color'
-import { Check, X, Copy, Plus, ShieldOff, ShieldCheck, Send, CalendarClock, Wallet, Tag, Sparkles, MessageCircle, Search, Activity } from 'lucide-react'
+import { Check, X, Copy, Plus, ShieldOff, ShieldCheck, Send, CalendarClock, Wallet, Tag, Sparkles, MessageCircle, Search, Activity, PiggyBank } from 'lucide-react'
 import HierarchyAdmin from './HierarchyAdmin'
 import ActivitySection from './ActivitySection'
+import FinanceSection from './FinanceSection'
 import { callAdminApi } from '@/lib/callAdminApi'
 
-type Section = 'pagamentos' | 'saques' | 'planos' | 'hierarquia' | 'whatsapp' | 'atividade'
+type Section = 'pagamentos' | 'saques' | 'planos' | 'hierarquia' | 'whatsapp' | 'atividade' | 'financeiro'
 
 const SECTIONS: { id: Section; label: string; icon: typeof Send }[] = [
     { id: 'atividade', label: 'Atividade', icon: Activity },
     { id: 'pagamentos', label: 'Pagamentos', icon: Wallet },
+    { id: 'financeiro', label: 'Financeiro', icon: PiggyBank },
     { id: 'planos', label: 'Planos', icon: CalendarClock },
     { id: 'hierarquia', label: 'Hierarquia', icon: ShieldCheck },
     { id: 'whatsapp', label: 'WhatsApp Bot', icon: MessageCircle },
@@ -91,6 +93,7 @@ export default function AdminDashboard() {
 
             {section === 'atividade' && <ActivitySection cardStyle={cardStyle} colors={colors} />}
             {section === 'pagamentos' && <SubscriptionsSection cardStyle={cardStyle} colors={colors} />}
+            {section === 'financeiro' && <FinanceSection cardStyle={cardStyle} colors={colors} />}
             {section === 'saques' && <WithdrawalsSection cardStyle={cardStyle} colors={colors} />}
             {section === 'hierarquia' && <HierarchyAdmin cardStyle={cardStyle} colors={colors} />}
             {section === 'whatsapp' && <WhatsAppBotSection cardStyle={cardStyle} colors={colors} />}
