@@ -49,6 +49,7 @@ import ProfileVisitors from './ProfileVisitors'
 import PublicationProfile from './ProfilePublication'
 import ProfileServiceListing from './ProfileServiceListing'
 import Commission from './Commission'
+import MyTasks from './MyTasks'
 import DeleteConfirmDialog from '@/components/DeleteConfirmDialog'
 import { callAdminApi } from '@/lib/callAdminApi'
 import { usePersistedExpanded } from '@/hooks/usePersistedExpanded'
@@ -1411,6 +1412,9 @@ export default function ProfileDashboard({
                     onProfileUpdate={(updates) => setProfile((prev: any) => ({ ...prev, ...updates }))}
                 />
             </div>
+
+            {/* ===== TAREFAS — só aparece pra quem é funcionário vinculado a alguma loja ===== */}
+            <MyTasks />
 
             {/* ===== CARD DE AVISO - WHATSAPP ===== */}
             {showWhatsAppAlert && (

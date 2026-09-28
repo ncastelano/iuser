@@ -2,7 +2,7 @@
 
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { usePersistedExpanded } from '@/hooks/usePersistedExpanded'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
@@ -29,6 +29,9 @@ import {
     Bike,
     CheckCircle2,
     MapPin,
+    Search,
+    UserCheck,
+    UserX,
 } from 'lucide-react'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
@@ -56,6 +59,14 @@ interface EmployeeType {
     phone?: string
     is_active: boolean
     access_token?: string | null
+    user_id?: string | null
+}
+
+interface ProfileSearchResult {
+    id: string
+    name: string | null
+    profileSlug: string
+    avatar_url: string | null
 }
 
 interface RouteStop {
@@ -123,6 +134,14 @@ export default function Employee({
     const [formPhone, setFormPhone] = useState('')
     const [saving, setSaving] = useState(false)
 
+    // Vínculo com conta real do iUser — quem tem conta ganha a aba "Tarefas"
+    // no próprio perfil pra ver as entregas logado, em vez de depender só
+    // do link mágico por WhatsApp.
+    const [linkedProfile, setLinkedProfile] = useState<ProfileSearchResult | null>(null)
+    const [searchQuery, setSearchQuery] = useState('')
+    const [searchResults, setSearchResults] = useState<ProfileSearchResult[]>([])
+    const [searching, setSearching] = useState(false)
+
     const [deleteConfirmOpen, setDeleteConfirmOpen] = useState<EmployeeType | null>(null)
     const [deleting, setDeleting] = useState(false)
 
@@ -138,6 +157,9 @@ export default function Employee({
         setEditingEmployee(null)
         setFormName('')
         setFormPhone('')
+        setLinkedProfile(null)
+        setSearchQuery('')
+        setSearchResults([])
         setDialogOpen(true)
     }
 
@@ -145,7 +167,45 @@ export default function Employee({
         setEditingEmployee(emp)
         setFormName(emp.name)
         setFormPhone(cleanPhoneNumber(emp.phone || ''))
+        setSearchQuery('')
+        setSearchResults([])
+        if (emp.user_id) {
+            supabase
+                .from('profiles')
+                .select('id, name, profileSlug, avatar_url')
+                .eq('id', emp.user_id)
+                .maybeSingle()
+                .then(({ data }) => setLinkedProfile(data as ProfileSearchResult | null))
+        } else {
+            setLinkedProfile(null)
+        }
         setDialogOpen(true)
+    }
+
+    // Busca com debounce — mesmo padrão usado em outras buscas de perfil/loja do dashboard.
+    useEffect(() => {
+        if (searchQuery.trim().length < 2) {
+            setSearchResults([])
+            return
+        }
+        setSearching(true)
+        const t = setTimeout(async () => {
+            const { data } = await supabase
+                .from('profiles')
+                .select('id, name, profileSlug, avatar_url')
+                .or(`name.ilike.%${searchQuery.trim()}%,profileSlug.ilike.%${searchQuery.trim()}%`)
+                .limit(6)
+            setSearchResults((data as ProfileSearchResult[]) || [])
+            setSearching(false)
+        }, 300)
+        return () => clearTimeout(t)
+    }, [searchQuery])
+
+    const selectProfile = (p: ProfileSearchResult) => {
+        setLinkedProfile(p)
+        setSearchQuery('')
+        setSearchResults([])
+        if (!formName.trim()) setFormName(p.name || p.profileSlug)
     }
 
     const handleSave = async () => {
@@ -158,7 +218,7 @@ export default function Employee({
             if (editingEmployee) {
                 const { error } = await supabase
                     .from('employees')
-                    .update({ name: formName.trim(), phone: formPhone })
+                    .update({ name: formName.trim(), phone: formPhone, user_id: linkedProfile?.id || null })
                     .eq('id', editingEmployee.id)
                 if (error) throw error
                 toast.success('Funcionário atualizado!')
@@ -168,6 +228,7 @@ export default function Employee({
                     name: formName.trim(),
                     phone: formPhone,
                     is_active: true,
+                    user_id: linkedProfile?.id || null,
                     // Já nasce com link pra ver as entregas - sem passo extra.
                     access_token: crypto.randomUUID(),
                 })
@@ -355,7 +416,14 @@ export default function Employee({
                                                         {emp.name.charAt(0).toUpperCase()}
                                                     </div>
                                                     <div>
-                                                        <p className="text-sm font-bold" style={{ color: textPrimary }}>{emp.name}</p>
+                                                        <p className="text-sm font-bold flex items-center gap-1.5" style={{ color: textPrimary }}>
+                                                            {emp.name}
+                                                            {emp.user_id && (
+                                                                <span title="Conta iUser vinculada">
+                                                                    <UserCheck size={12} style={{ color: '#22c55e' }} />
+                                                                </span>
+                                                            )}
+                                                        </p>
                                                         {route && route.stops.length > 0 ? (
                                                             <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                                                                 {bucketStops(route.stops).map((bucket) => bucket.stops.length > 0 && (
@@ -517,6 +585,65 @@ export default function Employee({
                             <button onClick={() => setDialogOpen(false)}><X size={20} /></button>
                         </div>
                         <div className="space-y-3">
+                            <label className="text-[10px] font-bold uppercase block" style={{ color: textSecondary }}>
+                                Conta no iUser (opcional)
+                            </label>
+                            {linkedProfile ? (
+                                <div className="flex items-center gap-2 p-2.5 rounded-2xl" style={{ background: '#22c55e15', border: '1px solid #22c55e40' }}>
+                                    <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center" style={{ background: '#22c55e30' }}>
+                                        {linkedProfile.avatar_url ? (
+                                            <img src={linkedProfile.avatar_url} className="w-full h-full object-cover" alt="" />
+                                        ) : (
+                                            <UserCheck size={14} style={{ color: '#22c55e' }} />
+                                        )}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-xs font-bold truncate" style={{ color: textPrimary }}>{linkedProfile.name || linkedProfile.profileSlug}</p>
+                                        <p className="text-[10px]" style={{ color: textSecondary }}>@{linkedProfile.profileSlug} · vai ver as tarefas logado</p>
+                                    </div>
+                                    <button onClick={() => setLinkedProfile(null)} className="p-1.5 rounded-full hover:bg-black/10 flex-shrink-0" title="Desvincular conta">
+                                        <UserX size={14} style={{ color: '#ef4444' }} />
+                                    </button>
+                                </div>
+                            ) : (
+                                <div className="relative">
+                                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: textSecondary }} />
+                                    <input
+                                        type="text"
+                                        placeholder="Buscar por @slug ou nome"
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        className="w-full border rounded-full pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                        style={{ background: colors.surface, borderColor: borderColor, color: textPrimary }}
+                                    />
+                                    {searching && <p className="text-[10px] mt-1 px-1" style={{ color: textSecondary }}>Buscando...</p>}
+                                    {searchResults.length > 0 && (
+                                        <div className="mt-1.5 space-y-1 max-h-32 overflow-y-auto">
+                                            {searchResults.map((p) => (
+                                                <button
+                                                    key={p.id}
+                                                    onClick={() => selectProfile(p)}
+                                                    className="w-full flex items-center gap-2 p-2 rounded-xl text-left hover:bg-white/5 transition-colors"
+                                                    style={{ border: `1px solid ${borderColor}` }}
+                                                >
+                                                    <div className="w-7 h-7 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center" style={{ background: `${colors.border}30` }}>
+                                                        {p.avatar_url ? (
+                                                            <img src={p.avatar_url} className="w-full h-full object-cover" alt="" />
+                                                        ) : (
+                                                            <span className="text-[10px] font-bold" style={{ color: textPrimary }}>{(p.name || p.profileSlug).charAt(0).toUpperCase()}</span>
+                                                        )}
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <p className="text-xs font-bold truncate" style={{ color: textPrimary }}>{p.name || p.profileSlug}</p>
+                                                        <p className="text-[10px]" style={{ color: textSecondary }}>@{p.profileSlug}</p>
+                                                    </div>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
                             <input
                                 type="text"
                                 placeholder="Nome"
