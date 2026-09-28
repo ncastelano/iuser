@@ -61,13 +61,14 @@ export async function POST(req: Request) {
             .eq('metric_name', 'Mensagens Realtime'),
     ])
 
-    // Plano e fim do ciclo — mesma linha "Supabase" da lista de gastos, pra
-    // não duplicar esse dado num lugar novo.
+    // Linha "Supabase" inteira da lista de gastos (custo, ciclo, vencimento
+    // etc) — o painel mostra e edita isso aqui direto, num card só, em vez
+    // de repetir "Supabase" também na lista genérica de outros serviços.
     const { data: expenseRow } = await supabaseAdmin
         .from('service_expenses')
-        .select('plan_name, next_due_date')
+        .select('*')
         .eq('service_name', 'Supabase')
         .maybeSingle()
 
-    return NextResponse.json({ ...data, planName: expenseRow?.plan_name || null, cycleEndsAt: expenseRow?.next_due_date || null })
+    return NextResponse.json({ ...data, expense: expenseRow || null })
 }

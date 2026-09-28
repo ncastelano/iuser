@@ -7,6 +7,7 @@ import { Spinner } from '@/components/Spinner'
 import { callAdminApi } from '@/lib/callAdminApi'
 import { Database, ExternalLink, Pencil, RefreshCw, Table2, AlertTriangle, Activity } from 'lucide-react'
 import type { ThemeColors } from '@/app/contexts/theme'
+import { ExpenseForm, type ExpenseRow } from './ExpenseForm'
 
 const SUPABASE_PROJECT_REF = 'mqtwehsmkuknkrtrqbnf'
 const SUPABASE_USAGE_URL = `https://supabase.com/dashboard/project/${SUPABASE_PROJECT_REF}/settings/billing/usage`
@@ -27,8 +28,7 @@ interface DbStats {
     database_size_bytes: number
     database_size_pretty: string
     top_tables: TopTable[]
-    planName: string | null
-    cycleEndsAt: string | null
+    expense: ExpenseRow | null
 }
 
 interface RequestCounts {
@@ -116,6 +116,7 @@ export default function SupabaseUsagePanel({ cardStyle, colors }: SupabaseUsageP
     const [editIncluded, setEditIncluded] = useState('')
     const [editPrice, setEditPrice] = useState('')
     const [saving, setSaving] = useState(false)
+    const [editingCost, setEditingCost] = useState(false)
 
     const loadStats = useCallback(async () => {
         setLoadingStats(true)
@@ -211,7 +212,8 @@ export default function SupabaseUsagePanel({ cardStyle, colors }: SupabaseUsageP
 
     const maxTableSize = Math.max(...(dbStats?.top_tables.map((t) => t.size_bytes) || [1]), 1)
     const totalOverage = metrics.reduce((sum, m) => sum + overageCost(m), 0)
-    const isFreePlan = (dbStats?.planName || '').toLowerCase().includes('free')
+    const expense = dbStats?.expense || null
+    const isFreePlan = (expense?.plan_name || '').toLowerCase().includes('free')
     const atRisk = metrics.filter((m) => m.included_value > 0 && (m.used_value / m.included_value) * 100 >= 80)
 
     return (
@@ -232,13 +234,29 @@ export default function SupabaseUsagePanel({ cardStyle, colors }: SupabaseUsageP
                 </a>
             </div>
 
-            {dbStats?.planName && (
-                <div className="flex items-center justify-between gap-2 text-[11px]">
+            {expense && !editingCost && (
+                <div className="flex items-center justify-between gap-2 text-[11px] p-2.5 rounded-xl" style={{ background: `${colors.border}20` }}>
                     <span style={{ color: colors.textSecondary }}>
-                        Plano: <strong style={{ color: colors.textPrimary }}>{dbStats.planName}</strong>
-                        {dbStats.cycleEndsAt && ` · ciclo até ${new Date(dbStats.cycleEndsAt + 'T00:00:00').toLocaleDateString('pt-BR')}`}
+                        Plano: <strong style={{ color: colors.textPrimary }}>{expense.plan_name || '—'}</strong>
+                        {' · '}Custo: <strong style={{ color: colors.textPrimary }}>
+                            {expense.billing_cycle === 'usage' ? 'variável' : `${expense.currency === 'USD' ? 'US$' : 'R$'} ${Number(expense.monthly_cost).toFixed(2)}`}
+                        </strong>
+                        {expense.next_due_date && ` · ciclo até ${new Date(expense.next_due_date + 'T00:00:00').toLocaleDateString('pt-BR')}`}
                     </span>
+                    <button onClick={() => setEditingCost(true)} style={{ color: colors.textSecondary }} className="flex-shrink-0">
+                        <Pencil size={12} />
+                    </button>
                 </div>
+            )}
+
+            {editingCost && expense && (
+                <ExpenseForm
+                    colors={colors}
+                    cardStyle={{ background: 'transparent', padding: 0 }}
+                    initial={expense}
+                    onCancel={() => setEditingCost(false)}
+                    onSaved={() => { setEditingCost(false); loadStats() }}
+                />
             )}
 
             {isFreePlan && (

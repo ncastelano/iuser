@@ -9,45 +9,13 @@ import { callAdminApi } from '@/lib/callAdminApi'
 import { Plus, Pencil, Trash2, AlertTriangle, TrendingUp, TrendingDown, Wallet, ExternalLink } from 'lucide-react'
 import type { ThemeColors } from '@/app/contexts/theme'
 import SupabaseUsagePanel from './SupabaseUsagePanel'
+import { ExpenseForm, BILLING_CYCLE_LABEL, normalizedMonthlyCost, daysUntil, type ExpenseRow } from './ExpenseForm'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
 interface FinanceSectionProps {
     cardStyle: React.CSSProperties
     colors: ThemeColors
-}
-
-interface ExpenseRow {
-    id: string
-    service_name: string
-    category: string | null
-    plan_name: string | null
-    monthly_cost: number
-    billing_cycle: 'monthly' | 'yearly' | 'usage' | 'one_time'
-    currency: string
-    next_due_date: string | null
-    billing_url: string | null
-    notes: string | null
-    is_active: boolean
-}
-
-const BILLING_CYCLE_LABEL: Record<ExpenseRow['billing_cycle'], string> = {
-    monthly: 'Mensal',
-    yearly: 'Anual',
-    usage: 'Por uso (variável)',
-    one_time: 'Pagamento único',
-}
-
-function normalizedMonthlyCost(row: ExpenseRow): number {
-    if (row.billing_cycle === 'yearly') return Number(row.monthly_cost) / 12
-    if (row.billing_cycle === 'usage' || row.billing_cycle === 'one_time') return 0
-    return Number(row.monthly_cost)
-}
-
-function daysUntil(dateStr: string | null): number | null {
-    if (!dateStr) return null
-    const diff = new Date(dateStr + 'T00:00:00').getTime() - new Date(new Date().toDateString()).getTime()
-    return Math.round(diff / (24 * 60 * 60 * 1000))
 }
 
 // Aba "Financeiro" do admin: quanto o iUser gasta com serviços externos
@@ -200,12 +168,19 @@ export default function FinanceSection({ cardStyle, colors }: FinanceSectionProp
             )}
 
             <div className="space-y-2">
-                <p className="text-xs font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>
-                    Serviços ({expenses.length})
-                </p>
-                {expenses.length === 0 ? (
-                    <div className="text-sm" style={{ ...cardStyle, color: colors.textSecondary }}>Nenhum serviço cadastrado ainda.</div>
-                ) : expenses.map((row) => {
+                {/* Supabase tem card próprio acima (custo + uso/limites juntos, ver
+                SupabaseUsagePanel) — não repete aqui pra não separar a mesma coisa
+                em dois lugares diferentes na tela. */}
+                {(() => {
+                    const otherExpenses = expenses.filter((e) => e.service_name !== 'Supabase')
+                    return (
+                        <>
+                            <p className="text-xs font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>
+                                Outros serviços ({otherExpenses.length})
+                            </p>
+                            {otherExpenses.length === 0 ? (
+                                <div className="text-sm" style={{ ...cardStyle, color: colors.textSecondary }}>Nenhum outro serviço cadastrado ainda.</div>
+                            ) : otherExpenses.map((row) => {
                     const days = daysUntil(row.next_due_date)
                     return (
                         <div key={row.id} style={cardStyle} className="flex items-center justify-between gap-3">
@@ -255,7 +230,10 @@ export default function FinanceSection({ cardStyle, colors }: FinanceSectionProp
                             </div>
                         </div>
                     )
-                })}
+                            })}
+                        </>
+                    )
+                })()}
             </div>
 
             {deleteConfirm && (
@@ -285,106 +263,6 @@ export default function FinanceSection({ cardStyle, colors }: FinanceSectionProp
                     </div>
                 </div>
             )}
-        </div>
-    )
-}
-
-function ExpenseForm({
-    colors,
-    cardStyle,
-    initial,
-    onCancel,
-    onSaved,
-}: {
-    colors: ThemeColors
-    cardStyle: React.CSSProperties
-    initial: ExpenseRow | null
-    onCancel: () => void
-    onSaved: () => void
-}) {
-    const [serviceName, setServiceName] = useState(initial?.service_name || '')
-    const [category, setCategory] = useState(initial?.category || '')
-    const [planName, setPlanName] = useState(initial?.plan_name || '')
-    const [monthlyCost, setMonthlyCost] = useState(initial ? String(initial.monthly_cost) : '')
-    const [billingCycle, setBillingCycle] = useState<ExpenseRow['billing_cycle']>(initial?.billing_cycle || 'monthly')
-    const [nextDueDate, setNextDueDate] = useState(initial?.next_due_date || '')
-    const [billingUrl, setBillingUrl] = useState(initial?.billing_url || '')
-    const [notes, setNotes] = useState(initial?.notes || '')
-    const [isActive, setIsActive] = useState(initial ? initial.is_active : true)
-    const [saving, setSaving] = useState(false)
-
-    const inputStyle: React.CSSProperties = {
-        background: colors.background,
-        border: `1px solid ${colors.border}`,
-        color: colors.textPrimary,
-        borderRadius: 12,
-        padding: '8px 12px',
-        fontSize: 13,
-    }
-
-    const submit = async () => {
-        if (!serviceName.trim()) {
-            toast.error('Nome do serviço é obrigatório')
-            return
-        }
-        setSaving(true)
-        try {
-            await callAdminApi('/api/admin/expenses/save', {
-                id: initial?.id,
-                serviceName,
-                category,
-                planName,
-                monthlyCost: Number(monthlyCost.replace(',', '.')) || 0,
-                billingCycle,
-                nextDueDate: nextDueDate || null,
-                billingUrl,
-                notes,
-                isActive,
-            })
-            toast.success(initial ? 'Serviço atualizado!' : 'Serviço adicionado!')
-            onSaved()
-        } catch (err: any) {
-            toast.error(err.message || 'Erro ao salvar')
-        } finally {
-            setSaving(false)
-        }
-    }
-
-    return (
-        <div style={cardStyle} className="space-y-3">
-            <p className="text-xs font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>
-                {initial ? 'Editar serviço' : 'Novo serviço'}
-            </p>
-            <div className="grid grid-cols-2 gap-2">
-                <input type="text" placeholder="Nome (ex: Supabase)" value={serviceName} onChange={(e) => setServiceName(e.target.value)} style={inputStyle} className="col-span-2" />
-                <input type="text" placeholder="Categoria" value={category} onChange={(e) => setCategory(e.target.value)} style={inputStyle} />
-                <input type="text" placeholder="Plano" value={planName} onChange={(e) => setPlanName(e.target.value)} style={inputStyle} />
-                <input type="text" inputMode="decimal" placeholder="Custo (R$)" value={monthlyCost} onChange={(e) => setMonthlyCost(e.target.value)} style={inputStyle} />
-                <select value={billingCycle} onChange={(e) => setBillingCycle(e.target.value as ExpenseRow['billing_cycle'])} style={inputStyle}>
-                    <option value="monthly">Mensal</option>
-                    <option value="yearly">Anual</option>
-                    <option value="usage">Por uso (variável)</option>
-                    <option value="one_time">Pagamento único</option>
-                </select>
-                <div className="col-span-2 flex flex-col gap-0.5">
-                    <span className="text-[10px]" style={{ color: colors.textSecondary }}>Próximo vencimento</span>
-                    <input type="date" value={nextDueDate} onChange={(e) => setNextDueDate(e.target.value)} style={inputStyle} />
-                </div>
-                <input type="text" placeholder="Link da cobrança (opcional)" value={billingUrl} onChange={(e) => setBillingUrl(e.target.value)} style={inputStyle} className="col-span-2" />
-                <textarea placeholder="Notas" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} style={inputStyle} className="col-span-2 resize-none" />
-            </div>
-            <label className="flex items-center gap-1.5 text-[11px] font-bold" style={{ color: colors.textPrimary }}>
-                <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
-                Ativo (conta pro total de gastos)
-            </label>
-            <div className="flex gap-2">
-                <button onClick={onCancel} className="flex-1 py-2.5 rounded-xl text-sm font-bold" style={{ background: `${colors.border}30`, color: colors.textPrimary }}>
-                    Cancelar
-                </button>
-                <button onClick={submit} disabled={saving} className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white disabled:opacity-60" style={{ background: GRADIENT }}>
-                    {saving ? <Spinner size={14} color="#ffffff" /> : 'Salvar'}
-                </button>
-            </div>
         </div>
     )
 }
