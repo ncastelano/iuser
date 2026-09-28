@@ -17,12 +17,15 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    // Storage e MAU dão pra ler direto do banco (storage.objects e
-    // auth.users). Egress e Realtime Messages a gente mede com telemetria
-    // própria (usage_telemetry_daily — ver src/lib/usageTelemetry.ts),
-    // já que o Supabase não expõe esses dois por API pública. Sincroniza
-    // o "usado" das 4 a cada carregamento do painel, pra ninguém precisar
-    // preencher isso à mão. Logs e o resto continuam manuais.
+    // Banco, Storage e MAU dão pra ler direto do banco (pg_database_size,
+    // storage.objects e auth.users). Egress e Realtime Messages a gente
+    // mede com telemetria própria (usage_telemetry_daily — ver
+    // src/lib/usageTelemetry.ts), já que o Supabase não expõe esses dois
+    // por API pública. Sincroniza o "usado" das 5 a cada carregamento do
+    // painel, pra ninguém precisar preencher isso à mão — são as únicas
+    // métricas que restaram na lista (o resto foi removido por não dar
+    // pra automatizar, ver migration 20261011000000).
+    const dbGb = Number(data.database_size_bytes || 0) / (1024 * 1024 * 1024)
     const storageGb = Number(data.storage_size_bytes || 0) / (1024 * 1024 * 1024)
     const mau = Number(data.mau_last_30d || 0)
 
@@ -36,6 +39,10 @@ export async function POST(req: Request) {
     const realtimeMessages = (telemetryRows || []).reduce((sum, r) => sum + Number(r.realtime_messages), 0)
 
     await Promise.all([
+        supabaseAdmin
+            .from('supabase_usage_metrics')
+            .update({ used_value: dbGb, updated_at: new Date().toISOString() })
+            .eq('metric_name', 'Banco de dados'),
         supabaseAdmin
             .from('supabase_usage_metrics')
             .update({ used_value: storageGb, updated_at: new Date().toISOString() })

@@ -82,6 +82,7 @@ function overageCost(m: UsageMetric): number {
 // Realtime vêm da nossa telemetria própria (src/lib/usageTelemetry.ts) —
 // aproximados, não batem 100% com o número que o Supabase cobra.
 const AUTO_SYNCED_METRICS = new Set([
+    'Banco de dados',
     'Armazenamento (Storage)',
     'Usuários ativos por mês (MAU)',
     'Largura de banda (Egress)',
