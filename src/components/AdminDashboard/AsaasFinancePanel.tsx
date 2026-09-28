@@ -39,6 +39,10 @@ interface AsaasOverview {
     asaasFeesTotal: number
     pendingPaymentsTotal: number
     overduePaymentsTotal: number
+    transfersOutTotal: number
+    commissionTransfersTotal: number
+    otherTransfersTotal: number
+    unexplainedTotal: number
     asaasActivityError: string | null
     activity: ActivityItem[]
 }
@@ -182,6 +186,30 @@ export default function AsaasFinancePanel({ cardStyle, colors }: AsaasFinancePan
                             </p>
                         )}
                     </div>
+
+                    {/* ===== 1b. Pra onde foi o líquido ===== */}
+                    {overview.receivedNetTotal > 0 && (
+                        <div className="space-y-1.5 pt-2 border-t" style={{ borderColor: colors.border }}>
+                            <p className="text-[10px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>
+                                Pra onde foi o líquido ({money(overview.receivedNetTotal)})
+                            </p>
+                            {row(
+                                'Repasse de comissão (quem indicou)',
+                                `-${money(overview.commissionTransfersTotal)}`,
+                                { color: overview.commissionTransfersTotal > 0 ? '#ef4444' : colors.textPrimary }
+                            )}
+                            {row(
+                                'Outras retiradas da conta',
+                                `-${money(overview.otherTransfersTotal)}`,
+                                { color: overview.otherTransfersTotal > 0 ? '#ef4444' : colors.textPrimary, sub: 'ex: o dono da conta sacando pra si, fora do fluxo de comissão' }
+                            )}
+                            {row(
+                                'Ainda não repassado (estimado)',
+                                money(overview.unexplainedTotal),
+                                { sub: 'diferença pro saldo real pode ser taxa/ajuste da conta fora dessas 20 cobranças' }
+                            )}
+                        </div>
+                    )}
 
                     {/* ===== 2. Na aplicação (nosso banco) ===== */}
                     <div className="space-y-1.5 pt-2 border-t" style={{ borderColor: colors.border }}>

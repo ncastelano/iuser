@@ -90,6 +90,24 @@ export async function POST(req: Request) {
     const postpaidMap = new Map((postpaidLookup.data || []).map((p: any) => [p.asaas_payment_id, p]))
     const withdrawalMap = new Map((withdrawalsLookup.data || []).map((w: any) => [w.asaas_transfer_id, w]))
 
+    // Pra onde foi o líquido (receivedNetTotal): quanto foi repasse de
+    // comissão (transferência vinculada a um withdrawal_requests nosso,
+    // pago pro indicador) x quanto foi retirada geral da conta (qualquer
+    // outra transferência, ex: o dono tirando saldo pra si) x quanto ainda
+    // sobrou disponível. Só conta transferência DONE — uma que falhou ou
+    // ainda está processando não tirou dinheiro de verdade da conta.
+    const doneTransfers = transfers.filter((t) => t.status === 'DONE')
+    const transfersOutTotal = doneTransfers.reduce((sum, t) => sum + Number(t.value), 0)
+    const commissionTransfersTotal = doneTransfers
+        .filter((t) => withdrawalMap.has(t.id))
+        .reduce((sum, t) => sum + Number(t.value), 0)
+    const otherTransfersTotal = transfersOutTotal - commissionTransfersTotal
+    // Estimativa (não é o saldo real — ver asaasBalance): parte do líquido
+    // recebido que essas 20 cobranças/transferências não explicam ainda,
+    // seja porque continua disponível na conta, seja por taxa/ajuste da
+    // Asaas fora dessas duas listas (ex: mensalidade da conta).
+    const unexplainedTotal = receivedNetTotal - transfersOutTotal
+
     const activity = [
         ...payments.map((p) => {
             const sub = p.externalReference ? subMap.get(p.externalReference) : null
@@ -135,6 +153,10 @@ export async function POST(req: Request) {
         asaasFeesTotal,
         pendingPaymentsTotal,
         overduePaymentsTotal,
+        transfersOutTotal,
+        commissionTransfersTotal,
+        otherTransfersTotal,
+        unexplainedTotal,
         asaasActivityError,
         activity,
     })
