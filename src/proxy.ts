@@ -39,6 +39,7 @@ const IGNORED_ROUTES = [
     '/minhas-corridas',
     '/planos',
     '/planos/pos-pago',
+    '/meus-servicos',
 ]
 
 // ===== PREFIXOS IGNORADOS =====
