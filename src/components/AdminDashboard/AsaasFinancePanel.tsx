@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { Spinner } from '@/components/Spinner'
 import { callAdminApi } from '@/lib/callAdminApi'
-import { Landmark, RefreshCw, Wallet, HandCoins, TrendingUp, AlertTriangle, Pencil, History, ArrowDownCircle, ArrowUpCircle } from 'lucide-react'
+import { Landmark, RefreshCw, Wallet, HandCoins, TrendingUp, AlertTriangle, Pencil, History, ArrowDownCircle, ArrowUpCircle, Search } from 'lucide-react'
 import type { ThemeColors } from '@/app/contexts/theme'
 import { ExpenseForm, type ExpenseRow } from './ExpenseForm'
 
@@ -43,16 +43,20 @@ interface AsaasOverview {
     commissionTransfersTotal: number
     otherTransfersTotal: number
     unexplainedTotal: number
-    payers: NameTotal[]
-    commissionWithdrawers: NameTotal[]
-    otherWithdrawers: NameTotal[]
+    payers: PersonRow[]
+    commissionWithdrawers: PersonRow[]
+    otherWithdrawers: PersonRow[]
     asaasActivityError: string | null
     activity: ActivityItem[]
 }
 
-interface NameTotal {
+interface PersonRow {
     name: string
-    total: number
+    avatarUrl: string | null
+    profileSlug: string | null
+    linked: boolean
+    date: string
+    value: number
 }
 
 interface ActivityItem {
@@ -79,6 +83,88 @@ const STATUS_LABEL: Record<string, { label: string; color: string }> = {
 
 function money(v: number | null | undefined): string {
     return `R$ ${Number(v || 0).toFixed(2)}`
+}
+
+// Asaas manda "2026-09-16 16:59:25" (com hora, de transferência/PIX) ou só
+// "2026-09-16" (cobrança sem PIX associado) — trata os dois formatos.
+function formatDateTime(dateStr: string): string {
+    const hasTime = dateStr.includes(':')
+    const d = new Date(hasTime ? dateStr.replace(' ', 'T') : `${dateStr}T00:00:00`)
+    return hasTime
+        ? d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+        : d.toLocaleDateString('pt-BR')
+}
+
+// Lista buscável de pessoas (quem pagou / quem sacou), uma linha por
+// transação — não agrega por nome, porque o pedido é justamente dar pra
+// ver quantas vezes cada um pagou e a que hora, não só o total. Foto e
+// link pro perfil só existem pra quem está cadastrado no app (profileSlug).
+function PersonSearchList({ items, colors }: { items: PersonRow[]; colors: ThemeColors }) {
+    const [search, setSearch] = useState('')
+    const filtered = search.trim()
+        ? items.filter((p) => p.name.toLowerCase().includes(search.trim().toLowerCase()))
+        : items
+
+    return (
+        <div className="space-y-1.5">
+            <div className="relative">
+                <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: colors.textSecondary }} />
+                <input
+                    type="text"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder={`Buscar entre ${items.length} pessoa(s)...`}
+                    className="w-full pl-7 pr-2 py-1.5 rounded-lg text-[10px]"
+                    style={{ background: colors.background, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                />
+            </div>
+            <div className="flex flex-col gap-1 max-h-48 overflow-y-auto pr-0.5">
+                {filtered.length === 0 ? (
+                    <p className="text-[10px] py-1 px-1" style={{ color: colors.textSecondary }}>Nada encontrado.</p>
+                ) : filtered.map((p, i) => {
+                    const rowStyle: React.CSSProperties = { background: `${colors.border}15` }
+                    const content = (
+                        <>
+                            {p.avatarUrl ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={p.avatarUrl} alt={p.name} className="w-6 h-6 rounded-full object-cover flex-shrink-0" />
+                            ) : (
+                                <div
+                                    className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-[9px] font-black"
+                                    style={{ background: `${colors.border}40`, color: colors.textSecondary }}
+                                >
+                                    {p.name.charAt(0).toUpperCase()}
+                                </div>
+                            )}
+                            <div className="min-w-0 flex-1">
+                                <p className="text-[10px] font-bold truncate" style={{ color: p.profileSlug ? colors.accent : colors.textPrimary }}>
+                                    {p.name}
+                                </p>
+                                <p className="text-[9px] truncate" style={{ color: colors.textSecondary }}>{formatDateTime(p.date)}</p>
+                            </div>
+                            <span className="text-[10px] font-black flex-shrink-0" style={{ color: colors.textPrimary }}>{money(p.value)}</span>
+                        </>
+                    )
+                    return p.profileSlug ? (
+                        <a
+                            key={i}
+                            href={`/${p.profileSlug}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-2 px-1.5 py-1 rounded-lg"
+                            style={rowStyle}
+                        >
+                            {content}
+                        </a>
+                    ) : (
+                        <div key={i} className="flex items-center gap-2 px-1.5 py-1 rounded-lg" style={rowStyle}>
+                            {content}
+                        </div>
+                    )
+                })}
+            </div>
+        </div>
+    )
 }
 
 // Painel "Asaas" dentro da aba Financeiro: o mapeamento completo de pra
@@ -113,17 +199,6 @@ export default function AsaasFinancePanel({ cardStyle, colors }: AsaasFinancePan
                 <span className="font-black" style={{ color: opts?.color || colors.textPrimary }}>{value}</span>
                 {opts?.sub && <span className="block text-[9px]" style={{ color: colors.textSecondary }}>{opts.sub}</span>}
             </span>
-        </div>
-    )
-
-    const nameList = (items: NameTotal[]) => (
-        <div className="flex flex-col gap-0.5 pl-2 border-l-2" style={{ borderColor: `${colors.border}60` }}>
-            {items.map((p) => (
-                <div key={p.name} className="flex items-center justify-between gap-2 text-[10px]">
-                    <span className="truncate" style={{ color: colors.textSecondary }}>{p.name}</span>
-                    <span className="flex-shrink-0 font-bold" style={{ color: colors.textPrimary }}>{money(p.total)}</span>
-                </div>
-            ))}
         </div>
     )
 
@@ -195,7 +270,7 @@ export default function AsaasFinancePanel({ cardStyle, colors }: AsaasFinancePan
                             </p>
                         )}
                         {row('Recebido bruto (últimas 20 cobranças)', money(overview.receivedGrossTotal))}
-                        {overview.payers.length > 0 && nameList(overview.payers)}
+                        {overview.payers.length > 0 && <PersonSearchList items={overview.payers} colors={colors} />}
                         {row('Taxa da Asaas descontada', `-${money(overview.asaasFeesTotal)}`, { color: '#ef4444' })}
                         {row('Ficou líquido pra plataforma', money(overview.receivedNetTotal), { color: '#22c55e' })}
                         {(overview.pendingPaymentsTotal > 0 || overview.overduePaymentsTotal > 0) && (
@@ -218,13 +293,13 @@ export default function AsaasFinancePanel({ cardStyle, colors }: AsaasFinancePan
                                 `-${money(overview.commissionTransfersTotal)}`,
                                 { color: overview.commissionTransfersTotal > 0 ? '#ef4444' : colors.textPrimary }
                             )}
-                            {overview.commissionWithdrawers.length > 0 && nameList(overview.commissionWithdrawers)}
+                            {overview.commissionWithdrawers.length > 0 && <PersonSearchList items={overview.commissionWithdrawers} colors={colors} />}
                             {row(
                                 'Outras retiradas da conta',
                                 `-${money(overview.otherTransfersTotal)}`,
                                 { color: overview.otherTransfersTotal > 0 ? '#ef4444' : colors.textPrimary, sub: 'ex: o dono da conta sacando pra si, fora do fluxo de comissão' }
                             )}
-                            {overview.otherWithdrawers.length > 0 && nameList(overview.otherWithdrawers)}
+                            {overview.otherWithdrawers.length > 0 && <PersonSearchList items={overview.otherWithdrawers} colors={colors} />}
                             {row(
                                 'Ainda não repassado (estimado)',
                                 money(overview.unexplainedTotal),

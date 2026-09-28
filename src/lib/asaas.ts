@@ -220,6 +220,8 @@ export interface AsaasPaymentListItem {
     subscription: string | null
     externalReference: string | null
     customer: string
+    billingType: string
+    pixTransaction: string | null
 }
 
 // Lista bruta de cobranças na Asaas — pega qualquer cobrança que exista lá,
@@ -232,9 +234,23 @@ export async function listPayments(limit = 20): Promise<AsaasPaymentListItem[]> 
     return result.data || []
 }
 
+export interface AsaasPixTransaction {
+    dateCreated: string // com hora, ex: "2026-09-16 16:59:25" — o /payments não tem hora, só data
+    externalAccount: { name: string | null } | null
+}
+
+// Cobrança PIX não traz o horário exato (só a data) — pra saber a hora
+// certa de quando a pessoa pagou (e o nome de quem pagou de verdade, via
+// externalAccount, mais confiável que o cadastro de customer) precisa
+// buscar a transação PIX associada.
+export async function getPixTransaction(pixTransactionId: string): Promise<AsaasPixTransaction> {
+    return asaasFetch<AsaasPixTransaction>(`/pix/transactions/${pixTransactionId}`)
+}
+
 export interface AsaasTransferListItem {
     id: string
     dateCreated: string
+    effectiveDate: string | null // com hora, quando a transferência de fato saiu da conta
     value: number
     netValue: number
     status: string
