@@ -95,6 +95,19 @@ function formatDateTime(dateStr: string): string {
         : d.toLocaleDateString('pt-BR')
 }
 
+// Pill de resumo — mesmo padrão de "grantedFree.plans" em SubscriptionsSection
+// (AdminDashboard.tsx): rótulo + valor num badge arredondado.
+function StatPill({ label, value, color, colors }: { label: string; value: string; color?: string; colors: ThemeColors }) {
+    return (
+        <span
+            className="text-[11px] font-bold px-3 py-1.5 rounded-full"
+            style={{ background: color ? `${color}20` : `${colors.border}30`, color: color || colors.textSecondary }}
+        >
+            {label}: {value}
+        </span>
+    )
+}
+
 // Lista buscável de pessoas (quem pagou / quem sacou), uma linha por
 // transação — não agrega por nome, porque o pedido é justamente dar pra
 // ver quantas vezes cada um pagou e a que hora, não só o total. Foto e
@@ -105,44 +118,51 @@ function PersonSearchList({ items, colors }: { items: PersonRow[]; colors: Theme
         ? items.filter((p) => p.name.toLowerCase().includes(search.trim().toLowerCase()))
         : items
 
+    const inputStyle: React.CSSProperties = {
+        background: colors.background,
+        border: `1px solid ${colors.border}`,
+        color: colors.textPrimary,
+        borderRadius: 12,
+        padding: '8px 12px',
+        fontSize: 13,
+    }
+
     return (
-        <div className="space-y-1.5">
+        <div className="space-y-2">
             <div className="relative">
-                <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: colors.textSecondary }} />
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: colors.textSecondary }} />
                 <input
                     type="text"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     placeholder={`Buscar entre ${items.length} pessoa(s)...`}
-                    className="w-full pl-7 pr-2 py-1.5 rounded-lg text-[10px]"
-                    style={{ background: colors.background, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                    style={{ ...inputStyle, paddingLeft: 32, width: '100%' }}
                 />
             </div>
-            <div className="flex flex-col gap-1 max-h-48 overflow-y-auto pr-0.5">
+            <div className="flex flex-col gap-2 max-h-64 overflow-y-auto pr-0.5">
                 {filtered.length === 0 ? (
-                    <p className="text-[10px] py-1 px-1" style={{ color: colors.textSecondary }}>Nada encontrado.</p>
+                    <p className="text-sm" style={{ color: colors.textSecondary }}>Nada encontrado.</p>
                 ) : filtered.map((p, i) => {
-                    const rowStyle: React.CSSProperties = { background: `${colors.border}15` }
                     const content = (
                         <>
                             {p.avatarUrl ? (
                                 // eslint-disable-next-line @next/next/no-img-element
-                                <img src={p.avatarUrl} alt={p.name} className="w-6 h-6 rounded-full object-cover flex-shrink-0" />
+                                <img src={p.avatarUrl} alt={p.name} className="w-9 h-9 rounded-full object-cover flex-shrink-0" />
                             ) : (
                                 <div
-                                    className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-[9px] font-black"
+                                    className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-black"
                                     style={{ background: `${colors.border}40`, color: colors.textSecondary }}
                                 >
                                     {p.name.charAt(0).toUpperCase()}
                                 </div>
                             )}
                             <div className="min-w-0 flex-1">
-                                <p className="text-[10px] font-bold truncate" style={{ color: p.profileSlug ? colors.accent : colors.textPrimary }}>
+                                <p className="text-sm font-bold truncate" style={{ color: p.profileSlug ? colors.accent : colors.textPrimary }}>
                                     {p.name}
                                 </p>
-                                <p className="text-[9px] truncate" style={{ color: colors.textSecondary }}>{formatDateTime(p.date)}</p>
+                                <p className="text-[11px] truncate" style={{ color: colors.textSecondary }}>{formatDateTime(p.date)}</p>
                             </div>
-                            <span className="text-[10px] font-black flex-shrink-0" style={{ color: colors.textPrimary }}>{money(p.value)}</span>
+                            <span className="text-sm font-black flex-shrink-0" style={{ color: colors.textPrimary }}>{money(p.value)}</span>
                         </>
                     )
                     return p.profileSlug ? (
@@ -151,13 +171,13 @@ function PersonSearchList({ items, colors }: { items: PersonRow[]; colors: Theme
                             href={`/${p.profileSlug}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="flex items-center gap-2 px-1.5 py-1 rounded-lg"
-                            style={rowStyle}
+                            className="flex items-center gap-2.5 px-3 py-2 rounded-2xl"
+                            style={{ background: `${colors.border}20` }}
                         >
                             {content}
                         </a>
                     ) : (
-                        <div key={i} className="flex items-center gap-2 px-1.5 py-1 rounded-lg" style={rowStyle}>
+                        <div key={i} className="flex items-center gap-2.5 px-3 py-2 rounded-2xl" style={{ background: `${colors.border}20` }}>
                             {content}
                         </div>
                     )
@@ -172,7 +192,10 @@ function PersonSearchList({ items, colors }: { items: PersonRow[]; colors: Theme
 // eles sabem), o que o nosso banco registra como receita (assinatura +
 // pós-pago), quanto devemos às pessoas (carteira/comissão) e quanto as
 // pessoas nos devem (pós-pago em aberto). Tudo via get_asaas_financial_overview
-// (migration 20261012000000), exceto o saldo Asaas (getBalance, só existe do lado deles).
+// (migration 20261012000000), exceto o saldo Asaas (getBalance, só existe do
+// lado deles). Cada bloco é seu próprio card (mesmo padrão de
+// SubscriptionsSection/WithdrawalsSection em AdminDashboard.tsx), não um
+// card único cheio de divisórias.
 export default function AsaasFinancePanel({ cardStyle, colors }: AsaasFinancePanelProps) {
     const [overview, setOverview] = useState<AsaasOverview | null>(null)
     const [loading, setLoading] = useState(true)
@@ -192,18 +215,13 @@ export default function AsaasFinancePanel({ cardStyle, colors }: AsaasFinancePan
 
     useEffect(() => { load() }, [load])
 
-    const row = (label: string, value: string, opts?: { color?: string; sub?: string }) => (
-        <div className="flex items-center justify-between gap-2 text-[11px]">
-            <span style={{ color: colors.textSecondary }}>{label}</span>
-            <span className="text-right">
-                <span className="font-black" style={{ color: opts?.color || colors.textPrimary }}>{value}</span>
-                {opts?.sub && <span className="block text-[9px]" style={{ color: colors.textSecondary }}>{opts.sub}</span>}
-            </span>
-        </div>
-    )
+    if (loading && !overview) {
+        return <div className="flex justify-center py-8"><Spinner size={24} color={colors.accent} /></div>
+    }
+    if (!overview) return null
 
     return (
-        <div style={cardStyle} className="space-y-4">
+        <div className="space-y-3">
             <div className="flex items-center justify-between gap-2">
                 <p className="text-xs font-black uppercase tracking-wider flex items-center gap-1.5" style={{ color: colors.textSecondary }}>
                     <Landmark size={13} />
@@ -212,207 +230,228 @@ export default function AsaasFinancePanel({ cardStyle, colors }: AsaasFinancePan
                 <button
                     onClick={load}
                     disabled={loading}
-                    className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+                    className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
                     style={{ background: `${colors.border}30`, color: colors.textPrimary }}
                 >
-                    {loading ? <Spinner size={13} /> : <RefreshCw size={13} />}
+                    {loading ? <Spinner size={14} /> : <RefreshCw size={14} />}
                 </button>
             </div>
 
-            {loading && !overview ? (
-                <div className="flex justify-center py-6"><Spinner size={20} color={colors.accent} /></div>
-            ) : overview && (
-                <>
-                    {overview.expense && !editingCost && (
-                        <div className="flex items-center justify-between gap-2 text-[11px] p-2.5 rounded-xl" style={{ background: `${colors.border}20` }}>
-                            <span style={{ color: colors.textSecondary }}>
-                                {overview.expense.notes || 'Cobrança de assinaturas e saques via PIX'}
-                                {' · '}Custo: <strong style={{ color: colors.textPrimary }}>
-                                    {overview.expense.billing_cycle === 'usage' ? 'variável (por transação)' : money(overview.expense.monthly_cost)}
-                                </strong>
-                            </span>
-                            <button onClick={() => setEditingCost(true)} style={{ color: colors.textSecondary }} className="flex-shrink-0">
-                                <Pencil size={12} />
-                            </button>
-                        </div>
-                    )}
-
-                    {editingCost && overview.expense && (
-                        <ExpenseForm
-                            colors={colors}
-                            cardStyle={{ background: 'transparent', padding: 0 }}
-                            initial={overview.expense}
-                            onCancel={() => setEditingCost(false)}
-                            onSaved={() => { setEditingCost(false); load() }}
-                        />
-                    )}
-
-                    {overview.isSandbox && (
-                        <div className="rounded-2xl p-3" style={{ background: '#f59e0b15', border: '1px solid #f59e0b40' }}>
-                            <p className="text-[11px]" style={{ color: colors.textPrimary }}>
-                                <strong>Ambiente sandbox</strong> (<code>ASAAS_API_BASE_URL</code>) — os valores abaixo do nosso banco são
-                                reais, mas nenhum PIX de verdade está circulando na Asaas ainda. Antes de ir pra produção, troque pra
-                                a URL de produção da Asaas e uma chave de API de produção.
-                            </p>
-                        </div>
-                    )}
-
-                    {/* ===== 1. Na conta Asaas (externo) ===== */}
-                    <div className="space-y-1.5">
-                        <p className="text-[10px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>
-                            Na conta Asaas (externo, via API deles)
-                        </p>
-                        {overview.asaasBalance !== null ? (
-                            row('Saldo disponível', money(overview.asaasBalance))
-                        ) : (
-                            <p className="text-[10px]" style={{ color: colors.textSecondary }}>
-                                {overview.asaasBalanceError || 'Não configurado'}
-                            </p>
-                        )}
-                        {row('Recebido bruto (últimas 20 cobranças)', money(overview.receivedGrossTotal))}
-                        {overview.payers.length > 0 && <PersonSearchList items={overview.payers} colors={colors} />}
-                        {row('Taxa da Asaas descontada', `-${money(overview.asaasFeesTotal)}`, { color: '#ef4444' })}
-                        {row('Ficou líquido pra plataforma', money(overview.receivedNetTotal), { color: '#22c55e' })}
-                        {(overview.pendingPaymentsTotal > 0 || overview.overduePaymentsTotal > 0) && (
-                            <p className="text-[9px] pt-0.5" style={{ color: colors.textSecondary }}>
-                                {overview.pendingPaymentsTotal > 0 && `${money(overview.pendingPaymentsTotal)} pendente`}
-                                {overview.pendingPaymentsTotal > 0 && overview.overduePaymentsTotal > 0 && ' · '}
-                                {overview.overduePaymentsTotal > 0 && `${money(overview.overduePaymentsTotal)} vencido, não recebido`}
-                            </p>
-                        )}
-                    </div>
-
-                    {/* ===== 1b. Pra onde foi o líquido ===== */}
-                    {overview.receivedNetTotal > 0 && (
-                        <div className="space-y-1.5 pt-2 border-t" style={{ borderColor: colors.border }}>
-                            <p className="text-[10px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>
-                                Pra onde foi o líquido ({money(overview.receivedNetTotal)})
-                            </p>
-                            {row(
-                                'Repasse de comissão (quem indicou)',
-                                `-${money(overview.commissionTransfersTotal)}`,
-                                { color: overview.commissionTransfersTotal > 0 ? '#ef4444' : colors.textPrimary }
-                            )}
-                            {overview.commissionWithdrawers.length > 0 && <PersonSearchList items={overview.commissionWithdrawers} colors={colors} />}
-                            {row(
-                                'Outras retiradas da conta',
-                                `-${money(overview.otherTransfersTotal)}`,
-                                { color: overview.otherTransfersTotal > 0 ? '#ef4444' : colors.textPrimary, sub: 'ex: o dono da conta sacando pra si, fora do fluxo de comissão' }
-                            )}
-                            {overview.otherWithdrawers.length > 0 && <PersonSearchList items={overview.otherWithdrawers} colors={colors} />}
-                            {row(
-                                'Ainda não repassado (estimado)',
-                                money(overview.unexplainedTotal),
-                                { sub: 'diferença pro saldo real pode ser taxa/ajuste da conta fora dessas 20 cobranças' }
-                            )}
-                        </div>
-                    )}
-
-                    {/* ===== 2. Na aplicação (nosso banco) ===== */}
-                    <div className="space-y-1.5 pt-2 border-t" style={{ borderColor: colors.border }}>
-                        <p className="text-[10px] font-black uppercase tracking-wider flex items-center gap-1" style={{ color: colors.textSecondary }}>
-                            <TrendingUp size={11} /> Na aplicação (banco, auto)
-                        </p>
-                        {row('MRR (assinaturas ativas)', money(overview.mrr))}
-                        {row(
-                            'Assinaturas',
-                            `${overview.active_subscriptions} ativas`,
-                            { sub: `${overview.past_due_subscriptions} atrasadas · ${overview.canceled_subscriptions} canceladas` }
-                        )}
-                        {row('Receita de assinatura (total)', money(overview.subscription_revenue_total))}
-                        {row('Receita de assinatura (mês)', money(overview.subscription_revenue_this_month), { color: '#22c55e' })}
-                        {row('Pós-pago recebido (total)', money(overview.postpaid_collected_total))}
-                        {row('Pós-pago recebido (mês)', money(overview.postpaid_collected_this_month), { color: '#22c55e' })}
-                    </div>
-
-                    {/* ===== 3. Carteira das pessoas (o que devemos) ===== */}
-                    <div className="space-y-1.5 pt-2 border-t" style={{ borderColor: colors.border }}>
-                        <p className="text-[10px] font-black uppercase tracking-wider flex items-center gap-1" style={{ color: colors.textSecondary }}>
-                            <Wallet size={11} /> Carteira das pessoas (o que devemos)
-                        </p>
-                        {row(
-                            'Passivo total (saldo somado)',
-                            money(overview.wallet_liability_total),
-                            { color: overview.wallet_liability_total > 0 ? '#ef4444' : colors.textPrimary, sub: `${overview.wallet_positive_users} pessoa(s) com saldo pra sacar` }
-                        )}
-                        {row(
-                            'Saques pendentes',
-                            money(overview.pending_withdrawals_total),
-                            { color: overview.pending_withdrawals_count > 0 ? '#f97316' : colors.textPrimary, sub: `${overview.pending_withdrawals_count} pedido(s) aguardando` }
-                        )}
-                    </div>
-
-                    {/* ===== 4. O que cada pessoa pode pagar (pós-pago em aberto) ===== */}
-                    <div className="space-y-1.5 pt-2 border-t" style={{ borderColor: colors.border }}>
-                        <p className="text-[10px] font-black uppercase tracking-wider flex items-center gap-1" style={{ color: colors.textSecondary }}>
-                            <HandCoins size={11} /> O que nos devem (pós-pago em aberto)
-                        </p>
-                        {row(
-                            'Dívida em aberto (total)',
-                            money(overview.postpaid_debt_outstanding_total),
-                            { color: '#22c55e', sub: `${overview.postpaid_debt_users_count} pessoa(s) devendo` }
-                        )}
-                        {overview.postpaid_debt_blocked_count > 0 && (
-                            <div className="flex items-center gap-1.5 text-[10px] pt-1" style={{ color: '#ef4444' }}>
-                                <AlertTriangle size={11} />
-                                {overview.postpaid_debt_blocked_count} pessoa(s) bloqueada(s) (dívida ≥ R$ 50)
-                            </div>
-                        )}
-                    </div>
-
-                    {/* ===== 5. Atividade recente na Asaas ===== */}
-                    <div className="space-y-1.5 pt-2 border-t" style={{ borderColor: colors.border }}>
-                        <p className="text-[10px] font-black uppercase tracking-wider flex items-center gap-1" style={{ color: colors.textSecondary }}>
-                            <History size={11} /> Atividade recente na Asaas
-                        </p>
-                        <p className="text-[9px] -mt-1" style={{ color: colors.textSecondary }}>
-                            Direto da Asaas (últimas 20 cobranças + transferências) — inclui até cobrança criada manualmente
-                            no dashboard deles. "Fora do app" = não bate com nenhuma assinatura/saque registrado no nosso banco.
-                        </p>
-                        {overview.asaasActivityError && (
-                            <p className="text-[10px] py-1" style={{ color: '#ef4444' }}>{overview.asaasActivityError}</p>
-                        )}
-                        {overview.activity.length === 0 ? (
-                            <p className="text-[10px] py-2" style={{ color: colors.textSecondary }}>Nenhuma atividade ainda.</p>
-                        ) : overview.activity.map((a, i) => {
-                            const isOutflow = a.kind === 'transfer'
-                            const Icon = isOutflow ? ArrowUpCircle : ArrowDownCircle
-                            const statusInfo = STATUS_LABEL[a.status] || { label: a.status.toLowerCase(), color: colors.textSecondary }
-                            const isReceived = a.status === 'RECEIVED' || a.status === 'CONFIRMED' || a.status === 'DONE'
-                            return (
-                                <div key={`${a.kind}-${a.asaasId}-${i}`} className="flex items-center justify-between gap-2 text-[11px] py-1">
-                                    <div className="flex items-center gap-2 min-w-0">
-                                        <Icon size={14} style={{ color: statusInfo.color, flexShrink: 0 }} />
-                                        <div className="min-w-0">
-                                            <p className="font-bold truncate flex items-center gap-1" style={{ color: colors.textPrimary }}>
-                                                {isOutflow ? 'Transferência' : 'Cobrança'}{a.personName && ` · ${a.personName}`}
-                                                <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ background: `${statusInfo.color}20`, color: statusInfo.color }}>
-                                                    {statusInfo.label}
-                                                </span>
-                                                {!a.linked && (
-                                                    <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ background: `${colors.border}30`, color: colors.textSecondary }}>
-                                                        fora do app
-                                                    </span>
-                                                )}
-                                            </p>
-                                            <p className="text-[9px] truncate" style={{ color: colors.textSecondary }}>
-                                                {new Date(a.date + 'T00:00:00').toLocaleDateString('pt-BR')}
-                                                {a.detail && ` · ${a.detail}`}
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <span className="font-black flex-shrink-0 text-right" style={{ color: isOutflow ? '#ef4444' : isReceived ? '#22c55e' : colors.textSecondary }}>
-                                        {isOutflow ? '-' : '+'}{money(a.value)}
-                                        {!isOutflow && a.value !== a.netValue && (
-                                            <span className="block text-[8px] font-normal" style={{ color: colors.textSecondary }}>líquido {money(a.netValue)}</span>
-                                        )}
-                                    </span>
-                                </div>
-                            )
-                        })}
-                    </div>
-                </>
+            {overview.expense && !editingCost && (
+                <div style={cardStyle} className="flex items-center justify-between gap-3">
+                    <p className="text-sm" style={{ color: colors.textSecondary }}>
+                        {overview.expense.notes || 'Cobrança de assinaturas e saques via PIX'}
+                        {' — '}
+                        <strong style={{ color: colors.textPrimary }}>
+                            {overview.expense.billing_cycle === 'usage' ? 'variável (por transação)' : money(overview.expense.monthly_cost)}
+                        </strong>
+                    </p>
+                    <button
+                        onClick={() => setEditingCost(true)}
+                        className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
+                        style={{ background: `${colors.border}30`, color: colors.textPrimary }}
+                    >
+                        <Pencil size={14} />
+                    </button>
+                </div>
             )}
+
+            {editingCost && overview.expense && (
+                <ExpenseForm
+                    colors={colors}
+                    cardStyle={cardStyle}
+                    initial={overview.expense}
+                    onCancel={() => setEditingCost(false)}
+                    onSaved={() => { setEditingCost(false); load() }}
+                />
+            )}
+
+            {overview.isSandbox && (
+                <div style={cardStyle}>
+                    <p className="text-sm" style={{ color: colors.textPrimary }}>
+                        <strong>Ambiente sandbox</strong> — os valores do nosso banco são reais, mas nenhum PIX de verdade está
+                        circulando na Asaas ainda. Troque pra URL e chave de produção quando for pra valer.
+                    </p>
+                </div>
+            )}
+
+            {/* ===== Saldo na conta Asaas (externo) ===== */}
+            <div style={cardStyle} className="space-y-3">
+                <p className="text-xs font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>
+                    Saldo na conta Asaas
+                </p>
+                {overview.asaasBalance !== null ? (
+                    <p className="text-2xl font-black" style={{ color: colors.textPrimary }}>{money(overview.asaasBalance)}</p>
+                ) : (
+                    <p className="text-sm" style={{ color: colors.textSecondary }}>{overview.asaasBalanceError || 'Não configurado'}</p>
+                )}
+                <div className="flex flex-wrap gap-2">
+                    <StatPill label="Bruto recebido" value={money(overview.receivedGrossTotal)} colors={colors} />
+                    <StatPill label="Taxa Asaas" value={`-${money(overview.asaasFeesTotal)}`} color="#ef4444" colors={colors} />
+                    <StatPill label="Líquido" value={money(overview.receivedNetTotal)} color="#22c55e" colors={colors} />
+                    {overview.pendingPaymentsTotal > 0 && (
+                        <StatPill label="Pendente" value={money(overview.pendingPaymentsTotal)} colors={colors} />
+                    )}
+                    {overview.overduePaymentsTotal > 0 && (
+                        <StatPill label="Vencido" value={money(overview.overduePaymentsTotal)} color="#ef4444" colors={colors} />
+                    )}
+                </div>
+                <p className="text-[11px]" style={{ color: colors.textSecondary }}>Baseado nas últimas 20 cobranças na Asaas.</p>
+            </div>
+
+            {overview.payers.length > 0 && (
+                <div style={cardStyle} className="space-y-2">
+                    <p className="text-xs font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>
+                        Quem pagou ({overview.payers.length})
+                    </p>
+                    <PersonSearchList items={overview.payers} colors={colors} />
+                </div>
+            )}
+
+            {/* ===== Pra onde foi o líquido ===== */}
+            {overview.receivedNetTotal > 0 && (
+                <div style={cardStyle} className="space-y-3">
+                    <p className="text-xs font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>
+                        Pra onde foi o líquido
+                    </p>
+                    <p className="text-2xl font-black" style={{ color: colors.textPrimary }}>{money(overview.receivedNetTotal)}</p>
+                    <div className="flex flex-wrap gap-2">
+                        <StatPill label="Comissão repassada" value={`-${money(overview.commissionTransfersTotal)}`} color="#ef4444" colors={colors} />
+                        <StatPill label="Outras retiradas" value={`-${money(overview.otherTransfersTotal)}`} color="#f97316" colors={colors} />
+                        <StatPill label="Ainda não repassado" value={money(overview.unexplainedTotal)} colors={colors} />
+                    </div>
+                    <p className="text-[11px]" style={{ color: colors.textSecondary }}>
+                        "Ainda não repassado" é estimativa — a diferença pro saldo real pode ser taxa/ajuste da conta fora dessas 20 cobranças.
+                    </p>
+                </div>
+            )}
+
+            {overview.commissionWithdrawers.length > 0 && (
+                <div style={cardStyle} className="space-y-2">
+                    <p className="text-xs font-black uppercase tracking-wider" style={{ color: '#ef4444' }}>
+                        Repasse de comissão ({overview.commissionWithdrawers.length})
+                    </p>
+                    <PersonSearchList items={overview.commissionWithdrawers} colors={colors} />
+                </div>
+            )}
+
+            {overview.otherWithdrawers.length > 0 && (
+                <div style={cardStyle} className="space-y-2">
+                    <p className="text-xs font-black uppercase tracking-wider" style={{ color: '#f97316' }}>
+                        Outras retiradas ({overview.otherWithdrawers.length})
+                    </p>
+                    <p className="text-[11px]" style={{ color: colors.textSecondary }}>Ex: o dono da conta sacando pra si, fora do fluxo de comissão.</p>
+                    <PersonSearchList items={overview.otherWithdrawers} colors={colors} />
+                </div>
+            )}
+
+            {/* ===== Na aplicação (nosso banco) ===== */}
+            <div style={cardStyle} className="space-y-2">
+                <p className="text-xs font-black uppercase tracking-wider flex items-center gap-1" style={{ color: colors.textSecondary }}>
+                    <TrendingUp size={12} /> Na aplicação (banco)
+                </p>
+                <p className="text-2xl font-black" style={{ color: colors.textPrimary }}>
+                    {money(overview.mrr)}<span className="text-xs font-bold" style={{ color: colors.textSecondary }}> MRR</span>
+                </p>
+                <p className="text-[11px]" style={{ color: colors.textSecondary }}>
+                    {overview.active_subscriptions} ativa{overview.active_subscriptions !== 1 ? 's' : ''} · {overview.past_due_subscriptions} atrasada{overview.past_due_subscriptions !== 1 ? 's' : ''} · {overview.canceled_subscriptions} cancelada{overview.canceled_subscriptions !== 1 ? 's' : ''}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                    <StatPill label="Assinatura (total)" value={money(overview.subscription_revenue_total)} colors={colors} />
+                    <StatPill label="Assinatura (mês)" value={money(overview.subscription_revenue_this_month)} color="#22c55e" colors={colors} />
+                    <StatPill label="Pós-pago (total)" value={money(overview.postpaid_collected_total)} colors={colors} />
+                    <StatPill label="Pós-pago (mês)" value={money(overview.postpaid_collected_this_month)} color="#22c55e" colors={colors} />
+                </div>
+            </div>
+
+            {/* ===== Carteira das pessoas (o que devemos) ===== */}
+            <div style={cardStyle} className="space-y-2">
+                <p className="text-xs font-black uppercase tracking-wider flex items-center gap-1" style={{ color: colors.textSecondary }}>
+                    <Wallet size={12} /> Carteira das pessoas (o que devemos)
+                </p>
+                <p className="text-2xl font-black" style={{ color: overview.wallet_liability_total > 0 ? '#ef4444' : colors.textPrimary }}>
+                    {money(overview.wallet_liability_total)}
+                </p>
+                <p className="text-[11px]" style={{ color: colors.textSecondary }}>
+                    {overview.wallet_positive_users} pessoa{overview.wallet_positive_users !== 1 ? 's' : ''} com saldo pra sacar
+                </p>
+                {overview.pending_withdrawals_count > 0 && (
+                    <StatPill label="Saques pendentes" value={`${money(overview.pending_withdrawals_total)} · ${overview.pending_withdrawals_count} pedido(s)`} color="#f97316" colors={colors} />
+                )}
+            </div>
+
+            {/* ===== O que nos devem (pós-pago em aberto) ===== */}
+            <div style={cardStyle} className="space-y-2">
+                <p className="text-xs font-black uppercase tracking-wider flex items-center gap-1" style={{ color: colors.textSecondary }}>
+                    <HandCoins size={12} /> O que nos devem (pós-pago em aberto)
+                </p>
+                <p className="text-2xl font-black" style={{ color: '#22c55e' }}>{money(overview.postpaid_debt_outstanding_total)}</p>
+                <p className="text-[11px]" style={{ color: colors.textSecondary }}>
+                    {overview.postpaid_debt_users_count} pessoa{overview.postpaid_debt_users_count !== 1 ? 's' : ''} devendo
+                </p>
+                {overview.postpaid_debt_blocked_count > 0 && (
+                    <div className="flex items-center gap-1.5 text-[11px] font-bold" style={{ color: '#ef4444' }}>
+                        <AlertTriangle size={13} />
+                        {overview.postpaid_debt_blocked_count} pessoa{overview.postpaid_debt_blocked_count !== 1 ? 's' : ''} bloqueada{overview.postpaid_debt_blocked_count !== 1 ? 's' : ''} (dívida ≥ R$ 50)
+                    </div>
+                )}
+            </div>
+
+            {/* ===== Atividade recente na Asaas ===== */}
+            <div className="space-y-2">
+                <p className="text-xs font-black uppercase tracking-wider flex items-center gap-1" style={{ color: colors.textSecondary }}>
+                    <History size={12} /> Atividade recente na Asaas ({overview.activity.length})
+                </p>
+                <p className="text-[11px]" style={{ color: colors.textSecondary }}>
+                    Direto da Asaas — inclui cobrança criada manualmente no dashboard deles. "Fora do app" não bate com
+                    nenhuma assinatura/saque registrado no nosso banco.
+                </p>
+                {overview.asaasActivityError && (
+                    <div style={cardStyle}><p className="text-sm" style={{ color: '#ef4444' }}>{overview.asaasActivityError}</p></div>
+                )}
+                {overview.activity.length === 0 ? (
+                    <div style={cardStyle}><p className="text-sm" style={{ color: colors.textSecondary }}>Nenhuma atividade ainda.</p></div>
+                ) : overview.activity.map((a, i) => {
+                    const isOutflow = a.kind === 'transfer'
+                    const Icon = isOutflow ? ArrowUpCircle : ArrowDownCircle
+                    const statusInfo = STATUS_LABEL[a.status] || { label: a.status.toLowerCase(), color: colors.textSecondary }
+                    const isReceived = a.status === 'RECEIVED' || a.status === 'CONFIRMED' || a.status === 'DONE'
+                    return (
+                        <div key={`${a.kind}-${a.asaasId}-${i}`} style={cardStyle} className="flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-3 min-w-0">
+                                <Icon size={20} style={{ color: statusInfo.color, flexShrink: 0 }} />
+                                <div className="min-w-0">
+                                    <p className="text-sm font-bold truncate" style={{ color: colors.textPrimary }}>
+                                        {isOutflow ? 'Transferência' : 'Cobrança'}{a.personName && ` · ${a.personName}`}
+                                    </p>
+                                    <p className="text-[11px] truncate" style={{ color: colors.textSecondary }}>
+                                        {new Date(a.date + 'T00:00:00').toLocaleDateString('pt-BR')}
+                                        {a.detail && ` · ${a.detail}`}
+                                    </p>
+                                    <div className="flex items-center gap-1.5 mt-1">
+                                        <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full" style={{ background: `${statusInfo.color}20`, color: statusInfo.color }}>
+                                            {statusInfo.label}
+                                        </span>
+                                        {!a.linked && (
+                                            <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full" style={{ background: `${colors.border}30`, color: colors.textSecondary }}>
+                                                fora do app
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="text-right flex-shrink-0">
+                                <p className="text-sm font-black" style={{ color: isOutflow ? '#ef4444' : isReceived ? '#22c55e' : colors.textSecondary }}>
+                                    {isOutflow ? '-' : '+'}{money(a.value)}
+                                </p>
+                                {!isOutflow && a.value !== a.netValue && (
+                                    <p className="text-[10px]" style={{ color: colors.textSecondary }}>líquido {money(a.netValue)}</p>
+                                )}
+                            </div>
+                        </div>
+                    )
+                })}
+            </div>
         </div>
     )
 }

@@ -101,7 +101,9 @@ function usageColor(used: number, included: number): string {
 // Painel "Supabase" dentro da aba Financeiro: uma parte é lida direto do
 // Postgres (tamanho do banco, maiores tabelas) e outra o admin preenche à
 // mão olhando a página de uso/billing do próprio Supabase — banda, storage
-// e MAUs não dão pra ler via SQL, só pela API de billing deles.
+// e MAUs não dão pra ler via SQL, só pela API de billing deles. Cada bloco
+// é seu próprio card (mesmo padrão de SubscriptionsSection/WithdrawalsSection
+// em AdminDashboard.tsx), não um card único cheio de divisórias.
 export default function SupabaseUsagePanel({ cardStyle, colors }: SupabaseUsagePanelProps) {
     const [dbStats, setDbStats] = useState<DbStats | null>(null)
     const [loadingStats, setLoadingStats] = useState(true)
@@ -205,9 +207,9 @@ export default function SupabaseUsagePanel({ cardStyle, colors }: SupabaseUsageP
         background: colors.background,
         border: `1px solid ${colors.border}`,
         color: colors.textPrimary,
-        borderRadius: 10,
-        padding: '6px 10px',
-        fontSize: 12,
+        borderRadius: 12,
+        padding: '8px 12px',
+        fontSize: 13,
     }
 
     const maxTableSize = Math.max(...(dbStats?.top_tables.map((t) => t.size_bytes) || [1]), 1)
@@ -217,7 +219,7 @@ export default function SupabaseUsagePanel({ cardStyle, colors }: SupabaseUsageP
     const atRisk = metrics.filter((m) => m.included_value > 0 && (m.used_value / m.included_value) * 100 >= 80)
 
     return (
-        <div style={cardStyle} className="space-y-4">
+        <div className="space-y-3">
             <div className="flex items-center justify-between gap-2">
                 <p className="text-xs font-black uppercase tracking-wider flex items-center gap-1.5" style={{ color: colors.textSecondary }}>
                     <Database size={13} />
@@ -227,24 +229,29 @@ export default function SupabaseUsagePanel({ cardStyle, colors }: SupabaseUsageP
                     href={SUPABASE_USAGE_URL}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-1 text-[10px] font-bold"
+                    className="flex items-center gap-1 text-[11px] font-bold"
                     style={{ color: colors.accent }}
                 >
-                    Ver no Supabase <ExternalLink size={11} />
+                    Ver no Supabase <ExternalLink size={12} />
                 </a>
             </div>
 
             {expense && !editingCost && (
-                <div className="flex items-center justify-between gap-2 text-[11px] p-2.5 rounded-xl" style={{ background: `${colors.border}20` }}>
-                    <span style={{ color: colors.textSecondary }}>
-                        Plano: <strong style={{ color: colors.textPrimary }}>{expense.plan_name || '—'}</strong>
-                        {' · '}Custo: <strong style={{ color: colors.textPrimary }}>
+                <div style={cardStyle} className="flex items-center justify-between gap-3">
+                    <p className="text-sm" style={{ color: colors.textSecondary }}>
+                        Plano <strong style={{ color: colors.textPrimary }}>{expense.plan_name || '—'}</strong>
+                        {' — '}
+                        <strong style={{ color: colors.textPrimary }}>
                             {expense.billing_cycle === 'usage' ? 'variável' : `${expense.currency === 'USD' ? 'US$' : 'R$'} ${Number(expense.monthly_cost).toFixed(2)}`}
                         </strong>
                         {expense.next_due_date && ` · ciclo até ${new Date(expense.next_due_date + 'T00:00:00').toLocaleDateString('pt-BR')}`}
-                    </span>
-                    <button onClick={() => setEditingCost(true)} style={{ color: colors.textSecondary }} className="flex-shrink-0">
-                        <Pencil size={12} />
+                    </p>
+                    <button
+                        onClick={() => setEditingCost(true)}
+                        className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
+                        style={{ background: `${colors.border}30`, color: colors.textPrimary }}
+                    >
+                        <Pencil size={14} />
                     </button>
                 </div>
             )}
@@ -252,7 +259,7 @@ export default function SupabaseUsagePanel({ cardStyle, colors }: SupabaseUsageP
             {editingCost && expense && (
                 <ExpenseForm
                     colors={colors}
-                    cardStyle={{ background: 'transparent', padding: 0 }}
+                    cardStyle={cardStyle}
                     initial={expense}
                     onCancel={() => setEditingCost(false)}
                     onSaved={() => { setEditingCost(false); loadStats() }}
@@ -260,8 +267,8 @@ export default function SupabaseUsagePanel({ cardStyle, colors }: SupabaseUsageP
             )}
 
             {isFreePlan && (
-                <div className="rounded-2xl p-3" style={{ background: '#3b82f615', border: '1px solid #3b82f640' }}>
-                    <p className="text-[11px]" style={{ color: colors.textPrimary }}>
+                <div style={cardStyle}>
+                    <p className="text-sm" style={{ color: colors.textPrimary }}>
                         No plano <strong>Free</strong>, passar de uma cota <strong>não gera cobrança</strong> — o Supabase
                         restringe/deixa o recurso lento até o próximo ciclo. Não é uma conta surpresa, mas pode
                         tirar o iUser do ar se passar da cota. Fique de olho nos avisos abaixo.
@@ -270,12 +277,12 @@ export default function SupabaseUsagePanel({ cardStyle, colors }: SupabaseUsageP
             )}
 
             {atRisk.length > 0 && (
-                <div className="rounded-2xl p-3 flex flex-col gap-1.5" style={{ background: '#ef444415', border: '1px solid #ef444440' }}>
-                    <p className="text-[11px] font-black flex items-center gap-1.5" style={{ color: '#ef4444' }}>
-                        <AlertTriangle size={13} /> Perto da cota
+                <div style={cardStyle} className="space-y-1.5">
+                    <p className="text-sm font-black flex items-center gap-1.5" style={{ color: '#ef4444' }}>
+                        <AlertTriangle size={14} /> Perto da cota
                     </p>
                     {atRisk.map((m) => (
-                        <p key={m.id} className="text-[10px]" style={{ color: colors.textPrimary }}>
+                        <p key={m.id} className="text-[11px]" style={{ color: colors.textPrimary }}>
                             <strong>{m.metric_name}</strong>: {m.used_value.toLocaleString('pt-BR')} / {m.included_value.toLocaleString('pt-BR')} {m.unit}
                             {' '}({Math.round((m.used_value / m.included_value) * 100)}%)
                         </p>
@@ -283,50 +290,50 @@ export default function SupabaseUsagePanel({ cardStyle, colors }: SupabaseUsageP
                 </div>
             )}
 
-            {/* ===== Auto: tamanho do banco ===== */}
-            <div className="flex items-center justify-between gap-2">
-                <div>
-                    <p className="text-[10px] uppercase font-bold" style={{ color: colors.textSecondary }}>Tamanho do banco (auto)</p>
-                    <p className="text-lg font-black" style={{ color: colors.textPrimary }}>
-                        {loadingStats ? '...' : dbStats?.database_size_pretty || '—'}
-                    </p>
+            {/* ===== Tamanho do banco (auto) ===== */}
+            <div style={cardStyle} className="space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>Tamanho do banco (auto)</p>
+                    <button
+                        onClick={() => loadStats().then(loadMetrics)}
+                        disabled={loadingStats}
+                        className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
+                        style={{ background: `${colors.border}30`, color: colors.textPrimary }}
+                    >
+                        {loadingStats ? <Spinner size={14} /> : <RefreshCw size={14} />}
+                    </button>
                 </div>
-                <button
-                    onClick={() => loadStats().then(loadMetrics)}
-                    disabled={loadingStats}
-                    className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
-                    style={{ background: `${colors.border}30`, color: colors.textPrimary }}
-                >
-                    {loadingStats ? <Spinner size={13} /> : <RefreshCw size={13} />}
-                </button>
+                <p className="text-2xl font-black" style={{ color: colors.textPrimary }}>
+                    {loadingStats ? '...' : dbStats?.database_size_pretty || '—'}
+                </p>
+
+                {dbStats && dbStats.top_tables.length > 0 && (
+                    <div className="space-y-2 pt-1">
+                        <p className="text-[11px] font-black uppercase tracking-wider flex items-center gap-1" style={{ color: colors.textSecondary }}>
+                            <Table2 size={12} /> Maiores tabelas
+                        </p>
+                        {dbStats.top_tables.map((t) => (
+                            <div key={t.table_name} className="space-y-1">
+                                <div className="flex items-center justify-between text-[11px]">
+                                    <span className="font-bold truncate" style={{ color: colors.textPrimary }}>{t.table_name}</span>
+                                    <span style={{ color: colors.textSecondary }}>{t.size_pretty} · {t.approx_rows.toLocaleString('pt-BR')} linhas</span>
+                                </div>
+                                <div className="h-1.5 rounded-full overflow-hidden" style={{ background: `${colors.border}30` }}>
+                                    <div style={{ width: `${(t.size_bytes / maxTableSize) * 100}%`, background: colors.accent, height: '100%' }} />
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
             </div>
 
-            {dbStats && dbStats.top_tables.length > 0 && (
-                <div className="space-y-1.5">
-                    <p className="text-[10px] font-black uppercase tracking-wider flex items-center gap-1" style={{ color: colors.textSecondary }}>
-                        <Table2 size={11} /> Maiores tabelas
-                    </p>
-                    {dbStats.top_tables.map((t) => (
-                        <div key={t.table_name} className="space-y-0.5">
-                            <div className="flex items-center justify-between text-[11px]">
-                                <span className="font-bold truncate" style={{ color: colors.textPrimary }}>{t.table_name}</span>
-                                <span style={{ color: colors.textSecondary }}>{t.size_pretty} · {t.approx_rows.toLocaleString('pt-BR')} linhas</span>
-                            </div>
-                            <div className="h-1.5 rounded-full overflow-hidden" style={{ background: `${colors.border}30` }}>
-                                <div style={{ width: `${(t.size_bytes / maxTableSize) * 100}%`, background: colors.accent, height: '100%' }} />
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            )}
-
-            {/* ===== Auto: requisições por serviço (API de administração do Supabase) ===== */}
+            {/* ===== Requisições por serviço (API de administração do Supabase) ===== */}
             {!loadingRequests && requests?.configured && (
-                <div className="space-y-1.5 pt-2 border-t" style={{ borderColor: colors.border }}>
-                    <p className="text-[10px] font-black uppercase tracking-wider flex items-center gap-1" style={{ color: colors.textSecondary }}>
-                        <Activity size={11} /> Requisições por serviço (últimas {requests.windowHours}h, auto)
+                <div style={cardStyle} className="space-y-2">
+                    <p className="text-[11px] font-black uppercase tracking-wider flex items-center gap-1" style={{ color: colors.textSecondary }}>
+                        <Activity size={12} /> Requisições por serviço (últimas {requests.windowHours}h, auto)
                     </p>
-                    <p className="text-[9px] -mt-1" style={{ color: colors.textSecondary }}>
+                    <p className="text-[11px]" style={{ color: colors.textSecondary }}>
                         Contagem de chamadas de API — sinal de atividade, não é a mesma métrica de Egress/Realtime Messages do billing.
                     </p>
                     <div className="grid grid-cols-4 gap-2">
@@ -336,27 +343,29 @@ export default function SupabaseUsagePanel({ cardStyle, colors }: SupabaseUsageP
                             { label: 'REST', value: requests.rest || 0 },
                             { label: 'Storage', value: requests.storage || 0 },
                         ].map((r) => (
-                            <div key={r.label} className="text-center p-2 rounded-xl" style={{ background: `${colors.border}20` }}>
-                                <p className="text-sm font-black" style={{ color: colors.textPrimary }}>{r.value.toLocaleString('pt-BR')}</p>
-                                <p className="text-[9px]" style={{ color: colors.textSecondary }}>{r.label}</p>
+                            <div key={r.label} className="text-center p-2.5 rounded-2xl" style={{ background: `${colors.border}20` }}>
+                                <p className="text-base font-black" style={{ color: colors.textPrimary }}>{r.value.toLocaleString('pt-BR')}</p>
+                                <p className="text-[10px]" style={{ color: colors.textSecondary }}>{r.label}</p>
                             </div>
                         ))}
                     </div>
                 </div>
             )}
             {!loadingRequests && requests && !requests.configured && (
-                <p className="text-[9px] pt-2 border-t" style={{ color: colors.textSecondary, borderColor: colors.border }}>
-                    SUPABASE_MANAGEMENT_API_TOKEN não configurado nesse ambiente — sem contagem de requisições automática aqui.
-                </p>
+                <div style={cardStyle}>
+                    <p className="text-[11px]" style={{ color: colors.textSecondary }}>
+                        SUPABASE_MANAGEMENT_API_TOKEN não configurado nesse ambiente — sem contagem de requisições automática aqui.
+                    </p>
+                </div>
             )}
 
             {/* ===== Nossa telemetria própria: Egress + Realtime Messages ===== */}
             {!loadingTelemetry && telemetry && telemetry.days.length > 0 && (
-                <div className="space-y-1.5 pt-2 border-t" style={{ borderColor: colors.border }}>
-                    <p className="text-[10px] font-black uppercase tracking-wider flex items-center gap-1" style={{ color: '#3b82f6' }}>
-                        <Activity size={11} /> Nossa telemetria (Egress + Realtime, últimos {telemetry.days.length} dias)
+                <div style={cardStyle} className="space-y-2">
+                    <p className="text-[11px] font-black uppercase tracking-wider flex items-center gap-1" style={{ color: '#3b82f6' }}>
+                        <Activity size={12} /> Nossa telemetria (Egress + Realtime, últimos {telemetry.days.length} dias)
                     </p>
-                    <p className="text-[9px] -mt-1" style={{ color: colors.textSecondary }}>
+                    <p className="text-[11px]" style={{ color: colors.textSecondary }}>
                         Contagem própria (não é a do Supabase) — soma {formatBytes(telemetry.totalEgressBytes)} de Egress e{' '}
                         {telemetry.totalRealtimeMessages.toLocaleString('pt-BR')} mensagens Realtime no período. Já alimenta os campos "Egress" e "Mensagens Realtime" abaixo.
                     </p>
@@ -377,19 +386,19 @@ export default function SupabaseUsagePanel({ cardStyle, colors }: SupabaseUsageP
                 </div>
             )}
 
-            {/* ===== Manual: uso x cota de cada recurso ===== */}
-            <div className="space-y-2 pt-2 border-t" style={{ borderColor: colors.border }}>
+            {/* ===== Uso x cota de cada recurso ===== */}
+            <div style={cardStyle} className="space-y-3">
                 <div className="flex items-center justify-between gap-2">
-                    <p className="text-[10px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>
-                        Uso x cota do plano (atualize olhando o Supabase)
+                    <p className="text-xs font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>
+                        Uso x cota do plano
                     </p>
                     {!loadingMetrics && totalOverage > 0 && (
-                        <span className="text-[10px] font-black px-2 py-0.5 rounded-full flex-shrink-0" style={{ background: '#ef444420', color: '#ef4444' }}>
+                        <span className="text-[11px] font-black px-2.5 py-1 rounded-full flex-shrink-0" style={{ background: '#ef444420', color: '#ef4444' }}>
                             +US$ {totalOverage.toFixed(2)} estimado
                         </span>
                     )}
                 </div>
-                <p className="text-[9px] -mt-1" style={{ color: colors.textSecondary }}>
+                <p className="text-[11px]" style={{ color: colors.textSecondary }}>
                     {isFreePlan
                         ? 'No Free não tem cobrança de excedente (o preço por unidade fica zerado) — o que importa aqui é não deixar nenhuma barra chegar perto de 100%.'
                         : 'Estimativa em dólar (é como o Supabase cobra), com base no preço de overage por unidade de cada métrica — confira/ajuste contra a página de preços do Supabase se o plano mudar.'}
@@ -404,13 +413,13 @@ export default function SupabaseUsagePanel({ cardStyle, colors }: SupabaseUsageP
                     const isAuto = AUTO_SYNCED_METRICS.has(m.metric_name)
                     const isTelemetry = TELEMETRY_METRICS.has(m.metric_name)
                     return (
-                        <div key={m.id} className="space-y-1">
-                            <div className="flex items-center justify-between text-[11px]">
+                        <div key={m.id} className="space-y-1.5 pt-2 border-t first:pt-0 first:border-t-0" style={{ borderColor: colors.border }}>
+                            <div className="flex items-center justify-between text-sm">
                                 <span className="font-bold flex items-center gap-1.5" style={{ color: colors.textPrimary }}>
                                     {m.metric_name}
                                     {isAuto && (
                                         <span
-                                            className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded-full"
+                                            className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded-full"
                                             style={{ background: isTelemetry ? '#3b82f620' : '#22c55e20', color: isTelemetry ? '#3b82f6' : '#22c55e' }}
                                             title={isTelemetry ? 'Medido pela nossa própria telemetria — aproximado' : 'Lido direto do banco — exato'}
                                         >
@@ -420,12 +429,12 @@ export default function SupabaseUsagePanel({ cardStyle, colors }: SupabaseUsageP
                                 </span>
                                 {!isEditing && (
                                     <div className="flex items-center gap-2">
-                                        <span style={{ color: colors.textSecondary }}>
+                                        <span className="text-[11px]" style={{ color: colors.textSecondary }}>
                                             {m.used_value.toLocaleString('pt-BR')} / {m.included_value.toLocaleString('pt-BR')} {m.unit}
                                             {cost > 0 && <span style={{ color: '#ef4444', fontWeight: 700 }}> · +US$ {cost.toFixed(2)}</span>}
                                         </span>
                                         <button onClick={() => startEdit(m)} style={{ color: colors.textSecondary }}>
-                                            <Pencil size={11} />
+                                            <Pencil size={12} />
                                         </button>
                                     </div>
                                 )}
@@ -433,24 +442,24 @@ export default function SupabaseUsagePanel({ cardStyle, colors }: SupabaseUsageP
                             {isEditing ? (
                                 <div className="flex items-center gap-1.5 flex-wrap">
                                     {isAuto ? (
-                                        <span className="text-[10px] italic" style={{ color: colors.textSecondary }}>
+                                        <span className="text-[11px] italic" style={{ color: colors.textSecondary }}>
                                             usado: {m.used_value.toLocaleString('pt-BR')} {m.unit} ({isTelemetry ? 'telemetria própria, aproximado' : 'sincronizado do banco, exato'})
                                         </span>
                                     ) : (
                                         <input type="text" inputMode="decimal" value={editUsed} onChange={(e) => setEditUsed(e.target.value)} placeholder="usado" style={{ ...inputStyle, width: 80 }} />
                                     )}
-                                    <span className="text-[10px]" style={{ color: colors.textSecondary }}>de</span>
+                                    <span className="text-[11px]" style={{ color: colors.textSecondary }}>de</span>
                                     <input type="text" inputMode="decimal" value={editIncluded} onChange={(e) => setEditIncluded(e.target.value)} placeholder="incluído" style={{ ...inputStyle, width: 80 }} />
-                                    <span className="text-[10px]" style={{ color: colors.textSecondary }}>{m.unit}</span>
+                                    <span className="text-[11px]" style={{ color: colors.textSecondary }}>{m.unit}</span>
                                     <div className="w-full flex items-center gap-1.5">
-                                        <span className="text-[10px]" style={{ color: colors.textSecondary }}>US$</span>
+                                        <span className="text-[11px]" style={{ color: colors.textSecondary }}>US$</span>
                                         <input type="text" inputMode="decimal" value={editPrice} onChange={(e) => setEditPrice(e.target.value)} placeholder="preço por unidade extra" style={{ ...inputStyle, width: 130 }} />
-                                        <span className="text-[10px]" style={{ color: colors.textSecondary }}>por {m.unit} acima da cota</span>
+                                        <span className="text-[11px]" style={{ color: colors.textSecondary }}>por {m.unit} acima da cota</span>
                                     </div>
-                                    <button onClick={() => saveEdit(m.id)} disabled={saving} className="text-[10px] font-bold px-2.5 py-1 rounded-full text-white disabled:opacity-60" style={{ background: colors.accent }}>
-                                        {saving ? <Spinner size={11} /> : 'Salvar'}
+                                    <button onClick={() => saveEdit(m.id)} disabled={saving} className="text-[11px] font-bold px-3 py-1.5 rounded-full text-white disabled:opacity-60" style={{ background: colors.accent }}>
+                                        {saving ? <Spinner size={12} /> : 'Salvar'}
                                     </button>
-                                    <button onClick={() => setEditingId(null)} className="text-[10px] font-bold px-2.5 py-1 rounded-full" style={{ background: `${colors.border}30`, color: colors.textPrimary }}>
+                                    <button onClick={() => setEditingId(null)} className="text-[11px] font-bold px-3 py-1.5 rounded-full" style={{ background: `${colors.border}30`, color: colors.textPrimary }}>
                                         Cancelar
                                     </button>
                                 </div>
