@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { Spinner } from '@/components/Spinner'
 import { callAdminApi } from '@/lib/callAdminApi'
-import { Database, ExternalLink, Pencil, RefreshCw, Table2 } from 'lucide-react'
+import { Database, ExternalLink, Pencil, RefreshCw, Table2, AlertTriangle } from 'lucide-react'
 import type { ThemeColors } from '@/app/contexts/theme'
 
 const SUPABASE_PROJECT_REF = 'mqtwehsmkuknkrtrqbnf'
@@ -27,6 +27,8 @@ interface DbStats {
     database_size_bytes: number
     database_size_pretty: string
     top_tables: TopTable[]
+    planName: string | null
+    cycleEndsAt: string | null
 }
 
 interface UsageMetric {
@@ -131,6 +133,8 @@ export default function SupabaseUsagePanel({ cardStyle, colors }: SupabaseUsageP
 
     const maxTableSize = Math.max(...(dbStats?.top_tables.map((t) => t.size_bytes) || [1]), 1)
     const totalOverage = metrics.reduce((sum, m) => sum + overageCost(m), 0)
+    const isFreePlan = (dbStats?.planName || '').toLowerCase().includes('free')
+    const atRisk = metrics.filter((m) => m.included_value > 0 && (m.used_value / m.included_value) * 100 >= 80)
 
     return (
         <div style={cardStyle} className="space-y-4">
@@ -149,6 +153,39 @@ export default function SupabaseUsagePanel({ cardStyle, colors }: SupabaseUsageP
                     Ver no Supabase <ExternalLink size={11} />
                 </a>
             </div>
+
+            {dbStats?.planName && (
+                <div className="flex items-center justify-between gap-2 text-[11px]">
+                    <span style={{ color: colors.textSecondary }}>
+                        Plano: <strong style={{ color: colors.textPrimary }}>{dbStats.planName}</strong>
+                        {dbStats.cycleEndsAt && ` · ciclo até ${new Date(dbStats.cycleEndsAt + 'T00:00:00').toLocaleDateString('pt-BR')}`}
+                    </span>
+                </div>
+            )}
+
+            {isFreePlan && (
+                <div className="rounded-2xl p-3" style={{ background: '#3b82f615', border: '1px solid #3b82f640' }}>
+                    <p className="text-[11px]" style={{ color: colors.textPrimary }}>
+                        No plano <strong>Free</strong>, passar de uma cota <strong>não gera cobrança</strong> — o Supabase
+                        restringe/deixa o recurso lento até o próximo ciclo. Não é uma conta surpresa, mas pode
+                        tirar o iUser do ar se passar da cota. Fique de olho nos avisos abaixo.
+                    </p>
+                </div>
+            )}
+
+            {atRisk.length > 0 && (
+                <div className="rounded-2xl p-3 flex flex-col gap-1.5" style={{ background: '#ef444415', border: '1px solid #ef444440' }}>
+                    <p className="text-[11px] font-black flex items-center gap-1.5" style={{ color: '#ef4444' }}>
+                        <AlertTriangle size={13} /> Perto da cota
+                    </p>
+                    {atRisk.map((m) => (
+                        <p key={m.id} className="text-[10px]" style={{ color: colors.textPrimary }}>
+                            <strong>{m.metric_name}</strong>: {m.used_value.toLocaleString('pt-BR')} / {m.included_value.toLocaleString('pt-BR')} {m.unit}
+                            {' '}({Math.round((m.used_value / m.included_value) * 100)}%)
+                        </p>
+                    ))}
+                </div>
+            )}
 
             {/* ===== Auto: tamanho do banco ===== */}
             <div className="flex items-center justify-between gap-2">
@@ -200,7 +237,9 @@ export default function SupabaseUsagePanel({ cardStyle, colors }: SupabaseUsageP
                     )}
                 </div>
                 <p className="text-[9px] -mt-1" style={{ color: colors.textSecondary }}>
-                    Estimativa em dólar (é como o Supabase cobra), com base no preço de overage por unidade de cada métrica — confira/ajuste contra a página de preços do Supabase se o plano mudar.
+                    {isFreePlan
+                        ? 'No Free não tem cobrança de excedente (o preço por unidade fica zerado) — o que importa aqui é não deixar nenhuma barra chegar perto de 100%.'
+                        : 'Estimativa em dólar (é como o Supabase cobra), com base no preço de overage por unidade de cada métrica — confira/ajuste contra a página de preços do Supabase se o plano mudar.'}
                 </p>
                 {loadingMetrics ? (
                     <div className="flex justify-center py-4"><Spinner size={18} color={colors.accent} /></div>

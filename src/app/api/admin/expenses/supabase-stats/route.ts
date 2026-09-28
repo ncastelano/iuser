@@ -17,5 +17,13 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    return NextResponse.json(data)
+    // Plano e fim do ciclo — mesma linha "Supabase" da lista de gastos, pra
+    // não duplicar esse dado num lugar novo.
+    const { data: expenseRow } = await supabaseAdmin
+        .from('service_expenses')
+        .select('plan_name, next_due_date')
+        .eq('service_name', 'Supabase')
+        .maybeSingle()
+
+    return NextResponse.json({ ...data, planName: expenseRow?.plan_name || null, cycleEndsAt: expenseRow?.next_due_date || null })
 }
