@@ -8,6 +8,7 @@ import { hexToRgb } from '@/lib/color'
 import { callAdminApi } from '@/lib/callAdminApi'
 import { Plus, Pencil, Trash2, AlertTriangle, TrendingUp, TrendingDown, Wallet, ExternalLink } from 'lucide-react'
 import type { ThemeColors } from '@/app/contexts/theme'
+import SupabaseUsagePanel from './SupabaseUsagePanel'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -185,6 +186,8 @@ export default function FinanceSection({ cardStyle, colors }: FinanceSectionProp
                     <Plus size={14} /> Adicionar serviço
                 </button>
             </div>
+
+            <SupabaseUsagePanel cardStyle={cardStyle} colors={colors} />
 
             {showForm && (
                 <ExpenseForm
