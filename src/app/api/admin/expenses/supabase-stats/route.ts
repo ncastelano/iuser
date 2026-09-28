@@ -17,13 +17,24 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    // Storage e MAU também dão pra ler direto do banco (storage.objects e
-    // auth.users) — sincroniza o "usado" dessas duas métricas a cada
-    // carregamento do painel, pra não depender de ninguém preencher isso
-    // à mão. As outras (Egress, Realtime, Logs...) continuam manuais: são
-    // medidas fora do Postgres, não tem como calcular por aqui.
+    // Storage e MAU dão pra ler direto do banco (storage.objects e
+    // auth.users). Egress e Realtime Messages a gente mede com telemetria
+    // própria (usage_telemetry_daily — ver src/lib/usageTelemetry.ts),
+    // já que o Supabase não expõe esses dois por API pública. Sincroniza
+    // o "usado" das 4 a cada carregamento do painel, pra ninguém precisar
+    // preencher isso à mão. Logs e o resto continuam manuais.
     const storageGb = Number(data.storage_size_bytes || 0) / (1024 * 1024 * 1024)
     const mau = Number(data.mau_last_30d || 0)
+
+    const since = new Date()
+    since.setDate(since.getDate() - 30)
+    const { data: telemetryRows } = await supabaseAdmin
+        .from('usage_telemetry_daily')
+        .select('egress_bytes, realtime_messages')
+        .gte('day', since.toISOString().slice(0, 10))
+    const egressGb = (telemetryRows || []).reduce((sum, r) => sum + Number(r.egress_bytes), 0) / (1024 * 1024 * 1024)
+    const realtimeMessages = (telemetryRows || []).reduce((sum, r) => sum + Number(r.realtime_messages), 0)
+
     await Promise.all([
         supabaseAdmin
             .from('supabase_usage_metrics')
@@ -33,6 +44,14 @@ export async function POST(req: Request) {
             .from('supabase_usage_metrics')
             .update({ used_value: mau, updated_at: new Date().toISOString() })
             .eq('metric_name', 'Usuários ativos por mês (MAU)'),
+        supabaseAdmin
+            .from('supabase_usage_metrics')
+            .update({ used_value: egressGb, updated_at: new Date().toISOString() })
+            .eq('metric_name', 'Largura de banda (Egress)'),
+        supabaseAdmin
+            .from('supabase_usage_metrics')
+            .update({ used_value: realtimeMessages, updated_at: new Date().toISOString() })
+            .eq('metric_name', 'Mensagens Realtime'),
     ])
 
     // Plano e fim do ciclo — mesma linha "Supabase" da lista de gastos, pra

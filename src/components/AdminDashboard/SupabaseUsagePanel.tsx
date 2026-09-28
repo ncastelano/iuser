@@ -40,6 +40,25 @@ interface RequestCounts {
     storage?: number
 }
 
+interface TelemetryDay {
+    day: string
+    egress_bytes: number
+    realtime_messages: number
+}
+
+interface TelemetrySummary {
+    days: TelemetryDay[]
+    totalEgressBytes: number
+    totalRealtimeMessages: number
+}
+
+function formatBytes(bytes: number): string {
+    if (bytes <= 0) return '0 B'
+    const units = ['B', 'KB', 'MB', 'GB', 'TB']
+    const i = Math.floor(Math.log(bytes) / Math.log(1024))
+    return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${units[i]}`
+}
+
 interface UsageMetric {
     id: string
     metric_name: string
@@ -56,10 +75,19 @@ function overageCost(m: UsageMetric): number {
     return over * m.overage_price_per_unit
 }
 
-// Métricas cujo "usado" é sincronizado automaticamente do banco a cada
+// Métricas cujo "usado" é sincronizado automaticamente a cada
 // carregamento (ver supabase-stats/route.ts) — só a cota (included_value)
-// continua editável à mão, porque isso depende do plano, não dá pra calcular.
-const AUTO_SYNCED_METRICS = new Set(['Armazenamento (Storage)', 'Usuários ativos por mês (MAU)'])
+// continua editável à mão, porque isso depende do plano, não dá pra
+// calcular. Banco/Storage/MAU vêm direto do Postgres (exatos); Egress e
+// Realtime vêm da nossa telemetria própria (src/lib/usageTelemetry.ts) —
+// aproximados, não batem 100% com o número que o Supabase cobra.
+const AUTO_SYNCED_METRICS = new Set([
+    'Armazenamento (Storage)',
+    'Usuários ativos por mês (MAU)',
+    'Largura de banda (Egress)',
+    'Mensagens Realtime',
+])
+const TELEMETRY_METRICS = new Set(['Largura de banda (Egress)', 'Mensagens Realtime'])
 
 function usageColor(used: number, included: number): string {
     if (included <= 0) return '#94a3b8'
@@ -78,6 +106,8 @@ export default function SupabaseUsagePanel({ cardStyle, colors }: SupabaseUsageP
     const [loadingStats, setLoadingStats] = useState(true)
     const [requests, setRequests] = useState<RequestCounts | null>(null)
     const [loadingRequests, setLoadingRequests] = useState(true)
+    const [telemetry, setTelemetry] = useState<TelemetrySummary | null>(null)
+    const [loadingTelemetry, setLoadingTelemetry] = useState(true)
     const [metrics, setMetrics] = useState<UsageMetric[]>([])
     const [loadingMetrics, setLoadingMetrics] = useState(true)
     const [editingId, setEditingId] = useState<string | null>(null)
@@ -110,6 +140,18 @@ export default function SupabaseUsagePanel({ cardStyle, colors }: SupabaseUsageP
         }
     }, [])
 
+    const loadTelemetry = useCallback(async () => {
+        setLoadingTelemetry(true)
+        try {
+            const res = await callAdminApi<TelemetrySummary>('/api/admin/expenses/usage-telemetry')
+            setTelemetry(res)
+        } catch (err: any) {
+            toast.error(err.message || 'Erro ao carregar telemetria própria')
+        } finally {
+            setLoadingTelemetry(false)
+        }
+    }, [])
+
     const loadMetrics = useCallback(async () => {
         setLoadingMetrics(true)
         try {
@@ -128,7 +170,8 @@ export default function SupabaseUsagePanel({ cardStyle, colors }: SupabaseUsageP
         // valor antigo dessas duas métricas por uma corrida de carregamento.
         loadStats().then(loadMetrics)
         loadRequests()
-    }, [loadStats, loadMetrics, loadRequests])
+        loadTelemetry()
+    }, [loadStats, loadMetrics, loadRequests, loadTelemetry])
 
     const startEdit = (m: UsageMetric) => {
         setEditingId(m.id)
@@ -288,6 +331,33 @@ export default function SupabaseUsagePanel({ cardStyle, colors }: SupabaseUsageP
                 </p>
             )}
 
+            {/* ===== Nossa telemetria própria: Egress + Realtime Messages ===== */}
+            {!loadingTelemetry && telemetry && telemetry.days.length > 0 && (
+                <div className="space-y-1.5 pt-2 border-t" style={{ borderColor: colors.border }}>
+                    <p className="text-[10px] font-black uppercase tracking-wider flex items-center gap-1" style={{ color: '#3b82f6' }}>
+                        <Activity size={11} /> Nossa telemetria (Egress + Realtime, últimos {telemetry.days.length} dias)
+                    </p>
+                    <p className="text-[9px] -mt-1" style={{ color: colors.textSecondary }}>
+                        Contagem própria (não é a do Supabase) — soma {formatBytes(telemetry.totalEgressBytes)} de Egress e{' '}
+                        {telemetry.totalRealtimeMessages.toLocaleString('pt-BR')} mensagens Realtime no período. Já alimenta os campos "Egress" e "Mensagens Realtime" abaixo.
+                    </p>
+                    <div className="flex items-end gap-0.5 h-14">
+                        {telemetry.days.map((d) => {
+                            const maxEgress = Math.max(...telemetry.days.map((x) => x.egress_bytes), 1)
+                            const height = (d.egress_bytes / maxEgress) * 100
+                            return (
+                                <div key={d.day} className="flex-1 flex flex-col items-center justify-end h-full" title={`${d.day}: ${formatBytes(d.egress_bytes)}, ${d.realtime_messages} msgs`}>
+                                    <div
+                                        className="w-full rounded-t"
+                                        style={{ height: `${Math.max(height, 3)}%`, background: '#3b82f6', minHeight: 2, opacity: d.egress_bytes > 0 ? 1 : 0.2 }}
+                                    />
+                                </div>
+                            )
+                        })}
+                    </div>
+                </div>
+            )}
+
             {/* ===== Manual: uso x cota de cada recurso ===== */}
             <div className="space-y-2 pt-2 border-t" style={{ borderColor: colors.border }}>
                 <div className="flex items-center justify-between gap-2">
@@ -313,14 +383,19 @@ export default function SupabaseUsagePanel({ cardStyle, colors }: SupabaseUsageP
                     const isEditing = editingId === m.id
                     const cost = overageCost(m)
                     const isAuto = AUTO_SYNCED_METRICS.has(m.metric_name)
+                    const isTelemetry = TELEMETRY_METRICS.has(m.metric_name)
                     return (
                         <div key={m.id} className="space-y-1">
                             <div className="flex items-center justify-between text-[11px]">
                                 <span className="font-bold flex items-center gap-1.5" style={{ color: colors.textPrimary }}>
                                     {m.metric_name}
                                     {isAuto && (
-                                        <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded-full" style={{ background: '#22c55e20', color: '#22c55e' }}>
-                                            auto
+                                        <span
+                                            className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded-full"
+                                            style={{ background: isTelemetry ? '#3b82f620' : '#22c55e20', color: isTelemetry ? '#3b82f6' : '#22c55e' }}
+                                            title={isTelemetry ? 'Medido pela nossa própria telemetria — aproximado' : 'Lido direto do banco — exato'}
+                                        >
+                                            {isTelemetry ? 'auto ~' : 'auto'}
                                         </span>
                                     )}
                                 </span>
@@ -340,7 +415,7 @@ export default function SupabaseUsagePanel({ cardStyle, colors }: SupabaseUsageP
                                 <div className="flex items-center gap-1.5 flex-wrap">
                                     {isAuto ? (
                                         <span className="text-[10px] italic" style={{ color: colors.textSecondary }}>
-                                            usado: {m.used_value.toLocaleString('pt-BR')} {m.unit} (sincronizado automaticamente)
+                                            usado: {m.used_value.toLocaleString('pt-BR')} {m.unit} ({isTelemetry ? 'telemetria própria, aproximado' : 'sincronizado do banco, exato'})
                                         </span>
                                     ) : (
                                         <input type="text" inputMode="decimal" value={editUsed} onChange={(e) => setEditUsed(e.target.value)} placeholder="usado" style={{ ...inputStyle, width: 80 }} />
