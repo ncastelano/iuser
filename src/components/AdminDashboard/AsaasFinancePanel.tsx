@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { Spinner } from '@/components/Spinner'
 import { callAdminApi } from '@/lib/callAdminApi'
-import { Landmark, RefreshCw, Wallet, HandCoins, TrendingUp, AlertTriangle, Pencil } from 'lucide-react'
+import { Landmark, RefreshCw, Wallet, HandCoins, TrendingUp, AlertTriangle, Pencil, History, ArrowDownCircle, ArrowUpCircle, CircleDollarSign } from 'lucide-react'
 import type { ThemeColors } from '@/app/contexts/theme'
 import { ExpenseForm, type ExpenseRow } from './ExpenseForm'
 
@@ -34,6 +34,22 @@ interface AsaasOverview {
     asaasBalanceError: string | null
     isSandbox: boolean
     expense: ExpenseRow | null
+    activity: ActivityItem[]
+}
+
+interface ActivityItem {
+    type: 'subscription_payment' | 'postpaid_payment' | 'withdrawal'
+    date: string
+    amount: number
+    personName: string | null
+    detail: string | null
+    asaasId: string | null
+}
+
+const ACTIVITY_LABEL: Record<ActivityItem['type'], string> = {
+    subscription_payment: 'Assinatura recebida',
+    postpaid_payment: 'Pós-pago quitado',
+    withdrawal: 'Saque pago',
 }
 
 function money(v: number | null | undefined): string {
@@ -194,6 +210,41 @@ export default function AsaasFinancePanel({ cardStyle, colors }: AsaasFinancePan
                                 {overview.postpaid_debt_blocked_count} pessoa(s) bloqueada(s) (dívida ≥ R$ 50)
                             </div>
                         )}
+                    </div>
+
+                    {/* ===== 5. Atividade recente na Asaas ===== */}
+                    <div className="space-y-1.5 pt-2 border-t" style={{ borderColor: colors.border }}>
+                        <p className="text-[10px] font-black uppercase tracking-wider flex items-center gap-1" style={{ color: colors.textSecondary }}>
+                            <History size={11} /> Atividade recente na Asaas
+                        </p>
+                        <p className="text-[9px] -mt-1" style={{ color: colors.textSecondary }}>
+                            Cada linha é uma cobrança ou transferência real que passou pela Asaas (rastreada pelo ID deles).
+                        </p>
+                        {overview.activity.length === 0 ? (
+                            <p className="text-[10px] py-2" style={{ color: colors.textSecondary }}>Nenhuma atividade ainda.</p>
+                        ) : overview.activity.map((a, i) => {
+                            const isOutflow = a.type === 'withdrawal'
+                            const Icon = isOutflow ? ArrowUpCircle : a.type === 'postpaid_payment' ? CircleDollarSign : ArrowDownCircle
+                            return (
+                                <div key={`${a.type}-${a.asaasId}-${i}`} className="flex items-center justify-between gap-2 text-[11px] py-1">
+                                    <div className="flex items-center gap-2 min-w-0">
+                                        <Icon size={14} style={{ color: isOutflow ? '#ef4444' : '#22c55e', flexShrink: 0 }} />
+                                        <div className="min-w-0">
+                                            <p className="font-bold truncate" style={{ color: colors.textPrimary }}>
+                                                {ACTIVITY_LABEL[a.type]}{a.personName && ` · ${a.personName}`}
+                                            </p>
+                                            <p className="text-[9px] truncate" style={{ color: colors.textSecondary }}>
+                                                {new Date(a.date).toLocaleDateString('pt-BR')}
+                                                {a.detail && ` · ${a.detail}`}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <span className="font-black flex-shrink-0" style={{ color: isOutflow ? '#ef4444' : '#22c55e' }}>
+                                        {isOutflow ? '-' : '+'}{money(a.amount)}
+                                    </span>
+                                </div>
+                            )
+                        })}
                     </div>
                 </>
             )}
