@@ -35,8 +35,14 @@ interface UsageMetric {
     used_value: number
     included_value: number
     unit: string
+    overage_price_per_unit: number
     notes: string | null
     updated_at: string
+}
+
+function overageCost(m: UsageMetric): number {
+    const over = Math.max(0, m.used_value - m.included_value)
+    return over * m.overage_price_per_unit
 }
 
 function usageColor(used: number, included: number): string {
@@ -59,6 +65,7 @@ export default function SupabaseUsagePanel({ cardStyle, colors }: SupabaseUsageP
     const [editingId, setEditingId] = useState<string | null>(null)
     const [editUsed, setEditUsed] = useState('')
     const [editIncluded, setEditIncluded] = useState('')
+    const [editPrice, setEditPrice] = useState('')
     const [saving, setSaving] = useState(false)
 
     const loadStats = useCallback(async () => {
@@ -91,6 +98,7 @@ export default function SupabaseUsagePanel({ cardStyle, colors }: SupabaseUsageP
         setEditingId(m.id)
         setEditUsed(String(m.used_value))
         setEditIncluded(String(m.included_value))
+        setEditPrice(String(m.overage_price_per_unit))
     }
 
     const saveEdit = async (id: string) => {
@@ -100,6 +108,7 @@ export default function SupabaseUsagePanel({ cardStyle, colors }: SupabaseUsageP
                 id,
                 usedValue: Number(editUsed.replace(',', '.')) || 0,
                 includedValue: Number(editIncluded.replace(',', '.')) || 0,
+                overagePricePerUnit: Number(editPrice.replace(',', '.')) || 0,
             })
             toast.success('Atualizado!')
             setEditingId(null)
@@ -121,6 +130,7 @@ export default function SupabaseUsagePanel({ cardStyle, colors }: SupabaseUsageP
     }
 
     const maxTableSize = Math.max(...(dbStats?.top_tables.map((t) => t.size_bytes) || [1]), 1)
+    const totalOverage = metrics.reduce((sum, m) => sum + overageCost(m), 0)
 
     return (
         <div style={cardStyle} className="space-y-4">
@@ -179,8 +189,18 @@ export default function SupabaseUsagePanel({ cardStyle, colors }: SupabaseUsageP
 
             {/* ===== Manual: uso x cota de cada recurso ===== */}
             <div className="space-y-2 pt-2 border-t" style={{ borderColor: colors.border }}>
-                <p className="text-[10px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>
-                    Uso x cota do plano (atualize olhando o Supabase)
+                <div className="flex items-center justify-between gap-2">
+                    <p className="text-[10px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>
+                        Uso x cota do plano (atualize olhando o Supabase)
+                    </p>
+                    {!loadingMetrics && totalOverage > 0 && (
+                        <span className="text-[10px] font-black px-2 py-0.5 rounded-full flex-shrink-0" style={{ background: '#ef444420', color: '#ef4444' }}>
+                            +US$ {totalOverage.toFixed(2)} estimado
+                        </span>
+                    )}
+                </div>
+                <p className="text-[9px] -mt-1" style={{ color: colors.textSecondary }}>
+                    Estimativa em dólar (é como o Supabase cobra), com base no preço de overage por unidade de cada métrica — confira/ajuste contra a página de preços do Supabase se o plano mudar.
                 </p>
                 {loadingMetrics ? (
                     <div className="flex justify-center py-4"><Spinner size={18} color={colors.accent} /></div>
@@ -188,6 +208,7 @@ export default function SupabaseUsagePanel({ cardStyle, colors }: SupabaseUsageP
                     const pct = m.included_value > 0 ? Math.min(100, (m.used_value / m.included_value) * 100) : 0
                     const color = usageColor(m.used_value, m.included_value)
                     const isEditing = editingId === m.id
+                    const cost = overageCost(m)
                     return (
                         <div key={m.id} className="space-y-1">
                             <div className="flex items-center justify-between text-[11px]">
@@ -196,6 +217,7 @@ export default function SupabaseUsagePanel({ cardStyle, colors }: SupabaseUsageP
                                     <div className="flex items-center gap-2">
                                         <span style={{ color: colors.textSecondary }}>
                                             {m.used_value.toLocaleString('pt-BR')} / {m.included_value.toLocaleString('pt-BR')} {m.unit}
+                                            {cost > 0 && <span style={{ color: '#ef4444', fontWeight: 700 }}> · +US$ {cost.toFixed(2)}</span>}
                                         </span>
                                         <button onClick={() => startEdit(m)} style={{ color: colors.textSecondary }}>
                                             <Pencil size={11} />
@@ -209,6 +231,11 @@ export default function SupabaseUsagePanel({ cardStyle, colors }: SupabaseUsageP
                                     <span className="text-[10px]" style={{ color: colors.textSecondary }}>de</span>
                                     <input type="text" inputMode="decimal" value={editIncluded} onChange={(e) => setEditIncluded(e.target.value)} placeholder="incluído" style={{ ...inputStyle, width: 80 }} />
                                     <span className="text-[10px]" style={{ color: colors.textSecondary }}>{m.unit}</span>
+                                    <div className="w-full flex items-center gap-1.5">
+                                        <span className="text-[10px]" style={{ color: colors.textSecondary }}>US$</span>
+                                        <input type="text" inputMode="decimal" value={editPrice} onChange={(e) => setEditPrice(e.target.value)} placeholder="preço por unidade extra" style={{ ...inputStyle, width: 130 }} />
+                                        <span className="text-[10px]" style={{ color: colors.textSecondary }}>por {m.unit} acima da cota</span>
+                                    </div>
                                     <button onClick={() => saveEdit(m.id)} disabled={saving} className="text-[10px] font-bold px-2.5 py-1 rounded-full text-white disabled:opacity-60" style={{ background: colors.accent }}>
                                         {saving ? <Spinner size={11} /> : 'Salvar'}
                                     </button>

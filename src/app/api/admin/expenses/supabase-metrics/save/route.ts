@@ -11,7 +11,7 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: 'Sem permissão' }, { status: 403 })
     }
 
-    const { id, usedValue, includedValue, notes } = await req.json().catch(() => ({}))
+    const { id, usedValue, includedValue, overagePricePerUnit, notes } = await req.json().catch(() => ({}))
     if (!id) {
         return NextResponse.json({ error: 'id é obrigatório' }, { status: 400 })
     }
@@ -21,6 +21,7 @@ export async function POST(req: Request) {
         .update({
             used_value: Number(usedValue) || 0,
             included_value: Number(includedValue) || 0,
+            overage_price_per_unit: Number(overagePricePerUnit) || 0,
             notes: notes ? String(notes).trim() : null,
             updated_at: new Date().toISOString(),
         })
