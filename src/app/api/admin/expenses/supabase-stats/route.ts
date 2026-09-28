@@ -17,6 +17,24 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
+    // Storage e MAU também dão pra ler direto do banco (storage.objects e
+    // auth.users) — sincroniza o "usado" dessas duas métricas a cada
+    // carregamento do painel, pra não depender de ninguém preencher isso
+    // à mão. As outras (Egress, Realtime, Logs...) continuam manuais: são
+    // medidas fora do Postgres, não tem como calcular por aqui.
+    const storageGb = Number(data.storage_size_bytes || 0) / (1024 * 1024 * 1024)
+    const mau = Number(data.mau_last_30d || 0)
+    await Promise.all([
+        supabaseAdmin
+            .from('supabase_usage_metrics')
+            .update({ used_value: storageGb, updated_at: new Date().toISOString() })
+            .eq('metric_name', 'Armazenamento (Storage)'),
+        supabaseAdmin
+            .from('supabase_usage_metrics')
+            .update({ used_value: mau, updated_at: new Date().toISOString() })
+            .eq('metric_name', 'Usuários ativos por mês (MAU)'),
+    ])
+
     // Plano e fim do ciclo — mesma linha "Supabase" da lista de gastos, pra
     // não duplicar esse dado num lugar novo.
     const { data: expenseRow } = await supabaseAdmin

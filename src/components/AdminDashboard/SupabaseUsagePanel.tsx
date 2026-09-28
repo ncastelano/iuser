@@ -47,6 +47,11 @@ function overageCost(m: UsageMetric): number {
     return over * m.overage_price_per_unit
 }
 
+// Métricas cujo "usado" é sincronizado automaticamente do banco a cada
+// carregamento (ver supabase-stats/route.ts) — só a cota (included_value)
+// continua editável à mão, porque isso depende do plano, não dá pra calcular.
+const AUTO_SYNCED_METRICS = new Set(['Armazenamento (Storage)', 'Usuários ativos por mês (MAU)'])
+
 function usageColor(used: number, included: number): string {
     if (included <= 0) return '#94a3b8'
     const pct = (used / included) * 100
@@ -94,7 +99,12 @@ export default function SupabaseUsagePanel({ cardStyle, colors }: SupabaseUsageP
         }
     }, [])
 
-    useEffect(() => { loadStats(); loadMetrics() }, [loadStats, loadMetrics])
+    useEffect(() => {
+        // loadStats sincroniza Storage/MAU no banco antes de loadMetrics
+        // ler a lista — se rodassem em paralelo, loadMetrics podia pegar o
+        // valor antigo dessas duas métricas por uma corrida de carregamento.
+        loadStats().then(loadMetrics)
+    }, [loadStats, loadMetrics])
 
     const startEdit = (m: UsageMetric) => {
         setEditingId(m.id)
@@ -196,7 +206,7 @@ export default function SupabaseUsagePanel({ cardStyle, colors }: SupabaseUsageP
                     </p>
                 </div>
                 <button
-                    onClick={loadStats}
+                    onClick={() => loadStats().then(loadMetrics)}
                     disabled={loadingStats}
                     className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
                     style={{ background: `${colors.border}30`, color: colors.textPrimary }}
@@ -248,10 +258,18 @@ export default function SupabaseUsagePanel({ cardStyle, colors }: SupabaseUsageP
                     const color = usageColor(m.used_value, m.included_value)
                     const isEditing = editingId === m.id
                     const cost = overageCost(m)
+                    const isAuto = AUTO_SYNCED_METRICS.has(m.metric_name)
                     return (
                         <div key={m.id} className="space-y-1">
                             <div className="flex items-center justify-between text-[11px]">
-                                <span className="font-bold" style={{ color: colors.textPrimary }}>{m.metric_name}</span>
+                                <span className="font-bold flex items-center gap-1.5" style={{ color: colors.textPrimary }}>
+                                    {m.metric_name}
+                                    {isAuto && (
+                                        <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded-full" style={{ background: '#22c55e20', color: '#22c55e' }}>
+                                            auto
+                                        </span>
+                                    )}
+                                </span>
                                 {!isEditing && (
                                     <div className="flex items-center gap-2">
                                         <span style={{ color: colors.textSecondary }}>
@@ -266,7 +284,13 @@ export default function SupabaseUsagePanel({ cardStyle, colors }: SupabaseUsageP
                             </div>
                             {isEditing ? (
                                 <div className="flex items-center gap-1.5 flex-wrap">
-                                    <input type="text" inputMode="decimal" value={editUsed} onChange={(e) => setEditUsed(e.target.value)} placeholder="usado" style={{ ...inputStyle, width: 80 }} />
+                                    {isAuto ? (
+                                        <span className="text-[10px] italic" style={{ color: colors.textSecondary }}>
+                                            usado: {m.used_value.toLocaleString('pt-BR')} {m.unit} (sincronizado automaticamente)
+                                        </span>
+                                    ) : (
+                                        <input type="text" inputMode="decimal" value={editUsed} onChange={(e) => setEditUsed(e.target.value)} placeholder="usado" style={{ ...inputStyle, width: 80 }} />
+                                    )}
                                     <span className="text-[10px]" style={{ color: colors.textSecondary }}>de</span>
                                     <input type="text" inputMode="decimal" value={editIncluded} onChange={(e) => setEditIncluded(e.target.value)} placeholder="incluído" style={{ ...inputStyle, width: 80 }} />
                                     <span className="text-[10px]" style={{ color: colors.textSecondary }}>{m.unit}</span>
