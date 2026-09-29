@@ -157,9 +157,10 @@ export default function FinanceSection({ cardStyle, colors }: FinanceSectionProp
                         </div>
                         <div className="p-3 rounded-2xl border" style={{ borderColor: colors.border, background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)` }}>
                             <div className="flex items-center gap-1.5 text-xs" style={{ color: colors.textSecondary }}>
-                                <TrendingUp size={13} /> Receita/mês
+                                <TrendingUp size={13} /> Lucro/mês
                             </div>
                             <p className="text-lg font-black" style={{ color: '#22c55e' }}>R$ {monthlyRevenue.toFixed(2)}</p>
+                            <p className="text-[9px]" style={{ color: colors.textSecondary }}>já descontado repasse de comissão</p>
                         </div>
                         <div
                             className="p-3 rounded-2xl border col-span-2 sm:col-span-1"

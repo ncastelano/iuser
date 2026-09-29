@@ -203,6 +203,13 @@ export async function POST(req: Request) {
     // seja porque continua disponível na conta, seja por taxa/ajuste da
     // Asaas fora dessas duas listas (ex: mensalidade da conta).
     const unexplainedTotal = receivedNetTotal - transfersOutTotal
+    // Lucro real da plataforma: líquido recebido menos o que é repasse de
+    // comissão (isso nunca foi dinheiro da iUser, nasce devido a quem
+    // indicou). É "outras retiradas" (já sacado, ex: o dono tirando pra
+    // si) + "ainda não repassado" (lucro que ainda está disponível na
+    // conta, ainda não sacado) — as duas partes são lucro de qualquer jeito,
+    // sacado ou não.
+    const platformProfitTotal = receivedNetTotal - commissionTransfersTotal
 
     const activity = [
         ...payments.map((p) => {
@@ -281,6 +288,7 @@ export async function POST(req: Request) {
         commissionTransfersTotal,
         otherTransfersTotal,
         unexplainedTotal,
+        platformProfitTotal,
         payers,
         commissionWithdrawers,
         otherWithdrawers,

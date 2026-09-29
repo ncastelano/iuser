@@ -43,6 +43,7 @@ interface AsaasOverview {
     commissionTransfersTotal: number
     otherTransfersTotal: number
     unexplainedTotal: number
+    platformProfitTotal: number
     payers: PersonRow[]
     commissionWithdrawers: PersonRow[]
     otherWithdrawers: PersonRow[]
@@ -319,20 +320,22 @@ export default function AsaasFinancePanel({ cardStyle, colors }: AsaasFinancePan
                 </div>
             )}
 
-            {/* ===== Pra onde foi o líquido ===== */}
+            {/* ===== Lucro da plataforma ===== */}
             {overview.receivedNetTotal > 0 && (
                 <div style={cardStyle} className="space-y-3">
                     <p className="text-xs font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>
-                        Pra onde foi o líquido
+                        Lucro da plataforma
                     </p>
-                    <p className="text-2xl font-black" style={{ color: colors.textPrimary }}>{money(overview.receivedNetTotal)}</p>
-                    <div className="flex flex-wrap gap-2">
-                        <StatPill label="Comissão repassada" value={`-${money(overview.commissionTransfersTotal)}`} color="#ef4444" colors={colors} />
-                        <StatPill label="Outras retiradas" value={`-${money(overview.otherTransfersTotal)}`} color="#f97316" colors={colors} />
-                        <StatPill label="Ainda não repassado" value={money(overview.unexplainedTotal)} colors={colors} />
-                    </div>
+                    <p className="text-2xl font-black" style={{ color: '#22c55e' }}>{money(overview.platformProfitTotal)}</p>
                     <p className="text-[11px]" style={{ color: colors.textSecondary }}>
-                        "Ainda não repassado" é estimativa — a diferença pro saldo real pode ser taxa/ajuste da conta fora dessas 20 cobranças.
+                        {money(overview.otherTransfersTotal)} já sacado + {money(overview.unexplainedTotal)} ainda na conta (não é repasse de comissão, é lucro de qualquer jeito).
+                    </p>
+                    <div className="flex flex-wrap gap-2 pt-1">
+                        <StatPill label="Líquido recebido" value={money(overview.receivedNetTotal)} colors={colors} />
+                        <StatPill label="Comissão repassada" value={`-${money(overview.commissionTransfersTotal)}`} color="#ef4444" colors={colors} />
+                    </div>
+                    <p className="text-[10px]" style={{ color: colors.textSecondary }}>
+                        Lucro = líquido recebido − comissão repassada. Comissão nunca foi dinheiro da iUser, nasce devido a quem indicou.
                     </p>
                 </div>
             )}

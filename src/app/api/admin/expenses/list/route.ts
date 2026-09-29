@@ -5,9 +5,12 @@ import { requireSuperAdmin } from '@/lib/adminAuth'
 
 // Serviços pagos (Supabase, Asaas, Mapbox, Firebase, hospedagem etc) que o
 // iUser depende pra continuar no ar — aba "Financeiro" do admin. Também
-// devolve a receita recorrente mensal (soma do monthlyRevenue por plano,
-// mesmo cálculo já usado em /api/admin/subscriptions/list) pra comparar
-// gasto x receita numa tacada só.
+// devolve o lucro mensal de verdade (não o MRR bruto): receita de
+// assinatura + pós-pago já recebida esse mês, menos a comissão de
+// indicação creditada esse mês (repasse pra quem indicou — não é receita
+// da iUser, é dinheiro que já nasce devido a outra pessoa). Mesmos números
+// de get_asaas_financial_overview() usados no painel Financeiro > Asaas,
+// pra não ter dois cálculos de lucro diferentes no mesmo admin.
 export async function POST(req: Request) {
     const admin = await requireSuperAdmin(req)
     if (!admin) {
@@ -24,18 +27,10 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    const { data: subscriptions } = await supabaseAdmin
-        .from('subscriptions')
-        .select('status, current_period_end, plans(price)')
-        .eq('status', 'active')
-
-    const now = new Date()
-    const monthlyRevenue = (subscriptions || []).reduce((sum, s: any) => {
-        const isActive = !s.current_period_end || new Date(s.current_period_end) > now
-        if (!isActive) return sum
-        const plan = Array.isArray(s.plans) ? s.plans[0] : s.plans
-        return sum + (plan ? Number(plan.price) : 0)
-    }, 0)
+    const { data: overview } = await supabaseAdmin.rpc('get_asaas_financial_overview')
+    const monthlyRevenue = Number(overview?.subscription_revenue_this_month || 0)
+        + Number(overview?.postpaid_collected_this_month || 0)
+        - Number(overview?.commission_credited_this_month || 0)
 
     return NextResponse.json({ expenses: expenses || [], monthlyRevenue })
 }
