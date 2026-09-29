@@ -123,13 +123,50 @@ export async function POST(req: Request) {
 
     interface PersonDetail { name: string | null; avatarUrl: string | null; profileSlug: string | null; date: string; linked: boolean }
 
+    // Nome resolvido (via customer/PIX/conta bancária) pode ser de gente que
+    // TEM perfil no app mas cuja cobrança não passou pelo fluxo de compra
+    // (ex: o próprio admin testando) — sem isso a pessoa aparece sem foto
+    // mesmo estando cadastrada. Não dá pra bater nome exato: a Asaas guarda
+    // o nome bancário completo ("Natanael Parintintin Castelano"), o perfil
+    // guarda o apelido ("Natan Castelano") — por isso compara por palavra
+    // (cada palavra de um nome precisa ser prefixo de alguma palavra do
+    // outro), não string idêntica.
+    const namesAlreadyLinked = new Set<string>()
+    ;(subsLookup.data || []).forEach((s: any) => s.profiles?.name && namesAlreadyLinked.add(s.profiles.name))
+    ;(postpaidLookup.data || []).forEach((p: any) => p.profiles?.name && namesAlreadyLinked.add(p.profiles.name))
+    ;(withdrawalsLookup.data || []).forEach((w: any) => w.profiles?.name && namesAlreadyLinked.add(w.profiles.name))
+    const candidateNames = Array.from(new Set([
+        ...Array.from(pixMap.values()).map((tx) => tx.externalAccount?.name).filter(Boolean) as string[],
+        ...Array.from(customerNameMap.values()),
+        ...transfers.map((t) => t.bankAccount?.ownerName).filter(Boolean) as string[],
+    ])).filter((n) => !namesAlreadyLinked.has(n))
+
+    const normalizeWords = (name: string) =>
+        name.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').split(/\s+/).filter(Boolean)
+    const namesLooselyMatch = (a: string, b: string) => {
+        const wordsA = normalizeWords(a)
+        const wordsB = normalizeWords(b)
+        const [shorter, longer] = wordsA.length <= wordsB.length ? [wordsA, wordsB] : [wordsB, wordsA]
+        return shorter.length > 0 && shorter.every((w) => longer.some((l) => l.startsWith(w) || w.startsWith(l)))
+    }
+
+    const { data: allNamedProfiles } = candidateNames.length
+        ? await supabaseAdmin.from('profiles').select('name, avatar_url, profileSlug').not('name', 'is', null).limit(1000)
+        : { data: [] as any[] }
+    const profileByName = new Map<string, any>()
+    for (const candidate of candidateNames) {
+        const match = (allNamedProfiles || []).find((p: any) => namesLooselyMatch(candidate, p.name))
+        if (match) profileByName.set(candidate, match)
+    }
+
     const resolvePayerDetails = (p: (typeof payments)[number]): PersonDetail => {
         const sub = p.externalReference ? subMap.get(p.externalReference) : null
         const postpaid = postpaidMap.get(p.id)
-        const profile = (sub as any)?.profiles || (postpaid as any)?.profiles
         const pixTx = p.pixTransaction ? pixMap.get(p.pixTransaction) : null
+        const name = (sub as any)?.profiles?.name || (postpaid as any)?.profiles?.name || pixTx?.externalAccount?.name || customerNameMap.get(p.customer) || null
+        const profile = (sub as any)?.profiles || (postpaid as any)?.profiles || (name ? profileByName.get(name) : null)
         return {
-            name: profile?.name || pixTx?.externalAccount?.name || customerNameMap.get(p.customer) || null,
+            name,
             avatarUrl: profile?.avatar_url ? getAvatarUrl(supabaseAdmin, profile.avatar_url) || null : null,
             profileSlug: profile?.profileSlug || null,
             date: pixTx?.dateCreated || p.dateCreated,
@@ -138,9 +175,10 @@ export async function POST(req: Request) {
     }
     const resolveTransferDetails = (t: (typeof transfers)[number]): PersonDetail => {
         const wd = withdrawalMap.get(t.id)
-        const profile = (wd as any)?.profiles
+        const name = (wd as any)?.profiles?.name || t.bankAccount?.ownerName || null
+        const profile = (wd as any)?.profiles || (name ? profileByName.get(name) : null)
         return {
-            name: profile?.name || t.bankAccount?.ownerName || null,
+            name,
             avatarUrl: profile?.avatar_url ? getAvatarUrl(supabaseAdmin, profile.avatar_url) || null : null,
             profileSlug: profile?.profileSlug || null,
             date: t.effectiveDate || t.dateCreated,
@@ -202,27 +240,30 @@ export async function POST(req: Request) {
 
     // Detalhe por transação (não agregado) "quem pagou" e "quem sacou" —
     // cada linha é um pagamento/transferência de verdade, com nome, foto
-    // (quando é gente cadastrada no app), link pro perfil e hora exata
-    // (quando a Asaas fornece), pra dar pra buscar e entender caso a caso
-    // em vez de só um total por pessoa.
-    const toPersonRow = (details: PersonDetail, value: number) => ({
+    // (quando é gente cadastrada no app), link pro perfil, hora exata
+    // (quando a Asaas fornece) e a taxa descontada nessa transação
+    // específica, pra dar pra buscar e entender caso a caso em vez de só
+    // um total por pessoa.
+    const toPersonRow = (details: PersonDetail, value: number, netValue: number) => ({
         name: details.name || 'Sem nome identificado',
         avatarUrl: details.avatarUrl,
         profileSlug: details.profileSlug,
         linked: details.linked,
         date: details.date,
         value,
+        netValue,
+        fee: value - netValue,
     })
     const payers = receivedPayments
-        .map((p) => toPersonRow(resolvePayerDetails(p), Number(p.value)))
+        .map((p) => toPersonRow(resolvePayerDetails(p), Number(p.value), Number(p.netValue)))
         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
     const commissionWithdrawers = doneTransfers
         .filter((t) => withdrawalMap.has(t.id))
-        .map((t) => toPersonRow(resolveTransferDetails(t), Number(t.value)))
+        .map((t) => toPersonRow(resolveTransferDetails(t), Number(t.value), Number(t.netValue)))
         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
     const otherWithdrawers = doneTransfers
         .filter((t) => !withdrawalMap.has(t.id))
-        .map((t) => toPersonRow(resolveTransferDetails(t), Number(t.value)))
+        .map((t) => toPersonRow(resolveTransferDetails(t), Number(t.value), Number(t.netValue)))
         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 
     return NextResponse.json({

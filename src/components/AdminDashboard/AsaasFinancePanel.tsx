@@ -57,6 +57,8 @@ interface PersonRow {
     linked: boolean
     date: string
     value: number
+    netValue: number
+    fee: number
 }
 
 interface ActivityItem {
@@ -162,7 +164,16 @@ function PersonSearchList({ items, colors }: { items: PersonRow[]; colors: Theme
                                 </p>
                                 <p className="text-[11px] truncate" style={{ color: colors.textSecondary }}>{formatDateTime(p.date)}</p>
                             </div>
-                            <span className="text-sm font-black flex-shrink-0" style={{ color: colors.textPrimary }}>{money(p.value)}</span>
+                            <span className="text-right flex-shrink-0">
+                                <span className="block text-sm font-black" style={{ color: colors.textPrimary }}>{money(p.netValue)}</span>
+                                {p.fee > 0.001 ? (
+                                    <span className="block text-[10px]" style={{ color: colors.textSecondary }}>
+                                        bruto {money(p.value)} · taxa -{money(p.fee)}
+                                    </span>
+                                ) : (
+                                    <span className="block text-[10px]" style={{ color: colors.textSecondary }}>bruto {money(p.value)}</span>
+                                )}
+                            </span>
                         </>
                     )
                     return p.profileSlug ? (
