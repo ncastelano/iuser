@@ -517,6 +517,13 @@ function HomePageContent() {
             if (store) {
                 setShowStoreDashboard({ slug: store.slug, name: store.name })
                 setShowCreateStore(false); setShowLogin(false); setShowProfile(false); setShowBenefits(false)
+            } else if (!loadingStores) {
+                // A loja da URL não é (mais) de quem está logado agora — ex:
+                // deslogou e logou com outra conta, ou trocou de conta nessa
+                // aba. Sem isso, o painel da loja antiga ficava preso na tela
+                // (loadDashboard do StoreDashboard só olha o slug, não quem
+                // está logado, e mostrava a loja errada pro novo usuário).
+                setShowStoreDashboard(null)
             }
         } else {
             setShowCreateStore(false); setShowLogin(false); setShowProfile(false); setShowStoreDashboard(null); setShowBenefits(false)
