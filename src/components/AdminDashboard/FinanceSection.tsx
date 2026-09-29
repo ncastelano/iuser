@@ -28,10 +28,17 @@ interface FinanceSectionProps {
 // pagos (Supabase, Asaas, Mapbox, Firebase, hospedagem etc) por mês, x
 // quanto entra de receita recorrente (assinaturas ativas) — pra nunca
 // deixar uma conta vencer sem perceber e o iUser sair do ar.
+interface AsaasSummary {
+    receivedGrossTotal: number
+    commissionTransfersTotal: number
+    unexplainedTotal: number
+    platformProfitTotal: number
+}
+
 export default function FinanceSection({ cardStyle, colors }: FinanceSectionProps) {
     const surfaceRgb = hexToRgb(colors.surface)
     const [expenses, setExpenses] = useState<ExpenseRow[]>([])
-    const [monthlyRevenue, setMonthlyRevenue] = useState(0)
+    const [asaasSummary, setAsaasSummary] = useState<AsaasSummary | null>(null)
     const [loading, setLoading] = useState(true)
     const [showForm, setShowForm] = useState(false)
     const [editing, setEditing] = useState<ExpenseRow | null>(null)
@@ -42,9 +49,12 @@ export default function FinanceSection({ cardStyle, colors }: FinanceSectionProp
     const load = useCallback(async () => {
         setLoading(true)
         try {
-            const res = await callAdminApi<{ expenses: ExpenseRow[]; monthlyRevenue: number }>('/api/admin/expenses/list')
-            setExpenses(res.expenses)
-            setMonthlyRevenue(res.monthlyRevenue)
+            const [expensesRes, asaasRes] = await Promise.all([
+                callAdminApi<{ expenses: ExpenseRow[] }>('/api/admin/expenses/list'),
+                callAdminApi<AsaasSummary>('/api/admin/expenses/asaas-overview'),
+            ])
+            setExpenses(expensesRes.expenses)
+            setAsaasSummary(asaasRes)
         } catch (err: any) {
             toast.error(err.message || 'Erro ao carregar gastos')
         } finally {
@@ -77,7 +87,8 @@ export default function FinanceSection({ cardStyle, colors }: FinanceSectionProp
     const activeExpenses = expenses.filter((e) => e.is_active)
     const totalFixedMonthly = activeExpenses.reduce((sum, e) => sum + normalizedMonthlyCost(e), 0)
     const totalUsageBased = activeExpenses.filter((e) => e.billing_cycle === 'usage').length
-    const saldo = monthlyRevenue - totalFixedMonthly
+    const platformProfit = asaasSummary?.platformProfitTotal || 0
+    const saldo = platformProfit - totalFixedMonthly
 
     const upcoming = activeExpenses
         .map((e) => ({ row: e, days: daysUntil(e.next_due_date) }))
@@ -145,7 +156,34 @@ export default function FinanceSection({ cardStyle, colors }: FinanceSectionProp
                         boxShadow: colors.shadow,
                     }}
                 >
+                    {/* Entrou x saiu, mesmos números reais da aba Asaas (get_asaas_financial_overview
+                    + API da Asaas) — não é um cálculo separado, só um resumo condensado aqui. */}
+                    <div className="space-y-2">
+                        <p className="text-xs font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>
+                            Entrou / saiu (Asaas)
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                            <span className="text-[11px] font-bold px-3 py-1.5 rounded-full" style={{ background: `${colors.border}30`, color: colors.textSecondary }}>
+                                Recebido (bruto): R$ {(asaasSummary?.receivedGrossTotal || 0).toFixed(2)}
+                            </span>
+                            <span className="text-[11px] font-bold px-3 py-1.5 rounded-full" style={{ background: '#ef444420', color: '#ef4444' }}>
+                                Repasse de comissão: -R$ {(asaasSummary?.commissionTransfersTotal || 0).toFixed(2)}
+                            </span>
+                            <span className="text-[11px] font-bold px-3 py-1.5 rounded-full" style={{ background: `${colors.border}30`, color: colors.textSecondary }}>
+                                Custo Asaas: -R$ {(asaasSummary?.unexplainedTotal || 0).toFixed(2)}
+                            </span>
+                        </div>
+                        <p className="text-[9px]" style={{ color: colors.textSecondary }}>Baseado nas últimas 20 cobranças na Asaas — ver aba Asaas pra detalhe.</p>
+                    </div>
+
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                        <div className="p-3 rounded-2xl border" style={{ borderColor: colors.border, background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)` }}>
+                            <div className="flex items-center gap-1.5 text-xs" style={{ color: colors.textSecondary }}>
+                                <TrendingUp size={13} /> Lucro da plataforma
+                            </div>
+                            <p className="text-lg font-black" style={{ color: '#22c55e' }}>R$ {platformProfit.toFixed(2)}</p>
+                            <p className="text-[9px]" style={{ color: colors.textSecondary }}>já sacado pelo dono (recebido − comissão − custo Asaas)</p>
+                        </div>
                         <div className="p-3 rounded-2xl border" style={{ borderColor: colors.border, background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)` }}>
                             <div className="flex items-center gap-1.5 text-xs" style={{ color: colors.textSecondary }}>
                                 <TrendingDown size={13} /> Gasto fixo/mês
@@ -154,13 +192,6 @@ export default function FinanceSection({ cardStyle, colors }: FinanceSectionProp
                             {totalUsageBased > 0 && (
                                 <p className="text-[9px]" style={{ color: colors.textSecondary }}>+{totalUsageBased} de uso variável</p>
                             )}
-                        </div>
-                        <div className="p-3 rounded-2xl border" style={{ borderColor: colors.border, background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)` }}>
-                            <div className="flex items-center gap-1.5 text-xs" style={{ color: colors.textSecondary }}>
-                                <TrendingUp size={13} /> Lucro/mês
-                            </div>
-                            <p className="text-lg font-black" style={{ color: '#22c55e' }}>R$ {monthlyRevenue.toFixed(2)}</p>
-                            <p className="text-[9px]" style={{ color: colors.textSecondary }}>já descontado repasse de comissão · taxa da Asaas não incluída (ver aba Asaas)</p>
                         </div>
                         <div
                             className="p-3 rounded-2xl border col-span-2 sm:col-span-1"
@@ -172,6 +203,7 @@ export default function FinanceSection({ cardStyle, colors }: FinanceSectionProp
                             <p className="text-lg font-black" style={{ color: saldo >= 0 ? '#22c55e' : '#ef4444' }}>
                                 {saldo >= 0 ? '+' : ''}R$ {saldo.toFixed(2)}
                             </p>
+                            <p className="text-[9px]" style={{ color: colors.textSecondary }}>lucro da plataforma − gasto fixo</p>
                         </div>
                     </div>
 
