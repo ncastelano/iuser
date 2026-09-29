@@ -429,6 +429,7 @@ export default function PedirMotoristaPage() {
     const suggestionRefs = useRef<(HTMLButtonElement | null)[]>([])
     const [searching, setSearching] = useState(false)
     const [locatingOrigin, setLocatingOrigin] = useState(false)
+    const [locatingDestination, setLocatingDestination] = useState(false)
     const [route, setRoute] = useState<RouteOption | null>(null)
     const [loadingRoutes, setLoadingRoutes] = useState(false)
     const [notes, setNotes] = useState('')
@@ -699,6 +700,25 @@ export default function PedirMotoristaPage() {
                     duration: 6000,
                 })
                 setLocatingOrigin(false)
+            },
+            { enableHighAccuracy: true, timeout: 10000 }
+        )
+    }, [])
+
+    // ===== USAR MINHA LOCALIZAÇÃO COMO CHEGADA (ex: pedir corrida pra onde a pessoa já está) =====
+    const useMyLocationAsDestination = useCallback(() => {
+        setLocatingDestination(true)
+        getNativeCurrentPosition(
+            async (pos) => {
+                const coords: [number, number] = [pos.coords.longitude, pos.coords.latitude]
+                const address = await reverseGeocode(coords[0], coords[1])
+                setDestination({ address: address || `${coords[1].toFixed(4)}, ${coords[0].toFixed(4)}`, coords })
+                if (mapRef.current) mapRef.current.flyTo({ center: coords, zoom: 15, duration: 800 })
+                setLocatingDestination(false)
+            },
+            () => {
+                toast.error('Não conseguimos acessar sua localização')
+                setLocatingDestination(false)
             },
             { enableHighAccuracy: true, timeout: 10000 }
         )
@@ -1618,6 +1638,9 @@ export default function PedirMotoristaPage() {
                                 <button onClick={() => useMyLocationAsOrigin(true)} className="flex-shrink-0" title="Usar minha localização atual" style={{ color: colors.accent }}>
                                     {locatingOrigin ? <Spinner size={16} /> : <MapPinPlus size={16} />}
                                 </button>
+                                <button onClick={() => startPickingOnMap('origin')} className="flex-shrink-0" title="Escolher local no mapa" style={{ color: colors.accent }}>
+                                    <MapPin size={16} />
+                                </button>
                             </div>
                             {showOriginComplement ? (
                                 <input
@@ -1663,11 +1686,14 @@ export default function PedirMotoristaPage() {
                                 <input
                                     readOnly
                                     onClick={() => openField('destination')}
-                                    value={destination.address}
+                                    value={locatingDestination ? 'Localizando...' : destination.address}
                                     placeholder="Local de chegada"
                                     className="flex-1 bg-transparent text-sm focus:outline-none cursor-pointer"
                                     style={inputStyle}
                                 />
+                                <button onClick={() => useMyLocationAsDestination()} className="flex-shrink-0" title="Usar minha localização atual" style={{ color: colors.accent }}>
+                                    {locatingDestination ? <Spinner size={16} /> : <MapPinPlus size={16} />}
+                                </button>
                                 <button onClick={() => startPickingOnMap('destination')} className="flex-shrink-0" title="Escolher local no mapa" style={{ color: colors.accent }}>
                                     <MapPin size={16} />
                                 </button>
