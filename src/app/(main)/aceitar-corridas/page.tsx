@@ -723,18 +723,10 @@ export default function AceitarCorridasPage() {
         if (acceptedDetail && lastAcceptedRideIdRef.current !== acceptedDetail.id) {
             lastAcceptedRideIdRef.current = acceptedDetail.id
             setActiveTab('aceita')
-            // Leva direto pra navegação em tela cheia na primeira vez que essa
-            // corrida aparece como aceita — só uma vez por corrida (o flag em
-            // sessionStorage sobrevive ao ir-e-voltar do "Abrir chat", que
-            // remonta essa página; sem ele, voltar do chat mandaria de volta
-            // pro mapa na hora, brigando com a navegação que a pessoa pediu).
-            const navKey = `ride_nav_shown_${acceptedDetail.id}`
-            try {
-                if (!sessionStorage.getItem(navKey)) {
-                    sessionStorage.setItem(navKey, '1')
-                    router.push('/aceitar-corridas/mapa')
-                }
-            } catch { /* sem sessionStorage: só não leva automaticamente */ }
+            // O redirecionamento automático pra /aceitar-corridas/mapa ao
+            // aceitar mora só em RideAcceptedDialog (global, em
+            // providers.tsx) — de lá funciona em qualquer página do app,
+            // não só quando essa tela específica está aberta e faz poll.
         } else if (!acceptedDetail && lastAcceptedRideIdRef.current != null) {
             // A corrida saiu de "aceita" sem ser pelo botão do motorista: se o
             // passageiro a finalizou, toca o som de fim de corrida.
