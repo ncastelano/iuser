@@ -7,6 +7,7 @@ import { User, Store, Home, MapPin, LayoutDashboard, X, Radar, Gift } from 'luci
 
 import CategoriasSection from './inicio/sections/CanIhelp'
 import MotoristaSection from './inicio/sections/MotoristaSection'
+import AcceptARider from './inicio/sections/AcceptARider'
 import HireAService from './inicio/sections/HireAService'
 import SortableSection from './inicio/sections/SortableSection'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
@@ -50,6 +51,7 @@ const DEFAULT_SECTIONS = [
     'publicationShowcase',
     'profileShowcase',
     'motorista',
+    'canalMotorista',
     'servico',
     'servicoShowcase',
     'careerPlans',
@@ -134,6 +136,7 @@ function HomePageContent() {
 
     const [breveMap, setBreveMap] = useState<Record<string, boolean>>({})
     const [motoristaUrgent, setMotoristaUrgent] = useState(false)
+    const [canalMotoristaUrgent, setCanalMotoristaUrgent] = useState(false)
 
     const storeOrderCounts = useMerchantStore(s => s.storeOrderCounts)
     const setMerchantStoreOrderCounts = useMerchantStore(s => s.setStoreOrderCounts)
@@ -329,14 +332,16 @@ function HomePageContent() {
     }
 
     // ---------- SEÇÕES EXIBIDAS (categorias sempre em primeiro, exceto quando
-    // Motorista Particular está com atualização urgente — pedido com
-    // candidato a caminho, ou corrida aceita em andamento — aí a seção
-    // urgente sobe pra frente de Categorias até resolver) ----------
+    // Motorista Particular ou Canal do Motorista estão com atualização
+    // urgente — pedido com candidato/motorista a caminho, ou corrida aceita
+    // em andamento — aí a seção urgente sobe pra frente de Categorias até
+    // resolver) ----------
     const urgentSections = useMemo(() => {
         const list: string[] = []
+        if (canalMotoristaUrgent) list.push('canalMotorista')
         if (motoristaUrgent) list.push('motorista')
         return list
-    }, [motoristaUrgent])
+    }, [motoristaUrgent, canalMotoristaUrgent])
 
     const displayedSections = useMemo(() => {
         const uniqueSections = Array.from(new Set(sections))
@@ -467,6 +472,8 @@ function HomePageContent() {
                 return <FeaturedProfiles />
             case 'motorista':
                 return <MotoristaSection onBreveStatusChange={breveCallbacks.motorista} onUrgentChange={setMotoristaUrgent} />
+            case 'canalMotorista':
+                return <AcceptARider onUrgentChange={setCanalMotoristaUrgent} />
             case 'servico':
                 return <HireAService />
             case 'servicoShowcase':
