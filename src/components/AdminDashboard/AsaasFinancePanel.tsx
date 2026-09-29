@@ -44,6 +44,7 @@ interface AsaasOverview {
     otherTransfersTotal: number
     unexplainedTotal: number
     platformProfitTotal: number
+    totalAsaasCost: number
     payers: PersonRow[]
     commissionWithdrawers: PersonRow[]
     otherWithdrawers: PersonRow[]
@@ -328,14 +329,19 @@ export default function AsaasFinancePanel({ cardStyle, colors }: AsaasFinancePan
                     </p>
                     <p className="text-2xl font-black" style={{ color: '#22c55e' }}>{money(overview.platformProfitTotal)}</p>
                     <p className="text-[11px]" style={{ color: colors.textSecondary }}>
-                        {money(overview.otherTransfersTotal)} já sacado + {money(overview.unexplainedTotal)} ainda na conta (não é repasse de comissão, é lucro de qualquer jeito).
+                        Já sacado pelo dono do iUser — fora do fluxo de comissão. Nenhum valor "ainda parado na conta" entra
+                        aqui: o saldo real na Asaas hoje é {money(overview.asaasBalance)}.
                     </p>
                     <div className="flex flex-wrap gap-2 pt-1">
                         <StatPill label="Líquido recebido" value={money(overview.receivedNetTotal)} colors={colors} />
                         <StatPill label="Comissão repassada" value={`-${money(overview.commissionTransfersTotal)}`} color="#ef4444" colors={colors} />
+                        <StatPill label="Outro custo Asaas" value={`-${money(overview.unexplainedTotal)}`} color="#94a3b8" colors={colors} />
                     </div>
                     <p className="text-[10px]" style={{ color: colors.textSecondary }}>
-                        Lucro = líquido recebido − comissão repassada. Comissão nunca foi dinheiro da iUser, nasce devido a quem indicou.
+                        Comissão nunca foi dinheiro da iUser (repasse pra quem indicou). "Líquido recebido" já descontou a
+                        taxa por cobrança da Asaas ({money(overview.asaasFeesTotal)} no total). "Outro custo Asaas" é uma
+                        diferença que essas 20 cobranças/transferências não explicam sozinhas — provavelmente mais algum
+                        custo da conta (ex: mensalidade), não é lucro parado. Lucro = líquido − comissão − esse outro custo.
                     </p>
                 </div>
             )}

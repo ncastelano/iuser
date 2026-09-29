@@ -160,7 +160,7 @@ export default function FinanceSection({ cardStyle, colors }: FinanceSectionProp
                                 <TrendingUp size={13} /> Lucro/mês
                             </div>
                             <p className="text-lg font-black" style={{ color: '#22c55e' }}>R$ {monthlyRevenue.toFixed(2)}</p>
-                            <p className="text-[9px]" style={{ color: colors.textSecondary }}>já descontado repasse de comissão</p>
+                            <p className="text-[9px]" style={{ color: colors.textSecondary }}>já descontado repasse de comissão · taxa da Asaas não incluída (ver aba Asaas)</p>
                         </div>
                         <div
                             className="p-3 rounded-2xl border col-span-2 sm:col-span-1"

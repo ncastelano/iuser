@@ -198,18 +198,21 @@ export async function POST(req: Request) {
         .filter((t) => withdrawalMap.has(t.id))
         .reduce((sum, t) => sum + Number(t.value), 0)
     const otherTransfersTotal = transfersOutTotal - commissionTransfersTotal
-    // Estimativa (não é o saldo real — ver asaasBalance): parte do líquido
-    // recebido que essas 20 cobranças/transferências não explicam ainda,
-    // seja porque continua disponível na conta, seja por taxa/ajuste da
-    // Asaas fora dessas duas listas (ex: mensalidade da conta).
+    // Não é lucro parado na conta — o saldo real (asaasBalance) é R$0, não
+    // essa diferença. É taxa/custo da Asaas que não aparece no netValue de
+    // cada cobrança nem no transferFee de cada saque (ex: mensalidade da
+    // conta, taxa adicional de recebimento) — dinheiro que saiu pra Asaas,
+    // não pra iUser nem pra quem indicou. Por isso conta como custo, não
+    // como lucro ainda não repassado.
     const unexplainedTotal = receivedNetTotal - transfersOutTotal
-    // Lucro real da plataforma: líquido recebido menos o que é repasse de
-    // comissão (isso nunca foi dinheiro da iUser, nasce devido a quem
-    // indicou). É "outras retiradas" (já sacado, ex: o dono tirando pra
-    // si) + "ainda não repassado" (lucro que ainda está disponível na
-    // conta, ainda não sacado) — as duas partes são lucro de qualquer jeito,
-    // sacado ou não.
-    const platformProfitTotal = receivedNetTotal - commissionTransfersTotal
+    // Lucro real da plataforma: só o que de fato foi sacado pelo dono do
+    // iUser (outras retiradas, fora do fluxo de comissão) — comissão nunca
+    // foi dinheiro da iUser, e a diferença não explicada é custo de Asaas,
+    // não lucro parado. Não soma unexplainedTotal aqui.
+    const platformProfitTotal = otherTransfersTotal
+    // Total pago à Asaas: a taxa já descontada em cada cobrança (asaasFeesTotal)
+    // + essa diferença não explicada (presumivelmente outra taxa/custo deles).
+    const totalAsaasCost = asaasFeesTotal + unexplainedTotal
 
     const activity = [
         ...payments.map((p) => {
@@ -289,6 +292,7 @@ export async function POST(req: Request) {
         otherTransfersTotal,
         unexplainedTotal,
         platformProfitTotal,
+        totalAsaasCost,
         payers,
         commissionWithdrawers,
         otherWithdrawers,
