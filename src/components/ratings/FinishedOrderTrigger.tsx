@@ -9,6 +9,16 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useMerchantStore } from '@/store/useMerchantStore'
 import { toast } from 'sonner'
 
+function formatOrderDate(iso: string): string {
+    return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+}
+
+function orderItemsSummary(items: { product_name: string }[]): string {
+    if (items.length === 0) return ''
+    if (items.length === 1) return items[0].product_name
+    return `${items[0].product_name} +${items.length - 1} ${items.length - 1 === 1 ? 'item' : 'itens'}`
+}
+
 export function FinishedOrderTrigger() {
     const { userId, loading: profileLoading } = useProfile()
     const [unreviewedOrders, setUnreviewedOrders] = useState<any[]>([])
@@ -226,9 +236,23 @@ export function FinishedOrderTrigger() {
                                 <h3 className="text-2xl font-black italic text-gray-900 leading-tight mb-2">
                                     Seu pedido foi finalizado! 🎉
                                 </h3>
-                                <p className="text-sm text-gray-500 font-medium leading-relaxed mb-8">
+                                <p className="text-sm text-gray-500 font-medium leading-relaxed mb-4">
                                     O que você achou dos produtos? Sua avaliação ajuda outras pessoas na hora da compra!
                                 </p>
+
+                                {unreviewedOrders[0] && (
+                                    <div className="bg-orange-50 rounded-2xl px-4 py-3 mb-6 text-left">
+                                        <p className="text-sm font-black text-gray-900 truncate">
+                                            {unreviewedOrders[0].store_name}
+                                        </p>
+                                        <p className="text-xs text-gray-500 font-medium truncate">
+                                            {orderItemsSummary(unreviewedOrders[0].items)}
+                                        </p>
+                                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-1">
+                                            Pedido de {formatOrderDate(unreviewedOrders[0].created_at)}
+                                        </p>
+                                    </div>
+                                )}
 
                                 <div className="space-y-3">
                                     <button
