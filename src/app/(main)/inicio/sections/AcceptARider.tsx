@@ -66,9 +66,11 @@ interface CandidacyPreview {
 
 interface AcceptARiderProps {
     dragHandle?: ReactNode
-    // Dispara quando o motorista está com uma corrida aceita em andamento —
-    // a home usa isso pra subir esse componente na frente de Categorias
-    // enquanto durar, do mesmo jeito que o Motorista Particular já faz.
+    // Dispara quando o motorista está com uma corrida aceita em andamento,
+    // aguardando decisão de uma candidatura, ou com o modo motorista ligado
+    // e corridas abertas aparecendo pra se candidatar — a home usa isso pra
+    // subir esse componente na frente de Categorias enquanto durar, do
+    // mesmo jeito que o Motorista Particular já faz.
     onUrgentChange?: (urgent: boolean) => void
 }
 
@@ -316,10 +318,10 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
     }, [contextUserId, profileLoading])
 
     useEffect(() => {
-        onUrgentChange?.(!!acceptedRide || myCandidacies.length > 0)
+        onUrgentChange?.(!!acceptedRide || myCandidacies.length > 0 || (driverModeActive && openRides.length > 0))
         return () => { onUrgentChange?.(false) }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [acceptedRide, myCandidacies.length])
+    }, [acceptedRide, myCandidacies.length, driverModeActive, openRides.length])
 
     const surfaceRgb = hexToRgb(colors.surface)
 
