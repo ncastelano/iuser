@@ -27,10 +27,10 @@ const DEFAULT_CENTER: [number, number] = [-63.9039, -8.7612] // Porto Velho
 type FieldKind = 'origin' | 'destination' | 'stop0' | 'stop1'
 
 const FIELD_LABEL: Record<FieldKind, string> = {
-    origin: 'Mova o mapa até a partida',
-    destination: 'Mova o mapa até a chegada',
-    stop0: 'Mova o mapa até a 1ª parada',
-    stop1: 'Mova o mapa até a 2ª parada',
+    origin: 'Arraste o pin ou o mapa para selecionar o local de partida',
+    destination: 'Arraste o pin ou o mapa para selecionar o local de chegada',
+    stop0: 'Arraste o pin ou o mapa para selecionar a 1ª parada',
+    stop1: 'Arraste o pin ou o mapa para selecionar a 2ª parada',
 }
 
 async function reverseGeocode(lng: number, lat: number): Promise<string | null> {
@@ -50,6 +50,7 @@ export default function EscolherLocalPage() {
     const { userId } = useProfile()
     const mapContainerRef = useRef<HTMLDivElement | null>(null)
     const mapRef = useRef<mapboxgl.Map | null>(null)
+    const otherMarkersRef = useRef<mapboxgl.Marker[]>([])
 
     const [field, setField] = useState<FieldKind | null>(null)
     const [address, setAddress] = useState('')
@@ -85,6 +86,26 @@ export default function EscolherLocalPage() {
             attributionControl: false,
         })
         mapRef.current = map
+
+        // Mostra junto o outro local já escolhido (ex: ao escolher a
+        // chegada, mostra onde ficou a partida) — só como referência, não
+        // é arrastável aqui.
+        const otherPoints: { coords: [number, number]; label: string; color: string }[] = []
+        if (field !== 'origin' && draft?.origin?.coords) {
+            otherPoints.push({ coords: draft.origin.coords, label: 'Partida', color: '#22c55e' })
+        }
+        if (field !== 'destination' && draft?.destination?.coords) {
+            otherPoints.push({ coords: draft.destination.coords, label: 'Chegada', color: '#ef4444' })
+        }
+        otherMarkersRef.current = otherPoints.map(({ coords, label, color }) => {
+            const el = document.createElement('div')
+            el.style.cssText = 'display:flex;flex-direction:column;align-items:center;'
+            el.innerHTML = `
+                <div style="background:${color};color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:9999px;margin-bottom:4px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,0.35);">${label}</div>
+                <div style="width:14px;height:14px;border-radius:50%;background:${color};border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.4);"></div>
+            `
+            return new mapboxgl.Marker({ element: el, anchor: 'bottom' }).setLngLat(coords).addTo(map)
+        })
 
         const resolveCenter = async () => {
             const center = map.getCenter()

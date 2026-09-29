@@ -46,7 +46,6 @@ import {
     CalendarClock,
     Wind,
     Store as StoreIcon,
-    Map as MapIcon,
     Flag,
     Trash2,
 } from 'lucide-react'
@@ -1409,7 +1408,7 @@ export default function PedirMotoristaPage() {
                             style={{ borderBottom: `1px solid ${colors.border}` }}
                         >
                             <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: `${colors.accent}20`, color: colors.accent }}>
-                                <MapIcon size={16} />
+                                <MapPin size={16} />
                             </div>
                             <span className="text-sm font-bold" style={{ color: colors.accent }}>Escolher no mapa</span>
                         </button>
@@ -1616,11 +1615,8 @@ export default function PedirMotoristaPage() {
                                     className="flex-1 bg-transparent text-sm focus:outline-none cursor-pointer"
                                     style={inputStyle}
                                 />
-                                <button onClick={() => useMyLocationAsOrigin(true)} className="flex-shrink-0" style={{ color: colors.accent }}>
+                                <button onClick={() => useMyLocationAsOrigin(true)} className="flex-shrink-0" title="Usar minha localização atual" style={{ color: colors.accent }}>
                                     {locatingOrigin ? <Spinner size={16} /> : <MapPinPlus size={16} />}
-                                </button>
-                                <button onClick={() => startPickingOnMap('origin')} className="flex-shrink-0" title="Escolher no mapa" style={{ color: colors.accent }}>
-                                    <MapIcon size={16} />
                                 </button>
                             </div>
                             {showOriginComplement ? (
@@ -1672,8 +1668,8 @@ export default function PedirMotoristaPage() {
                                     className="flex-1 bg-transparent text-sm focus:outline-none cursor-pointer"
                                     style={inputStyle}
                                 />
-                                <button onClick={() => startPickingOnMap('destination')} className="flex-shrink-0" title="Escolher no mapa" style={{ color: colors.accent }}>
-                                    <MapIcon size={16} />
+                                <button onClick={() => startPickingOnMap('destination')} className="flex-shrink-0" title="Escolher local no mapa" style={{ color: colors.accent }}>
+                                    <MapPin size={16} />
                                 </button>
                             </div>
                             {showDestinationComplement ? (
@@ -1741,8 +1737,8 @@ export default function PedirMotoristaPage() {
                                                 className="flex-1 bg-transparent text-sm focus:outline-none cursor-pointer"
                                                 style={inputStyle}
                                             />
-                                            <button onClick={() => startPickingOnMap(fieldId)} className="flex-shrink-0" title="Escolher no mapa" style={{ color: colors.accent }}>
-                                                <MapIcon size={16} />
+                                            <button onClick={() => startPickingOnMap(fieldId)} className="flex-shrink-0" title="Escolher local no mapa" style={{ color: colors.accent }}>
+                                                <MapPin size={16} />
                                             </button>
                                         </div>
                                         {s.complementOpen ? (
