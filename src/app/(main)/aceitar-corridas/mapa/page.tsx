@@ -66,6 +66,37 @@ function driverMarkerElement(kind: VehicleKind): HTMLDivElement {
     return el
 }
 
+// ===== BEARING (rotação do mapa na direção do movimento) =====
+// GPS puro é barulhento: duas posições muito próximas dão um ângulo
+// quase aleatório. MIN_BEARING_MOVEMENT_METERS ignora atualizações onde
+// a pessoa andou de menos (parada num sinal, GPS "tremendo" no lugar), e
+// BEARING_SMOOTHING_ALPHA suaviza o ângulo novo contra o anterior (média
+// circular via vetores — soma direto não funciona perto da virada 360°→0°).
+const MIN_BEARING_MOVEMENT_METERS = 8
+const BEARING_SMOOTHING_ALPHA = 0.3
+
+function toDeg(rad: number): number {
+    return ((rad * 180) / Math.PI + 360) % 360
+}
+
+function computeBearing(from: [number, number], to: [number, number]): number {
+    const toRad = (deg: number) => (deg * Math.PI) / 180
+    const lat1 = toRad(from[1])
+    const lat2 = toRad(to[1])
+    const dLng = toRad(to[0] - from[0])
+    const y = Math.sin(dLng) * Math.cos(lat2)
+    const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLng)
+    return toDeg(Math.atan2(y, x))
+}
+
+function smoothBearing(prev: number | null, raw: number, alpha: number): number {
+    if (prev == null) return raw
+    const toRad = (deg: number) => (deg * Math.PI) / 180
+    const x = (1 - alpha) * Math.cos(toRad(prev)) + alpha * Math.cos(toRad(raw))
+    const y = (1 - alpha) * Math.sin(toRad(prev)) + alpha * Math.sin(toRad(raw))
+    return toDeg(Math.atan2(y, x))
+}
+
 // Mesmo cuidado de ../RideMapDialog.tsx: sem transition CSS fixa (o
 // mapbox-gl já reprojeta o marcador sozinho ao arrastar o mapa) — o
 // deslize suave só entra quando ESTE código chama setLngLat, numa
@@ -119,6 +150,8 @@ export default function AceitarCorridasMapaPage() {
     const driverMarkerKindRef = useRef<VehicleKind | null>(null)
     const routeReqIdRef = useRef(0)
     const followingRef = useRef(true)
+    const bearingRef = useRef<number | null>(null)
+    const prevBearingCoordsRef = useRef<[number, number] | null>(null)
 
     const [loading, setLoading] = useState(true)
     const [showChat, setShowChat] = useState(false)
@@ -249,7 +282,9 @@ export default function AceitarCorridasMapaPage() {
             zoom: 15,
             attributionControl: false,
         })
-        map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'bottom-right')
+        // Bússola visível agora que o mapa gira com a direção do
+        // movimento — dá pra tocar nela pra voltar ao norte pra cima.
+        map.addControl(new mapboxgl.NavigationControl({ showCompass: true }), 'bottom-right')
 
         // Gesto do usuário (arrastar/zoom/rotacionar) desliga o modo
         // centralizar — igual comportamento de qualquer app de navegação.
@@ -334,7 +369,18 @@ export default function AceitarCorridasMapaPage() {
             animateMarkerTo(driverMarkerRef.current, driverCoords)
         }
 
-        if (followingRef.current) map.easeTo({ center: driverCoords, duration: 600 })
+        // Só recalcula o bearing se andou o suficiente — perto do limite,
+        // o GPS "tremendo" no mesmo lugar daria um ângulo quase aleatório.
+        const prevCoords = prevBearingCoordsRef.current
+        if (!prevCoords || haversineKm(prevCoords, driverCoords) * 1000 >= MIN_BEARING_MOVEMENT_METERS) {
+            const raw = prevCoords ? computeBearing(prevCoords, driverCoords) : null
+            if (raw != null) bearingRef.current = smoothBearing(bearingRef.current, raw, BEARING_SMOOTHING_ALPHA)
+            prevBearingCoordsRef.current = driverCoords
+        }
+
+        if (followingRef.current) {
+            map.easeTo({ center: driverCoords, bearing: bearingRef.current ?? map.getBearing(), duration: 600 })
+        }
 
         const reqId = ++routeReqIdRef.current
         fetchRoute(driverCoords, [navTarget.lng, navTarget.lat])
@@ -351,7 +397,9 @@ export default function AceitarCorridasMapaPage() {
 
     const recenter = () => {
         setFollowing(true)
-        if (mapRef.current && driverCoords) mapRef.current.easeTo({ center: driverCoords, duration: 600 })
+        if (mapRef.current && driverCoords) {
+            mapRef.current.easeTo({ center: driverCoords, bearing: bearingRef.current ?? mapRef.current.getBearing(), duration: 600 })
+        }
     }
 
     // ===== AÇÕES DA CORRIDA (mesma lógica de ../page.tsx) =====
