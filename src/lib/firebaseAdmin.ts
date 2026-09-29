@@ -4,6 +4,7 @@
 // Firebase). Never import this from a 'use client' file.
 import { initializeApp, getApps, cert } from 'firebase-admin/app'
 import { getMessaging } from 'firebase-admin/messaging'
+import { supabaseAdmin } from '@/lib/supabase/admin'
 
 const serviceAccountKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY
 
@@ -52,6 +53,13 @@ export async function sendFcmToTokens(
             invalidTokens.push(tokens[i])
         }
     })
+
+    // Telemetria própria (fire-and-forget) — o Firebase não expõe uso/envio
+    // por API pública com a service account que temos, só via console deles.
+    supabaseAdmin.rpc('track_service_usage', { p_service: 'firebase', p_metric: 'fcm_sends', p_count: tokens.length }).then(
+        () => {},
+        () => {}
+    )
 
     return { successCount: response.successCount, invalidTokens }
 }

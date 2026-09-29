@@ -1,4 +1,5 @@
 // src/lib/mapboxRoute.ts
+import { trackMapboxRequest } from '@/lib/mapboxTelemetry'
 
 export interface RouteResult {
     coords: [number, number][]
@@ -22,6 +23,7 @@ const FALLBACK_SPEED_KMH = 30
 
 export async function fetchRoute(from: [number, number], to: [number, number]): Promise<RouteResult> {
     try {
+        trackMapboxRequest('directions')
         const res = await fetch(
             `https://api.mapbox.com/directions/v5/mapbox/driving/${from[0]},${from[1]};${to[0]},${to[1]}?geometries=geojson&overview=simplified&access_token=${process.env.NEXT_PUBLIC_MAPBOX_TOKEN}`
         )
@@ -56,6 +58,7 @@ export async function fetchOptimizedRoute(
     if (stops.length === 0 || stops.length > 11) return null
 
     try {
+        trackMapboxRequest('optimization')
         const coords = [[storeLng, storeLat], ...stops.map((s) => [s.lng, s.lat])]
             .map((c) => c.join(','))
             .join(';')
@@ -92,6 +95,7 @@ export interface RouteWithSteps extends RouteResult {
 // orientação por voz — usado só quando precisa disso (o mapa comum não).
 export async function fetchRouteWithSteps(from: [number, number], to: [number, number]): Promise<RouteWithSteps | null> {
     try {
+        trackMapboxRequest('directions')
         const res = await fetch(
             `https://api.mapbox.com/directions/v5/mapbox/driving/${from[0]},${from[1]};${to[0]},${to[1]}?geometries=geojson&overview=full&steps=true&language=pt&access_token=${process.env.NEXT_PUBLIC_MAPBOX_TOKEN}`
         )

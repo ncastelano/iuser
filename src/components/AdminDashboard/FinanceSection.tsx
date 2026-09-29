@@ -6,15 +6,18 @@ import { toast } from 'sonner'
 import { Spinner } from '@/components/Spinner'
 import { hexToRgb } from '@/lib/color'
 import { callAdminApi } from '@/lib/callAdminApi'
-import { Plus, Pencil, Trash2, AlertTriangle, TrendingUp, TrendingDown, Wallet, ExternalLink, Database, Landmark, Package } from 'lucide-react'
+import { Plus, Pencil, Trash2, AlertTriangle, TrendingUp, TrendingDown, Wallet, ExternalLink, Database, Landmark, Package, Map, Bell } from 'lucide-react'
 import type { ThemeColors } from '@/app/contexts/theme'
 import SupabaseUsagePanel from './SupabaseUsagePanel'
 import AsaasFinancePanel from './AsaasFinancePanel'
+import MapboxUsagePanel from './MapboxUsagePanel'
+import FirebaseUsagePanel from './FirebaseUsagePanel'
 import { ExpenseForm, BILLING_CYCLE_LABEL, normalizedMonthlyCost, daysUntil, type ExpenseRow } from './ExpenseForm'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
-type FinanceTab = 'resumo' | 'supabase' | 'asaas' | 'outros'
+type FinanceTab = 'resumo' | 'supabase' | 'asaas' | 'mapbox' | 'firebase' | 'outros'
+const KNOWN_SERVICES = ['Supabase', 'Asaas', 'Mapbox', 'Firebase']
 
 interface FinanceSectionProps {
     cardStyle: React.CSSProperties
@@ -85,12 +88,14 @@ export default function FinanceSection({ cardStyle, colors }: FinanceSectionProp
         return <div className="flex justify-center py-8"><Spinner size={24} color={colors.accent} /></div>
     }
 
-    const otherExpenses = expenses.filter((e) => e.service_name !== 'Supabase' && e.service_name !== 'Asaas')
+    const otherExpenses = expenses.filter((e) => !KNOWN_SERVICES.includes(e.service_name))
 
     const TABS: { id: FinanceTab; label: string; icon: typeof Wallet }[] = [
         { id: 'resumo', label: 'Resumo', icon: Wallet },
         { id: 'supabase', label: 'Supabase', icon: Database },
         { id: 'asaas', label: 'Asaas', icon: Landmark },
+        { id: 'mapbox', label: 'Mapbox', icon: Map },
+        { id: 'firebase', label: 'Firebase', icon: Bell },
         { id: 'outros', label: `Outros (${otherExpenses.length})`, icon: Package },
     ]
 
@@ -186,6 +191,8 @@ export default function FinanceSection({ cardStyle, colors }: FinanceSectionProp
 
             {tab === 'supabase' && <SupabaseUsagePanel cardStyle={cardStyle} colors={colors} />}
             {tab === 'asaas' && <AsaasFinancePanel cardStyle={cardStyle} colors={colors} />}
+            {tab === 'mapbox' && <MapboxUsagePanel cardStyle={cardStyle} colors={colors} />}
+            {tab === 'firebase' && <FirebaseUsagePanel cardStyle={cardStyle} colors={colors} />}
 
             {tab === 'outros' && (
                 <div className="space-y-3">
@@ -208,9 +215,10 @@ export default function FinanceSection({ cardStyle, colors }: FinanceSectionProp
                     )}
 
                     <div className="space-y-2">
-                        {/* Supabase e Asaas têm aba própria (custo + uso/mapeamento juntos,
-                        ver SupabaseUsagePanel/AsaasFinancePanel) — não repetem aqui pra não
-                        separar a mesma coisa em dois lugares diferentes na tela. */}
+                        {/* Supabase, Asaas, Mapbox e Firebase têm aba própria (custo +
+                        uso juntos) — não repetem aqui pra não separar a mesma coisa em
+                        dois lugares diferentes na tela. Aqui fica só serviço novo que
+                        ainda não ganhou painel dedicado (ver CLAUDE.md). */}
                         {otherExpenses.length === 0 ? (
                             <div className="text-sm" style={{ ...cardStyle, color: colors.textSecondary }}>Nenhum outro serviço cadastrado ainda.</div>
                         ) : otherExpenses.map((row) => {
