@@ -1,7 +1,7 @@
 // app/(main)/painel-motorista/page.tsx
 'use client'
 
-import { useEffect, useState, Suspense } from 'react'
+import { useEffect, useState, useMemo, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { useProfile } from '@/app/contexts/ProfileContext'
@@ -10,7 +10,7 @@ import Header from '@/components/Header'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import LoginAndRegister from '@/components/LoginAndRegister/LoginAndRegister'
 import { toast } from 'sonner'
-import { TrendingUp, Car, Camera, Star, MessageSquare, Clock, CheckCircle2, Volume2, VolumeX, Navigation2 } from 'lucide-react'
+import { TrendingUp, Car, Camera, Star, MessageSquare, Clock, CheckCircle2, Volume2, VolumeX, Navigation2, LayoutDashboard } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import { computeSuggestedPrice, PLATFORM_DEFAULT_PRICING_BY_VEHICLE, PLATFORM_DEFAULT_EXTRA_FEES, PLATFORM_DEFAULT_CONDITION_EXTRA_FEES, PricingMode } from '@/lib/driverPricing'
 import { VehicleKind, VEHICLE_KIND_LABELS } from '@/lib/rideVehicle'
@@ -121,7 +121,8 @@ function PainelMotoristaContent() {
     const [isFirstVehicleSetup, setIsFirstVehicleSetup] = useState(false)
     const [showFirstVehicleDialog, setShowFirstVehicleDialog] = useState(false)
     const [showActivationWizard, setShowActivationWizard] = useState(false)
-    const [wizardStep, setWizardStep] = useState<1 | 2>(1)
+    // ===== ABA ATIVA (header em abas, mesmo modelo de /carrinho) =====
+    const [activeTab, setActiveTab] = useState<'painel' | 'veiculo' | 'plano' | 'avaliacoes'>('painel')
 
     // ===== AVALIAÇÕES E HISTÓRICO =====
     const [reviews, setReviews] = useState<{ rating: number; comment: string | null; created_at: string; reviewerName: string | null; reviewerAvatarUrl: string | undefined }[]>([])
@@ -237,7 +238,7 @@ function PainelMotoristaContent() {
         const hasRequiredFieldsFromDb = kinds.some((k) => isVehicleRowComplete(byKind[k], false))
         if (data?.driver_mode_active && !hasRequiredFieldsFromDb) {
             setShowActivationWizard(true)
-            setWizardStep(1)
+            setActiveTab('veiculo')
         }
 
         const { data: reviewRows } = await supabase
@@ -381,15 +382,16 @@ function PainelMotoristaContent() {
         ? 'inactive'
         : (hasCompleteVehicle ? 'active' : 'incomplete')
 
-    // Botão "Concluir cadastro" da Etapa 2 do wizard: só segue se os dados
-    // obrigatórios estiverem completos, e fecha o wizard ao salvar com sucesso.
-    const handleWizardStep2Continue = async () => {
+    // Botão "Continuar" da etapa do veículo (1ª etapa do wizard, sempre
+    // antes da tarifa): só segue se os dados obrigatórios estiverem
+    // completos, salva o veículo e avança pra etapa da tarifa.
+    const handleWizardVehicleContinue = async () => {
         if (missingFields.length > 0) {
             toast.error(`Falta completar: ${missingFields.join(', ')}`)
             return
         }
         await handleSaveVehicle()
-        setShowActivationWizard(false)
+        setActiveTab('plano')
     }
 
     useEffect(() => {
@@ -497,11 +499,12 @@ function PainelMotoristaContent() {
                 // vez de deixar a pessoa perdida numa página cheia de campos.
                 if (!hasCompleteVehicle) {
                     setShowActivationWizard(true)
-                    setWizardStep(1)
+                    setActiveTab('veiculo')
                 }
             } else {
                 toast.success('/Aceitar-corridas desligado.')
                 setShowActivationWizard(false)
+                setActiveTab('painel')
             }
         } catch (err: any) {
             toast.error('Erro ao atualizar modo motorista: ' + (err.message || 'tente novamente'))
@@ -510,12 +513,15 @@ function PainelMotoristaContent() {
         }
     }
 
-    // Botão "Continuar" da Etapa 1 do wizard: salva a tarifa e avança pra
-    // Etapa 2 (a menos que handleSave já esteja redirecionando pra outra
-    // página via ?next=).
-    const handleWizardStep1Continue = async () => {
+    // Botão "Concluir cadastro" da etapa da tarifa (2ª e última etapa do
+    // wizard): salva a tarifa e fecha o wizard (a menos que handleSave já
+    // esteja redirecionando pra outra página via ?next=).
+    const handleWizardPricingContinue = async () => {
         await handleSave()
-        if (!nextUrl) setWizardStep(2)
+        if (!nextUrl) {
+            setShowActivationWizard(false)
+            setActiveTab('painel')
+        }
     }
 
     const previewDistance = 10
@@ -571,6 +577,25 @@ function PainelMotoristaContent() {
         active: { bg: '#22c55e20', border: '#22c55e60', dot: '#22c55e' },
     }[driverStatus]
 
+    // ===== ABAS DO HEADER (mesmo modelo de /carrinho) — durante o wizard
+    // de ativação só Meu veículo/Escolha seu plano ficam disponíveis, pra
+    // não deixar a pessoa se perder no meio do cadastro guiado. =====
+    const tabs = useMemo(() => {
+        if (!userId || loading || showLogin) return []
+
+        const allTabs = [
+            { id: 'painel', label: 'Painel', icon: LayoutDashboard, isActive: activeTab === 'painel', onClick: () => setActiveTab('painel'), badge: null },
+            {
+                id: 'veiculo', label: 'Meu veículo', icon: Car, isActive: activeTab === 'veiculo', onClick: () => setActiveTab('veiculo'),
+                badge: driverStatus === 'incomplete' ? { count: missingFields.length || 1, color: '#eab308' } : null,
+            },
+            { id: 'plano', label: 'Escolha seu plano', icon: TrendingUp, isActive: activeTab === 'plano', onClick: () => setActiveTab('plano'), badge: null },
+            { id: 'avaliacoes', label: 'Avaliações', icon: Star, isActive: activeTab === 'avaliacoes', onClick: () => setActiveTab('avaliacoes'), badge: null },
+        ]
+
+        return showActivationWizard ? allTabs.filter((t) => t.id === 'veiculo' || t.id === 'plano') : allTabs
+    }, [userId, loading, showLogin, activeTab, showActivationWizard, driverStatus, missingFields.length])
+
     return (
         <div className="relative min-h-dvh" style={{ background: colors.background }}>
             <div className="fixed inset-0 z-0">
@@ -584,6 +609,7 @@ function PainelMotoristaContent() {
                     greeting={`Olá, ${profileLoading ? '...' : profileSlug ? `@${profileSlug}` : 'Visitante'}`}
                     avatarUrl={avatarUrl}
                     loading={profileLoading}
+                    tabs={tabs}
                 />
 
                 <section className="px-4 md:px-6 mt-4 pb-24 max-w-lg mx-auto">
@@ -599,6 +625,8 @@ function PainelMotoristaContent() {
 
                     {!loading && !showLogin && (
                         <div className="flex flex-col gap-5">
+                            {activeTab === 'painel' && (
+                            <>
                             {hasDriver && <DriverDebtBanner userId={userId} />}
                             <InviteButton label="Convide amigos e ganhe" showCount />
                             <button
@@ -687,24 +715,26 @@ function PainelMotoristaContent() {
 
                             {driverStatus === 'incomplete' && !showActivationWizard && (
                                 <button
-                                    onClick={() => { setShowActivationWizard(true); setWizardStep(1) }}
+                                    onClick={() => { setShowActivationWizard(true); setActiveTab('veiculo') }}
                                     className="w-full py-2.5 rounded-full text-xs font-black uppercase tracking-wider"
                                     style={{ background: '#eab30820', color: '#ca8a04', border: '1px solid #eab30860' }}
                                 >
                                     Continuar cadastro
                                 </button>
                             )}
+                            </>
+                            )}
 
-                            {(!showActivationWizard || wizardStep === 1) && (
+                            {activeTab === 'plano' && (
                             <>
                             {showActivationWizard && (
                                 <div className="flex flex-col gap-2">
                                     <div className="flex items-center gap-1.5 justify-center">
-                                        <div className="h-1.5 rounded-full transition-all" style={{ width: 26, background: GRADIENT }} />
                                         <div className="h-1.5 rounded-full transition-all" style={{ width: 8, background: colors.border }} />
+                                        <div className="h-1.5 rounded-full transition-all" style={{ width: 26, background: GRADIENT }} />
                                     </div>
                                     <p className="text-[10px] font-black uppercase tracking-wider text-center" style={{ color: colors.textSecondary }}>
-                                        Etapa 1 de 2 · Sua tarifa
+                                        Etapa 2 de 2 · Sua tarifa
                                     </p>
                                     <p className="text-xs text-center" style={{ color: colors.textSecondary }}>
                                         Só mais um passo! Vamos deixar tudo prontinho pra você começar a receber corridas.
@@ -727,6 +757,10 @@ function PainelMotoristaContent() {
                                     </p>
                                 </div>
                             </div>
+
+                            <p className="text-[11px] font-bold px-3 py-1.5 rounded-full inline-block w-fit" style={{ background: `${colors.border}30`, color: colors.textSecondary }}>
+                                Tarifa para: {VEHICLE_KIND_LABELS[vehicleKind]}
+                            </p>
 
                             <div className="flex gap-2">
                                 <button onClick={() => setPricingMode('platform')} style={planButtonStyle(pricingMode === 'platform')}>
@@ -927,26 +961,26 @@ function PainelMotoristaContent() {
                             </div>
 
                             <button
-                                onClick={showActivationWizard ? handleWizardStep1Continue : handleSave}
+                                onClick={showActivationWizard ? handleWizardPricingContinue : handleSave}
                                 disabled={saving}
                                 className="w-full py-3.5 rounded-full text-sm font-black uppercase tracking-wider transition-all disabled:opacity-70 flex items-center justify-center gap-2"
                                 style={{ background: GRADIENT, color: '#ffffff' }}
                             >
-                                {saving ? <Spinner size={16} /> : (showActivationWizard ? 'Continuar' : 'Salvar tarifa')}
+                                {saving ? <Spinner size={16} /> : (showActivationWizard ? 'Concluir cadastro' : 'Salvar tarifa')}
                             </button>
                             </>
                             )}
 
-                            {(!showActivationWizard || wizardStep === 2) && (
+                            {activeTab === 'veiculo' && (
                             <>
                             {showActivationWizard && (
                                 <div className="flex flex-col gap-2 mt-2">
                                     <div className="flex items-center gap-1.5 justify-center">
-                                        <div className="h-1.5 rounded-full transition-all" style={{ width: 8, background: colors.border }} />
                                         <div className="h-1.5 rounded-full transition-all" style={{ width: 26, background: GRADIENT }} />
+                                        <div className="h-1.5 rounded-full transition-all" style={{ width: 8, background: colors.border }} />
                                     </div>
                                     <p className="text-[10px] font-black uppercase tracking-wider text-center" style={{ color: colors.textSecondary }}>
-                                        Etapa 2 de 2 · Seu carro
+                                        Etapa 1 de 2 · Seu carro
                                     </p>
                                 </div>
                             )}
@@ -1235,18 +1269,18 @@ function PainelMotoristaContent() {
                                 )}
 
                                 <button
-                                    onClick={showActivationWizard ? handleWizardStep2Continue : handleSaveVehicle}
+                                    onClick={showActivationWizard ? handleWizardVehicleContinue : handleSaveVehicle}
                                     disabled={savingVehicle}
                                     className="w-full py-3 rounded-full text-sm font-black uppercase tracking-wider transition-all disabled:opacity-70 flex items-center justify-center gap-2"
                                     style={{ background: GRADIENT, color: '#ffffff' }}
                                 >
-                                    {savingVehicle ? <Spinner size={16} /> : (showActivationWizard ? 'Concluir cadastro' : `Salvar ${VEHICLE_KIND_LABELS[vehicleKind].toLowerCase()}`)}
+                                    {savingVehicle ? <Spinner size={16} /> : (showActivationWizard ? 'Continuar' : `Salvar ${VEHICLE_KIND_LABELS[vehicleKind].toLowerCase()}`)}
                                 </button>
                             </div>
                             </>
                             )}
 
-                            {!showActivationWizard && (
+                            {!showActivationWizard && activeTab === 'avaliacoes' && (
                             <>
                             {/* ===== AVALIAÇÕES RECEBIDAS ===== */}
                             <div className="flex items-center gap-3 mt-2">
