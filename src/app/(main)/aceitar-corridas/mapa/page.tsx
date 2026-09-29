@@ -26,6 +26,8 @@ import { vehicleMarkerHtml } from '@/lib/vehicleMarkerIcon'
 import { shortAddress } from '@/lib/serviceBoard'
 import { notifyRideStatus } from '@/lib/notifyRideStatus'
 import { useVoiceNavigation } from '@/lib/voiceNavigation'
+import RideChat from '@/components/RideChat'
+import { DRIVER_CHAT_QUICK_REPLIES } from '@/lib/rideChatQuickReplies'
 import type { VehicleType, VehicleKind } from '@/lib/rideVehicle'
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
@@ -119,6 +121,7 @@ export default function AceitarCorridasMapaPage() {
     const followingRef = useRef(true)
 
     const [loading, setLoading] = useState(true)
+    const [showChat, setShowChat] = useState(false)
     const [mapReady, setMapReady] = useState(false)
     const [acceptedRide, setAcceptedRide] = useState<AcceptedRideMapDetail | null>(null)
     const [myVehicleKinds, setMyVehicleKinds] = useState<VehicleKind[]>(['carro'])
@@ -498,7 +501,7 @@ export default function AceitarCorridasMapaPage() {
         }
     }
 
-    const openChat = () => router.push('/aceitar-corridas')
+    const toggleChat = () => setShowChat((v) => !v)
 
     if (loading || !acceptedRide) {
         return (
@@ -543,7 +546,7 @@ export default function AceitarCorridasMapaPage() {
             </button>
 
             <div className="absolute left-4 right-4 z-10 flex flex-col gap-2" style={{ bottom: 24 }}>
-                <div className="rounded-2xl p-4 shadow-2xl flex flex-col gap-2" style={{ background: GRADIENT }}>
+                <div className="rounded-2xl p-4 shadow-2xl flex flex-col gap-2 overflow-y-auto" style={{ background: GRADIENT, maxHeight: '75vh' }}>
                     <p className="text-xs font-bold text-white/90">
                         {shortAddress(acceptedRide.origin_address)} → {acceptedRide.stop1_address ? `${shortAddress(acceptedRide.stop1_address)} → ` : ''}{acceptedRide.stop2_address ? `${shortAddress(acceptedRide.stop2_address)} → ` : ''}{shortAddress(acceptedRide.destination_address)}
                     </p>
@@ -580,13 +583,17 @@ export default function AceitarCorridasMapaPage() {
                     )}
 
                     <div className="flex items-center gap-2">
-                        <button onClick={openChat} className="flex-1 py-2.5 rounded-xl font-black uppercase text-[11px] tracking-wider flex items-center justify-center gap-1.5" style={{ background: 'rgba(255,255,255,0.25)', color: '#fff' }}>
-                            <MessageCircle size={14} /> Abrir chat
+                        <button onClick={toggleChat} className="flex-1 py-2.5 rounded-xl font-black uppercase text-[11px] tracking-wider flex items-center justify-center gap-1.5" style={{ background: 'rgba(255,255,255,0.25)', color: '#fff' }}>
+                            <MessageCircle size={14} /> {showChat ? 'Fechar chat' : 'Abrir chat'}
                         </button>
                         <button onClick={cancelRide} disabled={cancelling} className="flex-1 py-2.5 rounded-xl font-black uppercase text-[11px] tracking-wider disabled:opacity-60 flex items-center justify-center gap-1.5" style={{ background: 'rgba(255,255,255,0.15)', color: '#fff' }}>
                             {cancelling ? <Spinner size={14} /> : <><Ban size={14} /> Cancelar</>}
                         </button>
                     </div>
+
+                    {showChat && (
+                        <RideChat rideId={acceptedRide.id} quickReplies={DRIVER_CHAT_QUICK_REPLIES} />
+                    )}
                 </div>
             </div>
         </div>
