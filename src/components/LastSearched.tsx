@@ -3,12 +3,16 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { Clock, X, History, User, Store, Package, Search } from 'lucide-react'
+import { Clock, X, History, User, Store, Package, Search, Car } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 
 // ---------- Tipos e funções do histórico ----------
 export interface RecentClickItem {
-    type: 'profile' | 'store' | 'product'
+    // 'ride' não é conteúdo visitado, é uma ação que a pessoa fez no app
+    // (pediu uma corrida) — mesmo mecanismo de "últimos acessados", só que
+    // vira um atalho pra retomar/acompanhar o que ela pediu, não pra ver
+    // um perfil/loja/produto de novo.
+    type: 'profile' | 'store' | 'product' | 'ride'
     id: string
     name: string
     imageUrl: string | null
@@ -118,6 +122,7 @@ export default function LastSearched({ onItemClick, onClearResults }: LastSearch
             case 'profile': return 'Perfil'
             case 'store': return 'Loja'
             case 'product': return 'Produto'
+            case 'ride': return 'Corrida'
             default: return ''
         }
     }
@@ -127,6 +132,7 @@ export default function LastSearched({ onItemClick, onClearResults }: LastSearch
             case 'profile': return '#3b82f6'
             case 'store': return '#f97316'
             case 'product': return '#8b5cf6'
+            case 'ride': return '#dc2626'
             default: return colors.textPrimary
         }
     }
@@ -136,6 +142,7 @@ export default function LastSearched({ onItemClick, onClearResults }: LastSearch
             case 'profile': return User
             case 'store': return Store
             case 'product': return Package
+            case 'ride': return Car
             default: return Clock
         }
     }
@@ -306,6 +313,8 @@ export default function LastSearched({ onItemClick, onClearResults }: LastSearch
                                                                 {item.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                                             </span>
                                                         </>
+                                                    ) : item.type === 'ride' ? (
+                                                        <Car size={36} className="text-white/80" strokeWidth={1.5} />
                                                     ) : (
                                                         <span className="text-4xl font-black text-white/70">
                                                             {getDisplayText(item)}

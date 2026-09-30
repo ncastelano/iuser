@@ -57,6 +57,7 @@ import {
 } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import RideTrackingPanel from './RideTrackingPanel'
+import { addRecentClick } from '@/components/LastSearched'
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
 
@@ -1471,6 +1472,16 @@ export default function PedirMotoristaPage() {
             clearRideDraft()
             notifyNewRide(insertedRide.id)
             setActiveRideId(insertedRide.id)
+            // Atalho pro "Últimos acessados" da home — não é conteúdo
+            // visitado, é a última corrida pedida, pra retomar/acompanhar
+            // de lá sem precisar vir até /pedir-motorista de novo.
+            addRecentClick({
+                type: 'ride',
+                id: insertedRide.id,
+                name: `${shortAddress(origin.address)} → ${shortAddress(destination.address)}`,
+                imageUrl: null,
+                url: `/acompanhar-corrida/${insertedRide.id}`,
+            })
         } catch (err: any) {
             if (err.code === '23505') {
                 toast.error('Você já tem um pedido de corrida em andamento.')
