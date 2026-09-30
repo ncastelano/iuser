@@ -1635,29 +1635,15 @@ export default function PedirMotoristaPage() {
                 </div>
             )}
 
-            {/* Acompanhamento do pedido em andamento — fica nessa página até concluir/cancelar */}
+            {/* Acompanhamento do pedido em andamento — card flutuante sobre o
+                mapa, no mesmo estilo do /aceitar-corridas/mapa (compacto,
+                nunca passa da metade da tela, sem tomar a tela toda). */}
             {!activeField && activeRideId && (
                 <div
-                    className="absolute bottom-0 inset-x-0 z-20 rounded-t-3xl px-5 pt-4 pb-8 overflow-y-auto"
-                    style={{
-                        background: colors.surface,
-                        boxShadow: '0 -8px 30px rgba(0,0,0,0.35)',
-                        height: `${sheetHeightVh}vh`,
-                        transition: draggingSheet ? 'none' : 'height 0.25s ease-out',
-                    }}
+                    className="absolute left-4 right-4 z-20 rounded-2xl shadow-2xl px-4 py-4 overflow-y-auto"
+                    style={{ bottom: 24, maxHeight: '50vh', background: colors.surface, border: `1px solid ${colors.border}` }}
                 >
-                    <div ref={setSheetContentRef}>
-                        <div
-                            onPointerDown={handleSheetDragStart}
-                            onPointerMove={handleSheetDragMove}
-                            onPointerUp={handleSheetDragEnd}
-                            onPointerCancel={handleSheetDragEnd}
-                            className="flex justify-center py-2.5 mb-1.5 cursor-grab touch-none"
-                        >
-                            <div className="w-10 h-1 rounded-full" style={{ background: colors.border }} />
-                        </div>
-                        <RideTrackingPanel rideId={activeRideId} onExit={() => setActiveRideId(null)} map={mapRef.current} mapReady={mapReady} />
-                    </div>
+                    <RideTrackingPanel rideId={activeRideId} onExit={() => setActiveRideId(null)} map={mapRef.current} mapReady={mapReady} />
                 </div>
             )}
 

@@ -9,7 +9,7 @@ import { toast } from 'sonner'
 import { shortAddress } from '@/lib/serviceBoard'
 import { getAvatarUrl } from '@/lib/avatar'
 import { Spinner } from '@/components/Spinner'
-import { Check, X, MapPin, Search, CheckCircle2, XCircle, Car, CalendarClock, Clock, Store, MessageSquare, Share2 } from 'lucide-react'
+import { Check, X, MapPin, Search, CheckCircle2, XCircle, Car, CalendarClock, Clock, Store, MessageSquare, Share2, Bike, Motorbike } from 'lucide-react'
 import { fetchRoute } from '@/lib/mapboxRoute'
 import { DRIVER_SERVICE_OPTIONS } from '@/lib/driverServices'
 import RideChat from '@/components/RideChat'
@@ -693,20 +693,26 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady }: Rid
         return { label: 'Motorista aceito', sub: 'Aguardando ele sair para te buscar', color: '#f97316', icon: CheckCircle2 }
     })()
     const BigStatusIcon = bigStatus.icon
+    const vehicleIcon =
+        ride.vehicle_type === 'moto' ? Motorbike :
+        ride.vehicle_type === 'bicicleta' ? Bike :
+        Car
+    const VehicleIcon = vehicleIcon
+    const roundedDriverRating = Math.round(driver?.ratingAvg || 0)
 
     return (
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-2.5">
             <div>
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                     <div className="flex items-center gap-2 flex-wrap">
-                        <h2 className="text-lg font-black" style={{ color: colors.textPrimary }}>Seu pedido</h2>
+                        <h2 className="text-sm font-black" style={{ color: colors.textPrimary }}>Seu pedido</h2>
                         {ride.scheduled_for && (
                             <span
                                 className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black uppercase"
                                 style={{ background: `${colors.accent}15`, color: colors.accent }}
                             >
                                 <CalendarClock size={11} />
-                                Agendada: {formatScheduledFor(ride.scheduled_for)}
+                                {formatScheduledFor(ride.scheduled_for)}
                             </span>
                         )}
                     </div>
@@ -717,112 +723,92 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady }: Rid
                                 text: 'Acompanhe o status da minha corrida em tempo real.',
                                 url: `${window.location.origin}/acompanhar-corrida/${ride.id}`,
                             })}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold flex-shrink-0"
+                            className="flex items-center justify-center w-6 h-6 rounded-full flex-shrink-0"
                             style={{ background: colors.surface, color: colors.textPrimary, border: `1px solid ${colors.border}` }}
+                            title="Compartilhar"
                         >
                             <Share2 size={12} />
-                            Compartilhar
                         </button>
                     )}
                 </div>
-                <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>
+                <p className="text-[11px] mt-0.5 truncate" style={{ color: colors.textSecondary }}>
                     {shortAddress(ride.origin_address)} → {shortAddress(ride.destination_address)}
                 </p>
-                {(ride.origin_complement || ride.destination_complement) && (
-                    <div className="flex flex-col gap-0.5 mt-1 text-[10px]" style={{ color: colors.textSecondary }}>
-                        {ride.origin_complement && <span>📍 Origem: {ride.origin_complement}</span>}
-                        {ride.destination_complement && <span>📍 Destino: {ride.destination_complement}</span>}
-                    </div>
+            </div>
+
+            {/* Status, avaliação e preço — tudo como badge numa linha só */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+                {ride.status === 'cancelled' ? (
+                    <span className="flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-black" style={{ background: '#ef444415', color: '#ef4444' }}>
+                        <XCircle size={11} />
+                        Cancelado
+                    </span>
+                ) : (
+                    <span
+                        className="flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-black"
+                        style={{ background: `${bigStatus.color}15`, color: bigStatus.color }}
+                        title={bigStatus.sub}
+                    >
+                        <BigStatusIcon size={11} />
+                        {bigStatus.label}
+                    </span>
+                )}
+                {ride.status === 'accepted' && driver && driver.ratingCount > 0 && (
+                    <span className="flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-black" style={{ background: '#f9731615', color: '#f97316' }} title={`${driver.ratingCount} avaliação${driver.ratingCount > 1 ? 'ões' : ''}`}>
+                        {'★'.repeat(roundedDriverRating)}{'☆'.repeat(5 - roundedDriverRating)} {(driver.ratingAvg || 0).toFixed(1)}
+                    </span>
+                )}
+                {ride.status === 'accepted' && driver?.proposedPrice != null && (
+                    <span className="px-2 py-1 rounded-full text-[10px] font-black" style={{ background: '#22c55e15', color: '#16a34a' }}>
+                        R$ {driver.proposedPrice.toFixed(2)}
+                    </span>
                 )}
             </div>
 
-            {/* Status bem grande — muda conforme o motorista manda a atualização dele */}
-            {ride.status === 'cancelled' ? (
-                <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ background: '#ef444415', color: '#ef4444' }}>
-                    <XCircle size={16} />
-                    <span className="text-sm font-bold">Pedido cancelado</span>
-                </div>
-            ) : (
-                <div className="flex items-center gap-3 px-4 py-4 rounded-2xl" style={{ background: `${bigStatus.color}15`, border: `1px solid ${bigStatus.color}40` }}>
-                    <div className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: bigStatus.color, color: '#fff' }}>
-                        <BigStatusIcon size={22} />
-                    </div>
-                    <div className="min-w-0">
-                        <p className="text-lg font-black leading-tight" style={{ color: bigStatus.color }}>{bigStatus.label}</p>
-                        <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>{bigStatus.sub}</p>
-                    </div>
-                </div>
-            )}
-
-            {/* Motorista aceito — mesma ficha do card de candidatura, só que
-                horizontal e mais completa: dá pra saber exatamente o que
-                foi aceito (carro, placa, especificações) antes de entrar. */}
+            {/* Motorista aceito — ficha compacta e horizontal: foto do
+                motorista e do carro quadradas lado a lado, placa em
+                destaque, e o resto (tipo de veículo, duração, serviços)
+                só como ícone, tudo numa linha só. */}
             {ride.status === 'accepted' && driver && (
-                <div className="flex flex-col gap-3 px-4 py-3.5 rounded-2xl" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
-                    {/* Motorista: foto quadrada + nome + avaliação + preço aceito */}
-                    <div className="flex items-center gap-3">
+                <div className="flex flex-col gap-2 px-3 py-2.5 rounded-xl" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
+                    <div className="flex items-center gap-2">
                         {driver.avatarUrl ? (
-                            <img src={driver.avatarUrl} className="w-14 h-14 rounded-xl object-cover flex-shrink-0" alt="" />
+                            <img src={driver.avatarUrl} className="w-9 h-9 rounded-lg object-cover flex-shrink-0" alt="" />
                         ) : (
-                            <div className="w-14 h-14 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#fff' }}>
-                                <Car size={22} />
+                            <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#fff' }}>
+                                <Car size={16} />
                             </div>
                         )}
-                        <div className="min-w-0 flex-1">
-                            <p className="text-sm font-black truncate" style={{ color: colors.textPrimary }}>
-                                {driver.name || (driver.profileSlug ? `@${driver.profileSlug}` : 'Motorista')}
-                            </p>
-                            {driver.ratingCount > 0 && (
-                                <span className="text-[11px] font-black" style={{ color: '#f97316' }}>
-                                    {'★'.repeat(Math.round(driver.ratingAvg || 0))}{'☆'.repeat(5 - Math.round(driver.ratingAvg || 0))} {(driver.ratingAvg || 0).toFixed(1)} ({driver.ratingCount})
-                                </span>
-                            )}
-                        </div>
-                        {driver.proposedPrice != null && (
-                            <span className="text-base font-black flex-shrink-0" style={{ color: '#f97316' }}>
-                                R$ {driver.proposedPrice.toFixed(2)}
-                            </span>
-                        )}
-                    </div>
-
-                    {/* Carro: foto quadrada + modelo/cor + placa — o que conferir antes de entrar */}
-                    <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
                         {driver.carPhotoUrl ? (
-                            <img src={driver.carPhotoUrl} className="w-12 h-12 rounded-lg object-cover flex-shrink-0" alt="" />
+                            <img src={driver.carPhotoUrl} className="w-9 h-9 rounded-lg object-cover flex-shrink-0" alt="" title={[driver.carModel, driver.carColor].filter(Boolean).join(' · ')} />
                         ) : (
-                            <div className="w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: `${colors.border}30` }}>
-                                <Car size={18} style={{ color: colors.textSecondary }} />
+                            <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: colors.surface, border: `1px solid ${colors.border}` }} title={[driver.carModel, driver.carColor].filter(Boolean).join(' · ') || 'Veículo não informado'}>
+                                <Car size={15} style={{ color: colors.textSecondary }} />
                             </div>
                         )}
-                        <div className="min-w-0 flex-1">
-                            <p className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>
-                                {[driver.carModel, driver.carColor].filter(Boolean).join(' · ') || 'Veículo não informado'}
-                            </p>
-                            <p className="text-[10px]" style={{ color: colors.textSecondary }}>
-                                {ride.ride_started_at ? 'Aproveite a viagem!' : 'Confira a placa e a cor do carro antes de entrar'}
-                            </p>
-                        </div>
+                        <p className="text-xs font-black truncate flex-1 min-w-0" style={{ color: colors.textPrimary }}>
+                            {driver.name || (driver.profileSlug ? `@${driver.profileSlug}` : 'Motorista')}
+                        </p>
                         {driver.carPlate && (
                             <span
-                                className="flex-shrink-0 text-xs font-black uppercase tracking-wider px-2 py-1 rounded-lg"
+                                className="flex-shrink-0 text-[11px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded"
                                 style={{ background: `${colors.border}60`, color: colors.textPrimary }}
+                                title="Confira a placa e a cor do carro antes de entrar"
                             >
                                 {driver.carPlate}
                             </span>
                         )}
                     </div>
 
-                    {/* O que foi aceito: especificações da corrida, pra saber
-                        exatamente o que contratou */}
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold" style={{ background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}>
-                            <Car size={11} />
-                            {VEHICLE_TYPE_LABELS[ride.vehicle_type]}
+                    {/* O que foi aceito, só em ícone — tipo de veículo, duração, serviços */}
+                    <div className="flex items-center gap-1 flex-wrap">
+                        <span className="flex items-center justify-center w-6 h-6 rounded-full flex-shrink-0" style={{ background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }} title={VEHICLE_TYPE_LABELS[ride.vehicle_type]}>
+                            <VehicleIcon size={12} />
                         </span>
                         {ride.duration_min != null && (
-                            <span className="flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold" style={{ background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}>
+                            <span className="flex items-center gap-0.5 h-6 px-1.5 rounded-full flex-shrink-0 text-[10px] font-bold" style={{ background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }} title="Duração estimada da viagem">
                                 <Clock size={11} />
-                                ~{Math.round(ride.duration_min)} min de viagem
+                                {Math.round(ride.duration_min)}min
                             </span>
                         )}
                         {driver.services.map((sid) => {
@@ -830,43 +816,31 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady }: Rid
                             if (!opt) return null
                             const Icon = opt.icon
                             return (
-                                <span key={sid} className="flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold" style={{ background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}>
-                                    <Icon size={11} />
-                                    {opt.label}
+                                <span key={sid} className="flex items-center justify-center w-6 h-6 rounded-full flex-shrink-0" style={{ background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }} title={opt.label}>
+                                    <Icon size={12} />
                                 </span>
                             )
                         })}
                     </div>
 
-                    {/* Incentivo pra conhecer a lojinha do motorista, se ele tiver */}
+                    {/* Incentivo pra conhecer a lojinha do motorista, se ele tiver — compacto */}
                     {driver.store && (driver.store.slug || driver.profileSlug) && (
                         <a
                             href={`/${driver.store.slug || driver.profileSlug}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl transition-opacity hover:opacity-85"
+                            className="flex items-center gap-2 px-2 py-1.5 rounded-lg transition-opacity hover:opacity-85"
                             style={{ background: colors.surface, border: `1px solid ${colors.border}` }}
                         >
                             {driver.store.logoUrl ? (
-                                <img src={driver.store.logoUrl} className="w-9 h-9 rounded-lg object-cover flex-shrink-0" alt="" />
+                                <img src={driver.store.logoUrl} className="w-6 h-6 rounded-md object-cover flex-shrink-0" alt="" />
                             ) : (
-                                <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: `${colors.border}30` }}>
-                                    <Store size={16} style={{ color: colors.textSecondary }} />
+                                <div className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0" style={{ background: `${colors.border}30` }}>
+                                    <Store size={12} style={{ color: colors.textSecondary }} />
                                 </div>
                             )}
-                            <div className="min-w-0 flex-1">
-                                <p className="text-[11px] font-black truncate" style={{ color: colors.textPrimary }}>{driver.store.name}</p>
-                                <p className="text-[10px]" style={{ color: colors.textSecondary }}>Seu motorista também vende aqui — dá uma olhada</p>
-                            </div>
-                            {driver.store.products.length > 0 && (
-                                <div className="flex -space-x-1.5 flex-shrink-0">
-                                    {driver.store.products.map((prod) => (
-                                        <div key={prod.id} className="w-6 h-6 rounded-md overflow-hidden flex-shrink-0" style={{ background: `${colors.border}30`, border: `1px solid ${colors.surface}` }} title={prod.name}>
-                                            {prod.imageUrl && <img src={prod.imageUrl} className="w-full h-full object-cover" alt="" />}
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
+                            <p className="text-[10px] font-black truncate flex-1 min-w-0" style={{ color: colors.textPrimary }}>{driver.store.name}</p>
+                            <span className="text-[9px] font-bold flex-shrink-0" style={{ color: colors.accent }}>Ver lojinha →</span>
                         </a>
                     )}
                 </div>
