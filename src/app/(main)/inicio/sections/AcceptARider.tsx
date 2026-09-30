@@ -427,7 +427,7 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
                 {acceptedRide && (
                     <div
                         onClick={goToCorridas}
-                        className="w-full mt-4 p-3 rounded-xl text-left transition-all hover:scale-[1.01] cursor-pointer"
+                        className="w-full mt-4 p-3 rounded-2xl text-left transition-all hover:scale-[1.01] cursor-pointer"
                         style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}
                     >
                         <div className="flex items-center justify-between gap-2 flex-wrap mb-1">
@@ -463,7 +463,7 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
                             <button
                                 key={ride.id}
                                 onClick={goToCorridas}
-                                className="w-full p-3 rounded-xl text-left transition-all hover:scale-[1.01]"
+                                className="w-full p-3 rounded-2xl text-left transition-all hover:scale-[1.01]"
                                 style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}
                             >
                                 <div className="flex items-center justify-between gap-2 mb-1.5">
@@ -529,7 +529,7 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
                             <button
                                 key={ride.id}
                                 onClick={goToCorridas}
-                                className="w-full p-3 rounded-xl text-left transition-all hover:scale-[1.01]"
+                                className="w-full p-3 rounded-2xl text-left transition-all hover:scale-[1.01]"
                                 style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}
                             >
                                 <div className="flex items-center gap-2 mb-1.5">

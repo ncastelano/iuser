@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { User, Store, Home, MapPin, LayoutDashboard, X, Radar, Gift } from 'lucide-react'
 
 import CategoriasSection from './inicio/sections/CanIhelp'
+import RadarSection from './inicio/sections/RadarSection'
 import MotoristaSection from './inicio/sections/MotoristaSection'
 import AcceptARider from './inicio/sections/AcceptARider'
 import HireAService from './inicio/sections/HireAService'
@@ -46,6 +47,7 @@ const RADAR_GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 // ===== TODAS AS SEÇÕES DISPONÍVEIS (INCLUINDO AS "EM BREVE") =====
 const DEFAULT_SECTIONS = [
     'categorias',
+    'radar',
     'storeList',
     'productShowcase',
     'publicationShowcase',
@@ -464,6 +466,8 @@ function HomePageContent() {
                 )
             case 'categorias':
                 return <CategoriasSection />
+            case 'radar':
+                return <RadarSection />
             case 'productShowcase':
                 return <ProductShowcase />
             case 'publicationShowcase':

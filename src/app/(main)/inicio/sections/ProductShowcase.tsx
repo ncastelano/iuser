@@ -1,15 +1,11 @@
 // src/app/(main)/inicio/sections/ProductShowcase.tsx
 'use client'
 
-import { useState, useEffect, useRef, useCallback, useMemo, ReactNode } from 'react'
+import { useState, useEffect, ReactNode } from 'react'
 import {
-    ChevronUp,
-    ChevronDown,
     Star,
-    MapPin,
     Package,
     Eye,
-    Timer,
 } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import { useRouter } from 'next/navigation'
@@ -282,70 +278,19 @@ function useProductShowcase() {
 }
 
 // ---------- Helpers ----------
-const formatDuration = (minutes: number) => {
-    if (minutes < 60) return `${minutes}min`
-    const h = Math.floor(minutes / 60)
-    const m = minutes % 60
-    return m > 0 ? `${h}h ${m}min` : `${h}h`
-}
-
 const formatPrice = (price: number | null) => {
     if (price == null) return null
     return price.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
-// ---------- Hook para detectar breakpoint ----------
-function useBreakpoint() {
-    const [itemsPerPage, setItemsPerPage] = useState(3)
-
-    useEffect(() => {
-        const update = () => {
-            const width = window.innerWidth
-            if (width >= 1120) {
-                setItemsPerPage(9)
-            } else if (width >= 800) {
-                setItemsPerPage(6)
-            } else {
-                setItemsPerPage(3)
-            }
-        }
-
-        update()
-        window.addEventListener('resize', update)
-        return () => window.removeEventListener('resize', update)
-    }, [])
-
-    return itemsPerPage
-}
-
 // ========== SKELETON CARD ==========
 function ProductSkeleton({ colors }: { colors: any }) {
     return (
-        <div
-            className="h-28 rounded-xl overflow-hidden border"
-            style={{
-                borderColor: colors.border,
-                background: colors.surface,
-            }}
-        >
-            <div className="flex flex-row items-stretch h-full">
-                {/* Imagem skeleton */}
-                <div className="w-1/3 h-full flex-shrink-0" style={{ background: `${colors.border}40` }} />
-
-                {/* Conteúdo skeleton */}
-                <div className="flex-1 p-3 flex flex-col justify-center space-y-2">
-                    <div className="flex items-center gap-2">
-                        <div className="w-4 h-4 rounded-full" style={{ background: `${colors.border}30` }} />
-                        <div className="h-3 rounded w-20" style={{ background: `${colors.border}30` }} />
-                    </div>
-                    <div className="h-4 rounded w-3/4" style={{ background: `${colors.border}30` }} />
-                    <div className="flex items-center gap-2">
-                        <div className="h-3 rounded w-16" style={{ background: `${colors.border}25` }} />
-                        <div className="h-3 rounded w-12" style={{ background: `${colors.border}25` }} />
-                    </div>
-                    <div className="h-3 rounded w-1/2" style={{ background: `${colors.border}20` }} />
-                </div>
-            </div>
+        <div className="w-36 flex-shrink-0">
+            <div className="w-36 h-36 rounded-2xl mb-2 animate-pulse" style={{ background: `${colors.border}40` }} />
+            <div className="h-3 rounded w-28 mb-1.5 animate-pulse" style={{ background: `${colors.border}30` }} />
+            <div className="h-2.5 rounded w-20 mb-1.5 animate-pulse" style={{ background: `${colors.border}25` }} />
+            <div className="h-3.5 rounded w-16 animate-pulse" style={{ background: `${colors.border}30` }} />
         </div>
     )
 }
@@ -365,75 +310,32 @@ function getProductUrl(product: ProductCard) {
     return `/${product.storeSlug}/${product.slug || product.id}`
 }
 
+// Fileira horizontal de cards verticais (imagem quadrada em cima, nome/
+// loja/preço embaixo) — igual ao "Produtos em destaque" do
+// /modelodehomepage, trocando o carrossel paginado por scroll lateral.
 export default function ProductShowcase({ dragHandle }: ProductShowcaseProps) {
     const router = useRouter()
     const startNavProgress = useNavProgressStore((s) => s.start)
     const { colors } = useTheme()
-    const autoPlayRef = useRef<NodeJS.Timeout | null>(null)
 
     const { products, loading } = useProductShowcase()
-    const itemsPerPage = useBreakpoint()
-    const total = products.length
 
-    const totalPages = Math.max(1, Math.ceil(total / itemsPerPage))
-
-    const [currentPage, setCurrentPage] = useState(0)
-    const [isHovered, setIsHovered] = useState(false)
-
-    const goToNext = useCallback(() => {
-        setCurrentPage(prev => (prev + 1) % totalPages)
-    }, [totalPages])
-
-    const goToPrev = useCallback(() => {
-        setCurrentPage(prev => (prev - 1 + totalPages) % totalPages)
-    }, [totalPages])
-
+    // Pre-carrega a rota dos produtos visíveis, pra abrir na hora ao clicar.
     useEffect(() => {
-        setCurrentPage(0)
-    }, [itemsPerPage])
-
-    useEffect(() => {
-        if (isHovered || totalPages <= 1) return
-        autoPlayRef.current = setInterval(goToNext, 5000)
-        return () => {
-            if (autoPlayRef.current) clearInterval(autoPlayRef.current)
-        }
-    }, [isHovered, goToNext, totalPages])
-
-    const currentItems = useMemo(() => {
-        if (total === 0) return []
-
-        if (total <= itemsPerPage) {
-            return products.slice(0, total)
-        }
-
-        const start = currentPage * itemsPerPage
-        const items: ProductCard[] = []
-        for (let i = start; i < start + itemsPerPage; i++) {
-            const index = i % total
-            items.push(products[index])
-        }
-        return items
-    }, [products, currentPage, itemsPerPage, total])
-
-    // Pre-carrega a rota dos produtos visiveis, pra abrir na hora ao clicar.
-    useEffect(() => {
-        currentItems.forEach((product) => {
+        products.slice(0, 12).forEach((product) => {
             router.prefetch(getProductUrl(product))
         })
-    }, [currentItems, router])
-
-    const gridCols = itemsPerPage >= 9 ? 'grid-cols-3' : itemsPerPage >= 6 ? 'grid-cols-2' : 'grid-cols-1'
+    }, [products, router])
 
     if (loading) {
         return (
             <div className="w-full">
-                <div className="flex items-center gap-2 mb-4 px-1">
+                <div className="flex items-center gap-2 mb-4">
                     {dragHandle}
-                    <div className="h-5 rounded w-40" style={{ background: `${colors.border}60` }} />
+                    <div className="h-6 rounded w-48 animate-pulse" style={{ background: `${colors.border}60` }} />
                 </div>
-                <div className={`grid ${gridCols} gap-3`}>
-                    {Array.from({ length: Math.min(itemsPerPage, 6) }).map((_, i) => (
+                <div className="flex gap-3 overflow-hidden">
+                    {Array.from({ length: 4 }).map((_, i) => (
                         <ProductSkeleton key={`skeleton-${i}`} colors={colors} />
                     ))}
                 </div>
@@ -444,177 +346,62 @@ export default function ProductShowcase({ dragHandle }: ProductShowcaseProps) {
     if (!products.length) return null
 
     return (
-        <div
-            className="relative w-full"
-            onMouseEnter={() => setIsHovered(true)}
-            onMouseLeave={() => setIsHovered(false)}
-        >
+        <div className="relative w-full">
             <HomeSectionHeader icon={Package} title="Produtos em destaque" subtitle="Separado pra você" dragHandle={dragHandle} />
 
-            <div className="flex gap-3">
-                <div className={`flex-1 grid ${gridCols} gap-3`}>
-                    {currentItems.map((product, idx) => {
-                        const hasProductImage = !!product.imageUrl
-                        const hasStoreLogo = !!product.storeLogoUrl
+            <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4" style={{ scrollbarWidth: 'none' }}>
+                {products.map((product) => {
+                    const hasProductImage = !!product.imageUrl
+                    const hasStoreLogo = !!product.storeLogoUrl
 
-                        return (
+                    return (
+                        <div
+                            key={product.id}
+                            onClick={() => { startNavProgress(); router.push(getProductUrl(product)) }}
+                            className="w-36 flex-shrink-0 cursor-pointer group"
+                        >
                             <div
-                                key={`${product.id}-${idx}`}
-                                onClick={() => { startNavProgress(); router.push(getProductUrl(product)) }}
-                                className="group relative h-28 rounded-xl overflow-hidden border transition-all duration-300 hover:shadow-lg transform hover:-translate-y-1 shadow-md flex flex-row items-stretch cursor-pointer"
-                                style={{
-                                    borderColor: colors.border,
-                                    background: colors.background,
-                                }}
+                                className="relative w-36 h-36 rounded-2xl mb-2 overflow-hidden"
+                                style={{ background: hasProductImage ? colors.surface : GRADIENT, border: `1px solid ${colors.border}` }}
                             >
-                                {/* Imagem à esquerda */}
-                                <div className="w-1/3 h-full relative overflow-hidden flex-shrink-0">
-                                    {hasProductImage ? (
-                                        <img
-                                            src={product.imageUrl!}
-                                            alt={product.name}
-                                            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                                        />
-                                    ) : hasStoreLogo ? (
-                                        <div className="w-full h-full">
-                                            <img
-                                                src={product.storeLogoUrl!}
-                                                alt={product.storeName}
-                                                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                                            />
-                                        </div>
-                                    ) : (
-                                        <div
-                                            className="w-full h-full flex items-center justify-center"
-                                            style={{
-                                                background: GRADIENT,
-                                            }}
-                                        >
-                                            <Package size={32} style={{ color: '#ffffff' }} />
-                                        </div>
-                                    )}
-                                    {product.viewCount > 0 && (
-                                        <div className="absolute top-1 right-1 z-20 flex items-center gap-0.5 text-[10px] font-bold text-white bg-black/40 px-1.5 py-0.5 rounded-full">
-                                            <Eye size={11} />
-                                            {product.viewCount}
-                                        </div>
-                                    )}
-                                    <div className="absolute inset-0 bg-gradient-to-r from-black/20 to-transparent pointer-events-none" />
-                                </div>
-
-                                {/* Conteúdo à direita */}
-                                <div className="flex-1 p-2 sm:p-3 flex flex-col justify-center min-w-0">
-                                    <div className="flex items-center gap-2 mb-0.5">
-                                        {hasStoreLogo ? (
-                                            <div className="w-4 h-4 rounded-full border border-white/30 overflow-hidden bg-black/40 flex-shrink-0">
-                                                <img
-                                                    src={product.storeLogoUrl!}
-                                                    alt={product.storeName}
-                                                    className="w-full h-full object-cover"
-                                                />
-                                            </div>
-                                        ) : (
-                                            <div
-                                                className="w-4 h-4 rounded-full flex-shrink-0"
-                                                style={{ background: GRADIENT }}
-                                            />
-                                        )}
-                                        <span
-                                            className="text-[10px] font-medium truncate"
-                                            style={{ color: colors.textPrimary }}
-                                        >
-                                            {product.storeName}
-                                        </span>
-                                    </div>
-
-                                    <h3
-                                        className="font-black leading-tight text-sm line-clamp-1"
-                                        style={{ color: colors.textPrimary }}
-                                    >
-                                        {product.name}
-                                    </h3>
-
-                                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] mt-0.5">
-                                        {formatPrice(product.price) && (
-                                            <span className="font-black" style={{ color: '#f97316' }}>
-                                                {formatPrice(product.price)}
-                                            </span>
-                                        )}
-                                        {product.rating > 0 && (
-                                            <div className="flex items-center gap-0.5">
-                                                <Star size={10} className="fill-yellow-400 text-yellow-400" />
-                                                <span className="font-bold">{product.rating.toFixed(1)}</span>
-                                                <span className="opacity-70">({product.reviewCount})</span>
-                                            </div>
-                                        )}
-                                        {product.durationMinutes && (
-                                            <div className="flex items-center gap-0.5 opacity-70">
-                                                <Timer size={10} />
-                                                {formatDuration(product.durationMinutes)}
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {product.storeAddress && (
-                                        <div
-                                            className="flex items-start gap-0.5 mt-0.5 opacity-70 text-[10px]"
-                                            style={{ color: colors.textPrimary }}
-                                        >
-                                            <MapPin size={10} className="shrink-0 mt-0.5" />
-                                            <span className="line-clamp-1">{product.storeAddress}</span>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        )
-                    })}
-                </div>
-
-                {/* Barra de navegação direita */}
-                <div className="flex flex-col items-center justify-center gap-1 w-10 flex-shrink-0">
-                    {totalPages > 1 && (
-                        <>
-                            <button
-                                onClick={goToPrev}
-                                className="w-8 h-8 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95"
-                                style={{ background: GRADIENT, color: '#ffffff' }}
-                                aria-label="Anterior"
-                            >
-                                <ChevronUp size={16} />
-                            </button>
-
-                            <div className="flex flex-col gap-1.5 my-1">
-                                {Array.from({ length: totalPages }).map((_, idx) => (
-                                    <button
-                                        key={idx}
-                                        onClick={() => setCurrentPage(idx)}
-                                        className="rounded-full transition-all duration-300"
-                                        style={{
-                                            width: '0.5rem',
-                                            height: idx === currentPage ? '1.5rem' : '0.5rem',
-                                            background: idx === currentPage ? '#f97316' : colors.border,
-                                            boxShadow: idx === currentPage ? `0 0 8px #f9731650` : 'none',
-                                        }}
-                                        aria-label={`Ir para página ${idx + 1}`}
+                                {hasProductImage ? (
+                                    <img
+                                        src={product.imageUrl!}
+                                        alt={product.name}
+                                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                                     />
-                                ))}
+                                ) : hasStoreLogo ? (
+                                    <img
+                                        src={product.storeLogoUrl!}
+                                        alt={product.storeName}
+                                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                    />
+                                ) : (
+                                    <div className="w-full h-full flex items-center justify-center">
+                                        <Package size={28} color="#fff" opacity={0.7} />
+                                    </div>
+                                )}
+                                {product.viewCount > 0 && (
+                                    <div className="absolute top-1.5 right-1.5 z-10 flex items-center gap-0.5 text-[9px] font-bold text-white bg-black/50 px-1.5 py-0.5 rounded-full">
+                                        <Eye size={10} />
+                                        {product.viewCount}
+                                    </div>
+                                )}
+                                {product.rating > 0 && (
+                                    <div className="absolute top-1.5 left-1.5 z-10 flex items-center gap-0.5 text-[9px] font-bold text-white bg-black/50 px-1.5 py-0.5 rounded-full">
+                                        <Star size={9} className="fill-yellow-400 text-yellow-400" />
+                                        {product.rating.toFixed(1)}
+                                    </div>
+                                )}
                             </div>
-
-                            <span className="text-[10px] font-bold" style={{ color: colors.textPrimary }}>
-                                {currentPage + 1}/{totalPages}
-                            </span>
-
-                            <button
-                                onClick={goToNext}
-                                className="w-8 h-8 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95"
-                                style={{ background: GRADIENT, color: '#ffffff' }}
-                                aria-label="Próximo"
-                            >
-                                <ChevronDown size={16} />
-                            </button>
-                        </>
-                    )}
-                </div>
+                            <p className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>{product.name}</p>
+                            <p className="text-[10px] opacity-50 truncate mb-1" style={{ color: colors.textPrimary }}>{product.storeName}</p>
+                            {formatPrice(product.price) && (
+                                <p className="text-sm font-black" style={{ color: colors.accent }}>{formatPrice(product.price)}</p>
+                            )}
+                        </div>
+                    )
+                })}
             </div>
         </div>
     )

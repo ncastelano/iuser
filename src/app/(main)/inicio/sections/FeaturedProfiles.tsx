@@ -1,8 +1,8 @@
 // components/FeaturedProfiles.tsx
 'use client'
 
-import { useState, useEffect, useRef, useCallback, useMemo, ReactNode } from 'react'
-import { ChevronLeft, ChevronRight, ArrowRight, Users } from 'lucide-react'
+import { useState, useEffect, useMemo, ReactNode } from 'react'
+import { ArrowRight, Users } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import { useRouter } from 'next/navigation'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
@@ -54,13 +54,10 @@ function useFeaturedProfiles() {
                 }
 
                 if (!data || data.length === 0) {
-                    console.log('[FeaturedProfiles] Nenhum perfil encontrado')
                     setProfiles([])
                     setLoading(false)
                     return
                 }
-
-                console.log(`[FeaturedProfiles] ${data.length} perfis encontrados`)
 
                 const cards: ProfileCard[] = data.map((p: any) => ({
                     id: p.id,
@@ -83,35 +80,10 @@ function useFeaturedProfiles() {
     return { profiles, loading }
 }
 
-// ---------- Hook para detectar breakpoint ----------
-function useBreakpoint() {
-    const [itemsPerView, setItemsPerView] = useState(4)
-
-    useEffect(() => {
-        const update = () => {
-            const width = window.innerWidth
-            if (width >= 1280) {
-                setItemsPerView(6)
-            } else if (width >= 1024) {
-                setItemsPerView(5)
-            } else if (width >= 768) {
-                setItemsPerView(4)
-            } else if (width >= 500) {
-                setItemsPerView(3)
-            } else {
-                setItemsPerView(2)
-            }
-        }
-
-        update()
-        window.addEventListener('resize', update)
-        return () => window.removeEventListener('resize', update)
-    }, [])
-
-    return itemsPerView
-}
-
 // ---------- Componente Principal ----------
+// Fileira horizontal de avatares redondos, igual ao "Pessoas" do
+// /modelodehomepage — trocou o grid paginado por scroll lateral direto,
+// mais simples de navegar no celular (é só arrastar o dedo).
 export default function FeaturedProfiles({
     dragHandle,
     title = 'Pessoas em destaque',
@@ -122,88 +94,17 @@ export default function FeaturedProfiles({
     const router = useRouter()
     const startNavProgress = useNavProgressStore((s) => s.start)
     const { colors } = useTheme()
-    const autoPlayRef = useRef<NodeJS.Timeout | null>(null)
 
     const { profiles, loading } = useFeaturedProfiles()
-    const itemsPerView = useBreakpoint()
 
     const displayProfiles = useMemo(() => {
-        const result = maxItems && profiles.length > maxItems
+        return maxItems && profiles.length > maxItems
             ? profiles.slice(0, maxItems)
             : profiles
-        return result
     }, [profiles, maxItems])
 
-    const [currentIndex, setCurrentIndex] = useState(0)
-    const [isHovered, setIsHovered] = useState(false)
+    const hasProfiles = displayProfiles.length > 0
 
-    const hasProfiles = useMemo(() => {
-        return displayProfiles.length > 0
-    }, [displayProfiles])
-
-    const totalPages = Math.max(1, Math.ceil(displayProfiles.length / itemsPerView))
-
-    // ===== AUTOPLAY =====
-    useEffect(() => {
-        if (isHovered || totalPages <= 1 || displayProfiles.length === 0) {
-            if (autoPlayRef.current) {
-                clearInterval(autoPlayRef.current)
-                autoPlayRef.current = null
-            }
-            return
-        }
-
-        autoPlayRef.current = setInterval(() => {
-            setCurrentIndex(prev => (prev + 1) % totalPages)
-        }, 5000)
-
-        return () => {
-            if (autoPlayRef.current) {
-                clearInterval(autoPlayRef.current)
-                autoPlayRef.current = null
-            }
-        }
-    }, [isHovered, totalPages, displayProfiles.length])
-
-    useEffect(() => {
-        setCurrentIndex(0)
-    }, [itemsPerView])
-
-    const goToNext = useCallback(() => {
-        setCurrentIndex(prev => (prev + 1) % totalPages)
-    }, [totalPages])
-
-    const goToPrev = useCallback(() => {
-        setCurrentIndex(prev => (prev - 1 + totalPages) % totalPages)
-    }, [totalPages])
-
-    const goToPage = useCallback((page: number) => {
-        setCurrentIndex(page)
-    }, [])
-
-    // ===== ITEMS ATUAIS =====
-    const currentItems = useMemo(() => {
-        if (displayProfiles.length === 0) return []
-
-        const start = currentIndex * itemsPerView
-        const items: ProfileCard[] = []
-
-        for (let i = 0; i < itemsPerView; i++) {
-            const index = (start + i) % displayProfiles.length
-            items.push(displayProfiles[index])
-        }
-
-        return items
-    }, [displayProfiles, currentIndex, itemsPerView])
-
-    // ===== GRID COLUMNS =====
-    const gridCols = itemsPerView >= 6 ? 'grid-cols-6'
-        : itemsPerView >= 5 ? 'grid-cols-5'
-            : itemsPerView >= 4 ? 'grid-cols-4'
-                : itemsPerView >= 3 ? 'grid-cols-3'
-                    : 'grid-cols-2'
-
-    // ===== HANDLE CLICK =====
     const handleProfileClick = (profile: ProfileCard) => {
         if (onProfileClick) {
             onProfileClick(profile.id, profile.slug)
@@ -213,7 +114,6 @@ export default function FeaturedProfiles({
         router.push(`/${profile.slug}`)
     }
 
-    // ===== HANDLE "VER TODOS" =====
     const handleViewAll = () => {
         startNavProgress()
         router.push('/social')
@@ -223,37 +123,27 @@ export default function FeaturedProfiles({
     if (loading) {
         return (
             <div className={`w-full ${className}`}>
-                <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-2">
-                        {dragHandle}
-                        <div className="h-6 rounded w-48 animate-pulse" style={{ background: `${colors.border}60` }} />
-                    </div>
+                <div className="flex items-center gap-2 mb-4">
+                    {dragHandle}
+                    <div className="h-6 rounded w-48 animate-pulse" style={{ background: `${colors.border}60` }} />
                 </div>
-                <div className={`grid ${gridCols} gap-4`}>
-                    {Array.from({ length: Math.min(itemsPerView, 6) }).map((_, i) => (
-                        <div
-                            key={i}
-                            className="aspect-[3/4] rounded-xl animate-pulse"
-                            style={{ background: `${colors.border}40` }}
-                        />
+                <div className="flex gap-3 overflow-hidden">
+                    {Array.from({ length: 6 }).map((_, i) => (
+                        <div key={i} className="w-24 flex-shrink-0 flex flex-col items-center gap-2">
+                            <div className="w-20 h-20 rounded-full animate-pulse" style={{ background: `${colors.border}40` }} />
+                            <div className="h-2.5 w-16 rounded-full animate-pulse" style={{ background: `${colors.border}40` }} />
+                        </div>
                     ))}
                 </div>
             </div>
         )
     }
 
-    if (!profiles.length) {
-        console.log('[FeaturedProfiles] Nenhum perfil para exibir')
-        return null
-    }
+    if (!profiles.length) return null
 
     // ===== RENDER =====
     return (
-        <div
-            className={`relative w-full ${className}`}
-            onMouseEnter={() => setIsHovered(true)}
-            onMouseLeave={() => setIsHovered(false)}
-        >
+        <div className={`relative w-full ${className}`}>
             <HomeSectionHeader
                 icon={Users}
                 title={title}
@@ -275,109 +165,34 @@ export default function FeaturedProfiles({
                 ) : <span />}
             />
 
-            {/* Grid de perfis */}
-            <div className="relative">
-                <div className={`grid ${gridCols} gap-4 transition-all duration-500`}>
-                    {currentItems.map((profile, idx) => (
-                        <div
-                            key={`${profile.id}-${idx}`}
-                            onClick={() => handleProfileClick(profile)}
-                            className="group relative rounded-xl overflow-hidden border shadow-sm transition-all duration-300 hover:shadow-xl hover:-translate-y-1 cursor-pointer"
-                            style={{
-                                borderColor: colors.border,
-                                background: colors.surface,
-                                aspectRatio: '3/4',
-                            }}
-                        >
-                            {profile.avatarUrl ? (
-                                <>
-                                    <img
-                                        src={profile.avatarUrl}
-                                        alt={profile.name}
-                                        className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                                        loading="lazy"
-                                    />
-                                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent pointer-events-none" />
-                                </>
-                            ) : (
-                                <div className="absolute inset-0 flex items-center justify-center"
-                                    style={{ background: GRADIENT }}>
-                                    <span className="text-5xl font-black" style={{ color: '#ffffff' }}>
-                                        {profile.slug?.charAt(0).toUpperCase() || '?'}
-                                    </span>
-                                </div>
-                            )}
-
-                            {/* Conteúdo na parte inferior - Nome e @slug */}
-                            <div className="absolute bottom-0 left-0 right-0 p-3 z-10">
-                                <h3 className="text-white font-semibold text-sm leading-tight line-clamp-1 drop-shadow-lg">
-                                    {profile.name}
-                                </h3>
-                                <p className="text-white/70 text-xs leading-tight line-clamp-1 drop-shadow-lg">
-                                    @{profile.slug}
-                                </p>
-                            </div>
-
-                            {/* Efeito de brilho no hover */}
-                            <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none rounded-xl"
-                                style={{
-                                    boxShadow: `inset 0 0 40px ${colors.accent}30`,
-                                    border: `2px solid ${colors.accent}40`,
-                                }}
+            <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4" style={{ scrollbarWidth: 'none' }}>
+                {displayProfiles.map((profile) => (
+                    <div
+                        key={profile.id}
+                        onClick={() => handleProfileClick(profile)}
+                        className="w-24 flex-shrink-0 flex flex-col items-center gap-2 cursor-pointer group"
+                    >
+                        {profile.avatarUrl ? (
+                            <img
+                                src={profile.avatarUrl}
+                                alt={profile.name}
+                                loading="lazy"
+                                className="w-20 h-20 rounded-full object-cover transition-transform duration-300 group-hover:scale-105"
                             />
+                        ) : (
+                            <div
+                                className="w-20 h-20 rounded-full flex items-center justify-center font-black text-white text-xl transition-transform duration-300 group-hover:scale-105"
+                                style={{ background: GRADIENT }}
+                            >
+                                {profile.slug?.charAt(0).toUpperCase() || '?'}
+                            </div>
+                        )}
+                        <div className="text-center w-24">
+                            <p className="text-[11px] font-bold truncate" style={{ color: colors.textPrimary }}>{profile.name}</p>
+                            <p className="text-[9px] opacity-50 truncate" style={{ color: colors.textPrimary }}>@{profile.slug}</p>
                         </div>
-                    ))}
-                </div>
-
-                {/* Paginação inferior */}
-                {totalPages > 1 && (
-                    <div className="flex items-center justify-center gap-3 mt-4">
-                        <button
-                            onClick={goToPrev}
-                            className="w-7 h-7 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95"
-                            style={{
-                                background: GRADIENT,
-                                color: '#ffffff',
-                            }}
-                            aria-label="Anterior"
-                        >
-                            <ChevronLeft size={14} />
-                        </button>
-
-                        <div className="flex items-center gap-1.5">
-                            {Array.from({ length: totalPages }).map((_, idx) => (
-                                <button
-                                    key={idx}
-                                    onClick={() => goToPage(idx)}
-                                    className="rounded-full transition-all duration-300"
-                                    style={{
-                                        width: idx === currentIndex ? '1.2rem' : '0.5rem',
-                                        height: '0.5rem',
-                                        background: idx === currentIndex ? '#f97316' : colors.border,
-                                        boxShadow: idx === currentIndex ? `0 0 8px #f9731650` : 'none',
-                                    }}
-                                    aria-label={`Ir para página ${idx + 1}`}
-                                />
-                            ))}
-                        </div>
-
-                        <span className="text-xs font-medium px-2" style={{ color: colors.textPrimary }}>
-                            {currentIndex + 1}/{totalPages}
-                        </span>
-
-                        <button
-                            onClick={goToNext}
-                            className="w-7 h-7 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95"
-                            style={{
-                                background: GRADIENT,
-                                color: '#ffffff',
-                            }}
-                            aria-label="Próximo"
-                        >
-                            <ChevronRight size={14} />
-                        </button>
                     </div>
-                )}
+                ))}
             </div>
         </div>
     )

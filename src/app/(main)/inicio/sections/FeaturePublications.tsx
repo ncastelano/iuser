@@ -1,8 +1,8 @@
 //app/(main)/inicio/sections/FeaturePublications.tsx
 'use client'
 
-import { useState, useEffect, useRef, useCallback, useMemo, ReactNode } from 'react'
-import { ChevronLeft, ChevronRight, Store, ArrowRight, UserCircle, MessageCircle } from 'lucide-react'
+import { useState, useEffect, useMemo, ReactNode } from 'react'
+import { Store, ArrowRight, MessageCircle } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import { useRouter } from 'next/navigation'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
@@ -194,35 +194,9 @@ function usePublications() {
     return { publications, loading }
 }
 
-// ---------- Hook para detectar breakpoint ----------
-function useBreakpoint() {
-    const [itemsPerView, setItemsPerView] = useState(4)
-
-    useEffect(() => {
-        const update = () => {
-            const width = window.innerWidth
-            if (width >= 1280) {
-                setItemsPerView(6)
-            } else if (width >= 1024) {
-                setItemsPerView(5)
-            } else if (width >= 768) {
-                setItemsPerView(4)
-            } else if (width >= 500) {
-                setItemsPerView(3)
-            } else {
-                setItemsPerView(2)
-            }
-        }
-
-        update()
-        window.addEventListener('resize', update)
-        return () => window.removeEventListener('resize', update)
-    }, [])
-
-    return itemsPerView
-}
-
 // ---------- Componente Principal ----------
+// Grade 2 colunas, imagem quadrada + rodapé com quem publicou — igual ao
+// "Publicações" do /modelodehomepage.
 export default function FeaturedPublications({
     dragHandle,
     title = 'Publicações em destaque',
@@ -233,102 +207,26 @@ export default function FeaturedPublications({
     const router = useRouter()
     const startNavProgress = useNavProgressStore((s) => s.start)
     const { colors } = useTheme()
-    const autoPlayRef = useRef<NodeJS.Timeout | null>(null)
 
     const { publications, loading } = usePublications()
-    const itemsPerView = useBreakpoint()
 
     const displayPublications = useMemo(() => {
-        const result = maxItems && publications.length > maxItems
+        return maxItems && publications.length > maxItems
             ? publications.slice(0, maxItems)
             : publications
-        return result
     }, [publications, maxItems])
 
-    const [currentIndex, setCurrentIndex] = useState(0)
-    const [isHovered, setIsHovered] = useState(false)
+    const hasPublications = displayPublications.length > 0
 
-    const hasPublications = useMemo(() => {
-        return displayPublications.length > 0
-    }, [displayPublications])
-
-    const totalPages = Math.max(1, Math.ceil(displayPublications.length / itemsPerView))
-
-    // ===== AUTOPLAY =====
-    useEffect(() => {
-        if (isHovered || totalPages <= 1 || displayPublications.length === 0) {
-            if (autoPlayRef.current) {
-                clearInterval(autoPlayRef.current)
-                autoPlayRef.current = null
-            }
-            return
-        }
-
-        autoPlayRef.current = setInterval(() => {
-            setCurrentIndex(prev => (prev + 1) % totalPages)
-        }, 5000)
-
-        return () => {
-            if (autoPlayRef.current) {
-                clearInterval(autoPlayRef.current)
-                autoPlayRef.current = null
-            }
-        }
-    }, [isHovered, totalPages, displayPublications.length])
-
-    useEffect(() => {
-        setCurrentIndex(0)
-    }, [itemsPerView])
-
-    const goToNext = useCallback(() => {
-        setCurrentIndex(prev => (prev + 1) % totalPages)
-    }, [totalPages])
-
-    const goToPrev = useCallback(() => {
-        setCurrentIndex(prev => (prev - 1 + totalPages) % totalPages)
-    }, [totalPages])
-
-    const goToPage = useCallback((page: number) => {
-        setCurrentIndex(page)
-    }, [])
-
-    // ===== ITEMS ATUAIS =====
-    const currentItems = useMemo(() => {
-        if (displayPublications.length === 0) return []
-
-        const start = currentIndex * itemsPerView
-        const items: PublicationCard[] = []
-
-        for (let i = 0; i < itemsPerView; i++) {
-            const index = (start + i) % displayPublications.length
-            items.push(displayPublications[index])
-        }
-
-        return items
-    }, [displayPublications, currentIndex, itemsPerView])
-
-    // ===== GRID COLUMNS =====
-    const gridCols = itemsPerView >= 6 ? 'grid-cols-6'
-        : itemsPerView >= 5 ? 'grid-cols-5'
-            : itemsPerView >= 4 ? 'grid-cols-4'
-                : itemsPerView >= 3 ? 'grid-cols-3'
-                    : 'grid-cols-2'
-
-    // ===== HANDLE CLICK =====
     const handlePublicationClick = (pub: PublicationCard) => {
         if (onPublicationClick) {
             onPublicationClick(pub.id, pub.slug)
             return
         }
         startNavProgress()
-        if (pub.slug) {
-            router.push(`/publicacoes/${pub.slug}`)
-        } else {
-            router.push(`/publicacoes/${pub.id}`)
-        }
+        router.push(`/publicacoes/${pub.slug || pub.id}`)
     }
 
-    // ===== HANDLE "VER TODOS" =====
     const handleViewAll = () => {
         startNavProgress()
         router.push('/publicacoes')
@@ -338,37 +236,30 @@ export default function FeaturedPublications({
     if (loading) {
         return (
             <div className={`w-full ${className}`}>
-                <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-2">
-                        {dragHandle}
-                        <div className="h-6 rounded w-48 animate-pulse" style={{ background: `${colors.border}60` }} />
-                    </div>
+                <div className="flex items-center gap-2 mb-4">
+                    {dragHandle}
+                    <div className="h-6 rounded w-48 animate-pulse" style={{ background: `${colors.border}60` }} />
                 </div>
-                <div className={`grid ${gridCols} gap-4`}>
-                    {Array.from({ length: Math.min(itemsPerView, 6) }).map((_, i) => (
-                        <div
-                            key={i}
-                            className="aspect-[3/4] rounded-xl animate-pulse"
-                            style={{ background: `${colors.border}40` }}
-                        />
+                <div className="grid grid-cols-2 gap-3">
+                    {Array.from({ length: 4 }).map((_, i) => (
+                        <div key={i} className="rounded-2xl overflow-hidden animate-pulse" style={{ background: `${colors.border}30` }}>
+                            <div className="w-full aspect-square" style={{ background: `${colors.border}40` }} />
+                            <div className="p-3 h-10" />
+                        </div>
                     ))}
                 </div>
             </div>
         )
     }
 
-    if (!publications.length) {
-        console.log('[FeaturedPublications] Nenhuma publicação para exibir')
-        return null
-    }
+    if (!publications.length) return null
 
     // ===== RENDER =====
+    // Grade 2 colunas, igual ao "Publicações" do /modelodehomepage: imagem
+    // quadrada em cima, quem publicou num rodapé próprio (em vez de
+    // sobrepor texto na imagem).
     return (
-        <div
-            className={`relative w-full ${className}`}
-            onMouseEnter={() => setIsHovered(true)}
-            onMouseLeave={() => setIsHovered(false)}
-        >
+        <div className={`relative w-full ${className}`}>
             <HomeSectionHeader
                 icon={MessageCircle}
                 title={title || 'Publicações em destaque'}
@@ -390,120 +281,47 @@ export default function FeaturedPublications({
                 ) : <span />}
             />
 
-            {/* Grid de publicações */}
-            <div className="relative">
-                <div className={`grid ${gridCols} gap-4 transition-all duration-500`}>
-                    {currentItems.map((pub, idx) => (
-                        <div
-                            key={`${pub.id}-${idx}`}
-                            onClick={() => handlePublicationClick(pub)}
-                            className="group relative rounded-xl overflow-hidden border shadow-sm transition-all duration-300 hover:shadow-xl hover:-translate-y-1 cursor-pointer"
-                            style={{
-                                borderColor: colors.border,
-                                background: colors.surface,
-                                aspectRatio: '3/4',
-                            }}
-                        >
+            <div className="grid grid-cols-2 gap-3">
+                {displayPublications.map((pub) => (
+                    <div
+                        key={pub.id}
+                        onClick={() => handlePublicationClick(pub)}
+                        className="rounded-2xl overflow-hidden cursor-pointer group"
+                        style={{ background: colors.surface, border: `1px solid ${colors.border}` }}
+                    >
+                        <div className="w-full aspect-square relative overflow-hidden">
                             {pub.imageUrl ? (
-                                <>
-                                    <img
-                                        src={pub.imageUrl}
-                                        alt={pub.title || pub.ownerName}
-                                        className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                                        loading="lazy"
-                                    />
-                                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent pointer-events-none" />
-                                </>
+                                <img
+                                    src={pub.imageUrl}
+                                    alt={pub.title || pub.ownerName}
+                                    loading="lazy"
+                                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                />
                             ) : (
-                                <div className="absolute inset-0 flex items-center justify-center"
-                                    style={{ background: GRADIENT, opacity: 0.3 }}>
-                                    <Store className="w-12 h-12 opacity-30" style={{ color: colors.textPrimary }} />
+                                <div className="w-full h-full flex items-center justify-center" style={{ background: GRADIENT }}>
+                                    <Store size={26} color="#fff" opacity={0.6} />
                                 </div>
                             )}
-
-                            {/* Avatar/Logo no canto superior esquerdo */}
-                            <div className="absolute top-2 left-2 z-10">
-                                <div className="w-8 h-8 rounded-full border-2 border-white/40 overflow-hidden bg-black/50 shadow-lg">
-                                    {pub.ownerImageUrl ? (
-                                        <img src={pub.ownerImageUrl} alt="" className="w-full h-full object-cover" />
-                                    ) : (
-                                        <div
-                                            className="w-full h-full flex items-center justify-center text-white font-bold text-xs"
-                                            style={{ background: GRADIENT }}
-                                        >
-                                            {pub.ownerName?.charAt(0).toUpperCase() || '?'}
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* Conteúdo na parte inferior - Apenas título da publicação */}
-                            <div className="absolute bottom-0 left-0 right-0 p-3 z-10">
-                                <h3 className="text-white font-semibold text-sm leading-tight line-clamp-2 drop-shadow-lg">
-                                    {pub.title || 'Publicação'}
-                                </h3>
-                            </div>
-
-                            {/* Efeito de brilho no hover */}
-                            <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none rounded-xl"
-                                style={{
-                                    boxShadow: `inset 0 0 40px ${colors.accent}30`,
-                                    border: `2px solid ${colors.accent}40`,
-                                }}
-                            />
                         </div>
-                    ))}
-                </div>
-
-                {/* Paginação inferior */}
-                {totalPages > 1 && (
-                    <div className="flex items-center justify-center gap-3 mt-4">
-                        <button
-                            onClick={goToPrev}
-                            className="w-7 h-7 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95"
-                            style={{
-                                background: GRADIENT,
-                                color: '#ffffff',
-                            }}
-                            aria-label="Anterior"
-                        >
-                            <ChevronLeft size={14} />
-                        </button>
-
-                        <div className="flex items-center gap-1.5">
-                            {Array.from({ length: totalPages }).map((_, idx) => (
-                                <button
-                                    key={idx}
-                                    onClick={() => goToPage(idx)}
-                                    className="rounded-full transition-all duration-300"
-                                    style={{
-                                        width: idx === currentIndex ? '1.2rem' : '0.5rem',
-                                        height: '0.5rem',
-                                        background: idx === currentIndex ? '#f97316' : colors.border,
-                                        boxShadow: idx === currentIndex ? `0 0 8px #f9731650` : 'none',
-                                    }}
-                                    aria-label={`Ir para página ${idx + 1}`}
-                                />
-                            ))}
+                        <div className="p-2.5 flex items-center gap-2 min-w-0">
+                            <div className="w-6 h-6 rounded-full overflow-hidden flex-shrink-0">
+                                {pub.ownerImageUrl ? (
+                                    <img src={pub.ownerImageUrl} alt="" className="w-full h-full object-cover" />
+                                ) : (
+                                    <div className="w-full h-full flex items-center justify-center text-white font-bold text-[10px]" style={{ background: GRADIENT }}>
+                                        {pub.ownerName?.charAt(0).toUpperCase() || '?'}
+                                    </div>
+                                )}
+                            </div>
+                            <div className="min-w-0">
+                                <p className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>{pub.ownerName}</p>
+                                {pub.title && (
+                                    <p className="text-[10px] opacity-50 truncate" style={{ color: colors.textPrimary }}>{pub.title}</p>
+                                )}
+                            </div>
                         </div>
-
-                        <span className="text-xs font-medium px-2" style={{ color: colors.textPrimary }}>
-                            {currentIndex + 1}/{totalPages}
-                        </span>
-
-                        <button
-                            onClick={goToNext}
-                            className="w-7 h-7 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95"
-                            style={{
-                                background: GRADIENT,
-                                color: '#ffffff',
-                            }}
-                            aria-label="Próximo"
-                        >
-                            <ChevronRight size={14} />
-                        </button>
                     </div>
-                )}
+                ))}
             </div>
         </div>
     )
