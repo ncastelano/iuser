@@ -81,6 +81,7 @@ interface Candidate {
     routeCoords: [number, number][] | null
     carModel: string | null
     carColor: string | null
+    carPlate: string | null
     carPhotoUrl: string | undefined
     services: string[]
     ratingAvg: number | null
@@ -157,11 +158,11 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady }: Rid
 
         // Ficha do carro (modelo, cor, foto, serviços) — pública, pro
         // passageiro comparar os candidatos além do preço.
-        let vehiclesById = new Map<string, { car_model: string | null; car_color: string | null; car_photo_url: string | null; services: string[] }>()
+        let vehiclesById = new Map<string, { car_model: string | null; car_color: string | null; car_plate: string | null; car_photo_url: string | null; services: string[] }>()
         if (idsToFetch.length > 0) {
             const { data: vehicles } = await supabase
                 .from('driver_vehicles')
-                .select('driver_id, vehicle_kind, car_model, car_color, car_photo_url, services')
+                .select('driver_id, vehicle_kind, car_model, car_color, car_plate, car_photo_url, services')
                 .in('driver_id', idsToFetch)
             // Motorista pode ter vários veículos — prefere o que atende essa corrida.
             const rideKind = kindForRideType(rideRow.vehicle_type)
@@ -258,6 +259,7 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady }: Rid
                 routeCoords,
                 carModel: vehicle?.car_model || null,
                 carColor: vehicle?.car_color || null,
+                carPlate: vehicle?.car_plate || null,
                 carPhotoUrl: vehicle?.car_photo_url ? supabase.storage.from('driver-car-photos').getPublicUrl(vehicle.car_photo_url).data.publicUrl : undefined,
                 services: vehicle?.services || [],
                 ratingAvg: rating?.avg ?? null,
@@ -817,7 +819,7 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady }: Rid
                                         </span>
                                     )}
 
-                                    {(c.carModel || c.carColor || c.carPhotoUrl) && (
+                                    {(c.carModel || c.carColor || c.carPlate || c.carPhotoUrl) && (
                                         <div className="flex items-center gap-1.5 w-full min-w-0 justify-center">
                                             {c.carPhotoUrl ? (
                                                 <img src={c.carPhotoUrl} className="w-6 h-6 rounded-md object-cover flex-shrink-0" alt="" />
@@ -829,6 +831,14 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady }: Rid
                                             <span className="text-[10px] font-bold truncate" style={{ color: colors.textPrimary }}>
                                                 {[c.carModel, c.carColor].filter(Boolean).join(' · ') || 'Não informado'}
                                             </span>
+                                            {c.carPlate && (
+                                                <span
+                                                    className="flex-shrink-0 text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded"
+                                                    style={{ background: `${colors.border}40`, color: colors.textPrimary }}
+                                                >
+                                                    {c.carPlate}
+                                                </span>
+                                            )}
                                         </div>
                                     )}
 

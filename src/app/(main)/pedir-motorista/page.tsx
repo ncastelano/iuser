@@ -1408,32 +1408,6 @@ export default function PedirMotoristaPage() {
                         </div>
                     </div>
 
-                    {activeField === 'origin' && (
-                        <button
-                            onClick={() => { useMyLocationAsOrigin(true); setActiveField(null); setSuggestions([]) }}
-                            className="w-full flex items-center gap-3 px-4 py-3.5"
-                            style={{ borderBottom: `1px solid ${colors.border}` }}
-                        >
-                            <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: `${colors.accent}20`, color: colors.accent }}>
-                                {locatingOrigin ? <Spinner size={16} /> : <MapPinPlus size={16} />}
-                            </div>
-                            <span className="text-sm font-bold" style={{ color: colors.accent }}>Usar minha localização atual</span>
-                        </button>
-                    )}
-
-                    {activeField && (
-                        <button
-                            onClick={() => { const f = activeField; setActiveField(null); setSuggestions([]); startPickingOnMap(f) }}
-                            className="w-full flex items-center gap-3 px-4 py-3.5"
-                            style={{ borderBottom: `1px solid ${colors.border}` }}
-                        >
-                            <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: `${colors.accent}20`, color: colors.accent }}>
-                                <MapPin size={16} />
-                            </div>
-                            <span className="text-sm font-bold" style={{ color: colors.accent }}>Escolher no mapa</span>
-                        </button>
-                    )}
-
                     {searching && (
                         <div className="flex justify-center py-6">
                             <Spinner size={20} color={colors.textSecondary} />

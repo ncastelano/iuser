@@ -7,6 +7,12 @@ import './globals.css'
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
+  // Trava o zoom em 1x — sem isso, tocar num <input> com fonte menor que
+  // 16px (vários no app usam text-xs/text-sm) faz o Safari/Chrome mobile
+  // dar zoom automático ao focar, e às vezes não volta sozinho ao sair do
+  // campo (ex: /pedir-motorista), deixando a página com zoom até recarregar.
+  maximumScale: 1,
+  userScalable: false,
   // Cor inicial (antes do JS assumir) igual ao fundo do tema claro, que é o
   // padrão - dali em diante o ThemeColorSync mantém isso acompanhando o
   // tema que a pessoa estiver usando (claro/escuro).

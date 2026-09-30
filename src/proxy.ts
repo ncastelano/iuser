@@ -40,6 +40,8 @@ const IGNORED_ROUTES = [
     '/planos',
     '/planos/pos-pago',
     '/meus-servicos',
+    '/aceitar-corridas/mapa',
+    '/pedir-motorista/escolher-local',
 ]
 
 // ===== PREFIXOS IGNORADOS =====
@@ -48,6 +50,7 @@ const IGNORED_PREFIXES = [
     '/api',
     '/s/', // encurtador de links (iuser.com.br/s/<code>) — não é slug de perfil/loja
     '/entregador/', // link do entregador (iuser.com.br/entregador/<token>) — não é slug de perfil/loja
+    '/acompanhar-corrida/', // link de acompanhar corrida (iuser.com.br/acompanhar-corrida/<id>) — não é slug de perfil/loja
 ]
 
 // ===== EXTENSÕES IGNORADAS =====
