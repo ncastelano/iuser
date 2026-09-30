@@ -422,6 +422,17 @@ export default function PedirMotoristaPage() {
     const destMarkerRef = useRef<mapboxgl.Marker | null>(null)
     const stopMarkerRefs = useRef<(mapboxgl.Marker | null)[]>([null, null])
     const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+    // Últimos bounds enquadrados no mapa — o card (embaixo) muda de altura a
+    // cada etapa/interação, o que muda quanto do mapa fica visível em cima.
+    // Guardamos aqui pra reenquadrar sozinho sempre que o container do mapa
+    // realmente mudar de tamanho (via ResizeObserver), sem depender de
+    // recalcular isso em cada efeito que já tem sua própria lógica de bounds.
+    const lastFitBoundsRef = useRef<{ bounds: mapboxgl.LngLatBounds; padding: number | { top: number; bottom: number; left: number; right: number } } | null>(null)
+    const fitMapBounds = useCallback((bounds: mapboxgl.LngLatBounds, padding: number | { top: number; bottom: number; left: number; right: number }, duration = 500) => {
+        if (!mapRef.current) return
+        lastFitBoundsRef.current = { bounds, padding }
+        mapRef.current.fitBounds(bounds, { padding, duration })
+    }, [])
 
     const [mapReady, setMapReady] = useState(false)
     const [step, setStep] = useState<Step>('type')
@@ -772,7 +783,23 @@ export default function PedirMotoristaPage() {
         map.on('load', () => setMapReady(true))
         mapRef.current = map
 
+        // O mapa agora divide a tela com o card, que muda de altura a cada
+        // etapa (e conforme o conteúdo). mapbox-gl só reage sozinho a
+        // resize da JANELA, não do próprio container — sem isso, o canvas
+        // fica com o tamanho antigo depois que o card cresce/encolhe,
+        // desenhando o mapa deslocado/cortado. Reenquadra os últimos bounds
+        // (sem animação) logo depois, pra não deixar parte do percurso fora
+        // da área visível quando ela encolhe.
+        const resizeObserver = new ResizeObserver(() => {
+            map.resize()
+            if (lastFitBoundsRef.current) {
+                map.fitBounds(lastFitBoundsRef.current.bounds, { padding: lastFitBoundsRef.current.padding, duration: 0 })
+            }
+        })
+        resizeObserver.observe(mapContainerRef.current)
+
         return () => {
+            resizeObserver.disconnect()
             map.remove()
             mapRef.current = null
         }
@@ -979,9 +1006,9 @@ export default function PedirMotoristaPage() {
             const bounds = new mapboxgl.LngLatBounds(origin.coords, origin.coords)
             bounds.extend(destination.coords)
             stops.forEach((s) => { if (s.coords) bounds.extend(s.coords as [number, number]) })
-            map.fitBounds(bounds, { padding: 100, duration: 800 })
+            fitMapBounds(bounds, 100, 800)
         }
-    }, [mapReady, origin.coords, destination.coords, route, stops])
+    }, [mapReady, origin.coords, destination.coords, route, stops, fitMapBounds])
 
     // ===== BUSCA DA ROTA (uma só, sem alternativas — com paradas, soma cada
     // perna: partida → parada 1 → parada 2 → chegada, num trajeto só) =====
@@ -1054,9 +1081,9 @@ export default function PedirMotoristaPage() {
                 (b, c) => b.extend(c),
                 new mapboxgl.LngLatBounds(route.coords[0], route.coords[0])
             )
-            map.fitBounds(bounds, { padding: 80, duration: 500 })
+            fitMapBounds(bounds, 80, 500)
         }
-    }, [mapReady, route])
+    }, [mapReady, route, fitMapBounds])
 
     // ===== BUSCA DE ENDEREÇO (autocomplete) =====
     const handleAddressChange = (field: 'origin' | 'destination' | 'stop0' | 'stop1', value: string) => {
@@ -1628,7 +1655,13 @@ export default function PedirMotoristaPage() {
                     className="flex-shrink-0 rounded-t-3xl px-4 py-4 overflow-y-auto"
                     style={{ maxHeight: '55vh', background: colors.surface, boxShadow: '0 -8px 30px rgba(0,0,0,0.35)' }}
                 >
-                    <RideTrackingPanel rideId={activeRideId} onExit={() => setActiveRideId(null)} map={mapRef.current} mapReady={mapReady} />
+                    <RideTrackingPanel
+                        rideId={activeRideId}
+                        onExit={() => setActiveRideId(null)}
+                        map={mapRef.current}
+                        mapReady={mapReady}
+                        onFitBounds={(bounds, padding) => { lastFitBoundsRef.current = { bounds, padding } }}
+                    />
                 </div>
             )}
 

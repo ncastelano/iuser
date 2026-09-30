@@ -100,9 +100,13 @@ interface RideTrackingPanelProps {
     onExit: () => void
     map?: mapboxgl.Map | null
     mapReady?: boolean
+    // Avisa a página (dona do mapa) qual foi o último enquadramento, pra ela
+    // conseguir reaplicar sozinha (sem animação) sempre que o card embaixo
+    // mudar de altura e encolher/esticar a área visível do mapa em cima.
+    onFitBounds?: (bounds: mapboxgl.LngLatBounds, padding: { top: number; bottom: number; left: number; right: number }) => void
 }
 
-export default function RideTrackingPanel({ rideId, onExit, map, mapReady }: RideTrackingPanelProps) {
+export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFitBounds }: RideTrackingPanelProps) {
     const { colors } = useTheme()
     const [loading, setLoading] = useState(true)
     const [ride, setRide] = useState<RideRow | null>(null)
@@ -478,12 +482,13 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady }: Rid
         }
 
         if (!bounds.isEmpty()) {
-            // A folha "Seu pedido" cobre até 75% da tela por baixo — sem isso
-            // o fitBounds centraliza tudo numa área escondida atrás dela.
-            map.fitBounds(bounds, {
-                padding: { top: 60, bottom: Math.round(window.innerHeight * 0.68), left: 40, right: 40 },
-                duration: 500,
-            })
+            // O mapa agora tem sua própria área (a página divide a tela
+            // entre mapa em cima e card embaixo, sem sobreposição), então a
+            // margem só precisa ser um respiro normal — nada de reservar
+            // espaço pro card, que não fica mais por cima do mapa.
+            const padding = { top: 70, bottom: 40, left: 40, right: 40 }
+            map.fitBounds(bounds, { padding, duration: 500 })
+            onFitBounds?.(bounds, padding)
         }
 
         return () => {
