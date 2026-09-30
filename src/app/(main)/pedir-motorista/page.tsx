@@ -1,7 +1,7 @@
 // app/(main)/pedir-motorista/page.tsx
 'use client'
 
-import { useState, useRef, useEffect, useCallback, type ElementType, type PointerEvent as ReactPointerEvent } from 'react'
+import { useState, useRef, useEffect, useCallback, type ElementType } from 'react'
 import { useRouter } from 'next/navigation'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
@@ -466,14 +466,15 @@ export default function PedirMotoristaPage() {
     const [activeRideId, setActiveRideId] = useState<string | null>(null)
     const [checkingActiveRide, setCheckingActiveRide] = useState(true)
 
-    // ===== ALTURA DO CARD INFERIOR, ARRASTÁVEL PELO TRAÇO NO TOPO DELE =====
-    // "Aberto" não é mais um valor fixo (75vh): acompanha a altura real do
-    // conteúdo (via ResizeObserver), limitado a 75vh — assim o card nunca
-    // sobra com espaço vazio embaixo quando o conteúdo é curto, e só
-    // aparece scroll quando o conteúdo realmente não cabe. O traço continua
-    // arrastável pra encolher o card até um mínimo e ver mais mapa.
+    // ===== ALTURA DO CARD INFERIOR =====
+    // Mapa e card agora dividem a tela (mapa em cima, card embaixo, sem se
+    // sobrepor — antes o card flutuava por cima do mapa e podia tampar o
+    // marcador do endereço digitado). O card acompanha a altura real do
+    // conteúdo (via ResizeObserver), limitado a 60vh — garante que o mapa
+    // sempre sobra com pelo menos 40% da tela visível, e só aparece scroll
+    // dentro do card quando o conteúdo realmente não cabe nesse teto.
     const SHEET_MIN_VH = 22
-    const SHEET_MAX_VH = 75
+    const SHEET_MAX_VH = 60
     const SHEET_PADDING_PX = 48 // pt-4 (16px) + pb-8 (32px) do container, não incluído na medição do conteúdo
     const [contentHeightPx, setContentHeightPx] = useState(0)
     const sheetResizeObserverRef = useRef<ResizeObserver | null>(null)
@@ -488,44 +489,9 @@ export default function PedirMotoristaPage() {
         ro.observe(node)
         sheetResizeObserverRef.current = ro
     }, [])
-    const openHeightVh = contentHeightPx > 0
+    const sheetHeightVh = contentHeightPx > 0
         ? Math.min(SHEET_MAX_VH, Math.max(SHEET_MIN_VH, ((contentHeightPx + SHEET_PADDING_PX) / window.innerHeight) * 100))
         : SHEET_MAX_VH
-
-    const [sheetOpen, setSheetOpen] = useState(true)
-    const [draggingSheet, setDraggingSheet] = useState(false)
-    const [dragHeightVh, setDragHeightVh] = useState(SHEET_MAX_VH)
-    const sheetDragStartYRef = useRef(0)
-    const sheetDragStartHeightRef = useRef(SHEET_MAX_VH)
-    const sheetHeightVh = draggingSheet ? dragHeightVh : (sheetOpen ? openHeightVh : SHEET_MIN_VH)
-
-    const handleSheetDragStart = (e: ReactPointerEvent<HTMLDivElement>) => {
-        e.currentTarget.setPointerCapture(e.pointerId)
-        sheetDragStartYRef.current = e.clientY
-        sheetDragStartHeightRef.current = sheetHeightVh
-        setDragHeightVh(sheetHeightVh)
-        setDraggingSheet(true)
-    }
-    const handleSheetDragMove = (e: ReactPointerEvent<HTMLDivElement>) => {
-        if (!draggingSheet) return
-        const deltaVh = ((e.clientY - sheetDragStartYRef.current) / window.innerHeight) * 100
-        const next = Math.min(openHeightVh, Math.max(SHEET_MIN_VH, sheetDragStartHeightRef.current - deltaVh))
-        setDragHeightVh(next)
-    }
-    const handleSheetDragEnd = () => {
-        if (!draggingSheet) return
-        setDraggingSheet(false)
-        // Encaixa no mais próximo: totalmente aberto (do tamanho do
-        // conteúdo) ou só uma prévia, sem deixar o card "pela metade".
-        const midpoint = (SHEET_MIN_VH + openHeightVh) / 2
-        setSheetOpen(dragHeightVh >= midpoint)
-    }
-    // Troca de etapa (ou início do acompanhamento) sempre reabre o card —
-    // senão ele podia continuar encolhido escondendo conteúdo novo que a
-    // pessoa ainda não viu.
-    useEffect(() => {
-        setSheetOpen(true)
-    }, [step, activeRideId])
 
     // ===== ADICIONAIS: PESSOA (além de quem pediu) — cada item é um contador,
     // 0 significa que não tem esse adicional =====
@@ -1501,17 +1467,28 @@ export default function PedirMotoristaPage() {
     const inputStyle = { color: colors.textPrimary }
 
     return (
-        <div className="fixed inset-0" style={{ zIndex: 0 }}>
-            <div ref={mapContainerRef} className="absolute inset-0 w-full h-full" style={{ background: '#111' }} />
+        <div className="fixed inset-0 flex flex-col" style={{ zIndex: 0 }}>
+            {/* ===== MAPA — ocupa sempre o espaço que sobra em cima, nunca é
+                tampado pelo card (que agora vive embaixo, na mesma tela, em
+                vez de flutuar por cima) ===== */}
+            <div className="relative flex-1 min-h-0">
+                <div ref={mapContainerRef} className="absolute inset-0 w-full h-full" style={{ background: '#111' }} />
 
-            {/* Botão voltar flutuante */}
-            <button
-                onClick={handleBack}
-                className="absolute top-6 left-4 z-30 w-11 h-11 rounded-full flex items-center justify-center shadow-xl"
-                style={{ background: colors.surface, color: colors.textPrimary }}
-            >
-                <ArrowLeft size={20} />
-            </button>
+                {/* Botão voltar flutuante */}
+                <button
+                    onClick={handleBack}
+                    className="absolute top-6 left-4 z-30 w-11 h-11 rounded-full flex items-center justify-center shadow-xl"
+                    style={{ background: colors.surface, color: colors.textPrimary }}
+                >
+                    <ArrowLeft size={20} />
+                </button>
+
+                {checkingActiveRide && (
+                    <div className="absolute inset-0 z-20 flex items-center justify-center" style={{ background: `${colors.background}80` }}>
+                        <Spinner size={24} color={colors.textSecondary} />
+                    </div>
+                )}
+            </div>
 
             {/* Overlay de busca em tela cheia quando um campo está ativo */}
             {activeField && (
@@ -1643,46 +1620,32 @@ export default function PedirMotoristaPage() {
                 </div>
             )}
 
-            {/* Acompanhamento do pedido em andamento — card flutuante sobre o
-                mapa, no mesmo estilo do /aceitar-corridas/mapa (compacto,
-                nunca passa da metade da tela, sem tomar a tela toda). */}
+            {/* Acompanhamento do pedido em andamento — agora divide a tela
+                com o mapa (fica embaixo, em vez de flutuar por cima),
+                então nunca tampa o marcador da corrida no mapa. */}
             {!activeField && activeRideId && (
                 <div
-                    className="absolute left-4 right-4 z-20 rounded-2xl shadow-2xl px-4 py-4 overflow-y-auto"
-                    style={{ bottom: 24, maxHeight: '50vh', background: colors.surface, border: `1px solid ${colors.border}` }}
+                    className="flex-shrink-0 rounded-t-3xl px-4 py-4 overflow-y-auto"
+                    style={{ maxHeight: '55vh', background: colors.surface, boxShadow: '0 -8px 30px rgba(0,0,0,0.35)' }}
                 >
                     <RideTrackingPanel rideId={activeRideId} onExit={() => setActiveRideId(null)} map={mapRef.current} mapReady={mapReady} />
                 </div>
             )}
 
-            {checkingActiveRide && (
-                <div className="absolute inset-0 z-20 flex items-center justify-center" style={{ background: `${colors.background}80` }}>
-                    <Spinner size={24} color={colors.textSecondary} />
-                </div>
-            )}
-
-            {/* Bottom sheet estilo Uber, por etapas */}
+            {/* Card por etapas — divide a tela com o mapa (embaixo), em vez
+                de flutuar por cima e correr o risco de tampar o endereço
+                que acabou de ser digitado. */}
             {!activeField && !activeRideId && !checkingActiveRide && (
                 <div
-                    className="absolute bottom-0 inset-x-0 z-20 rounded-t-3xl px-5 pt-4 pb-8 overflow-y-auto"
+                    className="flex-shrink-0 rounded-t-3xl px-5 pt-4 pb-8 overflow-y-auto"
                     style={{
                         background: colors.surface,
                         boxShadow: '0 -8px 30px rgba(0,0,0,0.35)',
                         height: `${sheetHeightVh}vh`,
-                        transition: draggingSheet ? 'none' : 'height 0.25s ease-out',
+                        transition: 'height 0.25s ease-out',
                     }}
                 >
                     <div ref={setSheetContentRef}>
-                    <div
-                        onPointerDown={handleSheetDragStart}
-                        onPointerMove={handleSheetDragMove}
-                        onPointerUp={handleSheetDragEnd}
-                        onPointerCancel={handleSheetDragEnd}
-                        className="flex justify-center py-2.5 mb-1.5 cursor-grab touch-none"
-                    >
-                        <div className="w-10 h-1 rounded-full" style={{ background: colors.border }} />
-                    </div>
-
                     {/* Indicador de progresso das etapas */}
                     <div className="flex items-center gap-1.5 justify-center mb-4">
                         {STEPS.map((s, i) => (
