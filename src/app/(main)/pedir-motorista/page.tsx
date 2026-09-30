@@ -48,6 +48,12 @@ import {
     Store as StoreIcon,
     Flag,
     Trash2,
+    Bike,
+    Motorbike,
+    Shuffle,
+    CreditCard,
+    Banknote,
+    QrCode,
 } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import RideTrackingPanel from './RideTrackingPanel'
@@ -59,7 +65,7 @@ const DEFAULT_CENTER: [number, number] = [-63.9039, -8.7612] // Porto Velho
 const ROUTE_COLOR = '#3b82f6'
 const AVERAGE_SPEED_KMH = 40
 
-type Step = 'type' | 'where' | 'access' | 'details'
+type Step = 'type' | 'where' | 'vehicle' | 'extras' | 'payment' | 'access'
 type RequestFor = 'pessoa' | 'objeto' | 'animal'
 // 'stop0'/'stop1' = 1ª/2ª parada (até 2, por posição na lista `stops`).
 type ActiveField = 'origin' | 'destination' | 'stop0' | 'stop1' | null
@@ -96,7 +102,7 @@ interface FrequentRide {
     vehicleTypeChoice: 'carro' | 'moto' | 'bicicleta' | 'qualquer'
 }
 
-const STEPS: Step[] = ['type', 'where', 'access', 'details']
+const STEPS: Step[] = ['type', 'where', 'vehicle', 'extras', 'payment', 'access']
 
 async function reverseGeocode(lng: number, lat: number): Promise<string | null> {
     try {
@@ -718,7 +724,7 @@ export default function PedirMotoristaPage() {
         setDestination({ address: fr.destinationAddress, coords: fr.destinationCoords })
         setStops(fr.stops.map((s) => ({ ...s, complement: '', complementOpen: false })))
         setExpandedFrequentRide(null)
-        setStep('access')
+        setStep('vehicle')
         toast.success('Endereços preenchidos com os dados da corrida anterior — revise antes de pedir')
     }
 
@@ -1208,8 +1214,10 @@ export default function PedirMotoristaPage() {
     }
 
     const handleBack = () => {
-        if (step === 'details') setStep('access')
-        else if (step === 'access') setStep('where')
+        if (step === 'access') setStep('payment')
+        else if (step === 'payment') setStep('extras')
+        else if (step === 'extras') setStep('vehicle')
+        else if (step === 'vehicle') setStep('where')
         else if (step === 'where') setStep('type')
         else router.push('/')
     }
@@ -1994,9 +2002,55 @@ export default function PedirMotoristaPage() {
                                     Voltar
                                 </button>
                                 <button
-                                    onClick={() => setStep('access')}
+                                    onClick={() => setStep('vehicle')}
                                     disabled={!origin.address.trim() || !destination.address.trim() || stops.some((s) => !s.address.trim())}
                                     className="flex-1 py-3.5 rounded-xl font-black uppercase text-sm tracking-wider transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:hover:scale-100"
+                                    style={{ background: GRADIENT, color: '#fff' }}
+                                >
+                                    Continuar
+                                </button>
+                            </div>
+                        </>
+                    )}
+
+                    {/* ===== ETAPA: VEÍCULO ===== */}
+                    {step === 'vehicle' && requestFor && (
+                        <>
+                            <h2 className="text-lg font-black mb-1" style={{ color: colors.textPrimary }}>Qual veículo prefere?</h2>
+                            <p className="text-xs mb-4" style={{ color: colors.textSecondary }}>Toque numa opção pra continuar</p>
+
+                            <div className="grid grid-cols-2 gap-2">
+                                {(['carro', 'moto', 'bicicleta', 'qualquer'] as const).map((kind) => {
+                                    const active = vehicleTypeChoice === kind
+                                    const Icon = kind === 'moto' ? Motorbike : kind === 'bicicleta' ? Bike : kind === 'qualquer' ? Shuffle : Car
+                                    return (
+                                        <button
+                                            key={kind}
+                                            type="button"
+                                            onClick={() => chooseVehicle(kind)}
+                                            className="flex flex-col items-center gap-2 py-5 px-2 rounded-2xl transition-all hover:scale-[1.03] active:scale-95"
+                                            style={active ? { background: GRADIENT } : { background: `${colors.border}30`, border: `1px solid ${colors.border}` }}
+                                        >
+                                            <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: active ? 'rgba(255,255,255,0.25)' : GRADIENT, color: '#fff' }}>
+                                                <Icon size={22} />
+                                            </div>
+                                            <span className="text-xs font-black" style={{ color: active ? '#fff' : colors.textPrimary }}>{VEHICLE_TYPE_LABELS[kind]}</span>
+                                        </button>
+                                    )
+                                })}
+                            </div>
+
+                            <div className="flex items-center gap-2 mt-4">
+                                <button
+                                    onClick={() => setStep('where')}
+                                    className="py-3.5 px-5 rounded-xl font-black uppercase text-sm tracking-wider transition-all active:scale-95"
+                                    style={{ background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                                >
+                                    Voltar
+                                </button>
+                                <button
+                                    onClick={() => setStep('extras')}
+                                    className="flex-1 py-3.5 rounded-xl font-black uppercase text-sm tracking-wider transition-all hover:scale-[1.02] active:scale-95"
                                     style={{ background: GRADIENT, color: '#fff' }}
                                 >
                                     Continuar
@@ -2272,52 +2326,36 @@ export default function PedirMotoristaPage() {
 
                             <div className="flex items-center gap-2 mt-4">
                                 <button
-                                    onClick={() => setStep('where')}
+                                    onClick={() => setStep('payment')}
                                     className="py-3.5 px-5 rounded-xl font-black uppercase text-sm tracking-wider transition-all active:scale-95"
                                     style={{ background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
                                 >
                                     Voltar
                                 </button>
                                 <button
-                                    onClick={() => setStep('details')}
-                                    className="flex-1 py-3.5 rounded-xl font-black uppercase text-sm tracking-wider transition-all hover:scale-[1.02] active:scale-95"
+                                    onClick={handleRequestConfirm}
+                                    disabled={submitting || !origin.address.trim() || !destination.address.trim()}
+                                    className="flex-1 py-3.5 rounded-xl font-black uppercase text-sm tracking-wider transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:hover:scale-100 flex items-center justify-center gap-2"
                                     style={{ background: GRADIENT, color: '#fff' }}
                                 >
-                                    Continuar
+                                    {submitting ? <Spinner size={18} /> : <Car size={18} />}
+                                    Pedir motorista
                                 </button>
                             </div>
                         </>
                     )}
 
-                    {/* ===== ETAPA 4: DETALHES ===== */}
-                    {step === 'details' && requestFor && (
+                    {/* ===== ETAPA: QUEM VAI / O QUE LEVA ===== */}
+                    {step === 'extras' && requestFor && (
                         <>
                             <h2 className="text-lg font-black mb-3" style={{ color: colors.textPrimary }}>
-                                {requestFor === 'pessoa' ? 'Detalhes da corrida' : requestFor === 'animal' ? 'Mais sobre o animal' : 'Mais sobre o objeto'}
+                                {requestFor === 'pessoa' ? 'Quem vai com você?' : requestFor === 'animal' ? 'Sobre o animal' : 'Sobre o objeto'}
                             </h2>
 
                             {requestFor === 'pessoa' ? (
                                 <>
                                     {/* Cada adicional é um contador — 0 significa que não tem esse adicional */}
                                     <div className="flex flex-col gap-2">
-                                        {totalPeople === 1 && (
-                                            <div className="flex items-center gap-1.5">
-                                                {(['carro', 'moto', 'bicicleta', 'qualquer'] as const).map((kind) => (
-                                                    <button
-                                                        key={kind}
-                                                        type="button"
-                                                        onClick={() => chooseVehicle(kind)}
-                                                        className="flex-1 py-2 rounded-full text-xs font-black transition-all"
-                                                        style={vehicleTypeChoice === kind
-                                                            ? { background: GRADIENT, color: '#fff' }
-                                                            : { background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
-                                                    >
-                                                        {VEHICLE_TYPE_LABELS[kind]}
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        )}
-
                                         {isTwoWheels && (
                                             <div className="px-3 py-2 rounded-lg text-xs font-semibold" style={{ background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }}>
                                                 {effectiveVehicleType === 'bicicleta'
@@ -2490,22 +2528,6 @@ export default function PedirMotoristaPage() {
                                 </>
                             ) : requestFor === 'animal' ? (
                                 <>
-                                    <div className="flex items-center gap-1.5 mb-3">
-                                        {(['carro', 'moto', 'bicicleta', 'qualquer'] as const).map((kind) => (
-                                            <button
-                                                key={kind}
-                                                type="button"
-                                                onClick={() => chooseVehicle(kind)}
-                                                className="flex-1 py-2 rounded-full text-xs font-black transition-all"
-                                                style={effectiveVehicleType === kind
-                                                    ? { background: GRADIENT, color: '#fff' }
-                                                    : { background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
-                                            >
-                                                {VEHICLE_TYPE_LABELS[kind]}
-                                            </button>
-                                        ))}
-                                    </div>
-
                                     <input
                                         type="text"
                                         value={petDescription}
@@ -2616,22 +2638,6 @@ export default function PedirMotoristaPage() {
                                 </>
                             ) : (
                                 <>
-                                    <div className="flex items-center gap-1.5 mb-3">
-                                        {(['carro', 'moto', 'bicicleta', 'qualquer'] as const).map((kind) => (
-                                            <button
-                                                key={kind}
-                                                type="button"
-                                                onClick={() => chooseVehicle(kind)}
-                                                className="flex-1 py-2 rounded-full text-xs font-black transition-all"
-                                                style={vehicleTypeChoice === kind
-                                                    ? { background: GRADIENT, color: '#fff' }
-                                                    : { background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
-                                            >
-                                                {VEHICLE_TYPE_LABELS[kind]}
-                                            </button>
-                                        ))}
-                                    </div>
-
                                     <input
                                         type="text"
                                         value={objectDescription}
@@ -2770,108 +2776,133 @@ export default function PedirMotoristaPage() {
                                 </button>
                             )}
 
-                            <div className="rounded-xl px-3 py-2.5 mt-3" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
-                                <span className="text-xs font-bold block mb-2" style={{ color: colors.textPrimary }}>Forma de pagamento</span>
-                                <div className="flex gap-2">
-                                    <button
-                                        onClick={() => { setPaymentMethod('dinheiro'); setCardIsContactless(null) }}
-                                        className="flex-1 py-2.5 rounded-xl text-xs font-bold transition-all"
-                                        style={paymentMethod === 'dinheiro' ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
-                                    >
-                                        Dinheiro
-                                    </button>
-                                    <button
-                                        onClick={() => { setPaymentMethod('pix'); setCashChangeFor(''); setCardIsContactless(null) }}
-                                        className="flex-1 py-2.5 rounded-xl text-xs font-bold transition-all"
-                                        style={paymentMethod === 'pix' ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
-                                    >
-                                        Pix
-                                    </button>
-                                    <button
-                                        onClick={() => { setPaymentMethod('cartao'); setCashChangeFor('') }}
-                                        className="flex-1 py-2.5 rounded-xl text-xs font-bold transition-all"
-                                        style={paymentMethod === 'cartao' ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
-                                    >
-                                        Cartão
-                                    </button>
-                                </div>
-                                {paymentMethod === 'dinheiro' && (
-                                    <input
-                                        type="text"
-                                        inputMode="decimal"
-                                        value={cashChangeFor}
-                                        onChange={(e) => setCashChangeFor(e.target.value.replace(/[^0-9,.]/g, ''))}
-                                        placeholder="Precisa de troco para quanto? (opcional)"
-                                        className="w-full mt-2 px-3 py-2 rounded-lg text-sm focus:outline-none"
-                                        style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
-                                    />
-                                )}
-                                {paymentMethod === 'cartao' && (
-                                    <div className="mt-2">
-                                        <span className="text-xs font-bold block mb-1.5" style={{ color: colors.textSecondary }}>Seu cartão tem aproximação?</span>
-                                        <div className="flex gap-2">
-                                            <button
-                                                onClick={() => setCardIsContactless(true)}
-                                                className="flex-1 py-2 rounded-xl text-xs font-bold transition-all"
-                                                style={cardIsContactless === true ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
-                                            >
-                                                Sim
-                                            </button>
-                                            <button
-                                                onClick={() => setCardIsContactless(false)}
-                                                className="flex-1 py-2 rounded-xl text-xs font-bold transition-all"
-                                                style={cardIsContactless === false ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
-                                            >
-                                                Não
-                                            </button>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-
-                            {!isTwoWheels && (
-                            <div className="rounded-xl px-3 py-2.5 mt-3" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
-                                <div className="flex items-center justify-between gap-2 flex-wrap">
-                                    <span className="flex items-center gap-1.5 text-xs font-bold" style={{ color: colors.textPrimary }}>
-                                        <Wind size={13} style={{ color: colors.accent }} />
-                                        Quero ar condicionado
-                                    </span>
-                                    <div className="flex items-center gap-1.5 flex-shrink-0">
-                                        <button
-                                            onClick={() => setWantsAirConditioning(true)}
-                                            className="px-3 py-1 rounded-full text-[11px] font-black transition-all"
-                                            style={wantsAirConditioning ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
-                                        >
-                                            SIM
-                                        </button>
-                                        <button
-                                            onClick={() => setWantsAirConditioning(false)}
-                                            className="px-3 py-1 rounded-full text-[11px] font-black transition-all"
-                                            style={!wantsAirConditioning ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
-                                        >
-                                            NÃO
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                            )}
-
                             <div className="flex items-center gap-2 mt-4">
                                 <button
-                                    onClick={() => setStep('access')}
+                                    onClick={() => setStep('vehicle')}
                                     className="py-3.5 px-5 rounded-xl font-black uppercase text-sm tracking-wider transition-all active:scale-95"
                                     style={{ background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
                                 >
                                     Voltar
                                 </button>
                                 <button
-                                    onClick={handleRequestConfirm}
-                                    disabled={submitting || !origin.address.trim() || !destination.address.trim()}
-                                    className="flex-1 py-3.5 rounded-xl font-black uppercase text-sm tracking-wider transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:hover:scale-100 flex items-center justify-center gap-2"
+                                    onClick={() => setStep('payment')}
+                                    className="flex-1 py-3.5 rounded-xl font-black uppercase text-sm tracking-wider transition-all hover:scale-[1.02] active:scale-95"
                                     style={{ background: GRADIENT, color: '#fff' }}
                                 >
-                                    {submitting ? <Spinner size={18} /> : <Car size={18} />}
-                                    Pedir motorista
+                                    Continuar
+                                </button>
+                            </div>
+                        </>
+                    )}
+
+                    {/* ===== ETAPA: FORMA DE PAGAMENTO ===== */}
+                    {step === 'payment' && requestFor && (
+                        <>
+                            <h2 className="text-lg font-black mb-1" style={{ color: colors.textPrimary }}>Forma de pagamento</h2>
+                            <p className="text-xs mb-4" style={{ color: colors.textSecondary }}>Toque numa opção pra continuar</p>
+
+                            <div className="grid grid-cols-3 gap-2">
+                                {([
+                                    { value: 'dinheiro' as const, label: 'Dinheiro', icon: Banknote },
+                                    { value: 'pix' as const, label: 'Pix', icon: QrCode },
+                                    { value: 'cartao' as const, label: 'Cartão', icon: CreditCard },
+                                ]).map(({ value, label, icon: Icon }) => {
+                                    const active = paymentMethod === value
+                                    return (
+                                        <button
+                                            key={value}
+                                            type="button"
+                                            onClick={() => {
+                                                setPaymentMethod(value)
+                                                if (value !== 'dinheiro') setCashChangeFor('')
+                                                if (value !== 'cartao') setCardIsContactless(null)
+                                            }}
+                                            className="flex flex-col items-center gap-2 py-5 px-2 rounded-2xl transition-all hover:scale-[1.03] active:scale-95"
+                                            style={active ? { background: GRADIENT } : { background: `${colors.border}30`, border: `1px solid ${colors.border}` }}
+                                        >
+                                            <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: active ? 'rgba(255,255,255,0.25)' : GRADIENT, color: '#fff' }}>
+                                                <Icon size={22} />
+                                            </div>
+                                            <span className="text-xs font-black" style={{ color: active ? '#fff' : colors.textPrimary }}>{label}</span>
+                                        </button>
+                                    )
+                                })}
+                            </div>
+
+                            {paymentMethod === 'dinheiro' && (
+                                <input
+                                    type="text"
+                                    inputMode="decimal"
+                                    value={cashChangeFor}
+                                    onChange={(e) => setCashChangeFor(e.target.value.replace(/[^0-9,.]/g, ''))}
+                                    placeholder="Precisa de troco para quanto? (opcional)"
+                                    className="w-full mt-3 px-3 py-2.5 rounded-lg text-sm focus:outline-none"
+                                    style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                                />
+                            )}
+                            {paymentMethod === 'cartao' && (
+                                <div className="mt-3">
+                                    <span className="text-xs font-bold block mb-1.5" style={{ color: colors.textSecondary }}>Seu cartão tem aproximação?</span>
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => setCardIsContactless(true)}
+                                            className="flex-1 py-2 rounded-xl text-xs font-bold transition-all"
+                                            style={cardIsContactless === true ? { background: GRADIENT, color: '#fff' } : { background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                                        >
+                                            Sim
+                                        </button>
+                                        <button
+                                            onClick={() => setCardIsContactless(false)}
+                                            className="flex-1 py-2 rounded-xl text-xs font-bold transition-all"
+                                            style={cardIsContactless === false ? { background: GRADIENT, color: '#fff' } : { background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                                        >
+                                            Não
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {!isTwoWheels && (
+                                <div className="rounded-xl px-3 py-2.5 mt-3" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
+                                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                                        <span className="flex items-center gap-1.5 text-xs font-bold" style={{ color: colors.textPrimary }}>
+                                            <Wind size={13} style={{ color: colors.accent }} />
+                                            Quero ar condicionado
+                                        </span>
+                                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                                            <button
+                                                onClick={() => setWantsAirConditioning(true)}
+                                                className="px-3 py-1 rounded-full text-[11px] font-black transition-all"
+                                                style={wantsAirConditioning ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                                            >
+                                                SIM
+                                            </button>
+                                            <button
+                                                onClick={() => setWantsAirConditioning(false)}
+                                                className="px-3 py-1 rounded-full text-[11px] font-black transition-all"
+                                                style={!wantsAirConditioning ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                                            >
+                                                NÃO
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="flex items-center gap-2 mt-4">
+                                <button
+                                    onClick={() => setStep('extras')}
+                                    className="py-3.5 px-5 rounded-xl font-black uppercase text-sm tracking-wider transition-all active:scale-95"
+                                    style={{ background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                                >
+                                    Voltar
+                                </button>
+                                <button
+                                    onClick={() => setStep('access')}
+                                    className="flex-1 py-3.5 rounded-xl font-black uppercase text-sm tracking-wider transition-all hover:scale-[1.02] active:scale-95"
+                                    style={{ background: GRADIENT, color: '#fff' }}
+                                >
+                                    Continuar
                                 </button>
                             </div>
                         </>
