@@ -210,8 +210,17 @@ export default function MotoristaSection({ dragHandle, onBreveStatusChange, onUr
             // Tempo real: candidato se candidatando bate applicant_count (via
             // trigger em ride_applications) num UPDATE nesta própria linha, e
             // aceite/"a caminho" também são UPDATE — um único canal cobre tudo.
+            //
+            // Nome com Date.now(): supabase.channel(topic) reaproveita um
+            // canal existente com o mesmo topic (só cria um novo se não
+            // achar nenhum) e removeChannel() é assíncrono — ao desmontar e
+            // remontar rápido (ex: abrir o dashboard da loja e voltar pra
+            // home), o `.channel()` da nova montagem podia pegar o canal
+            // antigo, que já tinha dado subscribe(), e o `.on()` seguinte
+            // quebrava com "cannot add postgres_changes callbacks ... after
+            // subscribe()". Sufixo com timestamp evita essa reutilização.
             channel = supabase
-                .channel(`motorista-section-${userId}`)
+                .channel(`motorista-section-${userId}-${Date.now()}`)
                 .on(
                     'postgres_changes',
                     { event: '*', schema: 'public', table: 'ride_requests', filter: `requester_id=eq.${userId}` },
@@ -257,7 +266,7 @@ export default function MotoristaSection({ dragHandle, onBreveStatusChange, onUr
         loadEta()
 
         const channel = supabase
-            .channel(`motorista-section-live-${driverId}`)
+            .channel(`motorista-section-live-${driverId}-${Date.now()}`)
             .on(
                 'postgres_changes',
                 { event: 'UPDATE', schema: 'public', table: 'driver_pricing', filter: `driver_id=eq.${driverId}` },

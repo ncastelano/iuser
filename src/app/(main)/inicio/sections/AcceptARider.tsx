@@ -293,8 +293,20 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
 
             // Tempo real: aceite, "a caminho" e finalização/cancelamento são
             // todos UPDATE nesta própria linha — um canal cobre tudo.
+            //
+            // Nome com Date.now(): supabase.channel(topic) reaproveita um
+            // canal existente com o mesmo topic em vez de criar um novo (só
+            // cria de fato se não achar nenhum) — e removeChannel() é
+            // assíncrono (espera um unsubscribe() de rede antes de tirar da
+            // lista). Ao navegar rápido pra fora da home e voltar (ex: abrir
+            // o dashboard da loja e voltar), esse efeito desmonta e remonta
+            // antes do removeChannel() da vez anterior terminar, e
+            // `.channel()` devolve o canal antigo — que já tinha dado
+            // subscribe() — daí o erro "cannot add postgres_changes
+            // callbacks ... after subscribe()". Sufixo com timestamp
+            // garante que cada montagem pega um canal genuinamente novo.
             channel = supabase
-                .channel(`canal-motorista-${userId}`)
+                .channel(`canal-motorista-${userId}-${Date.now()}`)
                 .on(
                     'postgres_changes',
                     { event: '*', schema: 'public', table: 'ride_requests', filter: `driver_id=eq.${userId}` },
