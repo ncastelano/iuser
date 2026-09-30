@@ -3,7 +3,10 @@
 
 import Link from 'next/link'
 import { ReactNode, useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { Car, Wrench, Megaphone, type LucideIcon } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
+import { useProfile } from '@/app/contexts/ProfileContext'
 import { categorias, resolveCategoria, type Categoria } from '@/lib/categorias'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
 import { hexToRgb } from '@/lib/color'
@@ -66,11 +69,40 @@ function dismissBadge(slug: string) {
     }
 }
 
+// ===== Ações em destaque: o que o app faz, além de navegar por categoria =====
+interface FeaturedAction {
+    label: string
+    icon: LucideIcon
+    onClick: () => void
+}
+
 export default function CanIhelp({ dragHandle }: CanIhelpProps) {
     const { colors } = useTheme()
+    const router = useRouter()
+    const { profileSlug } = useProfile()
     const startNavProgress = useNavProgressStore((s) => s.start)
     const surfaceRgb = hexToRgb(colors.surface)
     const cardBg = `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`
+
+    // Mesmas rotas já usadas em MotoristaSection/HireAService — "publicar"
+    // sem perfil ainda manda pro login, igual lá.
+    const featuredActions: FeaturedAction[] = [
+        {
+            label: 'Pedir motorista',
+            icon: Car,
+            onClick: () => { startNavProgress(); router.push('/pedir-motorista') },
+        },
+        {
+            label: 'Solicitar serviço',
+            icon: Wrench,
+            onClick: () => { startNavProgress(); router.push('/solicitar-servico') },
+        },
+        {
+            label: 'Publicar serviço',
+            icon: Megaphone,
+            onClick: () => { startNavProgress(); router.push(profileSlug ? '/meus-servicos' : '/login') },
+        },
+    ]
 
     // Ordem inicial = ordem padrão (evita divergência de hidratação); depois
     // do mount, reordena da categoria mais clicada pra menos clicada.
@@ -150,6 +182,30 @@ export default function CanIhelp({ dragHandle }: CanIhelpProps) {
                     willChange: 'transform',
                 }}
             >
+                {/* Ações em destaque — os 3 principais "o que o app faz",
+                    em cards cheios de cor (gradiente) pra se diferenciar
+                    das categorias, que são só ícone/contorno abaixo. */}
+                <div className="grid grid-cols-3 gap-2.5 mb-5">
+                    {featuredActions.map((action) => {
+                        const Icon = action.icon
+                        return (
+                            <button
+                                key={action.label}
+                                onClick={action.onClick}
+                                className="flex flex-col items-center justify-center gap-2 py-4 px-2 rounded-2xl transition-all duration-200 hover:scale-105 active:scale-95"
+                                style={{ background: GRADIENT, boxShadow: '0 4px 14px #f9731650' }}
+                            >
+                                <Icon size={22} color="#fff" strokeWidth={2} />
+                                <span className="text-[11px] font-black text-center leading-tight text-white">
+                                    {action.label}
+                                </span>
+                            </button>
+                        )
+                    })}
+                </div>
+
+                <div className="h-px mb-5" style={{ background: colors.border }} />
+
                 {/* Lista de categorias em wrap - a mais clicada fica primeiro */}
                 <div className="flex flex-wrap gap-3 justify-center">
                     {orderedCategorias.map((cat) => {
