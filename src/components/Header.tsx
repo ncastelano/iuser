@@ -206,8 +206,23 @@ export default function Header({
     const activeTabId = enhancedTabs.find((t) => t.isActive)?.id
     useEffect(() => {
         if (!activeTabId || !tabsScrollRef.current) return
-        const el = tabsScrollRef.current.querySelector(`[data-tab-id="${activeTabId}"]`)
-        el?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
+        const container = tabsScrollRef.current
+        const el = container.querySelector<HTMLElement>(`[data-tab-id="${activeTabId}"]`)
+        if (!el) return
+        // scrollTo direto no container em vez de el.scrollIntoView({ inline:
+        // 'center' }) — esse método, ao tentar centralizar, às vezes sobe
+        // pra um ancestral (a página inteira) em vez de ficar só dentro
+        // desta faixa de abas, cortando o header inteiro pro lado ao trocar
+        // de aba (ex: abrir o dashboard de uma loja). scrollTo aqui nunca
+        // sai deste container.
+        const elLeft = el.offsetLeft
+        const elRight = elLeft + el.offsetWidth
+        const viewLeft = container.scrollLeft
+        const viewRight = viewLeft + container.clientWidth
+        if (elLeft < viewLeft || elRight > viewRight) {
+            const target = elLeft - (container.clientWidth - el.offsetWidth) / 2
+            container.scrollTo({ left: Math.max(0, target), behavior: 'smooth' })
+        }
     }, [activeTabId])
 
     const getTabBackground = (tab: Tab): string => {
