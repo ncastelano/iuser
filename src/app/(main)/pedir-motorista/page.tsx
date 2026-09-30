@@ -1,7 +1,7 @@
 // app/(main)/pedir-motorista/page.tsx
 'use client'
 
-import { useState, useRef, useEffect, useCallback, type ElementType } from 'react'
+import { useState, useRef, useEffect, useCallback, type ElementType, type PointerEvent as ReactPointerEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
@@ -79,6 +79,21 @@ interface RouteOption {
     coords: [number, number][]
     distanceKm: number
     durationMin: number
+}
+
+// Combinação (tipo + destino) que a pessoa já pediu 2+ vezes — vira um
+// atalho de "pedir de novo" na etapa de escolher o tipo, pra não ter que
+// digitar tudo de novo numa corrida que ela já faz com frequência.
+interface FrequentRide {
+    key: string
+    requestFor: RequestFor
+    count: number
+    originAddress: string
+    originCoords: [number, number] | null
+    destinationAddress: string
+    destinationCoords: [number, number] | null
+    stops: { address: string; coords: [number, number] | null }[]
+    vehicleTypeChoice: 'carro' | 'moto' | 'bicicleta' | 'qualquer'
 }
 
 const STEPS: Step[] = ['type', 'where', 'access', 'details']
@@ -445,6 +460,43 @@ export default function PedirMotoristaPage() {
     const [activeRideId, setActiveRideId] = useState<string | null>(null)
     const [checkingActiveRide, setCheckingActiveRide] = useState(true)
 
+    // ===== ALTURA DO CARD INFERIOR, ARRASTÁVEL PELO TRAÇO NO TOPO DELE =====
+    // O traço parecia um "puxador" mas não fazia nada — agora arrasta de
+    // verdade, encolhendo o card pra sobrar mais mapa visível.
+    const SHEET_MIN_VH = 22
+    const SHEET_MAX_VH = 75
+    const [sheetHeightVh, setSheetHeightVh] = useState(SHEET_MAX_VH)
+    const [draggingSheet, setDraggingSheet] = useState(false)
+    const sheetDragStartYRef = useRef(0)
+    const sheetDragStartHeightRef = useRef(SHEET_MAX_VH)
+
+    const handleSheetDragStart = (e: ReactPointerEvent<HTMLDivElement>) => {
+        e.currentTarget.setPointerCapture(e.pointerId)
+        sheetDragStartYRef.current = e.clientY
+        sheetDragStartHeightRef.current = sheetHeightVh
+        setDraggingSheet(true)
+    }
+    const handleSheetDragMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+        if (!draggingSheet) return
+        const deltaVh = ((e.clientY - sheetDragStartYRef.current) / window.innerHeight) * 100
+        const next = Math.min(SHEET_MAX_VH, Math.max(SHEET_MIN_VH, sheetDragStartHeightRef.current - deltaVh))
+        setSheetHeightVh(next)
+    }
+    const handleSheetDragEnd = () => {
+        if (!draggingSheet) return
+        setDraggingSheet(false)
+        // Encaixa no mais próximo: totalmente aberto ou só uma prévia,
+        // sem deixar o card "pela metade" numa altura arbitrária.
+        const midpoint = (SHEET_MIN_VH + SHEET_MAX_VH) / 2
+        setSheetHeightVh(sheetHeightVh < midpoint ? SHEET_MIN_VH : SHEET_MAX_VH)
+    }
+    // Troca de etapa (ou início do acompanhamento) sempre reabre o card
+    // totalmente — senão ele podia continuar encolhido escondendo conteúdo
+    // novo que a pessoa ainda não viu.
+    useEffect(() => {
+        setSheetHeightVh(SHEET_MAX_VH)
+    }, [step, activeRideId])
+
     // ===== ADICIONAIS: PESSOA (além de quem pediu) — cada item é um contador,
     // 0 significa que não tem esse adicional =====
     const [extraPeopleCount, setExtraPeopleCount] = useState(0)
@@ -589,6 +641,62 @@ export default function PedirMotoristaPage() {
             if (places.length > 0) setRecentDestinations(places)
         })
     }, [contextUserId])
+
+    // ===== CORRIDAS FREQUENTES: mesmo tipo + mesmo destino pedidos 2+ vezes,
+    // pra virar atalho de "pedir de novo" na etapa de escolher o tipo =====
+    const [frequentRides, setFrequentRides] = useState<FrequentRide[]>([])
+    useEffect(() => {
+        if (!contextUserId) return
+        supabase
+            .from('ride_requests')
+            .select('ride_type, origin_address, origin_lat, origin_lng, destination_address, destination_lat, destination_lng, stop1_address, stop1_lat, stop1_lng, stop2_address, stop2_lat, stop2_lng, vehicle_type')
+            .eq('requester_id', contextUserId)
+            .order('created_at', { ascending: false })
+            .limit(40)
+            .then(({ data }) => {
+                if (!data) return
+                const byKey = new Map<string, { count: number; row: typeof data[number] }>()
+                for (const row of data) {
+                    if (!row.ride_type || !row.destination_address) continue
+                    const key = `${row.ride_type}|${row.destination_address}`
+                    const existing = byKey.get(key)
+                    if (existing) existing.count += 1
+                    else byKey.set(key, { count: 1, row }) // primeira ocorrência = mais recente (já ordenado desc)
+                }
+                const frequent = Array.from(byKey.entries())
+                    .filter(([, v]) => v.count >= 2)
+                    .sort((a, b) => b[1].count - a[1].count)
+                    .slice(0, 4)
+                    .map(([key, { count, row }]) => ({
+                        key,
+                        requestFor: row.ride_type as RequestFor,
+                        count,
+                        originAddress: row.origin_address || '',
+                        originCoords: row.origin_lat != null && row.origin_lng != null ? [row.origin_lng, row.origin_lat] as [number, number] : null,
+                        destinationAddress: row.destination_address || '',
+                        destinationCoords: row.destination_lat != null && row.destination_lng != null ? [row.destination_lng, row.destination_lat] as [number, number] : null,
+                        stops: [
+                            row.stop1_address ? { address: row.stop1_address, coords: row.stop1_lat != null && row.stop1_lng != null ? [row.stop1_lng, row.stop1_lat] as [number, number] : null } : null,
+                            row.stop2_address ? { address: row.stop2_address, coords: row.stop2_lat != null && row.stop2_lng != null ? [row.stop2_lng, row.stop2_lat] as [number, number] : null } : null,
+                        ].filter((s): s is { address: string; coords: [number, number] | null } => s !== null),
+                        vehicleTypeChoice: (row.vehicle_type === 'moto' || row.vehicle_type === 'bicicleta' || row.vehicle_type === 'qualquer') ? row.vehicle_type : 'carro',
+                    }))
+                setFrequentRides(frequent)
+            })
+    }, [contextUserId])
+
+    const [expandedFrequentRide, setExpandedFrequentRide] = useState<string | null>(null)
+
+    const requestFrequentRideAgain = (fr: FrequentRide) => {
+        setRequestFor(fr.requestFor)
+        setVehicleTypeChoice(fr.vehicleTypeChoice)
+        setOrigin({ address: fr.originAddress, coords: fr.originCoords })
+        setDestination({ address: fr.destinationAddress, coords: fr.destinationCoords })
+        setStops(fr.stops.map((s) => ({ ...s, complement: '', complementOpen: false })))
+        setExpandedFrequentRide(null)
+        setStep('access')
+        toast.success('Endereços preenchidos com os dados da corrida anterior — revise antes de pedir')
+    }
 
     // Cidade da pessoa: a busca de endereço fica restrita a ela. Prefere o
     // GPS; sem GPS, cai pro local de partida já escolhido.
@@ -1506,10 +1614,23 @@ export default function PedirMotoristaPage() {
             {/* Acompanhamento do pedido em andamento — fica nessa página até concluir/cancelar */}
             {!activeField && activeRideId && (
                 <div
-                    className="absolute bottom-0 inset-x-0 z-20 rounded-t-3xl px-5 pt-4 pb-8 max-h-[75vh] overflow-y-auto"
-                    style={{ background: colors.surface, boxShadow: '0 -8px 30px rgba(0,0,0,0.35)' }}
+                    className="absolute bottom-0 inset-x-0 z-20 rounded-t-3xl px-5 pt-4 pb-8 overflow-y-auto"
+                    style={{
+                        background: colors.surface,
+                        boxShadow: '0 -8px 30px rgba(0,0,0,0.35)',
+                        height: `${sheetHeightVh}vh`,
+                        transition: draggingSheet ? 'none' : 'height 0.25s ease-out',
+                    }}
                 >
-                    <div className="w-10 h-1 rounded-full mx-auto mb-4" style={{ background: colors.border }} />
+                    <div
+                        onPointerDown={handleSheetDragStart}
+                        onPointerMove={handleSheetDragMove}
+                        onPointerUp={handleSheetDragEnd}
+                        onPointerCancel={handleSheetDragEnd}
+                        className="flex justify-center py-2.5 mb-1.5 cursor-grab touch-none"
+                    >
+                        <div className="w-10 h-1 rounded-full" style={{ background: colors.border }} />
+                    </div>
                     <RideTrackingPanel rideId={activeRideId} onExit={() => setActiveRideId(null)} map={mapRef.current} mapReady={mapReady} />
                 </div>
             )}
@@ -1523,10 +1644,23 @@ export default function PedirMotoristaPage() {
             {/* Bottom sheet estilo Uber, por etapas */}
             {!activeField && !activeRideId && !checkingActiveRide && (
                 <div
-                    className="absolute bottom-0 inset-x-0 z-20 rounded-t-3xl px-5 pt-4 pb-8 max-h-[75vh] overflow-y-auto"
-                    style={{ background: colors.surface, boxShadow: '0 -8px 30px rgba(0,0,0,0.35)' }}
+                    className="absolute bottom-0 inset-x-0 z-20 rounded-t-3xl px-5 pt-4 pb-8 overflow-y-auto"
+                    style={{
+                        background: colors.surface,
+                        boxShadow: '0 -8px 30px rgba(0,0,0,0.35)',
+                        height: `${sheetHeightVh}vh`,
+                        transition: draggingSheet ? 'none' : 'height 0.25s ease-out',
+                    }}
                 >
-                    <div className="w-10 h-1 rounded-full mx-auto mb-4" style={{ background: colors.border }} />
+                    <div
+                        onPointerDown={handleSheetDragStart}
+                        onPointerMove={handleSheetDragMove}
+                        onPointerUp={handleSheetDragEnd}
+                        onPointerCancel={handleSheetDragEnd}
+                        className="flex justify-center py-2.5 mb-1.5 cursor-grab touch-none"
+                    >
+                        <div className="w-10 h-1 rounded-full" style={{ background: colors.border }} />
+                    </div>
 
                     {/* Indicador de progresso das etapas */}
                     <div className="flex items-center gap-1.5 justify-center mb-4">
@@ -1591,6 +1725,61 @@ export default function PedirMotoristaPage() {
                                     </span>
                                 </button>
                             </div>
+
+                            {/* Corridas que a pessoa já pediu 2+ vezes (mesmo tipo + destino):
+                                atalho pra ver os detalhes e pedir de novo sem digitar tudo. */}
+                            {frequentRides.length > 0 && (
+                                <div className="mt-5">
+                                    <div className="flex items-center gap-1.5 mb-2">
+                                        <History size={13} style={{ color: colors.textSecondary }} />
+                                        <span className="text-xs font-black" style={{ color: colors.textSecondary }}>Corridas frequentes</span>
+                                    </div>
+                                    <div className="flex flex-col gap-2">
+                                        {frequentRides.map((fr) => {
+                                            const isOpen = expandedFrequentRide === fr.key
+                                            const Icon = fr.requestFor === 'pessoa' ? Users : fr.requestFor === 'animal' ? PawPrint : Package
+                                            const label = fr.requestFor === 'pessoa' ? 'Pessoa' : fr.requestFor === 'animal' ? 'Animal' : 'Objeto'
+                                            return (
+                                                <div
+                                                    key={fr.key}
+                                                    className="rounded-2xl overflow-hidden"
+                                                    style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}
+                                                >
+                                                    <button
+                                                        onClick={() => setExpandedFrequentRide(isOpen ? null : fr.key)}
+                                                        className="w-full flex items-center gap-2.5 py-3 px-3 text-left"
+                                                    >
+                                                        <div className="w-9 h-9 flex-shrink-0 rounded-full flex items-center justify-center" style={{ background: GRADIENT, color: '#fff' }}>
+                                                            <Icon size={16} />
+                                                        </div>
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className="text-xs font-black truncate" style={{ color: colors.textPrimary }}>{label} · {fr.destinationAddress}</p>
+                                                            <p className="text-[10px] truncate" style={{ color: colors.textSecondary }}>De: {fr.originAddress}</p>
+                                                        </div>
+                                                        <span
+                                                            className="flex-shrink-0 text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded"
+                                                            style={{ background: `${colors.border}60`, color: colors.textPrimary }}
+                                                        >
+                                                            {fr.count}x
+                                                        </span>
+                                                    </button>
+                                                    {isOpen && (
+                                                        <div className="px-3 pb-3">
+                                                            <button
+                                                                onClick={() => requestFrequentRideAgain(fr)}
+                                                                className="w-full py-2.5 rounded-full font-bold text-xs text-white"
+                                                                style={{ background: GRADIENT }}
+                                                            >
+                                                                Pedir de novo
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+                                </div>
+                            )}
                         </>
                     )}
 
