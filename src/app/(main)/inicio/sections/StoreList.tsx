@@ -29,6 +29,7 @@ import {
     type BusinessHours
 } from '@/lib/storeHours'
 import { toast } from 'sonner'
+import { HomeSectionHeader } from './HomeSectionKit'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -786,31 +787,26 @@ export function StoreList({
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
         >
-            {/* Título com dragHandle e botão "Ver todos" estilo PILLS */}
-            <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                    {dragHandle}
-                    <h2 className="text-lg font-bold" style={{ color: colors.textPrimary }}>
-                        {title}
-                    </h2>
-                </div>
-
-                {/* Botão "Ver todos" estilo PILLS - aparece APENAS se houver produtos */}
-                {hasAnyProduct && (
+            <HomeSectionHeader
+                icon={Store}
+                title={title}
+                subtitle="Perto de você, abertas agora"
+                dragHandle={dragHandle}
+                action={hasAnyProduct ? (
                     <button
                         onClick={() => { startNavProgress(); router.push('/lojas-em-destaque') }}
-                        className="flex items-center gap-2 px-5 py-2 rounded-full text-xs font-bold transition-all hover:scale-105 active:scale-95 hover:shadow-lg whitespace-nowrap"
+                        className="flex items-center gap-2 px-5 py-2 rounded-full text-xs font-bold transition-all hover:scale-105 active:scale-95 hover:shadow-lg whitespace-nowrap flex-shrink-0"
                         style={{
                             background: GRADIENT,
                             color: '#ffffff',
                             boxShadow: `0 2px 8px rgba(249, 115, 22, 0.3)`,
                         }}
                     >
-                        <span>Ver todas as lojas</span>
+                        <span>Ver todas</span>
                         <ArrowRight className="w-3.5 h-3.5" />
                     </button>
-                )}
-            </div>
+                ) : <span />}
+            />
 
             {/* Grid com altura fixa */}
             <div className="relative" style={{ minHeight: '420px' }}>

@@ -7,10 +7,10 @@ import { Sparkles, Wallet, ArrowRight } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { supabase } from '@/lib/supabase/client'
-import { hexToRgb } from '@/lib/color'
+import { HomeGlassCard, HOME_GRADIENT } from './HomeSectionKit'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
-const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
+const GRADIENT = HOME_GRADIENT
 
 interface ActivePlan {
     code: string
@@ -52,7 +52,6 @@ export default function CareerPlans() {
         return () => { cancelled = true }
     }, [userId])
 
-    const surfaceRgb = hexToRgb(colors.surface)
     const isPostpaid = activePlan?.code === 'pos_pago'
 
     const title = !userId
@@ -78,16 +77,7 @@ export default function CareerPlans() {
 
     return (
         <section>
-            <div
-                className="rounded-2xl p-6"
-                style={{
-                    background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
-                    backdropFilter: 'blur(12px)',
-                    WebkitBackdropFilter: 'blur(12px)',
-                    border: `1px solid ${colors.border}`,
-                    boxShadow: colors.shadow,
-                }}
-            >
+            <HomeGlassCard className="p-6">
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                     <div className="flex items-center gap-4">
                         <div
@@ -123,7 +113,7 @@ export default function CareerPlans() {
                         {buttonLabel}
                     </button>
                 </div>
-            </div>
+            </HomeGlassCard>
         </section>
     )
 }

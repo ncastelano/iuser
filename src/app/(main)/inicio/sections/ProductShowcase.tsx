@@ -15,6 +15,7 @@ import { useTheme } from '@/app/contexts/theme'
 import { useRouter } from 'next/navigation'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
 import { supabase } from '@/lib/supabase/client'
+import { HomeSectionHeader } from './HomeSectionKit'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -448,13 +449,7 @@ export default function ProductShowcase({ dragHandle }: ProductShowcaseProps) {
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
         >
-            {/* Título com dragHandle */}
-            <div className="flex items-center gap-2 mb-4 px-1">
-                {dragHandle}
-                <h2 className="text-sm font-black uppercase tracking-wider" style={{ color: colors.textPrimary }}>
-                    Produtos em destaque
-                </h2>
-            </div>
+            <HomeSectionHeader icon={Package} title="Produtos em destaque" subtitle="Separado pra você" dragHandle={dragHandle} />
 
             <div className="flex gap-3">
                 <div className={`flex-1 grid ${gridCols} gap-3`}>

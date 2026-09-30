@@ -4,16 +4,16 @@
 import Link from 'next/link'
 import { ReactNode, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Car, Wrench, Megaphone, type LucideIcon } from 'lucide-react'
+import { Car, Wrench, Megaphone, Sparkles, type LucideIcon } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { categorias, resolveCategoria, type Categoria } from '@/lib/categorias'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
-import { hexToRgb } from '@/lib/color'
+import { HomeSectionHeader, HomeGlassCard, HOME_GRADIENT } from './HomeSectionKit'
 import { supabase } from '@/lib/supabase/client'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
-const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
+const GRADIENT = HOME_GRADIENT
 
 interface CanIhelpProps {
     dragHandle?: ReactNode
@@ -81,8 +81,6 @@ export default function CanIhelp({ dragHandle }: CanIhelpProps) {
     const router = useRouter()
     const { profileSlug } = useProfile()
     const startNavProgress = useNavProgressStore((s) => s.start)
-    const surfaceRgb = hexToRgb(colors.surface)
-    const cardBg = `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`
 
     // Mesmas rotas já usadas em MotoristaSection/HireAService — "publicar"
     // sem perfil ainda manda pro login, igual lá.
@@ -163,25 +161,9 @@ export default function CanIhelp({ dragHandle }: CanIhelpProps) {
 
     return (
         <section>
-            <div className="flex items-center gap-2 mb-4">
-                {dragHandle}
-                <h2 className="text-lg font-bold" style={{ color: colors.textPrimary }}>
-                    Categorias
-                </h2>
-            </div>
+            <HomeSectionHeader icon={Sparkles} title="Categorias" subtitle="Ações rápidas e onde procurar" dragHandle={dragHandle} />
 
-            <div
-                className="rounded-2xl p-6"
-                style={{
-                    background: cardBg,
-                    backdropFilter: 'blur(12px)',
-                    WebkitBackdropFilter: 'blur(12px)',
-                    border: `1px solid ${colors.border}`,
-                    boxShadow: colors.shadow,
-                    transform: 'translateZ(0)',
-                    willChange: 'transform',
-                }}
-            >
+            <HomeGlassCard className="p-6">
                 {/* Ações em destaque — os 3 principais "o que o app faz",
                     em cards cheios de cor (gradiente) pra se diferenciar
                     das categorias, que são só ícone/contorno abaixo. */}
@@ -276,7 +258,7 @@ export default function CanIhelp({ dragHandle }: CanIhelpProps) {
                         )
                     })}
                 </div>
-            </div>
+            </HomeGlassCard>
 
             <style jsx>{`
                 @keyframes badge-pop {

@@ -4,10 +4,10 @@
 import { ReactNode, useState, useEffect } from 'react'
 import { Settings2, Save, RotateCcw, X, Layout } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
-import { hexToRgb } from '@/lib/color'
+import { HomeGlassCard, HOME_GRADIENT } from '@/app/(main)/inicio/sections/HomeSectionKit'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
-const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
+const GRADIENT = HOME_GRADIENT
 
 interface OrderSectionProps {
     dragHandle?: ReactNode
@@ -81,10 +81,6 @@ export default function OrderSection({
         )
     }
 
-    // Renderização normal do cliente após hidratação
-    const surfaceRgb = hexToRgb(colors.surface)
-    const cardBg = `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`
-
     // ===== STYLE PARA BOTÕES PILL =====
     const pillButtonStyle: React.CSSProperties = {
         display: 'flex',
@@ -132,16 +128,7 @@ export default function OrderSection({
 
     return (
         <section>
-            <div
-                className="rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4"
-                style={{
-                    background: cardBg,
-                    backdropFilter: 'blur(12px)',
-                    WebkitBackdropFilter: 'blur(12px)',
-                    border: `1px solid ${colors.border}`,
-                    boxShadow: colors.shadow,
-                }}
-            >
+            <HomeGlassCard className="p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div className="flex items-center gap-4">
                     {dragHandle && <div>{dragHandle}</div>}
 
@@ -229,7 +216,7 @@ export default function OrderSection({
                         </button>
                     </div>
                 )}
-            </div>
+            </HomeGlassCard>
 
             {isEditing && (
                 <div className="mt-3 px-1">

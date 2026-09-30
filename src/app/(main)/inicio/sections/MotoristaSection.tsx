@@ -8,11 +8,11 @@ import { Car, MapPin, Search, CheckCircle2, CalendarClock, Navigation } from 'lu
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { supabase } from '@/lib/supabase/client'
-import { hexToRgb } from '@/lib/color'
 import { getAvatarUrl } from '@/lib/avatar'
 import { fetchRoute } from '@/lib/mapboxRoute'
 import { buildRideSpecRows } from '@/lib/rideSpecs'
 import RideChat from '@/components/RideChat'
+import { HomeGlassCard } from './HomeSectionKit'
 
 interface RecentRideTrip {
     originAddress: string
@@ -306,8 +306,6 @@ export default function MotoristaSection({ dragHandle, onBreveStatusChange, onUr
         router.push(`/pedir-motorista?${params.toString()}`)
     }
 
-    const surfaceRgb = hexToRgb(colors.surface)
-
     const buttonStyle = {
         display: 'flex',
         alignItems: 'center',
@@ -329,18 +327,7 @@ export default function MotoristaSection({ dragHandle, onBreveStatusChange, onUr
 
     return (
         <section>
-            <div
-                className="rounded-2xl p-6 relative"
-                style={{
-                    background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
-                    backdropFilter: 'blur(12px)',
-                    WebkitBackdropFilter: 'blur(12px)',
-                    border: `1px solid ${colors.border}`,
-                    boxShadow: colors.shadow,
-                    transform: 'translateZ(0)',
-                    willChange: 'transform',
-                }}
-            >
+            <HomeGlassCard className="p-6 relative">
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                     <div className="flex items-center gap-4">
                         {dragHandle && <div>{dragHandle}</div>}
@@ -494,7 +481,7 @@ export default function MotoristaSection({ dragHandle, onBreveStatusChange, onUr
                         </div>
                     )
                 )}
-            </div>
+            </HomeGlassCard>
         </section>
     )
 }

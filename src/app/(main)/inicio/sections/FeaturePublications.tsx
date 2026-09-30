@@ -2,12 +2,13 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback, useMemo, ReactNode } from 'react'
-import { ChevronLeft, ChevronRight, Store, ArrowRight, UserCircle } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Store, ArrowRight, UserCircle, MessageCircle } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import { useRouter } from 'next/navigation'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
 import { supabase } from '@/lib/supabase/client'
 import { getAvatarUrl } from '@/lib/avatar'
+import { HomeSectionHeader } from './HomeSectionKit'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -368,36 +369,26 @@ export default function FeaturedPublications({
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
         >
-            {/* Título */}
-            <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                    {dragHandle}
-                    <h2 className="text-lg font-bold" style={{ color: colors.textPrimary }}>
-                        {title}
-                    </h2>
-                    <span className="text-xs px-2 py-0.5 rounded-full" style={{
-                        background: `${colors.accent}20`,
-                        color: colors.accent
-                    }}>
-                        {publications.length}
-                    </span>
-                </div>
-
-                {hasPublications && (
+            <HomeSectionHeader
+                icon={MessageCircle}
+                title={title || 'Publicações em destaque'}
+                subtitle={`${publications.length} ${publications.length === 1 ? 'publicação' : 'publicações'}`}
+                dragHandle={dragHandle}
+                action={hasPublications ? (
                     <button
                         onClick={handleViewAll}
-                        className="flex items-center gap-2 px-5 py-2 rounded-full text-xs font-bold transition-all hover:scale-105 active:scale-95 hover:shadow-lg whitespace-nowrap"
+                        className="flex items-center gap-2 px-5 py-2 rounded-full text-xs font-bold transition-all hover:scale-105 active:scale-95 hover:shadow-lg whitespace-nowrap flex-shrink-0"
                         style={{
                             background: GRADIENT,
                             color: '#ffffff',
                             boxShadow: `0 2px 8px rgba(249, 115, 22, 0.3)`,
                         }}
                     >
-                        <span>Ver todas as publicações</span>
+                        <span>Ver todas</span>
                         <ArrowRight className="w-3.5 h-3.5" />
                     </button>
-                )}
-            </div>
+                ) : <span />}
+            />
 
             {/* Grid de publicações */}
             <div className="relative">
