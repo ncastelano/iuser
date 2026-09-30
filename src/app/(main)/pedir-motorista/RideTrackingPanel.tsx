@@ -370,7 +370,12 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady }: Rid
     const candidateLayerIdsRef = useRef<string[]>([])
 
     useEffect(() => {
-        if (!map || !mapReady || !ride) return
+        // `map.style` só some depois de `map.remove()` — pode acontecer entre
+        // um render e o cleanup deste efeito (ex.: StrictMode remontando o
+        // mapa da página, ou este painel desmontando bem na hora em que a
+        // página também está trocando de mapa). Sem essa checagem, getLayer/
+        // getSource explodem tentando ler propriedade de style undefined.
+        if (!map || !mapReady || !ride || !map.style) return
 
         // Limpeza defensiva: some pelo ESTILO do mapa, não só pelo que o ref
         // acha que adicionou — se uma execução anterior travou no meio (ex.:
@@ -469,10 +474,12 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady }: Rid
         return () => {
             candidateMarkersRef.current.forEach((m) => m.remove())
             candidateMarkersRef.current = []
-            candidateLayerIdsRef.current.forEach((id) => {
-                if (map.getLayer(id)) map.removeLayer(id)
-                if (map.getSource(id)) map.removeSource(id)
-            })
+            if (map.style) {
+                candidateLayerIdsRef.current.forEach((id) => {
+                    if (map.getLayer(id)) map.removeLayer(id)
+                    if (map.getSource(id)) map.removeSource(id)
+                })
+            }
             candidateLayerIdsRef.current = []
         }
     }, [map, mapReady, candidates, ride, tripRouteCoords])
