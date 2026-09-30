@@ -461,40 +461,64 @@ export default function PedirMotoristaPage() {
     const [checkingActiveRide, setCheckingActiveRide] = useState(true)
 
     // ===== ALTURA DO CARD INFERIOR, ARRASTÁVEL PELO TRAÇO NO TOPO DELE =====
-    // O traço parecia um "puxador" mas não fazia nada — agora arrasta de
-    // verdade, encolhendo o card pra sobrar mais mapa visível.
+    // "Aberto" não é mais um valor fixo (75vh): acompanha a altura real do
+    // conteúdo (via ResizeObserver), limitado a 75vh — assim o card nunca
+    // sobra com espaço vazio embaixo quando o conteúdo é curto, e só
+    // aparece scroll quando o conteúdo realmente não cabe. O traço continua
+    // arrastável pra encolher o card até um mínimo e ver mais mapa.
     const SHEET_MIN_VH = 22
     const SHEET_MAX_VH = 75
-    const [sheetHeightVh, setSheetHeightVh] = useState(SHEET_MAX_VH)
+    const SHEET_PADDING_PX = 48 // pt-4 (16px) + pb-8 (32px) do container, não incluído na medição do conteúdo
+    const [contentHeightPx, setContentHeightPx] = useState(0)
+    const sheetResizeObserverRef = useRef<ResizeObserver | null>(null)
+    const setSheetContentRef = useCallback((node: HTMLDivElement | null) => {
+        if (sheetResizeObserverRef.current) {
+            sheetResizeObserverRef.current.disconnect()
+            sheetResizeObserverRef.current = null
+        }
+        if (!node) return
+        setContentHeightPx(node.scrollHeight)
+        const ro = new ResizeObserver(() => setContentHeightPx(node.scrollHeight))
+        ro.observe(node)
+        sheetResizeObserverRef.current = ro
+    }, [])
+    const openHeightVh = contentHeightPx > 0
+        ? Math.min(SHEET_MAX_VH, Math.max(SHEET_MIN_VH, ((contentHeightPx + SHEET_PADDING_PX) / window.innerHeight) * 100))
+        : SHEET_MAX_VH
+
+    const [sheetOpen, setSheetOpen] = useState(true)
     const [draggingSheet, setDraggingSheet] = useState(false)
+    const [dragHeightVh, setDragHeightVh] = useState(SHEET_MAX_VH)
     const sheetDragStartYRef = useRef(0)
     const sheetDragStartHeightRef = useRef(SHEET_MAX_VH)
+    const sheetHeightVh = draggingSheet ? dragHeightVh : (sheetOpen ? openHeightVh : SHEET_MIN_VH)
 
     const handleSheetDragStart = (e: ReactPointerEvent<HTMLDivElement>) => {
         e.currentTarget.setPointerCapture(e.pointerId)
         sheetDragStartYRef.current = e.clientY
         sheetDragStartHeightRef.current = sheetHeightVh
+        setDragHeightVh(sheetHeightVh)
         setDraggingSheet(true)
     }
     const handleSheetDragMove = (e: ReactPointerEvent<HTMLDivElement>) => {
         if (!draggingSheet) return
         const deltaVh = ((e.clientY - sheetDragStartYRef.current) / window.innerHeight) * 100
-        const next = Math.min(SHEET_MAX_VH, Math.max(SHEET_MIN_VH, sheetDragStartHeightRef.current - deltaVh))
-        setSheetHeightVh(next)
+        const next = Math.min(openHeightVh, Math.max(SHEET_MIN_VH, sheetDragStartHeightRef.current - deltaVh))
+        setDragHeightVh(next)
     }
     const handleSheetDragEnd = () => {
         if (!draggingSheet) return
         setDraggingSheet(false)
-        // Encaixa no mais próximo: totalmente aberto ou só uma prévia,
-        // sem deixar o card "pela metade" numa altura arbitrária.
-        const midpoint = (SHEET_MIN_VH + SHEET_MAX_VH) / 2
-        setSheetHeightVh(sheetHeightVh < midpoint ? SHEET_MIN_VH : SHEET_MAX_VH)
+        // Encaixa no mais próximo: totalmente aberto (do tamanho do
+        // conteúdo) ou só uma prévia, sem deixar o card "pela metade".
+        const midpoint = (SHEET_MIN_VH + openHeightVh) / 2
+        setSheetOpen(dragHeightVh >= midpoint)
     }
-    // Troca de etapa (ou início do acompanhamento) sempre reabre o card
-    // totalmente — senão ele podia continuar encolhido escondendo conteúdo
-    // novo que a pessoa ainda não viu.
+    // Troca de etapa (ou início do acompanhamento) sempre reabre o card —
+    // senão ele podia continuar encolhido escondendo conteúdo novo que a
+    // pessoa ainda não viu.
     useEffect(() => {
-        setSheetHeightVh(SHEET_MAX_VH)
+        setSheetOpen(true)
     }, [step, activeRideId])
 
     // ===== ADICIONAIS: PESSOA (além de quem pediu) — cada item é um contador,
@@ -1622,16 +1646,18 @@ export default function PedirMotoristaPage() {
                         transition: draggingSheet ? 'none' : 'height 0.25s ease-out',
                     }}
                 >
-                    <div
-                        onPointerDown={handleSheetDragStart}
-                        onPointerMove={handleSheetDragMove}
-                        onPointerUp={handleSheetDragEnd}
-                        onPointerCancel={handleSheetDragEnd}
-                        className="flex justify-center py-2.5 mb-1.5 cursor-grab touch-none"
-                    >
-                        <div className="w-10 h-1 rounded-full" style={{ background: colors.border }} />
+                    <div ref={setSheetContentRef}>
+                        <div
+                            onPointerDown={handleSheetDragStart}
+                            onPointerMove={handleSheetDragMove}
+                            onPointerUp={handleSheetDragEnd}
+                            onPointerCancel={handleSheetDragEnd}
+                            className="flex justify-center py-2.5 mb-1.5 cursor-grab touch-none"
+                        >
+                            <div className="w-10 h-1 rounded-full" style={{ background: colors.border }} />
+                        </div>
+                        <RideTrackingPanel rideId={activeRideId} onExit={() => setActiveRideId(null)} map={mapRef.current} mapReady={mapReady} />
                     </div>
-                    <RideTrackingPanel rideId={activeRideId} onExit={() => setActiveRideId(null)} map={mapRef.current} mapReady={mapReady} />
                 </div>
             )}
 
@@ -1652,6 +1678,7 @@ export default function PedirMotoristaPage() {
                         transition: draggingSheet ? 'none' : 'height 0.25s ease-out',
                     }}
                 >
+                    <div ref={setSheetContentRef}>
                     <div
                         onPointerDown={handleSheetDragStart}
                         onPointerMove={handleSheetDragMove}
@@ -2863,6 +2890,7 @@ export default function PedirMotoristaPage() {
                             </div>
                         </>
                     )}
+                    </div>
                 </div>
             )}
         </div>

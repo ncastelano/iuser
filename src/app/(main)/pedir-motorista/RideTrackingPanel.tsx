@@ -13,7 +13,7 @@ import { Check, X, MapPin, Search, CheckCircle2, XCircle, Car, CalendarClock, Cl
 import { fetchRoute } from '@/lib/mapboxRoute'
 import { DRIVER_SERVICE_OPTIONS } from '@/lib/driverServices'
 import RideChat from '@/components/RideChat'
-import { kindForRideType, type VehicleType } from '@/lib/rideVehicle'
+import { kindForRideType, VEHICLE_TYPE_LABELS, type VehicleType } from '@/lib/rideVehicle'
 import { notifyRideStatus } from '@/lib/notifyRideStatus'
 import { playNotificationSound } from '@/lib/rideAlertSound'
 import { handleShareLink } from '@/lib/share'
@@ -90,11 +90,10 @@ interface Candidate {
     store: CandidateStore | null
 }
 
-interface DriverInfo {
-    name: string | null
-    profileSlug: string | null
-    avatarUrl: string | undefined
-}
+// Mesma ficha do candidato (foto, carro, placa, avaliação, lojinha) —
+// depois de aceito ele é só um "candidato aceito", os dados já foram
+// buscados junto dos outros candidatos em load().
+type DriverInfo = Candidate
 
 interface RideTrackingPanelProps {
     rideId: string
@@ -295,8 +294,24 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady }: Rid
         setCandidates(nextCandidates)
 
         if (rideRow.driver_id) {
-            const p = profilesById.get(rideRow.driver_id)
-            setDriver({ name: p?.name || null, profileSlug: p?.profileSlug || null, avatarUrl: getAvatarUrl(supabase, p?.avatar_url) })
+            // O motorista aceito é sempre um dos candidatos (aceitar exige
+            // ter se candidatado antes) — reaproveita a ficha já montada
+            // acima em vez de buscar tudo de novo.
+            const accepted = nextCandidates.find((c) => c.applicantId === rideRow.driver_id)
+            if (accepted) {
+                setDriver(accepted)
+            } else {
+                const p = profilesById.get(rideRow.driver_id)
+                const vehicle = vehiclesById.get(rideRow.driver_id)
+                setDriver({
+                    applicationId: '', applicantId: rideRow.driver_id, status: 'accepted', proposedPrice: null,
+                    name: p?.name || null, profileSlug: p?.profileSlug || null, avatarUrl: getAvatarUrl(supabase, p?.avatar_url),
+                    lat: null, lng: null, etaMin: null, etaDistanceKm: null, routeCoords: null,
+                    carModel: vehicle?.car_model || null, carColor: vehicle?.car_color || null, carPlate: vehicle?.car_plate || null,
+                    carPhotoUrl: vehicle?.car_photo_url ? supabase.storage.from('driver-car-photos').getPublicUrl(vehicle.car_photo_url).data.publicUrl : undefined,
+                    services: vehicle?.services || [], ratingAvg: null, ratingCount: 0, lastComment: null, store: null,
+                })
+            }
         } else {
             setDriver(null)
         }
@@ -739,24 +754,121 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady }: Rid
                 </div>
             )}
 
-            {/* Motorista aceito */}
+            {/* Motorista aceito — mesma ficha do card de candidatura, só que
+                horizontal e mais completa: dá pra saber exatamente o que
+                foi aceito (carro, placa, especificações) antes de entrar. */}
             {ride.status === 'accepted' && driver && (
-                <div className="flex items-center gap-3 px-4 py-3 rounded-xl" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
-                    {driver.avatarUrl ? (
-                        <img src={driver.avatarUrl} className="w-11 h-11 rounded-full object-cover flex-shrink-0" alt="" />
-                    ) : (
-                        <div className="w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#fff' }}>
-                            <Car size={18} />
+                <div className="flex flex-col gap-3 px-4 py-3.5 rounded-2xl" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
+                    {/* Motorista: foto quadrada + nome + avaliação + preço aceito */}
+                    <div className="flex items-center gap-3">
+                        {driver.avatarUrl ? (
+                            <img src={driver.avatarUrl} className="w-14 h-14 rounded-xl object-cover flex-shrink-0" alt="" />
+                        ) : (
+                            <div className="w-14 h-14 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#fff' }}>
+                                <Car size={22} />
+                            </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                            <p className="text-sm font-black truncate" style={{ color: colors.textPrimary }}>
+                                {driver.name || (driver.profileSlug ? `@${driver.profileSlug}` : 'Motorista')}
+                            </p>
+                            {driver.ratingCount > 0 && (
+                                <span className="text-[11px] font-black" style={{ color: '#f97316' }}>
+                                    {'★'.repeat(Math.round(driver.ratingAvg || 0))}{'☆'.repeat(5 - Math.round(driver.ratingAvg || 0))} {(driver.ratingAvg || 0).toFixed(1)} ({driver.ratingCount})
+                                </span>
+                            )}
                         </div>
-                    )}
-                    <div className="min-w-0">
-                        <p className="text-sm font-black truncate" style={{ color: colors.textPrimary }}>
-                            {driver.name || (driver.profileSlug ? `@${driver.profileSlug}` : 'Motorista')}
-                        </p>
-                        <p className="text-[11px]" style={{ color: colors.textSecondary }}>
-                            {ride.ride_started_at ? 'Aproveite a viagem!' : 'Confira a placa e a cor do carro antes de entrar.'}
-                        </p>
+                        {driver.proposedPrice != null && (
+                            <span className="text-base font-black flex-shrink-0" style={{ color: '#f97316' }}>
+                                R$ {driver.proposedPrice.toFixed(2)}
+                            </span>
+                        )}
                     </div>
+
+                    {/* Carro: foto quadrada + modelo/cor + placa — o que conferir antes de entrar */}
+                    <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
+                        {driver.carPhotoUrl ? (
+                            <img src={driver.carPhotoUrl} className="w-12 h-12 rounded-lg object-cover flex-shrink-0" alt="" />
+                        ) : (
+                            <div className="w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: `${colors.border}30` }}>
+                                <Car size={18} style={{ color: colors.textSecondary }} />
+                            </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                            <p className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>
+                                {[driver.carModel, driver.carColor].filter(Boolean).join(' · ') || 'Veículo não informado'}
+                            </p>
+                            <p className="text-[10px]" style={{ color: colors.textSecondary }}>
+                                {ride.ride_started_at ? 'Aproveite a viagem!' : 'Confira a placa e a cor do carro antes de entrar'}
+                            </p>
+                        </div>
+                        {driver.carPlate && (
+                            <span
+                                className="flex-shrink-0 text-xs font-black uppercase tracking-wider px-2 py-1 rounded-lg"
+                                style={{ background: `${colors.border}60`, color: colors.textPrimary }}
+                            >
+                                {driver.carPlate}
+                            </span>
+                        )}
+                    </div>
+
+                    {/* O que foi aceito: especificações da corrida, pra saber
+                        exatamente o que contratou */}
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold" style={{ background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}>
+                            <Car size={11} />
+                            {VEHICLE_TYPE_LABELS[ride.vehicle_type]}
+                        </span>
+                        {ride.duration_min != null && (
+                            <span className="flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold" style={{ background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}>
+                                <Clock size={11} />
+                                ~{Math.round(ride.duration_min)} min de viagem
+                            </span>
+                        )}
+                        {driver.services.map((sid) => {
+                            const opt = DRIVER_SERVICE_OPTIONS.find((o) => o.id === sid)
+                            if (!opt) return null
+                            const Icon = opt.icon
+                            return (
+                                <span key={sid} className="flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold" style={{ background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}>
+                                    <Icon size={11} />
+                                    {opt.label}
+                                </span>
+                            )
+                        })}
+                    </div>
+
+                    {/* Incentivo pra conhecer a lojinha do motorista, se ele tiver */}
+                    {driver.store && (driver.store.slug || driver.profileSlug) && (
+                        <a
+                            href={`/${driver.store.slug || driver.profileSlug}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl transition-opacity hover:opacity-85"
+                            style={{ background: colors.surface, border: `1px solid ${colors.border}` }}
+                        >
+                            {driver.store.logoUrl ? (
+                                <img src={driver.store.logoUrl} className="w-9 h-9 rounded-lg object-cover flex-shrink-0" alt="" />
+                            ) : (
+                                <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: `${colors.border}30` }}>
+                                    <Store size={16} style={{ color: colors.textSecondary }} />
+                                </div>
+                            )}
+                            <div className="min-w-0 flex-1">
+                                <p className="text-[11px] font-black truncate" style={{ color: colors.textPrimary }}>{driver.store.name}</p>
+                                <p className="text-[10px]" style={{ color: colors.textSecondary }}>Seu motorista também vende aqui — dá uma olhada</p>
+                            </div>
+                            {driver.store.products.length > 0 && (
+                                <div className="flex -space-x-1.5 flex-shrink-0">
+                                    {driver.store.products.map((prod) => (
+                                        <div key={prod.id} className="w-6 h-6 rounded-md overflow-hidden flex-shrink-0" style={{ background: `${colors.border}30`, border: `1px solid ${colors.surface}` }} title={prod.name}>
+                                            {prod.imageUrl && <img src={prod.imageUrl} className="w-full h-full object-cover" alt="" />}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </a>
+                    )}
                 </div>
             )}
 
