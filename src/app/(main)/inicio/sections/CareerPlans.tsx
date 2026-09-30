@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Sparkles, Wallet, ArrowRight } from 'lucide-react'
+import { Sparkles, Check, Zap } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { supabase } from '@/lib/supabase/client'
@@ -12,108 +12,167 @@ import { HomeGlassCard, HOME_GRADIENT } from './HomeSectionKit'
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = HOME_GRADIENT
 
-interface ActivePlan {
+interface PlanRow {
+    id: string
     code: string
     name: string
+    price: number
+    description: string | null
+    features: string[] | null
+    billing_cycle: string
 }
 
+interface ActiveSub {
+    plan_id: string
+    current_period_end: string | null
+}
+
+const CYCLE_LABEL: Record<string, string> = {
+    WEEKLY: '/semana',
+    BIWEEKLY: '/quinzena',
+    MONTHLY: '/mês',
+    QUARTERLY: '/trimestre',
+    SEMIANNUALLY: '/semestre',
+    YEARLY: '/ano',
+}
+
+// Card com o mesmo visual do "Planos" do /modelodehomepage (tier-card com
+// checklist e gradiente), mas mostrando só o plano que se aplica à pessoa
+// agora — o ativo, ou o recomendado (pré-pago) se ela ainda não tem nenhum
+// — em vez das 3 fictícias do modelo.
 export default function CareerPlans() {
     const { colors } = useTheme()
     const router = useRouter()
     const { userId } = useProfile()
-    const [loading, setLoading] = useState(true)
-    const [activePlan, setActivePlan] = useState<ActivePlan | null>(null)
 
-    // Só 2 produtos de verdade hoje (Pré-pago/Pós-pago) — busca direto qual
-    // dos dois a pessoa tem, mesmo padrão de /planos/page.tsx, em vez de
-    // mostrar os 4 badges antigos (motorista/prestador/loja/recrutador) que
-    // eram de quando existiam 5+ planos separados.
+    const [plans, setPlans] = useState<PlanRow[]>([])
+    const [plansLoading, setPlansLoading] = useState(true)
+    const [activeSub, setActiveSub] = useState<ActiveSub | null>(null)
+    const [subLoading, setSubLoading] = useState(true)
+
+    useEffect(() => {
+        let cancelled = false
+        supabase
+            .from('plans')
+            .select('id, code, name, price, description, features, billing_cycle')
+            .eq('is_active', true)
+            .then(({ data }) => {
+                if (cancelled) return
+                setPlans(data || [])
+                setPlansLoading(false)
+            })
+        return () => { cancelled = true }
+    }, [])
+
     useEffect(() => {
         if (!userId) {
-            setActivePlan(null)
-            setLoading(false)
+            setActiveSub(null)
+            setSubLoading(false)
             return
         }
         let cancelled = false
-        setLoading(true)
+        setSubLoading(true)
         supabase
             .from('subscriptions')
-            .select('status, current_period_end, plans(code, name)')
+            .select('plan_id, status, current_period_end')
             .eq('user_id', userId)
             .eq('status', 'active')
             .then(({ data }) => {
                 if (cancelled) return
                 const now = Date.now()
                 const row = (data || []).find((s: any) => s.current_period_end && new Date(s.current_period_end).getTime() > now)
-                const plan = (row as any)?.plans as ActivePlan | ActivePlan[] | undefined
-                setActivePlan(Array.isArray(plan) ? plan[0] || null : plan || null)
-                setLoading(false)
+                setActiveSub(row ? { plan_id: row.plan_id, current_period_end: row.current_period_end } : null)
+                setSubLoading(false)
             })
         return () => { cancelled = true }
     }, [userId])
 
-    const isPostpaid = activePlan?.code === 'pos_pago'
-
-    const title = !userId
-        ? 'Entre pra ver seu plano'
-        : loading
-            ? 'Carregando...'
-            : activePlan
-                ? activePlan.name
-                : 'Nenhum plano ativo'
-
-    const subtitle = !userId
-        ? 'Entre pra ver qual plano você tem e o que ele libera.'
-        : loading
-            ? ''
-            : activePlan
-                ? isPostpaid
-                    ? 'Sem mensalidade — você paga por serviço, veja seu extrato.'
-                    : 'Mensalidade única — motorista, prestador, loja e recrutador liberados.'
-                : 'Assine o Pré-pago ou ative o Pós-pago pra liberar motorista, prestador, loja e recrutador.'
-
-    const buttonLabel = activePlan ? 'Ver detalhes' : 'Ver planos'
+    const loading = plansLoading || subLoading
+    const activePlan = activeSub ? plans.find((p) => p.id === activeSub.plan_id) || null : null
+    const recommendedPlan = plans.find((p) => p.code === 'pre_pago') || plans[0] || null
+    const displayPlan = activePlan || recommendedPlan
+    const isActive = !!activePlan
+    const isPostpaid = displayPlan?.code === 'pos_pago'
     const destination = isPostpaid ? '/planos/pos-pago' : '/planos'
+    const priceLabel = isPostpaid ? 'R$ 0,50' : displayPlan ? `R$ ${displayPlan.price.toFixed(2)}` : ''
+    const periodLabel = isPostpaid ? 'por uso' : displayPlan ? (CYCLE_LABEL[displayPlan.billing_cycle] || '/mês') : ''
 
-    return (
-        <section>
-            <HomeGlassCard className="p-6">
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+    if (!userId) {
+        return (
+            <section>
+                <HomeGlassCard className="p-6">
                     <div className="flex items-center gap-4">
                         <div
                             className="w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0"
-                            style={{ background: activePlan ? '#22c55e' : GRADIENT, color: '#ffffff', boxShadow: `0 4px 12px #f9731640` }}
+                            style={{ background: GRADIENT, color: '#ffffff', boxShadow: `0 4px 12px #f9731640` }}
                         >
-                            {isPostpaid ? <Wallet size={28} /> : <Sparkles size={28} />}
+                            <Sparkles size={28} />
                         </div>
-
                         <div>
-                            <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
-                                {title}
-                            </h3>
-                            {subtitle && (
-                                <p className="text-sm mt-1" style={{ color: colors.textSecondary }}>
-                                    {subtitle}
-                                </p>
-                            )}
+                            <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>Entre pra ver seu plano</h3>
+                            <p className="text-sm mt-1" style={{ color: colors.textSecondary }}>Veja qual plano você tem e o que ele libera.</p>
                         </div>
                     </div>
-
                     <button
-                        onClick={() => router.push(destination)}
-                        className="flex items-center justify-center gap-2 px-6 py-3 rounded-full font-bold text-sm transition-all shadow-lg whitespace-nowrap hover:scale-105 active:scale-95 flex-shrink-0"
-                        style={{
-                            background: GRADIENT,
-                            color: '#ffffff',
-                            border: 'none',
-                            boxShadow: `0 4px 12px #f9731640`,
-                        }}
+                        onClick={() => router.push('/planos')}
+                        className="mt-4 w-full flex items-center justify-center gap-2 px-6 py-3 rounded-full font-bold text-sm transition-all hover:scale-105 active:scale-95"
+                        style={{ background: GRADIENT, color: '#ffffff', boxShadow: `0 4px 12px #f9731640` }}
                     >
-                        {activePlan ? <ArrowRight size={16} /> : <Sparkles size={16} />}
-                        {buttonLabel}
+                        <Sparkles size={16} />
+                        Ver planos
                     </button>
+                </HomeGlassCard>
+            </section>
+        )
+    }
+
+    if (loading || !displayPlan) {
+        return (
+            <section>
+                <div className="rounded-3xl animate-pulse" style={{ background: `${colors.border}30`, height: 230 }} />
+            </section>
+        )
+    }
+
+    return (
+        <section>
+            <div
+                className="relative rounded-3xl p-5 flex flex-col"
+                style={{ background: GRADIENT, boxShadow: '0 10px 30px #f9731650' }}
+            >
+                <span
+                    className="absolute -top-2.5 left-1/2 -translate-x-1/2 text-[9px] font-black uppercase tracking-wider px-3 py-1 rounded-full text-white flex items-center gap-1 whitespace-nowrap"
+                    style={{ background: '#111827' }}
+                >
+                    {isActive ? <Check size={10} /> : <Zap size={10} />}
+                    {isActive ? 'Seu plano' : 'Recomendado'}
+                </span>
+
+                <p className="text-sm font-black text-white mb-1">{displayPlan.name}</p>
+                <div className="flex items-end gap-1 mb-4">
+                    <span className="text-2xl font-black text-white">{priceLabel}</span>
+                    <span className="text-xs opacity-60 mb-0.5 text-white">{periodLabel}</span>
                 </div>
-            </HomeGlassCard>
+
+                {displayPlan.features && displayPlan.features.length > 0 && (
+                    <div className="flex flex-col gap-2 flex-1 mb-4">
+                        {displayPlan.features.map((f) => (
+                            <div key={f} className="flex items-start gap-1.5">
+                                <Check size={13} className="mt-0.5 flex-shrink-0 text-white" />
+                                <span className="text-[11px] leading-tight text-white/90">{f}</span>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                <button
+                    onClick={() => router.push(destination)}
+                    className="w-full py-2.5 rounded-full text-xs font-black transition-transform hover:scale-105 active:scale-95"
+                    style={{ background: '#fff', color: '#dc2626' }}
+                >
+                    {isActive ? 'Ver detalhes' : 'Assinar'}
+                </button>
+            </div>
         </section>
     )
 }

@@ -161,7 +161,7 @@ export default function CanIhelp({ dragHandle }: CanIhelpProps) {
 
     return (
         <section>
-            <HomeSectionHeader icon={Sparkles} title="Categorias" subtitle="Ações rápidas e onde procurar" dragHandle={dragHandle} />
+            <HomeSectionHeader icon={Sparkles} title="Categorias" subtitle="Ações rápidas e onde procurar" dragHandle={dragHandle} action={<span />} />
 
             <HomeGlassCard className="p-6">
                 {/* Ações em destaque — os 3 principais "o que o app faz",

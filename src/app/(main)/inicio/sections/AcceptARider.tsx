@@ -4,7 +4,7 @@
 import { ReactNode, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
-import { Car, Settings2, CheckCircle2, Navigation, MapPin, Users, Package, PawPrint } from 'lucide-react'
+import { Car, Settings2, CheckCircle2, Navigation, MapPin, Users, Package, PawPrint, Clock } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { supabase } from '@/lib/supabase/client'
@@ -512,19 +512,37 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
                                     <span>{shortAddress(ride.origin_address)} → {shortAddress(ride.destination_address)}</span>
                                 </div>
 
-                                {ride.distance_km != null && (
-                                    <span className="text-[10px] font-bold" style={{ color: colors.textPrimary }}>
-                                        {ride.distance_km.toFixed(1)} km total
-                                        {ride.duration_min != null && ` · ${Math.round(ride.duration_min)} min total`}
-                                    </span>
+                                {ride.duration_min != null && (
+                                    <div className="flex items-center gap-1 opacity-50">
+                                        <Clock size={10} style={{ color: colors.textPrimary }} />
+                                        <span className="text-[10px]" style={{ color: colors.textPrimary }}>
+                                            chegada em {Math.round(ride.duration_min)} min
+                                            {ride.distance_km != null && ` · ${ride.distance_km.toFixed(1)} km`}
+                                        </span>
+                                    </div>
                                 )}
                             </button>
                         ))}
                     </div>
                 )}
 
+                {driverModeActive && hasPricing && openRides.length > 0 && (
+                    <div className="flex items-center justify-between gap-2 mt-4 mb-2">
+                        <div className="flex items-center gap-2">
+                            <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#22c55e' }} />
+                            <span className="text-xs font-black" style={{ color: colors.textPrimary }}>Modo motorista ativo</span>
+                        </div>
+                        <span
+                            className="text-[10px] font-black uppercase px-2.5 py-1 rounded-full text-white whitespace-nowrap"
+                            style={{ background: GRADIENT }}
+                        >
+                            {openRides.length} {openRides.length === 1 ? 'corrida' : 'corridas'}
+                        </span>
+                    </div>
+                )}
+
                 {hasPricing && openRides.length > 0 && (
-                    <div className="flex flex-col gap-2 mt-4">
+                    <div className={`flex flex-col gap-2 ${driverModeActive ? '' : 'mt-4'}`}>
                         {openRides.map((ride) => (
                             <button
                                 key={ride.id}
@@ -567,11 +585,14 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
                                     <span>{shortAddress(ride.origin_address)} → {shortAddress(ride.destination_address)}</span>
                                 </div>
 
-                                {ride.distance_km != null && (
-                                    <span className="text-[10px] font-bold" style={{ color: colors.textPrimary }}>
-                                        {ride.distance_km.toFixed(1)} km total
-                                        {ride.duration_min != null && ` · ${Math.round(ride.duration_min)} min total`}
-                                    </span>
+                                {ride.duration_min != null && (
+                                    <div className="flex items-center gap-1 opacity-50">
+                                        <Clock size={10} style={{ color: colors.textPrimary }} />
+                                        <span className="text-[10px]" style={{ color: colors.textPrimary }}>
+                                            chegada em {Math.round(ride.duration_min)} min
+                                            {ride.distance_km != null && ` · ${ride.distance_km.toFixed(1)} km`}
+                                        </span>
+                                    </div>
                                 )}
                             </button>
                         ))}

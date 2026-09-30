@@ -135,7 +135,7 @@ export default function MeusServicosPage() {
                 <div>
                     <h1 className="text-xl font-black" style={{ color: textPrimary }}>Meus serviços publicados</h1>
                     <p className="text-sm mt-1" style={{ color: textSecondary }}>
-                        Tudo o que você anuncia como serviço — da(s) sua(s) loja(s) e pessoal.
+                        Dois tipos de anúncio: os da sua loja e os pessoais (sem loja), abaixo.
                     </p>
                 </div>
 

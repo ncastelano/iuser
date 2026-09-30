@@ -27,6 +27,7 @@ import {
     MapPinPlus,
     Map as MapIcon,
     Pencil,
+    ArrowRight,
 } from 'lucide-react'
 import { generateUniqueGlobalSlug } from '@/lib/slugUtils'
 import { Spinner } from '@/components/Spinner'
@@ -286,8 +287,8 @@ export default function ProfileServiceListing({ profileId, profileSlug }: Profil
                             <Wrench size={22} />
                         </div>
                         <div>
-                            <h3 className="text-lg font-black" style={{ color: textPrimary }}>Meus serviços publicados</h3>
-                            <p className="text-xs mt-0.5" style={{ color: textSecondary }}>Anuncie o serviço que você presta</p>
+                            <h3 className="text-lg font-black" style={{ color: textPrimary }}>Serviços do meu perfil</h3>
+                            <p className="text-xs mt-0.5" style={{ color: textSecondary }}>Pessoais — sem loja, você mesmo presta</p>
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -304,11 +305,12 @@ export default function ProfileServiceListing({ profileId, profileSlug }: Profil
                     <div className="flex flex-col gap-5">
                         <button
                             onClick={() => router.push('/solicitar-servico')}
-                            style={{ ...pillButtonStyle, width: '100%', padding: '0.625rem', background: `${colors.border}30`, color: colors.accent, border: `1px solid ${colors.border}` }}
-                            className="hover:opacity-80 transition-opacity"
+                            className="self-start flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition-all hover:scale-105 active:scale-95 hover:shadow-lg"
+                            style={{ background: GRADIENT, color: '#ffffff', boxShadow: `0 2px 8px rgba(249, 115, 22, 0.3)` }}
                         >
                             <MapIcon size={14} />
-                            Ver todos os serviços disponíveis no mapa
+                            <span>Ver no mapa</span>
+                            <ArrowRight className="w-3.5 h-3.5" />
                         </button>
 
                         {loading ? (

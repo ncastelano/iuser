@@ -790,7 +790,6 @@ export function StoreList({
             <HomeSectionHeader
                 icon={Store}
                 title={title}
-                subtitle="Perto de você, abertas agora"
                 dragHandle={dragHandle}
                 action={hasAnyProduct ? (
                     <button

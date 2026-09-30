@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useMemo, useRef, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { User, Store, Home, MapPin, LayoutDashboard, X, Radar, Gift } from 'lucide-react'
+import { User, Store, Home, MapPin, LayoutDashboard, X, Gift } from 'lucide-react'
 
 import CategoriasSection from './inicio/sections/CanIhelp'
 import RadarSection from './inicio/sections/RadarSection'
@@ -40,9 +40,6 @@ import CareerPlans from './inicio/sections/CareerPlans'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
-
-// ===== GRADIENTE PARA O BOTÃO RADAR (LARANJA PARA VERMELHO) =====
-const RADAR_GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
 // ===== TODAS AS SEÇÕES DISPONÍVEIS (INCLUINDO AS "EM BREVE") =====
 const DEFAULT_SECTIONS = [
@@ -443,7 +440,7 @@ function HomePageContent() {
             case 'storeList':
                 return (
                     <StoreList
-                        title="Lojas Mais Visitadas"
+                        title="Lojas"
                         maxItems={5}
                         onStoreClick={(storeSlug) => {
                             startNavProgress()
@@ -471,7 +468,7 @@ function HomePageContent() {
             case 'productShowcase':
                 return <ProductShowcase />
             case 'publicationShowcase':
-                return <FeaturedPublications />
+                return <FeaturedPublications maxItems={4} />
             case 'profileShowcase':
                 return <FeaturedProfiles />
             case 'motorista':
@@ -603,7 +600,6 @@ function HomePageContent() {
     }, [profileSlug, loading, avatarUrl, showCreateStore, showLogin, showProfile, showStoreDashboard, isSuperAdmin, hierarchyLabel, showBenefits, stores, loadingStores, storeOrderCounts, pendingInvitesCount, profileOpenNow, router])
 
     const showFab = showCreateStore || showLogin || showProfile || showStoreDashboard || showBenefits
-    const shouldShowCarrinho = !showProfile && !showStoreDashboard && !showLogin && !showBenefits
 
     // ===== VERIFICAR SE ESTÁ EM TELA DE LOGIN =====
     const isLoginScreen = showLogin || showCreateStore
@@ -795,32 +791,6 @@ function HomePageContent() {
                     </div>
                 )}
 
-                {/* ===== BOTÃO FLUTUANTE - RADAR (independente, não disputa espaço com o carrinho) ===== */}
-                {/* z-index baixo (40) de propósito: qualquer dialog/modal do app usa
-                    z-50 ou mais (LocationPicker, RideAcceptedDialog, chat da corrida,
-                    avaliação, login...), então esse botão sempre fica atrás deles em
-                    vez de flutuar por cima — sem precisar de um flag por dialog. */}
-                {shouldShowCarrinho && (
-                    <div style={{ position: 'fixed', bottom: 32, left: 24, zIndex: 40 }}>
-                        <button
-                            onClick={() => { startNavProgress(); router.push('/radar') }}
-                            className="flex items-center gap-2 px-5 h-14 rounded-full shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95 flex-shrink-0"
-                            style={{
-                                background: RADAR_GRADIENT,
-                                color: '#ffffff',
-                                borderTop: '2px solid #f97316',
-                                borderRight: '2px solid #f97316',
-                                borderBottom: '2px solid #dc2626',
-                                borderLeft: '2px solid #dc2626',
-                                boxShadow: `0 8px 24px #dc262640`,
-                            }}
-                            aria-label="Radar"
-                        >
-                            <Radar size={22} />
-                            <span className="font-semibold text-sm">Radar</span>
-                        </button>
-                    </div>
-                )}
 
                 {/* ===== BOTÃO FLUTUANTE - VOLTAR ===== */}
                 <div style={{ position: 'fixed', bottom: 32, right: 24, zIndex: 40 }}>
