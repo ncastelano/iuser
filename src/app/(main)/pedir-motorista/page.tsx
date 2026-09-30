@@ -2036,6 +2036,19 @@ export default function PedirMotoristaPage() {
                                 })}
                             </div>
 
+                            {/* Aviso imediato: moto/bicicleta/qualquer um limita quem/o que
+                                pode ir junto — melhor a pessoa saber isso já aqui do que só
+                                descobrir na etapa seguinte que os contadores sumiram. */}
+                            {requestFor === 'pessoa' && isTwoWheels && (
+                                <div className="px-3 py-2.5 rounded-lg text-xs font-semibold mt-3" style={{ background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }}>
+                                    {effectiveVehicleType === 'bicicleta'
+                                        ? 'De bicicleta vai só você, com no máximo uma sacola pequena na mão ou uma bolsa que não atrapalhe quem conduz o veículo.'
+                                        : effectiveVehicleType === 'moto'
+                                            ? 'De moto vai só 1 pessoa — sem compras, objeto extra ou pet junto.'
+                                            : 'Aberta pra qualquer motorista (carro, moto ou bicicleta) — por garantia, vai só você, sem compras, objeto extra ou pet junto. Escolha "Carro de passeio" se for levar mais gente ou coisas junto.'}
+                                </div>
+                            )}
+
                             <div className="flex items-center gap-2 mt-4">
                                 <button
                                     onClick={() => setStep('where')}
