@@ -27,6 +27,7 @@ import { toast } from 'sonner'
 import RecoverPassword from './RecoverPassword'
 import { checkSlugAvailability } from '@/lib/slugUtils'
 import { getDeviceId } from '@/lib/deviceId'
+import { isCpfCnpjTaken, CPF_CNPJ_TAKEN_MESSAGE } from '@/lib/checkCpfCnpjAvailable'
 
 interface LoginAndRegisterProps {
     onLoginSuccess?: () => void
@@ -155,6 +156,12 @@ function LoginAndRegisterContent({ onLoginSuccess }: LoginAndRegisterProps) {
                 return
             }
 
+            if (await isCpfCnpjTaken(cleanCpfCnpj)) {
+                setRegisterError(CPF_CNPJ_TAKEN_MESSAGE)
+                setRegisterLoading(false)
+                return
+            }
+
             // Buscar referral
             let referralSlug = null
             const refParam = searchParams.get('ref')
@@ -242,7 +249,12 @@ function LoginAndRegisterContent({ onLoginSuccess }: LoginAndRegisterProps) {
                 .from('profiles')
                 .upsert(profileData, { onConflict: 'id' })
 
-            if (profileError) throw new Error(`Erro ao criar perfil: ${profileError.message}`)
+            if (profileError) {
+                if (profileError.code === '23505' && profileError.message.includes('cpf_cnpj')) {
+                    throw new Error(CPF_CNPJ_TAKEN_MESSAGE)
+                }
+                throw new Error(`Erro ao criar perfil: ${profileError.message}`)
+            }
 
             // Limpar cookie
             try {

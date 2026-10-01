@@ -34,6 +34,7 @@ import {
 import { Spinner } from '@/components/Spinner'
 import { toast } from 'sonner'
 import { getDeviceId } from '@/lib/deviceId'
+import { isCpfCnpjTaken, CPF_CNPJ_TAKEN_MESSAGE } from '@/lib/checkCpfCnpjAvailable'
 
 // Componente de badge animado com efeito rápido - CONTAINER TRANSPARENTE
 function AnimatedBadge({
@@ -235,6 +236,12 @@ function RegisterContent() {
         return
       }
 
+      if (await isCpfCnpjTaken(cleanCpfCnpj)) {
+        setError(CPF_CNPJ_TAKEN_MESSAGE)
+        setLoading(false)
+        return
+      }
+
       let referralSlug = null
       const refParam = searchParams.get('ref')
       if (refParam) {
@@ -319,7 +326,12 @@ function RegisterContent() {
           onConflict: 'id'
         })
 
-      if (profileError) throw new Error(`Erro ao criar perfil: ${profileError.message}`)
+      if (profileError) {
+        if (profileError.code === '23505' && profileError.message.includes('cpf_cnpj')) {
+          throw new Error(CPF_CNPJ_TAKEN_MESSAGE)
+        }
+        throw new Error(`Erro ao criar perfil: ${profileError.message}`)
+      }
 
       try {
         await fetch('/api/clear-referral-cookie', { method: 'POST' })

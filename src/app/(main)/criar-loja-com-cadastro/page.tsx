@@ -43,6 +43,7 @@ import { StoreAccessGate } from '@/components/StoreAccessGate'
 import { Spinner } from '@/components/Spinner'
 import Header from '@/components/Header'
 import { categorias } from '@/lib/categorias'
+import { isCpfCnpjTaken, CPF_CNPJ_TAKEN_MESSAGE } from '@/lib/checkCpfCnpjAvailable'
 
 const CATEGORIAS_LOJAS = categorias.filter(cat => cat.slug !== 'social')
 
@@ -648,6 +649,12 @@ function CriarLojaComCadastroContent() {
                 return
             }
 
+            if (await isCpfCnpjTaken(cleanCpfCnpj)) {
+                setAccountError(CPF_CNPJ_TAKEN_MESSAGE)
+                setLoading(false)
+                return
+            }
+
             // 1.2 Descobrir upline (quem indicou) — via ?ref= ou cookie de indicação;
             // sem indicação de ninguém, vira indicado do admin por padrão.
             let referralSlug = null
@@ -725,6 +732,9 @@ function CriarLojaComCadastroContent() {
                 })
             if (profileError) {
                 console.error('Erro ao criar perfil:', profileError)
+                if (profileError.code === '23505' && profileError.message.includes('cpf_cnpj')) {
+                    throw new Error(CPF_CNPJ_TAKEN_MESSAGE)
+                }
                 throw new Error('Erro ao criar perfil')
             }
 
