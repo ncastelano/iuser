@@ -7,7 +7,9 @@ import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase/client'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { playNotificationSound } from '@/lib/rideAlertSound'
-import { ridesAcceptableForVehicleKind, rideAcceptsAnyVehicle, type VehicleKind, type VehicleType } from '@/lib/rideVehicle'
+import { ridesAcceptableForVehicleKind, rideAcceptsAnyVehicle, type VehicleKind } from '@/lib/rideVehicle'
+import { computeRideTariffs, type RideTariffSource } from '@/lib/rideTariffs'
+import { NewRideAlertCard } from '@/components/NewRideAlertCard'
 
 // Global, montado em providers.tsx: com o modo motorista ligado, toca o som e
 // avisa (toast com atalho) quando um pedido de corrida novo entra, em QUALQUER
@@ -27,7 +29,7 @@ export function DriverRideAlertListener() {
 
         const setup = async () => {
             const [{ data: pricing }, { data: vehicleRows }] = await Promise.all([
-                supabase.from('driver_pricing').select('driver_mode_active, alert_sound_enabled').eq('driver_id', userId).maybeSingle(),
+                supabase.from('driver_pricing').select('driver_mode_active, alert_sound_enabled, pricing_mode, base_distance_km, base_fee, price_per_km_after_base, extra_fee_pessoa, extra_fee_animal, extra_fee_objeto, extra_fee_condominio, extra_fee_compras, extra_fee_necessidade_especial, extra_fee_pet_sem_caixa, extra_fee_entrega_interna, extra_fee_ar_condicionado').eq('driver_id', userId).maybeSingle(),
                 supabase.from('driver_vehicles').select('vehicle_kind').eq('driver_id', userId),
             ])
             if (cancelled || !pricing?.driver_mode_active) return
@@ -42,7 +44,7 @@ export function DriverRideAlertListener() {
             channel = supabase
                 .channel(`driver-new-ride-alert-${userId}`)
                 .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'ride_requests' }, (payload) => {
-                    const ride = payload.new as { id: string; requester_id?: string; status?: string; origin_address?: string; destination_address?: string; vehicle_type?: VehicleType }
+                    const ride = payload.new as RideTariffSource & { id: string; requester_id?: string; status?: string; origin_address?: string; destination_address?: string; offered_price?: number | null }
                     if (ride.requester_id === userId) return
                     if (ride.status && ride.status !== 'pending') return
                     if (ride.vehicle_type && !rideAcceptsAnyVehicle(ride.vehicle_type) && !acceptableVehicleTypes.has(ride.vehicle_type)) return
@@ -50,11 +52,22 @@ export function DriverRideAlertListener() {
                     if (pricing.alert_sound_enabled !== false) playNotificationSound('new_ride')
                     const short = (a?: string) => (a || '').split(',')[0]
                     const description = ride.origin_address ? `${short(ride.origin_address)} → ${short(ride.destination_address)}` : undefined
-                    toast.info('Nova corrida disponível!', {
-                        description,
-                        action: { label: 'Ver', onClick: () => router.push('/aceitar-corridas') },
-                        duration: 10000,
-                    })
+                    // Card na própria notificação com Tarifa iUser / Minha tarifa /
+                    // editar, pra o motorista já se candidatar sem abrir a página.
+                    const { platformPrice, customPrice } = computeRideTariffs(ride, pricing)
+                    toast.custom((toastId) => (
+                        <NewRideAlertCard
+                            rideId={ride.id}
+                            originAddress={ride.origin_address}
+                            destinationAddress={ride.destination_address}
+                            platformPrice={platformPrice}
+                            customPrice={customPrice}
+                            offeredPrice={ride.offered_price != null ? Number(ride.offered_price) : null}
+                            onClose={() => toast.dismiss(toastId)}
+                            onOpenMap={() => { toast.dismiss(toastId); router.push(`/aceitar-corridas/mapa?ride=${ride.id}`) }}
+                            onOpenList={() => { toast.dismiss(toastId); router.push('/aceitar-corridas') }}
+                        />
+                    ), { duration: 30000 })
 
                     // Além do toast (só existe enquanto o app está aberto), dispara
                     // também a notificação na barra do sistema na hora, direto pelo

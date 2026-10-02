@@ -43,6 +43,7 @@ import { useActivePlans } from '@/hooks/useActivePlans'
 import DriverDebtBanner from '@/components/DriverDebtBanner'
 import RideMiniMap from './RideMiniMap'
 import RideMapDialog from './RideMapDialog'
+import { submitRideApplication } from '@/lib/rideApplication'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 const REFRESH_INTERVAL_MS = 15000
@@ -823,35 +824,7 @@ export default function AceitarCorridasPage() {
 
         setApplyingId(ride.id)
         try {
-            const { error } = await supabase.from('ride_applications').insert({
-                ride_request_id: ride.id,
-                applicant_id: user.id,
-                proposed_price: price,
-            })
-            if (error) throw error
-
-            // O passageiro precisa poder ver o motorista em tempo real assim
-            // que ele vira candidato — não dá pra depender dele lembrar de
-            // ativar "Sincronização para motorista" manualmente. Liga o flag
-            // e já manda uma primeira leitura de GPS: o
-            // DriverLiveLocationBroadcaster global assume o watch contínuo
-            // a partir daqui.
-            supabase.from('driver_pricing').update({ live_location_sync: true }).eq('driver_id', user.id).then(() => {})
-            getNativeCurrentPosition(
-                (pos) => {
-                    supabase
-                        .from('driver_pricing')
-                        .update({
-                            live_lat: pos.coords.latitude,
-                            live_lng: pos.coords.longitude,
-                            live_updated_at: new Date().toISOString(),
-                        })
-                        .eq('driver_id', user.id)
-                        .then(() => {})
-                },
-                () => { /* sem permissão ainda: o broadcaster global tenta de novo depois */ },
-                { enableHighAccuracy: true, timeout: 10000 }
-            )
+            await submitRideApplication(user.id, ride.id, price)
 
             toast.success('Candidatura enviada!')
             setCustomPriceFor(null)
