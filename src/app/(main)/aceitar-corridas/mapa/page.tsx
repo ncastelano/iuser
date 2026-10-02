@@ -42,7 +42,7 @@ mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 const TO_TARGET_COLOR = '#3b82f6' // azul: de você até o próximo ponto
-const TRIP_PREVIEW_COLOR = '#f97316' // laranja: prévia partida → chegada, antes de iniciar
+const TRIP_PREVIEW_COLOR = '#ef4444' // vermelho: percurso partida → chegada, antes de iniciar
 const STOP_COLOR = '#eab308'
 const FINISH_RADIUS_METERS = 100
 const REFRESH_INTERVAL_MS = 15000
@@ -361,8 +361,8 @@ function AceitarCorridasMapaContent() {
                 type: 'line',
                 source: 'trip-preview',
                 layout: { 'line-join': 'round', 'line-cap': 'round' },
-                paint: { 'line-color': TRIP_PREVIEW_COLOR, 'line-width': 3, 'line-opacity': 0.55 },
-            })
+                paint: { 'line-color': TRIP_PREVIEW_COLOR, 'line-width': 5, 'line-opacity': 0.9 },
+            }, 'nav-route-line') // por baixo da rota azul ao vivo, pra ela não sumir onde as duas se encontram
             setMapReady(true)
         })
         mapRef.current = map
