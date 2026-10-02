@@ -104,8 +104,8 @@ interface FrequentRide {
 }
 
 const STEPS: Step[] = ['type', 'where', 'vehicle', 'extras', 'payment', 'access']
-// Pra objeto, "Sobre o objeto" (tamanho) vem antes do veículo: é o tamanho
-// que decide se cabe numa moto/bicicleta ou se precisa de carro.
+// Pra objeto e animal, "Sobre o objeto/animal" (tamanho/peso) vem antes do
+// veículo: é isso que decide se cabe numa moto/bicicleta ou se precisa de carro.
 const OBJECT_STEPS: Step[] = ['type', 'where', 'extras', 'vehicle', 'payment', 'access']
 
 async function reverseGeocode(lng: number, lat: number): Promise<string | null> {
@@ -617,20 +617,26 @@ export default function PedirMotoristaPage() {
         setWantsAirConditioning(false)
     }, [requestFor])
 
-    // Tamanho do objeto decide o veículo: pequeno cabe em tudo, médio não vai
-    // de bicicleta, grande só de carro.
+    // Tamanho do objeto / peso do animal decide o veículo: pequeno cabe em
+    // tudo, médio não vai de bicicleta, grande (ou animal pesado) só de carro.
     const objectVehicleAllowed = (kind: 'carro' | 'moto' | 'bicicleta' | 'qualquer') => {
-        if (requestFor !== 'objeto' || !objectSize || kind === 'carro') return true
-        if (objectSize === 'grande') return false
-        if (objectSize === 'medio') return kind === 'moto'
+        if (kind === 'carro') return true
+        if (requestFor === 'objeto' && objectSize) {
+            if (objectSize === 'grande') return false
+            if (objectSize === 'medio') return kind === 'moto'
+        }
+        if (requestFor === 'animal' && petWeightRange) {
+            if (petWeightRange === '15_a_30kg' || petWeightRange === 'acima_30kg') return false
+            if (petWeightRange === '5_a_15kg') return kind === 'moto'
+        }
         return true
     }
     useEffect(() => {
-        if (requestFor === 'objeto' && !objectVehicleAllowed(vehicleTypeChoice)) setVehicleTypeChoice('carro')
+        if ((requestFor === 'objeto' || requestFor === 'animal') && !objectVehicleAllowed(vehicleTypeChoice)) setVehicleTypeChoice('carro')
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [requestFor, objectSize])
+    }, [requestFor, objectSize, petWeightRange])
 
-    const orderedSteps = requestFor === 'objeto' ? OBJECT_STEPS : STEPS
+    const orderedSteps = requestFor === 'objeto' || requestFor === 'animal' ? OBJECT_STEPS : STEPS
     const stepIndex = orderedSteps.indexOf(step)
     const goNext = () => setStep(orderedSteps[Math.min(orderedSteps.indexOf(step) + 1, orderedSteps.length - 1)])
     const goPrev = () => setStep(orderedSteps[Math.max(orderedSteps.indexOf(step) - 1, 0)])
@@ -734,7 +740,7 @@ export default function PedirMotoristaPage() {
         setDestination({ address: fr.destinationAddress, coords: fr.destinationCoords })
         setStops(fr.stops.map((s) => ({ ...s, complement: '', complementOpen: false })))
         setExpandedFrequentRide(null)
-        setStep(fr.requestFor === 'objeto' ? 'extras' : 'vehicle')
+        setStep(fr.requestFor === 'objeto' || fr.requestFor === 'animal' ? 'extras' : 'vehicle')
         toast.success('Endereços preenchidos com os dados da corrida anterior — revise antes de pedir')
     }
 
@@ -2080,6 +2086,13 @@ export default function PedirMotoristaPage() {
                                 })}
                             </div>
 
+                            {requestFor === 'animal' && petWeightRange && petWeightRange !== 'ate_5kg' && (
+                                <div className="px-3 py-2.5 rounded-lg text-xs font-semibold mt-3" style={{ background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }}>
+                                    {petWeightRange === '5_a_15kg'
+                                        ? 'Animal de porte médio: não vai de bicicleta — escolha carro ou moto.'
+                                        : 'Animal grande: só cabe de carro.'}
+                                </div>
+                            )}
                             {requestFor === 'objeto' && objectSize && objectSize !== 'pequeno' && (
                                 <div className="px-3 py-2.5 rounded-lg text-xs font-semibold mt-3" style={{ background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }}>
                                     {objectSize === 'grande'

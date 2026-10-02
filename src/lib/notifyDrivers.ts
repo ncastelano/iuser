@@ -3,6 +3,7 @@
 // atende esse tipo de veículo, quando um pedido de corrida novo entra.
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { sendPushToUser } from '@/lib/serverPush'
+import { computeRideTariffs } from '@/lib/rideTariffs'
 
 const MAX_DRIVERS = 200
 
@@ -50,18 +51,44 @@ export async function notifyDriversOfRide(ride: {
         return canServe && (debtByDriver.get(id) || 0) < 50
     })
 
+    // Cada motorista tem a própria "Minha tarifa": busca a linha completa da
+    // corrida (condições que somam extras) e o preço de cada elegível pra
+    // mandar os valores já prontos na notificação.
+    const [{ data: fullRide }, { data: pricingRows }] = await Promise.all([
+        supabaseAdmin
+            .from('ride_requests')
+            .select('ride_type, vehicle_type, distance_km, origin_needs_access, destination_needs_access, has_shopping, has_special_needs, special_needs_wheelchair, special_needs_visual_impairment, has_guide_dog, pet_has_carrier, delivery_location, wants_air_conditioning')
+            .eq('id', ride.id)
+            .maybeSingle(),
+        supabaseAdmin
+            .from('driver_pricing')
+            .select('driver_id, pricing_mode, base_distance_km, base_fee, price_per_km_after_base, extra_fee_pessoa, extra_fee_animal, extra_fee_objeto, extra_fee_condominio, extra_fee_compras, extra_fee_necessidade_especial, extra_fee_pet_sem_caixa, extra_fee_entrega_interna, extra_fee_ar_condicionado')
+            .in('driver_id', eligible),
+    ])
+    const pricingByDriver = new Map((pricingRows || []).map((p) => [p.driver_id as string, p]))
+
     const short = (a: string) => a.split(',')[0]
     const priceText = ride.offered_price != null ? ` · Frete R$ ${Number(ride.offered_price).toFixed(2)}` : ''
     const results = await Promise.allSettled(
-        eligible.map((id) =>
-            sendPushToUser(id, {
+        eligible.map((id) => {
+            const pricing = pricingByDriver.get(id)
+            const tariffs = fullRide && pricing ? computeRideTariffs(fullRide as Parameters<typeof computeRideTariffs>[0], pricing as Parameters<typeof computeRideTariffs>[1]) : null
+            return sendPushToUser(id, {
                 title: 'Nova corrida disponível!',
                 body: `${short(ride.origin_address)} → ${short(ride.destination_address)}${priceText}`,
-                url: '/aceitar-corridas',
+                url: `/aceitar-corridas/mapa?ride=${ride.id}`,
                 tag: `new-ride-${ride.id}`,
                 urgent: true,
+                rideAlert: tariffs
+                    ? {
+                        rideId: ride.id,
+                        platformPrice: tariffs.platformPrice,
+                        customPrice: tariffs.customPrice,
+                        offeredPrice: ride.offered_price != null ? Number(ride.offered_price) : null,
+                    }
+                    : undefined,
             })
-        )
+        })
     )
     return results.filter((r) => r.status === 'fulfilled').length
 }

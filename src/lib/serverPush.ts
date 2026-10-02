@@ -22,6 +22,8 @@ export interface PushPayload {
     tag?: string
     /** Aviso que não pode passar batido (corrida nova, motorista chegando): fica na tela e vibra mais. */
     urgent?: boolean
+    /** Corrida nova: o service worker monta os botões de valor (Tarifa iUser / Minha tarifa / editar) na notificação. */
+    rideAlert?: { rideId: string; platformPrice: number; customPrice: number | null; offeredPrice: number | null }
 }
 
 // Manda pra todos os canais (web + nativo) cadastrados pro user_id, em
@@ -58,6 +60,7 @@ async function sendWebPush(userId: string, payload: PushPayload): Promise<number
         url: payload.url || '/',
         tag: payload.tag,
         urgent: !!payload.urgent,
+        rideAlert: payload.rideAlert,
     })
 
     const results = await Promise.allSettled(

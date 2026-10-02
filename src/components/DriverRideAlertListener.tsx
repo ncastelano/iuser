@@ -73,19 +73,19 @@ export function DriverRideAlertListener() {
                     // também a notificação na barra do sistema na hora, direto pelo
                     // navegador - não depende do push do servidor ter chegado (rede,
                     // fila etc.), e usa a MESMA tag da corrida pra não duplicar caso
-                    // o push do servidor também chegue.
+                    // o push do servidor também chegue. Quem monta a notificação (com
+                    // os botões de valor) é o service worker, o mesmo código do push.
                     if (typeof window !== 'undefined' && 'serviceWorker' in navigator && Notification.permission === 'granted') {
                         navigator.serviceWorker.ready.then((registration) => {
-                            registration.showNotification('Nova corrida disponível!', {
-                                body: description,
-                                icon: '/android-chrome-192x192.png',
-                                badge: '/favicon-128x128.png',
+                            const payload = {
+                                title: 'Nova corrida disponível!',
+                                body: description || '',
+                                url: `/aceitar-corridas/mapa?ride=${ride.id}`,
                                 tag: `new-ride-${ride.id}`,
-                                renotify: true,
-                                requireInteraction: true,
-                                vibrate: [300, 120, 300, 120, 500],
-                                data: { url: '/aceitar-corridas' },
-                            } as NotificationOptions).catch(() => {})
+                                urgent: true,
+                                rideAlert: { rideId: ride.id, platformPrice, customPrice, offeredPrice: ride.offered_price != null ? Number(ride.offered_price) : null },
+                            }
+                            if (registration.active) registration.active.postMessage({ type: 'show-ride-alert', payload })
                         }).catch(() => {})
                     }
                 })
