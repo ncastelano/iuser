@@ -8,13 +8,21 @@
 // do mapa. Os handlers de ação e o cálculo de fase de voz aqui são os
 // mesmos de ../page.tsx (duplicados, não extraídos pra hook
 // compartilhado, pra não mexer numa lógica já delicada e testada lá).
+//
+// Com ?ride=<id> vira uma PRÉVIA de uma corrida ainda disponível (não
+// aceita): mostra o percurso da posição do motorista até a partida e dali
+// até o destino final, sem botões de ação — pra decidir se candidatar.
+//
+// Layout igual ao /pedir-motorista: o mapa ocupa o espaço que sobra em
+// cima e o card vive embaixo, na mesma tela, em vez de flutuar por cima
+// e tampar o mapa.
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
-import { ArrowLeft, MessageCircle, LocateFixed, Navigation, MapPin, Flag, Ban } from 'lucide-react'
+import { ArrowLeft, MessageCircle, LocateFixed, Navigation, MapPin, Flag, Ban, Route } from 'lucide-react'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase/client'
 import { getCurrentPosition as getNativeCurrentPosition, watchPosition as watchNativePosition } from '@/lib/nativeGeolocation'
@@ -135,12 +143,29 @@ interface AcceptedRideMapDetail {
     driver_en_route: boolean
     driver_arrived_at: string | null
     ride_started_at: string | null
+    distance_km: number | null
+    duration_min: number | null
 }
 
-const ACCEPTED_RIDE_SELECT = 'id, vehicle_type, origin_address, destination_address, origin_lat, origin_lng, destination_lat, destination_lng, stop1_address, stop1_lat, stop1_lng, stop1_reached_at, stop2_address, stop2_lat, stop2_lng, stop2_reached_at, driver_en_route, driver_arrived_at, ride_started_at'
+const ACCEPTED_RIDE_SELECT = 'id, vehicle_type, origin_address, destination_address, origin_lat, origin_lng, destination_lat, destination_lng, stop1_address, stop1_lat, stop1_lng, stop1_reached_at, stop2_address, stop2_lat, stop2_lng, stop2_reached_at, driver_en_route, driver_arrived_at, ride_started_at, distance_km, duration_min'
+
+const SHEET_MIN_VH = 22
+const SHEET_MAX_VH = 60
+const SHEET_PADDING_PX = 48
 
 export default function AceitarCorridasMapaPage() {
+    return (
+        <Suspense fallback={null}>
+            <AceitarCorridasMapaContent />
+        </Suspense>
+    )
+}
+
+function AceitarCorridasMapaContent() {
     const router = useRouter()
+    const searchParams = useSearchParams()
+    const previewRideId = searchParams.get('ride')
+    const isPreview = !!previewRideId
     const { colors } = useTheme()
     const { userId, loading: profileLoading } = useProfile()
 
@@ -152,6 +177,9 @@ export default function AceitarCorridasMapaPage() {
     const followingRef = useRef(true)
     const bearingRef = useRef<number | null>(null)
     const prevBearingCoordsRef = useRef<[number, number] | null>(null)
+    const fitRef = useRef<{ bounds: mapboxgl.LngLatBounds; padding: { top: number; bottom: number; left: number; right: number } } | null>(null)
+    const fitStageRef = useRef<0 | 1 | 2>(0)
+    const fixedMarkersRef = useRef<mapboxgl.Marker[]>([])
 
     const [loading, setLoading] = useState(true)
     const [showChat, setShowChat] = useState(false)
@@ -159,7 +187,9 @@ export default function AceitarCorridasMapaPage() {
     const [acceptedRide, setAcceptedRide] = useState<AcceptedRideMapDetail | null>(null)
     const [myVehicleKinds, setMyVehicleKinds] = useState<VehicleKind[]>(['carro'])
     const [driverCoords, setDriverCoords] = useState<[number, number] | null>(null)
-    const [following, setFollowing] = useState(true)
+    const [following, setFollowing] = useState(!isPreview)
+    const [tripKm, setTripKm] = useState<number | null>(null)
+    const [tripMin, setTripMin] = useState<number | null>(null)
     const [routeKm, setRouteKm] = useState<number | null>(null)
     const [routeMin, setRouteMin] = useState<number | null>(null)
 
@@ -172,19 +202,41 @@ export default function AceitarCorridasMapaPage() {
 
     useEffect(() => { followingRef.current = following }, [following])
 
+    // Altura do card acompanha o conteúdo (até 60vh) — mesma regra do
+    // /pedir-motorista, pra o mapa sempre sobrar com pelo menos 40% da tela.
+    const [contentHeightPx, setContentHeightPx] = useState(0)
+    const sheetResizeObserverRef = useRef<ResizeObserver | null>(null)
+    const setSheetContentRef = useCallback((node: HTMLDivElement | null) => {
+        if (sheetResizeObserverRef.current) {
+            sheetResizeObserverRef.current.disconnect()
+            sheetResizeObserverRef.current = null
+        }
+        if (!node) return
+        setContentHeightPx(node.scrollHeight)
+        const ro = new ResizeObserver(() => setContentHeightPx(node.scrollHeight))
+        ro.observe(node)
+        sheetResizeObserverRef.current = ro
+    }, [])
+    const sheetHeightVh = contentHeightPx > 0
+        ? Math.min(SHEET_MAX_VH, Math.max(SHEET_MIN_VH, ((contentHeightPx + SHEET_PADDING_PX) / window.innerHeight) * 100))
+        : SHEET_MAX_VH
+
     // ===== CARREGA A CORRIDA ACEITA (e os veículos, pro ícone do marcador) =====
     const load = async () => {
         if (!userId) return
-        const [{ data: vehicleRows }, { data: rideRow }] = await Promise.all([
-            supabase.from('driver_vehicles').select('vehicle_kind').eq('driver_id', userId),
-            supabase
+        const rideQuery = isPreview
+            ? supabase.from('ride_requests').select(ACCEPTED_RIDE_SELECT).eq('id', previewRideId as string).maybeSingle()
+            : supabase
                 .from('ride_requests')
                 .select(ACCEPTED_RIDE_SELECT)
                 .eq('driver_id', userId)
                 .eq('status', 'accepted')
                 .order('created_at', { ascending: false })
                 .limit(1)
-                .maybeSingle(),
+                .maybeSingle()
+        const [{ data: vehicleRows }, { data: rideRow }] = await Promise.all([
+            supabase.from('driver_vehicles').select('vehicle_kind').eq('driver_id', userId),
+            rideQuery,
         ])
         if (vehicleRows && vehicleRows.length > 0) {
             setMyVehicleKinds(vehicleRows.map((v) => v.vehicle_kind as VehicleKind))
@@ -204,7 +256,7 @@ export default function AceitarCorridasMapaPage() {
         const poll = setInterval(load, REFRESH_INTERVAL_MS)
         return () => clearInterval(poll)
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [profileLoading, userId])
+    }, [profileLoading, userId, previewRideId])
 
     // ===== POSIÇÃO AO VIVO DO MOTORISTA =====
     useEffect(() => {
@@ -217,7 +269,7 @@ export default function AceitarCorridasMapaPage() {
     }, [])
 
     // ===== ORIENTAÇÃO POR VOZ (mesma lógica de ../page.tsx) =====
-    const voiceNavPhase: 'pickup' | 'trip' | null = !acceptedRide
+    const voiceNavPhase: 'pickup' | 'trip' | null = !acceptedRide || isPreview
         ? null
         : acceptedRide.ride_started_at
             ? 'trip'
@@ -315,7 +367,19 @@ export default function AceitarCorridasMapaPage() {
         })
         mapRef.current = map
 
+        // O mapa divide a tela com o card, que muda de altura: o mapbox-gl só
+        // reage a resize da JANELA, não do container — sem isso o canvas
+        // fica com o tamanho antigo e o mapa aparece deslocado/cortado.
+        const resizeObserver = new ResizeObserver(() => {
+            map.resize()
+            if (fitRef.current && !followingRef.current) {
+                map.fitBounds(fitRef.current.bounds, { padding: fitRef.current.padding, duration: 0 })
+            }
+        })
+        resizeObserver.observe(containerRef.current)
+
         return () => {
+            resizeObserver.disconnect()
             driverMarkerRef.current?.remove()
             driverMarkerRef.current = null
             map.remove()
@@ -328,31 +392,57 @@ export default function AceitarCorridasMapaPage() {
     useEffect(() => {
         const map = mapRef.current
         if (!map || !mapReady || !acceptedRide) return
-        if (acceptedRide.origin_lat != null && acceptedRide.origin_lng != null) {
-            new mapboxgl.Marker({ element: marker('#22c55e', 'Partida') }).setLngLat([acceptedRide.origin_lng, acceptedRide.origin_lat]).addTo(map)
+        fixedMarkersRef.current.forEach((m) => m.remove())
+        fixedMarkersRef.current = []
+        const add = (color: string, label: string, lng: number | null, lat: number | null) => {
+            if (lat == null || lng == null) return
+            fixedMarkersRef.current.push(new mapboxgl.Marker({ element: marker(color, label) }).setLngLat([lng, lat]).addTo(map))
         }
-        if (acceptedRide.stop1_lat != null && acceptedRide.stop1_lng != null) {
-            new mapboxgl.Marker({ element: marker(STOP_COLOR, 'Parada 1') }).setLngLat([acceptedRide.stop1_lng, acceptedRide.stop1_lat]).addTo(map)
-        }
-        if (acceptedRide.stop2_lat != null && acceptedRide.stop2_lng != null) {
-            new mapboxgl.Marker({ element: marker(STOP_COLOR, 'Parada 2') }).setLngLat([acceptedRide.stop2_lng, acceptedRide.stop2_lat]).addTo(map)
-        }
-        if (acceptedRide.destination_lat != null && acceptedRide.destination_lng != null) {
-            new mapboxgl.Marker({ element: marker('#ef4444', 'Chegada') }).setLngLat([acceptedRide.destination_lng, acceptedRide.destination_lat]).addTo(map)
-        }
-        // Prévia partida → chegada, só antes de iniciar (depois a rota ao
-        // vivo já é o caminho real, a prévia fixa só atrapalharia).
-        if (!acceptedRide.ride_started_at && acceptedRide.origin_lat != null && acceptedRide.origin_lng != null && acceptedRide.destination_lat != null && acceptedRide.destination_lng != null) {
-            fetchRoute([acceptedRide.origin_lng, acceptedRide.origin_lat], [acceptedRide.destination_lng, acceptedRide.destination_lat]).then((leg) => {
-                const src = map.getSource('trip-preview') as mapboxgl.GeoJSONSource | undefined
-                src?.setData({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: leg.coords } })
+        add('#22c55e', 'Partida', acceptedRide.origin_lng, acceptedRide.origin_lat)
+        add(STOP_COLOR, 'Parada 1', acceptedRide.stop1_lng, acceptedRide.stop1_lat)
+        add(STOP_COLOR, 'Parada 2', acceptedRide.stop2_lng, acceptedRide.stop2_lat)
+        add('#ef4444', 'Chegada', acceptedRide.destination_lng, acceptedRide.destination_lat)
+
+        // Prévia do percurso completo partida → (paradas) → chegada, só antes
+        // de iniciar (depois a rota ao vivo já é o caminho real, a prévia fixa
+        // só atrapalharia).
+        const src = map.getSource('trip-preview') as mapboxgl.GeoJSONSource | undefined
+        const points: [number, number][] = []
+        if (acceptedRide.origin_lat != null && acceptedRide.origin_lng != null) points.push([acceptedRide.origin_lng, acceptedRide.origin_lat])
+        if (acceptedRide.stop1_lat != null && acceptedRide.stop1_lng != null) points.push([acceptedRide.stop1_lng, acceptedRide.stop1_lat])
+        if (acceptedRide.stop2_lat != null && acceptedRide.stop2_lng != null) points.push([acceptedRide.stop2_lng, acceptedRide.stop2_lat])
+        if (acceptedRide.destination_lat != null && acceptedRide.destination_lng != null) points.push([acceptedRide.destination_lng, acceptedRide.destination_lat])
+        if (!acceptedRide.ride_started_at && points.length >= 2) {
+            Promise.all(points.slice(1).map((pt, i) => fetchRoute(points[i], pt))).then((legs) => {
+                src?.setData({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: legs.flatMap((l) => l.coords) } })
+                setTripKm(legs.reduce((sum, l) => sum + l.distanceKm, 0))
+                setTripMin(legs.reduce((sum, l) => sum + l.durationMin, 0))
             }).catch(() => {})
         } else {
-            const src = map.getSource('trip-preview') as mapboxgl.GeoJSONSource | undefined
             src?.setData({ type: 'FeatureCollection', features: [] })
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [mapReady, acceptedRide?.id, acceptedRide?.ride_started_at])
+
+    // ===== PRÉVIA: enquadra posição do motorista + partida + paradas + destino =====
+    useEffect(() => {
+        const map = mapRef.current
+        if (!isPreview || !map || !mapReady || !acceptedRide || fitStageRef.current === 2) return
+        if (fitStageRef.current === 1 && !driverCoords) return
+        const bounds = new mapboxgl.LngLatBounds()
+        const extend = (lng: number | null, lat: number | null) => { if (lat != null && lng != null) bounds.extend([lng, lat]) }
+        extend(acceptedRide.origin_lng, acceptedRide.origin_lat)
+        extend(acceptedRide.stop1_lng, acceptedRide.stop1_lat)
+        extend(acceptedRide.stop2_lng, acceptedRide.stop2_lat)
+        extend(acceptedRide.destination_lng, acceptedRide.destination_lat)
+        if (driverCoords) bounds.extend(driverCoords)
+        if (bounds.isEmpty()) return
+        const padding = { top: 90, bottom: 40, left: 40, right: 40 }
+        fitRef.current = { bounds, padding }
+        map.fitBounds(bounds, { padding, duration: 500, maxZoom: 16 })
+        fitStageRef.current = driverCoords ? 2 : 1
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isPreview, mapReady, acceptedRide?.id, driverCoords])
 
     // ===== POSIÇÃO AO VIVO: desliza o marcador, recalcula a rota até o
     // alvo atual, e centraliza se o modo "centralizar" estiver ligado =====
@@ -564,84 +654,141 @@ export default function AceitarCorridasMapaPage() {
     const hasStop2 = acceptedRide.stop2_lat != null && acceptedRide.stop2_lng != null
     const stop2Done = !hasStop2 || !!acceptedRide.stop2_reached_at
 
-    return (
-        <div className="fixed inset-0" style={{ zIndex: 0 }}>
-            <div ref={containerRef} className="absolute inset-0 w-full h-full" style={{ background: '#111' }} />
+    const routeLine = `${shortAddress(acceptedRide.origin_address)} → ${acceptedRide.stop1_address ? `${shortAddress(acceptedRide.stop1_address)} → ` : ''}${acceptedRide.stop2_address ? `${shortAddress(acceptedRide.stop2_address)} → ` : ''}${shortAddress(acceptedRide.destination_address)}`
+    const primaryBtn = 'w-full py-3.5 rounded-xl font-black uppercase text-sm tracking-wider transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-60 disabled:hover:scale-100 flex items-center justify-center gap-2'
+    const primaryStyle = { background: GRADIENT, color: '#fff' }
+    const secondaryBtn = 'flex-1 py-3 rounded-xl font-black uppercase text-xs tracking-wider transition-all active:scale-95 disabled:opacity-60 flex items-center justify-center gap-1.5'
+    const secondaryStyle = { background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }
+    const phaseTitle = isPreview
+        ? 'Corrida disponível'
+        : !acceptedRide.driver_en_route
+            ? 'Corrida aceita'
+            : !acceptedRide.driver_arrived_at
+                ? 'Indo até o ponto de partida'
+                : !acceptedRide.ride_started_at
+                    ? 'Você chegou na partida'
+                    : 'Corrida em andamento'
+    const shownTripKm = acceptedRide.distance_km ?? tripKm
+    const shownTripMin = acceptedRide.duration_min ?? tripMin
 
-            <div className="absolute top-6 left-4 right-4 z-10 flex items-center gap-3">
-                <button
-                    onClick={() => router.push('/aceitar-corridas')}
-                    className="w-11 h-11 rounded-full flex items-center justify-center shadow-xl flex-shrink-0"
-                    style={{ background: '#fff', color: '#111' }}
-                >
-                    <ArrowLeft size={20} />
-                </button>
-                <div className="flex-1 px-4 py-2.5 rounded-full shadow-xl text-center" style={{ background: '#fff' }}>
-                    <span className="text-xs font-black" style={{ color: '#111' }}>
-                        {navTarget ? `Indo para: ${navTarget.label}` : 'Navegação'}
-                        {routeKm != null && ` · ${routeKm.toFixed(1)} km${routeMin != null ? ` · ${Math.round(routeMin)} min` : ''}`}
-                    </span>
+    return (
+        <div className="fixed inset-0 flex flex-col" style={{ zIndex: 0, background: colors.background }}>
+            {/* MAPA — ocupa sempre o espaço que sobra em cima, nunca é tampado
+                pelo card (que vive embaixo, na mesma tela), igual ao /pedir-motorista */}
+            <div className="relative flex-1 min-h-0">
+                <div ref={containerRef} className="absolute inset-0 w-full h-full" style={{ background: '#111' }} />
+
+                <div className="absolute top-6 left-4 right-4 z-10 flex items-center gap-3">
+                    <button
+                        onClick={() => router.push('/aceitar-corridas')}
+                        className="w-11 h-11 rounded-full flex items-center justify-center shadow-xl flex-shrink-0"
+                        style={{ background: colors.surface, color: colors.textPrimary }}
+                    >
+                        <ArrowLeft size={20} />
+                    </button>
+                    <div className="flex-1 px-4 py-2.5 rounded-full shadow-xl text-center" style={{ background: colors.surface }}>
+                        <span className="text-xs font-black" style={{ color: colors.textPrimary }}>
+                            {navTarget ? `Indo para: ${navTarget.label}` : 'Navegação'}
+                            {routeKm != null && ` · ${routeKm.toFixed(1)} km${routeMin != null ? ` · ${Math.round(routeMin)} min` : ''}`}
+                        </span>
+                    </div>
                 </div>
+
+                <button
+                    onClick={recenter}
+                    className="absolute z-10 w-11 h-11 rounded-full flex items-center justify-center shadow-xl"
+                    style={{ right: 10, bottom: 120, background: following ? GRADIENT : colors.surface, color: following ? '#fff' : colors.textPrimary }}
+                    title={following ? 'Centralizando automaticamente' : 'Centralizar no meu local'}
+                >
+                    <LocateFixed size={20} />
+                </button>
             </div>
 
-            <button
-                onClick={recenter}
-                className="absolute z-10 w-11 h-11 rounded-full flex items-center justify-center shadow-xl"
-                style={{ right: 16, bottom: 220, background: following ? GRADIENT : '#fff', color: following ? '#fff' : '#111' }}
-                title={following ? 'Centralizando automaticamente' : 'Centralizar no meu local'}
+            {/* CARD — mesmo visual do /pedir-motorista */}
+            <div
+                className="flex-shrink-0 rounded-t-3xl px-5 pt-4 pb-8 overflow-y-auto"
+                style={{
+                    background: colors.surface,
+                    boxShadow: '0 -8px 30px rgba(0,0,0,0.35)',
+                    height: `${sheetHeightVh}vh`,
+                    transition: 'height 0.25s ease-out',
+                }}
             >
-                <LocateFixed size={20} />
-            </button>
-
-            <div className="absolute left-4 right-4 z-10 flex flex-col gap-2" style={{ bottom: 24 }}>
-                <div className="rounded-2xl p-4 shadow-2xl flex flex-col gap-2 overflow-y-auto" style={{ background: GRADIENT, maxHeight: '75vh' }}>
-                    <p className="text-xs font-bold text-white/90">
-                        {shortAddress(acceptedRide.origin_address)} → {acceptedRide.stop1_address ? `${shortAddress(acceptedRide.stop1_address)} → ` : ''}{acceptedRide.stop2_address ? `${shortAddress(acceptedRide.stop2_address)} → ` : ''}{shortAddress(acceptedRide.destination_address)}
-                    </p>
-
-                    {!acceptedRide.driver_en_route && (
-                        <button onClick={departToPickup} disabled={departing} className="w-full py-3 rounded-xl font-black uppercase text-xs tracking-wider disabled:opacity-60 flex items-center justify-center gap-2" style={{ background: '#fff', color: '#dc2626' }}>
-                            {departing ? <Spinner size={16} /> : <><Navigation size={16} /> Ir para o ponto de partida</>}
-                        </button>
-                    )}
-                    {acceptedRide.driver_en_route && !acceptedRide.driver_arrived_at && (
-                        <button onClick={arriveAtPickup} disabled={arriving} className="w-full py-3 rounded-xl font-black uppercase text-xs tracking-wider disabled:opacity-60 flex items-center justify-center gap-2" style={{ background: '#fff', color: '#dc2626' }}>
-                            {arriving ? <Spinner size={16} /> : <><MapPin size={16} /> Cheguei ao ponto de partida</>}
-                        </button>
-                    )}
-                    {acceptedRide.driver_arrived_at && !acceptedRide.ride_started_at && (
-                        <button onClick={startRide} disabled={starting} className="w-full py-3 rounded-xl font-black uppercase text-xs tracking-wider disabled:opacity-60 flex items-center justify-center gap-2" style={{ background: '#fff', color: '#dc2626' }}>
-                            {starting ? <Spinner size={16} /> : <><Navigation size={16} /> Iniciar corrida</>}
-                        </button>
-                    )}
-                    {acceptedRide.ride_started_at && hasStop1 && !stop1Done && (
-                        <button onClick={() => arriveAtStop(1)} disabled={arrivingStop} className="w-full py-3 rounded-xl font-black uppercase text-xs tracking-wider disabled:opacity-60 flex items-center justify-center gap-2" style={{ background: '#fff', color: '#ca8a04' }}>
-                            {arrivingStop ? <Spinner size={16} /> : <><MapPin size={16} /> Cheguei na 1ª parada</>}
-                        </button>
-                    )}
-                    {acceptedRide.ride_started_at && stop1Done && hasStop2 && !stop2Done && (
-                        <button onClick={() => arriveAtStop(2)} disabled={arrivingStop} className="w-full py-3 rounded-xl font-black uppercase text-xs tracking-wider disabled:opacity-60 flex items-center justify-center gap-2" style={{ background: '#fff', color: '#ca8a04' }}>
-                            {arrivingStop ? <Spinner size={16} /> : <><MapPin size={16} /> Cheguei na 2ª parada</>}
-                        </button>
-                    )}
-                    {acceptedRide.ride_started_at && stop1Done && stop2Done && (
-                        <button onClick={finishRide} disabled={finishing} className="w-full py-3 rounded-xl font-black uppercase text-xs tracking-wider disabled:opacity-60 flex items-center justify-center gap-2" style={{ background: '#fff', color: '#16a34a' }}>
-                            {finishing ? <Spinner size={16} /> : <><Flag size={16} /> Cheguei ao destino</>}
-                        </button>
-                    )}
-
-                    <div className="flex items-center gap-2">
-                        <button onClick={toggleChat} className="flex-1 py-2.5 rounded-xl font-black uppercase text-[11px] tracking-wider flex items-center justify-center gap-1.5" style={{ background: 'rgba(255,255,255,0.25)', color: '#fff' }}>
-                            <MessageCircle size={14} /> {showChat ? 'Fechar chat' : 'Abrir chat'}
-                        </button>
-                        <button onClick={cancelRide} disabled={cancelling} className="flex-1 py-2.5 rounded-xl font-black uppercase text-[11px] tracking-wider disabled:opacity-60 flex items-center justify-center gap-1.5" style={{ background: 'rgba(255,255,255,0.15)', color: '#fff' }}>
-                            {cancelling ? <Spinner size={14} /> : <><Ban size={14} /> Cancelar</>}
-                        </button>
+                <div ref={setSheetContentRef}>
+                    <h2 className="text-lg font-black mb-1" style={{ color: colors.textPrimary }}>{phaseTitle}</h2>
+                    <div className="flex items-start gap-2 text-xs mb-2" style={{ color: colors.textSecondary }}>
+                        <MapPin size={12} className="flex-shrink-0 mt-0.5" />
+                        <span>{routeLine}</span>
                     </div>
 
-                    {showChat && (
-                        <RideChat rideId={acceptedRide.id} quickReplies={DRIVER_CHAT_QUICK_REPLIES} />
+                    {isPreview && (
+                        <div className="rounded-xl px-3 py-2.5 mb-3 flex flex-col gap-1.5" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
+                            <div className="flex items-center gap-2 text-xs" style={{ color: colors.textPrimary }}>
+                                <span className="w-3 h-1 rounded-full flex-shrink-0" style={{ background: TO_TARGET_COLOR }} />
+                                <span className="font-bold">Até a partida:</span>
+                                <span>{routeKm != null ? `${routeKm.toFixed(1)} km${routeMin != null ? ` · ${Math.round(routeMin)} min` : ''}` : 'calculando...'}</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-xs" style={{ color: colors.textPrimary }}>
+                                <span className="w-3 h-1 rounded-full flex-shrink-0" style={{ background: TRIP_PREVIEW_COLOR }} />
+                                <span className="font-bold">Partida → destino:</span>
+                                <span>{shownTripKm != null ? `${shownTripKm.toFixed(1)} km${shownTripMin != null ? ` · ${Math.round(shownTripMin)} min` : ''}` : 'calculando...'}</span>
+                            </div>
+                        </div>
                     )}
+
+                    <div className="flex flex-col gap-2 mt-3">
+                        {isPreview ? (
+                            <button onClick={() => router.push('/aceitar-corridas')} className={primaryBtn} style={primaryStyle}>
+                                <Route size={16} /> Voltar às corridas
+                            </button>
+                        ) : (
+                            <>
+                                {!acceptedRide.driver_en_route && (
+                                    <button onClick={departToPickup} disabled={departing} className={primaryBtn} style={primaryStyle}>
+                                        {departing ? <Spinner size={16} /> : <><Navigation size={16} /> Ir para o ponto de partida</>}
+                                    </button>
+                                )}
+                                {acceptedRide.driver_en_route && !acceptedRide.driver_arrived_at && (
+                                    <button onClick={arriveAtPickup} disabled={arriving} className={primaryBtn} style={primaryStyle}>
+                                        {arriving ? <Spinner size={16} /> : <><MapPin size={16} /> Cheguei ao ponto de partida</>}
+                                    </button>
+                                )}
+                                {acceptedRide.driver_arrived_at && !acceptedRide.ride_started_at && (
+                                    <button onClick={startRide} disabled={starting} className={primaryBtn} style={primaryStyle}>
+                                        {starting ? <Spinner size={16} /> : <><Navigation size={16} /> Iniciar corrida</>}
+                                    </button>
+                                )}
+                                {acceptedRide.ride_started_at && hasStop1 && !stop1Done && (
+                                    <button onClick={() => arriveAtStop(1)} disabled={arrivingStop} className={primaryBtn} style={primaryStyle}>
+                                        {arrivingStop ? <Spinner size={16} /> : <><MapPin size={16} /> Cheguei na 1ª parada</>}
+                                    </button>
+                                )}
+                                {acceptedRide.ride_started_at && stop1Done && hasStop2 && !stop2Done && (
+                                    <button onClick={() => arriveAtStop(2)} disabled={arrivingStop} className={primaryBtn} style={primaryStyle}>
+                                        {arrivingStop ? <Spinner size={16} /> : <><MapPin size={16} /> Cheguei na 2ª parada</>}
+                                    </button>
+                                )}
+                                {acceptedRide.ride_started_at && stop1Done && stop2Done && (
+                                    <button onClick={finishRide} disabled={finishing} className={primaryBtn} style={primaryStyle}>
+                                        {finishing ? <Spinner size={16} /> : <><Flag size={16} /> Cheguei ao destino</>}
+                                    </button>
+                                )}
+
+                                <div className="flex items-center gap-2">
+                                    <button onClick={toggleChat} className={secondaryBtn} style={secondaryStyle}>
+                                        <MessageCircle size={14} /> {showChat ? 'Fechar chat' : 'Abrir chat'}
+                                    </button>
+                                    <button onClick={cancelRide} disabled={cancelling} className={secondaryBtn} style={{ ...secondaryStyle, color: '#ef4444' }}>
+                                        {cancelling ? <Spinner size={14} /> : <><Ban size={14} /> Cancelar</>}
+                                    </button>
+                                </div>
+
+                                {showChat && (
+                                    <RideChat rideId={acceptedRide.id} quickReplies={DRIVER_CHAT_QUICK_REPLIES} />
+                                )}
+                            </>
+                        )}
+                    </div>
                 </div>
             </div>
         </div>

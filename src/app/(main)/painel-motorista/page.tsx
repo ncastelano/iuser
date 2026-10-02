@@ -551,7 +551,7 @@ function PainelMotoristaContent() {
     const conditionExtraFeeFields = [
         { key: 'condominio', label: 'Condomínio', value: extraFeeCondominio, setValue: setExtraFeeCondominio, platformDefault: PLATFORM_DEFAULT_CONDITION_EXTRA_FEES.condominio },
         { key: 'compras', label: 'Compras no mercado', value: extraFeeCompras, setValue: setExtraFeeCompras, platformDefault: PLATFORM_DEFAULT_CONDITION_EXTRA_FEES.compras },
-        { key: 'necessidade_especial', label: 'Necessidade especial', value: extraFeeNecessidadeEspecial, setValue: setExtraFeeNecessidadeEspecial, platformDefault: PLATFORM_DEFAULT_CONDITION_EXTRA_FEES.necessidade_especial },
+        { key: 'necessidade_especial', label: 'Pessoa com deficiência', value: extraFeeNecessidadeEspecial, setValue: setExtraFeeNecessidadeEspecial, platformDefault: PLATFORM_DEFAULT_CONDITION_EXTRA_FEES.necessidade_especial },
         { key: 'pet_sem_caixa', label: 'Pet sem caixa de transporte', value: extraFeePetSemCaixa, setValue: setExtraFeePetSemCaixa, platformDefault: PLATFORM_DEFAULT_CONDITION_EXTRA_FEES.pet_sem_caixa },
         { key: 'entrega_interna', label: 'Entrega em área interna', value: extraFeeEntregaInterna, setValue: setExtraFeeEntregaInterna, platformDefault: PLATFORM_DEFAULT_CONDITION_EXTRA_FEES.entrega_interna },
         { key: 'ar_condicionado', label: 'Ar condicionado', value: extraFeeArCondicionado, setValue: setExtraFeeArCondicionado, platformDefault: PLATFORM_DEFAULT_CONDITION_EXTRA_FEES.ar_condicionado },

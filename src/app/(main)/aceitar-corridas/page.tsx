@@ -12,7 +12,7 @@ import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import LoginAndRegister from '@/components/LoginAndRegister/LoginAndRegister'
 import LocationPicker from '@/components/LocationPicker'
 import { toast } from 'sonner'
-import { MapPin, Star, Pencil, X, Package, CalendarClock, PawPrint, Car, CheckCircle2, Navigation, Ban, Flag, Share2, AlertCircle } from 'lucide-react'
+import { MapPin, Star, Pencil, X, Package, CalendarClock, PawPrint, Car, CheckCircle2, Navigation, Ban, Flag, Share2, AlertCircle, Map as MapIcon } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import { shortAddress } from '@/lib/serviceBoard'
 import { getAvatarUrl } from '@/lib/avatar'
@@ -1350,7 +1350,7 @@ export default function AceitarCorridasPage() {
                                                 stops={rideStopsOf(ride)}
                                                 driverLat={driverCoords ? driverCoords[1] : null}
                                                 driverLng={driverCoords ? driverCoords[0] : null}
-                                                onExpand={() => setMapDialogRideId(ride.id)}
+                                                onExpand={() => router.push(`/aceitar-corridas/mapa?ride=${ride.id}`)}
                                             />
                                         )}
 
@@ -1375,118 +1375,109 @@ export default function AceitarCorridasPage() {
                                         </div>
 
                                         {ride.offered_price != null ? (
-                                            <div className="rounded-xl px-3 py-2.5 mb-2 flex items-center justify-between" style={{ background: '#22c55e15', border: '1px solid #22c55e40' }}>
-                                                <span className="text-[11px] font-black uppercase tracking-wider" style={{ color: '#16a34a' }}>Frete oferecido</span>
-                                                <span className="text-lg font-black" style={{ color: '#16a34a' }}>R$ {Number(ride.offered_price).toFixed(2)}</span>
-                                            </div>
-                                        ) : (
-                                            <div className="grid grid-cols-2 gap-2 mb-2">
-                                                <div className="rounded-xl px-3 py-2" style={{ background: `${colors.border}25`, border: `1px solid ${colors.border}` }}>
-                                                    <p className="text-[9px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>Tarifa iUser</p>
-                                                    <p className="text-base font-black" style={{ color: colors.textPrimary }}>R$ {ride.platformPrice.toFixed(2)}</p>
+                                            <>
+                                                <div className="rounded-xl px-3 py-2.5 mb-2 flex items-center justify-between" style={{ background: '#22c55e15', border: '1px solid #22c55e40' }}>
+                                                    <span className="text-[11px] font-black uppercase tracking-wider" style={{ color: '#16a34a' }}>Frete oferecido</span>
+                                                    <span className="text-lg font-black" style={{ color: '#16a34a' }}>R$ {Number(ride.offered_price).toFixed(2)}</span>
                                                 </div>
-                                                <div className="rounded-xl px-3 py-2" style={ride.customPrice != null ? { background: '#f9731615', border: '1px solid #f9731650' } : { background: `${colors.border}15`, border: `1px dashed ${colors.border}` }}>
-                                                    <p className="text-[9px] font-black uppercase tracking-wider" style={{ color: ride.customPrice != null ? '#f97316' : colors.textSecondary }}>Minha tarifa</p>
-                                                    <p className="text-base font-black" style={{ color: ride.customPrice != null ? '#f97316' : colors.textSecondary }}>
-                                                        {ride.customPrice != null ? `R$ ${ride.customPrice.toFixed(2)}` : 'não definida'}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        )}
-
-                                        {isEditingPrice ? (
-                                            <div className="flex items-center gap-2 mt-2">
-                                                <input
-                                                    type="number"
-                                                    autoFocus
-                                                    value={customPriceValue}
-                                                    onChange={(e) => setCustomPriceValue(e.target.value)}
-                                                    placeholder="Valor (R$)"
-                                                    className="flex-1 p-2 rounded-full border text-sm"
-                                                    style={{ background: colors.background, borderColor: colors.border, color: colors.textPrimary }}
-                                                />
                                                 <button
-                                                    onClick={() => applyToRide(ride, parseFloat(customPriceValue) || 0)}
+                                                    onClick={() => applyToRide(ride, ride.suggestedPrice)}
                                                     disabled={isApplying}
-                                                    className="px-4 py-2 rounded-full text-xs font-black"
+                                                    className="w-full py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all disabled:opacity-70 flex items-center justify-center gap-2"
                                                     style={{ background: GRADIENT, color: '#fff' }}
                                                 >
-                                                    {isApplying ? <Spinner size={12} /> : 'Enviar'}
-                                                </button>
-                                                <button
-                                                    onClick={() => { setCustomPriceFor(null); setCustomPriceValue('') }}
-                                                    className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
-                                                    style={{ background: `${colors.border}30`, color: colors.textSecondary }}
-                                                >
-                                                    <X size={14} />
-                                                </button>
-                                            </div>
-                                        ) : (
-                                            <>
-                                                {ride.offered_price == null && ride.customPrice != null && Math.abs(ride.customPrice - ride.platformPrice) > 0.004 ? (
-                                                    <div className="grid grid-cols-2 gap-2 mt-1">
-                                                        <button
-                                                            onClick={() => applyToRide(ride, ride.platformPrice)}
-                                                            disabled={isApplying}
-                                                            className="py-2.5 rounded-full text-[11px] font-black uppercase tracking-wider transition-all disabled:opacity-70"
-                                                            style={{ background: `${colors.border}30`, color: colors.textPrimary, border: `1px solid ${colors.border}` }}
-                                                        >
-                                                            {isApplying ? <Spinner size={14} /> : `Tarifa iUser R$ ${ride.platformPrice.toFixed(2)}`}
-                                                        </button>
-                                                        <button
-                                                            onClick={() => applyToRide(ride, ride.customPrice as number)}
-                                                            disabled={isApplying}
-                                                            className="py-2.5 rounded-full text-[11px] font-black uppercase tracking-wider transition-all disabled:opacity-70"
-                                                            style={{ background: GRADIENT, color: '#fff' }}
-                                                        >
-                                                            {isApplying ? <Spinner size={14} /> : `Minha tarifa R$ ${ride.customPrice.toFixed(2)}`}
-                                                        </button>
-                                                    </div>
-                                                ) : (
-                                                    <button
-                                                        onClick={() => applyToRide(ride, ride.suggestedPrice)}
-                                                        disabled={isApplying}
-                                                        className="w-full mt-1 py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all disabled:opacity-70 flex items-center justify-center gap-2"
-                                                        style={{ background: GRADIENT, color: '#fff' }}
-                                                    >
-                                                        {isApplying ? <Spinner size={14} /> : `${ride.offered_price != null ? 'Aceitar frete' : 'Candidatar-se'} por R$ ${ride.suggestedPrice.toFixed(2)}`}
-                                                    </button>
-                                                )}
-
-                                                {ride.hasDistance && ride.offered_price == null && (
-                                                    <div className="flex items-center gap-1.5 mt-2">
-                                                        <span className="text-[9px]" style={{ color: colors.textSecondary }}>Ofereça sua tarifa:</span>
-                                                        {[1, 2, 3].map((extra) => (
-                                                            <button
-                                                                key={extra}
-                                                                onClick={() => applyToRide(ride, ride.suggestedPrice + extra)}
-                                                                disabled={isApplying}
-                                                                className="px-2.5 py-1 rounded-full text-[10px] font-bold flex-1"
-                                                                style={{ background: `${colors.border}30`, color: colors.textPrimary, border: `1px solid ${colors.border}` }}
-                                                            >
-                                                                R$ {(ride.suggestedPrice + extra).toFixed(0)}
-                                                            </button>
-                                                        ))}
-                                                        <button
-                                                            onClick={() => { setCustomPriceFor(ride.id); setCustomPriceValue(ride.suggestedPrice.toFixed(2)) }}
-                                                            className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
-                                                            style={{ background: `${colors.border}30`, color: colors.textSecondary }}
-                                                            title="Valor personalizado"
-                                                        >
-                                                            <Pencil size={12} />
-                                                        </button>
-                                                    </div>
-                                                )}
-
-                                                <button
-                                                    onClick={() => skipRide(ride.id)}
-                                                    className="w-full mt-2 py-2 rounded-full text-[11px] font-bold"
-                                                    style={{ background: 'transparent', color: colors.textSecondary }}
-                                                >
-                                                    Pular
+                                                    {isApplying ? <Spinner size={14} /> : `Aceitar frete por R$ ${ride.suggestedPrice.toFixed(2)}`}
                                                 </button>
                                             </>
+                                        ) : (
+                                            <>
+                                                {/* Tarifa iUser · Minha tarifa · editar */}
+                                                <div className="flex items-stretch gap-2">
+                                                    <button
+                                                        onClick={() => applyToRide(ride, ride.platformPrice)}
+                                                        disabled={isApplying}
+                                                        className="flex-1 rounded-xl px-3 py-2 text-left transition-all active:scale-95 disabled:opacity-70"
+                                                        style={{ background: `${colors.border}25`, border: `1px solid ${colors.border}` }}
+                                                    >
+                                                        <p className="text-[9px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>Tarifa iUser</p>
+                                                        <p className="text-base font-black" style={{ color: colors.textPrimary }}>
+                                                            {isApplying ? <Spinner size={14} /> : `R$ ${ride.platformPrice.toFixed(2)}`}
+                                                        </p>
+                                                    </button>
+                                                    <button
+                                                        onClick={() => ride.customPrice != null && applyToRide(ride, ride.customPrice)}
+                                                        disabled={isApplying || ride.customPrice == null}
+                                                        className="flex-1 rounded-xl px-3 py-2 text-left transition-all active:scale-95 disabled:opacity-70"
+                                                        style={ride.customPrice != null ? { background: GRADIENT, color: '#fff' } : { background: `${colors.border}15`, border: `1px dashed ${colors.border}` }}
+                                                    >
+                                                        <p className="text-[9px] font-black uppercase tracking-wider" style={{ color: ride.customPrice != null ? 'rgba(255,255,255,0.85)' : colors.textSecondary }}>Minha tarifa</p>
+                                                        <p className="text-base font-black" style={{ color: ride.customPrice != null ? '#fff' : colors.textSecondary }}>
+                                                            {ride.customPrice != null ? `R$ ${ride.customPrice.toFixed(2)}` : 'não definida'}
+                                                        </p>
+                                                    </button>
+                                                    <button
+                                                        onClick={() => {
+                                                            if (isEditingPrice) { setCustomPriceFor(null); setCustomPriceValue('') }
+                                                            else { setCustomPriceFor(ride.id); setCustomPriceValue((ride.customPrice ?? ride.platformPrice).toFixed(2)) }
+                                                        }}
+                                                        className="w-12 rounded-xl flex items-center justify-center flex-shrink-0 transition-all active:scale-95"
+                                                        style={isEditingPrice ? { background: GRADIENT, color: '#fff' } : { background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                                                        title="Digitar outro valor"
+                                                    >
+                                                        <Pencil size={16} />
+                                                    </button>
+                                                </div>
+
+                                                {isEditingPrice && (
+                                                    <div className="flex items-center gap-2 mt-2">
+                                                        <input
+                                                            type="number"
+                                                            inputMode="decimal"
+                                                            autoFocus
+                                                            value={customPriceValue}
+                                                            onChange={(e) => setCustomPriceValue(e.target.value)}
+                                                            placeholder="Valor (R$)"
+                                                            className="flex-1 p-2 rounded-full border text-sm"
+                                                            style={{ background: colors.background, borderColor: colors.border, color: colors.textPrimary }}
+                                                        />
+                                                        <button
+                                                            onClick={() => applyToRide(ride, parseFloat(customPriceValue) || 0)}
+                                                            disabled={isApplying}
+                                                            className="px-4 py-2 rounded-full text-xs font-black"
+                                                            style={{ background: GRADIENT, color: '#fff' }}
+                                                        >
+                                                            {isApplying ? <Spinner size={12} /> : 'Enviar'}
+                                                        </button>
+                                                        <button
+                                                            onClick={() => { setCustomPriceFor(null); setCustomPriceValue('') }}
+                                                            className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+                                                            style={{ background: `${colors.border}30`, color: colors.textSecondary }}
+                                                        >
+                                                            <X size={14} />
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </>
                                         )}
+
+                                        {ride.origin_lat != null && ride.origin_lng != null && (
+                                            <button
+                                                onClick={() => router.push(`/aceitar-corridas/mapa?ride=${ride.id}`)}
+                                                className="w-full mt-2 py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all active:scale-95 flex items-center justify-center gap-2"
+                                                style={{ background: `${colors.border}30`, color: colors.textPrimary, border: `1px solid ${colors.border}` }}
+                                            >
+                                                <MapIcon size={14} />
+                                                Ver no mapa
+                                            </button>
+                                        )}
+
+                                        <button
+                                            onClick={() => skipRide(ride.id)}
+                                            className="w-full mt-1 py-2 rounded-full text-[11px] font-bold"
+                                            style={{ background: 'transparent', color: colors.textSecondary }}
+                                        >
+                                            Pular
+                                        </button>
                                     </div>
                                 )
                             })}

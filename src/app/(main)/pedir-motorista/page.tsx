@@ -104,6 +104,9 @@ interface FrequentRide {
 }
 
 const STEPS: Step[] = ['type', 'where', 'vehicle', 'extras', 'payment', 'access']
+// Pra objeto, "Sobre o objeto" (tamanho) vem antes do veículo: é o tamanho
+// que decide se cabe numa moto/bicicleta ou se precisa de carro.
+const OBJECT_STEPS: Step[] = ['type', 'where', 'extras', 'vehicle', 'payment', 'access']
 
 async function reverseGeocode(lng: number, lat: number): Promise<string | null> {
     try {
@@ -601,7 +604,36 @@ export default function PedirMotoristaPage() {
             setWantsAirConditioning(false)
         }
     }
-    const stepIndex = STEPS.indexOf(step)
+    // Objeto não tem deficiência nem ar condicionado: limpa o que sobrou de um
+    // pedido anterior (ou do rascunho) pra não cobrar taxa de algo que some da tela.
+    useEffect(() => {
+        if (requestFor !== 'objeto') return
+        setHasSpecialNeeds(false)
+        setSpecialNeedsDescription('')
+        setSpecialNeedsWheelchair(false)
+        setSpecialNeedsWheelchairType(null)
+        setSpecialNeedsVisualImpairment(false)
+        setHasGuideDog(false)
+        setWantsAirConditioning(false)
+    }, [requestFor])
+
+    // Tamanho do objeto decide o veículo: pequeno cabe em tudo, médio não vai
+    // de bicicleta, grande só de carro.
+    const objectVehicleAllowed = (kind: 'carro' | 'moto' | 'bicicleta' | 'qualquer') => {
+        if (requestFor !== 'objeto' || !objectSize || kind === 'carro') return true
+        if (objectSize === 'grande') return false
+        if (objectSize === 'medio') return kind === 'moto'
+        return true
+    }
+    useEffect(() => {
+        if (requestFor === 'objeto' && !objectVehicleAllowed(vehicleTypeChoice)) setVehicleTypeChoice('carro')
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [requestFor, objectSize])
+
+    const orderedSteps = requestFor === 'objeto' ? OBJECT_STEPS : STEPS
+    const stepIndex = orderedSteps.indexOf(step)
+    const goNext = () => setStep(orderedSteps[Math.min(orderedSteps.indexOf(step) + 1, orderedSteps.length - 1)])
+    const goPrev = () => setStep(orderedSteps[Math.max(orderedSteps.indexOf(step) - 1, 0)])
 
     // ===== PREVIEW DAS FOTOS =====
     useEffect(() => {
@@ -702,7 +734,7 @@ export default function PedirMotoristaPage() {
         setDestination({ address: fr.destinationAddress, coords: fr.destinationCoords })
         setStops(fr.stops.map((s) => ({ ...s, complement: '', complementOpen: false })))
         setExpandedFrequentRide(null)
-        setStep('vehicle')
+        setStep(fr.requestFor === 'objeto' ? 'extras' : 'vehicle')
         toast.success('Endereços preenchidos com os dados da corrida anterior — revise antes de pedir')
     }
 
@@ -1208,12 +1240,8 @@ export default function PedirMotoristaPage() {
     }
 
     const handleBack = () => {
-        if (step === 'access') setStep('payment')
-        else if (step === 'payment') setStep('extras')
-        else if (step === 'extras') setStep('vehicle')
-        else if (step === 'vehicle') setStep('where')
-        else if (step === 'where') setStep('type')
-        else router.push('/')
+        if (step === 'type') router.push('/')
+        else goPrev()
     }
 
     const handleRequestConfirm = () => {
@@ -1221,16 +1249,19 @@ export default function PedirMotoristaPage() {
             toast.error('Preencha o endereço de origem e destino')
             return
         }
-        if (requestFor === 'objeto' && !objectPhotoFile) {
-            toast.error('Adicione uma foto do objeto para continuar')
-            return
-        }
-        if (requestFor === 'animal' && !petPhotoFile) {
-            toast.error('Adicione uma foto do animal para continuar')
-            return
-        }
-        if (requestFor === 'pessoa' && hasExtraObject && !extraObjectPhotoFile) {
-            toast.error('Adicione uma foto do objeto para continuar')
+        // As fotos (File) não sobrevivem ao login/rascunho — se faltar uma, leva
+        // a pessoa de volta pra etapa e pro campo que precisa dela.
+        const missingPhoto =
+            requestFor === 'objeto' && !objectPhotoFile ? { msg: 'Adicione uma foto do objeto para continuar', id: 'foto-objeto' }
+            : requestFor === 'animal' && !petPhotoFile ? { msg: 'Adicione uma foto do animal para continuar', id: 'foto-animal' }
+            : requestFor === 'pessoa' && hasExtraObject && !extraObjectPhotoFile ? { msg: 'Adicione uma foto do objeto para continuar', id: 'foto-objeto-extra' }
+            : null
+        if (missingPhoto) {
+            toast.error(missingPhoto.msg)
+            setStep('extras')
+            setTimeout(() => {
+                document.getElementById(missingPhoto.id)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+            }, 150)
             return
         }
         if (isScheduled && new Date(scheduledFor).getTime() <= Date.now()) {
@@ -1304,7 +1335,7 @@ export default function PedirMotoristaPage() {
             if (specialNeedsWheelchair) parts.push(`cadeirante${specialNeedsWheelchairType ? ` (${specialNeedsWheelchairType === 'dobravel' ? 'dobrável' : 'grande'})` : ''}`)
             if (specialNeedsVisualImpairment) parts.push(`deficiência visual${hasGuideDog ? ' com cão-guia' : ''}`)
             if (specialNeedsDescription.trim()) parts.push(specialNeedsDescription.trim())
-            rows.push({ label: 'Necessidade especial', value: parts.length > 0 ? parts.join('; ') : 'sim' })
+            rows.push({ label: 'Pessoa com deficiência', value: parts.length > 0 ? parts.join('; ') : 'sim' })
         }
 
         if (paymentMethod) {
@@ -1340,7 +1371,7 @@ export default function PedirMotoristaPage() {
         if (requestFor === 'pessoa' && hasShopping) items.push({ label: 'Compras no mercado', amount: fees.compras })
 
         const specialNeedsActive = hasSpecialNeeds || specialNeedsWheelchair || specialNeedsVisualImpairment || hasGuideDog
-        if (specialNeedsActive) items.push({ label: 'Necessidade especial', amount: fees.necessidade_especial })
+        if (specialNeedsActive) items.push({ label: 'Pessoa com deficiência', amount: fees.necessidade_especial })
 
         const petPresent = (requestFor === 'pessoa' && hasPet) || requestFor === 'animal'
         if (petPresent && petHasCarrier === false) items.push({ label: 'Pet sem caixa de transporte', amount: fees.pet_sem_caixa })
@@ -1450,7 +1481,7 @@ export default function PedirMotoristaPage() {
                 payment_method: paymentMethod,
                 cash_change_for: paymentMethod === 'dinheiro' && cashChangeFor.trim() ? Number(cashChangeFor.replace(',', '.')) : null,
                 card_is_contactless: paymentMethod === 'cartao' ? cardIsContactless : null,
-                wants_air_conditioning: isTwoWheels ? false : wantsAirConditioning,
+                wants_air_conditioning: isTwoWheels || requestFor === 'objeto' ? false : wantsAirConditioning,
                 origin_lat: origin.coords ? origin.coords[1] : null,
                 origin_lng: origin.coords ? origin.coords[0] : null,
                 destination_lat: destination.coords ? destination.coords[1] : null,
@@ -1692,7 +1723,7 @@ export default function PedirMotoristaPage() {
                     <div ref={setSheetContentRef}>
                     {/* Indicador de progresso das etapas */}
                     <div className="flex items-center gap-1.5 justify-center mb-4">
-                        {STEPS.map((s, i) => (
+                        {orderedSteps.map((s, i) => (
                             <div
                                 key={s}
                                 className="h-1.5 rounded-full transition-all duration-300"
@@ -2009,7 +2040,7 @@ export default function PedirMotoristaPage() {
                                     Voltar
                                 </button>
                                 <button
-                                    onClick={() => setStep('vehicle')}
+                                    onClick={goNext}
                                     disabled={!origin.address.trim() || !destination.address.trim() || stops.some((s) => !s.address.trim())}
                                     className="flex-1 py-3.5 rounded-xl font-black uppercase text-sm tracking-wider transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:hover:scale-100"
                                     style={{ background: GRADIENT, color: '#fff' }}
@@ -2030,12 +2061,14 @@ export default function PedirMotoristaPage() {
                                 {(['carro', 'moto', 'bicicleta', 'qualquer'] as const).map((kind) => {
                                     const active = vehicleTypeChoice === kind
                                     const Icon = kind === 'moto' ? Motorbike : kind === 'bicicleta' ? Bike : kind === 'qualquer' ? Shuffle : Car
+                                    const allowed = objectVehicleAllowed(kind)
                                     return (
                                         <button
                                             key={kind}
                                             type="button"
+                                            disabled={!allowed}
                                             onClick={() => chooseVehicle(kind)}
-                                            className="flex flex-col items-center gap-2 py-5 px-2 rounded-2xl transition-all hover:scale-[1.03] active:scale-95"
+                                            className="flex flex-col items-center gap-2 py-5 px-2 rounded-2xl transition-all hover:scale-[1.03] active:scale-95 disabled:opacity-40 disabled:hover:scale-100"
                                             style={active ? { background: GRADIENT } : { background: `${colors.border}30`, border: `1px solid ${colors.border}` }}
                                         >
                                             <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: active ? 'rgba(255,255,255,0.25)' : GRADIENT, color: '#fff' }}>
@@ -2046,6 +2079,14 @@ export default function PedirMotoristaPage() {
                                     )
                                 })}
                             </div>
+
+                            {requestFor === 'objeto' && objectSize && objectSize !== 'pequeno' && (
+                                <div className="px-3 py-2.5 rounded-lg text-xs font-semibold mt-3" style={{ background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }}>
+                                    {objectSize === 'grande'
+                                        ? 'Objeto grande: só cabe de carro.'
+                                        : 'Objeto médio: não vai de bicicleta — escolha carro ou moto.'}
+                                </div>
+                            )}
 
                             {/* Aviso imediato: moto/bicicleta/qualquer um limita quem/o que
                                 pode ir junto — melhor a pessoa saber isso já aqui do que só
@@ -2062,14 +2103,14 @@ export default function PedirMotoristaPage() {
 
                             <div className="flex items-center gap-2 mt-4">
                                 <button
-                                    onClick={() => setStep('where')}
+                                    onClick={goPrev}
                                     className="py-3.5 px-5 rounded-xl font-black uppercase text-sm tracking-wider transition-all active:scale-95"
                                     style={{ background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
                                 >
                                     Voltar
                                 </button>
                                 <button
-                                    onClick={() => setStep('extras')}
+                                    onClick={goNext}
                                     className="flex-1 py-3.5 rounded-xl font-black uppercase text-sm tracking-wider transition-all hover:scale-[1.02] active:scale-95"
                                     style={{ background: GRADIENT, color: '#fff' }}
                                 >
@@ -2198,12 +2239,14 @@ export default function PedirMotoristaPage() {
                                 )}
                             </div>
 
-                            {/* Necessidade especial */}
+                            {/* Pessoa com deficiência — não se aplica a objeto */}
+                            {requestFor !== 'objeto' && (
+                                <>
                             <div className="rounded-xl px-3 py-2.5 mt-3" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
                                 <div className="flex items-center justify-between gap-2 flex-wrap">
                                     <span className="flex items-center gap-1.5 text-xs font-bold" style={{ color: colors.textPrimary }}>
                                         <ShieldAlert size={13} style={{ color: colors.accent }} />
-                                        Portador de necessidade especial?
+                                        Pessoa com deficiência?
                                     </span>
                                     <div className="flex items-center gap-1.5 flex-shrink-0">
                                         <button
@@ -2304,6 +2347,8 @@ export default function PedirMotoristaPage() {
                                     </div>
                                 )}
                             </div>
+                                </>
+                            )}
 
                             {/* Agora ou agendar pra depois */}
                             <div className="rounded-xl px-3 py-2.5 mt-3" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
@@ -2500,7 +2545,7 @@ export default function PedirMotoristaPage() {
                                                     className="w-full px-3 py-2 rounded-lg text-sm focus:outline-none"
                                                     style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
                                                 />
-                                                <div className="mt-2">
+                                                <div className="mt-2" id="foto-objeto-extra">
                                                     <span className="text-xs font-bold block mb-1.5" style={{ color: colors.textSecondary }}>
                                                         Foto do objeto <span style={{ color: '#ef4444' }}>*</span>
                                                     </span>
@@ -2581,7 +2626,7 @@ export default function PedirMotoristaPage() {
                                         </div>
                                     </div>
 
-                                    <div className="mt-3">
+                                    <div className="mt-3" id="foto-animal">
                                         <span className="text-xs font-bold block mb-1.5" style={{ color: colors.textSecondary }}>
                                             Foto do animal <span style={{ color: '#ef4444' }}>*</span>
                                         </span>
@@ -2707,7 +2752,7 @@ export default function PedirMotoristaPage() {
                                         </div>
                                     </div>
 
-                                    <div className="mt-3">
+                                    <div className="mt-3" id="foto-objeto">
                                         <span className="text-xs font-bold block mb-1.5" style={{ color: colors.textSecondary }}>
                                             Foto do objeto <span style={{ color: '#ef4444' }}>*</span>
                                         </span>
@@ -2798,14 +2843,14 @@ export default function PedirMotoristaPage() {
 
                             <div className="flex items-center gap-2 mt-4">
                                 <button
-                                    onClick={() => setStep('vehicle')}
+                                    onClick={goPrev}
                                     className="py-3.5 px-5 rounded-xl font-black uppercase text-sm tracking-wider transition-all active:scale-95"
                                     style={{ background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
                                 >
                                     Voltar
                                 </button>
                                 <button
-                                    onClick={() => setStep('payment')}
+                                    onClick={goNext}
                                     className="flex-1 py-3.5 rounded-xl font-black uppercase text-sm tracking-wider transition-all hover:scale-[1.02] active:scale-95"
                                     style={{ background: GRADIENT, color: '#fff' }}
                                 >
@@ -2882,7 +2927,7 @@ export default function PedirMotoristaPage() {
                                 </div>
                             )}
 
-                            {!isTwoWheels && (
+                            {!isTwoWheels && requestFor !== 'objeto' && (
                                 <div className="rounded-xl px-3 py-2.5 mt-3" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
                                     <div className="flex items-center justify-between gap-2 flex-wrap">
                                         <span className="flex items-center gap-1.5 text-xs font-bold" style={{ color: colors.textPrimary }}>
@@ -2911,14 +2956,14 @@ export default function PedirMotoristaPage() {
 
                             <div className="flex items-center gap-2 mt-4">
                                 <button
-                                    onClick={() => setStep('extras')}
+                                    onClick={goPrev}
                                     className="py-3.5 px-5 rounded-xl font-black uppercase text-sm tracking-wider transition-all active:scale-95"
                                     style={{ background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
                                 >
                                     Voltar
                                 </button>
                                 <button
-                                    onClick={() => setStep('access')}
+                                    onClick={goNext}
                                     className="flex-1 py-3.5 rounded-xl font-black uppercase text-sm tracking-wider transition-all hover:scale-[1.02] active:scale-95"
                                     style={{ background: GRADIENT, color: '#fff' }}
                                 >

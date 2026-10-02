@@ -120,7 +120,7 @@ export function buildRideSpecRows(ride: RideSpecFields): RideSpecRow[] {
             parts.push(`deficiência visual${ride.has_guide_dog ? ' — vem com cão-guia' : ''}`)
         }
         if (ride.special_needs_description) parts.push(ride.special_needs_description)
-        rows.push({ label: 'Necessidade especial', value: parts.length > 0 ? parts.join('; ') : 'sim' })
+        rows.push({ label: 'Pessoa com deficiência', value: parts.length > 0 ? parts.join('; ') : 'sim' })
 
         if (ride.has_guide_dog) {
             rows.push({ label: 'Atenção', value: 'Cão-guia — não é pet comum, não recuse por causa dele' })
