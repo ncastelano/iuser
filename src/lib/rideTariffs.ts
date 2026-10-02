@@ -32,7 +32,10 @@ export interface RideTariffSource {
     wants_air_conditioning?: boolean | null
 }
 
-export function computeRideTariffs(ride: RideTariffSource, pricing: DriverPricingRow): { platformPrice: number; customPrice: number | null } {
+// preferredPrice: o valor do plano que o motorista escolheu (pricing_mode) —
+// "Minha tarifa" só se ele estiver nela, senão a Tarifa iUser, mesmo que ele
+// ainda tenha valores próprios salvos de antes.
+export function computeRideTariffs(ride: RideTariffSource, pricing: DriverPricingRow): { platformPrice: number; customPrice: number | null; preferredPrice: number } {
     const rideKind = kindForRideType(ride.vehicle_type || 'carro')
     const rideType: RideRequestType = ride.ride_type || 'pessoa'
     const flags: RideConditionFlags = {
@@ -52,8 +55,11 @@ export function computeRideTariffs(ride: RideTariffSource, pricing: DriverPricin
         : shape.baseFee + shape.extraFees[rideType] + computeConditionExtras(flags, shape.conditionExtraFees)
 
     const customShape = getCustomPricing(pricing, rideKind)
+    const platformPrice = priceWith(PLATFORM_DEFAULT_PRICING_BY_VEHICLE[rideKind])
+    const customPrice = customShape ? priceWith(customShape) : null
     return {
-        platformPrice: priceWith(PLATFORM_DEFAULT_PRICING_BY_VEHICLE[rideKind]),
-        customPrice: customShape ? priceWith(customShape) : null,
+        platformPrice,
+        customPrice,
+        preferredPrice: pricing.pricing_mode === 'custom' && customPrice != null ? customPrice : platformPrice,
     }
 }

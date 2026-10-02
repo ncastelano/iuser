@@ -23,7 +23,7 @@ export interface PushPayload {
     /** Aviso que não pode passar batido (corrida nova, motorista chegando): fica na tela e vibra mais. */
     urgent?: boolean
     /** Corrida nova: o service worker monta os botões de valor (Tarifa iUser / Minha tarifa / editar) na notificação. */
-    rideAlert?: { rideId: string; platformPrice: number; customPrice: number | null; offeredPrice: number | null }
+    rideAlert?: { rideId: string; platformPrice: number; customPrice: number | null; preferredPrice: number; offeredPrice: number | null }
 }
 
 // Manda pra todos os canais (web + nativo) cadastrados pro user_id, em

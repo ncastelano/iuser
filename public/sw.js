@@ -15,18 +15,22 @@ self.addEventListener('activate', (event) => {
 const formatBRL = (v) => 'R$ ' + Number(v).toFixed(2).replace('.', ',')
 
 // Monta os botões conforme o que o aparelho suporta: Notification.maxActions
-// é 2 em alguns Androids/desktops e 3 em outros. Com só 2, fica "Minha tarifa
-// (ou iUser, se não tiver) + Outro valor".
+// é 2 em alguns Androids/desktops e 3 em outros. Com só 2, fica um botão só
+// com o valor do plano que o motorista prefere (sem rótulo) + Outro valor.
 function rideActions(alert) {
   if (alert.offeredPrice != null) {
     return [{ action: 'apply-offered', title: 'Aceitar frete ' + formatBRL(alert.offeredPrice) }]
   }
   const platform = { action: 'apply-platform', title: 'iUser ' + formatBRL(alert.platformPrice) }
-  const custom = alert.customPrice != null ? { action: 'apply-custom', title: 'Minha ' + formatBRL(alert.customPrice) } : null
+  // "Minha" só aparece se o motorista está no plano de tarifa própria — valores
+  // próprios salvos de antes não contam se ele voltou pra tarifa iUser.
+  const usesCustom = alert.customPrice != null && alert.preferredPrice === alert.customPrice
+  const custom = usesCustom ? { action: 'apply-custom', title: 'Minha ' + formatBRL(alert.customPrice) } : null
   const edit = { action: 'apply-edit', type: 'text', title: 'Outro valor', placeholder: 'Valor em R$ (ex: 25,50)' }
   const max = (self.Notification && self.Notification.maxActions) || 2
   if (max >= 3) return custom ? [platform, custom, edit] : [platform, edit]
-  return [custom || platform, edit]
+  const preferred = alert.preferredPrice != null ? alert.preferredPrice : alert.platformPrice
+  return [{ action: 'apply-preferred', title: formatBRL(preferred) }, edit]
 }
 
 function showPushNotification(data) {
@@ -84,6 +88,7 @@ async function applyFromNotification(event, data) {
   const targetUrl = data.url || '/aceitar-corridas'
   let price = null
   if (event.action === 'apply-platform') price = alert.platformPrice
+  else if (event.action === 'apply-preferred') price = alert.preferredPrice != null ? alert.preferredPrice : alert.platformPrice
   else if (event.action === 'apply-custom') price = alert.customPrice
   else if (event.action === 'apply-offered') price = alert.offeredPrice
   else if (event.action === 'apply-edit') {

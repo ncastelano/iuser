@@ -84,6 +84,7 @@ export async function notifyDriversOfRide(ride: {
                         rideId: ride.id,
                         platformPrice: tariffs.platformPrice,
                         customPrice: tariffs.customPrice,
+                        preferredPrice: tariffs.preferredPrice,
                         offeredPrice: ride.offered_price != null ? Number(ride.offered_price) : null,
                     }
                     : undefined,

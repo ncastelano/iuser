@@ -54,7 +54,7 @@ export function DriverRideAlertListener() {
                     const description = ride.origin_address ? `${short(ride.origin_address)} → ${short(ride.destination_address)}` : undefined
                     // Card na própria notificação com Tarifa iUser / Minha tarifa /
                     // editar, pra o motorista já se candidatar sem abrir a página.
-                    const { platformPrice, customPrice } = computeRideTariffs(ride, pricing)
+                    const { platformPrice, customPrice, preferredPrice } = computeRideTariffs(ride, pricing)
                     toast.custom((toastId) => (
                         <NewRideAlertCard
                             rideId={ride.id}
@@ -83,7 +83,7 @@ export function DriverRideAlertListener() {
                                 url: `/aceitar-corridas/mapa?ride=${ride.id}`,
                                 tag: `new-ride-${ride.id}`,
                                 urgent: true,
-                                rideAlert: { rideId: ride.id, platformPrice, customPrice, offeredPrice: ride.offered_price != null ? Number(ride.offered_price) : null },
+                                rideAlert: { rideId: ride.id, platformPrice, customPrice, preferredPrice, offeredPrice: ride.offered_price != null ? Number(ride.offered_price) : null },
                             }
                             if (registration.active) registration.active.postMessage({ type: 'show-ride-alert', payload })
                         }).catch(() => {})
