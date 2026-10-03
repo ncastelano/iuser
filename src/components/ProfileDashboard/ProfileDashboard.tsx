@@ -837,19 +837,21 @@ export default function ProfileDashboard({
     // ===== BLOCOS ORDENÁVEIS (Gastos até Visitantes) =====
 
     const financeiroNode = (
-        <>
-            {/* Cabeçalho — clicável, lembra aberto/fechado; agrupa Gastos + Pedidos ativos + Compras/Favoritas/Avaliações */}
-            <div className="mb-3">
+        <div className="mb-6">
+            {/* Um card só: Gastos + Pedidos em andamento + Compras/Favoritas/Avaliações ficam todos aqui dentro, abrindo e fechando juntos */}
+            <div
+                className="rounded-2xl"
+                style={{
+                    background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
+                    backdropFilter: 'blur(12px)',
+                    border: `1px solid ${colors.border}`,
+                    boxShadow: colors.shadow,
+                }}
+            >
                 <button
                     onClick={() => setIsFinanceiroExpanded(!isFinanceiroExpanded)}
-                    className="w-full rounded-2xl p-4 flex items-center justify-between gap-3 text-left"
-                    style={{
-                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
-                        backdropFilter: 'blur(12px)',
-                        border: `1px solid ${colors.border}`,
-                        boxShadow: colors.shadow,
-                        cursor: 'pointer',
-                    }}
+                    className="w-full p-4 flex items-center justify-between gap-3 text-left"
+                    style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}
                 >
                     <div className="flex items-center gap-3">
                         <div
@@ -868,20 +870,10 @@ export default function ProfileDashboard({
                         <ChevronDown size={18} style={{ color: colors.textSecondary }} className="flex-shrink-0" />
                     )}
                 </button>
-            </div>
 
-            {isFinanceiroExpanded && (
-            <>
-            <div className="mb-6">
-                <div
-                    className="rounded-2xl p-5"
-                    style={{
-                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
-                        backdropFilter: 'blur(12px)',
-                        border: `1px solid ${colors.border}`,
-                        boxShadow: colors.shadow,
-                    }}
-                >
+                {isFinanceiroExpanded && (
+                <div className="px-5 pb-5 pt-5 flex flex-col gap-5 border-t" style={{ borderColor: colors.border }}>
+                    <div>
                     {/* Gastos Hoje - Destaque */}
                     <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-3">
@@ -1041,20 +1033,11 @@ export default function ProfileDashboard({
                             </div>
                         )}
                     </div>
-                </div>
-            </div>
+                    </div>
 
             {activeOrders.length > 0 && (
-                <div className="mb-6">
-                    <div
-                        className="rounded-2xl p-5"
-                        style={{
-                            background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
-                            backdropFilter: 'blur(12px)',
-                            border: `1px solid ${colors.border}`,
-                            boxShadow: colors.shadow,
-                        }}
-                    >
+                <div className="border-t pt-5" style={{ borderColor: colors.border }}>
+                    <div>
                         <div className="flex items-center gap-2 mb-3">
                             <div
                                 className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
@@ -1116,16 +1099,8 @@ export default function ProfileDashboard({
                 </div>
             )}
 
-            <div className="mb-6">
-                <div
-                    className="rounded-2xl overflow-hidden"
-                    style={{
-                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
-                        backdropFilter: 'blur(12px)',
-                        border: `1px solid ${colors.border}`,
-                        boxShadow: colors.shadow,
-                    }}
-                >
+            <div className="border-t pt-5" style={{ borderColor: colors.border }}>
+                <div>
                     {/* Tabs Header */}
                     <div className="flex border-b" style={{ borderColor: colors.border }}>
                         <button
@@ -1218,7 +1193,7 @@ export default function ProfileDashboard({
                     </div>
 
                     {/* Conteúdo da Tab */}
-                    <div className="p-4">
+                    <div className="pt-4">
                         {activeTab === 'compras' ? (
                             orders.length === 0 ? (
                                 <div className="py-8 text-center">
@@ -1360,9 +1335,10 @@ export default function ProfileDashboard({
                     </div>
                 </div>
             </div>
-            </>
-            )}
-        </>
+                </div>
+                )}
+            </div>
+        </div>
     )
     const agendaNode = (
         <AtalhoCompromissosPessoal

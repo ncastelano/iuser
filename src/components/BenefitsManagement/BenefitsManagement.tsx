@@ -8,12 +8,9 @@ import { useTheme } from '@/app/contexts/theme'
 import { hexToRgb } from '@/lib/color'
 import { getAvatarUrl } from '@/lib/avatar'
 import { toast } from 'sonner'
-import { formatDistanceToNow } from 'date-fns'
-import { ptBR as ptBRLocale } from 'date-fns/locale'
-import { useRouter } from 'next/navigation'
 import { Spinner } from '@/components/Spinner'
 import InviteButton from '@/components/InviteButton'
-import { Gift, Check, X, Search, History, ShieldCheck, Shield, Users, UserPlus, Wallet, Clock } from 'lucide-react'
+import { Gift, Check, X, Search, History, ShieldCheck, Shield } from 'lucide-react'
 import AdminDashboard from '@/components/AdminDashboard/AdminDashboard'
 import {
     SCOPE_LABEL,
@@ -26,22 +23,7 @@ import {
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
-type Tab = 'grant' | 'history' | 'network' | 'status' | 'admin'
-
-interface DownlineMember {
-    id: string
-    name: string | null
-    avatar_url: string | null
-    profile_slug: string | null
-    joined_at: string
-    active_plans: string | null
-    /** Quanto essa pessoa paga por ciclo no plano ativo (pré-pago tem preço; pós-pago é 0, cobra por evento). */
-    plan_price: number
-    /** Quanto ela já deve acumulado no pós-pago (quita ao chegar em R$50). */
-    postpaid_debt: number
-}
-
-const brl = (n: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n)
+type Tab = 'grant' | 'history' | 'status' | 'admin'
 
 // 31/12 23:59:59 (Brasília), em dias a partir de agora.
 function daysUntilEndOfYear(): number {
@@ -78,28 +60,25 @@ interface BenefitsManagementProps {
 export default function BenefitsManagement({ isSuperAdmin = false }: BenefitsManagementProps) {
     const { colors } = useTheme()
     const surfaceRgb = hexToRgb(colors.surface)
-    const router = useRouter()
 
-    // "Minha rede" é a aba de entrada pra todo mundo — só quem tem permissão
-    // de concessão também enxerga conceder/histórico.
-    const [tab, setTab] = useState<Tab>('network')
+    // "Minha rede" agora vive dentro de "Convidei para o iUser" (ProfileDashboard
+    // > Commission). Aqui: quem pode conceder abre em "Conceder"; os demais, em
+    // "Meu status".
+    const [selectedTab, setTab] = useState<Tab | null>(null)
     const [status, setStatus] = useState<MyStatus | null>(null)
     const [plans, setPlans] = useState<GrantablePlan[]>([])
     const [loading, setLoading] = useState(true)
 
     const canManage = hasAnyGrantPermission(status)
+    const tab: Tab = selectedTab === null || (!canManage && (selectedTab === 'grant' || selectedTab === 'history'))
+        ? (canManage ? 'grant' : 'status')
+        : selectedTab
     const tabs = useMemo<{ id: Tab; label: string; icon: typeof Gift }[]>(() => [
-        { id: 'network', label: 'Minha rede', icon: Users },
         ...(canManage ? [{ id: 'grant' as const, label: 'Conceder', icon: Gift }] : []),
         ...(canManage ? [{ id: 'history' as const, label: 'Histórico', icon: History }] : []),
         { id: 'status', label: 'Meu status', icon: ShieldCheck },
         ...(isSuperAdmin ? [{ id: 'admin' as const, label: 'Admin', icon: Shield }] : []),
     ], [canManage, isSuperAdmin])
-
-    // rede
-    const [downline, setDownline] = useState<DownlineMember[]>([])
-    const [loadingNetwork, setLoadingNetwork] = useState(false)
-    const [walletBalance, setWalletBalance] = useState(0)
 
     // conceder
     const [query, setQuery] = useState('')
@@ -146,12 +125,6 @@ export default function BenefitsManagement({ isSuperAdmin = false }: BenefitsMan
 
     useEffect(() => { load() }, [load])
 
-    // Quem não pode conceder nada abre direto na própria rede (a aba
-    // "Conceder" nem aparece pra ele).
-    useEffect(() => {
-        if (!loading && !canManage && tab === 'grant') setTab('network')
-    }, [loading, canManage, tab])
-
     // Busca de pessoas (dentro do escopo, filtrado pelo banco).
     useEffect(() => {
         if (target || query.trim().length < 2) {
@@ -177,35 +150,6 @@ export default function BenefitsManagement({ isSuperAdmin = false }: BenefitsMan
     useEffect(() => {
         if (tab === 'history') loadHistory()
     }, [tab, loadHistory])
-
-    // Rede: quem cada um colocou embaixo de si (upline_id = você), com o
-    // plano ativo de cada um — a mesma função já usada em "Convidei para o
-    // iUser" (Commission.tsx), sempre travada em auth.uid() no banco.
-    const loadNetwork = useCallback(async () => {
-        setLoadingNetwork(true)
-        const [{ data }, { data: walletRows }] = await Promise.all([
-            supabase.rpc('get_referral_commission_summary'),
-            // RLS (auth.uid() = user_id) já filtra pro próprio saldo — não
-            // precisa nem saber o userId aqui.
-            supabase.from('wallet_transactions').select('amount'),
-        ])
-        setDownline(((data || []) as any[]).map((r) => ({
-            id: r.downline_id,
-            name: r.name,
-            avatar_url: r.avatar_url,
-            profile_slug: r.profile_slug,
-            joined_at: r.joined_at,
-            active_plans: r.active_plans,
-            plan_price: Number(r.plan_price) || 0,
-            postpaid_debt: Number(r.postpaid_debt) || 0,
-        })))
-        setWalletBalance((walletRows || []).reduce((sum, r: any) => sum + Number(r.amount), 0))
-        setLoadingNetwork(false)
-    }, [])
-
-    useEffect(() => {
-        if (tab === 'network') loadNetwork()
-    }, [tab, loadNetwork])
 
     const grant = async () => {
         if (!target || !planId) return
@@ -245,16 +189,16 @@ export default function BenefitsManagement({ isSuperAdmin = false }: BenefitsMan
         <div className="space-y-5">
             <div style={cardStyle} className="flex items-center gap-3">
                 <div className="w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#fff' }}>
-                    {canManage ? <Gift size={20} /> : <Users size={20} />}
+                    {canManage ? <Gift size={20} /> : <ShieldCheck size={20} />}
                 </div>
                 <div>
                     <h2 className="text-base font-black" style={{ color: colors.textPrimary }}>
-                        {canManage ? 'Gestão de Benefícios' : 'Minha Rede'}
+                        {canManage ? 'Gestão de Benefícios' : 'Meu status'}
                     </h2>
                     <p className="text-xs" style={{ color: colors.textSecondary }}>
                         {canManage
                             ? (status ? `${status.name} · nível ${status.level}` : 'Conceda planos dentro do seu escopo')
-                            : 'As pessoas que você colocou na sua rede'}
+                            : 'Seu nível e permissões na plataforma'}
                     </p>
                 </div>
             </div>
@@ -435,103 +379,6 @@ export default function BenefitsManagement({ isSuperAdmin = false }: BenefitsMan
                                     </span>
                                 </div>
                             ))}
-                        </div>
-                    )}
-                </div>
-            )}
-
-            {tab === 'network' && (
-                <div className="space-y-3">
-                    <div style={cardStyle} className="flex items-center justify-between gap-3">
-                        <div>
-                            <p className="text-xs font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>Pessoas na sua rede</p>
-                            <p className="text-2xl font-black" style={{ color: colors.textPrimary }}>{downline.length}</p>
-                        </div>
-                        <InviteButton />
-                    </div>
-
-                    {!loadingNetwork && downline.length > 0 && (() => {
-                        const paidValue = downline.reduce((sum, m) => sum + m.plan_price, 0)
-                        const promisedValue = downline.reduce((sum, m) => sum + m.postpaid_debt, 0)
-                        return (
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                                <div style={cardStyle}>
-                                    <p className="flex items-center gap-1 text-[10px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>
-                                        <Check size={11} /> Planos pagos (rede)
-                                    </p>
-                                    <p className="text-lg font-black mt-1" style={{ color: colors.textPrimary }}>{brl(paidValue)}</p>
-                                    <p className="text-[10px] mt-0.5" style={{ color: colors.textSecondary }}>Mensalidade do pré-pago de quem está ativo</p>
-                                </div>
-                                <div style={cardStyle}>
-                                    <p className="flex items-center gap-1 text-[10px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>
-                                        <Clock size={11} /> Prometido (pós-pago)
-                                    </p>
-                                    <p className="text-lg font-black mt-1" style={{ color: '#f97316' }}>{brl(promisedValue)}</p>
-                                    <p className="text-[10px] mt-0.5" style={{ color: colors.textSecondary }}>Dívida acumulada, ainda não quitada</p>
-                                </div>
-                                <div style={cardStyle}>
-                                    <p className="flex items-center gap-1 text-[10px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>
-                                        <Wallet size={11} /> Já disponível
-                                    </p>
-                                    <p className="text-lg font-black mt-1" style={{ color: '#22c55e' }}>{brl(walletBalance)}</p>
-                                    <p className="text-[10px] mt-0.5" style={{ color: colors.textSecondary }}>Sua comissão, pronta pra sacar</p>
-                                </div>
-                            </div>
-                        )
-                    })()}
-
-                    {loadingNetwork ? (
-                        <div className="flex justify-center py-8"><Spinner size={24} color={colors.accent} /></div>
-                    ) : downline.length === 0 ? (
-                        <div style={cardStyle} className="flex flex-col items-center gap-3 text-center py-6">
-                            <div className="w-14 h-14 rounded-full flex items-center justify-center" style={{ background: GRADIENT, color: '#fff' }}>
-                                <UserPlus size={24} />
-                            </div>
-                            <div>
-                                <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>Você ainda não colocou ninguém na sua rede</p>
-                                <p className="text-xs mt-1" style={{ color: colors.textSecondary }}>Convide alguém pra começar a construir sua rede.</p>
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="space-y-2">
-                            {downline.map((m) => {
-                                const avatar = getAvatarUrl(supabase, m.avatar_url)
-                                return (
-                                    <button
-                                        key={m.id}
-                                        onClick={() => m.profile_slug && router.push(`/${m.profile_slug}`)}
-                                        className="w-full flex items-center gap-3 p-3 rounded-2xl text-left"
-                                        style={cardStyle}
-                                    >
-                                        <span className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0" style={{ background: `${colors.border}40` }}>
-                                            {avatar && <img src={avatar} alt="" className="w-full h-full object-cover" />}
-                                        </span>
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-sm font-bold truncate" style={{ color: colors.textPrimary }}>
-                                                {m.name || (m.profile_slug ? `@${m.profile_slug}` : 'Usuário')}
-                                            </p>
-                                            <p className="text-[11px]" style={{ color: colors.textSecondary }}>
-                                                Entrou {formatDistanceToNow(new Date(m.joined_at), { addSuffix: true, locale: ptBRLocale })}
-                                            </p>
-                                        </div>
-                                        <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                                            {m.active_plans ? (
-                                                <span className="text-[9px] font-bold px-2 py-0.5 rounded-full" style={{ background: '#22c55e20', color: '#22c55e' }}>
-                                                    {m.active_plans}
-                                                </span>
-                                            ) : (
-                                                <span className="text-[9px]" style={{ color: colors.textSecondary }}>Sem plano ativo</span>
-                                            )}
-                                            {m.plan_price > 0 && (
-                                                <span className="text-[9px] font-bold" style={{ color: colors.textPrimary }}>{brl(m.plan_price)}/mês</span>
-                                            )}
-                                            {m.postpaid_debt > 0 && (
-                                                <span className="text-[9px] font-bold" style={{ color: '#f97316' }}>Deve {brl(m.postpaid_debt)}</span>
-                                            )}
-                                        </div>
-                                    </button>
-                                )
-                            })}
                         </div>
                     )}
                 </div>

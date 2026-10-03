@@ -25,6 +25,7 @@ import {
     Receipt,
     ArrowDownCircle,
     ArrowUpCircle,
+    Clock,
 } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import { formatDistanceToNow } from 'date-fns'
@@ -83,6 +84,10 @@ interface CommissionMember {
     profileSlug: string | null
     activePlans: string | null
     commissionTotal: number
+    /** Quanto a pessoa paga por ciclo no plano ativo (pré-pago tem preço; pós-pago é 0, cobra por evento). */
+    planPrice: number
+    /** Dívida acumulada dela no pós-pago, ainda não quitada. */
+    postpaidDebt: number
     sales: CommissionSale[]
 }
 
@@ -253,6 +258,8 @@ export default function Commission({ userId, profileSlug, onLatestUpdate }: Comm
                 profileSlug: item.profile_slug || null,
                 activePlans: item.active_plans || null,
                 commissionTotal: Number(item.commission_total) || 0,
+                planPrice: Number(item.plan_price) || 0,
+                postpaidDebt: Number(item.postpaid_debt) || 0,
                 sales: Array.isArray(item.sales)
                     ? item.sales.map((s: any) => ({
                         planName: s.plan_name,
@@ -438,6 +445,8 @@ export default function Commission({ userId, profileSlug, onLatestUpdate }: Comm
     }
 
     const totalCommission = members.reduce((acc, m) => acc + m.commissionTotal, 0)
+    const networkPaidValue = members.reduce((acc, m) => acc + m.planPrice, 0)
+    const networkPromisedValue = members.reduce((acc, m) => acc + m.postpaidDebt, 0)
 
     return (
         <>
@@ -479,7 +488,7 @@ export default function Commission({ userId, profileSlug, onLatestUpdate }: Comm
                                     Convidei para o iUser
                                 </h3>
                                 <p className="text-xs mt-0.5" style={{ color: textSecondary }}>
-                                    {members.length} pessoa{members.length !== 1 ? 's' : ''} indicada{members.length !== 1 ? 's' : ''}
+                                    {members.length} pessoa{members.length !== 1 ? 's' : ''} na sua rede
                                     {totalCommission > 0 && ` · ${formatCurrency(totalCommission)} em comissão`}
                                 </p>
                             </div>
@@ -510,6 +519,26 @@ export default function Commission({ userId, profileSlug, onLatestUpdate }: Comm
                                     R$ {walletBalance.toFixed(2)}
                                 </span>
                             </div>
+
+                            {/* ===== MINHA REDE: resumo do que a rede rende ===== */}
+                            {!loading && members.length > 0 && (
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div className="rounded-2xl p-3" style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`, border: `1px solid ${borderColor}` }}>
+                                        <p className="flex items-center gap-1 text-[10px] font-black uppercase tracking-wider" style={{ color: textSecondary }}>
+                                            <Check size={11} /> Planos pagos (rede)
+                                        </p>
+                                        <p className="text-lg font-black mt-1" style={{ color: textPrimary }}>{formatCurrency(networkPaidValue)}</p>
+                                        <p className="text-[10px] mt-0.5" style={{ color: textSecondary }}>Mensalidade do pré-pago de quem está ativo</p>
+                                    </div>
+                                    <div className="rounded-2xl p-3" style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`, border: `1px solid ${borderColor}` }}>
+                                        <p className="flex items-center gap-1 text-[10px] font-black uppercase tracking-wider" style={{ color: textSecondary }}>
+                                            <Clock size={11} /> Prometido (pós-pago)
+                                        </p>
+                                        <p className="text-lg font-black mt-1" style={{ color: '#f97316' }}>{formatCurrency(networkPromisedValue)}</p>
+                                        <p className="text-[10px] mt-0.5" style={{ color: textSecondary }}>Dívida acumulada, ainda não quitada</p>
+                                    </div>
+                                </div>
+                            )}
 
                             {!showWithdrawForm ? (
                                 <div className="flex flex-col gap-2">
@@ -769,6 +798,13 @@ export default function Commission({ userId, profileSlug, onLatestUpdate }: Comm
                                                             <span className="inline-block mt-1.5 text-[9px]" style={{ color: textSecondary }}>
                                                                 Sem plano ativo
                                                             </span>
+                                                        )}
+                                                        {(member.planPrice > 0 || member.postpaidDebt > 0) && (
+                                                            <p className="text-[9px] font-bold mt-1">
+                                                                {member.planPrice > 0 && <span style={{ color: textPrimary }}>{formatCurrency(member.planPrice)}/mês</span>}
+                                                                {member.planPrice > 0 && member.postpaidDebt > 0 && <span style={{ color: textSecondary }}> · </span>}
+                                                                {member.postpaidDebt > 0 && <span style={{ color: '#f97316' }}>Deve {formatCurrency(member.postpaidDebt)}</span>}
+                                                            </p>
                                                         )}
                                                     </div>
 
