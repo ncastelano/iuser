@@ -134,11 +134,39 @@ function PainelMotoristaContent() {
     // Abas que eram do /aceitar-corridas (Solicitações de motorista / Me candidatei /
     // Corrida aceita) — o conteúdo vem do mesmo componente, embutido aqui.
     const [rideSummary, setRideSummary] = useState({ rides: 0, candidacies: 0, hasAccepted: false })
+    const [rideSummaryLoaded, setRideSummaryLoaded] = useState(false)
     const rideTabFromPanel: Record<string, AceitarCorridasTab> = { solicitacoes: 'servicos', candidaturas: 'candidatos', aceita: 'aceita' }
     const handleRideTabChange = useCallback((t: AceitarCorridasTab) => {
         setActiveTab(t === 'servicos' ? 'solicitacoes' : t === 'candidatos' ? 'candidaturas' : 'aceita')
     }, [])
     const handleRideLeave = useCallback(() => setActiveTab('painel'), [])
+
+    // O componente embutido só avisa as contagens enquanto está aberto; aqui
+    // busca o essencial (candidaturas pendentes e corrida aceita) pra a aba
+    // "Me candidatei"/"Corrida aceita" aparecer já ao entrar no painel.
+    useEffect(() => {
+        if (!userId) return
+        let cancelled = false
+        const refresh = async () => {
+            const [{ count: pendingCount }, { data: accepted }] = await Promise.all([
+                supabase.from('ride_applications').select('id', { count: 'exact', head: true }).eq('applicant_id', userId).eq('status', 'pending'),
+                supabase.from('ride_requests').select('id').eq('driver_id', userId).eq('status', 'accepted').limit(1),
+            ])
+            if (cancelled) return
+            setRideSummary((prev) => ({ ...prev, candidacies: pendingCount || 0, hasAccepted: (accepted || []).length > 0 }))
+            setRideSummaryLoaded(true)
+        }
+        refresh()
+        const poll = setInterval(refresh, 15000)
+        return () => { cancelled = true; clearInterval(poll) }
+    }, [userId])
+
+    // A aba "Me candidatei" some quando fica vazia — não deixa a pessoa parada nela.
+    useEffect(() => {
+        if (rideSummaryLoaded && activeTab === 'candidaturas' && rideSummary.candidacies === 0 && !rideSummary.hasAccepted) {
+            setActiveTab('solicitacoes')
+        }
+    }, [rideSummaryLoaded, activeTab, rideSummary])
 
     // ===== AVALIAÇÕES E HISTÓRICO =====
     const [reviews, setReviews] = useState<{ rating: number; comment: string | null; created_at: string; reviewerName: string | null; reviewerAvatarUrl: string | undefined }[]>([])
@@ -661,7 +689,7 @@ function PainelMotoristaContent() {
     }[driverStatus]
 
     // ===== ABAS DO HEADER (mesmo modelo de /carrinho) — durante o wizard
-    // de ativação só Meu veículo/Escolha seu plano ficam disponíveis, pra
+    // de ativação só Meu veículo/Minha tarifa ficam disponíveis, pra
     // não deixar a pessoa se perder no meio do cadastro guiado. =====
     const tabs = useMemo(() => {
         if (!userId || loading || showLogin) return []
@@ -670,12 +698,13 @@ function PainelMotoristaContent() {
             { id: 'painel', label: 'Painel', icon: LayoutDashboard, isActive: activeTab === 'painel', onClick: () => setActiveTab('painel'), badge: null },
             ...(rideSummary.hasAccepted ? [{ id: 'aceita', label: 'Corrida aceita', icon: CheckCircle2, isActive: activeTab === 'aceita', onClick: () => setActiveTab('aceita'), badge: null }] : []),
             { id: 'solicitacoes', label: 'Solicitações de motorista', icon: Car, isActive: activeTab === 'solicitacoes', onClick: () => setActiveTab('solicitacoes'), badge: rideSummary.rides > 0 ? { count: rideSummary.rides } : null },
-            { id: 'candidaturas', label: 'Me candidatei', icon: CandidateiTabIcon as any, isActive: activeTab === 'candidaturas', onClick: () => setActiveTab('candidaturas'), badge: rideSummary.candidacies > 0 ? { count: rideSummary.candidacies } : null },
+            // "Me candidatei" só aparece quando tem algo nela (candidatura pendente) ou há corrida aceita.
+            ...(rideSummary.candidacies > 0 || rideSummary.hasAccepted ? [{ id: 'candidaturas', label: 'Me candidatei', icon: CandidateiTabIcon as any, isActive: activeTab === 'candidaturas', onClick: () => setActiveTab('candidaturas'), badge: rideSummary.candidacies > 0 ? { count: rideSummary.candidacies } : null }] : []),
             {
                 id: 'veiculo', label: 'Meu veículo', icon: Car, isActive: activeTab === 'veiculo', onClick: () => setActiveTab('veiculo'),
                 badge: driverStatus === 'incomplete' ? { count: missingFields.length || 1, color: '#eab308' } : null,
             },
-            { id: 'plano', label: 'Escolha seu plano', icon: TrendingUp, isActive: activeTab === 'plano', onClick: () => setActiveTab('plano'), badge: null },
+            { id: 'plano', label: 'Minha tarifa', icon: TrendingUp, isActive: activeTab === 'plano', onClick: () => setActiveTab('plano'), badge: null },
             { id: 'avaliacoes', label: 'Avaliações', icon: Star, isActive: activeTab === 'avaliacoes', onClick: () => setActiveTab('avaliacoes'), badge: null },
         ]
 
@@ -846,7 +875,7 @@ function PainelMotoristaContent() {
                                 </div>
                                 <div>
                                     <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
-                                        Escolha seu plano de tarifa
+                                        Minha tarifa
                                     </h3>
                                     <p className="text-xs" style={{ color: colors.textSecondary }}>
                                         Usada para calcular o preço sugerido em cada corrida disponível
