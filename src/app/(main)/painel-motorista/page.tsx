@@ -10,7 +10,7 @@ import Header from '@/components/Header'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import LoginAndRegister from '@/components/LoginAndRegister/LoginAndRegister'
 import { toast } from 'sonner'
-import { TrendingUp, Car, Camera, Star, MessageSquare, Clock, CheckCircle2, Volume2, VolumeX, Navigation2, LayoutDashboard } from 'lucide-react'
+import { TrendingUp, Car, Camera, Star, MessageSquare, Clock, CheckCircle2, Volume2, VolumeX, Navigation2, LayoutDashboard, Trash2 } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import { computeSuggestedPrice, PLATFORM_DEFAULT_PRICING_BY_VEHICLE, PLATFORM_DEFAULT_EXTRA_FEES, PLATFORM_DEFAULT_CONDITION_EXTRA_FEES, PricingMode } from '@/lib/driverPricing'
 import { VehicleKind, VEHICLE_KIND_LABELS } from '@/lib/rideVehicle'
@@ -119,6 +119,8 @@ function PainelMotoristaContent() {
     const [trunkSuitcasesMedia, setTrunkSuitcasesMedia] = useState('')
     const [trunkSuitcasesGrande, setTrunkSuitcasesGrande] = useState('')
     const [savingVehicle, setSavingVehicle] = useState(false)
+    const [confirmDeleteVehicle, setConfirmDeleteVehicle] = useState(false)
+    const [deletingVehicle, setDeletingVehicle] = useState(false)
     const [isFirstVehicleSetup, setIsFirstVehicleSetup] = useState(false)
     const [showFirstVehicleDialog, setShowFirstVehicleDialog] = useState(false)
     const [showActivationWizard, setShowActivationWizard] = useState(false)
@@ -293,6 +295,66 @@ function PainelMotoristaContent() {
         setRideHistory(historyRows || [])
 
         setLoading(false)
+    }
+
+    // Exclui o veículo do tipo que está aberto na aba "Meu veículo".
+    const handleDeleteVehicle = async () => {
+        const saved = vehiclesByKind[vehicleKind]
+        if (!saved) return
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) {
+            setShowLogin(true)
+            return
+        }
+
+        setDeletingVehicle(true)
+        try {
+            const { data: activeRide } = await supabase
+                .from('ride_requests')
+                .select('id')
+                .eq('driver_id', user.id)
+                .eq('status', 'accepted')
+                .limit(1)
+            if (activeRide && activeRide.length > 0) {
+                toast.error('Você tem uma corrida em andamento. Conclua ou cancele antes de excluir o veículo.')
+                return
+            }
+
+            const { data: deleted, error } = await supabase
+                .from('driver_vehicles')
+                .delete()
+                .eq('driver_id', user.id)
+                .eq('vehicle_kind', vehicleKind)
+                .select('vehicle_kind')
+            if (error) throw error
+            if (!deleted || deleted.length === 0) throw new Error('não foi possível remover (sem permissão ou já excluído)')
+
+            if (saved.car_photo_url) {
+                supabase.storage.from('driver-car-photos').remove([saved.car_photo_url]).then(() => {})
+            }
+
+            const remaining = { ...vehiclesByKind }
+            delete remaining[vehicleKind]
+            setVehiclesByKind(remaining)
+            const remainingKinds = Object.keys(remaining) as VehicleKind[]
+            setIsFirstVehicleSetup(remainingKinds.length === 0)
+
+            // Sem nenhum veículo não dá pra rodar: desliga o modo motorista.
+            if (remainingKinds.length === 0 && driverModeActive) {
+                await supabase.from('driver_pricing').update({ driver_mode_active: false }).eq('driver_id', user.id)
+                setDriverModeActive(false)
+            }
+
+            const nextKind: VehicleKind = remainingKinds[0] || vehicleKind
+            setVehicleKind(nextKind)
+            applyVehicleToForm(remaining[nextKind] || null, remaining)
+            toast.success(`Veículo (${VEHICLE_KIND_LABELS[vehicleKind].toLowerCase()}) excluído.`)
+            setConfirmDeleteVehicle(false)
+        } catch (err: any) {
+            toast.error('Erro ao excluir o veículo: ' + (err.message || 'tente novamente'))
+        } finally {
+            setDeletingVehicle(false)
+        }
     }
 
     const handleSaveVehicle = async () => {
@@ -1310,6 +1372,18 @@ function PainelMotoristaContent() {
                                 >
                                     {savingVehicle ? <Spinner size={16} /> : (showActivationWizard ? 'Continuar' : `Salvar ${VEHICLE_KIND_LABELS[vehicleKind].toLowerCase()}`)}
                                 </button>
+
+                                {!showActivationWizard && vehiclesByKind[vehicleKind] && (
+                                    <button
+                                        onClick={() => setConfirmDeleteVehicle(true)}
+                                        disabled={savingVehicle || deletingVehicle}
+                                        className="w-full py-3 rounded-full text-sm font-black uppercase tracking-wider transition-all disabled:opacity-60 flex items-center justify-center gap-2"
+                                        style={{ background: 'transparent', color: '#ef4444', border: '1px solid #ef444460' }}
+                                    >
+                                        <Trash2 size={16} />
+                                        Excluir {VEHICLE_KIND_LABELS[vehicleKind].toLowerCase()}
+                                    </button>
+                                )}
                             </div>
                             </>
                             )}
@@ -1428,6 +1502,47 @@ function PainelMotoristaContent() {
                         >
                             Continuar aqui
                         </button>
+                    </div>
+                </div>
+            )}
+
+            {confirmDeleteVehicle && (
+                <div
+                    className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4"
+                    style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}
+                    onClick={() => (deletingVehicle ? null : setConfirmDeleteVehicle(false))}
+                >
+                    <div
+                        className="w-full max-w-sm rounded-2xl p-6 space-y-4"
+                        style={{ background: colors.background, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <h3 className="text-base font-black" style={{ color: colors.textPrimary }}>
+                            Excluir {VEHICLE_KIND_LABELS[vehicleKind].toLowerCase()}?
+                        </h3>
+                        <p className="text-xs" style={{ color: colors.textSecondary }}>
+                            {Object.keys(vehiclesByKind).length <= 1
+                                ? 'Esse é o seu único veículo: o modo motorista será desligado até você cadastrar outro. Essa ação não pode ser desfeita.'
+                                : 'Os dados e a foto desse veículo serão apagados. Essa ação não pode ser desfeita.'}
+                        </p>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => setConfirmDeleteVehicle(false)}
+                                disabled={deletingVehicle}
+                                className="flex-1 py-3 rounded-xl font-black uppercase text-[10px] tracking-wider disabled:opacity-50"
+                                style={{ background: `${colors.border}30`, color: colors.textPrimary }}
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={handleDeleteVehicle}
+                                disabled={deletingVehicle}
+                                className="flex-1 py-3 rounded-xl font-black uppercase text-[10px] tracking-wider flex items-center justify-center disabled:opacity-70"
+                                style={{ background: '#ef4444', color: '#fff' }}
+                            >
+                                {deletingVehicle ? <Spinner size={14} /> : 'Excluir'}
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
