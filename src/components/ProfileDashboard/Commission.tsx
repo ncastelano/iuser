@@ -26,6 +26,11 @@ import {
     ArrowDownCircle,
     ArrowUpCircle,
     Clock,
+    Gift,
+    History,
+    Search,
+    Shield,
+    ShieldCheck,
 } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import { formatDistanceToNow } from 'date-fns'
@@ -33,6 +38,20 @@ import { ptBR as ptBRLocale } from 'date-fns/locale'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { usePersistedExpanded } from '@/hooks/usePersistedExpanded'
+import dynamic from 'next/dynamic'
+import { callAdminApi } from '@/lib/callAdminApi'
+import { getAvatarUrl } from '@/lib/avatar'
+import {
+    SCOPE_LABEL,
+    hasAnyGrantPermission,
+    type BenefitHistoryRow,
+    type GrantTarget,
+    type GrantablePlan,
+    type MyStatus,
+} from '@/lib/benefits/types'
+
+// Painel de administrador geral (pesado) — só carrega se a pessoa abrir a aba Admin.
+const AdminDashboard = dynamic(() => import('@/components/AdminDashboard/AdminDashboard'), { ssr: false })
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -124,6 +143,28 @@ const WITHDRAWAL_STATUS_COLOR: Record<WithdrawalRequest['status'], string> = {
 
 const MIN_WITHDRAWAL_AMOUNT = 20
 
+type Pane = 'rede' | 'status' | 'grant' | 'history' | 'admin'
+
+// 31/12 23:59:59 (Brasília), em dias a partir de agora.
+function daysUntilEndOfYear(): number {
+    const now = new Date()
+    const end = new Date(Date.UTC(now.getUTCFullYear(), 11, 32, 2, 59, 59))
+    return Math.max(1, Math.ceil((end.getTime() - now.getTime()) / (24 * 60 * 60 * 1000)))
+}
+
+const GRANT_DURATIONS = [
+    { value: '7', label: '7 dias' },
+    { value: '15', label: '15 dias' },
+    { value: '30', label: '30 dias' },
+    { value: '60', label: '60 dias' },
+    { value: '90', label: '90 dias' },
+    { value: '180', label: '180 dias' },
+    { value: '365', label: '1 ano' },
+    { value: 'eoy', label: 'Até o fim do ano' },
+]
+
+const formatBenefitDate = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString('pt-BR') : '—')
+
 function formatWalletDate(iso: string): string {
     return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
@@ -184,6 +225,31 @@ export default function Commission({ userId, profileSlug, onLatestUpdate }: Comm
     const [pixKeyType, setPixKeyType] = useState('cpf')
     const [submittingWithdraw, setSubmittingWithdraw] = useState(false)
 
+    // ============================================
+    // MINHA REDE: tudo o que antes era a aba "Minha Rede" (rede, meu status,
+    // conceder, histórico e admin) mora aqui, em "Convidei para o iUser".
+    // O que cada pessoa vê vem do banco já filtrado por permissão/escopo —
+    // esconder aba aqui é só conforto; quem decide é o servidor.
+    // ============================================
+    const [pane, setPane] = useState<Pane>('rede')
+    const [status, setStatus] = useState<MyStatus | null>(null)
+    const [plans, setPlans] = useState<GrantablePlan[]>([])
+    const [isSuperAdmin, setIsSuperAdmin] = useState(false)
+
+    const [grantQuery, setGrantQuery] = useState('')
+    const [grantResults, setGrantResults] = useState<GrantTarget[]>([])
+    const [grantSearching, setGrantSearching] = useState(false)
+    const [grantTarget, setGrantTarget] = useState<GrantTarget | null>(null)
+    const [grantPlanId, setGrantPlanId] = useState('')
+    const [grantDuration, setGrantDuration] = useState('30')
+    const [grantReason, setGrantReason] = useState('')
+    const [grantStartsAt, setGrantStartsAt] = useState('')
+    const [granting, setGranting] = useState(false)
+
+    const [history, setHistory] = useState<BenefitHistoryRow[]>([])
+    const [loadingHistory, setLoadingHistory] = useState(false)
+
+    const canManage = hasAnyGrantPermission(status)
     const accentColor = colors.accent
     const textPrimary = colors.textPrimary
     const textSecondary = colors.textSecondary
@@ -320,6 +386,70 @@ export default function Commission({ userId, profileSlug, onLatestUpdate }: Comm
 
     const walletBalance = walletTransactions.reduce((sum, t) => sum + Number(t.amount), 0)
 
+    useEffect(() => {
+        if (!userId) return
+        let cancelled = false
+        Promise.all([supabase.rpc('get_my_status'), supabase.rpc('get_my_grantable_plans')]).then(([{ data: statusData }, { data: plansData }]) => {
+            if (cancelled) return
+            setStatus((statusData as MyStatus) || null)
+            const list = (plansData as GrantablePlan[]) || []
+            setPlans(list)
+            setGrantPlanId((prev) => (prev && list.some((p) => p.id === prev) ? prev : list[0]?.id || ''))
+        })
+        callAdminApi<{ isSuperAdmin: boolean }>('/api/admin/whoami')
+            .then((json) => { if (!cancelled) setIsSuperAdmin(!!json.isSuperAdmin) })
+            .catch(() => { if (!cancelled) setIsSuperAdmin(false) })
+        return () => { cancelled = true }
+    }, [userId])
+
+    // Busca de pessoas pra conceder (dentro do escopo, filtrado pelo banco).
+    useEffect(() => {
+        if (grantTarget || grantQuery.trim().length < 2) {
+            setGrantResults([])
+            return
+        }
+        setGrantSearching(true)
+        const t = setTimeout(async () => {
+            const { data } = await supabase.rpc('find_grant_targets', { p_query: grantQuery.trim() })
+            setGrantResults((data as GrantTarget[]) || [])
+            setGrantSearching(false)
+        }, 300)
+        return () => clearTimeout(t)
+    }, [grantQuery, grantTarget])
+
+    useEffect(() => {
+        if (pane !== 'history') return
+        setLoadingHistory(true)
+        supabase.rpc('get_benefit_history', { p_limit: 100, p_only_granted: true }).then(({ data }) => {
+            setHistory((data as BenefitHistoryRow[]) || [])
+            setLoadingHistory(false)
+        })
+    }, [pane])
+
+    const handleGrant = async () => {
+        if (!grantTarget || !grantPlanId) return
+        setGranting(true)
+        try {
+            await callAdminApi('/api/benefits/grant', {
+                targetUserId: grantTarget.id,
+                planId: grantPlanId,
+                days: grantDuration === 'eoy' ? daysUntilEndOfYear() : Number(grantDuration),
+                reason: grantReason.trim() || undefined,
+                startsAt: grantStartsAt ? new Date(`${grantStartsAt}T00:00:00`).toISOString() : undefined,
+            })
+            const plan = plans.find((p) => p.id === grantPlanId)
+            toast.success(`${plan?.name || 'Benefício'} concedido a ${grantTarget.name || `@${grantTarget.profile_slug}`}!`)
+            setGrantTarget(null)
+            setGrantQuery('')
+            setGrantReason('')
+            setGrantStartsAt('')
+        } catch (err: any) {
+            toast.error(err.message || 'Erro ao conceder benefício')
+        } finally {
+            setGranting(false)
+        }
+    }
+
     const handleWithdraw = async () => {
         const amount = Number(withdrawAmount.replace(',', '.'))
         if (!amount || amount <= 0) {
@@ -445,6 +575,30 @@ export default function Commission({ userId, profileSlug, onLatestUpdate }: Comm
     }
 
     const totalCommission = members.reduce((acc, m) => acc + m.commissionTotal, 0)
+    const subCardStyle = {
+        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
+        border: `1px solid ${borderColor}`,
+        borderRadius: 16,
+        padding: 16,
+    }
+    const grantInputStyle: React.CSSProperties = {
+        background: colors.background,
+        border: `1px solid ${borderColor}`,
+        color: textPrimary,
+        borderRadius: 12,
+        padding: '10px 12px',
+        fontSize: 13,
+        width: '100%',
+    }
+    const selectedGrantPlan = plans.find((p) => p.id === grantPlanId)
+    // Quem não pode conceder nada não tem Conceder/Histórico; Admin só pro administrador geral.
+    const activePane: Pane = (pane === 'grant' || pane === 'history') && !canManage ? 'rede' : pane === 'admin' && !isSuperAdmin ? 'rede' : pane
+    const panes: { id: Pane; label: string; icon: typeof Gift }[] = [
+        { id: 'rede', label: 'Minha rede', icon: Users },
+        { id: 'status', label: 'Meu status', icon: ShieldCheck },
+        ...(canManage ? [{ id: 'grant' as const, label: 'Conceder', icon: Gift }, { id: 'history' as const, label: 'Histórico', icon: History }] : []),
+        ...(isSuperAdmin ? [{ id: 'admin' as const, label: 'Admin', icon: Shield }] : []),
+    ]
     const networkPaidValue = members.reduce((acc, m) => acc + m.planPrice, 0)
     const networkPromisedValue = members.reduce((acc, m) => acc + m.postpaidDebt, 0)
 
@@ -509,6 +663,29 @@ export default function Commission({ userId, profileSlug, onLatestUpdate }: Comm
 
                     {isExpanded && (
                         <div className="flex flex-col gap-5">
+                            {/* Abas internas — o que antes era a aba "Minha Rede" do cabeçalho */}
+                            <div className="flex gap-2 overflow-x-auto pb-1">
+                                {panes.map((t) => {
+                                    const Icon = t.icon
+                                    const active = activePane === t.id
+                                    return (
+                                        <button
+                                            key={t.id}
+                                            onClick={() => setPane(t.id)}
+                                            className="flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-all"
+                                            style={active
+                                                ? { background: GRADIENT, color: '#fff', border: '1px solid transparent' }
+                                                : { background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`, color: textPrimary, border: `1px solid ${borderColor}` }}
+                                        >
+                                            <Icon size={14} />
+                                            {t.label}
+                                        </button>
+                                    )
+                                })}
+                            </div>
+
+                            {activePane === 'rede' && (
+                            <>
                             {/* ===== CARTEIRA (saldo + saque) ===== */}
                             <div className="w-full rounded-2xl p-6 flex flex-col items-center gap-2" style={{ background: GRADIENT }}>
                                 <Wallet size={28} color="#fff" />
@@ -853,6 +1030,209 @@ export default function Commission({ userId, profileSlug, onLatestUpdate }: Comm
                                     })}
                                 </div>
                             )}
+                            </>
+                            )}
+
+                            {/* ===== MEU STATUS (antes na aba Minha Rede) ===== */}
+                            {activePane === 'status' && (
+                                <div style={subCardStyle} className="space-y-4">
+                                    {status ? (
+                                        <>
+                                            <div>
+                                                <p className="text-[10px] font-black uppercase tracking-wider" style={{ color: textSecondary }}>Meu status</p>
+                                                <p className="text-xl font-black" style={{ color: textPrimary }}>{status.name}</p>
+                                                {status.description && <p className="text-xs" style={{ color: textSecondary }}>{status.description}</p>}
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] font-black uppercase tracking-wider" style={{ color: textSecondary }}>Nível</p>
+                                                <p className="text-base font-black" style={{ color: textPrimary }}>{status.level}</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] font-black uppercase tracking-wider mb-1.5" style={{ color: textSecondary }}>Permissões</p>
+                                                {status.permissions.length === 0 ? (
+                                                    <p className="text-xs" style={{ color: textSecondary }}>Nenhuma permissão de gestão.</p>
+                                                ) : (
+                                                    <ul className="space-y-1.5">
+                                                        {status.permissions.map((p) => (
+                                                            <li key={p.slug} className="flex items-start gap-2 text-sm" style={{ color: textPrimary }}>
+                                                                <Check size={14} className="mt-0.5 flex-shrink-0" style={{ color: '#22c55e' }} />
+                                                                <span>
+                                                                    <span className="font-semibold">{p.name}</span>
+                                                                    <span className="block text-[11px]" style={{ color: textSecondary }}>Escopo: {SCOPE_LABEL[p.scope]}</span>
+                                                                </span>
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                )}
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <div className="flex justify-center py-6"><Spinner size={24} color={accentColor} /></div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* ===== CONCEDER BENEFÍCIO ===== */}
+                            {activePane === 'grant' && canManage && (
+                                plans.length === 0 ? (
+                                    <div className="text-sm" style={{ ...subCardStyle, color: textSecondary }}>
+                                        Você não tem permissão para conceder nenhum plano no momento.
+                                    </div>
+                                ) : (
+                                    <div style={subCardStyle} className="space-y-4">
+                                        <div>
+                                            <p className="text-[10px] font-black uppercase tracking-wider mb-1.5" style={{ color: textSecondary }}>Buscar usuário</p>
+                                            {grantTarget ? (
+                                                <div className="flex items-center gap-3 px-3 py-2 rounded-xl" style={{ background: `${accentColor}15`, border: `1px solid ${accentColor}55` }}>
+                                                    <span className="flex-1 min-w-0 text-sm font-bold truncate" style={{ color: textPrimary }}>
+                                                        {grantTarget.name || `@${grantTarget.profile_slug}`}
+                                                        {grantTarget.profile_slug && <span className="font-medium" style={{ color: textSecondary }}> @{grantTarget.profile_slug}</span>}
+                                                    </span>
+                                                    <button onClick={() => { setGrantTarget(null); setGrantQuery('') }} style={{ color: textSecondary }}>
+                                                        <X size={16} />
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <>
+                                                    <div className="relative">
+                                                        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: textSecondary }} />
+                                                        <input
+                                                            value={grantQuery}
+                                                            onChange={(e) => setGrantQuery(e.target.value)}
+                                                            placeholder="Nome ou @slug"
+                                                            style={{ ...grantInputStyle, paddingLeft: 32 }}
+                                                        />
+                                                    </div>
+                                                    {grantSearching && <p className="text-[11px] mt-1.5" style={{ color: textSecondary }}>Buscando...</p>}
+                                                    {!grantSearching && grantQuery.trim().length >= 2 && grantResults.length === 0 && (
+                                                        <p className="text-[11px] mt-1.5" style={{ color: textSecondary }}>Ninguém encontrado dentro do seu escopo.</p>
+                                                    )}
+                                                    {grantResults.length > 0 && (
+                                                        <div className="mt-2 rounded-xl overflow-hidden" style={{ border: `1px solid ${borderColor}` }}>
+                                                            {grantResults.map((r) => {
+                                                                const avatar = getAvatarUrl(supabase, r.avatar_url)
+                                                                return (
+                                                                    <button
+                                                                        key={r.id}
+                                                                        onClick={() => { setGrantTarget(r); setGrantResults([]) }}
+                                                                        className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-black/5"
+                                                                        style={{ borderBottom: `1px solid ${borderColor}` }}
+                                                                    >
+                                                                        <span className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0" style={{ background: `${borderColor}40` }}>
+                                                                            {avatar && <img src={avatar} alt="" className="w-full h-full object-cover" />}
+                                                                        </span>
+                                                                        <span className="min-w-0">
+                                                                            <span className="block text-sm font-bold truncate" style={{ color: textPrimary }}>{r.name || `@${r.profile_slug}`}</span>
+                                                                            {r.profile_slug && <span className="block text-[11px]" style={{ color: textSecondary }}>@{r.profile_slug}</span>}
+                                                                        </span>
+                                                                    </button>
+                                                                )
+                                                            })}
+                                                        </div>
+                                                    )}
+                                                </>
+                                            )}
+                                        </div>
+
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                            <div>
+                                                <p className="text-[10px] font-black uppercase tracking-wider mb-1.5" style={{ color: textSecondary }}>Plano</p>
+                                                <select value={grantPlanId} onChange={(e) => setGrantPlanId(e.target.value)} style={grantInputStyle}>
+                                                    {plans.map((p) => (
+                                                        <option key={p.id} value={p.id}>{p.name}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] font-black uppercase tracking-wider mb-1.5" style={{ color: textSecondary }}>Duração</p>
+                                                <select value={grantDuration} onChange={(e) => setGrantDuration(e.target.value)} style={grantInputStyle}>
+                                                    {GRANT_DURATIONS.map((d) => (
+                                                        <option key={d.value} value={d.value}>{d.label}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            <p className="text-[10px] font-black uppercase tracking-wider mb-1.5" style={{ color: textSecondary }}>Início (opcional — vazio = agora)</p>
+                                            <input
+                                                type="date"
+                                                value={grantStartsAt}
+                                                min={new Date().toISOString().slice(0, 10)}
+                                                onChange={(e) => setGrantStartsAt(e.target.value)}
+                                                style={grantInputStyle}
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <p className="text-[10px] font-black uppercase tracking-wider mb-1.5" style={{ color: textSecondary }}>Motivo (opcional)</p>
+                                            <input value={grantReason} onChange={(e) => setGrantReason(e.target.value)} maxLength={300} placeholder="Ex: parceiro do bairro" style={grantInputStyle} />
+                                        </div>
+
+                                        {selectedGrantPlan && (
+                                            <p className="text-[11px]" style={{ color: textSecondary }}>
+                                                {selectedGrantPlan.description || selectedGrantPlan.name} · escopo: {SCOPE_LABEL[selectedGrantPlan.scope]}
+                                            </p>
+                                        )}
+
+                                        <button
+                                            onClick={handleGrant}
+                                            disabled={granting || !grantTarget || !grantPlanId}
+                                            className="w-full py-3 rounded-full text-sm font-black text-white disabled:opacity-50 flex items-center justify-center gap-2"
+                                            style={{ background: GRADIENT }}
+                                        >
+                                            {granting ? <Spinner size={14} color="#ffffff" /> : <Check size={16} />}
+                                            Conceder benefício
+                                        </button>
+                                    </div>
+                                )
+                            )}
+
+                            {/* ===== HISTÓRICO DE BENEFÍCIOS ===== */}
+                            {activePane === 'history' && canManage && (
+                                <div className="space-y-2">
+                                    <p className="text-xs font-black uppercase tracking-wider" style={{ color: textSecondary }}>Histórico de benefícios</p>
+                                    {loadingHistory ? (
+                                        <div className="flex justify-center py-8"><Spinner size={24} color={accentColor} /></div>
+                                    ) : history.length === 0 ? (
+                                        <div className="text-sm" style={{ ...subCardStyle, color: textSecondary }}>Nenhum benefício concedido ainda.</div>
+                                    ) : (
+                                        <div style={{ ...subCardStyle, padding: 0 }} className="overflow-hidden">
+                                            {history.map((h, i) => (
+                                                <div
+                                                    key={h.id}
+                                                    className="flex items-center gap-3 px-4 py-3"
+                                                    style={{ borderTop: i === 0 ? undefined : `1px solid ${borderColor}` }}
+                                                >
+                                                    <div className="min-w-0 flex-1">
+                                                        <p className="text-sm font-bold truncate" style={{ color: textPrimary }}>
+                                                            {h.target_name || (h.target_slug ? `@${h.target_slug}` : 'Pessoa removida')} · {h.plan_name || h.plan_code}
+                                                        </p>
+                                                        <p className="text-[11px]" style={{ color: textSecondary }}>
+                                                            Concedido em {formatBenefitDate(h.created_at)} · {h.is_scheduled ? `começa em ${formatBenefitDate(h.starts_at)} · ` : ''}expira em {formatBenefitDate(h.expires_at)}
+                                                            {h.actor_name ? ` · por ${h.actor_name}` : ''}
+                                                        </p>
+                                                        {h.reason && <p className="text-[11px] italic" style={{ color: textSecondary }}>{h.reason}</p>}
+                                                    </div>
+                                                    <span
+                                                        className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full flex-shrink-0"
+                                                        style={h.is_active
+                                                            ? { background: '#22c55e20', color: '#22c55e' }
+                                                            : h.is_scheduled
+                                                                ? { background: '#f9731620', color: '#f97316' }
+                                                                : { background: `${borderColor}40`, color: textSecondary }}
+                                                    >
+                                                        {h.is_active ? 'Ativo' : h.is_scheduled ? 'Agendado' : 'Expirado'}
+                                                    </span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* ===== ADMIN (só a conta de administrador geral; o servidor reconfirma) ===== */}
+                            {activePane === 'admin' && isSuperAdmin && <AdminDashboard />}
                         </div>
                     )}
                 </div>

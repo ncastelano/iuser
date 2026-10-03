@@ -5,19 +5,16 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import { useParams, useRouter, usePathname, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
-import { callAdminApi } from '@/lib/callAdminApi'
 import { Spinner } from '@/components/Spinner'
 import { useTheme } from '@/app/contexts/theme'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import Header from '@/components/Header'
 import { useMerchantStore } from '@/store/useMerchantStore'
-import { User, Store as StoreIcon, LayoutDashboard, Home, Gift } from 'lucide-react'
+import { User, Store as StoreIcon, LayoutDashboard, Home } from 'lucide-react'
 import type { Tab } from '@/components/Header'
 import ProfileDashboard from '@/components/ProfileDashboard/ProfileDashboard'
 import StoreDashboard from '@/components/StoreDashboard/StoreDashboard'
-import BenefitsManagement from '@/components/BenefitsManagement/BenefitsManagement'
-import { useMyStatus } from '@/lib/benefits/useMyStatus'
 import { Profile } from './Profile'
 import { Store } from './Store'
 import { usePublicationsStore } from '@/store/usePublicationStore'
@@ -69,9 +66,6 @@ export default function OwnerClientPage() {
     const [showProfile, setShowProfile] = useState(false)
     const [showStoreDashboard, setShowStoreDashboard] = useState<{ slug: string; name: string } | null>(null)
     const [showPublications, setShowPublications] = useState(false)
-    const [isSuperAdmin, setIsSuperAdmin] = useState(false)
-    const [showBenefits, setShowBenefits] = useState(false)
-    const { hierarchyLabel } = useMyStatus(userId)
     const [storeDialogOpen, setStoreDialogOpen] = useState(false)
 
     const pendingInvitesCount = useMerchantStore(s => s.pendingInvitesCount)
@@ -86,7 +80,6 @@ export default function OwnerClientPage() {
         setShowPublications(true)
         setShowProfile(false)
         setShowStoreDashboard(null)
-        setShowBenefits(false)
     }, [publicationsStore])
 
     // ========== FUNÇÃO PARA ABRIR CATÁLOGO ==========
@@ -189,44 +182,16 @@ export default function OwnerClientPage() {
             })
     }, [loggedUserSlug, userId])
 
-    // ========== ABA "ADMIN" (só pra conta ncastelano@gmail.com) ==========
-    useEffect(() => {
-        if (!userId) {
-            setIsSuperAdmin(false)
-            return
-        }
-
-        let cancelled = false
-        callAdminApi<{ isSuperAdmin: boolean }>('/api/admin/whoami')
-            .then((json) => {
-                if (!cancelled) setIsSuperAdmin(!!json.isSuperAdmin)
-            })
-            .catch(() => {
-                if (!cancelled) setIsSuperAdmin(false)
-            })
-
-        return () => { cancelled = true }
-    }, [userId])
-
     // ========== TABS DO HEADER ==========
     const handleProfileClick = () => {
         setShowProfile(true)
         setShowStoreDashboard(null)
         setShowPublications(false)
-        setShowBenefits(false)
     }
 
     const handleStoreDashboardClick = (storeSlug: string, storeName: string) => {
         setShowStoreDashboard({ slug: storeSlug, name: storeName })
         setShowProfile(false)
-        setShowPublications(false)
-        setShowBenefits(false)
-    }
-
-    const handleBenefitsClick = () => {
-        setShowBenefits(true)
-        setShowProfile(false)
-        setShowStoreDashboard(null)
         setShowPublications(false)
     }
 
@@ -234,7 +199,6 @@ export default function OwnerClientPage() {
         setShowProfile(false)
         setShowStoreDashboard(null)
         setShowPublications(false)
-        setShowBenefits(false)
         // Voltar para a URL base quando fechar
         router.replace(`/${ownerSlug}`, { scroll: false })
     }
@@ -260,19 +224,6 @@ export default function OwnerClientPage() {
             },
         ]
 
-        // Qualquer usuário logado vê a própria rede aqui — só quem tem
-        // permissão de concessão (canManageBenefits) enxerga as abas de
-        // conceder/histórico dentro do componente; a aba em si é geral.
-        if (isLoggedIn) {
-            allTabs.push({
-                id: 'gestao-beneficios',
-                label: hierarchyLabel,
-                icon: Gift as any,
-                imageUrl: null,
-                onClick: handleBenefitsClick,
-                isActive: showBenefits,
-            })
-        }
 
         if (loadingStores) {
             return allTabs
@@ -318,7 +269,7 @@ export default function OwnerClientPage() {
         }
 
         return allTabs
-    }, [loggedUserSlug, profileLoading, loggedUserAvatarUrl, stores, loadingStores, storeOrderCounts, pendingInvitesCount, profileOpenNow, showProfile, showStoreDashboard, isSuperAdmin, hierarchyLabel, showBenefits, router])
+    }, [loggedUserSlug, profileLoading, loggedUserAvatarUrl, stores, loadingStores, storeOrderCounts, pendingInvitesCount, profileOpenNow, showProfile, showStoreDashboard, router])
 
     // ========== CARREGAR DADOS ==========
     const [referralOwnerProfileId, setReferralOwnerProfileId] = useState<string | null>(null)
@@ -467,10 +418,6 @@ export default function OwnerClientPage() {
                                 }
                             }}
                         />
-                    </div>
-                ) : showBenefits ? (
-                    <div className="w-full px-4 md:px-6 py-6">
-                        <BenefitsManagement isSuperAdmin={isSuperAdmin} />
                     </div>
                 ) : showPublications ? (
                     <PublicationsListView

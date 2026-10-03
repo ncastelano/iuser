@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useMemo, useRef, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { User, Store, Home, MapPin, LayoutDashboard, X, Gift } from 'lucide-react'
+import { User, Store, Home, MapPin, LayoutDashboard, X } from 'lucide-react'
 
 import CategoriasSection from './inicio/sections/CanIhelp'
 import RadarSection from './inicio/sections/RadarSection'
@@ -33,9 +33,6 @@ import FeaturedProfiles from './inicio/sections/FeaturedProfiles'
 import LocationPicker from '@/components/LocationPicker'
 import StoreList from './inicio/sections/StoreList'
 import StoreDashboard from '@/components/StoreDashboard/StoreDashboard'
-import BenefitsManagement from '@/components/BenefitsManagement/BenefitsManagement'
-import { useMyStatus } from '@/lib/benefits/useMyStatus'
-import { callAdminApi } from '@/lib/callAdminApi'
 import CareerPlans from './inicio/sections/CareerPlans'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
@@ -123,9 +120,6 @@ function HomePageContent() {
     const [showLogin, setShowLogin] = useState(false)
     const [showProfile, setShowProfile] = useState(false)
     const [showStoreDashboard, setShowStoreDashboard] = useState<{ slug: string; name: string } | null>(null)
-    const [isSuperAdmin, setIsSuperAdmin] = useState(false)
-    const [showBenefits, setShowBenefits] = useState(false)
-    const { hierarchyLabel } = useMyStatus(userId)
 
     const [savedLocation, setSavedLocation] = useState<{ lat: number; lng: number; address: string; addressNumber?: string; addressComplement?: string } | null>(null)
     const [showLocationDialog, setShowLocationDialog] = useState(false)
@@ -152,25 +146,6 @@ function HomePageContent() {
 
     const pendingInvitesCount = useMerchantStore(s => s.pendingInvitesCount)
     const [profileOpenNow, setProfileOpenNow] = useState(false)
-
-    // ========== ABA "ADMIN" (só pra conta ncastelano@gmail.com) ==========
-    useEffect(() => {
-        if (!userId) {
-            setIsSuperAdmin(false)
-            return
-        }
-
-        let cancelled = false
-        callAdminApi<{ isSuperAdmin: boolean }>('/api/admin/whoami')
-            .then((json) => {
-                if (!cancelled) setIsSuperAdmin(!!json.isSuperAdmin)
-            })
-            .catch(() => {
-                if (!cancelled) setIsSuperAdmin(false)
-            })
-
-        return () => { cancelled = true }
-    }, [userId])
 
     // ---------- CARREGAR ORDEM DAS SEÇÕES ----------
     useEffect(() => {
@@ -499,25 +474,23 @@ function HomePageContent() {
     const handleStoreDashboardClick = (storeSlug: string) => {
         router.push(`/?view=loja&store=${encodeURIComponent(storeSlug)}`)
     }
-    const handleBenefitsClick = () => router.push('/?view=rede')
     const handleCreateStoreClick = () => router.push('/?view=criar-loja')
 
     useEffect(() => {
         const view = searchParams.get('view')
-        if (view === 'perfil') {
-            setShowProfile(true); setShowLogin(false); setShowCreateStore(false); setShowStoreDashboard(null); setShowBenefits(false)
+        // 'rede' era a aba Minha Rede (agora dentro do perfil, em "Convidei para o iUser"): links antigos caem no perfil.
+        if (view === 'perfil' || view === 'rede') {
+            setShowProfile(true); setShowLogin(false); setShowCreateStore(false); setShowStoreDashboard(null)
         } else if (view === 'login') {
-            setShowLogin(true); setShowProfile(false); setShowCreateStore(false); setShowStoreDashboard(null); setShowBenefits(false)
+            setShowLogin(true); setShowProfile(false); setShowCreateStore(false); setShowStoreDashboard(null)
         } else if (view === 'criar-loja') {
-            setShowCreateStore(true); setShowLogin(false); setShowProfile(false); setShowStoreDashboard(null); setShowBenefits(false)
-        } else if (view === 'rede') {
-            setShowBenefits(true); setShowCreateStore(false); setShowLogin(false); setShowProfile(false); setShowStoreDashboard(null)
+            setShowCreateStore(true); setShowLogin(false); setShowProfile(false); setShowStoreDashboard(null)
         } else if (view === 'loja') {
             const storeSlugParam = searchParams.get('store')
             const store = stores.find((s) => s.slug === storeSlugParam)
             if (store) {
                 setShowStoreDashboard({ slug: store.slug, name: store.name })
-                setShowCreateStore(false); setShowLogin(false); setShowProfile(false); setShowBenefits(false)
+                setShowCreateStore(false); setShowLogin(false); setShowProfile(false)
             } else if (!loadingStores) {
                 // A loja da URL não é (mais) de quem está logado agora — ex:
                 // deslogou e logou com outra conta, ou trocou de conta nessa
@@ -527,7 +500,7 @@ function HomePageContent() {
                 setShowStoreDashboard(null)
             }
         } else {
-            setShowCreateStore(false); setShowLogin(false); setShowProfile(false); setShowStoreDashboard(null); setShowBenefits(false)
+            setShowCreateStore(false); setShowLogin(false); setShowProfile(false); setShowStoreDashboard(null)
         }
     }, [searchParams, stores])
 
@@ -545,20 +518,6 @@ function HomePageContent() {
                 statusColor: isLoggedIn ? (profileOpenNow ? '#22c55e' : '#ef4444') : undefined,
             },
         ]
-
-        // Qualquer usuário logado vê a própria rede aqui — só quem tem
-        // permissão de concessão enxerga as abas de conceder/histórico
-        // dentro do componente; a aba em si é geral.
-        if (isLoggedIn) {
-            allTabs.push({
-                id: 'gestao-beneficios',
-                label: hierarchyLabel,
-                icon: Gift,
-                imageUrl: null,
-                onClick: handleBenefitsClick,
-                isActive: showBenefits,
-            })
-        }
 
         if (loadingStores) {
             return allTabs
@@ -597,15 +556,15 @@ function HomePageContent() {
         }
 
         return allTabs
-    }, [profileSlug, loading, avatarUrl, showCreateStore, showLogin, showProfile, showStoreDashboard, isSuperAdmin, hierarchyLabel, showBenefits, stores, loadingStores, storeOrderCounts, pendingInvitesCount, profileOpenNow, router])
+    }, [profileSlug, loading, avatarUrl, showCreateStore, showLogin, showProfile, showStoreDashboard, stores, loadingStores, storeOrderCounts, pendingInvitesCount, profileOpenNow, router])
 
-    const showFab = showCreateStore || showLogin || showProfile || showStoreDashboard || showBenefits
+    const showFab = showCreateStore || showLogin || showProfile || showStoreDashboard
 
     // ===== VERIFICAR SE ESTÁ EM TELA DE LOGIN =====
     const isLoginScreen = showLogin || showCreateStore
 
     // ===== VERIFICAR SE ESTÁ EM DASHBOARD =====
-    const isDashboardScreen = showProfile || showStoreDashboard || showBenefits
+    const isDashboardScreen = showProfile || showStoreDashboard
 
     // ===== VERIFICAR SE ESTÁ PESQUISANDO =====
     const isSearching = searchQuery.trim().length > 0
@@ -702,10 +661,6 @@ function HomePageContent() {
                         onBack={showHomeSections}
                         onOrderCountsChange={handleOrderCountsChange}
                     />
-                ) : showBenefits ? (
-                    <div className="w-full px-4 md:px-6 py-6">
-                        <BenefitsManagement isSuperAdmin={isSuperAdmin} />
-                    </div>
                 ) : (
                     <div className="mt-2 px-4 md:px-6">
                         {/* Enquanto está digitando, "Resultados para..." vem primeiro e
