@@ -22,6 +22,7 @@ import { PublicationsListView } from './PublicationsListView'
 import { isStoreOpenNow, type BusinessHours } from '@/lib/storeHours'
 import { isProfileOpenNow } from '@/lib/profileHours'
 import { captureReferral } from '@/lib/referralCapture'
+import { useMyVehicles, buildVehicleTabs } from '@/lib/vehicleHeaderTabs'
 
 type OwnerType = 'profile' | 'store'
 
@@ -50,6 +51,7 @@ export default function OwnerClientPage() {
         avatarUrl: loggedUserAvatarUrl,
         loading: profileLoading
     } = useProfile()
+    const { vehicles: myVehicles } = useMyVehicles(userId)
     const publicationsStore = usePublicationsStore()
 
     const ownerSlug = Array.isArray(params.ownerSlug) ? params.ownerSlug[0] : params.ownerSlug
@@ -248,28 +250,25 @@ export default function OwnerClientPage() {
                     statusColor,
                 })
             })
-        } else if (isLoggedIn) {
-            allTabs.push({
-                id: 'criar-loja',
-                label: 'Quer criar uma loja?',
-                icon: StoreIcon as any,
-                imageUrl: null,
-                onClick: () => router.push('/criar-loja'),
-                isActive: false,
-            })
-        } else {
-            allTabs.push({
-                id: 'criar-loja',
-                label: 'Criar loja',
-                icon: StoreIcon as any,
-                imageUrl: null,
-                onClick: () => router.push('/criar-loja-com-cadastro'),
-                isActive: false,
-            })
+        }
+
+        // "Criar loja" fica sempre à mão — mesmo quem já tem loja pode criar outra.
+        allTabs.push({
+            id: 'criar-loja',
+            label: !isLoggedIn ? 'Criar loja' : stores.length > 0 ? 'Nova loja' : 'Quer criar uma loja?',
+            icon: StoreIcon as any,
+            imageUrl: null,
+            onClick: () => router.push(isLoggedIn ? '/criar-loja' : '/criar-loja-com-cadastro'),
+            isActive: false,
+        })
+
+        // Veículos (um por tipo cadastrado) + "Cadastrar veículo" enquanto faltar algum tipo.
+        if (isLoggedIn) {
+            allTabs.push(...(buildVehicleTabs(myVehicles, (url) => router.push(url)) as any[]))
         }
 
         return allTabs
-    }, [loggedUserSlug, profileLoading, loggedUserAvatarUrl, stores, loadingStores, storeOrderCounts, pendingInvitesCount, profileOpenNow, showProfile, showStoreDashboard, router])
+    }, [loggedUserSlug, profileLoading, loggedUserAvatarUrl, stores, loadingStores, storeOrderCounts, pendingInvitesCount, profileOpenNow, showProfile, showStoreDashboard, myVehicles, router])
 
     // ========== CARREGAR DADOS ==========
     const [referralOwnerProfileId, setReferralOwnerProfileId] = useState<string | null>(null)

@@ -12,6 +12,7 @@ import LoginAndRegister from '@/components/LoginAndRegister/LoginAndRegister'
 import { Spinner } from '@/components/Spinner'
 import { toast } from 'sonner'
 import { callAdminApi } from '@/lib/callAdminApi'
+import { useMyVehicles, buildVehicleTabs } from '@/lib/vehicleHeaderTabs'
 import { getDeviceId } from '@/lib/deviceId'
 import InviteButton from '@/components/InviteButton'
 import { Car, Briefcase, Sparkles, Store, Check, Copy, X, ShieldCheck, Gift, Users, CreditCard, User, LayoutDashboard, Wallet } from 'lucide-react'
@@ -96,6 +97,7 @@ function PlanosContent() {
     const highlightPlan = searchParams.get('plan')
     const { userId, avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
     const { colors } = useTheme()
+    const { vehicles: myVehicles } = useMyVehicles(userId)
 
     const [loading, setLoading] = useState(true)
     const [showLogin, setShowLogin] = useState(false)
@@ -209,19 +211,25 @@ function PlanosContent() {
                     isActive: false,
                 })
             })
-        } else {
-            allTabs.push({
-                id: 'criar-loja',
-                label: 'Cadastrar loja',
-                icon: Store,
-                imageUrl: null,
-                onClick: () => (isLoggedIn ? router.push('/criar-loja') : setShowLogin(true)),
-                isActive: false,
-            })
+        }
+
+        // "Cadastrar loja" fica sempre à mão — mesmo quem já tem loja pode criar outra.
+        allTabs.push({
+            id: 'criar-loja',
+            label: ownedStores.length > 0 ? 'Nova loja' : 'Cadastrar loja',
+            icon: Store,
+            imageUrl: null,
+            onClick: () => (isLoggedIn ? router.push('/criar-loja') : setShowLogin(true)),
+            isActive: false,
+        })
+
+        // Veículos (um por tipo cadastrado) + "Cadastrar veículo" enquanto faltar algum tipo.
+        if (isLoggedIn) {
+            allTabs.push(...buildVehicleTabs(myVehicles, (url) => router.push(url)))
         }
 
         return allTabs
-    }, [profileSlug, profileLoading, avatarUrl, showLogin, isSuperAdmin, ownedStores, loadingOwnedStores, router])
+    }, [profileSlug, profileLoading, avatarUrl, showLogin, isSuperAdmin, ownedStores, loadingOwnedStores, myVehicles, router])
 
     const stopPolling = () => {
         if (pollRef.current) {

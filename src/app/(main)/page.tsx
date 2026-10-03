@@ -22,6 +22,7 @@ import Header from '@/components/Header'
 import CreateStoreAndRegisterProfile from './inicio/CreateStoreAndRegisterProfile'
 import LoginAndRegister from '@/components/LoginAndRegister/LoginAndRegister'
 import ProfileDashboard from '@/components/ProfileDashboard/ProfileDashboard'
+import { useMyVehicles, buildVehicleTabs } from '@/lib/vehicleHeaderTabs'
 import { useMerchantStore } from '@/store/useMerchantStore'
 import { isStoreOpenNow, type BusinessHours } from '@/lib/storeHours'
 import { isProfileOpenNow } from '@/lib/profileHours'
@@ -116,6 +117,7 @@ function HomePageContent() {
     const [searchFocused, setSearchFocused] = useState(false)
     const [hasInteractedWithSearch, setHasInteractedWithSearch] = useState(false)
     const [stores, setStores] = useState<StoreInfo[]>([])
+    const { vehicles: myVehicles } = useMyVehicles(userId)
     const [showCreateStore, setShowCreateStore] = useState(false)
     const [showLogin, setShowLogin] = useState(false)
     const [showProfile, setShowProfile] = useState(false)
@@ -542,21 +544,27 @@ function HomePageContent() {
                     statusColor,
                 })
             })
-        } else {
-            allTabs.push({
-                id: 'criar-loja',
-                label: 'Cadastrar loja',
-                icon: Store,
-                imageUrl: null,
-                onClick: isLoggedIn
-                    ? () => { startNavProgress(); router.push('/criar-loja') }
-                    : handleCreateStoreClick,
-                isActive: !isLoggedIn && showCreateStore,
-            })
+        }
+
+        // "Cadastrar loja" fica sempre à mão — mesmo quem já tem loja pode criar outra.
+        allTabs.push({
+            id: 'criar-loja',
+            label: stores.length > 0 ? 'Nova loja' : 'Cadastrar loja',
+            icon: Store,
+            imageUrl: null,
+            onClick: isLoggedIn
+                ? () => { startNavProgress(); router.push('/criar-loja') }
+                : handleCreateStoreClick,
+            isActive: !isLoggedIn && showCreateStore,
+        })
+
+        // Veículos (um por tipo cadastrado) + "Cadastrar veículo" enquanto faltar algum tipo.
+        if (isLoggedIn) {
+            allTabs.push(...buildVehicleTabs(myVehicles, (url) => { startNavProgress(); router.push(url) }))
         }
 
         return allTabs
-    }, [profileSlug, loading, avatarUrl, showCreateStore, showLogin, showProfile, showStoreDashboard, stores, loadingStores, storeOrderCounts, pendingInvitesCount, profileOpenNow, router])
+    }, [profileSlug, loading, avatarUrl, showCreateStore, showLogin, showProfile, showStoreDashboard, stores, loadingStores, storeOrderCounts, pendingInvitesCount, profileOpenNow, myVehicles, router])
 
     const showFab = showCreateStore || showLogin || showProfile || showStoreDashboard
 

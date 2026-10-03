@@ -227,7 +227,12 @@ function PainelMotoristaContent() {
         for (const v of (vehicleRows as VehicleRow[]) || []) byKind[v.vehicle_kind] = v
         setVehiclesByKind(byKind)
         const kinds = Object.keys(byKind) as VehicleKind[]
-        const initialKind: VehicleKind = byKind.carro ? 'carro' : (kinds[0] || 'carro')
+        // ?veiculo=<tipo> (vindo da aba do Header) abre direto nesse tipo, mesmo que
+        // ainda não esteja cadastrado (formulário em branco = "Cadastrar veículo").
+        const requestedKind = searchParams.get('veiculo')
+        const initialKind: VehicleKind = requestedKind === 'carro' || requestedKind === 'moto' || requestedKind === 'bicicleta'
+            ? requestedKind
+            : byKind.carro ? 'carro' : (kinds[0] || 'carro')
         setVehicleKind(initialKind)
         applyVehicleToForm(byKind[initialKind] || null, byKind)
         setIsFirstVehicleSetup(kinds.length === 0)
@@ -238,6 +243,8 @@ function PainelMotoristaContent() {
         const hasRequiredFieldsFromDb = kinds.some((k) => isVehicleRowComplete(byKind[k], false))
         if (data?.driver_mode_active && !hasRequiredFieldsFromDb) {
             setShowActivationWizard(true)
+            setActiveTab('veiculo')
+        } else if (searchParams.get('aba') === 'veiculo') {
             setActiveTab('veiculo')
         }
 
