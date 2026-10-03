@@ -811,7 +811,7 @@ function PainelMotoristaContent() {
                                 </div>
                                 <div className="flex-1 min-w-0 text-left">
                                     <span className="text-sm font-black flex items-center gap-1.5" style={{ color: colors.textPrimary }}>
-                                        {driverModeActive ? 'Desligar /Aceitar-corridas' : 'Ligar /Aceitar-corridas'}
+                                        {driverModeActive ? 'Modo motorista ativado' : 'Ativar modo motorista'}
                                         {driverStatus === 'incomplete' && (
                                             <span
                                                 className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-full"
@@ -822,9 +822,9 @@ function PainelMotoristaContent() {
                                         )}
                                     </span>
                                     <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>
-                                        {driverStatus === 'active' && 'Ligado — você já pode aceitar corridas: vê os pedidos em tempo real e aparece no mapa do passageiro assim que se candidatar'}
+                                        {driverStatus === 'active' && 'Ativado — você já pode aceitar corridas: vê os pedidos em tempo real e aparece no mapa do passageiro assim que se candidatar'}
                                         {driverStatus === 'incomplete' && 'Quase lá! Você poderá aceitar as corridas quando completar o cadastro'}
-                                        {driverStatus === 'inactive' && 'Você poderá aceitar as corridas quando tiver o cadastro completo (veículo, fotos e tarifa). Ligue pra ver os pedidos em tempo real'}
+                                        {driverStatus === 'inactive' && 'Você poderá aceitar as corridas quando tiver o cadastro completo (veículo, fotos e tarifa). Ative pra ver os pedidos em tempo real'}
                                     </p>
                                 </div>
                                 <div

@@ -13,8 +13,8 @@ interface SpinnerProps {
 // que os ícones Loader2 que ele substitui tinham por padrão.
 export function Spinner({ size = 32, color, className = '' }: SpinnerProps) {
     return (
-        <div
-            className={`animate-spin rounded-full border-t-2 border-b-2 ${className}`}
+        <span
+            className={`block animate-spin rounded-full border-t-2 border-b-2 ${className}`}
             style={{ width: size, height: size, borderColor: color || 'currentColor' }}
         />
     )

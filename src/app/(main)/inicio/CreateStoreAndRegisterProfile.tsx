@@ -525,6 +525,10 @@ export default function CreateStoreAndRegisterProfile({
             toast.error('Escolha um link disponível para a loja')
             return
         }
+        if (!imageFile) {
+            toast.error('Adicione a logo da loja para continuar')
+            return
+        }
         if (!selectedCategorySlug) {
             toast.error('Selecione uma categoria')
             return
@@ -727,7 +731,7 @@ export default function CreateStoreAndRegisterProfile({
                     {/* Logo */}
                     <div className="space-y-3">
                         <label className="block text-[10px] font-black uppercase tracking-wider text-gray-700 text-center">
-                            Logo da Loja
+                            Logo da Loja <span className="text-red-500">*</span>
                         </label>
                         <div
                             onClick={() => fileInputRef.current?.click()}
@@ -769,7 +773,7 @@ export default function CreateStoreAndRegisterProfile({
                     <div className="space-y-2">
                         <label className="block text-[10px] font-black uppercase tracking-wider text-gray-700 flex items-center gap-2">
                             <Zap className="w-3 h-3 text-orange-500" />
-                            Nome único da loja
+                            Username da loja *
                         </label>
                         <div className="flex items-center bg-white border-2 border-orange-200 rounded-xl overflow-hidden focus-within:border-orange-500 transition-all">
                             <span className="px-3 bg-orange-50 text-gray-600 border-r border-orange-200 text-xs font-bold py-3 whitespace-nowrap">
