@@ -1,7 +1,7 @@
 // app/(main)/painel-motorista/page.tsx
 'use client'
 
-import { useEffect, useState, useMemo, Suspense } from 'react'
+import { useEffect, useState, useMemo, useCallback, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { useProfile } from '@/app/contexts/ProfileContext'
@@ -21,6 +21,7 @@ import { shortAddress } from '@/lib/serviceBoard'
 import { useActivePlans } from '@/hooks/useActivePlans'
 import DriverDebtBanner from '@/components/DriverDebtBanner'
 import InviteButton from '@/components/InviteButton'
+import AceitarCorridas, { CandidateiTabIcon, type AceitarCorridasTab } from '@/components/AceitarCorridas/AceitarCorridas'
 import { callAdminApi } from '@/lib/callAdminApi'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -122,7 +123,20 @@ function PainelMotoristaContent() {
     const [showFirstVehicleDialog, setShowFirstVehicleDialog] = useState(false)
     const [showActivationWizard, setShowActivationWizard] = useState(false)
     // ===== ABA ATIVA (header em abas, mesmo modelo de /carrinho) =====
-    const [activeTab, setActiveTab] = useState<'painel' | 'veiculo' | 'plano' | 'avaliacoes'>('painel')
+    type PainelTab = 'painel' | 'veiculo' | 'plano' | 'avaliacoes' | 'solicitacoes' | 'candidaturas' | 'aceita'
+    const [activeTab, setActiveTab] = useState<PainelTab>(() => {
+        const aba = searchParams.get('aba')
+        return aba === 'solicitacoes' || aba === 'candidaturas' ? aba : 'painel'
+    })
+
+    // Abas que eram do /aceitar-corridas (Solicitações de motorista / Me candidatei /
+    // Corrida aceita) — o conteúdo vem do mesmo componente, embutido aqui.
+    const [rideSummary, setRideSummary] = useState({ rides: 0, candidacies: 0, hasAccepted: false })
+    const rideTabFromPanel: Record<string, AceitarCorridasTab> = { solicitacoes: 'servicos', candidaturas: 'candidatos', aceita: 'aceita' }
+    const handleRideTabChange = useCallback((t: AceitarCorridasTab) => {
+        setActiveTab(t === 'servicos' ? 'solicitacoes' : t === 'candidatos' ? 'candidaturas' : 'aceita')
+    }, [])
+    const handleRideLeave = useCallback(() => setActiveTab('painel'), [])
 
     // ===== AVALIAÇÕES E HISTÓRICO =====
     const [reviews, setReviews] = useState<{ rating: number; comment: string | null; created_at: string; reviewerName: string | null; reviewerAvatarUrl: string | undefined }[]>([])
@@ -592,6 +606,9 @@ function PainelMotoristaContent() {
 
         const allTabs = [
             { id: 'painel', label: 'Painel', icon: LayoutDashboard, isActive: activeTab === 'painel', onClick: () => setActiveTab('painel'), badge: null },
+            ...(rideSummary.hasAccepted ? [{ id: 'aceita', label: 'Corrida aceita', icon: CheckCircle2, isActive: activeTab === 'aceita', onClick: () => setActiveTab('aceita'), badge: null }] : []),
+            { id: 'solicitacoes', label: 'Solicitações de motorista', icon: Car, isActive: activeTab === 'solicitacoes', onClick: () => setActiveTab('solicitacoes'), badge: rideSummary.rides > 0 ? { count: rideSummary.rides } : null },
+            { id: 'candidaturas', label: 'Me candidatei', icon: CandidateiTabIcon as any, isActive: activeTab === 'candidaturas', onClick: () => setActiveTab('candidaturas'), badge: rideSummary.candidacies > 0 ? { count: rideSummary.candidacies } : null },
             {
                 id: 'veiculo', label: 'Meu veículo', icon: Car, isActive: activeTab === 'veiculo', onClick: () => setActiveTab('veiculo'),
                 badge: driverStatus === 'incomplete' ? { count: missingFields.length || 1, color: '#eab308' } : null,
@@ -601,7 +618,7 @@ function PainelMotoristaContent() {
         ]
 
         return showActivationWizard ? allTabs.filter((t) => t.id === 'veiculo' || t.id === 'plano') : allTabs
-    }, [userId, loading, showLogin, activeTab, showActivationWizard, driverStatus, missingFields.length])
+    }, [userId, loading, showLogin, activeTab, showActivationWizard, driverStatus, missingFields.length, rideSummary])
 
     return (
         <div className="relative min-h-dvh" style={{ background: colors.background }}>
@@ -628,6 +645,16 @@ function PainelMotoristaContent() {
 
                     {!loading && showLogin && (
                         <LoginAndRegister onLoginSuccess={handleLoginSuccess} />
+                    )}
+
+                    {!loading && !showLogin && !showActivationWizard && (activeTab === 'solicitacoes' || activeTab === 'candidaturas' || activeTab === 'aceita') && (
+                        <AceitarCorridas
+                            embedded
+                            tab={rideTabFromPanel[activeTab]}
+                            onTabChange={handleRideTabChange}
+                            onSummaryChange={setRideSummary}
+                            onLeave={handleRideLeave}
+                        />
                     )}
 
                     {!loading && !showLogin && (
