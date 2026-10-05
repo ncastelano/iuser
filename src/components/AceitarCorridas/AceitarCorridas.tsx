@@ -289,7 +289,6 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
         setInnerTab(next)
         onTabChange?.(next)
     }, [onTabChange])
-    const [needsSetup, setNeedsSetup] = useState(false)
     const activeTabRef = useRef(activeTab)
     activeTabRef.current = activeTab
     const [rides, setRides] = useState<RideCardData[]>([])
@@ -482,7 +481,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
         }
         setShowLogin(false)
 
-        const [{ data: pricing }, { data: profile }, { data: vehicleRows }] = await Promise.all([
+        const [{ data: pricingRow }, { data: profile }, { data: vehicleRows }] = await Promise.all([
             supabase
                 .from('driver_pricing')
                 .select('pricing_mode, base_distance_km, base_fee, price_per_km_after_base, extra_fee_pessoa, extra_fee_animal, extra_fee_objeto, extra_fee_condominio, extra_fee_compras, extra_fee_necessidade_especial, extra_fee_pet_sem_caixa, extra_fee_entrega_interna, extra_fee_ar_condicionado, alert_sound_enabled, voice_navigation_enabled')
@@ -499,17 +498,17 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                 .eq('driver_id', contextUserId),
         ])
 
-        if (!pricing) {
-            // Embutido no painel, a pessoa já está onde faz o cadastro de motorista.
-            if (embedded) {
-                setNeedsSetup(true)
-                setLoading(false)
-            } else {
-                router.replace('/painel-motorista?next=/aceitar-corridas')
-            }
-            return
+        // Qualquer pessoa vê as corridas disponíveis, mesmo sem ter completado o
+        // cadastro de motorista: sem tarifa própria o valor sai pela Tarifa iUser,
+        // e sem veículo cadastrado aparecem as corridas de todos os tipos.
+        const pricing = pricingRow || {
+            pricing_mode: 'platform' as const,
+            base_distance_km: null, base_fee: null, price_per_km_after_base: null,
+            extra_fee_pessoa: null, extra_fee_animal: null, extra_fee_objeto: null,
+            extra_fee_condominio: null, extra_fee_compras: null, extra_fee_necessidade_especial: null,
+            extra_fee_pet_sem_caixa: null, extra_fee_entrega_interna: null, extra_fee_ar_condicionado: null,
+            alert_sound_enabled: true, voice_navigation_enabled: true,
         }
-        setNeedsSetup(false)
 
         // Motorista pode ter vários veículos (carro, moto, bicicleta) e vê as
         // corridas de todos eles. Sem cadastro de veículo (conta antiga, de
@@ -517,8 +516,13 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
         alertSoundRef.current = pricing.alert_sound_enabled !== false
         setVoiceNavEnabled(pricing.voice_navigation_enabled !== false)
         const vehicleKinds = (vehicleRows || []).map((v) => v.vehicle_kind as VehicleKind)
-        if (vehicleKinds.length === 0) vehicleKinds.push('carro')
-        const acceptableVehicleTypes = new Set(vehicleKinds.flatMap((k) => ridesAcceptableForVehicleKind(k)))
+        const hasRegisteredVehicle = vehicleKinds.length > 0
+        if (!hasRegisteredVehicle) vehicleKinds.push('carro')
+        const acceptableVehicleTypes = new Set<VehicleType>(
+            hasRegisteredVehicle
+                ? vehicleKinds.flatMap((k) => ridesAcceptableForVehicleKind(k))
+                : ['carro', 'van', 'van-grande', 'moto', 'bicicleta', 'qualquer']
+        )
         setMyVehicleKinds(vehicleKinds)
 
         // Consulta separada e best-effort: se a coluna ainda não existir (migração
@@ -533,7 +537,9 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                 setLiveLocationSync(syncOn)
                 if (!syncPromptedRef.current) {
                     syncPromptedRef.current = true
-                    if (!syncOn) setShowSyncPrompt(true)
+                    // Só pergunta pra quem já tem cadastro de motorista (driver_pricing);
+                    // quem está só vendo as corridas não é barrado por esse aviso.
+                    if (!syncOn && data) setShowSyncPrompt(true)
                 }
                 // Enquanto a sincronização ao vivo não está ligada, a posição
                 // exibida é sempre a localização definida em "Definir local"
@@ -860,6 +866,12 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
     const applyToRide = async (ride: RideCardData, price: number) => {
         if (price <= 0) {
             toast.error('Informe um valor válido')
+            return
+        }
+        if (!plansLoading && !hasDriver) {
+            toast.error('Assine o plano Motorista ou o Combo pra se candidatar.', {
+                action: { label: 'Ver planos', onClick: () => router.push('/planos?plan=motorista') },
+            })
             return
         }
         const { data: { user } } = await supabase.auth.getUser()
@@ -1243,31 +1255,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                 )}
 
                 <section className={embedded ? 'flex flex-col gap-3' : 'px-4 md:px-6 mt-4 pb-24 max-w-lg mx-auto'}>
-                    {embedded && !loading && !showLogin && !needsSetup && <div className="flex justify-end">{locationButton}</div>}
-
-                    {embedded && needsSetup && (
-                        <div
-                            className="rounded-2xl p-6 text-center flex flex-col items-center gap-3"
-                            style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
-                        >
-                            <div className="w-16 h-16 rounded-full flex items-center justify-center" style={{ background: GRADIENT, color: '#fff' }}>
-                                <Car size={28} />
-                            </div>
-                            <div>
-                                <h2 className="text-lg font-black" style={{ color: colors.textPrimary }}>Complete seu cadastro de motorista</h2>
-                                <p className="text-xs mt-1" style={{ color: colors.textSecondary }}>
-                                    Pra ver as corridas, cadastre seu veículo e sua tarifa no painel.
-                                </p>
-                            </div>
-                            <button
-                                onClick={() => onLeave?.()}
-                                className="w-full py-3.5 rounded-full font-black uppercase text-xs tracking-wider"
-                                style={{ background: GRADIENT, color: '#fff' }}
-                            >
-                                Ir para o painel
-                            </button>
-                        </div>
-                    )}
+                    {embedded && !loading && !showLogin && <div className="flex justify-end">{locationButton}</div>}
 
                     {!loading && showLogin && (
                         <LoginAndRegister onLoginSuccess={handleLoginSuccess} />
@@ -1275,21 +1263,18 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
 
                     {!loading && !showLogin && !plansLoading && !hasDriver && (
                         <div
-                            className="rounded-2xl p-6 text-center flex flex-col items-center gap-3"
+                            className="rounded-2xl p-3.5 flex items-center gap-3"
                             style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
                         >
-                            <div className="w-16 h-16 rounded-full flex items-center justify-center" style={{ background: GRADIENT, color: '#fff' }}>
-                                <Car size={28} />
+                            <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#fff' }}>
+                                <Car size={18} />
                             </div>
-                            <div>
-                                <h2 className="text-lg font-black" style={{ color: colors.textPrimary }}>Assine pra aceitar corridas</h2>
-                                <p className="text-xs mt-1" style={{ color: colors.textSecondary }}>
-                                    Pra ver e se candidatar às corridas disponíveis, você precisa do plano Motorista ou do Combo.
-                                </p>
-                            </div>
+                            <p className="flex-1 min-w-0 text-xs" style={{ color: colors.textSecondary }}>
+                                Você pode ver as corridas. Pra se candidatar, assine o plano <strong style={{ color: colors.textPrimary }}>Motorista</strong> ou o <strong style={{ color: colors.textPrimary }}>Combo</strong>.
+                            </p>
                             <button
                                 onClick={() => router.push('/planos?plan=motorista')}
-                                className="w-full py-3.5 rounded-full font-black uppercase text-xs tracking-wider"
+                                className="px-3.5 py-2 rounded-full font-black text-[11px] flex-shrink-0"
                                 style={{ background: GRADIENT, color: '#fff' }}
                             >
                                 Ver planos
@@ -1297,9 +1282,9 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                         </div>
                     )}
 
-                    {!loading && !showLogin && !plansLoading && hasDriver && (
+                    {!loading && !showLogin && (
                     <>
-                    <DriverDebtBanner userId={contextUserId} />
+                    {hasDriver && <DriverDebtBanner userId={contextUserId} />}
                     {activeTab === 'servicos' && visibleRides.length === 0 && (
                         <div
                             className="rounded-2xl p-6 text-center"
