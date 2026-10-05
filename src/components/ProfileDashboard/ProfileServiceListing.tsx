@@ -25,9 +25,7 @@ import {
     Wrench,
     MapPin,
     MapPinPlus,
-    Map as MapIcon,
     Pencil,
-    ArrowRight,
 } from 'lucide-react'
 import { generateUniqueGlobalSlug } from '@/lib/slugUtils'
 import { getAvatarUrl } from '@/lib/avatar'
@@ -297,7 +295,7 @@ export default function ProfileServiceListing({ profileId, profileSlug }: Profil
                 >
                     <div className="flex items-center gap-3">
                         <div className="w-12 h-12 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#ffffff' }}>
-                            {owner?.avatarUrl ? <img src={owner.avatarUrl} className="w-full h-full object-cover" alt="" /> : <Wrench size={22} />}
+                            {owner?.avatarUrl ? <img src={owner.avatarUrl} className="w-full h-full object-cover" alt="" /> : <span className="text-lg font-black">{(profileSlug || owner?.name || '?').charAt(0).toUpperCase()}</span>}
                         </div>
                         <div className="min-w-0">
                             <h3 className="text-lg font-black truncate" style={{ color: textPrimary }}>{owner?.name || `@${profileSlug}`}</h3>
@@ -318,16 +316,6 @@ export default function ProfileServiceListing({ profileId, profileSlug }: Profil
 
                 {isExpanded && (
                     <div className="flex flex-col gap-5">
-                        <button
-                            onClick={() => router.push('/solicitar-servico')}
-                            className="self-start flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition-all hover:scale-105 active:scale-95 hover:shadow-lg"
-                            style={{ background: GRADIENT, color: '#ffffff', boxShadow: `0 2px 8px rgba(249, 115, 22, 0.3)` }}
-                        >
-                            <MapIcon size={14} />
-                            <span>Ver no mapa</span>
-                            <ArrowRight className="w-3.5 h-3.5" />
-                        </button>
-
                         {loading ? (
                             <div className="flex justify-center py-8">
                                 <div className="w-6 h-6 border-2 border-orange-200 border-t-orange-500 rounded-full animate-spin" />
