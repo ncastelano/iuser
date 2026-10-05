@@ -138,15 +138,15 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
         const loadOpenRides = async () => {
             if (!userId) return
 
-            const { data: pricing } = await supabase
+            // As corridas aparecem mesmo sem o modo motorista ativado (e sem tarifa
+            // cadastrada ainda): quem não tem driver_pricing vê o valor pela tarifa iUser.
+            const { data: pricingRow } = await supabase
                 .from('driver_pricing')
                 .select('pricing_mode, base_distance_km, base_fee, price_per_km_after_base')
                 .eq('driver_id', userId)
                 .maybeSingle()
-            if (!active || !pricing) {
-                setOpenRides([])
-                return
-            }
+            if (!active) return
+            const pricing = pricingRow || { pricing_mode: 'platform' as const, base_distance_km: null, base_fee: null, price_per_km_after_base: null }
 
             const { data: myApplicationRows } = await supabase
                 .from('ride_applications')
@@ -526,11 +526,13 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
                     </div>
                 )}
 
-                {driverModeActive && hasPricing && openRides.length > 0 && (
+                {openRides.length > 0 && (
                     <div className="flex items-center justify-between gap-2 mt-4 mb-2">
                         <div className="flex items-center gap-2">
-                            <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#22c55e' }} />
-                            <span className="text-xs font-black" style={{ color: colors.textPrimary }}>Modo motorista ativo</span>
+                            <span className="w-2.5 h-2.5 rounded-full" style={{ background: driverModeActive ? '#22c55e' : colors.textSecondary }} />
+                            <span className="text-xs font-black" style={{ color: colors.textPrimary }}>
+                                {driverModeActive ? 'Modo motorista ativo' : 'Corridas disponíveis'}
+                            </span>
                         </div>
                         <span
                             className="text-[10px] font-black uppercase px-2.5 py-1 rounded-full text-white whitespace-nowrap"
@@ -541,8 +543,8 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
                     </div>
                 )}
 
-                {hasPricing && openRides.length > 0 && (
-                    <div className={`flex flex-col gap-2 ${driverModeActive ? '' : 'mt-4'}`}>
+                {openRides.length > 0 && (
+                    <div className="flex flex-col gap-2">
                         {openRides.map((ride) => (
                             <button
                                 key={ride.id}
