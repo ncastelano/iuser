@@ -37,6 +37,11 @@ import { useVoiceNavigation } from '@/lib/voiceNavigation'
 import RideChat from '@/components/RideChat'
 import { DRIVER_CHAT_QUICK_REPLIES } from '@/lib/rideChatQuickReplies'
 import type { VehicleType, VehicleKind } from '@/lib/rideVehicle'
+import { computeRideTariffs } from '@/lib/rideTariffs'
+import { submitRideApplication } from '@/lib/rideApplication'
+import { getAvatarUrl } from '@/lib/avatar'
+import { getProfileRideRatingsBatch } from '@/lib/rideReviews'
+import { RideOfferCard, type OfferRide, type OfferRequester } from './RideOfferCard'
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
 
@@ -149,6 +154,17 @@ interface AcceptedRideMapDetail {
 
 const ACCEPTED_RIDE_SELECT = 'id, vehicle_type, origin_address, destination_address, origin_lat, origin_lng, destination_lat, destination_lng, stop1_address, stop1_lat, stop1_lng, stop1_reached_at, stop2_address, stop2_lat, stop2_lng, stop2_reached_at, driver_en_route, driver_arrived_at, ride_started_at, distance_km, duration_min'
 
+// Mesmas colunas do card de /aceitar-corridas (quem pediu, o que leva, pagamento...).
+const OFFER_SELECT = 'id, requester_id, ride_type, origin_address, destination_address, origin_complement, destination_complement, notes, passenger_count, vehicle_type, object_description, object_is_sensitive, pet_description, has_child, children_count, child_age, child_needs_car_seat, has_shopping, bag_count, has_extra_object, extra_object_description, has_pet, pet_weight_range, pet_has_carrier, has_special_needs, special_needs_description, special_needs_wheelchair, special_needs_wheelchair_type, special_needs_visual_impairment, has_guide_dog, delivery_location, payment_method, cash_change_for, card_is_contactless, origin_needs_access, origin_access_notes, destination_needs_access, destination_access_notes, grocery_bag_size, wants_air_conditioning, distance_km, duration_min, scheduled_for, created_at, stop1_address, stop2_address, offered_price, order_id, store_id'
+
+interface OfferData {
+    ride: OfferRide
+    requester: OfferRequester
+    storeName: string | null
+    platformPrice: number
+    customPrice: number | null
+}
+
 const SHEET_MIN_VH = 22
 const SHEET_MAX_VH = 60
 const SHEET_PADDING_PX = 48
@@ -188,6 +204,8 @@ function AceitarCorridasMapaContent() {
     const [myVehicleKinds, setMyVehicleKinds] = useState<VehicleKind[]>(['carro'])
     const [driverCoords, setDriverCoords] = useState<[number, number] | null>(null)
     const [following, setFollowing] = useState(!isPreview)
+    const [offer, setOffer] = useState<OfferData | null>(null)
+    const [applying, setApplying] = useState(false)
     const [tripKm, setTripKm] = useState<number | null>(null)
     const [tripMin, setTripMin] = useState<number | null>(null)
     const [routeKm, setRouteKm] = useState<number | null>(null)
@@ -257,6 +275,64 @@ function AceitarCorridasMapaContent() {
         return () => clearInterval(poll)
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [profileLoading, userId, previewRideId])
+
+    // ===== PRÉVIA: dados do card (quem pediu, o que leva, tarifas) =====
+    useEffect(() => {
+        if (!isPreview || !userId || !previewRideId) return
+        let cancelled = false
+        ;(async () => {
+            const { data: rideRow } = await supabase.from('ride_requests').select(OFFER_SELECT).eq('id', previewRideId).maybeSingle()
+            if (!rideRow || cancelled) return
+            const r = rideRow as unknown as OfferRide & { requester_id: string; store_id: string | null }
+            const [{ data: profile }, ratings, { data: pricing }, storeRes] = await Promise.all([
+                supabase.from('profiles').select('name, profileSlug, avatar_url').eq('id', r.requester_id).maybeSingle(),
+                getProfileRideRatingsBatch(supabase, [r.requester_id]),
+                supabase
+                    .from('driver_pricing')
+                    .select('pricing_mode, base_distance_km, base_fee, price_per_km_after_base, extra_fee_pessoa, extra_fee_animal, extra_fee_objeto, extra_fee_condominio, extra_fee_compras, extra_fee_necessidade_especial, extra_fee_pet_sem_caixa, extra_fee_entrega_interna, extra_fee_ar_condicionado')
+                    .eq('driver_id', userId)
+                    .maybeSingle(),
+                r.store_id ? supabase.from('stores').select('name').eq('id', r.store_id).maybeSingle() : Promise.resolve({ data: null }),
+            ])
+            if (cancelled) return
+            const { platformPrice, customPrice } = computeRideTariffs(
+                r as Parameters<typeof computeRideTariffs>[0],
+                (pricing || { pricing_mode: 'platform', base_distance_km: null, base_fee: null, price_per_km_after_base: null }) as Parameters<typeof computeRideTariffs>[1]
+            )
+            setOffer({
+                ride: r,
+                requester: {
+                    name: profile?.name || null,
+                    slug: profile?.profileSlug || null,
+                    avatarUrl: getAvatarUrl(supabase, profile?.avatar_url),
+                    rating: ratings.get(r.requester_id) || { avg: 0, count: 0 },
+                },
+                storeName: (storeRes.data as { name: string } | null)?.name || null,
+                platformPrice,
+                customPrice,
+            })
+        })()
+        return () => { cancelled = true }
+    }, [isPreview, userId, previewRideId])
+
+    const applyToOffer = async (price: number) => {
+        if (!userId || !previewRideId) return
+        if (!(price > 0)) {
+            toast.error('Informe um valor válido')
+            return
+        }
+        setApplying(true)
+        try {
+            await submitRideApplication(userId, previewRideId, price)
+            toast.success('Candidatura enviada!')
+            router.push('/painel-motorista?aba=candidaturas')
+        } catch (err: any) {
+            if (err?.code === '23505') toast.error('Você já se candidatou a essa corrida.')
+            else if (err?.code === '42501' || err?.code === 'PGRST301') toast.error('Essa corrida já atingiu o limite de candidatos (ou você não tem o plano de motorista).')
+            else toast.error('Erro ao se candidatar: ' + (err?.message || 'tente novamente'))
+            setApplying(false)
+        }
+    }
 
     // ===== POSIÇÃO AO VIVO DO MOTORISTA =====
     useEffect(() => {
@@ -715,33 +791,33 @@ function AceitarCorridasMapaContent() {
                 }}
             >
                 <div ref={setSheetContentRef}>
+                    {isPreview ? (
+                        offer ? (
+                            <RideOfferCard
+                                ride={offer.ride}
+                                requester={offer.requester}
+                                storeName={offer.storeName}
+                                platformPrice={offer.platformPrice}
+                                customPrice={offer.customPrice}
+                                toPickup={{ km: routeKm, min: routeMin, hasGps: !!driverCoords }}
+                                trip={{ km: shownTripKm, min: shownTripMin }}
+                                applying={applying}
+                                onApply={applyToOffer}
+                                onBack={() => router.push('/aceitar-corridas')}
+                            />
+                        ) : (
+                            <div className="flex justify-center py-8"><Spinner size={24} color={colors.textSecondary} /></div>
+                        )
+                    ) : (
+                    <>
                     <h2 className="text-lg font-black mb-1" style={{ color: colors.textPrimary }}>{phaseTitle}</h2>
                     <div className="flex items-start gap-2 text-xs mb-2" style={{ color: colors.textSecondary }}>
                         <MapPin size={12} className="flex-shrink-0 mt-0.5" />
                         <span>{routeLine}</span>
                     </div>
 
-                    {isPreview && (
-                        <div className="rounded-xl px-3 py-2.5 mb-3 flex flex-col gap-1.5" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
-                            <div className="flex items-center gap-2 text-xs" style={{ color: colors.textPrimary }}>
-                                <span className="w-3 h-1 rounded-full flex-shrink-0" style={{ background: TO_TARGET_COLOR }} />
-                                <span className="font-bold">Até a partida:</span>
-                                <span>{routeKm != null ? `${routeKm.toFixed(1)} km${routeMin != null ? ` · ${Math.round(routeMin)} min` : ''}` : 'calculando...'}</span>
-                            </div>
-                            <div className="flex items-center gap-2 text-xs" style={{ color: colors.textPrimary }}>
-                                <span className="w-3 h-1 rounded-full flex-shrink-0" style={{ background: TRIP_PREVIEW_COLOR }} />
-                                <span className="font-bold">Partida → destino:</span>
-                                <span>{shownTripKm != null ? `${shownTripKm.toFixed(1)} km${shownTripMin != null ? ` · ${Math.round(shownTripMin)} min` : ''}` : 'calculando...'}</span>
-                            </div>
-                        </div>
-                    )}
-
                     <div className="flex flex-col gap-2 mt-3">
-                        {isPreview ? (
-                            <button onClick={() => router.push('/aceitar-corridas')} className={primaryBtn} style={primaryStyle}>
-                                <Route size={16} /> Voltar às corridas
-                            </button>
-                        ) : (
+                        {(
                             <>
                                 {!acceptedRide.driver_en_route && (
                                     <button onClick={departToPickup} disabled={departing} className={primaryBtn} style={primaryStyle}>
@@ -789,6 +865,8 @@ function AceitarCorridasMapaContent() {
                             </>
                         )}
                     </div>
+                    </>
+                    )}
                 </div>
             </div>
         </div>
