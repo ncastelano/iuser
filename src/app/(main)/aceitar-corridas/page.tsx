@@ -4,8 +4,13 @@
 // nas abas Solicitações/Me candidatei do /painel-motorista).
 'use client'
 
+import { Suspense } from 'react'
 import AceitarCorridas from '@/components/AceitarCorridas/AceitarCorridas'
 
 export default function AceitarCorridasPage() {
-    return <AceitarCorridas />
+    return (
+        <Suspense fallback={null}>
+            <AceitarCorridas />
+        </Suspense>
+    )
 }

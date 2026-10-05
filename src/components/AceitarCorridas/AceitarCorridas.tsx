@@ -7,7 +7,7 @@
 'use client'
 
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { getCurrentPosition as getNativeCurrentPosition, watchPosition as watchNativePosition } from '@/lib/nativeGeolocation'
 import { useProfile } from '@/app/contexts/ProfileContext'
@@ -277,13 +277,20 @@ export interface AceitarCorridasProps {
 
 export default function AceitarCorridas({ embedded = false, tab, onTabChange, onSummaryChange, onLeave }: AceitarCorridasProps = {}) {
     const router = useRouter()
+    // ?ride=<id> (clique num card do Canal do Motorista na home): rola até o card
+    // dessa corrida e destaca; ?tab=candidatos abre em "Me candidatei".
+    const searchParams = useSearchParams()
+    const focusRideId = searchParams.get('ride')
+    const focusTab = searchParams.get('tab')
+    const [highlightRideId, setHighlightRideId] = useState<string | null>(null)
+    const focusedRef = useRef(false)
     const { userId: contextUserId, avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
     const { colors } = useTheme()
     const { loading: plansLoading, hasDriver } = useActivePlans(contextUserId)
 
     const [loading, setLoading] = useState(true)
     const [showLogin, setShowLogin] = useState(false)
-    const [innerTab, setInnerTab] = useState<AceitarCorridasTab>('servicos')
+    const [innerTab, setInnerTab] = useState<AceitarCorridasTab>(focusTab === 'candidatos' ? 'candidatos' : 'servicos')
     const activeTab = tab ?? innerTab
     const setActiveTab = useCallback((next: AceitarCorridasTab) => {
         setInnerTab(next)
@@ -901,6 +908,17 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
         }
     }
 
+    // Rola até o card da corrida clicada na home (uma vez, quando ela aparecer na lista).
+    useEffect(() => {
+        if (!focusRideId || focusedRef.current || loading) return
+        const el = document.getElementById(`ride-card-${focusRideId}`)
+        if (!el) return
+        focusedRef.current = true
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        setHighlightRideId(focusRideId)
+        setTimeout(() => setHighlightRideId(null), 3000)
+    }, [focusRideId, loading, rides, candidacies, activeTab])
+
     const skipRide = (rideId: string) => {
         setSkippedIds((prev) => new Set(prev).add(rideId))
     }
@@ -1303,8 +1321,9 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                                 return (
                                     <div
                                         key={ride.id}
-                                        className="rounded-2xl p-3.5 overflow-hidden relative"
-                                        style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
+                                        id={`ride-card-${ride.id}`}
+                                        className="rounded-2xl p-3.5 overflow-hidden relative transition-shadow duration-500"
+                                        style={{ background: colors.surface, border: `1px solid ${highlightRideId === ride.id ? '#f97316' : colors.border}`, boxShadow: highlightRideId === ride.id ? '0 0 0 3px #f9731655' : colors.shadow }}
                                     >
                                         <RideOfferCard
                                             ride={ride}
@@ -1357,8 +1376,9 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                                 return (
                                     <div
                                         key={ride.applicationId}
-                                        className="rounded-2xl p-3.5 overflow-hidden relative"
-                                        style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
+                                        id={`ride-card-${ride.id}`}
+                                        className="rounded-2xl p-3.5 overflow-hidden relative transition-shadow duration-500"
+                                        style={{ background: colors.surface, border: `1px solid ${highlightRideId === ride.id ? '#f97316' : colors.border}`, boxShadow: highlightRideId === ride.id ? '0 0 0 3px #f9731655' : colors.shadow }}
                                     >
                                         <RideOfferCard
                                             ride={ride}

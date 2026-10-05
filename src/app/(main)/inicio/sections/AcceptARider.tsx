@@ -355,6 +355,11 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
     const goToPainel = () => { startNavProgress(); router.push('/painel-motorista') }
     // Só entra direto na corrida com o modo motorista ativado — senão manda
     // pro painel pra ativar primeiro (mesmo card, mesmo destino do botão).
+    // Clicou numa corrida específica: vai pra /aceitar-corridas e cai no card dela.
+    const goToRide = (rideId: string, tab?: 'candidatos') => {
+        startNavProgress()
+        router.push(`/aceitar-corridas?ride=${rideId}${tab ? `&tab=${tab}` : ''}`)
+    }
     const goToCorridas = () => {
         startNavProgress()
         router.push(driverModeActive ? '/aceitar-corridas' : '/painel-motorista')
@@ -462,7 +467,7 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
                         {myCandidacies.map((ride) => (
                             <button
                                 key={ride.id}
-                                onClick={goToCorridas}
+                                onClick={() => goToRide(ride.id, 'candidatos')}
                                 className="w-full p-3 rounded-2xl text-left transition-all hover:scale-[1.01]"
                                 style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}
                             >
@@ -548,7 +553,7 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
                         {openRides.map((ride) => (
                             <button
                                 key={ride.id}
-                                onClick={goToCorridas}
+                                onClick={() => goToRide(ride.id)}
                                 className="w-full p-3 rounded-2xl text-left transition-all hover:scale-[1.01]"
                                 style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}
                             >
