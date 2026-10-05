@@ -30,6 +30,7 @@ import {
     ArrowRight,
 } from 'lucide-react'
 import { generateUniqueGlobalSlug } from '@/lib/slugUtils'
+import { getAvatarUrl } from '@/lib/avatar'
 import { Spinner } from '@/components/Spinner'
 
 interface ServiceListing {
@@ -103,6 +104,18 @@ export default function ProfileServiceListing({ profileId, profileSlug }: Profil
     const [locating, setLocating] = useState(false)
 
     const [deletingId, setDeletingId] = useState<string | null>(null)
+
+    // Nome e foto do perfil no cabeçalho — o card é "o seu perfil publicando serviços",
+    // do mesmo jeito que cada loja tem o card dela.
+    const [owner, setOwner] = useState<{ name: string | null; avatarUrl: string | undefined } | null>(null)
+    useEffect(() => {
+        if (!profileId) return
+        let cancelled = false
+        supabase.from('profiles').select('name, avatar_url').eq('id', profileId).maybeSingle().then(({ data }) => {
+            if (!cancelled && data) setOwner({ name: data.name || null, avatarUrl: getAvatarUrl(supabase, data.avatar_url) })
+        })
+        return () => { cancelled = true }
+    }, [profileId])
     const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
     useEffect(() => {
@@ -283,12 +296,14 @@ export default function ProfileServiceListing({ profileId, profileSlug }: Profil
                     style={{ padding: '0.5rem 0.75rem', borderRadius: '9999px', background: 'transparent', border: 'none', cursor: 'pointer' }}
                 >
                     <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#ffffff' }}>
-                            <Wrench size={22} />
+                        <div className="w-12 h-12 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#ffffff' }}>
+                            {owner?.avatarUrl ? <img src={owner.avatarUrl} className="w-full h-full object-cover" alt="" /> : <Wrench size={22} />}
                         </div>
-                        <div>
-                            <h3 className="text-lg font-black" style={{ color: textPrimary }}>Serviços do meu perfil</h3>
-                            <p className="text-xs mt-0.5" style={{ color: textSecondary }}>Pessoais — sem loja, você mesmo presta</p>
+                        <div className="min-w-0">
+                            <h3 className="text-lg font-black truncate" style={{ color: textPrimary }}>{owner?.name || `@${profileSlug}`}</h3>
+                            <p className="text-xs mt-0.5" style={{ color: textSecondary }}>
+                                @{profileSlug} · serviços do seu perfil (sem loja)
+                            </p>
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -326,8 +341,10 @@ export default function ProfileServiceListing({ profileId, profileSlug }: Profil
                                     <Wrench size={28} />
                                 </div>
                                 <div>
-                                    <p className="text-sm font-bold" style={{ color: textPrimary }}>Você ainda não publicou nenhum serviço</p>
-                                    <p className="text-xs mt-1" style={{ color: textSecondary }}>Anuncie o que você faz e apareça no mapa de quem está procurando.</p>
+                                    <p className="text-sm font-black" style={{ color: textPrimary }}>
+                                        Que tal publicar o seu primeiro serviço{owner?.name ? `, ${owner.name.split(' ')[0]}` : ''}?
+                                    </p>
+                                    <p className="text-xs mt-1" style={{ color: textSecondary }}>Anuncie o que você faz e apareça no mapa de quem está procurando um profissional — o cliente te chama na hora.</p>
                                 </div>
                                 <button
                                     onClick={() => setIsCreating(true)}
