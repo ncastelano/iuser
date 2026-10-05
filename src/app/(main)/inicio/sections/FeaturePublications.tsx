@@ -2,7 +2,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, ReactNode } from 'react'
-import { Store, ArrowRight, MessageCircle } from 'lucide-react'
+import { Store, ArrowRight, Megaphone } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import { useRouter } from 'next/navigation'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
@@ -261,7 +261,7 @@ export default function FeaturedPublications({
     return (
         <div className={`relative w-full ${className}`}>
             <HomeSectionHeader
-                icon={MessageCircle}
+                icon={Megaphone}
                 title={title || 'Publicações em destaque'}
                 subtitle={`${publications.length} ${publications.length === 1 ? 'publicação' : 'publicações'}`}
                 dragHandle={dragHandle}
