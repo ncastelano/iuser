@@ -580,22 +580,24 @@ export default function PedirMotoristaPage() {
     // Moto/bicicleta só fazem sentido pra 1 pessoa sozinha (sem criança,
     // sem adulto a mais) ou pra entrega de objeto; carregar passageiro de
     // bike não é opção, e corrida de animal segue só carro por enquanto.
+    // "Qualquer um" aceita qualquer motorista (carro, moto ou bicicleta), mas assim que
+    // o pedido leva algo que só cabe em carro (mais gente, compras, objeto, pet ou
+    // ar-condicionado) ele passa a ser só de carro — a pessoa monta o pedido normalmente.
+    const anyCarOnlyExtra = extraPeopleCount > 0 || childrenCount > 0 || bagCount > 0 || extraObjectCount > 0 || petCount > 0 || wantsAirConditioning
     const effectiveVehicleType: VehicleType =
         requestFor === 'pessoa'
-            ? (totalPeople === 1 && vehicleTypeChoice !== 'carro' ? vehicleTypeChoice : vehicleType)
+            ? (totalPeople === 1 && vehicleTypeChoice !== 'carro' && !(vehicleTypeChoice === 'qualquer' && anyCarOnlyExtra) ? vehicleTypeChoice : vehicleType)
             : requestFor === 'objeto'
                 ? vehicleTypeChoice
                 : requestFor === 'animal'
-                    ? vehicleTypeChoice
+                    ? (vehicleTypeChoice === 'qualquer' && wantsAirConditioning ? 'carro' : vehicleTypeChoice)
                     : 'carro'
     // Moto e bicicleta levam uma coisa só (uma pessoa, um objeto ou um pet):
     // sem ar condicionado, compras, objeto extra nem pet junto do passageiro.
-    // "qualquer" entra na mesma restrição das duas rodas: como pode acabar
-    // com um motorista de moto ou bicicleta, não pode prometer o que só cabe em carro.
-    const isTwoWheels = effectiveVehicleType === 'moto' || effectiveVehicleType === 'bicicleta' || effectiveVehicleType === 'qualquer'
+    const isTwoWheels = effectiveVehicleType === 'moto' || effectiveVehicleType === 'bicicleta'
     const chooseVehicle = (kind: 'carro' | 'moto' | 'bicicleta' | 'qualquer') => {
         setVehicleTypeChoice(kind)
-        if (kind !== 'carro') {
+        if (kind === 'moto' || kind === 'bicicleta') {
             setExtraPeopleCount(0)
             setChildrenCount(0)
             setBagCount(0)
@@ -2104,13 +2106,13 @@ export default function PedirMotoristaPage() {
                             {/* Aviso imediato: moto/bicicleta/qualquer um limita quem/o que
                                 pode ir junto — melhor a pessoa saber isso já aqui do que só
                                 descobrir na etapa seguinte que os contadores sumiram. */}
-                            {requestFor === 'pessoa' && isTwoWheels && (
+                            {requestFor === 'pessoa' && (isTwoWheels || vehicleTypeChoice === 'qualquer') && (
                                 <div className="px-3 py-2.5 rounded-lg text-xs font-semibold mt-3" style={{ background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }}>
                                     {effectiveVehicleType === 'bicicleta'
                                         ? 'De bicicleta vai só você, com no máximo uma sacola pequena na mão ou uma bolsa que não atrapalhe quem conduz o veículo.'
                                         : effectiveVehicleType === 'moto'
                                             ? 'De moto vai só 1 pessoa — sem compras, objeto extra ou pet junto.'
-                                            : 'Aberta pra qualquer motorista (carro, moto ou bicicleta) — por garantia, vai só você, sem compras, objeto extra ou pet junto. Escolha "Carro de passeio" se for levar mais gente ou coisas junto.'}
+                                            : 'Qualquer motorista (carro, moto ou bicicleta) pode atender. Se for levar mais gente, compras, objeto ou pet, só motorista de carro atende — você escolhe na próxima etapa.'}
                                 </div>
                             )}
 
@@ -2438,9 +2440,14 @@ export default function PedirMotoristaPage() {
                                             <div className="px-3 py-2 rounded-lg text-xs font-semibold" style={{ background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }}>
                                                 {effectiveVehicleType === 'bicicleta'
                                                     ? 'De bicicleta vai só você, com no máximo uma sacola pequena na mão ou uma bolsa que não atrapalhe quem conduz o veículo.'
-                                                    : effectiveVehicleType === 'moto'
-                                                        ? 'De moto vai só 1 pessoa — sem compras, objeto extra ou pet junto.'
-                                                        : 'Aberta pra qualquer motorista (carro, moto ou bicicleta) — por garantia, vai só você, sem compras, objeto extra ou pet junto.'}
+                                                    : 'De moto vai só 1 pessoa — sem compras, objeto extra ou pet junto.'}
+                                            </div>
+                                        )}
+
+                                        {vehicleTypeChoice === 'qualquer' && anyCarOnlyExtra && (
+                                            <div className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold" style={{ background: `${colors.accent}15`, color: colors.accent }}>
+                                                <Car size={14} />
+                                                Com isso, só motorista de carro poderá atender seu pedido.
                                             </div>
                                         )}
 

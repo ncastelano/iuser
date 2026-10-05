@@ -11,7 +11,7 @@ import { Package, PawPrint, Star, CalendarClock, Pencil, X, Users } from 'lucide
 import { useTheme } from '@/app/contexts/theme'
 import { Spinner } from '@/components/Spinner'
 import { shortAddress } from '@/lib/serviceBoard'
-import { buildRideSpecRows, type RideSpecFields } from '@/lib/rideSpecs'
+import { humanizeRideSpecs, type RideSpecFields } from '@/lib/rideSpecs'
 import { VEHICLE_TYPE_LABELS, type VehicleType } from '@/lib/rideVehicle'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -90,8 +90,9 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
         : null
 
     const name = requester.name || (requester.slug ? `@${requester.slug}` : 'Passageiro')
-    const when = ride.scheduled_for ? `agendada pra ${formatScheduledFor(ride.scheduled_for)}` : `pediu ${relativeTime(ride.created_at)}`
-    const specs = buildRideSpecRows(ride)
+    const when = ride.scheduled_for ? `agendada pra ${formatScheduledFor(ride.scheduled_for)}` : relativeTime(ride.created_at) === 'agora' ? 'pediu agora' : `pediu ${relativeTime(ride.created_at)}`
+    const vehicleLabel = ride.vehicle_type === 'qualquer' ? 'Qualquer veículo' : VEHICLE_TYPE_LABELS[ride.vehicle_type]
+    const specs = humanizeRideSpecs(ride)
 
     const stat = (color: string, label: string, km: number | null, min: number | null, pending: string) => (
         <div className="flex-1 min-w-0 rounded-xl px-2.5 py-1.5" style={{ background: `${colors.border}25`, border: `1px solid ${colors.border}` }}>
@@ -131,39 +132,24 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
                     </p>
                 </div>
                 <span className="text-[10px] font-bold px-2 py-1 rounded-full flex-shrink-0" style={{ background: GRADIENT, color: '#fff' }}>
-                    {VEHICLE_TYPE_LABELS[ride.vehicle_type]}
+                    {vehicleLabel}
                 </span>
             </div>
 
             {/* O que a corrida leva (rola de lado se não couber) */}
             <div className="flex items-center gap-1.5 overflow-x-auto -mx-1 px-1 pb-0.5" style={{ scrollbarWidth: 'none' }}>
-                {ride.ride_type === 'objeto' && (
-                    <span className="flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap flex-shrink-0" style={{ background: `${colors.border}30`, color: colors.textPrimary }}>
-                        <Package size={11} /> {ride.object_description || 'Objeto'}
-                    </span>
-                )}
-                {ride.ride_type === 'animal' && (
-                    <span className="flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap flex-shrink-0" style={{ background: `${colors.border}30`, color: colors.textPrimary }}>
-                        <PawPrint size={11} /> {ride.pet_description || 'Animal'}
-                    </span>
-                )}
-                {ride.ride_type === 'pessoa' && ride.passenger_count > 1 && (
-                    <span className="flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap flex-shrink-0" style={{ background: `${colors.border}30`, color: colors.textPrimary }}>
-                        <Users size={11} /> {ride.passenger_count} passageiros
-                    </span>
-                )}
                 {ride.order_id && (
                     <span className="flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap flex-shrink-0" style={{ background: '#22c55e20', color: '#16a34a' }}>
                         <Package size={11} /> Entrega{storeName ? ` · ${storeName}` : ' de loja'}
                     </span>
                 )}
-                {specs.map((spec, i) => (
+                {specs.map((text, i) => (
                     <span
                         key={i}
                         className="text-[11px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap flex-shrink-0"
-                        style={{ background: `${colors.accent}15`, color: colors.accent }}
+                        style={i === 0 ? { background: `${colors.border}30`, color: colors.textPrimary } : { background: `${colors.accent}15`, color: colors.accent }}
                     >
-                        {spec.label}: {spec.value}
+                        {text}
                     </span>
                 ))}
             </div>

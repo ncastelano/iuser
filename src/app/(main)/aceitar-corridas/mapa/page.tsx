@@ -183,6 +183,8 @@ function AceitarCorridasMapaContent() {
     const searchParams = useSearchParams()
     const previewRideId = searchParams.get('ride')
     const isPreview = !!previewRideId
+    // Volta pro card da mesma corrida em /aceitar-corridas (rola até ele e destaca).
+    const backUrl = previewRideId ? `/aceitar-corridas?ride=${previewRideId}` : '/aceitar-corridas'
     const { colors } = useTheme()
     const { userId, loading: profileLoading } = useProfile()
 
@@ -804,7 +806,7 @@ function AceitarCorridasMapaContent() {
 
                 <div className="absolute top-6 left-4 right-4 z-10 flex items-center gap-3">
                     <button
-                        onClick={() => router.push('/aceitar-corridas')}
+                        onClick={() => router.push(backUrl)}
                         className="w-11 h-11 rounded-full flex items-center justify-center shadow-xl flex-shrink-0"
                         style={{ background: colors.surface, color: colors.textPrimary }}
                     >
@@ -853,7 +855,7 @@ function AceitarCorridasMapaContent() {
                                 trip={{ km: shownTripKm, min: shownTripMin }}
                                 applying={applying}
                                 onApply={applyToOffer}
-                                onBack={() => router.push('/aceitar-corridas')}
+                                onBack={() => router.push(backUrl)}
                             />
                         ) : (
                             <div className="flex justify-center py-8"><Spinner size={24} color={colors.textSecondary} /></div>

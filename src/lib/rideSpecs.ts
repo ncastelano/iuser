@@ -152,3 +152,67 @@ export function buildRideSpecRows(ride: RideSpecFields): RideSpecRow[] {
 
     return rows
 }
+
+// Versão em frases curtas e naturais do mesmo resumo (buildRideSpecRows), pro
+// card do motorista: "Paga no Pix", "Leva um animal", "Vão 3 passageiros" em
+// vez de "Pagamento: Pix", "Animal: não especificado"...
+export function humanizeRideSpecs(ride: RideSpecFields): string[] {
+    const out: string[] = []
+    const money = (v: number) => `R$ ${v.toFixed(2).replace('.', ',')}`
+    const petDetails = (r: RideSpecFields) => {
+        const w = r.pet_weight_range ? PET_WEIGHT_LABELS[r.pet_weight_range] : null
+        const c = r.pet_has_carrier === true ? 'com caixa de transporte' : r.pet_has_carrier === false ? 'sem caixa de transporte' : null
+        return [w, c].filter(Boolean).join(', ')
+    }
+
+    if (ride.ride_type === 'pessoa') {
+        out.push(ride.passenger_count === 1 ? '1 passageiro' : `${ride.passenger_count} passageiros`)
+        if (ride.has_child) {
+            const n = ride.children_count ?? 1
+            const age = (ride.child_age || '').trim()
+            const ageText = age ? ` de ${age}${/anos?\b/i.test(age) ? '' : ' anos'}` : ''
+            const seat = ride.child_needs_car_seat === true ? ' · precisa de cadeirinha' : ''
+            out.push(`${n === 1 ? 'Criança' : `${n} crianças`}${ageText}${seat}`)
+        }
+        if (ride.has_shopping) {
+            const bags = ride.bag_count ? ` (${ride.bag_count} ${ride.bag_count === 1 ? 'sacola' : 'sacolas'})` : ''
+            out.push(`Leva compras de mercado${bags}`)
+        }
+        if (ride.has_extra_object) out.push(ride.extra_object_description ? `Leva: ${ride.extra_object_description}` : 'Leva um objeto')
+        if (ride.has_pet) {
+            const d = petDetails(ride)
+            out.push(`Leva um pet${ride.pet_description ? `: ${ride.pet_description}` : ''}${d ? ` (${d})` : ''}`)
+        }
+    } else if (ride.ride_type === 'animal') {
+        const d = petDetails(ride)
+        out.push(`Leva um animal${ride.pet_description ? `: ${ride.pet_description}` : ''}${d ? ` (${d})` : ''}`)
+    } else {
+        out.push(ride.object_description ? `Leva: ${ride.object_description}` : 'Leva um objeto')
+        if (ride.object_is_sensitive) out.push('Frágil — cuidado')
+        if (ride.delivery_location) {
+            out.push(ride.delivery_location === 'portaria' ? 'Entrega na portaria' : ride.delivery_location === 'area_interna' ? 'Entrega na área interna do condomínio' : 'Entrega no apartamento/residência')
+        }
+    }
+
+    if (ride.has_special_needs) {
+        const parts: string[] = []
+        if (ride.special_needs_wheelchair) parts.push(`cadeirante${ride.special_needs_wheelchair_type ? ` (${ride.special_needs_wheelchair_type === 'dobravel' ? 'cadeira dobrável' : 'cadeira grande'})` : ''}`)
+        if (ride.special_needs_visual_impairment) parts.push('deficiência visual')
+        if (ride.special_needs_description) parts.push(ride.special_needs_description)
+        out.push(`Pessoa com deficiência${parts.length ? `: ${parts.join(', ')}` : ''}`)
+        if (ride.has_guide_dog) out.push('Cão-guia junto — não é pet comum')
+    }
+
+    if (ride.payment_method) {
+        if (ride.payment_method === 'pix') out.push('Paga no Pix')
+        else if (ride.payment_method === 'dinheiro') out.push(`Paga em dinheiro${ride.cash_change_for != null ? ` · troco pra ${money(ride.cash_change_for)}` : ''}`)
+        else out.push(`Paga no cartão${ride.card_is_contactless != null ? (ride.card_is_contactless ? ' (aproximação)' : ' (sem aproximação)') : ''}`)
+    }
+
+    if ((ride.origin_complement || '').trim()) out.push(`Referência na partida: ${(ride.origin_complement as string).trim()}`)
+    if ((ride.destination_complement || '').trim()) out.push(`Referência no destino: ${(ride.destination_complement as string).trim()}`)
+    if (ride.origin_needs_access) out.push(`Condomínio na partida${(ride.origin_access_notes || '').trim() ? `: ${(ride.origin_access_notes as string).trim()}` : ''}`)
+    if (ride.destination_needs_access && ride.ride_type !== 'objeto') out.push(`Condomínio no destino${(ride.destination_access_notes || '').trim() ? `: ${(ride.destination_access_notes as string).trim()}` : ''}`)
+
+    return out
+}
