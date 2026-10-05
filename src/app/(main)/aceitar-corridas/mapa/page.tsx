@@ -167,7 +167,7 @@ interface OfferData {
 
 const SHEET_MIN_VH = 22
 const SHEET_MAX_VH = 60
-const SHEET_PADDING_PX = 48
+const SHEET_PADDING_PX = 36
 
 export default function AceitarCorridasMapaPage() {
     return (
@@ -782,7 +782,7 @@ function AceitarCorridasMapaContent() {
 
             {/* CARD — mesmo visual do /pedir-motorista */}
             <div
-                className="flex-shrink-0 rounded-t-3xl px-5 pt-4 pb-8 overflow-y-auto"
+                className="flex-shrink-0 rounded-t-3xl px-4 pt-3 pb-6 overflow-y-auto"
                 style={{
                     background: colors.surface,
                     boxShadow: '0 -8px 30px rgba(0,0,0,0.35)',
