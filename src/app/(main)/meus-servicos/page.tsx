@@ -35,6 +35,7 @@ interface MyStore {
     id: string
     name: string
     storeSlug: string
+    logo_url: string | null
 }
 
 export default function MeusServicosPage() {
@@ -60,7 +61,7 @@ export default function MeusServicosPage() {
         try {
             const { data: stores } = await supabase
                 .from('stores')
-                .select('id, name, storeSlug')
+                .select('id, name, storeSlug, logo_url')
                 .eq('owner_id', userId)
             const storesList = (stores as MyStore[]) || []
             setMyStores(storesList)
@@ -88,6 +89,12 @@ export default function MeusServicosPage() {
     }, [userId])
 
     useEffect(() => { load() }, [load])
+
+    const getStoreLogoUrl = (path: string | null) => {
+        if (!path) return null
+        if (path.startsWith('http')) return path
+        return supabase.storage.from('store-logos').getPublicUrl(path).data.publicUrl
+    }
 
     const getImageUrl = (path: string | null) => {
         if (!path) return null
@@ -135,84 +142,119 @@ export default function MeusServicosPage() {
                 <div>
                     <h1 className="text-xl font-black" style={{ color: textPrimary }}>Meus serviços publicados</h1>
                     <p className="text-sm mt-1" style={{ color: textSecondary }}>
-                        Dois tipos de anúncio: os da sua loja e os pessoais (sem loja), abaixo.
+                        Os serviços de cada uma das suas lojas, e depois os seus serviços pessoais (sem loja).
                     </p>
                 </div>
 
-                {/* ===== Serviços das lojas ===== */}
-                <div
-                    className="rounded-2xl p-6 flex flex-col gap-4"
-                    style={{
-                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
-                        backdropFilter: 'blur(12px)',
-                        border: `1px solid ${colors.border}`,
-                        boxShadow: colors.shadow,
-                    }}
-                >
-                    <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-3">
-                            <div className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#ffffff' }}>
-                                <Store size={22} />
-                            </div>
-                            <div>
-                                <h3 className="text-lg font-black" style={{ color: textPrimary }}>Serviços da loja</h3>
-                                <p className="text-xs mt-0.5" style={{ color: textSecondary }}>Serviços vendidos pelo catálogo da(s) sua(s) loja(s)</p>
-                            </div>
+                {/* ===== Serviços das lojas — um card por loja ===== */}
+                {loading ? (
+                    <div className="flex justify-center py-6"><Spinner size={22} color={colors.accent} /></div>
+                ) : myStores.length === 0 ? (
+                    <div
+                        className="rounded-2xl p-6 flex flex-col items-center gap-3 text-center"
+                        style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`, backdropFilter: 'blur(12px)', border: `1px dashed ${colors.border}` }}
+                    >
+                        <div className="w-14 h-14 rounded-full flex items-center justify-center" style={{ background: GRADIENT, color: '#fff' }}>
+                            <Store size={24} />
                         </div>
+                        <div>
+                            <p className="text-sm font-black" style={{ color: textPrimary }}>Publique serviços pela sua loja</p>
+                            <p className="text-xs mt-1" style={{ color: textSecondary }}>Crie sua loja e anuncie os serviços que ela presta — quem procura no iUser encontra você.</p>
+                        </div>
+                        <button
+                            onClick={() => router.push('/criar-loja')}
+                            className="px-5 py-2.5 rounded-full text-xs font-black flex items-center gap-1.5"
+                            style={{ background: GRADIENT, color: '#fff', boxShadow: '0 4px 12px #f9731640' }}
+                        >
+                            <Plus size={14} /> Criar minha loja
+                        </button>
                     </div>
-
-                    {loading ? (
-                        <div className="flex justify-center py-6"><Spinner size={22} color={colors.accent} /></div>
-                    ) : myStores.length === 0 ? (
-                        <p className="text-xs" style={{ color: textSecondary }}>Você ainda não tem uma loja. Crie uma pra vender serviços por lá também.</p>
-                    ) : (
-                        <>
-                            {storeServices.length === 0 ? (
-                                <p className="text-xs" style={{ color: textSecondary }}>Nenhum serviço cadastrado na sua loja ainda.</p>
-                            ) : (
-                                <div className="flex flex-col gap-2">
-                                    {storeServices.map((item) => {
-                                        const imgUrl = getImageUrl(item.image_url)
-                                        return (
-                                            <div
-                                                key={item.id}
-                                                className="flex items-center gap-3 p-2.5 rounded-2xl border"
-                                                style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`, borderColor: colors.border }}
-                                            >
-                                                <div className="w-12 h-12 rounded-xl overflow-hidden bg-gray-100 flex-shrink-0 flex items-center justify-center">
-                                                    {imgUrl ? <img src={imgUrl} className="w-full h-full object-cover" alt={item.name} /> : <Wrench size={18} style={{ color: textSecondary }} />}
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <p className="text-sm font-bold truncate" style={{ color: textPrimary }}>{item.name}</p>
-                                                    <p className="text-[11px]" style={{ color: textSecondary }}>{item.storeName} · R$ {Number(item.price).toFixed(2)}</p>
-                                                </div>
-                                                <button onClick={() => setEditingId(item.id)} className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: `${colors.border}30`, color: textPrimary }}>
-                                                    <Pencil size={13} />
-                                                </button>
-                                                <button onClick={() => setConfirmDeleteId(item.id)} className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: '#ef444420', color: '#ef4444' }}>
-                                                    <Trash2 size={13} />
-                                                </button>
-                                            </div>
-                                        )
-                                    })}
+                ) : (
+                    myStores.map((store) => {
+                        const services = storeServices.filter((sv) => sv.store_id === store.id)
+                        const logo = getStoreLogoUrl(store.logo_url)
+                        const publish = () => router.push(`/${store.storeSlug}/criar-produto?type=service`)
+                        return (
+                            <div
+                                key={store.id}
+                                className="rounded-2xl p-5 flex flex-col gap-4"
+                                style={{
+                                    background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
+                                    backdropFilter: 'blur(12px)',
+                                    border: `1px solid ${colors.border}`,
+                                    boxShadow: colors.shadow,
+                                }}
+                            >
+                                <div className="flex items-center gap-3">
+                                    <div className="w-12 h-12 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center" style={{ background: GRADIENT, color: '#fff' }}>
+                                        {logo ? <img src={logo} className="w-full h-full object-cover" alt="" /> : <Store size={22} />}
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                        <h3 className="text-base font-black truncate" style={{ color: textPrimary }}>{store.name}</h3>
+                                        <p className="text-xs mt-0.5" style={{ color: textSecondary }}>
+                                            {services.length === 0 ? 'Nenhum serviço publicado' : `${services.length} ${services.length === 1 ? 'serviço publicado' : 'serviços publicados'}`}
+                                        </p>
+                                    </div>
+                                    {services.length > 0 && (
+                                        <button
+                                            onClick={publish}
+                                            className="flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-bold flex-shrink-0"
+                                            style={{ background: `${colors.border}30`, color: '#f97316', border: `1px dashed ${colors.border}` }}
+                                        >
+                                            <Plus size={14} /> Novo serviço
+                                        </button>
+                                    )}
                                 </div>
-                            )}
 
-                            <div className="flex flex-wrap gap-2">
-                                {myStores.map((store) => (
-                                    <button
-                                        key={store.id}
-                                        onClick={() => router.push(`/${store.storeSlug}/criar-produto?type=service`)}
-                                        className="flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-bold"
-                                        style={{ background: `${colors.border}30`, color: '#f97316', border: `1px dashed ${colors.border}` }}
-                                    >
-                                        <Plus size={14} /> Novo serviço {myStores.length > 1 ? `· ${store.name}` : ''}
-                                    </button>
-                                ))}
+                                {services.length === 0 ? (
+                                    <div className="rounded-2xl p-5 flex flex-col items-center gap-3 text-center" style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`, border: `1px dashed ${colors.border}` }}>
+                                        <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: GRADIENT, color: '#fff' }}>
+                                            <Wrench size={22} />
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-black" style={{ color: textPrimary }}>Que tal publicar o primeiro serviço da {store.name}?</p>
+                                            <p className="text-xs mt-1" style={{ color: textSecondary }}>Quem está procurando um profissional vê o serviço da sua loja no iUser e pode te chamar na hora.</p>
+                                        </div>
+                                        <button
+                                            onClick={publish}
+                                            className="px-5 py-2.5 rounded-full text-xs font-black flex items-center gap-1.5 hover:scale-105 transition-transform"
+                                            style={{ background: GRADIENT, color: '#fff', boxShadow: '0 4px 12px #f9731640' }}
+                                        >
+                                            <Plus size={14} /> Publicar serviço
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="flex flex-col gap-2">
+                                        {services.map((item) => {
+                                            const imgUrl = getImageUrl(item.image_url)
+                                            return (
+                                                <div
+                                                    key={item.id}
+                                                    className="flex items-center gap-3 p-2.5 rounded-2xl border"
+                                                    style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`, borderColor: colors.border }}
+                                                >
+                                                    <div className="w-12 h-12 rounded-xl overflow-hidden bg-gray-100 flex-shrink-0 flex items-center justify-center">
+                                                        {imgUrl ? <img src={imgUrl} className="w-full h-full object-cover" alt={item.name} /> : <Wrench size={18} style={{ color: textSecondary }} />}
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-sm font-bold truncate" style={{ color: textPrimary }}>{item.name}</p>
+                                                        <p className="text-[11px]" style={{ color: textSecondary }}>R$ {Number(item.price).toFixed(2)}</p>
+                                                    </div>
+                                                    <button onClick={() => setEditingId(item.id)} className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: `${colors.border}30`, color: textPrimary }}>
+                                                        <Pencil size={13} />
+                                                    </button>
+                                                    <button onClick={() => setConfirmDeleteId(item.id)} className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: '#ef444420', color: '#ef4444' }}>
+                                                        <Trash2 size={13} />
+                                                    </button>
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+                                )}
                             </div>
-                        </>
-                    )}
-                </div>
+                        )
+                    })
+                )}
 
                 {/* ===== Serviços pessoais (reaproveita o dashboard do perfil) ===== */}
                 {profileSlug && <ProfileServiceListing profileId={userId} profileSlug={profileSlug} />}
