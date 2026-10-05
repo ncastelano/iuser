@@ -41,7 +41,8 @@ import { computeRideTariffs } from '@/lib/rideTariffs'
 import { submitRideApplication } from '@/lib/rideApplication'
 import { getAvatarUrl } from '@/lib/avatar'
 import { getProfileRideRatingsBatch } from '@/lib/rideReviews'
-import { RideOfferCard, type OfferRide, type OfferRequester } from './RideOfferCard'
+import { MAP_TRANSITION_KEY } from '../RideMiniMap'
+import { RideOfferCard, type OfferRide, type OfferRequester } from '@/components/AceitarCorridas/RideOfferCard'
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
 
@@ -205,6 +206,11 @@ function AceitarCorridasMapaContent() {
     const [driverCoords, setDriverCoords] = useState<[number, number] | null>(null)
     const [following, setFollowing] = useState(!isPreview)
     const [offer, setOffer] = useState<OfferData | null>(null)
+    // Vindo de "Ver no mapa" na lista: a imagem do mini mapa (que acabou de crescer
+    // até a tela cheia) fica de fundo até o mapa de verdade carregar, e o card sobe.
+    const [splashUrl, setSplashUrl] = useState<string | null>(null)
+    const [splashGone, setSplashGone] = useState(false)
+    const [sheetShown, setSheetShown] = useState(false)
     const [applying, setApplying] = useState(false)
     const [tripKm, setTripKm] = useState<number | null>(null)
     const [tripMin, setTripMin] = useState<number | null>(null)
@@ -219,6 +225,27 @@ function AceitarCorridasMapaContent() {
     const [cancelling, setCancelling] = useState(false)
 
     useEffect(() => { followingRef.current = following }, [following])
+
+    useEffect(() => {
+        try {
+            const url = sessionStorage.getItem(MAP_TRANSITION_KEY)
+            if (url) {
+                setSplashUrl(url)
+                sessionStorage.removeItem(MAP_TRANSITION_KEY)
+            }
+        } catch { /* sem storage: sem efeito */ }
+    }, [])
+    useEffect(() => {
+        if (!loading && acceptedRide) {
+            const t = setTimeout(() => setSheetShown(true), 60)
+            return () => clearTimeout(t)
+        }
+    }, [loading, acceptedRide])
+    useEffect(() => {
+        if (!splashUrl || !mapReady) return
+        const t = setTimeout(() => setSplashGone(true), 700)
+        return () => clearTimeout(t)
+    }, [splashUrl, mapReady])
 
     // Altura do card acompanha o conteúdo (até 60vh) — mesma regra do
     // /pedir-motorista, pra o mapa sempre sobrar com pelo menos 40% da tela.
@@ -717,11 +744,28 @@ function AceitarCorridasMapaContent() {
 
     const toggleChat = () => setShowChat((v) => !v)
 
+    const splash = splashUrl && !splashGone ? (
+        <div
+            className="fixed inset-0 pointer-events-none"
+            style={{
+                zIndex: 40,
+                backgroundImage: `url(${splashUrl})`,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                opacity: mapReady ? 0 : 1,
+                transition: 'opacity 600ms ease-out',
+            }}
+        />
+    ) : null
+
     if (loading || !acceptedRide) {
         return (
-            <div className="fixed inset-0 flex items-center justify-center" style={{ background: colors.background }}>
-                <Spinner size={24} color={colors.textSecondary} />
-            </div>
+            <>
+                <div className="fixed inset-0 flex items-center justify-center" style={{ background: colors.background }}>
+                    {!splashUrl && <Spinner size={24} color={colors.textSecondary} />}
+                </div>
+                {splash}
+            </>
         )
     }
 
@@ -752,7 +796,11 @@ function AceitarCorridasMapaContent() {
             {/* MAPA — ocupa sempre o espaço que sobra em cima, nunca é tampado
                 pelo card (que vive embaixo, na mesma tela), igual ao /pedir-motorista */}
             <div className="relative flex-1 min-h-0">
-                <div ref={containerRef} className="absolute inset-0 w-full h-full" style={{ background: '#111' }} />
+                <div
+                    ref={containerRef}
+                    className="absolute inset-0 w-full h-full"
+                    style={{ background: '#111', transform: sheetShown ? 'scale(1)' : 'scale(1.12)', transition: 'transform 700ms cubic-bezier(0.2, 0.8, 0.2, 1)' }}
+                />
 
                 <div className="absolute top-6 left-4 right-4 z-10 flex items-center gap-3">
                     <button
@@ -782,12 +830,14 @@ function AceitarCorridasMapaContent() {
 
             {/* CARD — mesmo visual do /pedir-motorista */}
             <div
-                className="flex-shrink-0 rounded-t-3xl px-4 pt-3 pb-6 overflow-y-auto"
+                className="relative flex-shrink-0 rounded-t-3xl px-4 pt-3 pb-6 overflow-y-auto"
                 style={{
+                    zIndex: 50,
                     background: colors.surface,
                     boxShadow: '0 -8px 30px rgba(0,0,0,0.35)',
                     height: `${sheetHeightVh}vh`,
-                    transition: 'height 0.25s ease-out',
+                    transform: sheetShown ? 'translateY(0)' : 'translateY(100%)',
+                    transition: 'height 0.25s ease-out, transform 520ms cubic-bezier(0.2, 0.8, 0.2, 1)',
                 }}
             >
                 <div ref={setSheetContentRef}>
@@ -869,6 +919,7 @@ function AceitarCorridasMapaContent() {
                     )}
                 </div>
             </div>
+            {splash}
         </div>
     )
 }

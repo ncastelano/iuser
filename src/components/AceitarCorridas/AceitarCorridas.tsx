@@ -48,6 +48,7 @@ import { useActivePlans } from '@/hooks/useActivePlans'
 import DriverDebtBanner from '@/components/DriverDebtBanner'
 import RideMiniMap from '@/app/(main)/aceitar-corridas/RideMiniMap'
 import RideMapDialog from '@/app/(main)/aceitar-corridas/RideMapDialog'
+import { RideOfferCard } from './RideOfferCard'
 import { submitRideApplication } from '@/lib/rideApplication'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -320,6 +321,8 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
     const [liveLocationLabel, setLiveLocationLabel] = useState<string | null>(null)
     const liveLocationDebounceRef = useRef<NodeJS.Timeout | null>(null)
     const [mapDialogRideId, setMapDialogRideId] = useState<string | null>(null)
+    // Km/tempo de cada trecho, calculados pelo mini mapa de cada card.
+    const [routeInfoById, setRouteInfoById] = useState<Record<string, { toPickupKm: number | null; toPickupMin: number | null; tripKm: number; tripMin: number }>>({})
 
     // ===== DIALOG "ATIVAR SINCRONIZAÇÃO" AO ENTRAR NA PÁGINA =====
     // Pra aceitar corridas o motorista precisa estar com a sincronização
@@ -1311,220 +1314,39 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                     {!loading && !showLogin && activeTab === 'servicos' && visibleRides.length > 0 && (
                         <div className="flex flex-col gap-3">
                             {visibleRides.map((ride) => {
-                                const isApplying = applyingId === ride.id
-                                const isEditingPrice = customPriceFor === ride.id
-
+                                const info = routeInfoById[ride.id]
                                 return (
                                     <div
                                         key={ride.id}
-                                        className="rounded-2xl p-4 overflow-hidden relative"
+                                        className="rounded-2xl p-3.5 overflow-hidden relative"
                                         style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
                                     >
-                                        <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
-                                            <div className="flex items-center gap-1.5 flex-wrap">
-                                                <span
-                                                    className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full"
-                                                    style={{ background: GRADIENT, color: '#fff' }}
-                                                >
-                                                    {VEHICLE_TYPE_LABELS[ride.vehicle_type]}
-                                                </span>
-                                                {ride.order_id && (
-                                                    <span
-                                                        className="flex items-center gap-1 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full"
-                                                        style={{ background: '#22c55e20', color: '#16a34a' }}
-                                                    >
-                                                        <Package size={10} />
-                                                        Entrega{ride.storeName ? ` · ${ride.storeName}` : ' de loja'}
-                                                    </span>
-                                                )}
-                                                {buildRideSpecRows(ride).map((spec, i) => (
-                                                    <span
-                                                        key={i}
-                                                        className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full"
-                                                        style={{ background: `${colors.accent}15`, color: colors.accent }}
-                                                        title={`${spec.label}: ${spec.value}`}
-                                                    >
-                                                        {spec.label}: {spec.value}
-                                                    </span>
-                                                ))}
-                                            </div>
-                                            <div className="flex items-center gap-2 flex-wrap">
-                                                {ride.applicant_count > 0 && (
-                                                    <span className="text-[9px] font-bold" style={{ color: colors.textSecondary }}>
-                                                        {ride.applicant_count}/{MAX_CANDIDATES} candidatos
-                                                    </span>
-                                                )}
-                                                {ride.scheduled_for ? (
-                                                    <span className="flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full" style={{ background: '#8b5cf615', color: '#8b5cf6' }}>
-                                                        <CalendarClock size={11} />
-                                                        {formatScheduledFor(ride.scheduled_for)}
-                                                    </span>
-                                                ) : (
-                                                    <span className="text-[10px] font-bold" style={{ color: colors.textSecondary }}>
-                                                        {relativeTime(ride.created_at)}
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        <div className="flex items-center gap-2 mb-2">
-                                            {ride.requesterAvatarUrl ? (
-                                                <img src={ride.requesterAvatarUrl} className="w-8 h-8 rounded-full object-cover flex-shrink-0" alt="" />
-                                            ) : (
-                                                <span className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-black" style={{ background: GRADIENT, color: '#fff' }}>
-                                                    {(ride.requesterName || ride.requesterSlug || '?').charAt(0).toUpperCase()}
-                                                </span>
-                                            )}
-                                            <div className="min-w-0">
-                                                <p className="text-xs font-black truncate" style={{ color: colors.textPrimary }}>
-                                                    {ride.requesterName || (ride.requesterSlug ? `@${ride.requesterSlug}` : 'Passageiro')}
-                                                </p>
-                                                {ride.requesterRating.count > 0 && (
-                                                    <span className="flex items-center gap-1 text-[10px]" style={{ color: colors.textSecondary }}>
-                                                        <Star size={10} className="fill-current" style={{ color: '#eab308' }} />
-                                                        {ride.requesterRating.avg.toFixed(2)} ({ride.requesterRating.count})
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        {ride.origin_lat != null && ride.origin_lng != null && ride.destination_lat != null && ride.destination_lng != null && (
-                                            <RideMiniMap
-                                                originLat={ride.origin_lat}
-                                                originLng={ride.origin_lng}
-                                                destLat={ride.destination_lat}
-                                                destLng={ride.destination_lng}
-                                                stops={rideStopsOf(ride)}
-                                                driverLat={driverCoords ? driverCoords[1] : null}
-                                                driverLng={driverCoords ? driverCoords[0] : null}
-                                                onExpand={() => router.push(`/aceitar-corridas/mapa?ride=${ride.id}`)}
-                                            />
-                                        )}
-
-                                        <div className="flex items-start gap-2 text-xs mb-1" style={{ color: colors.textSecondary }}>
-                                            <MapPin size={12} className="flex-shrink-0 mt-0.5" />
-                                            <span>{shortAddress(ride.origin_address)}{ride.stop1_address ? ` → ${shortAddress(ride.stop1_address)}` : ''}{ride.stop2_address ? ` → ${shortAddress(ride.stop2_address)}` : ''} → {shortAddress(ride.destination_address)}</span>
-                                        </div>
-
-                                        <div className="flex items-center gap-2 text-[11px] mb-2" style={{ color: colors.textSecondary }}>
-                                            {ride.hasDistance ? (
-                                                <span>{ride.distance_km!.toFixed(1)} km · {Math.round(ride.duration_min || 0)} min</span>
-                                            ) : (
-                                                <span>Distância não calculada</span>
-                                            )}
-                                            {ride.ride_type === 'objeto' ? (
-                                                <span className="flex items-center gap-1"><Package size={11} /> {ride.object_description || 'Objeto'}</span>
-                                            ) : ride.ride_type === 'animal' ? (
-                                                <span className="flex items-center gap-1"><PawPrint size={11} /> {ride.pet_description || 'Animal'}</span>
-                                            ) : ride.passenger_count > 1 ? (
-                                                <span>{ride.passenger_count} passageiros</span>
+                                        <RideOfferCard
+                                            ride={ride}
+                                            requester={{ name: ride.requesterName, slug: ride.requesterSlug, avatarUrl: ride.requesterAvatarUrl, rating: ride.requesterRating }}
+                                            storeName={ride.storeName}
+                                            platformPrice={ride.platformPrice}
+                                            customPrice={ride.customPrice}
+                                            applying={applyingId === ride.id}
+                                            onApply={(price) => applyToRide(ride, price)}
+                                            toPickup={{ km: info?.toPickupKm ?? null, min: info?.toPickupMin ?? null, hasGps: driverCoords != null }}
+                                            trip={{ km: info?.tripKm ?? ride.distance_km, min: info?.tripMin ?? ride.duration_min }}
+                                            onSkip={() => skipRide(ride.id)}
+                                            miniMap={ride.origin_lat != null && ride.origin_lng != null && ride.destination_lat != null && ride.destination_lng != null ? (
+                                                <RideMiniMap
+                                                    compact
+                                                    originLat={ride.origin_lat}
+                                                    originLng={ride.origin_lng}
+                                                    destLat={ride.destination_lat}
+                                                    destLng={ride.destination_lng}
+                                                    stops={rideStopsOf(ride)}
+                                                    driverLat={driverCoords ? driverCoords[1] : null}
+                                                    driverLng={driverCoords ? driverCoords[0] : null}
+                                                    onExpand={() => router.push(`/aceitar-corridas/mapa?ride=${ride.id}`)}
+                                                    onInfo={(i) => setRouteInfoById((prev) => ({ ...prev, [ride.id]: i }))}
+                                                />
                                             ) : null}
-                                        </div>
-
-                                        {ride.offered_price != null ? (
-                                            <>
-                                                <div className="rounded-xl px-3 py-2.5 mb-2 flex items-center justify-between" style={{ background: '#22c55e15', border: '1px solid #22c55e40' }}>
-                                                    <span className="text-[11px] font-black uppercase tracking-wider" style={{ color: '#16a34a' }}>Frete oferecido</span>
-                                                    <span className="text-lg font-black" style={{ color: '#16a34a' }}>R$ {Number(ride.offered_price).toFixed(2)}</span>
-                                                </div>
-                                                <button
-                                                    onClick={() => applyToRide(ride, ride.suggestedPrice)}
-                                                    disabled={isApplying}
-                                                    className="w-full py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all disabled:opacity-70 flex items-center justify-center gap-2"
-                                                    style={{ background: GRADIENT, color: '#fff' }}
-                                                >
-                                                    {isApplying ? <Spinner size={14} /> : `Aceitar frete por R$ ${ride.suggestedPrice.toFixed(2)}`}
-                                                </button>
-                                            </>
-                                        ) : (
-                                            <>
-                                                {/* Tarifa iUser · Minha tarifa · editar */}
-                                                <div className="flex items-stretch gap-2">
-                                                    <button
-                                                        onClick={() => applyToRide(ride, ride.platformPrice)}
-                                                        disabled={isApplying}
-                                                        className="flex-1 rounded-xl px-3 py-2 text-left transition-all active:scale-95 disabled:opacity-70"
-                                                        style={{ background: `${colors.border}25`, border: `1px solid ${colors.border}` }}
-                                                    >
-                                                        <p className="text-[9px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>Tarifa iUser</p>
-                                                        <p className="text-base font-black" style={{ color: colors.textPrimary }}>
-                                                            {isApplying ? <Spinner size={14} /> : `R$ ${ride.platformPrice.toFixed(2)}`}
-                                                        </p>
-                                                    </button>
-                                                    <button
-                                                        onClick={() => ride.customPrice != null && applyToRide(ride, ride.customPrice)}
-                                                        disabled={isApplying || ride.customPrice == null}
-                                                        className="flex-1 rounded-xl px-3 py-2 text-left transition-all active:scale-95 disabled:opacity-70"
-                                                        style={ride.customPrice != null ? { background: GRADIENT, color: '#fff' } : { background: `${colors.border}15`, border: `1px dashed ${colors.border}` }}
-                                                    >
-                                                        <p className="text-[9px] font-black uppercase tracking-wider" style={{ color: ride.customPrice != null ? 'rgba(255,255,255,0.85)' : colors.textSecondary }}>Minha tarifa</p>
-                                                        <p className="text-base font-black" style={{ color: ride.customPrice != null ? '#fff' : colors.textSecondary }}>
-                                                            {ride.customPrice != null ? `R$ ${ride.customPrice.toFixed(2)}` : 'não definida'}
-                                                        </p>
-                                                    </button>
-                                                    <button
-                                                        onClick={() => {
-                                                            if (isEditingPrice) { setCustomPriceFor(null); setCustomPriceValue('') }
-                                                            else { setCustomPriceFor(ride.id); setCustomPriceValue((ride.customPrice ?? ride.platformPrice).toFixed(2)) }
-                                                        }}
-                                                        className="w-12 rounded-xl flex items-center justify-center flex-shrink-0 transition-all active:scale-95"
-                                                        style={isEditingPrice ? { background: GRADIENT, color: '#fff' } : { background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
-                                                        title="Digitar outro valor"
-                                                    >
-                                                        <Pencil size={16} />
-                                                    </button>
-                                                </div>
-
-                                                {isEditingPrice && (
-                                                    <div className="flex items-center gap-2 mt-2">
-                                                        <input
-                                                            type="number"
-                                                            inputMode="decimal"
-                                                            autoFocus
-                                                            value={customPriceValue}
-                                                            onChange={(e) => setCustomPriceValue(e.target.value)}
-                                                            placeholder="Valor (R$)"
-                                                            className="flex-1 p-2 rounded-full border text-sm"
-                                                            style={{ background: colors.background, borderColor: colors.border, color: colors.textPrimary }}
-                                                        />
-                                                        <button
-                                                            onClick={() => applyToRide(ride, parseFloat(customPriceValue) || 0)}
-                                                            disabled={isApplying}
-                                                            className="px-4 py-2 rounded-full text-xs font-black"
-                                                            style={{ background: GRADIENT, color: '#fff' }}
-                                                        >
-                                                            {isApplying ? <Spinner size={12} /> : 'Enviar'}
-                                                        </button>
-                                                        <button
-                                                            onClick={() => { setCustomPriceFor(null); setCustomPriceValue('') }}
-                                                            className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
-                                                            style={{ background: `${colors.border}30`, color: colors.textSecondary }}
-                                                        >
-                                                            <X size={14} />
-                                                        </button>
-                                                    </div>
-                                                )}
-                                            </>
-                                        )}
-
-                                        {ride.origin_lat != null && ride.origin_lng != null && (
-                                            <button
-                                                onClick={() => router.push(`/aceitar-corridas/mapa?ride=${ride.id}`)}
-                                                className="w-full mt-2 py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all active:scale-95 flex items-center justify-center gap-2"
-                                                style={{ background: `${colors.border}30`, color: colors.textPrimary, border: `1px solid ${colors.border}` }}
-                                            >
-                                                <MapIcon size={14} />
-                                                Ver no mapa
-                                            </button>
-                                        )}
-
-                                        <button
-                                            onClick={() => skipRide(ride.id)}
-                                            className="w-full mt-1 py-2 rounded-full text-[11px] font-bold"
-                                            style={{ background: 'transparent', color: colors.textSecondary }}
-                                        >
-                                            Pular
-                                        </button>
+                                        />
                                     </div>
                                 )
                             })}
@@ -1546,90 +1368,55 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                         <div className="flex flex-col gap-3">
                             {candidacies.map((ride) => {
                                 const isWithdrawing = withdrawingId === ride.applicationId
-
+                                const info = routeInfoById[ride.id]
                                 return (
                                     <div
                                         key={ride.applicationId}
-                                        className="rounded-2xl p-4 overflow-hidden relative"
+                                        className="rounded-2xl p-3.5 overflow-hidden relative"
                                         style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
                                     >
-                                        <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
-                                            <div className="flex items-center gap-1.5 flex-wrap">
-                                                {buildRideSpecRows(ride).map((spec, i) => (
-                                                    <span
-                                                        key={i}
-                                                        className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full"
-                                                        style={{ background: `${colors.accent}15`, color: colors.accent }}
-                                                        title={`${spec.label}: ${spec.value}`}
+                                        <RideOfferCard
+                                            ride={ride}
+                                            requester={{ name: ride.requesterName, slug: ride.requesterSlug, avatarUrl: ride.requesterAvatarUrl, rating: ride.requesterRating }}
+                                            storeName={null}
+                                            toPickup={{ km: info?.toPickupKm ?? null, min: info?.toPickupMin ?? null, hasGps: driverCoords != null }}
+                                            trip={{ km: info?.tripKm ?? ride.distance_km, min: info?.tripMin ?? ride.duration_min }}
+                                            miniMap={ride.origin_lat != null && ride.origin_lng != null && ride.destination_lat != null && ride.destination_lng != null ? (
+                                                <RideMiniMap
+                                                    compact
+                                                    transition={false}
+                                                    originLat={ride.origin_lat}
+                                                    originLng={ride.origin_lng}
+                                                    destLat={ride.destination_lat}
+                                                    destLng={ride.destination_lng}
+                                                    stops={rideStopsOf(ride)}
+                                                    driverLat={driverCoords ? driverCoords[1] : null}
+                                                    driverLng={driverCoords ? driverCoords[0] : null}
+                                                    onExpand={() => setMapDialogRideId(ride.id)}
+                                                    onInfo={(i) => setRouteInfoById((prev) => ({ ...prev, [ride.id]: i }))}
+                                                />
+                                            ) : null}
+                                            footer={(
+                                                <div className="flex flex-col gap-2">
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <span className="text-[11px] font-black px-2 py-0.5 rounded-full" style={{ background: '#eab30815', color: '#eab308' }}>
+                                                            Aguardando decisão
+                                                        </span>
+                                                        <span className="text-sm font-black" style={{ color: '#f97316' }}>
+                                                            {ride.myProposedPrice != null ? `Sua proposta: R$ ${ride.myProposedPrice.toFixed(2).replace('.', ',')}` : 'Proposta enviada'}
+                                                        </span>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => withdrawApplication(ride.applicationId)}
+                                                        disabled={isWithdrawing}
+                                                        className="w-full py-2 rounded-full text-xs font-bold transition-all disabled:opacity-70 flex items-center justify-center gap-2"
+                                                        style={{ background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
                                                     >
-                                                        {spec.label}: {spec.value}
-                                                    </span>
-                                                ))}
-                                            </div>
-                                            <span className="flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full flex-shrink-0" style={{ background: '#eab30815', color: '#eab308' }}>
-                                                Aguardando decisão
-                                            </span>
-                                        </div>
-
-                                        <div className="flex items-center gap-2 mb-2">
-                                            {ride.requesterAvatarUrl ? (
-                                                <img src={ride.requesterAvatarUrl} className="w-8 h-8 rounded-full object-cover flex-shrink-0" alt="" />
-                                            ) : (
-                                                <span className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-black" style={{ background: GRADIENT, color: '#fff' }}>
-                                                    {(ride.requesterName || ride.requesterSlug || '?').charAt(0).toUpperCase()}
-                                                </span>
+                                                        {isWithdrawing ? <Spinner size={14} /> : <>Sair da candidatura</>}
+                                                    </button>
+                                                </div>
                                             )}
-                                            <div className="min-w-0">
-                                                <p className="text-xs font-black truncate" style={{ color: colors.textPrimary }}>
-                                                    {ride.requesterName || (ride.requesterSlug ? `@${ride.requesterSlug}` : 'Passageiro')}
-                                                </p>
-                                                {ride.requesterRating.count > 0 && (
-                                                    <span className="flex items-center gap-1 text-[10px]" style={{ color: colors.textSecondary }}>
-                                                        <Star size={10} className="fill-current" style={{ color: '#eab308' }} />
-                                                        {ride.requesterRating.avg.toFixed(2)} ({ride.requesterRating.count})
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        {ride.origin_lat != null && ride.origin_lng != null && ride.destination_lat != null && ride.destination_lng != null && (
-                                            <RideMiniMap
-                                                originLat={ride.origin_lat}
-                                                originLng={ride.origin_lng}
-                                                destLat={ride.destination_lat}
-                                                destLng={ride.destination_lng}
-                                                stops={rideStopsOf(ride)}
-                                                driverLat={driverCoords ? driverCoords[1] : null}
-                                                driverLng={driverCoords ? driverCoords[0] : null}
-                                                onExpand={() => setMapDialogRideId(ride.id)}
-                                            />
-                                        )}
-
-                                        <div className="flex items-start gap-2 text-xs mb-1" style={{ color: colors.textSecondary }}>
-                                            <MapPin size={12} className="flex-shrink-0 mt-0.5" />
-                                            <span>{shortAddress(ride.origin_address)}{ride.stop1_address ? ` → ${shortAddress(ride.stop1_address)}` : ''}{ride.stop2_address ? ` → ${shortAddress(ride.stop2_address)}` : ''} → {shortAddress(ride.destination_address)}</span>
-                                        </div>
-
-                                        <div className="flex items-center gap-2 text-[11px] mb-2" style={{ color: colors.textSecondary }}>
-                                            {ride.hasDistance ? (
-                                                <span>{ride.distance_km!.toFixed(1)} km · {Math.round(ride.duration_min || 0)} min</span>
-                                            ) : (
-                                                <span>Distância não calculada</span>
-                                            )}
-                                        </div>
-
-                                        <p className="text-sm font-black mb-2" style={{ color: '#f97316' }}>
-                                            {ride.myProposedPrice != null ? `Sua proposta: R$ ${ride.myProposedPrice.toFixed(2)}` : 'Proposta enviada'}
-                                        </p>
-
-                                        <button
-                                            onClick={() => withdrawApplication(ride.applicationId)}
-                                            disabled={isWithdrawing}
-                                            className="w-full py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all disabled:opacity-70 flex items-center justify-center gap-2"
-                                            style={{ background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
-                                        >
-                                            {isWithdrawing ? <Spinner size={14} /> : <>Sair da candidatura</>}
-                                        </button>
+                                        />
                                     </div>
                                 )
                             })}

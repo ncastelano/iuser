@@ -1,14 +1,15 @@
 // app/(main)/aceitar-corridas/RideMiniMap.tsx
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useTheme } from '@/app/contexts/theme'
 import { Expand } from 'lucide-react'
 import { fetchRoute, offsetPolyline } from '@/lib/mapboxRoute'
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
 const TO_PICKUP_COLOR = '3b82f6' // azul: de você até o ponto de partida
-const TRIP_COLOR = 'f97316' // laranja: do ponto de partida até o destino
+const TRIP_COLOR = 'ef4444' // vermelho: do ponto de partida até o destino (mesma cor do mapa aberto)
 const STOP_COLOR = 'eab308' // amarelo: pin da parada, quando existe
 
 // ===== POLYLINE ENCODING (algoritmo do Google, precisão 5 — mesma usada pela Static Images API) =====
@@ -55,9 +56,19 @@ interface RideMiniMapProps {
     driverLng: number | null
     driverLat: number | null
     onExpand?: () => void
+    /** Km/tempo de cada trecho, pra o card mostrar sem repetir a legenda embaixo do mapa. */
+    onInfo?: (info: { toPickupKm: number | null; toPickupMin: number | null; tripKm: number; tripMin: number }) => void
+    /** Esconde a legenda em texto (o card já mostra os números). */
+    compact?: boolean
+    /** Anima o mini mapa até a tela cheia antes de chamar onExpand (padrão: sim). */
+    transition?: boolean
 }
 
-export default function RideMiniMap({ originLng, originLat, destLng, destLat, stops = [], driverLng, driverLat, onExpand }: RideMiniMapProps) {
+// Chave em sessionStorage: a imagem do mini mapa que "cresce" até a tela cheia;
+// /aceitar-corridas/mapa a usa de fundo até o mapa de verdade carregar.
+export const MAP_TRANSITION_KEY = 'iuser-map-transition'
+
+export default function RideMiniMap({ originLng, originLat, destLng, destLat, stops = [], driverLng, driverLat, onExpand, onInfo, compact = false, transition = true }: RideMiniMapProps) {
     const { colors } = useTheme()
     const [imgUrl, setImgUrl] = useState<string | null>(null)
     const [failed, setFailed] = useState(false)
@@ -66,6 +77,20 @@ export default function RideMiniMap({ originLng, originLat, destLng, destLat, st
     const [tripKm, setTripKm] = useState<number | null>(null)
     const [tripMin, setTripMin] = useState<number | null>(null)
     const hasDriver = driverLng != null && driverLat != null
+    const wrapRef = useRef<HTMLDivElement>(null)
+    const [flight, setFlight] = useState<{ rect: DOMRect; go: boolean } | null>(null)
+
+    // "Ver no mapa": o mini mapa cresce até a tela cheia e só então navega — na
+    // página do mapa o card sobe de baixo, parecendo que o mapa abriu pra trás.
+    const handleExpand = () => {
+        const el = wrapRef.current
+        if (!el || !imgUrl || !onExpand || !transition) { onExpand?.(); return }
+        try { sessionStorage.setItem(MAP_TRANSITION_KEY, imgUrl) } catch { /* sem storage: só perde o efeito */ }
+        setFlight({ rect: el.getBoundingClientRect(), go: false })
+        requestAnimationFrame(() => requestAnimationFrame(() => setFlight((f) => (f ? { ...f, go: true } : f))))
+        setTimeout(onExpand, 360)
+        setTimeout(() => setFlight(null), 2500)
+    }
     const stopsKey = stops.map((s) => `${s.lng},${s.lat}`).join('|')
 
     useEffect(() => {
@@ -110,6 +135,7 @@ export default function RideMiniMap({ originLng, originLat, destLng, destLat, st
                 setToPickupMin(nextToPickupMin)
                 setTripKm(trip.distanceKm)
                 setTripMin(trip.durationMin)
+                onInfo?.({ toPickupKm: nextToPickupKm, toPickupMin: nextToPickupMin, tripKm: trip.distanceKm, tripMin: trip.durationMin })
             }
         }
 
@@ -122,8 +148,28 @@ export default function RideMiniMap({ originLng, originLat, destLng, destLat, st
     if (failed) return null
 
     return (
-        <div className="mb-2">
-            <div className="w-full rounded-xl overflow-hidden relative" style={{ height: 120, background: `${colors.border}30` }}>
+        <div className={compact ? '' : 'mb-2'}>
+            {flight && imgUrl && typeof document !== 'undefined' && createPortal(
+                <div
+                    style={{
+                        position: 'fixed',
+                        zIndex: 100,
+                        left: flight.go ? 0 : flight.rect.left,
+                        top: flight.go ? 0 : flight.rect.top,
+                        width: flight.go ? '100vw' : flight.rect.width,
+                        height: flight.go ? '100dvh' : flight.rect.height,
+                        borderRadius: flight.go ? 0 : 12,
+                        backgroundImage: `url(${imgUrl})`,
+                        backgroundSize: 'cover',
+                        backgroundPosition: 'center',
+                        boxShadow: flight.go ? 'none' : '0 8px 24px rgba(0,0,0,0.25)',
+                        transition: 'all 360ms cubic-bezier(0.2, 0.8, 0.2, 1)',
+                        pointerEvents: 'none',
+                    }}
+                />,
+                document.body
+            )}
+            <div ref={wrapRef} className="w-full rounded-xl overflow-hidden relative" style={{ height: compact ? 104 : 120, background: `${colors.border}30` }}>
                 {imgUrl ? (
                     <img src={imgUrl} alt="Trajeto da corrida" className="w-full h-full object-cover" onError={() => setFailed(true)} />
                 ) : (
@@ -133,7 +179,7 @@ export default function RideMiniMap({ originLng, originLat, destLng, destLat, st
                 )}
                 {onExpand && (
                     <button
-                        onClick={onExpand}
+                        onClick={handleExpand}
                         className="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold shadow-lg"
                         style={{ background: colors.surface, color: colors.textPrimary }}
                     >
@@ -142,6 +188,7 @@ export default function RideMiniMap({ originLng, originLat, destLng, destLat, st
                     </button>
                 )}
             </div>
+            {!compact && (<>
             <div className="flex items-center gap-3 mt-1.5 flex-wrap">
                 {hasDriver && (
                     <span className="flex items-center gap-1 text-[9px] font-bold" style={{ color: colors.textSecondary }}>
@@ -178,6 +225,7 @@ export default function RideMiniMap({ originLng, originLat, destLng, destLat, st
                     </span>
                 )}
             </div>
+            </>)}
         </div>
     )
 }

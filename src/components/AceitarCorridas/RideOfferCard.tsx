@@ -1,12 +1,12 @@
-// app/(main)/aceitar-corridas/mapa/RideOfferCard.tsx
+// components/AceitarCorridas/RideOfferCard.tsx
 //
-// Card da prévia de uma corrida disponível em /aceitar-corridas/mapa?ride=<id>
-// — mesmo conteúdo do card de /aceitar-corridas (tipo de veículo, o que a
+// Card de uma corrida — usado na lista de /aceitar-corridas e na prévia em
+// /aceitar-corridas/mapa?ride=<id>. Mesmo conteúdo (tipo de veículo, o que a
 // corrida envolve, quem pediu, trajeto, Tarifa iUser / Minha tarifa e o
 // lápis pra digitar outro valor), só que dentro do card embaixo do mapa.
 'use client'
 
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Package, PawPrint, Star, CalendarClock, Pencil, X, Users } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import { Spinner } from '@/components/Spinner'
@@ -44,13 +44,19 @@ interface RideOfferCardProps {
     ride: OfferRide
     requester: OfferRequester
     storeName: string | null
-    platformPrice: number
-    customPrice: number | null
+    // Valores: sem onApply (ou com footer) a seção de tarifas não aparece.
+    platformPrice?: number
+    customPrice?: number | null
+    applying?: boolean
+    onApply?: (price: number) => void
     toPickup: { km: number | null; min: number | null; hasGps: boolean }
     trip: { km: number | null; min: number | null }
-    applying: boolean
-    onApply: (price: number) => void
-    onBack: () => void
+    // Mini mapa (lista) entra entre os chips e o trajeto.
+    miniMap?: ReactNode
+    // Substitui as tarifas (ex: "Aguardando decisão" nas candidaturas).
+    footer?: ReactNode
+    onBack?: () => void
+    onSkip?: () => void
 }
 
 function relativeTime(iso: string): string {
@@ -71,7 +77,7 @@ const kmText = (v: number) => `${v.toFixed(1).replace('.', ',')} km`
 
 // Card compacto e em linguagem simples: quem pediu, de onde pra onde, quanto
 // falta pra cada trecho e quanto cobrar — sem rótulos em caixa-alta.
-export function RideOfferCard({ ride, requester, storeName, platformPrice, customPrice, toPickup, trip, applying, onApply, onBack }: RideOfferCardProps) {
+export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, customPrice = null, toPickup, trip, applying = false, onApply, miniMap, footer, onBack, onSkip }: RideOfferCardProps) {
     const { colors } = useTheme()
     const [editing, setEditing] = useState(false)
     const [value, setValue] = useState('')
@@ -162,6 +168,8 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice, custo
                 ))}
             </div>
 
+            {miniMap}
+
             {/* De onde pra onde */}
             <div className="flex items-stretch gap-2.5">
                 <div className="flex flex-col items-center py-1 flex-shrink-0">
@@ -197,7 +205,9 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice, custo
             )}
 
             {/* Valores: Tarifa iUser · Minha tarifa · outro valor (ou o frete da loja) */}
-            {ride.offered_price != null ? (
+            {footer}
+
+            {!footer && onApply && (ride.offered_price != null ? (
                 <button
                     onClick={() => onApply(Number(ride.offered_price))}
                     disabled={applying}
@@ -273,15 +283,17 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice, custo
                         </div>
                     )}
                 </>
-            )}
+            ))}
 
-            <button
-                onClick={onBack}
-                className="w-full py-1 text-xs font-semibold"
-                style={{ color: colors.textSecondary }}
-            >
-                ← Voltar às corridas
-            </button>
+            {onSkip ? (
+                <button onClick={onSkip} className="w-full py-1 text-xs font-semibold" style={{ color: colors.textSecondary }}>
+                    Pular esta corrida
+                </button>
+            ) : onBack ? (
+                <button onClick={onBack} className="w-full py-1 text-xs font-semibold" style={{ color: colors.textSecondary }}>
+                    ← Voltar às corridas
+                </button>
+            ) : null}
         </div>
     )
 }
