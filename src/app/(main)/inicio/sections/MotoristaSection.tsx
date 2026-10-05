@@ -115,6 +115,8 @@ export default function MotoristaSection({ dragHandle, onBreveStatusChange, onUr
     const [driverInfo, setDriverInfo] = useState<DriverInfo | null>(null)
     const [proposedPrice, setProposedPrice] = useState<number | null>(null)
     const [liveEta, setLiveEta] = useState<{ distanceKm: number; durationMin: number } | null>(null)
+    // Só depois da 1ª leitura o título pode ser personalizado (evita piscar "primeira corrida").
+    const [loaded, setLoaded] = useState(false)
 
     useEffect(() => {
         onBreveStatusChange?.(false)
@@ -142,6 +144,7 @@ export default function MotoristaSection({ dragHandle, onBreveStatusChange, onUr
                 .maybeSingle()
 
             if (!active) return
+            setLoaded(true)
             if (order) {
                 setActiveOrder(order as unknown as ActiveOrder)
 
@@ -325,6 +328,47 @@ export default function MotoristaSection({ dragHandle, onBreveStatusChange, onUr
 
     const specRows = activeOrder ? buildRideSpecRows(activeOrder) : []
 
+    // Título, frase e botão mudam conforme o momento: sem pedido (com ou sem
+    // histórico), procurando motorista, com candidatos, aceito, a caminho,
+    // chegou, em andamento.
+    const GREEN_GRADIENT = 'linear-gradient(135deg, #22c55e, #16a34a)'
+    const firstName = (driverInfo?.name || '').split(' ')[0] || (driverInfo?.profileSlug ? `@${driverInfo.profileSlug}` : 'Seu motorista')
+    const hour = new Date().getHours()
+    const greeting = hour < 12 ? 'Bom dia' : hour < 18 ? 'Boa tarde' : 'Boa noite'
+    const header: { title: string; subtitle: string; button: string; accent: string; Icon: typeof Car } = (() => {
+        if (!activeOrder) {
+            if (!contextUserId || !loaded) {
+                return { title: 'Motorista Particular', subtitle: 'Peça uma corrida particular e vá para onde precisar', button: 'pedir motorista', accent: GRADIENT, Icon: Car }
+            }
+            if (recentTrips.length > 0) {
+                return { title: `${greeting}! Pra onde vamos?`, subtitle: 'Peça de novo uma das suas últimas corridas ou escolha outro destino', button: 'pedir motorista', accent: GRADIENT, Icon: Car }
+            }
+            return { title: 'Sua primeira corrida', subtitle: 'Escolha de onde você sai e pra onde vai — em poucos toques um motorista aparece', button: 'pedir motorista', accent: GRADIENT, Icon: Car }
+        }
+        if (activeOrder.status === 'pending') {
+            if (activeOrder.scheduled_for) {
+                return { title: 'Corrida agendada', subtitle: `Marcada pra ${formatScheduledFor(activeOrder.scheduled_for)} — vamos reunir motoristas até lá`, button: 'ver meu pedido', accent: '#8b5cf6', Icon: CalendarClock }
+            }
+            if (activeOrder.applicant_count > 0) {
+                const n = activeOrder.applicant_count
+                return { title: n === 1 ? '1 motorista quer te levar' : `${n} motoristas querem te levar`, subtitle: 'Compare os valores e a nota de cada um e escolha quem vai com você', button: 'escolher motorista', accent: GRADIENT, Icon: Car }
+            }
+            return { title: 'Procurando um motorista pra você', subtitle: 'Seu pedido já está no ar — avisamos assim que alguém se candidatar', button: 'ver meu pedido', accent: GRADIENT, Icon: Search }
+        }
+        if (activeOrder.ride_started_at) {
+            return { title: 'Boa viagem!', subtitle: `Corrida em andamento até ${shortAddress(activeOrder.destination_address)}`, button: 'acompanhar corrida', accent: GREEN_GRADIENT, Icon: Navigation }
+        }
+        if (activeOrder.driver_arrived_at) {
+            return { title: 'Seu motorista chegou!', subtitle: `${firstName} está te esperando em ${shortAddress(activeOrder.origin_address)}`, button: 'ver meu pedido', accent: GREEN_GRADIENT, Icon: CheckCircle2 }
+        }
+        if (activeOrder.driver_en_route) {
+            const eta = liveEta ? ` — chega em ~${Math.max(1, Math.round(liveEta.durationMin))} min` : ''
+            return { title: `${firstName} está a caminho`, subtitle: `Vem te buscar em ${shortAddress(activeOrder.origin_address)}${eta}`, button: 'acompanhar', accent: GREEN_GRADIENT, Icon: Navigation }
+        }
+        return { title: 'Motorista confirmado!', subtitle: `${firstName} aceitou sua corrida e já já sai pra te buscar`, button: 'ver meu pedido', accent: GREEN_GRADIENT, Icon: CheckCircle2 }
+    })()
+    const HeaderIcon = header.Icon
+
     return (
         <section>
             <HomeGlassCard className="p-6 relative">
@@ -336,20 +380,21 @@ export default function MotoristaSection({ dragHandle, onBreveStatusChange, onUr
                         <div
                             className="w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0"
                             style={{
-                                background: GRADIENT,
+                                background: header.accent,
                                 color: '#ffffff',
-                                boxShadow: `0 4px 12px #f9731640`,
+                                boxShadow: `0 4px 12px ${header.accent === GRADIENT ? '#f9731640' : header.accent === GREEN_GRADIENT ? '#22c55e40' : `${header.accent}40`}`,
+                                transition: 'background 0.4s',
                             }}
                         >
-                            <Car size={28} />
+                            <HeaderIcon size={28} />
                         </div>
 
                         <div>
                             <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
-                                Motorista Particular
+                                {header.title}
                             </h3>
                             <p className="text-sm mt-1" style={{ color: colors.textPrimary }}>
-                                Peça uma corrida particular e vá para onde precisar
+                                {header.subtitle}
                             </p>
                         </div>
                     </div>
@@ -360,7 +405,7 @@ export default function MotoristaSection({ dragHandle, onBreveStatusChange, onUr
                         style={buttonStyle}
                     >
                         <Car size={16} />
-                        {activeOrder ? 'ver meu pedido' : 'pedir motorista'}
+                        {header.button}
                     </button>
                 </div>
 
