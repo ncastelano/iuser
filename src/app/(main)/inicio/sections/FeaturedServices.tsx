@@ -7,9 +7,8 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback, useMemo, ReactNode } from 'react'
-import { ChevronLeft, ChevronRight, Wrench, ArrowRight, Megaphone } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Wrench } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
-import { useProfile } from '@/app/contexts/ProfileContext'
 import { useRouter } from 'next/navigation'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
 import { supabase } from '@/lib/supabase/client'
@@ -154,7 +153,6 @@ export default function FeaturedServices({ dragHandle, title = 'Serviços em des
     const router = useRouter()
     const startNavProgress = useNavProgressStore((s) => s.start)
     const { colors } = useTheme()
-    const { profileSlug } = useProfile()
     const autoPlayRef = useRef<NodeJS.Timeout | null>(null)
 
     const { services, loading } = useFeaturedServices()
@@ -209,11 +207,6 @@ export default function FeaturedServices({ dragHandle, title = 'Serviços em des
         router.push(service.providerSlug ? `/${service.providerSlug}` : '/solicitar-servico')
     }
 
-    const handleViewAll = () => {
-        startNavProgress()
-        router.push('/solicitar-servico')
-    }
-
     if (loading) {
         return (
             <div className={`w-full ${className}`}>
@@ -232,64 +225,7 @@ export default function FeaturedServices({ dragHandle, title = 'Serviços em des
         )
     }
 
-    // Publicar leva pra /meus-servicos (serviços da(s) loja(s) + pessoais); sem
-    // perfil ainda, manda pro login.
-    const goPublish = () => {
-        startNavProgress()
-        router.push(profileSlug ? '/meus-servicos' : '/login')
-    }
-
-    const renderActions = (withViewAll: boolean) => (
-        <div className="flex flex-wrap items-center justify-center gap-2 mt-4">
-            {withViewAll && (
-                <button
-                    onClick={handleViewAll}
-                    className="flex items-center justify-center gap-2 px-6 py-3 rounded-full font-bold text-sm transition-all hover:scale-105 active:scale-95"
-                    style={{
-                        display: 'flex',
-                        whiteSpace: 'nowrap',
-                        background: GRADIENT,
-                        color: '#ffffff',
-                        border: '2px solid transparent',
-                        boxShadow: '0 4px 12px #f9731640',
-                    }}
-                >
-                    ver serviços
-                    <ArrowRight size={16} />
-                </button>
-            )}
-            <button
-                onClick={goPublish}
-                className="flex items-center justify-center gap-2 px-6 py-3 rounded-full font-bold text-sm transition-all hover:scale-105 active:scale-95"
-                style={{
-                    display: 'flex',
-                    whiteSpace: 'nowrap',
-                    background: 'transparent',
-                    color: colors.accent,
-                    border: `2px solid ${colors.accent}`,
-                }}
-            >
-                <Megaphone size={16} />
-                publicar serviço
-            </button>
-        </div>
-    )
-
-    // Sem nenhum serviço ainda, a seção continua aparecendo — pelo botão de publicar.
-    if (!services.length) {
-        return (
-            <div className={`relative w-full ${className}`}>
-                <HomeSectionHeader
-                    icon={Wrench}
-                    title={title}
-                    subtitle="Anuncie o serviço que você presta"
-                    dragHandle={dragHandle}
-                    action={<span />}
-                />
-                {renderActions(false)}
-            </div>
-        )
-    }
+    if (!services.length) return null
 
     return (
         <div
@@ -405,7 +341,6 @@ export default function FeaturedServices({ dragHandle, title = 'Serviços em des
                 )}
             </div>
 
-            {renderActions(true)}
         </div>
     )
 }
