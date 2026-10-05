@@ -239,8 +239,25 @@ export default function FeaturedServices({ dragHandle, title = 'Serviços em des
         router.push(profileSlug ? '/meus-servicos' : '/login')
     }
 
-    const publishButton = (
-        <div className="flex justify-center mt-4">
+    const renderActions = (withViewAll: boolean) => (
+        <div className="flex flex-wrap items-center justify-center gap-2 mt-4">
+            {withViewAll && (
+                <button
+                    onClick={handleViewAll}
+                    className="flex items-center justify-center gap-2 px-6 py-3 rounded-full font-bold text-sm transition-all hover:scale-105 active:scale-95"
+                    style={{
+                        display: 'flex',
+                        whiteSpace: 'nowrap',
+                        background: GRADIENT,
+                        color: '#ffffff',
+                        border: '2px solid transparent',
+                        boxShadow: '0 4px 12px #f9731640',
+                    }}
+                >
+                    ver serviços
+                    <ArrowRight size={16} />
+                </button>
+            )}
             <button
                 onClick={goPublish}
                 className="flex items-center justify-center gap-2 px-6 py-3 rounded-full font-bold text-sm transition-all hover:scale-105 active:scale-95"
@@ -269,7 +286,7 @@ export default function FeaturedServices({ dragHandle, title = 'Serviços em des
                     dragHandle={dragHandle}
                     action={<span />}
                 />
-                {publishButton}
+                {renderActions(false)}
             </div>
         )
     }
@@ -285,16 +302,7 @@ export default function FeaturedServices({ dragHandle, title = 'Serviços em des
                 title={title}
                 subtitle={`${services.length} ${services.length === 1 ? 'serviço' : 'serviços'}`}
                 dragHandle={dragHandle}
-                action={(
-                    <button
-                        onClick={handleViewAll}
-                        className="flex items-center gap-2 px-5 py-2 rounded-full text-xs font-bold transition-all hover:scale-105 active:scale-95 hover:shadow-lg whitespace-nowrap flex-shrink-0"
-                        style={{ background: GRADIENT, color: '#ffffff', boxShadow: `0 2px 8px rgba(249, 115, 22, 0.3)` }}
-                    >
-                        <span>Ver todos</span>
-                        <ArrowRight className="w-3.5 h-3.5" />
-                    </button>
-                )}
+                action={<span />}
             />
 
             <div className="relative">
@@ -397,7 +405,7 @@ export default function FeaturedServices({ dragHandle, title = 'Serviços em des
                 )}
             </div>
 
-            {publishButton}
+            {renderActions(true)}
         </div>
     )
 }
