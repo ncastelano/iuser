@@ -49,6 +49,7 @@ import DriverDebtBanner from '@/components/DriverDebtBanner'
 import RideMiniMap from '@/app/(main)/aceitar-corridas/RideMiniMap'
 import RideMapDialog from '@/app/(main)/aceitar-corridas/RideMapDialog'
 import { RideOfferCard } from './RideOfferCard'
+import { VehicleRequiredDialog } from '@/components/VehicleRequiredDialog'
 import { submitRideApplication } from '@/lib/rideApplication'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -273,9 +274,11 @@ export interface AceitarCorridasProps {
     onSummaryChange?: (summary: { rides: number; candidacies: number; hasAccepted: boolean }) => void
     // Sair da tela (ex: recusou a sincronização) — no painel volta pra aba Painel.
     onLeave?: () => void
+    // Abrir o cadastro de veículo (no painel: troca pra aba Meu veículo).
+    onRegisterVehicle?: () => void
 }
 
-export default function AceitarCorridas({ embedded = false, tab, onTabChange, onSummaryChange, onLeave }: AceitarCorridasProps = {}) {
+export default function AceitarCorridas({ embedded = false, tab, onTabChange, onSummaryChange, onLeave, onRegisterVehicle }: AceitarCorridasProps = {}) {
     const router = useRouter()
     // ?ride=<id> (clique num card do Canal do Motorista na home): rola até o card
     // dessa corrida e destaca; ?tab=candidatos abre em "Me candidatei".
@@ -306,6 +309,8 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
     const [candidacies, setCandidacies] = useState<CandidacyCardData[]>([])
     const [acceptedRide, setAcceptedRide] = useState<AcceptedRideDetail | null>(null)
     const [myVehicleKinds, setMyVehicleKinds] = useState<VehicleKind[]>(['carro'])
+    const [hasVehicle, setHasVehicle] = useState<boolean | null>(null)
+    const [showVehicleDialog, setShowVehicleDialog] = useState(false)
     const [departing, setDeparting] = useState(false)
     const [arriving, setArriving] = useState(false)
     const [starting, setStarting] = useState(false)
@@ -524,6 +529,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
         setVoiceNavEnabled(pricing.voice_navigation_enabled !== false)
         const vehicleKinds = (vehicleRows || []).map((v) => v.vehicle_kind as VehicleKind)
         const hasRegisteredVehicle = vehicleKinds.length > 0
+        setHasVehicle(hasRegisteredVehicle)
         if (!hasRegisteredVehicle) vehicleKinds.push('carro')
         const acceptableVehicleTypes = new Set<VehicleType>(
             hasRegisteredVehicle
@@ -873,6 +879,10 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
     const applyToRide = async (ride: RideCardData, price: number) => {
         if (price <= 0) {
             toast.error('Informe um valor válido')
+            return
+        }
+        if (hasVehicle === false) {
+            setShowVehicleDialog(true)
             return
         }
         if (!plansLoading && !hasDriver) {
@@ -1717,6 +1727,17 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                     />
                 )
             })()}
+
+            {showVehicleDialog && (
+                <VehicleRequiredDialog
+                    onClose={() => setShowVehicleDialog(false)}
+                    onRegister={() => {
+                        setShowVehicleDialog(false)
+                        if (onRegisterVehicle) onRegisterVehicle()
+                        else router.push('/painel-motorista?aba=veiculo&veiculo=carro')
+                    }}
+                />
+            )}
 
             {showSyncPrompt && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">

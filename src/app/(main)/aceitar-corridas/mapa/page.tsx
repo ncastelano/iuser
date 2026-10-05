@@ -42,6 +42,7 @@ import { submitRideApplication } from '@/lib/rideApplication'
 import { getAvatarUrl } from '@/lib/avatar'
 import { getProfileRideRatingsBatch } from '@/lib/rideReviews'
 import { MAP_TRANSITION_KEY } from '../RideMiniMap'
+import { VehicleRequiredDialog } from '@/components/VehicleRequiredDialog'
 import { RideOfferCard, type OfferRide, type OfferRequester } from '@/components/AceitarCorridas/RideOfferCard'
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
@@ -214,6 +215,7 @@ function AceitarCorridasMapaContent() {
     const [splashGone, setSplashGone] = useState(false)
     const [sheetShown, setSheetShown] = useState(false)
     const [applying, setApplying] = useState(false)
+    const [showVehicleDialog, setShowVehicleDialog] = useState(false)
     const [tripKm, setTripKm] = useState<number | null>(null)
     const [tripMin, setTripMin] = useState<number | null>(null)
     const [routeKm, setRouteKm] = useState<number | null>(null)
@@ -352,6 +354,13 @@ function AceitarCorridasMapaContent() {
         }
         setApplying(true)
         try {
+            // Sem veículo cadastrado não dá pra se candidatar: avisa e leva ao cadastro.
+            const { count: vehicleCount } = await supabase.from('driver_vehicles').select('vehicle_kind', { count: 'exact', head: true }).eq('driver_id', userId)
+            if (!vehicleCount) {
+                setShowVehicleDialog(true)
+                setApplying(false)
+                return
+            }
             await submitRideApplication(userId, previewRideId, price)
             toast.success('Candidatura enviada!')
             router.push('/painel-motorista?aba=candidaturas')
@@ -922,6 +931,12 @@ function AceitarCorridasMapaContent() {
                 </div>
             </div>
             {splash}
+            {showVehicleDialog && (
+                <VehicleRequiredDialog
+                    onClose={() => setShowVehicleDialog(false)}
+                    onRegister={() => router.push('/painel-motorista?aba=veiculo&veiculo=carro')}
+                />
+            )}
         </div>
     )
 }

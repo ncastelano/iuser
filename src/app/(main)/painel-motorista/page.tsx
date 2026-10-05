@@ -745,6 +745,7 @@ function PainelMotoristaContent() {
                             onTabChange={handleRideTabChange}
                             onSummaryChange={setRideSummary}
                             onLeave={handleRideLeave}
+                            onRegisterVehicle={() => setActiveTab('veiculo')}
                         />
                     )}
 

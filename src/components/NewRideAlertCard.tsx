@@ -9,6 +9,7 @@
 import { useState } from 'react'
 import { Pencil, X, Map as MapIcon, Car } from 'lucide-react'
 import { toast } from 'sonner'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { Spinner } from '@/components/Spinner'
@@ -40,6 +41,7 @@ export function NewRideAlertCard({
     onOpenList,
 }: NewRideAlertCardProps) {
     const { colors } = useTheme()
+    const router = useRouter()
     const [editing, setEditing] = useState(false)
     const [value, setValue] = useState('')
     const [sending, setSending] = useState(false)
@@ -55,6 +57,14 @@ export function NewRideAlertCard({
         try {
             const { data: { user } } = await supabase.auth.getUser()
             if (!user) throw new Error('Entre na sua conta para se candidatar')
+            const { count: vehicleCount } = await supabase.from('driver_vehicles').select('vehicle_kind', { count: 'exact', head: true }).eq('driver_id', user.id)
+            if (!vehicleCount) {
+                toast.error('Cadastre seu veículo pra se candidatar.', {
+                    action: { label: 'Cadastrar', onClick: () => router.push('/painel-motorista?aba=veiculo&veiculo=carro') },
+                })
+                setSending(false)
+                return
+            }
             await submitRideApplication(user.id, rideId, price)
             toast.success(`Candidatura enviada por R$ ${price.toFixed(2)}!`)
             onClose()
