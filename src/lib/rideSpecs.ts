@@ -154,10 +154,19 @@ export function buildRideSpecRows(ride: RideSpecFields): RideSpecRow[] {
 }
 
 // Versão em frases curtas e naturais do mesmo resumo (buildRideSpecRows), pro
-// card do motorista: "Paga no Pix", "Leva um animal", "Vão 3 passageiros" em
-// vez de "Pagamento: Pix", "Animal: não especificado"...
-export function humanizeRideSpecs(ride: RideSpecFields): string[] {
-    const out: string[] = []
+// card do motorista, uma por linha com ícone/cor pelo `kind`: "Levar um
+// animal", "Paga no Pix", "1 passageiro"... em vez de "Animal: não especificado".
+export type HumanSpecKind =
+    | 'people' | 'child' | 'shopping' | 'cargo' | 'pet' | 'fragile' | 'delivery'
+    | 'accessibility' | 'guide' | 'pix' | 'cash' | 'card' | 'reference' | 'condo'
+
+export interface HumanSpec {
+    kind: HumanSpecKind
+    text: string
+}
+
+export function humanizeRideSpecs(ride: RideSpecFields): HumanSpec[] {
+    const out: HumanSpec[] = []
     const money = (v: number) => `R$ ${v.toFixed(2).replace('.', ',')}`
     const petDetails = (r: RideSpecFields) => {
         const w = r.pet_weight_range ? PET_WEIGHT_LABELS[r.pet_weight_range] : null
@@ -166,31 +175,31 @@ export function humanizeRideSpecs(ride: RideSpecFields): string[] {
     }
 
     if (ride.ride_type === 'pessoa') {
-        out.push(ride.passenger_count === 1 ? '1 passageiro' : `${ride.passenger_count} passageiros`)
+        out.push({ kind: 'people', text: ride.passenger_count === 1 ? '1 passageiro' : `${ride.passenger_count} passageiros` })
         if (ride.has_child) {
             const n = ride.children_count ?? 1
             const age = (ride.child_age || '').trim()
             const ageText = age ? ` de ${age}${/anos?\b/i.test(age) ? '' : ' anos'}` : ''
             const seat = ride.child_needs_car_seat === true ? ' · precisa de cadeirinha' : ''
-            out.push(`${n === 1 ? 'Criança' : `${n} crianças`}${ageText}${seat}`)
+            out.push({ kind: 'child', text: `${n === 1 ? 'Criança' : `${n} crianças`}${ageText}${seat}` })
         }
         if (ride.has_shopping) {
             const bags = ride.bag_count ? ` (${ride.bag_count} ${ride.bag_count === 1 ? 'sacola' : 'sacolas'})` : ''
-            out.push(`Leva compras de mercado${bags}`)
+            out.push({ kind: 'shopping', text: `Levar compras de mercado${bags}` })
         }
-        if (ride.has_extra_object) out.push(ride.extra_object_description ? `Leva: ${ride.extra_object_description}` : 'Leva um objeto')
+        if (ride.has_extra_object) out.push({ kind: 'cargo', text: ride.extra_object_description ? `Levar: ${ride.extra_object_description}` : 'Levar um objeto' })
         if (ride.has_pet) {
             const d = petDetails(ride)
-            out.push(`Leva um pet${ride.pet_description ? `: ${ride.pet_description}` : ''}${d ? ` (${d})` : ''}`)
+            out.push({ kind: 'pet', text: `Levar um pet${ride.pet_description ? `: ${ride.pet_description}` : ''}${d ? ` (${d})` : ''}` })
         }
     } else if (ride.ride_type === 'animal') {
         const d = petDetails(ride)
-        out.push(`Leva um animal${ride.pet_description ? `: ${ride.pet_description}` : ''}${d ? ` (${d})` : ''}`)
+        out.push({ kind: 'pet', text: `Levar um animal${ride.pet_description ? `: ${ride.pet_description}` : ''}${d ? ` (${d})` : ''}` })
     } else {
-        out.push(ride.object_description ? `Leva: ${ride.object_description}` : 'Leva um objeto')
-        if (ride.object_is_sensitive) out.push('Frágil — cuidado')
+        out.push({ kind: 'cargo', text: ride.object_description ? `Levar: ${ride.object_description}` : 'Levar um objeto' })
+        if (ride.object_is_sensitive) out.push({ kind: 'fragile', text: 'Frágil — cuidado' })
         if (ride.delivery_location) {
-            out.push(ride.delivery_location === 'portaria' ? 'Entrega na portaria' : ride.delivery_location === 'area_interna' ? 'Entrega na área interna do condomínio' : 'Entrega no apartamento/residência')
+            out.push({ kind: 'delivery', text: ride.delivery_location === 'portaria' ? 'Entregar na portaria' : ride.delivery_location === 'area_interna' ? 'Entregar na área interna do condomínio' : 'Entregar no apartamento/residência' })
         }
     }
 
@@ -199,20 +208,20 @@ export function humanizeRideSpecs(ride: RideSpecFields): string[] {
         if (ride.special_needs_wheelchair) parts.push(`cadeirante${ride.special_needs_wheelchair_type ? ` (${ride.special_needs_wheelchair_type === 'dobravel' ? 'cadeira dobrável' : 'cadeira grande'})` : ''}`)
         if (ride.special_needs_visual_impairment) parts.push('deficiência visual')
         if (ride.special_needs_description) parts.push(ride.special_needs_description)
-        out.push(`Pessoa com deficiência${parts.length ? `: ${parts.join(', ')}` : ''}`)
-        if (ride.has_guide_dog) out.push('Cão-guia junto — não é pet comum')
+        out.push({ kind: 'accessibility', text: `Pessoa com deficiência${parts.length ? `: ${parts.join(', ')}` : ''}` })
+        if (ride.has_guide_dog) out.push({ kind: 'guide', text: 'Cão-guia junto — não é pet comum' })
     }
 
     if (ride.payment_method) {
-        if (ride.payment_method === 'pix') out.push('Paga no Pix')
-        else if (ride.payment_method === 'dinheiro') out.push(`Paga em dinheiro${ride.cash_change_for != null ? ` · troco pra ${money(ride.cash_change_for)}` : ''}`)
-        else out.push(`Paga no cartão${ride.card_is_contactless != null ? (ride.card_is_contactless ? ' (aproximação)' : ' (sem aproximação)') : ''}`)
+        if (ride.payment_method === 'pix') out.push({ kind: 'pix', text: 'Paga no Pix' })
+        else if (ride.payment_method === 'dinheiro') out.push({ kind: 'cash', text: `Paga em dinheiro${ride.cash_change_for != null ? ` · troco pra ${money(ride.cash_change_for)}` : ''}` })
+        else out.push({ kind: 'card', text: `Paga no cartão${ride.card_is_contactless != null ? (ride.card_is_contactless ? ' (aproximação)' : ' (sem aproximação)') : ''}` })
     }
 
-    if ((ride.origin_complement || '').trim()) out.push(`Referência na partida: ${(ride.origin_complement as string).trim()}`)
-    if ((ride.destination_complement || '').trim()) out.push(`Referência no destino: ${(ride.destination_complement as string).trim()}`)
-    if (ride.origin_needs_access) out.push(`Condomínio na partida${(ride.origin_access_notes || '').trim() ? `: ${(ride.origin_access_notes as string).trim()}` : ''}`)
-    if (ride.destination_needs_access && ride.ride_type !== 'objeto') out.push(`Condomínio no destino${(ride.destination_access_notes || '').trim() ? `: ${(ride.destination_access_notes as string).trim()}` : ''}`)
+    if ((ride.origin_complement || '').trim()) out.push({ kind: 'reference', text: `Referência na partida: ${(ride.origin_complement as string).trim()}` })
+    if ((ride.destination_complement || '').trim()) out.push({ kind: 'reference', text: `Referência no destino: ${(ride.destination_complement as string).trim()}` })
+    if (ride.origin_needs_access) out.push({ kind: 'condo', text: `Condomínio na partida${(ride.origin_access_notes || '').trim() ? `: ${(ride.origin_access_notes as string).trim()}` : ''}` })
+    if (ride.destination_needs_access && ride.ride_type !== 'objeto') out.push({ kind: 'condo', text: `Condomínio no destino${(ride.destination_access_notes || '').trim() ? `: ${(ride.destination_access_notes as string).trim()}` : ''}` })
 
     return out
 }

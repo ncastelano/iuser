@@ -7,16 +7,36 @@
 'use client'
 
 import { useState, type ReactNode } from 'react'
-import { Package, PawPrint, Star, CalendarClock, Pencil, X, Users } from 'lucide-react'
+import { Package, PawPrint, Star, CalendarClock, Pencil, X, Users, Car, Baby, ShoppingBag, AlertTriangle, Accessibility, Eye, Banknote, CreditCard, QrCode, MapPin, Building2, Truck, type LucideIcon } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import { Spinner } from '@/components/Spinner'
 import { shortAddress } from '@/lib/serviceBoard'
-import { humanizeRideSpecs, type RideSpecFields } from '@/lib/rideSpecs'
+import { humanizeRideSpecs, type HumanSpecKind, type RideSpecFields } from '@/lib/rideSpecs'
 import { VEHICLE_TYPE_LABELS, type VehicleType } from '@/lib/rideVehicle'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 export const TO_PICKUP_COLOR = '#3b82f6'
 export const TRIP_COLOR = '#ef4444'
+
+// Ícone e cor de cada linha do resumo ("Levar um objeto", "Paga no Pix"...).
+const SPEC_STYLE: Record<HumanSpecKind | 'vehicle' | 'store', { icon: LucideIcon; color: string }> = {
+    vehicle: { icon: Car, color: '#f97316' },
+    store: { icon: Truck, color: '#16a34a' },
+    people: { icon: Users, color: '#3b82f6' },
+    child: { icon: Baby, color: '#3b82f6' },
+    shopping: { icon: ShoppingBag, color: '#8b5cf6' },
+    cargo: { icon: Package, color: '#8b5cf6' },
+    pet: { icon: PawPrint, color: '#8b5cf6' },
+    fragile: { icon: AlertTriangle, color: '#eab308' },
+    delivery: { icon: Truck, color: '#8b5cf6' },
+    accessibility: { icon: Accessibility, color: '#ec4899' },
+    guide: { icon: Eye, color: '#ec4899' },
+    pix: { icon: QrCode, color: '#22c55e' },
+    cash: { icon: Banknote, color: '#22c55e' },
+    card: { icon: CreditCard, color: '#22c55e' },
+    reference: { icon: MapPin, color: '#64748b' },
+    condo: { icon: Building2, color: '#64748b' },
+}
 
 export type OfferRide = RideSpecFields & {
     id: string
@@ -131,27 +151,25 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
                         )}
                     </p>
                 </div>
-                <span className="text-[10px] font-bold px-2 py-1 rounded-full flex-shrink-0" style={{ background: GRADIENT, color: '#fff' }}>
-                    {vehicleLabel}
-                </span>
             </div>
 
-            {/* O que a corrida leva (rola de lado se não couber) */}
-            <div className="flex items-center gap-1.5 overflow-x-auto -mx-1 px-1 pb-0.5" style={{ scrollbarWidth: 'none' }}>
-                {ride.order_id && (
-                    <span className="flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap flex-shrink-0" style={{ background: '#22c55e20', color: '#16a34a' }}>
-                        <Package size={11} /> Entrega{storeName ? ` · ${storeName}` : ' de loja'}
-                    </span>
-                )}
-                {specs.map((text, i) => (
-                    <span
-                        key={i}
-                        className="text-[11px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap flex-shrink-0"
-                        style={i === 0 ? { background: `${colors.border}30`, color: colors.textPrimary } : { background: `${colors.accent}15`, color: colors.accent }}
-                    >
-                        {text}
-                    </span>
-                ))}
+            {/* Resumo em lista: veículo, o que leva, pagamento... uma linha cada, com ícone e cor */}
+            <div className="flex flex-col gap-1">
+                {[
+                    { kind: 'vehicle' as const, text: vehicleLabel },
+                    ...(ride.order_id ? [{ kind: 'store' as const, text: `Entrega${storeName ? ` · ${storeName}` : ' de loja'}` }] : []),
+                    ...specs,
+                ].map((item, i) => {
+                    const { icon: Icon, color } = SPEC_STYLE[item.kind]
+                    return (
+                        <div key={i} className="flex items-center gap-2">
+                            <span className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: `${color}22`, color }}>
+                                <Icon size={11} />
+                            </span>
+                            <span className="text-xs font-semibold leading-tight" style={{ color: colors.textPrimary }}>{item.text}</span>
+                        </div>
+                    )
+                })}
             </div>
 
             {miniMap}
