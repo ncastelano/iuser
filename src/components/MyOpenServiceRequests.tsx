@@ -10,6 +10,7 @@ import { supabase } from '@/lib/supabase/client'
 import { getAvatarUrl } from '@/lib/avatar'
 import { getServiceIcon, getServiceLabel } from '@/lib/serviceTypes'
 import { toast } from 'sonner'
+import ServiceRequestDetailsDialog from '@/components/ServiceRequestDetailsDialog'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -45,6 +46,10 @@ interface OpenRequest {
     locationAddress: string
     createdAt: string
     viewCount: number
+    description: string
+    photoUrls: string[]
+    needsAccess: boolean
+    accessNotes: string | null
     candidates: Candidate[]
 }
 
@@ -59,6 +64,7 @@ export default function MyOpenServiceRequests({ limit = 5, title }: MyOpenServic
     const [loading, setLoading] = useState(true)
     const [requests, setRequests] = useState<OpenRequest[]>([])
     const [decidingId, setDecidingId] = useState<string | null>(null)
+    const [openId, setOpenId] = useState<string | null>(null)
 
     const load = async () => {
         setLoading(true)
@@ -70,7 +76,7 @@ export default function MyOpenServiceRequests({ limit = 5, title }: MyOpenServic
 
         const { data: myRequests } = await supabase
             .from('service_requests')
-            .select('id, service_type, custom_service, location_address, created_at, view_count')
+            .select('id, service_type, custom_service, location_address, created_at, view_count, description, photo_urls, location_needs_access, location_access_notes')
             .eq('requester_id', userId)
             .eq('status', 'pending')
             .order('created_at', { ascending: false })
@@ -120,6 +126,10 @@ export default function MyOpenServiceRequests({ limit = 5, title }: MyOpenServic
                 locationAddress: r.location_address,
                 createdAt: r.created_at,
                 viewCount: r.view_count || 0,
+                description: r.description || '',
+                photoUrls: r.photo_urls || [],
+                needsAccess: !!r.location_needs_access,
+                accessNotes: r.location_access_notes || null,
                 candidates,
             }
         })
@@ -155,6 +165,8 @@ export default function MyOpenServiceRequests({ limit = 5, title }: MyOpenServic
 
     if (loading || requests.length === 0) return null
 
+    const openRequest = requests.find((r) => r.id === openId) || null
+
     return (
         <div>
             {title && (
@@ -166,7 +178,8 @@ export default function MyOpenServiceRequests({ limit = 5, title }: MyOpenServic
                     return (
                         <div
                             key={r.id}
-                            className="flex-shrink-0 w-64 rounded-2xl p-3.5 flex flex-col gap-2"
+                            onClick={() => setOpenId(r.id)}
+                            className="flex-shrink-0 w-64 rounded-2xl p-3.5 flex flex-col gap-2 cursor-pointer transition-transform hover:scale-[1.02]"
                             style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
                         >
                             <div className="flex items-center gap-2">
@@ -220,7 +233,7 @@ export default function MyOpenServiceRequests({ limit = 5, title }: MyOpenServic
                                                 ) : (
                                                     <div className="flex items-center gap-1 flex-shrink-0">
                                                         <button
-                                                            onClick={() => decide(c.applicationId, 'accepted')}
+                                                            onClick={(e) => { e.stopPropagation(); decide(c.applicationId, 'accepted') }}
                                                             className="w-5 h-5 rounded-full flex items-center justify-center"
                                                             style={{ background: '#22c55e', color: '#fff' }}
                                                             title="Aceitar"
@@ -228,7 +241,7 @@ export default function MyOpenServiceRequests({ limit = 5, title }: MyOpenServic
                                                             <Check size={11} />
                                                         </button>
                                                         <button
-                                                            onClick={() => decide(c.applicationId, 'rejected')}
+                                                            onClick={(e) => { e.stopPropagation(); decide(c.applicationId, 'rejected') }}
                                                             className="w-5 h-5 rounded-full flex items-center justify-center"
                                                             style={{ background: '#ef4444', color: '#fff' }}
                                                             title="Recusar"
@@ -253,6 +266,19 @@ export default function MyOpenServiceRequests({ limit = 5, title }: MyOpenServic
                     )
                 })}
             </div>
+
+            {openRequest && (
+                <ServiceRequestDetailsDialog
+                    request={openRequest}
+                    whenAsked={relativeTime(openRequest.createdAt)}
+                    decidingId={decidingId}
+                    onDecide={decide}
+                    onClose={() => setOpenId(null)}
+                    onSaved={(patch) =>
+                        setRequests((prev) => prev.map((r) => (r.id === openRequest.id ? { ...r, ...patch } : r)))
+                    }
+                />
+            )}
         </div>
     )
 }

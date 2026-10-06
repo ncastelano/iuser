@@ -15,6 +15,7 @@ import { Spinner } from '@/components/Spinner'
 import { useActivePlans } from '@/hooks/useActivePlans'
 import DriverDebtBanner from '@/components/DriverDebtBanner'
 import { notifyServiceApplication } from '@/lib/notifyRideStatus'
+import { trackServiceRequestView } from '@/lib/trackServiceRequestView'
 import {
     BoardItem,
     fetchOpenBoardItems,
@@ -102,10 +103,7 @@ function SerParceiroContent() {
         if (loading || plansLoading || !hasProvider || jobs.length === 0) return
         for (const job of jobs) {
             if (job.requester_id !== userId) {
-                supabase.rpc('increment_service_request_view_count', { p_request_id: job.id }).then(
-                    () => { },
-                    () => { }
-                )
+                trackServiceRequestView(job.id)
             }
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
