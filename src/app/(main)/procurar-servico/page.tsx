@@ -26,6 +26,7 @@ import {
     getItemSearchHaystack,
     itemKey,
     relativeTime,
+    notifyServiceRequestsChanged,
 } from '@/lib/serviceBoard'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -43,7 +44,7 @@ function SerParceiroContent() {
     const router = useRouter()
     const searchParams = useSearchParams()
     // Vem de "Quero fazer esse serviço" na home: foca o card desse pedido e
-    // se candidata sozinho 1s depois.
+    // se inscreve sozinho 1s depois.
     const focusId = searchParams.get('pedido')
     const focusHandledRef = useRef(false)
     const [autoApplyingId, setAutoApplyingId] = useState<string | null>(null)
@@ -128,12 +129,13 @@ function SerParceiroContent() {
             if (error) throw error
             setAppliedKeys((prev) => new Set(prev).add(key))
             notifyServiceApplication(item.id)
-            toast.success('Candidatura enviada!')
+            toast.success('Inscrição enviada!')
+            notifyServiceRequestsChanged()
         } catch (err: any) {
             if ((err.code === '42501' || err.code === 'PGRST301') && !hasProvider) {
-                toast.error('Assine o plano Prestador ou o Combo pra se candidatar.')
+                toast.error('Assine o plano Prestador ou o Combo pra se inscrever.')
             } else {
-                toast.error('Erro ao se candidatar: ' + (err.message || 'tente novamente'))
+                toast.error('Erro ao se inscrever: ' + (err.message || 'tente novamente'))
             }
         } finally {
             setApplyingKey(null)
@@ -156,13 +158,13 @@ function SerParceiroContent() {
         }
     }
 
-    // ===== FOCO + CANDIDATURA AUTOMÁTICA (?pedido=<id>) =====
+    // ===== FOCO + INSCRIÇÃO AUTOMÁTICA (?pedido=<id>) =====
     useEffect(() => {
         if (!focusId || focusHandledRef.current || loading || profileLoading || plansLoading) return
         if (!userId) {
-            // Candidatar-se exige conta: pede login e, ao entrar, o efeito roda de novo.
+            // Inscrever-se exige conta: pede login e, ao entrar, o efeito roda de novo.
             if (!showLogin) {
-                toast.info('Entre na sua conta para se candidatar a esse serviço.')
+                toast.info('Entre na sua conta para se inscrever nesse serviço.')
                 setShowLogin(true)
             }
             return
@@ -183,12 +185,12 @@ function SerParceiroContent() {
             return
         }
         if (appliedKeys.has(itemKey(job))) {
-            toast.info('Você já se candidatou a esse serviço.')
+            toast.info('Você já se inscreveu nesse serviço.')
             return
         }
         setAutoApplyingId(job.id)
         // Sem cleanup de propósito: o efeito já foi "consumido" (focusHandledRef),
-        // então se as dependências mudarem no meio do segundo a candidatura
+        // então se as dependências mudarem no meio do segundo a inscrição
         // não pode ser cancelada.
         setTimeout(async () => {
             await handleApply(job)
@@ -280,9 +282,9 @@ function SerParceiroContent() {
                                 <Briefcase size={28} />
                             </div>
                             <div>
-                                <h2 className="text-lg font-black" style={{ color: colors.textPrimary }}>Assine pra se candidatar</h2>
+                                <h2 className="text-lg font-black" style={{ color: colors.textPrimary }}>Assine pra se inscrever</h2>
                                 <p className="text-xs mt-1" style={{ color: colors.textSecondary }}>
-                                    Pra ver e se candidatar aos pedidos de serviço disponíveis, você precisa do plano Prestador ou do Combo.
+                                    Pra ver e se inscrever nos pedidos de serviço disponíveis, você precisa do plano Prestador ou do Combo.
                                 </p>
                             </div>
                             <button
@@ -435,16 +437,16 @@ function SerParceiroContent() {
                                                 {autoApplyingId === job.id && !applied ? (
                                                     <>
                                                         <Spinner size={14} />
-                                                        Candidatando você...
+                                                        Inscrevendo você...
                                                     </>
                                                 ) : applyingKey === key ? (
                                                     <Spinner size={14} />
                                                 ) : applied ? (
-                                                    'Candidatura enviada'
+                                                    'Inscrição enviada'
                                                 ) : (
                                                     <>
                                                         <Briefcase size={14} />
-                                                        Candidatar-se
+                                                        Inscrever-se
                                                     </>
                                                 )}
                                             </button>

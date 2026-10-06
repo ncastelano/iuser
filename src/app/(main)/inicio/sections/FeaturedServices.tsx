@@ -150,9 +150,10 @@ interface FeaturedServicesProps {
     title?: string
     maxItems?: number
     className?: string
+    hideIcon?: boolean
 }
 
-export default function FeaturedServices({ dragHandle, title = 'Serviços em destaque', maxItems, className = '' }: FeaturedServicesProps) {
+export default function FeaturedServices({ dragHandle, title = 'Serviços em destaque', maxItems, className = '', hideIcon = false }: FeaturedServicesProps) {
     const router = useRouter()
     const startNavProgress = useNavProgressStore((s) => s.start)
     const { colors } = useTheme()
@@ -240,7 +241,7 @@ export default function FeaturedServices({ dragHandle, title = 'Serviços em des
             onMouseLeave={() => setIsHovered(false)}
         >
             <HomeSectionHeader
-                icon={Wrench}
+                icon={hideIcon ? undefined : Wrench}
                 title={title}
                 subtitle={`${services.length} ${services.length === 1 ? 'serviço' : 'serviços'}`}
                 dragHandle={dragHandle}

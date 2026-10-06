@@ -2,14 +2,14 @@
 //
 // "Quem procura serviço": os pedidos de serviço abertos de TODO mundo (inclusive
 // os da própria pessoa), pra qualquer um ver que tem gente precisando e poder
-// pedir o seu também. Candidatar-se continua em /procurar-servico (exige plano
+// pedir o seu também. Inscrever-se continua em /procurar-servico (exige plano
 // Prestador); aqui é só a vitrine.
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
-import { MapPin, Plus, Eye, MoreHorizontal, Pencil, Trash2, X } from 'lucide-react'
+import { MapPin, Plus, Eye, Check, MoreHorizontal, Pencil, Trash2, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase/client'
 import ServiceRequestDetailsDialog from '@/components/ServiceRequestDetailsDialog'
@@ -19,13 +19,15 @@ import { useProfile } from '@/app/contexts/ProfileContext'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
 import { BoardItem, fetchOpenBoardItems, getItemIcon, getItemLabel, shortAddress, askedAgo, notifyServiceRequestsChanged, SERVICE_REQUESTS_CHANGED } from '@/lib/serviceBoard'
 import { HOME_GRADIENT } from './HomeSectionKit'
+import { HomeSubheading } from './HomeSubheading'
+import type { ApplicationStatus } from '@/hooks/useMyServiceApplications'
 
 // Em vitrine pública, só rua/bairro — o número fica pra quem for atender.
 function publicPlace(address: string): string {
     return shortAddress(address).replace(/[,\s]+\d+\s*\w*$/, '')
 }
 
-export default function ServiceSeekers({ limit = 8 }: { limit?: number }) {
+export default function ServiceSeekers({ limit = 8, applied }: { limit?: number; applied?: Map<string, ApplicationStatus> }) {
     const { colors } = useTheme()
     const router = useRouter()
     const startNavProgress = useNavProgressStore((s) => s.start)
@@ -75,10 +77,10 @@ export default function ServiceSeekers({ limit = 8 }: { limit?: number }) {
 
     return (
         <div>
-            <h3 className="text-sm font-black mb-0.5" style={{ color: colors.textPrimary }}>Quem procura serviço</h3>
-            <p className="text-xs mb-3 opacity-60" style={{ color: colors.textPrimary }}>
-                {items.length > 0 ? 'Pessoas precisando de um profissional agora' : 'Ninguém pediu ainda — seja o primeiro'}
-            </p>
+            <HomeSubheading
+                title="Quem procura serviço"
+                subtitle={items.length > 0 ? 'Pessoas precisando de um profissional agora' : 'Ninguém pediu ainda — seja o primeiro'}
+            />
 
             <div className="flex gap-3 overflow-x-auto pb-1">
                 {items.map((item) => {
@@ -159,7 +161,18 @@ export default function ServiceSeekers({ limit = 8 }: { limit?: number }) {
                                 <p className="text-xs line-clamp-2" style={{ color: colors.textSecondary }}>{item.description}</p>
                             )}
 
-                            {!mine && (
+                            {!mine && applied?.has(item.id) && applied.get(item.id) !== 'rejected' && (
+                                <button
+                                    onClick={() => go(`/procurar-servico?pedido=${item.id}`)}
+                                    className="mt-auto w-full py-2 rounded-full text-[11px] font-black uppercase tracking-wider flex items-center justify-center gap-1.5"
+                                    style={{ background: '#22c55e18', color: '#16a34a', border: '1px solid #22c55e55' }}
+                                >
+                                    <Check size={13} />
+                                    {applied.get(item.id) === 'accepted' ? 'Você foi escolhido!' : 'Você já se inscreveu'}
+                                </button>
+                            )}
+
+                            {!mine && !(applied?.has(item.id) && applied.get(item.id) !== 'rejected') && (
                                 <button
                                     onClick={() => go(`/procurar-servico?pedido=${item.id}`)}
                                     className="mt-auto w-full py-2 rounded-full text-[11px] font-black uppercase tracking-wider transition-all active:scale-95"

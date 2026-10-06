@@ -1,7 +1,7 @@
 // src/components/ServiceRequestDetailsDialog.tsx
 //
 // Detalhes de um pedido de serviço do próprio usuário: o que foi pedido, onde,
-// fotos, quem se candidatou (aceitar/recusar), edição do pedido e o componente
+// fotos, quem se inscreveu (aceitar/recusar), edição do pedido e o componente
 // "Visitantes dos serviços" (quem já viu o pedido).
 'use client'
 
@@ -109,10 +109,10 @@ export default function ServiceRequestDetailsDialog({ requestId, onClose }: Prop
                 ...prev,
                 candidates: prev.candidates.map((c) => (c.applicationId === applicationId ? { ...c, status } : c)),
             }))
-            toast.success(status === 'accepted' ? 'Candidato aceito!' : 'Candidato recusado.')
+            toast.success(status === 'accepted' ? 'Inscrito aceito!' : 'Inscrito recusado.')
             notifyServiceRequestsChanged()
         } catch (err: any) {
-            toast.error('Erro ao atualizar candidatura: ' + (err.message || 'tente novamente'))
+            toast.error('Erro ao atualizar inscrição: ' + (err.message || 'tente novamente'))
         } finally {
             setDecidingId(null)
         }
@@ -330,7 +330,7 @@ function DetailsBody({ request, setRequest, decidingId, onDecide, onClose, color
                     <>
                         {label(`Quem quer fazer (${request.candidates.length})`)}
                         {request.candidates.length === 0 ? (
-                            <p className="text-sm" style={{ color: colors.textSecondary }}>Ninguém se candidatou ainda. Assim que alguém aparecer, avisamos você.</p>
+                            <p className="text-sm" style={{ color: colors.textSecondary }}>Ninguém se inscreveu ainda. Assim que alguém aparecer, avisamos você.</p>
                         ) : (
                             <div className="flex flex-col gap-2">
                                 {request.candidates.map((c) => (

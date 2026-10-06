@@ -13,6 +13,7 @@ import { supabase } from '@/lib/supabase/client'
 import { getAvatarUrl } from '@/lib/avatar'
 import { getServiceIcon, getServiceLabel } from '@/lib/serviceTypes'
 import { askedAgo, SERVICE_REQUESTS_CHANGED } from '@/lib/serviceBoard'
+import { HomeSubheading } from '@/app/(main)/inicio/sections/HomeSubheading'
 import ServiceRequestDetailsDialog from '@/components/ServiceRequestDetailsDialog'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -115,10 +116,7 @@ export default function MyOpenServiceRequests({ limit = 5, title }: MyOpenServic
     return (
         <div>
             {title && (
-                <div className="mb-3">
-                    <h3 className="text-sm font-black" style={{ color: colors.textPrimary }}>{title}</h3>
-                    <p className="text-xs opacity-60" style={{ color: colors.textPrimary }}>Toque num pedido para ver os detalhes, editar ou escolher quem vai fazer</p>
-                </div>
+                <HomeSubheading title={title} subtitle="Toque num pedido para ver os detalhes, editar ou escolher quem vai fazer" />
             )}
             <div className="flex gap-3 overflow-x-auto pb-1">
                 {requests.map((r) => {

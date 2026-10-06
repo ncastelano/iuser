@@ -1,7 +1,7 @@
 // src/app/(main)/inicio/sections/HireAService.tsx
 'use client'
 
-import { ReactNode } from 'react'
+import { ReactNode, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
 import { Wrench, Megaphone, Search } from 'lucide-react'
@@ -11,19 +11,27 @@ import MyOpenServiceRequests from '@/components/MyOpenServiceRequests'
 import { HomeGlassCard, HomeSectionHeader, HOME_GRADIENT } from './HomeSectionKit'
 import FeaturedServices from './FeaturedServices'
 import ServiceSeekers from './ServiceSeekers'
+import MyServiceApplications from './MyServiceApplications'
+import { useMyServiceApplications } from '@/hooks/useMyServiceApplications'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = HOME_GRADIENT
 
 interface HireAServiceProps {
     dragHandle?: ReactNode
+    // Sobe o card na home enquanto a pessoa tem inscrição ativa em algum serviço.
+    onUrgentChange?: (urgent: boolean) => void
 }
 
-export default function HireAService({ dragHandle }: HireAServiceProps) {
+export default function HireAService({ dragHandle, onUrgentChange }: HireAServiceProps) {
     const { colors } = useTheme()
     const router = useRouter()
     const startNavProgress = useNavProgressStore((s) => s.start)
     const { profileSlug } = useProfile()
+    const { items: myApplications } = useMyServiceApplications()
+    const appliedStatus = useMemo(() => new Map(myApplications.map((a) => [a.requestId, a.status])), [myApplications])
+    const hasActiveApplication = myApplications.some((a) => a.status !== 'rejected')
+    useEffect(() => { onUrgentChange?.(hasActiveApplication) }, [hasActiveApplication, onUrgentChange])
 
     const buttonStyle = {
         display: 'flex',
@@ -93,14 +101,21 @@ export default function HireAService({ dragHandle }: HireAServiceProps) {
                     <MyOpenServiceRequests limit={3} title="Seus pedidos em aberto" />
                 </div>
 
+                {/* Serviços em que a pessoa se inscreveu como profissional */}
+                {myApplications.length > 0 && (
+                    <div className="mt-6">
+                        <MyServiceApplications items={myApplications} />
+                    </div>
+                )}
+
                 {/* Serviços que profissionais e lojas já oferecem */}
                 <div className="mt-6">
-                    <FeaturedServices title="Quem já oferece serviço" />
+                    <FeaturedServices title="Quem já oferece serviço" hideIcon />
                 </div>
 
                 {/* Pedidos de todo mundo: quem está procurando um profissional */}
                 <div className="mt-6">
-                    <ServiceSeekers />
+                    <ServiceSeekers applied={appliedStatus} />
                 </div>
             </HomeGlassCard>
         </section>

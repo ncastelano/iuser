@@ -5,7 +5,7 @@ import { getAuthedUser } from '@/lib/adminAuth'
 import { sendPushToUser } from '@/lib/serverPush'
 import { getServiceLabel } from '@/lib/serviceTypes'
 
-// Avisa (push) quem pediu o serviço que alguém acabou de se candidatar.
+// Avisa (push) quem pediu o serviço que alguém acabou de se inscrever.
 // Quem se candidata vem do token; a candidatura precisa existir de verdade.
 export async function POST(req: Request) {
     const user = await getAuthedUser(req)
@@ -40,7 +40,7 @@ export async function POST(req: Request) {
     const serviceLabel = getServiceLabel(request.service_type, request.custom_service)
 
     await sendPushToUser(request.requester_id, {
-        title: 'Nova candidatura!',
+        title: 'Nova inscrição!',
         body: `${who} quer atender seu pedido de ${serviceLabel}`,
         url: '/solicitar-servico',
         tag: `service-application-${serviceRequestId}`,

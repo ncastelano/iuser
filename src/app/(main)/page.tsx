@@ -130,6 +130,7 @@ function HomePageContent() {
     const [breveMap, setBreveMap] = useState<Record<string, boolean>>({})
     const [motoristaUrgent, setMotoristaUrgent] = useState(false)
     const [canalMotoristaUrgent, setCanalMotoristaUrgent] = useState(false)
+    const [servicoUrgent, setServicoUrgent] = useState(false)
 
     const storeOrderCounts = useMerchantStore(s => s.storeOrderCounts)
     const setMerchantStoreOrderCounts = useMerchantStore(s => s.setStoreOrderCounts)
@@ -314,9 +315,11 @@ function HomePageContent() {
     const urgentSections = useMemo(() => {
         const list: string[] = []
         if (canalMotoristaUrgent) list.push('canalMotorista')
+        // Inscrito num serviço: o card de Serviços fica logo abaixo do Canal do Motorista
+        if (servicoUrgent) list.push('servico')
         if (motoristaUrgent) list.push('motorista')
         return list
-    }, [motoristaUrgent, canalMotoristaUrgent])
+    }, [motoristaUrgent, canalMotoristaUrgent, servicoUrgent])
 
     const displayedSections = useMemo(() => {
         const uniqueSections = Array.from(new Set(sections))
@@ -452,7 +455,7 @@ function HomePageContent() {
             case 'canalMotorista':
                 return <AcceptARider onUrgentChange={setCanalMotoristaUrgent} />
             case 'servico':
-                return <HireAService />
+                return <HireAService onUrgentChange={setServicoUrgent} />
             default:
                 return null
         }

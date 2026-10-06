@@ -23,7 +23,7 @@ export function HomeSectionHeader({
     action,
     dragHandle,
 }: {
-    icon: LucideIcon
+    icon?: LucideIcon
     title: string
     subtitle?: string
     action?: ReactNode
@@ -34,12 +34,14 @@ export function HomeSectionHeader({
         <div className="flex items-center justify-between gap-2 mb-4">
             <div className="flex items-center gap-3 min-w-0">
                 {dragHandle}
-                <div
-                    className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0"
-                    style={{ background: HOME_GRADIENT, boxShadow: '0 4px 12px #f9731650' }}
-                >
-                    <Icon size={18} color="#fff" strokeWidth={2.25} />
-                </div>
+                {Icon && (
+                    <div
+                        className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0"
+                        style={{ background: HOME_GRADIENT, boxShadow: '0 4px 12px #f9731650' }}
+                    >
+                        <Icon size={18} color="#fff" strokeWidth={2.25} />
+                    </div>
+                )}
                 <div className="min-w-0">
                     <h2 className="text-lg font-black leading-tight truncate" style={{ color: colors.textPrimary }}>{title}</h2>
                     {subtitle && (
