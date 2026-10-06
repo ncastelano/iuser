@@ -29,7 +29,6 @@ import { isProfileOpenNow } from '@/lib/profileHours'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
 import ProductShowcase from './inicio/sections/ProductShowcase'
 import FeaturedPublications from './inicio/sections/FeaturePublications'
-import FeaturedServices from './inicio/sections/FeaturedServices'
 import FeaturedProfiles from './inicio/sections/FeaturedProfiles'
 import LocationPicker from '@/components/LocationPicker'
 import StoreList from './inicio/sections/StoreList'
@@ -50,7 +49,6 @@ const DEFAULT_SECTIONS = [
     'motorista',
     'canalMotorista',
     'servico',
-    'servicoShowcase',
     'careerPlans',
     'orderSection',
 ]
@@ -158,7 +156,8 @@ function HomePageContent() {
                 if (Array.isArray(parsed)) {
                     const unique = Array.from(new Set(parsed))
                     const hasCategorias = unique.includes('categorias')
-                    let filtered = unique.filter(s => s !== 'categorias')
+                    // 'servicoShowcase' virou parte do card 'servico' (HireAService)
+                    let filtered = unique.filter(s => s !== 'categorias' && s !== 'servicoShowcase')
                     const missing = DEFAULT_SECTIONS.filter(s => !filtered.includes(s))
                     const final = hasCategorias ? ['categorias', ...filtered, ...missing] : [...filtered, ...missing]
                     setSections(final)
@@ -454,8 +453,6 @@ function HomePageContent() {
                 return <AcceptARider onUrgentChange={setCanalMotoristaUrgent} />
             case 'servico':
                 return <HireAService />
-            case 'servicoShowcase':
-                return <FeaturedServices />
             default:
                 return null
         }

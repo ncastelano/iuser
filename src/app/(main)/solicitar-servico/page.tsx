@@ -258,6 +258,7 @@ export default function PedirServicoPage() {
     const [clusterLocation, setClusterLocation] = useState<{ lng: number; lat: number } | null>(null)
 
     const stepIndex = STEPS.indexOf(step)
+    const fitContent = step !== 'type'
     const selectedType = SERVICE_TYPES.find((t) => t.id === serviceType) || null
 
     const handleAddPhotos = async (files: File[]) => {
@@ -1196,23 +1197,28 @@ export default function PedirServicoPage() {
                 pra baixo pra ver mais (ou menos) sem precisar de um botão */}
             {!activeField && !submitted && (
                 <div
-                    className="absolute bottom-0 inset-x-0 z-20 rounded-t-3xl px-5 pt-4 pb-8 overflow-y-auto"
+                    className="absolute bottom-0 inset-x-0 z-20 rounded-t-3xl px-5 pt-4 pb-6 overflow-y-auto"
                     style={{
                         background: colors.surface,
                         boxShadow: '0 -8px 30px rgba(0,0,0,0.35)',
-                        height: `${sheetHeightVh}vh`,
-                        transition: isDraggingSheet ? 'none' : 'height 0.25s ease-out',
+                        // Etapas "Onde" e "Detalhes" têm pouco conteúdo: a folha
+                        // encolhe pra caber nele e deixa o mapa à mostra. Só a
+                        // lista de serviços (etapa 1) usa a altura arrastável.
+                        ...(fitContent
+                            ? { height: 'auto', maxHeight: `${SHEET_MAX_VH}vh` }
+                            : { height: `${sheetHeightVh}vh`, transition: isDraggingSheet ? 'none' : 'height 0.25s ease-out' }),
                     }}
                 >
                     <div
-                        className="w-full flex justify-center pb-3 -mt-1 touch-none cursor-grab active:cursor-grabbing"
+                        className={`w-full flex justify-center pb-3 -mt-1 touch-none ${fitContent ? '' : 'cursor-grab active:cursor-grabbing'}`}
                         onPointerDown={(e) => {
+                            if (fitContent) return
                             e.currentTarget.setPointerCapture(e.pointerId)
                             handleSheetDragStart(e.clientY)
                         }}
-                        onPointerMove={(e) => handleSheetDragMove(e.clientY)}
-                        onPointerUp={handleSheetDragEnd}
-                        onPointerCancel={handleSheetDragEnd}
+                        onPointerMove={(e) => { if (!fitContent) handleSheetDragMove(e.clientY) }}
+                        onPointerUp={() => { if (!fitContent) handleSheetDragEnd() }}
+                        onPointerCancel={() => { if (!fitContent) handleSheetDragEnd() }}
                     >
                         <div className="w-10 h-1 rounded-full" style={{ background: colors.border }} />
                     </div>
@@ -1458,14 +1464,24 @@ export default function PedirServicoPage() {
                                 )}
                             </div>
 
-                            <button
-                                onClick={() => setStep('details')}
-                                disabled={!location.address.trim()}
-                                className="w-full mt-4 py-3.5 rounded-xl font-black uppercase text-sm tracking-wider transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:hover:scale-100"
-                                style={{ background: GRADIENT, color: '#fff' }}
-                            >
-                                Continuar
-                            </button>
+                            <div className="flex gap-2 mt-4">
+                                <button
+                                    onClick={handleBack}
+                                    className="flex items-center justify-center gap-1.5 px-5 py-3.5 rounded-xl font-black uppercase text-sm tracking-wider transition-all active:scale-95"
+                                    style={{ background: `${colors.border}30`, color: colors.textPrimary, border: `1px solid ${colors.border}` }}
+                                >
+                                    <ArrowLeft size={16} />
+                                    Voltar
+                                </button>
+                                <button
+                                    onClick={() => setStep('details')}
+                                    disabled={!location.address.trim()}
+                                    className="flex-1 py-3.5 rounded-xl font-black uppercase text-sm tracking-wider transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:hover:scale-100"
+                                    style={{ background: GRADIENT, color: '#fff' }}
+                                >
+                                    Continuar
+                                </button>
+                            </div>
                         </>
                     )}
 
@@ -1511,15 +1527,25 @@ export default function PedirServicoPage() {
                                 </button>
                             )}
 
-                            <button
-                                onClick={handleRequestConfirm}
-                                disabled={submitting || !location.address.trim()}
-                                className="w-full mt-4 py-3.5 rounded-xl font-black uppercase text-sm tracking-wider transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:hover:scale-100 flex items-center justify-center gap-2"
-                                style={{ background: GRADIENT, color: '#fff' }}
-                            >
-                                {submitting ? <Spinner size={18} /> : <Wrench size={18} />}
-                                Solicitar serviço
-                            </button>
+                            <div className="flex gap-2 mt-4">
+                                <button
+                                    onClick={handleBack}
+                                    className="flex items-center justify-center gap-1.5 px-5 py-3.5 rounded-xl font-black uppercase text-sm tracking-wider transition-all active:scale-95"
+                                    style={{ background: `${colors.border}30`, color: colors.textPrimary, border: `1px solid ${colors.border}` }}
+                                >
+                                    <ArrowLeft size={16} />
+                                    Voltar
+                                </button>
+                                <button
+                                    onClick={handleRequestConfirm}
+                                    disabled={submitting || !location.address.trim()}
+                                    className="flex-1 py-3.5 rounded-xl font-black uppercase text-sm tracking-wider transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:hover:scale-100 flex items-center justify-center gap-2"
+                                    style={{ background: GRADIENT, color: '#fff' }}
+                                >
+                                    {submitting ? <Spinner size={18} /> : <Wrench size={18} />}
+                                    Solicitar serviço
+                                </button>
+                            </div>
                         </>
                     )}
                     </div>

@@ -21,12 +21,12 @@ function shortAddress(address: string): string {
 function relativeTime(iso: string): string {
     const diffMs = Date.now() - new Date(iso).getTime()
     const minutes = Math.floor(diffMs / 60000)
-    if (minutes < 1) return 'agora'
-    if (minutes < 60) return `${minutes} min atrás`
+    if (minutes < 1) return 'você pediu agora'
+    if (minutes < 60) return `você pediu há ${minutes} min`
     const hours = Math.floor(minutes / 60)
-    if (hours < 24) return `${hours}h atrás`
+    if (hours < 24) return `você pediu há ${hours}h`
     const days = Math.floor(hours / 24)
-    return `${days}d atrás`
+    return `você pediu há ${days} ${days === 1 ? 'dia' : 'dias'}`
 }
 
 interface Candidate {
@@ -164,7 +164,7 @@ export default function MyOpenServiceRequests({ limit = 5, title }: MyOpenServic
                     return (
                         <div
                             key={r.id}
-                            className="flex-shrink-0 w-60 rounded-xl p-3 flex flex-col gap-2"
+                            className="flex-shrink-0 w-64 rounded-2xl p-3.5 flex flex-col gap-2"
                             style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
                         >
                             <div className="flex items-center gap-2">
@@ -180,11 +180,14 @@ export default function MyOpenServiceRequests({ limit = 5, title }: MyOpenServic
                                 </div>
                             </div>
 
-                            <span className="text-[10px]" style={{ color: colors.textSecondary }}>{relativeTime(r.createdAt)}</span>
+                            <span className="text-[10px]" style={{ color: colors.textSecondary }}>
+                                {relativeTime(r.createdAt)}
+                                {r.candidates.length > 0 && ` · ${r.candidates.length} ${r.candidates.length === 1 ? 'profissional quer' : 'profissionais querem'} fazer`}
+                            </span>
 
                             <div className="flex flex-col gap-1.5 mt-1">
                                 {r.candidates.length === 0 ? (
-                                    <span className="text-[11px]" style={{ color: colors.textSecondary }}>Nenhum candidato ainda</span>
+                                    <span className="text-[11px]" style={{ color: colors.textSecondary }}>Ninguém se candidatou ainda. Assim que alguém aparecer, avisamos você.</span>
                                 ) : (
                                     r.candidates.map((c) => (
                                         <div
@@ -200,7 +203,7 @@ export default function MyOpenServiceRequests({ limit = 5, title }: MyOpenServic
                                                 </span>
                                             )}
                                             <span className="text-[10px] font-bold flex-1 truncate" style={{ color: colors.textPrimary }}>
-                                                {c.name || (c.profileSlug ? `@${c.profileSlug}` : 'Candidato')}
+                                                {c.name || (c.profileSlug ? `@${c.profileSlug}` : 'Profissional')}
                                             </span>
 
                                             {c.status === 'pending' ? (
@@ -231,7 +234,7 @@ export default function MyOpenServiceRequests({ limit = 5, title }: MyOpenServic
                                                     className="text-[9px] font-black uppercase flex-shrink-0"
                                                     style={{ color: c.status === 'accepted' ? '#22c55e' : colors.textSecondary }}
                                                 >
-                                                    {c.status === 'accepted' ? 'Aceito' : 'Recusado'}
+                                                    {c.status === 'accepted' ? 'Contratado' : 'Recusado'}
                                                 </span>
                                             )}
                                         </div>
