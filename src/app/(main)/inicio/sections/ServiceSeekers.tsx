@@ -6,24 +6,19 @@
 // Prestador); aqui é só a vitrine.
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
-import { MapPin, Plus, Eye } from 'lucide-react'
+import { MapPin, Plus, Eye, MoreHorizontal, Pencil, Trash2, X } from 'lucide-react'
+import { toast } from 'sonner'
+import { supabase } from '@/lib/supabase/client'
+import ServiceRequestDetailsDialog from '@/components/ServiceRequestDetailsDialog'
+import { Spinner } from '@/components/Spinner'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
-import { BoardItem, fetchOpenBoardItems, getItemIcon, getItemLabel, shortAddress } from '@/lib/serviceBoard'
+import { BoardItem, fetchOpenBoardItems, getItemIcon, getItemLabel, shortAddress, askedAgo, notifyServiceRequestsChanged, SERVICE_REQUESTS_CHANGED } from '@/lib/serviceBoard'
 import { HOME_GRADIENT } from './HomeSectionKit'
-
-function whenAsked(iso: string): string {
-    const minutes = Math.floor((Date.now() - new Date(iso).getTime()) / 60000)
-    if (minutes < 1) return 'pediu agora'
-    if (minutes < 60) return `pediu há ${minutes} min`
-    const hours = Math.floor(minutes / 60)
-    if (hours < 24) return `pediu há ${hours}h`
-    const days = Math.floor(hours / 24)
-    return `pediu há ${days} ${days === 1 ? 'dia' : 'dias'}`
-}
 
 // Em vitrine pública, só rua/bairro — o número fica pra quem for atender.
 function publicPlace(address: string): string {
@@ -36,12 +31,43 @@ export default function ServiceSeekers({ limit = 8 }: { limit?: number }) {
     const startNavProgress = useNavProgressStore((s) => s.start)
     const { userId } = useProfile()
     const [items, setItems] = useState<BoardItem[] | null>(null)
+    const [menuItem, setMenuItem] = useState<BoardItem | null>(null)
+    const [confirmDelete, setConfirmDelete] = useState(false)
+    const [deleting, setDeleting] = useState(false)
+    const [detailsId, setDetailsId] = useState<string | null>(null)
+
+    const load = useCallback(() => {
+        fetchOpenBoardItems(limit).then(setItems)
+    }, [limit])
 
     useEffect(() => {
-        let cancelled = false
-        fetchOpenBoardItems(limit).then((rows) => { if (!cancelled) setItems(rows) })
-        return () => { cancelled = true }
-    }, [limit])
+        load()
+        // Editar/excluir/aceitar em "Seus pedidos em aberto" também atualiza aqui.
+        window.addEventListener(SERVICE_REQUESTS_CHANGED, load)
+        return () => window.removeEventListener(SERVICE_REQUESTS_CHANGED, load)
+    }, [load])
+
+    const closeMenu = () => { setMenuItem(null); setConfirmDelete(false) }
+
+    const deleteRequest = async () => {
+        if (!menuItem) return
+        setDeleting(true)
+        try {
+            const { data, error } = await supabase.from('service_requests').delete().eq('id', menuItem.id).select('id')
+            if (error) throw error
+            if (!data || data.length === 0) {
+                toast.error('Não foi possível excluir esse pedido.')
+                return
+            }
+            toast.success('Pedido excluído')
+            closeMenu()
+            notifyServiceRequestsChanged()
+        } catch (err: any) {
+            toast.error('Erro ao excluir: ' + (err.message || 'tente novamente'))
+        } finally {
+            setDeleting(false)
+        }
+    }
 
     const go = (path: string) => { startNavProgress(); router.push(path) }
 
@@ -78,14 +104,16 @@ export default function ServiceSeekers({ limit = 8 }: { limit?: number }) {
                                     </span>
                                 )}
                                 <div className="min-w-0 flex-1">
-                                    <p className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>{who}</p>
-                                    <p className="text-[10px]" style={{ color: colors.textSecondary }}>{whenAsked(item.created_at)}</p>
+                                    <p className="text-xs font-bold truncate flex items-center gap-1.5" style={{ color: colors.textPrimary }}>
+                                        {who}
+                                        {mine && (
+                                            <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ background: `${colors.accent}20`, color: colors.accent }}>
+                                                seu pedido
+                                            </span>
+                                        )}
+                                    </p>
+                                    <p className="text-[10px] whitespace-nowrap" style={{ color: colors.textSecondary }}>{askedAgo(item.created_at)}</p>
                                 </div>
-                                {mine && (
-                                    <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full flex-shrink-0" style={{ background: `${colors.accent}20`, color: colors.accent }}>
-                                        seu pedido
-                                    </span>
-                                )}
                                 <span
                                     className="flex items-center gap-1 text-[10px] flex-shrink-0"
                                     style={{ color: colors.textSecondary }}
@@ -94,11 +122,29 @@ export default function ServiceSeekers({ limit = 8 }: { limit?: number }) {
                                     <Eye size={11} />
                                     {item.view_count}
                                 </span>
+                                {mine && (
+                                    <button
+                                        onClick={() => setMenuItem(item)}
+                                        aria-label="Mais opções do seu pedido"
+                                        className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 -mr-1 transition-colors hover:bg-black/10"
+                                        style={{ color: colors.textPrimary }}
+                                    >
+                                        <MoreHorizontal size={17} />
+                                    </button>
+                                )}
                             </div>
 
-                            <div className="flex items-center gap-2.5">
-                                <span className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: HOME_GRADIENT, color: '#fff' }}>
-                                    <Icon size={18} />
+                            <div className="flex items-center gap-3">
+                                {/* Foto do que está procurando; o ícone só aparece quando não tem foto */}
+                                <span
+                                    className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 overflow-hidden"
+                                    style={{ background: item.photo_urls?.[0] ? colors.border : HOME_GRADIENT, color: '#fff' }}
+                                >
+                                    {item.photo_urls?.[0] ? (
+                                        <img src={item.photo_urls[0]} alt="" className="w-full h-full object-cover" loading="lazy" />
+                                    ) : (
+                                        <Icon size={22} />
+                                    )}
                                 </span>
                                 <div className="min-w-0">
                                     <p className="text-sm font-black truncate" style={{ color: colors.textPrimary }}>Procura {getItemLabel(item).toLowerCase()}</p>
@@ -126,6 +172,71 @@ export default function ServiceSeekers({ limit = 8 }: { limit?: number }) {
                     )
                 })}
             </div>
+
+            {menuItem && createPortal(
+                <div className="fixed inset-0 z-[1000] flex items-end sm:items-center justify-center sm:p-4" style={{ background: 'rgba(0,0,0,0.55)' }} onClick={closeMenu}>
+                    <div
+                        className="w-full sm:max-w-xs rounded-t-3xl sm:rounded-3xl p-4 flex flex-col gap-2"
+                        style={{ background: colors.surface, border: `1px solid ${colors.border}` }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="flex items-center justify-between mb-1">
+                            <p className="text-sm font-black" style={{ color: colors.textPrimary }}>
+                                Seu pedido de {getItemLabel(menuItem).toLowerCase()}
+                            </p>
+                            <button onClick={closeMenu} aria-label="Fechar" style={{ color: colors.textSecondary }}><X size={18} /></button>
+                        </div>
+
+                        {!confirmDelete ? (
+                            <>
+                                <button
+                                    onClick={() => { setDetailsId(menuItem.id); closeMenu() }}
+                                    className="flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-bold text-left"
+                                    style={{ background: `${colors.border}30`, color: colors.textPrimary }}
+                                >
+                                    <Pencil size={16} style={{ color: colors.accent }} />
+                                    Ver detalhes e editar
+                                </button>
+                                <button
+                                    onClick={() => setConfirmDelete(true)}
+                                    className="flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-bold text-left"
+                                    style={{ background: '#ef444415', color: '#ef4444' }}
+                                >
+                                    <Trash2 size={16} />
+                                    Excluir pedido
+                                </button>
+                            </>
+                        ) : (
+                            <>
+                                <p className="text-sm" style={{ color: colors.textSecondary }}>
+                                    Tem certeza? O pedido some pra todo mundo e não dá pra desfazer.
+                                </p>
+                                <div className="flex gap-2 mt-1">
+                                    <button
+                                        onClick={() => setConfirmDelete(false)}
+                                        className="flex-1 py-2.5 rounded-xl text-xs font-black uppercase"
+                                        style={{ background: `${colors.border}30`, color: colors.textPrimary, border: `1px solid ${colors.border}` }}
+                                    >
+                                        Voltar
+                                    </button>
+                                    <button
+                                        onClick={deleteRequest}
+                                        disabled={deleting}
+                                        className="flex-1 py-2.5 rounded-xl text-xs font-black uppercase flex items-center justify-center gap-2 disabled:opacity-60"
+                                        style={{ background: '#ef4444', color: '#fff' }}
+                                    >
+                                        {deleting && <Spinner size={14} />}
+                                        Excluir
+                                    </button>
+                                </div>
+                            </>
+                        )}
+                    </div>
+                </div>,
+                document.body
+            )}
+
+            {detailsId && <ServiceRequestDetailsDialog requestId={detailsId} onClose={() => { setDetailsId(null); load() }} />}
 
             {/* Fora do carrossel de propósito: com muitos pedidos o botão ficaria
                 lá no fim da rolagem e ninguém veria. */}

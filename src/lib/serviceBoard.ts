@@ -103,3 +103,21 @@ export async function fetchOpenBoardItems(limit?: number): Promise<BoardItem[]> 
 
     return limit ? combined.slice(0, limit) : combined
 }
+
+// "pediu há 9 dias" — usado nos cards de pedido (home e diálogo de detalhes).
+export function askedAgo(iso: string): string {
+    const minutes = Math.floor((Date.now() - new Date(iso).getTime()) / 60000)
+    if (minutes < 1) return 'pediu agora'
+    if (minutes < 60) return `pediu há ${minutes} min`
+    const hours = Math.floor(minutes / 60)
+    if (hours < 24) return `pediu há ${hours}h`
+    const days = Math.floor(hours / 24)
+    return `pediu há ${days} ${days === 1 ? 'dia' : 'dias'}`
+}
+
+// Os cards "Seus pedidos em aberto" e "Quem procura serviço" mostram os mesmos
+// pedidos; quando um muda (editar, aceitar candidato, excluir), avisa o outro.
+export const SERVICE_REQUESTS_CHANGED = 'iuser:service-requests-changed'
+export function notifyServiceRequestsChanged() {
+    if (typeof window !== 'undefined') window.dispatchEvent(new Event(SERVICE_REQUESTS_CHANGED))
+}

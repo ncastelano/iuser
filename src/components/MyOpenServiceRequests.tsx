@@ -1,41 +1,31 @@
 // src/components/MyOpenServiceRequests.tsx
+//
+// "Seus pedidos em aberto": os pedidos de serviço que a própria pessoa fez,
+// em cards com a foto do que ela pediu. Clicar abre o diálogo com os detalhes,
+// edição, candidatos e quem viu o pedido.
 'use client'
 
-import { useEffect, useState } from 'react'
-import { Check, X, MapPin, Users, Eye } from 'lucide-react'
-import { Spinner } from '@/components/Spinner'
+import { useCallback, useEffect, useState } from 'react'
+import { MapPin, Eye, Users, Clock, CheckCircle2 } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { supabase } from '@/lib/supabase/client'
 import { getAvatarUrl } from '@/lib/avatar'
 import { getServiceIcon, getServiceLabel } from '@/lib/serviceTypes'
-import { toast } from 'sonner'
+import { askedAgo, SERVICE_REQUESTS_CHANGED } from '@/lib/serviceBoard'
 import ServiceRequestDetailsDialog from '@/components/ServiceRequestDetailsDialog'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
 function shortAddress(address: string): string {
     const firstPart = address.split(',')[0].trim()
-    return firstPart.length > 28 ? firstPart.substring(0, 26) + '...' : firstPart
-}
-
-function relativeTime(iso: string): string {
-    const diffMs = Date.now() - new Date(iso).getTime()
-    const minutes = Math.floor(diffMs / 60000)
-    if (minutes < 1) return 'você pediu agora'
-    if (minutes < 60) return `você pediu há ${minutes} min`
-    const hours = Math.floor(minutes / 60)
-    if (hours < 24) return `você pediu há ${hours}h`
-    const days = Math.floor(hours / 24)
-    return `você pediu há ${days} ${days === 1 ? 'dia' : 'dias'}`
+    return firstPart.length > 30 ? firstPart.substring(0, 28) + '...' : firstPart
 }
 
 interface Candidate {
-    applicationId: string
-    applicantId: string
+    id: string
     status: 'pending' | 'accepted' | 'rejected'
     name: string | null
-    profileSlug: string | null
     avatarUrl: string | undefined
 }
 
@@ -46,10 +36,7 @@ interface OpenRequest {
     locationAddress: string
     createdAt: string
     viewCount: number
-    description: string
-    photoUrls: string[]
-    needsAccess: boolean
-    accessNotes: string | null
+    photoUrl: string | null
     candidates: Candidate[]
 }
 
@@ -63,11 +50,9 @@ export default function MyOpenServiceRequests({ limit = 5, title }: MyOpenServic
     const { userId, loading: profileLoading } = useProfile()
     const [loading, setLoading] = useState(true)
     const [requests, setRequests] = useState<OpenRequest[]>([])
-    const [decidingId, setDecidingId] = useState<string | null>(null)
     const [openId, setOpenId] = useState<string | null>(null)
 
-    const load = async () => {
-        setLoading(true)
+    const load = useCallback(async () => {
         if (!userId) {
             setRequests([])
             setLoading(false)
@@ -76,7 +61,7 @@ export default function MyOpenServiceRequests({ limit = 5, title }: MyOpenServic
 
         const { data: myRequests } = await supabase
             .from('service_requests')
-            .select('id, service_type, custom_service, location_address, created_at, view_count, description, photo_urls, location_needs_access, location_access_notes')
+            .select('id, service_type, custom_service, location_address, created_at, view_count, photo_urls')
             .eq('requester_id', userId)
             .eq('status', 'pending')
             .order('created_at', { ascending: false })
@@ -88,178 +73,123 @@ export default function MyOpenServiceRequests({ limit = 5, title }: MyOpenServic
             return
         }
 
-        const requestIds = myRequests.map((r) => r.id)
         const { data: applications } = await supabase
             .from('service_applications')
             .select('id, service_request_id, applicant_id, status')
-            .in('service_request_id', requestIds)
+            .in('service_request_id', myRequests.map((r) => r.id))
 
         const applicantIds = Array.from(new Set((applications || []).map((a) => a.applicant_id)))
-        let profilesById = new Map<string, { name: string | null; profileSlug: string | null; avatar_url: string | null }>()
+        let profilesById = new Map<string, { name: string | null; avatar_url: string | null }>()
         if (applicantIds.length > 0) {
-            const { data: profiles } = await supabase
-                .from('profiles')
-                .select('id, name, profileSlug, avatar_url')
-                .in('id', applicantIds)
+            const { data: profiles } = await supabase.from('profiles').select('id, name, avatar_url').in('id', applicantIds)
             profilesById = new Map((profiles || []).map((p) => [p.id, p]))
         }
 
-        const result: OpenRequest[] = myRequests.map((r) => {
-            const serviceLabel = getServiceLabel(r.service_type, r.custom_service)
-            const candidates: Candidate[] = (applications || [])
+        setRequests(myRequests.map((r) => ({
+            id: r.id,
+            serviceType: r.service_type,
+            serviceLabel: getServiceLabel(r.service_type, r.custom_service),
+            locationAddress: r.location_address,
+            createdAt: r.created_at,
+            viewCount: r.view_count || 0,
+            photoUrl: r.photo_urls?.[0] || null,
+            candidates: (applications || [])
                 .filter((a) => a.service_request_id === r.id)
                 .map((a) => {
                     const p = profilesById.get(a.applicant_id)
-                    return {
-                        applicationId: a.id,
-                        applicantId: a.applicant_id,
-                        status: a.status,
-                        name: p?.name || null,
-                        profileSlug: p?.profileSlug || null,
-                        avatarUrl: getAvatarUrl(supabase, p?.avatar_url),
-                    }
-                })
-            return {
-                id: r.id,
-                serviceType: r.service_type,
-                serviceLabel,
-                locationAddress: r.location_address,
-                createdAt: r.created_at,
-                viewCount: r.view_count || 0,
-                description: r.description || '',
-                photoUrls: r.photo_urls || [],
-                needsAccess: !!r.location_needs_access,
-                accessNotes: r.location_access_notes || null,
-                candidates,
-            }
-        })
-
-        setRequests(result)
+                    return { id: a.id, status: a.status, name: p?.name || null, avatarUrl: getAvatarUrl(supabase, p?.avatar_url) }
+                }),
+        })))
         setLoading(false)
-    }
+    }, [userId, limit])
 
     useEffect(() => {
         if (profileLoading) return
         load()
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [profileLoading, userId])
-
-    const decide = async (applicationId: string, status: 'accepted' | 'rejected') => {
-        setDecidingId(applicationId)
-        try {
-            const { error } = await supabase.from('service_applications').update({ status }).eq('id', applicationId)
-            if (error) throw error
-            setRequests((prev) =>
-                prev.map((r) => ({
-                    ...r,
-                    candidates: r.candidates.map((c) => (c.applicationId === applicationId ? { ...c, status } : c)),
-                }))
-            )
-            toast.success(status === 'accepted' ? 'Candidato aceito!' : 'Candidato recusado.')
-        } catch (err: any) {
-            toast.error('Erro ao atualizar candidatura: ' + (err.message || 'tente novamente'))
-        } finally {
-            setDecidingId(null)
-        }
-    }
+        window.addEventListener(SERVICE_REQUESTS_CHANGED, load)
+        return () => window.removeEventListener(SERVICE_REQUESTS_CHANGED, load)
+    }, [profileLoading, load])
 
     if (loading || requests.length === 0) return null
-
-    const openRequest = requests.find((r) => r.id === openId) || null
 
     return (
         <div>
             {title && (
-                <h3 className="text-sm font-black mb-2" style={{ color: colors.textPrimary }}>{title}</h3>
+                <div className="mb-3">
+                    <h3 className="text-sm font-black" style={{ color: colors.textPrimary }}>{title}</h3>
+                    <p className="text-xs opacity-60" style={{ color: colors.textPrimary }}>Toque num pedido para ver os detalhes, editar ou escolher quem vai fazer</p>
+                </div>
             )}
             <div className="flex gap-3 overflow-x-auto pb-1">
                 {requests.map((r) => {
                     const Icon = getServiceIcon(r.serviceType)
+                    const hired = r.candidates.find((c) => c.status === 'accepted')
+                    const waiting = r.candidates.filter((c) => c.status === 'pending')
                     return (
                         <div
                             key={r.id}
                             onClick={() => setOpenId(r.id)}
-                            className="flex-shrink-0 w-64 rounded-2xl p-3.5 flex flex-col gap-2 cursor-pointer transition-transform hover:scale-[1.02]"
+                            className="flex-shrink-0 w-64 rounded-3xl overflow-hidden flex flex-col cursor-pointer transition-transform hover:scale-[1.02] active:scale-[0.99]"
                             style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
                         >
-                            <div className="flex items-center gap-2">
-                                <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#fff' }}>
-                                    <Icon size={16} />
-                                </div>
-                                <div className="min-w-0">
-                                    <p className="text-xs font-black truncate" style={{ color: colors.textPrimary }}>{r.serviceLabel}</p>
-                                    <p className="text-[10px] flex items-center gap-1 truncate" style={{ color: colors.textSecondary }}>
-                                        <MapPin size={9} className="flex-shrink-0" />
-                                        {shortAddress(r.locationAddress)}
-                                    </p>
-                                </div>
+                            {/* Capa: foto do que a pessoa pediu (ícone só quando não tem foto) */}
+                            <div className="relative h-32 w-full" style={{ background: r.photoUrl ? colors.border : GRADIENT }}>
+                                {r.photoUrl ? (
+                                    <img src={r.photoUrl} alt="" className="w-full h-full object-cover" loading="lazy" />
+                                ) : (
+                                    <div className="w-full h-full flex items-center justify-center">
+                                        <Icon size={44} color="rgba(255,255,255,0.85)" />
+                                    </div>
+                                )}
+                                <div className="absolute inset-x-0 bottom-0 h-16 pointer-events-none" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.65), transparent)' }} />
+                                <span className="absolute left-3 bottom-2.5 text-sm font-black text-white drop-shadow">{r.serviceLabel}</span>
+                                <span className="absolute right-2.5 top-2.5 flex items-center gap-1 text-[10px] font-bold text-white px-2 py-1 rounded-full" style={{ background: 'rgba(0,0,0,0.45)' }}>
+                                    <Eye size={11} />
+                                    {r.viewCount}
+                                </span>
                             </div>
 
-                            <span className="text-[10px]" style={{ color: colors.textSecondary }}>
-                                {relativeTime(r.createdAt)}
-                                {r.candidates.length > 0 && ` · ${r.candidates.length} ${r.candidates.length === 1 ? 'profissional quer' : 'profissionais querem'} fazer`}
-                            </span>
-                            <span className="flex items-center gap-1 text-[10px]" style={{ color: colors.textSecondary }}>
-                                <Eye size={11} />
-                                {r.viewCount === 0
-                                    ? 'Ninguém viu ainda'
-                                    : `${r.viewCount} ${r.viewCount === 1 ? 'pessoa viu' : 'pessoas viram'} seu pedido`}
-                            </span>
+                            <div className="p-3.5 flex flex-col gap-2">
+                                <div className="flex items-center justify-between gap-2 text-[11px]" style={{ color: colors.textSecondary }}>
+                                    <span className="flex items-center gap-1 min-w-0">
+                                        <MapPin size={11} className="flex-shrink-0" />
+                                        <span className="truncate">{shortAddress(r.locationAddress)}</span>
+                                    </span>
+                                    <span className="flex items-center gap-1 flex-shrink-0">
+                                        <Clock size={11} />
+                                        {askedAgo(r.createdAt).replace('pediu ', '')}
+                                    </span>
+                                </div>
 
-                            <div className="flex flex-col gap-1.5 mt-1">
-                                {r.candidates.length === 0 ? (
-                                    <span className="text-[11px]" style={{ color: colors.textSecondary }}>Ninguém se candidatou ainda. Assim que alguém aparecer, avisamos você.</span>
-                                ) : (
-                                    r.candidates.map((c) => (
-                                        <div
-                                            key={c.applicationId}
-                                            className="flex items-center gap-1.5 rounded-lg px-2 py-1.5"
-                                            style={{ background: `${colors.border}30` }}
-                                        >
-                                            {c.avatarUrl ? (
-                                                <img src={c.avatarUrl} className="w-5 h-5 rounded-full object-cover flex-shrink-0" alt="" />
-                                            ) : (
-                                                <span className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT }}>
-                                                    <Users size={10} color="#fff" />
-                                                </span>
-                                            )}
-                                            <span className="text-[10px] font-bold flex-1 truncate" style={{ color: colors.textPrimary }}>
-                                                {c.name || (c.profileSlug ? `@${c.profileSlug}` : 'Profissional')}
-                                            </span>
-
-                                            {c.status === 'pending' ? (
-                                                decidingId === c.applicationId ? (
-                                                    <Spinner size={12} color={colors.textSecondary} className="flex-shrink-0" />
+                                {/* Como está o pedido, em palavras */}
+                                {hired ? (
+                                    <div className="flex items-center gap-2 rounded-xl px-2.5 py-2" style={{ background: '#22c55e18' }}>
+                                        <CheckCircle2 size={15} color="#22c55e" className="flex-shrink-0" />
+                                        <span className="text-xs font-bold truncate" style={{ color: '#16a34a' }}>
+                                            {hired.name ? `${hired.name.split(' ')[0]} vai fazer` : 'Profissional contratado'}
+                                        </span>
+                                    </div>
+                                ) : waiting.length > 0 ? (
+                                    <div className="flex items-center gap-2 rounded-xl px-2.5 py-2" style={{ background: `${colors.accent}15` }}>
+                                        <div className="flex -space-x-2 flex-shrink-0">
+                                            {waiting.slice(0, 3).map((c) => (
+                                                c.avatarUrl ? (
+                                                    <img key={c.id} src={c.avatarUrl} className="w-6 h-6 rounded-full object-cover" style={{ border: `2px solid ${colors.surface}` }} alt="" />
                                                 ) : (
-                                                    <div className="flex items-center gap-1 flex-shrink-0">
-                                                        <button
-                                                            onClick={(e) => { e.stopPropagation(); decide(c.applicationId, 'accepted') }}
-                                                            className="w-5 h-5 rounded-full flex items-center justify-center"
-                                                            style={{ background: '#22c55e', color: '#fff' }}
-                                                            title="Aceitar"
-                                                        >
-                                                            <Check size={11} />
-                                                        </button>
-                                                        <button
-                                                            onClick={(e) => { e.stopPropagation(); decide(c.applicationId, 'rejected') }}
-                                                            className="w-5 h-5 rounded-full flex items-center justify-center"
-                                                            style={{ background: '#ef4444', color: '#fff' }}
-                                                            title="Recusar"
-                                                        >
-                                                            <X size={11} />
-                                                        </button>
-                                                    </div>
+                                                    <span key={c.id} className="w-6 h-6 rounded-full flex items-center justify-center" style={{ background: GRADIENT, border: `2px solid ${colors.surface}` }}>
+                                                        <Users size={11} color="#fff" />
+                                                    </span>
                                                 )
-                                            ) : (
-                                                <span
-                                                    className="text-[9px] font-black uppercase flex-shrink-0"
-                                                    style={{ color: c.status === 'accepted' ? '#22c55e' : colors.textSecondary }}
-                                                >
-                                                    {c.status === 'accepted' ? 'Contratado' : 'Recusado'}
-                                                </span>
-                                            )}
+                                            ))}
                                         </div>
-                                    ))
+                                        <span className="text-xs font-bold leading-tight" style={{ color: colors.accent }}>
+                                            {waiting.length} {waiting.length === 1 ? 'profissional quer' : 'profissionais querem'} fazer. Escolha!
+                                        </span>
+                                    </div>
+                                ) : (
+                                    <div className="rounded-xl px-2.5 py-2 text-xs leading-snug" style={{ background: `${colors.border}30`, color: colors.textSecondary }}>
+                                        Esperando os profissionais verem seu pedido. Avisamos quando alguém quiser fazer.
+                                    </div>
                                 )}
                             </div>
                         </div>
@@ -267,18 +197,7 @@ export default function MyOpenServiceRequests({ limit = 5, title }: MyOpenServic
                 })}
             </div>
 
-            {openRequest && (
-                <ServiceRequestDetailsDialog
-                    request={openRequest}
-                    whenAsked={relativeTime(openRequest.createdAt)}
-                    decidingId={decidingId}
-                    onDecide={decide}
-                    onClose={() => setOpenId(null)}
-                    onSaved={(patch) =>
-                        setRequests((prev) => prev.map((r) => (r.id === openRequest.id ? { ...r, ...patch } : r)))
-                    }
-                />
-            )}
+            {openId && <ServiceRequestDetailsDialog requestId={openId} onClose={() => { setOpenId(null); load() }} />}
         </div>
     )
 }

@@ -5,19 +5,21 @@
 // "Visitantes dos serviços" (quem já viu o pedido).
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { X, MapPin, Building2, Pencil, Eye, Check, Users, Clock } from 'lucide-react'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
-import { getServiceIcon } from '@/lib/serviceTypes'
+import { getServiceIcon, getServiceLabel } from '@/lib/serviceTypes'
+import { getAvatarUrl } from '@/lib/avatar'
+import { askedAgo, notifyServiceRequestsChanged } from '@/lib/serviceBoard'
 import { Spinner } from '@/components/Spinner'
 import ServiceRequestVisitors from '@/components/ServiceRequestVisitors'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
-export interface DialogCandidate {
+interface DialogCandidate {
     applicationId: string
     status: 'pending' | 'accepted' | 'rejected'
     name: string | null
@@ -25,7 +27,7 @@ export interface DialogCandidate {
     avatarUrl: string | undefined
 }
 
-export interface DialogRequest {
+interface DialogRequest {
     id: string
     serviceType: string
     serviceLabel: string
@@ -40,16 +42,103 @@ export interface DialogRequest {
 }
 
 interface Props {
+    requestId: string
+    onClose: () => void
+}
+
+// Carrega o pedido sozinho pelo id, pra poder abrir de qualquer lista (Seus
+// pedidos em aberto, "more" do Quem procura serviço).
+export default function ServiceRequestDetailsDialog({ requestId, onClose }: Props) {
+    const { colors } = useTheme()
+    const [request, setRequest] = useState<DialogRequest | null>(null)
+    const [decidingId, setDecidingId] = useState<string | null>(null)
+
+    const load = async () => {
+        const { data: r } = await supabase
+            .from('service_requests')
+            .select('id, service_type, custom_service, location_address, description, photo_urls, location_needs_access, location_access_notes, created_at, view_count')
+            .eq('id', requestId)
+            .maybeSingle()
+        if (!r) { onClose(); return }
+
+        const { data: apps } = await supabase
+            .from('service_applications')
+            .select('id, applicant_id, status')
+            .eq('service_request_id', requestId)
+        const ids = Array.from(new Set((apps || []).map((a) => a.applicant_id)))
+        const { data: profiles } = ids.length
+            ? await supabase.from('profiles').select('id, name, profileSlug, avatar_url').in('id', ids)
+            : { data: [] as any[] }
+        const byId = new Map((profiles || []).map((p: any) => [p.id, p]))
+
+        setRequest({
+            id: r.id,
+            serviceType: r.service_type,
+            serviceLabel: getServiceLabel(r.service_type, r.custom_service),
+            locationAddress: r.location_address,
+            description: r.description || '',
+            photoUrls: r.photo_urls || [],
+            needsAccess: !!r.location_needs_access,
+            accessNotes: r.location_access_notes || null,
+            createdAt: r.created_at,
+            viewCount: r.view_count || 0,
+            candidates: (apps || []).map((a) => {
+                const p: any = byId.get(a.applicant_id)
+                return {
+                    applicationId: a.id,
+                    status: a.status,
+                    name: p?.name || null,
+                    profileSlug: p?.profileSlug || null,
+                    avatarUrl: getAvatarUrl(supabase, p?.avatar_url),
+                }
+            }),
+        })
+    }
+
+    useEffect(() => {
+        load()
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [requestId])
+
+    const decide = async (applicationId: string, status: 'accepted' | 'rejected') => {
+        setDecidingId(applicationId)
+        try {
+            const { error } = await supabase.from('service_applications').update({ status }).eq('id', applicationId)
+            if (error) throw error
+            setRequest((prev) => prev && ({
+                ...prev,
+                candidates: prev.candidates.map((c) => (c.applicationId === applicationId ? { ...c, status } : c)),
+            }))
+            toast.success(status === 'accepted' ? 'Candidato aceito!' : 'Candidato recusado.')
+            notifyServiceRequestsChanged()
+        } catch (err: any) {
+            toast.error('Erro ao atualizar candidatura: ' + (err.message || 'tente novamente'))
+        } finally {
+            setDecidingId(null)
+        }
+    }
+
+    if (!request) {
+        return createPortal(
+            <div className="fixed inset-0 z-[1000] flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.6)' }}>
+                <Spinner size={28} color="#fff" />
+            </div>,
+            document.body
+        )
+    }
+
+    return <DetailsBody request={request} setRequest={setRequest} decidingId={decidingId} onDecide={decide} onClose={onClose} colors={colors} />
+}
+
+function DetailsBody({ request, setRequest, decidingId, onDecide, onClose, colors }: {
     request: DialogRequest
-    whenAsked: string
+    setRequest: React.Dispatch<React.SetStateAction<DialogRequest | null>>
     decidingId: string | null
     onDecide: (applicationId: string, status: 'accepted' | 'rejected') => void
     onClose: () => void
-    onSaved: (patch: { description: string; needsAccess: boolean; accessNotes: string | null }) => void
-}
-
-export default function ServiceRequestDetailsDialog({ request, whenAsked, decidingId, onDecide, onClose, onSaved }: Props) {
-    const { colors } = useTheme()
+    colors: any
+}) {
+    const whenAsked = `você ${askedAgo(request.createdAt)}`
     const Icon = getServiceIcon(request.serviceType)
 
     const [editing, setEditing] = useState(false)
@@ -78,7 +167,8 @@ export default function ServiceRequestDetailsDialog({ request, whenAsked, decidi
                 return
             }
             toast.success('Pedido atualizado')
-            onSaved({ description: patch.description, needsAccess, accessNotes: patch.location_access_notes })
+            setRequest((prev) => prev && ({ ...prev, description: patch.description, needsAccess, accessNotes: patch.location_access_notes }))
+            notifyServiceRequestsChanged()
             setEditing(false)
         } catch (err: any) {
             toast.error('Erro ao salvar: ' + (err.message || 'tente novamente'))
