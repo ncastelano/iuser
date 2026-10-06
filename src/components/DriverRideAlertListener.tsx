@@ -9,6 +9,7 @@ import { useProfile } from '@/app/contexts/ProfileContext'
 import { playNotificationSound } from '@/lib/rideAlertSound'
 import { ridesAcceptableForVehicleKind, rideAcceptsAnyVehicle, type VehicleKind } from '@/lib/rideVehicle'
 import { computeRideTariffs, type RideTariffSource } from '@/lib/rideTariffs'
+import { fetchPricePerMinuteMap } from '@/lib/driverPricing'
 import { NewRideAlertCard } from '@/components/NewRideAlertCard'
 
 // Global, montado em providers.tsx: com o modo motorista ligado, toca o som e
@@ -33,6 +34,7 @@ export function DriverRideAlertListener() {
                 supabase.from('driver_vehicles').select('vehicle_kind').eq('driver_id', userId),
             ])
             if (cancelled || !pricing?.driver_mode_active) return
+            const pricePerMinute = (await fetchPricePerMinuteMap(supabase, [userId])).get(userId) ?? null
 
             // Só avisa de corridas que o veículo cadastrado do motorista atende —
             // sem isso, um motorista de moto/bicicleta era avisado de toda corrida
@@ -54,7 +56,7 @@ export function DriverRideAlertListener() {
                     const description = ride.origin_address ? `${short(ride.origin_address)} → ${short(ride.destination_address)}` : undefined
                     // Card na própria notificação com Tarifa iUser / Minha tarifa /
                     // editar, pra o motorista já se candidatar sem abrir a página.
-                    const { platformPrice, customPrice, preferredPrice } = computeRideTariffs(ride, pricing)
+                    const { platformPrice, customPrice, preferredPrice } = computeRideTariffs(ride, { ...pricing, price_per_minute: pricePerMinute })
                     toast.custom((toastId) => (
                         <NewRideAlertCard
                             rideId={ride.id}

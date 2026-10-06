@@ -21,7 +21,7 @@ import { MapPin, Star, Pencil, X, Package, CalendarClock, PawPrint, Car, CheckCi
 import { Spinner } from '@/components/Spinner'
 import { shortAddress } from '@/lib/serviceBoard'
 import { getAvatarUrl } from '@/lib/avatar'
-import { computeSuggestedPrice, computeConditionExtras, getEffectivePricing, getCustomPricing, PLATFORM_DEFAULT_PRICING_BY_VEHICLE, DriverPricing, type RideConditionFlags } from '@/lib/driverPricing'
+import { computeSuggestedPrice, computeConditionExtras, fetchPricePerMinuteMap, getEffectivePricing, getCustomPricing, PLATFORM_DEFAULT_PRICING_BY_VEHICLE, DriverPricing, type RideConditionFlags } from '@/lib/driverPricing'
 import { playRideAlertSound, playNotificationSound } from '@/lib/rideAlertSound'
 import { useVoiceNavigation } from '@/lib/voiceNavigation'
 import { getProfileRideRatingsBatch, ProfileRideRating } from '@/lib/rideReviews'
@@ -536,7 +536,8 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
         // Qualquer pessoa vê as corridas disponíveis, mesmo sem ter completado o
         // cadastro de motorista: sem tarifa própria o valor sai pela Tarifa iUser,
         // e sem veículo cadastrado aparecem as corridas de todos os tipos.
-        const pricing = pricingRow || {
+        const pricePerMinute = contextUserId ? (await fetchPricePerMinuteMap(supabase, [contextUserId])).get(contextUserId) ?? null : null
+        const pricing = pricingRow ? { ...pricingRow, price_per_minute: pricePerMinute } : {
             pricing_mode: 'platform' as const,
             base_distance_km: null, base_fee: null, price_per_km_after_base: null,
             extra_fee_pessoa: null, extra_fee_animal: null, extra_fee_objeto: null,
@@ -685,7 +686,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                 wants_air_conditioning: r.wants_air_conditioning,
             }
             const priceWith = (shape: DriverPricing) => hasDistance
-                ? computeSuggestedPrice(r.distance_km!, shape, r.ride_type, conditionFlags)
+                ? computeSuggestedPrice(r.distance_km!, shape, r.ride_type, conditionFlags, r.duration_min)
                 : shape.baseFee
                     + shape.extraFees[r.ride_type as 'pessoa' | 'animal' | 'objeto']
                     + computeConditionExtras(conditionFlags, shape.conditionExtraFees)

@@ -12,7 +12,7 @@ import LoginAndRegister from '@/components/LoginAndRegister/LoginAndRegister'
 import { toast } from 'sonner'
 import { TrendingUp, Car, Camera, Star, MessageSquare, Clock, CheckCircle2, Volume2, VolumeX, Navigation2, LayoutDashboard, Trash2 } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
-import { computeSuggestedPrice, PLATFORM_DEFAULT_PRICING_BY_VEHICLE, PLATFORM_DEFAULT_EXTRA_FEES, PLATFORM_DEFAULT_CONDITION_EXTRA_FEES, PricingMode } from '@/lib/driverPricing'
+import { computeSuggestedPrice, fetchPricePerMinuteMap, PLATFORM_DEFAULT_PRICING_BY_VEHICLE, PLATFORM_DEFAULT_EXTRA_FEES, PLATFORM_DEFAULT_CONDITION_EXTRA_FEES, PricingMode } from '@/lib/driverPricing'
 import { VehicleKind, VEHICLE_KIND_LABELS } from '@/lib/rideVehicle'
 import { createSquareImage } from '@/lib/image'
 import { DRIVER_SERVICE_OPTIONS } from '@/lib/driverServices'
@@ -80,6 +80,8 @@ function PainelMotoristaContent() {
     const [baseDistanceKm, setBaseDistanceKm] = useState('5')
     const [baseFee, setBaseFee] = useState('7')
     const [pricePerKmAfterBase, setPricePerKmAfterBase] = useState('2')
+    // Cobrança por tempo (R$ por minuto de corrida); '0' = não cobra por tempo
+    const [pricePerMinute, setPricePerMinute] = useState('0')
     const [extraFeePessoa, setExtraFeePessoa] = useState(String(PLATFORM_DEFAULT_EXTRA_FEES.pessoa))
     const [extraFeeAnimal, setExtraFeeAnimal] = useState(String(PLATFORM_DEFAULT_EXTRA_FEES.animal))
     const [extraFeeObjeto, setExtraFeeObjeto] = useState(String(PLATFORM_DEFAULT_EXTRA_FEES.objeto))
@@ -248,6 +250,11 @@ function PainelMotoristaContent() {
             if (data.base_distance_km != null) setBaseDistanceKm(String(data.base_distance_km))
             if (data.base_fee != null) setBaseFee(String(data.base_fee))
             if (data.price_per_km_after_base != null) setPricePerKmAfterBase(String(data.price_per_km_after_base))
+            // price_per_minute vem à parte: coluna nova, não pode derrubar o carregamento da tarifa
+            fetchPricePerMinuteMap(supabase, [userId]).then((m) => {
+                const v = m.get(userId)
+                if (v != null) setPricePerMinute(String(v))
+            })
             if (data.extra_fee_pessoa != null) setExtraFeePessoa(String(data.extra_fee_pessoa))
             if (data.extra_fee_animal != null) setExtraFeeAnimal(String(data.extra_fee_animal))
             if (data.extra_fee_objeto != null) setExtraFeeObjeto(String(data.extra_fee_objeto))
@@ -551,6 +558,16 @@ function PainelMotoristaContent() {
             )
             if (error) throw error
 
+            // Valor por minuto: update à parte (coluna nova) — se a migração ainda não
+            // rodou, o resto da tarifa já foi salvo e só a cobrança por tempo avisa.
+            if (customTouched) {
+                const { error: minuteError } = await supabase
+                    .from('driver_pricing')
+                    .update({ price_per_minute: parseFloat(pricePerMinute) || 0 })
+                    .eq('driver_id', user.id)
+                if (minuteError) toast.error('Não foi possível salvar o valor por minuto agora. Tente de novo mais tarde.')
+            }
+
             toast.success('Sua tarifa foi salva!')
             if (nextUrl) {
                 router.push(nextUrl)
@@ -636,6 +653,7 @@ function PainelMotoristaContent() {
     }
 
     const previewDistance = 10
+    const previewMinutes = 20
     const platformPricingForVehicle = PLATFORM_DEFAULT_PRICING_BY_VEHICLE[vehicleKind]
     const activePricing = pricingMode === 'platform'
         ? platformPricingForVehicle
@@ -643,6 +661,7 @@ function PainelMotoristaContent() {
             baseDistanceKm: parseFloat(baseDistanceKm) || 0,
             baseFee: parseFloat(baseFee) || 0,
             pricePerKmAfterBase: parseFloat(pricePerKmAfterBase) || 0,
+            pricePerMinute: parseFloat(pricePerMinute) || 0,
             extraFees: {
                 pessoa: parseFloat(extraFeePessoa) || 0,
                 animal: parseFloat(extraFeeAnimal) || 0,
@@ -657,7 +676,7 @@ function PainelMotoristaContent() {
                 ar_condicionado: parseFloat(extraFeeArCondicionado) || 0,
             },
         }
-    const previewPrice = computeSuggestedPrice(previewDistance, activePricing)
+    const previewPrice = computeSuggestedPrice(previewDistance, activePricing, undefined, undefined, previewMinutes)
 
     const conditionExtraFeeFields = [
         { key: 'condominio', label: 'Condomínio', value: extraFeeCondominio, setValue: setExtraFeeCondominio, platformDefault: PLATFORM_DEFAULT_CONDITION_EXTRA_FEES.condominio },
@@ -969,11 +988,30 @@ function PainelMotoristaContent() {
                                             />
                                         </div>
                                     </div>
+                                    <div className="mt-3 p-3 rounded-2xl border" style={{ background: colors.background, borderColor: colors.border }}>
+                                        <label className="text-[9px] font-bold flex items-center gap-1 mb-1" style={{ color: colors.textSecondary }}>
+                                            <Clock size={11} />
+                                            Valor por tempo: extra por minuto (R$)
+                                        </label>
+                                        <input
+                                            type="number"
+                                            value={pricePerMinute}
+                                            onChange={(e) => setPricePerMinute(e.target.value)}
+                                            placeholder="0"
+                                            step="0.1"
+                                            min="0"
+                                            className="w-full p-2 rounded-full border text-sm"
+                                            style={{ background: colors.surface, borderColor: colors.border, color: colors.textPrimary }}
+                                        />
+                                        <p className="text-[9px] mt-1.5" style={{ color: colors.textSecondary }}>
+                                            Somado ao valor por km: cada minuto de corrida (o tempo estimado do trajeto) soma esse valor. Deixe 0 pra não cobrar por tempo — ajuda a não perder dinheiro no trânsito parado.
+                                        </p>
+                                    </div>
                                     <p className="text-[9px] mt-2" style={{ color: colors.textSecondary }}>
-                                        Ex: até {baseDistanceKm || '0'} km = R$ {(parseFloat(baseFee) || 0).toFixed(2)}, acima + R$ {(parseFloat(pricePerKmAfterBase) || 0).toFixed(2)}/km
+                                        Ex: até {baseDistanceKm || '0'} km = R$ {(parseFloat(baseFee) || 0).toFixed(2)}, acima + R$ {(parseFloat(pricePerKmAfterBase) || 0).toFixed(2)}/km{(parseFloat(pricePerMinute) || 0) > 0 ? `, + R$ ${(parseFloat(pricePerMinute) || 0).toFixed(2)}/min` : ''}
                                     </p>
                                     <p className="text-[10px] mt-3 font-bold" style={{ color: colors.textPrimary }}>
-                                        Exemplo: uma corrida de {previewDistance} km sairia por R$ {previewPrice.toFixed(2)}
+                                        Exemplo: uma corrida de {previewDistance} km e {previewMinutes} min sairia por R$ {previewPrice.toFixed(2)}
                                     </p>
                                 </div>
                             )}

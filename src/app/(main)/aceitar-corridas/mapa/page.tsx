@@ -37,7 +37,7 @@ import { useVoiceNavigation } from '@/lib/voiceNavigation'
 import RideChat from '@/components/RideChat'
 import { DRIVER_CHAT_QUICK_REPLIES } from '@/lib/rideChatQuickReplies'
 import { kindForRideType, type VehicleType, type VehicleKind } from '@/lib/rideVehicle'
-import { PLATFORM_DEFAULT_PRICING_BY_VEHICLE } from '@/lib/driverPricing'
+import { PLATFORM_DEFAULT_PRICING_BY_VEHICLE, fetchPricePerMinuteMap } from '@/lib/driverPricing'
 import { computeRideTariffs } from '@/lib/rideTariffs'
 import { submitRideApplication } from '@/lib/rideApplication'
 import { getAvatarUrl } from '@/lib/avatar'
@@ -327,9 +327,10 @@ function AceitarCorridasMapaContent() {
                 r.store_id ? supabase.from('stores').select('name').eq('id', r.store_id).maybeSingle() : Promise.resolve({ data: null }),
             ])
             if (cancelled) return
+            const pricePerMinute = (await fetchPricePerMinuteMap(supabase, [userId])).get(userId) ?? null
             const { platformPrice, customPrice } = computeRideTariffs(
                 r as Parameters<typeof computeRideTariffs>[0],
-                (pricing || { pricing_mode: 'platform', base_distance_km: null, base_fee: null, price_per_km_after_base: null }) as Parameters<typeof computeRideTariffs>[1]
+                (pricing ? { ...pricing, price_per_minute: pricePerMinute } : { pricing_mode: 'platform', base_distance_km: null, base_fee: null, price_per_km_after_base: null }) as Parameters<typeof computeRideTariffs>[1]
             )
             setOffer({
                 ride: r,
