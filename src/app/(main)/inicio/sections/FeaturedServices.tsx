@@ -22,6 +22,7 @@ interface ServiceCard {
     id: string
     imageUrl: string | null
     title: string
+    slug: string | null
     serviceType: string | null
     providerName: string
     providerSlug: string
@@ -42,14 +43,14 @@ function useFeaturedServices() {
                 const [{ data: profileRows }, { data: storeRows }] = await Promise.all([
                     supabase
                         .from('products')
-                        .select('id, name, image_url, service_type, owner_id, view_count')
+                        .select('id, name, slug, image_url, service_type, owner_id, view_count')
                         .eq('listing_type', 'service_offer')
                         .eq('is_active', true)
                         .order('created_at', { ascending: false })
                         .limit(30),
                     supabase
                         .from('products')
-                        .select('id, name, image_url, store_id, view_count')
+                        .select('id, name, slug, image_url, store_id, view_count')
                         .eq('type', 'service')
                         .eq('listing_type', 'sale')
                         .eq('is_active', true)
@@ -85,6 +86,7 @@ function useFeaturedServices() {
                             ? supabase.storage.from('product-images').getPublicUrl(row.image_url).data.publicUrl
                             : null,
                         title: row.name,
+                        slug: row.slug || null,
                         serviceType: row.service_type,
                         providerName: p?.name || 'Prestador',
                         providerSlug: p?.profileSlug || '',
@@ -103,6 +105,7 @@ function useFeaturedServices() {
                                 ? supabase.storage.from('product-images').getPublicUrl(row.image_url).data.publicUrl
                                 : null,
                             title: row.name,
+                            slug: row.slug || null,
                             serviceType: null,
                             providerName: s.name || 'Loja',
                             providerSlug: s.storeSlug || '',
@@ -204,7 +207,10 @@ export default function FeaturedServices({ dragHandle, title = 'Serviços em des
 
     const handleServiceClick = (service: ServiceCard) => {
         startNavProgress()
-        router.push(service.providerSlug ? `/${service.providerSlug}` : '/solicitar-servico')
+        // Vai pra página do serviço (/<perfil ou loja>/<slug-do-serviço>); sem
+        // slug (dado antigo), cai no perfil/loja de quem oferece.
+        if (service.providerSlug && service.slug) router.push(`/${service.providerSlug}/${service.slug}`)
+        else router.push(service.providerSlug ? `/${service.providerSlug}` : '/solicitar-servico')
     }
 
     if (loading) {

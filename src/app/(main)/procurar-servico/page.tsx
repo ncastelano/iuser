@@ -1,8 +1,8 @@
 // app/(main)/procurar-servico/page.tsx
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { useTheme } from '@/app/contexts/theme'
@@ -10,7 +10,7 @@ import Header from '@/components/Header'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import LoginAndRegister from '@/components/LoginAndRegister/LoginAndRegister'
 import { toast } from 'sonner'
-import { Briefcase, MapPin, Plus, Building2, Eye, Trash2 } from 'lucide-react'
+import { Briefcase, MapPin, Plus, Building2, Eye, Trash2, Pencil, X } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import { useActivePlans } from '@/hooks/useActivePlans'
 import DriverDebtBanner from '@/components/DriverDebtBanner'
@@ -29,8 +29,28 @@ import {
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
+// useSearchParams (?pedido=) exige Suspense no App Router.
 export default function SerParceiroPage() {
+    return (
+        <Suspense fallback={null}>
+            <SerParceiroContent />
+        </Suspense>
+    )
+}
+
+function SerParceiroContent() {
     const router = useRouter()
+    const searchParams = useSearchParams()
+    // Vem de "Quero fazer esse serviço" na home: foca o card desse pedido e
+    // se candidata sozinho 1s depois.
+    const focusId = searchParams.get('pedido')
+    const focusHandledRef = useRef(false)
+    const [autoApplyingId, setAutoApplyingId] = useState<string | null>(null)
+    const [editingJob, setEditingJob] = useState<BoardItem | null>(null)
+    const [editDescription, setEditDescription] = useState('')
+    const [editNeedsAccess, setEditNeedsAccess] = useState(false)
+    const [editAccessNotes, setEditAccessNotes] = useState('')
+    const [savingEdit, setSavingEdit] = useState(false)
     const { userId, avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
     const { colors } = useTheme()
     const { loading: plansLoading, hasProvider } = useActivePlans(userId)
@@ -138,6 +158,84 @@ export default function SerParceiroPage() {
         }
     }
 
+    // ===== FOCO + CANDIDATURA AUTOMÁTICA (?pedido=<id>) =====
+    useEffect(() => {
+        if (!focusId || focusHandledRef.current || loading || profileLoading || plansLoading) return
+        if (!userId) {
+            // Candidatar-se exige conta: pede login e, ao entrar, o efeito roda de novo.
+            if (!showLogin) {
+                toast.info('Entre na sua conta para se candidatar a esse serviço.')
+                setShowLogin(true)
+            }
+            return
+        }
+        if (!hasProvider) return // a própria página já mostra o aviso de assinar o plano
+        const job = jobs.find((j) => j.id === focusId)
+        focusHandledRef.current = true
+        if (!job) {
+            toast.info('Esse pedido não está mais disponível.')
+            return
+        }
+        // Espera o card entrar no DOM antes de rolar até ele.
+        setTimeout(() => {
+            document.getElementById(`job-card-${job.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        }, 50)
+        if (job.requester_id === userId) {
+            toast.info('Esse pedido é seu.')
+            return
+        }
+        if (appliedKeys.has(itemKey(job))) {
+            toast.info('Você já se candidatou a esse serviço.')
+            return
+        }
+        setAutoApplyingId(job.id)
+        // Sem cleanup de propósito: o efeito já foi "consumido" (focusHandledRef),
+        // então se as dependências mudarem no meio do segundo a candidatura
+        // não pode ser cancelada.
+        setTimeout(async () => {
+            await handleApply(job)
+            setAutoApplyingId(null)
+        }, 1000)
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [focusId, loading, profileLoading, plansLoading, hasProvider, userId, jobs])
+
+    const openEdit = (item: BoardItem) => {
+        setEditingJob(item)
+        setEditDescription(item.description || '')
+        setEditNeedsAccess(item.location_needs_access)
+        setEditAccessNotes(item.location_access_notes || '')
+    }
+
+    const handleSaveEdit = async () => {
+        if (!editingJob) return
+        if (!editDescription.trim()) {
+            toast.error('Descreva o que você precisa')
+            return
+        }
+        setSavingEdit(true)
+        try {
+            const patch = {
+                description: editDescription.trim(),
+                location_needs_access: editNeedsAccess,
+                location_access_notes: editNeedsAccess ? (editAccessNotes.trim() || null) : null,
+            }
+            // .select() pra perceber quando o RLS bloqueia (0 linhas, sem erro).
+            const { data, error } = await supabase.from('service_requests').update(patch).eq('id', editingJob.id).select('id')
+            if (error) throw error
+            if (!data || data.length === 0) {
+                toast.error('Não foi possível salvar: sem permissão para editar esse pedido.')
+                return
+            }
+            setJobs((prev) => prev.map((j) => (j.id === editingJob.id ? { ...j, ...patch } : j)))
+            toast.success('Pedido atualizado')
+            setEditingJob(null)
+        } catch (err: any) {
+            toast.error('Erro ao salvar: ' + (err.message || 'tente novamente'))
+        } finally {
+            setSavingEdit(false)
+        }
+    }
+
     const filteredJobs = useMemo(() => {
         const query = searchQuery.trim().toLowerCase()
         if (!query) return jobs
@@ -236,8 +334,13 @@ export default function SerParceiroPage() {
                                 return (
                                     <div
                                         key={key}
-                                        className="rounded-2xl p-4"
-                                        style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
+                                        id={`job-card-${job.id}`}
+                                        className="rounded-2xl p-4 scroll-mt-32"
+                                        style={{
+                                            background: colors.surface,
+                                            border: `1px solid ${focusId === job.id ? colors.accent : colors.border}`,
+                                            boxShadow: focusId === job.id ? `0 0 0 3px ${colors.accent}40` : colors.shadow,
+                                        }}
                                     >
                                         {/* Quem está pedindo */}
                                         <div className="flex items-center gap-2 mb-3">
@@ -302,6 +405,15 @@ export default function SerParceiroPage() {
                                                     Seu pedido
                                                 </div>
                                                 <button
+                                                    onClick={() => openEdit(job)}
+                                                    aria-label="Editar pedido"
+                                                    className="h-9 px-3 rounded-full flex items-center justify-center gap-1.5 flex-shrink-0 text-[11px] font-black uppercase"
+                                                    style={{ background: `${colors.accent}15`, color: colors.accent }}
+                                                >
+                                                    <Pencil size={13} />
+                                                    Editar
+                                                </button>
+                                                <button
                                                     onClick={() => handleDelete(job)}
                                                     disabled={deletingKey === key}
                                                     aria-label="Excluir pedido"
@@ -314,7 +426,7 @@ export default function SerParceiroPage() {
                                         ) : (
                                             <button
                                                 onClick={() => handleApply(job)}
-                                                disabled={applied || applyingKey === key}
+                                                disabled={applied || applyingKey === key || autoApplyingId === job.id}
                                                 className="w-full mt-3 py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all disabled:opacity-70 flex items-center justify-center gap-2"
                                                 style={
                                                     applied
@@ -322,7 +434,12 @@ export default function SerParceiroPage() {
                                                         : { background: GRADIENT, color: '#fff' }
                                                 }
                                             >
-                                                {applyingKey === key ? (
+                                                {autoApplyingId === job.id && !applied ? (
+                                                    <>
+                                                        <Spinner size={14} />
+                                                        Candidatando você...
+                                                    </>
+                                                ) : applyingKey === key ? (
                                                     <Spinner size={14} />
                                                 ) : applied ? (
                                                     'Candidatura enviada'
@@ -342,6 +459,79 @@ export default function SerParceiroPage() {
                     </>
                     )}
                 </section>
+
+                {/* ===== EDITAR O PRÓPRIO PEDIDO ===== */}
+                {editingJob && (
+                    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)' }}>
+                        <div className="w-full max-w-sm rounded-2xl p-5" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
+                            <div className="flex items-center justify-between mb-3">
+                                <h3 className="text-base font-black" style={{ color: colors.textPrimary }}>
+                                    Editar pedido de {getItemLabel(editingJob).toLowerCase()}
+                                </h3>
+                                <button onClick={() => setEditingJob(null)} aria-label="Fechar" style={{ color: colors.textSecondary }}>
+                                    <X size={18} />
+                                </button>
+                            </div>
+
+                            <label className="text-xs font-bold block mb-1.5" style={{ color: colors.textSecondary }}>O que você precisa</label>
+                            <textarea
+                                value={editDescription}
+                                onChange={(e) => setEditDescription(e.target.value)}
+                                rows={4}
+                                className="w-full px-3 py-2.5 rounded-xl text-sm focus:outline-none resize-none"
+                                style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                            />
+
+                            <div className="flex items-center justify-between gap-2 mt-3">
+                                <span className="flex items-center gap-1.5 text-xs font-bold" style={{ color: colors.textPrimary }}>
+                                    <Building2 size={13} style={{ color: '#ef4444' }} />
+                                    É um condomínio fechado?
+                                </span>
+                                <div className="flex items-center gap-1.5">
+                                    {[true, false].map((v) => (
+                                        <button
+                                            key={String(v)}
+                                            onClick={() => setEditNeedsAccess(v)}
+                                            className="px-3 py-1 rounded-full text-[11px] font-black"
+                                            style={editNeedsAccess === v ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                                        >
+                                            {v ? 'SIM' : 'NÃO'}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                            {editNeedsAccess && (
+                                <input
+                                    type="text"
+                                    value={editAccessNotes}
+                                    onChange={(e) => setEditAccessNotes(e.target.value)}
+                                    placeholder="Número da rua, apartamento ou quadra..."
+                                    className="w-full mt-2 px-3 py-2 rounded-lg text-sm focus:outline-none"
+                                    style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                                />
+                            )}
+
+                            <div className="flex gap-2 mt-4">
+                                <button
+                                    onClick={() => setEditingJob(null)}
+                                    className="px-5 py-3 rounded-xl font-black uppercase text-xs tracking-wider"
+                                    style={{ background: `${colors.border}30`, color: colors.textPrimary, border: `1px solid ${colors.border}` }}
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    onClick={handleSaveEdit}
+                                    disabled={savingEdit}
+                                    className="flex-1 py-3 rounded-xl font-black uppercase text-xs tracking-wider disabled:opacity-60 flex items-center justify-center gap-2"
+                                    style={{ background: GRADIENT, color: '#fff' }}
+                                >
+                                    {savingEdit && <Spinner size={14} />}
+                                    Salvar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {/* ===== BOTAO FLUTUANTE - SOLICITAR SERVICO ===== */}
                 <div style={{ position: 'fixed', bottom: 24, right: 24, zIndex: 998 }}>

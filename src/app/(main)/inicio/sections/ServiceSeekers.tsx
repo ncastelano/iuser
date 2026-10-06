@@ -8,7 +8,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { MapPin, Plus } from 'lucide-react'
+import { MapPin, Plus, Eye } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
@@ -86,6 +86,14 @@ export default function ServiceSeekers({ limit = 8 }: { limit?: number }) {
                                         seu pedido
                                     </span>
                                 )}
+                                <span
+                                    className="flex items-center gap-1 text-[10px] flex-shrink-0"
+                                    style={{ color: colors.textSecondary }}
+                                    title={`${item.view_count} ${item.view_count === 1 ? 'pessoa viu' : 'pessoas viram'} este pedido`}
+                                >
+                                    <Eye size={11} />
+                                    {item.view_count}
+                                </span>
                             </div>
 
                             <div className="flex items-center gap-2.5">
@@ -107,7 +115,7 @@ export default function ServiceSeekers({ limit = 8 }: { limit?: number }) {
 
                             {!mine && (
                                 <button
-                                    onClick={() => go('/procurar-servico')}
+                                    onClick={() => go(`/procurar-servico?pedido=${item.id}`)}
                                     className="mt-auto w-full py-2 rounded-full text-[11px] font-black uppercase tracking-wider transition-all active:scale-95"
                                     style={{ background: `${colors.accent}15`, color: colors.accent, border: `1px solid ${colors.border}` }}
                                 >
@@ -117,19 +125,18 @@ export default function ServiceSeekers({ limit = 8 }: { limit?: number }) {
                         </div>
                     )
                 })}
-
-                {/* Convite pra qualquer pessoa pedir o seu */}
-                <button
-                    onClick={() => go('/solicitar-servico')}
-                    className="flex-shrink-0 w-44 rounded-2xl p-3.5 flex flex-col items-center justify-center gap-2 text-center transition-all active:scale-95"
-                    style={{ background: HOME_GRADIENT, color: '#fff', boxShadow: '0 4px 12px #f9731640' }}
-                >
-                    <span className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.25)' }}>
-                        <Plus size={20} />
-                    </span>
-                    <span className="text-sm font-black leading-tight">Precisa de um serviço? Peça o seu</span>
-                </button>
             </div>
+
+            {/* Fora do carrossel de propósito: com muitos pedidos o botão ficaria
+                lá no fim da rolagem e ninguém veria. */}
+            <button
+                onClick={() => go('/solicitar-servico')}
+                className="mt-3 w-full flex items-center justify-center gap-2 py-3 rounded-full font-black text-sm transition-all hover:scale-[1.02] active:scale-95"
+                style={{ background: HOME_GRADIENT, color: '#fff', boxShadow: '0 4px 12px #f9731640' }}
+            >
+                <Plus size={16} />
+                Precisa de um serviço? Peça o seu
+            </button>
         </div>
     )
 }

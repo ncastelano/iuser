@@ -305,7 +305,7 @@ export async function generateProductOrPublicationMetadata(
             }
 
             const isSale = product.listing_type === 'sale'
-            const formattedPrice = product.price != null ? ` - R$ ${Number(product.price).toFixed(2).replace('.', ',')}` : ''
+            const formattedPrice = isSale && product.price != null ? ` - R$ ${Number(product.price).toFixed(2).replace('.', ',')}` : ''
             const title = `${product.name}${formattedPrice} | ${ownerName}`
             const description = product.description || `Confira ${product.name} no iUser!`
 

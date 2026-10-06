@@ -10,10 +10,12 @@ import { useProfile } from '@/app/contexts/ProfileContext'
 import { hexToRgb } from '@/lib/color'
 import { pickImageFile, isNativePlatform } from '@/lib/nativeCamera'
 import { formatBrazilianPhone, cleanPhoneNumber } from '@/lib/phone'
+import { getServiceIcon, getServiceLabel } from '@/lib/serviceTypes'
 import {
     AlertTriangle,
     ArrowLeft,
     Megaphone,
+    Wrench,
 
     MapPin,
     MessageCircle,
@@ -119,7 +121,7 @@ interface Comment {
     is_liked?: boolean
 }
 
-type ProfileTab = 'publications' | 'profile_comments'
+type ProfileTab = 'publications' | 'services' | 'profile_comments'
 
 // formatBrazilianPhone/cleanPhoneNumber moraram aqui antes; agora vêm de
 // @/lib/phone (reaproveitadas fora desta pasta, ex: cadastro de entregador
@@ -245,6 +247,7 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
     const [totalVisitors, setTotalVisitors] = useState(0)
     const [shareCount, setShareCount] = useState(0)
     const [publications, setPublications] = useState<any[]>([])
+    const [services, setServices] = useState<any[]>([])
     const [ratings, setRatings] = useState<RatingRow[]>([])
     const [imageUrl, setImageUrl] = useState<string | null>(null)
     const [uploadingAvatar, setUploadingAvatar] = useState(false)
@@ -404,6 +407,22 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                 is_liked: false,
             }))
             setPublications(mappedPublications)
+
+            // Serviços que a pessoa publicou (products.listing_type='service_offer')
+            const { data: servicesData } = await supabase
+                .from('products')
+                .select('id, name, slug, description, image_url, service_type, address, view_count, created_at')
+                .eq('owner_id', profile.id)
+                .is('store_id', null)
+                .eq('listing_type', 'service_offer')
+                .eq('is_active', true)
+                .order('created_at', { ascending: false })
+            setServices((servicesData || []).map((svc: any) => ({
+                ...svc,
+                image_url: svc.image_url
+                    ? supabase.storage.from('product-images').getPublicUrl(svc.image_url).data.publicUrl
+                    : null,
+            })))
 
             // Carregar curtidas do usuário para cada publicação
             if (currentUserId) {
@@ -1717,6 +1736,7 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
             <div className="flex rounded-2xl p-1.5 gap-1" style={cardStyle}>
                 {[
                     { id: 'publications', label: 'Publicações', icon: Megaphone, count: publications.length },
+                    { id: 'services', label: 'Serviços', icon: Wrench, count: services.length },
                     { id: 'profile_comments', label: 'Comentários', icon: MessageCircle, count: profileComments.length },
                 ].map(tab => {
                     const Icon = tab.icon
@@ -1990,6 +2010,100 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                                         )}
                                     </div>
                                 ))}
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* TAB SERVIÇOS */}
+                {activeTab === 'services' && (
+                    <div className="rounded-2xl p-4" style={cardStyle}>
+                        <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center gap-2">
+                                <Wrench size={16} style={{ color: '#f97316' }} />
+                                <h3 className="text-xs font-black uppercase tracking-widest" style={{ color: colors.textPrimary }}>
+                                    Serviços
+                                </h3>
+                            </div>
+                            {isOwner && (
+                                <button
+                                    onClick={() => router.push('/meus-servicos')}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold transition-all hover:scale-105"
+                                    style={{ background: GRADIENT, color: '#ffffff', boxShadow: '0 2px 10px rgba(249, 115, 22, 0.4)', border: 'none' }}
+                                >
+                                    <Plus size={12} />
+                                    Novo
+                                </button>
+                            )}
+                        </div>
+
+                        {services.length === 0 ? (
+                            <div className="py-10 text-center rounded-xl" style={{
+                                background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
+                                border: `1px dashed ${colors.border}`,
+                            }}>
+                                <Wrench className="w-10 h-10 mx-auto mb-3" style={{ color: colors.textSecondary }} />
+                                <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>
+                                    {isOwner ? 'Publique o seu primeiro serviço' : 'Nenhum serviço publicado ainda'}
+                                </p>
+                                <p className="text-xs mt-1" style={{ color: colors.textSecondary }}>
+                                    {isOwner ? 'Quem procura um profissional na sua região vai te encontrar' : 'Volte em breve'}
+                                </p>
+                                {isOwner && (
+                                    <button
+                                        onClick={() => router.push('/meus-servicos')}
+                                        className="mt-4 flex items-center gap-2 mx-auto px-6 py-2.5 rounded-full text-xs font-bold transition-all hover:scale-105"
+                                        style={{ background: GRADIENT, color: '#ffffff', boxShadow: '0 4px 14px rgba(249, 115, 22, 0.4)', border: 'none' }}
+                                    >
+                                        <Megaphone size={14} />
+                                        Publicar serviço
+                                    </button>
+                                )}
+                            </div>
+                        ) : (
+                            <div className="space-y-3">
+                                {services.map((svc) => {
+                                    const SvcIcon = getServiceIcon(svc.service_type || 'outro')
+                                    const views = svc.view_count || 0
+                                    return (
+                                        <div
+                                            key={svc.id}
+                                            onClick={() => router.push(`/${ownerSlug}/${svc.slug}`)}
+                                            className="rounded-xl border overflow-hidden flex cursor-pointer transition-all hover:shadow-lg"
+                                            style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.2)`, borderColor: colors.border }}
+                                        >
+                                            <div className="w-24 sm:w-32 flex-shrink-0 flex items-center justify-center" style={{ background: svc.image_url ? undefined : GRADIENT }}>
+                                                {svc.image_url ? (
+                                                    <img src={svc.image_url} alt={svc.name} className="w-full h-full object-cover" />
+                                                ) : (
+                                                    <SvcIcon size={30} color="#fff" />
+                                                )}
+                                            </div>
+                                            <div className="min-w-0 flex-1 p-3">
+                                                <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wide" style={{ color: '#f97316' }}>
+                                                    <SvcIcon size={11} />
+                                                    {svc.service_type ? getServiceLabel(svc.service_type) : 'Serviço'}
+                                                </span>
+                                                <h4 className="text-sm font-black leading-tight line-clamp-2" style={{ color: colors.textPrimary }}>{svc.name}</h4>
+                                                {svc.description && (
+                                                    <p className="text-xs mt-1 line-clamp-2" style={{ color: colors.textSecondary }}>{svc.description}</p>
+                                                )}
+                                                <div className="flex items-center gap-3 mt-1.5 text-[10px]" style={{ color: colors.textSecondary }}>
+                                                    <span className="flex items-center gap-1">
+                                                        <Eye size={11} />
+                                                        {views} {views === 1 ? 'visualização' : 'visualizações'}
+                                                    </span>
+                                                    {svc.address && (
+                                                        <span className="flex items-center gap-1 min-w-0">
+                                                            <MapPin size={11} className="flex-shrink-0" />
+                                                            <span className="truncate">{svc.address.split(',')[0]}</span>
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )
+                                })}
                             </div>
                         )}
                     </div>

@@ -10,9 +10,10 @@ import { useProfile } from '@/app/contexts/ProfileContext'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { ProductClientPage } from './ProductClientPage'
 import { PublicationClientPage } from './PublicationClientePage'
+import { ServiceClientPage } from './ServiceClientPage'
 import { captureReferral } from '@/lib/referralCapture'
 
-type ItemType = 'publication' | 'product' | null
+type ItemType = 'publication' | 'product' | 'service' | null
 
 export default function SlugClientPage() {
     const params = useParams()
@@ -43,7 +44,7 @@ export default function SlugClientPage() {
             try {
                 // Busca já com todos os campos que o ProductClientPage precisa,
                 // pra não ter que refazer essa mesma query lá.
-                const columns = 'id, name, slug, description, image_url, price, view_count, created_at, store_id, owner_id, listing_type, has_addons'
+                const columns = 'id, name, slug, description, image_url, price, view_count, created_at, store_id, owner_id, listing_type, has_addons, service_type, address, lat, lng'
 
                 // Primeiro, tenta buscar pelo slug
                 let { data: item, error: itemError } = await supabase
@@ -98,7 +99,7 @@ export default function SlugClientPage() {
                     }
                 }
 
-                setItemType(item.listing_type === 'publication' ? 'publication' : 'product')
+                setItemType(item.listing_type === 'publication' ? 'publication' : item.listing_type === 'service_offer' ? 'service' : 'product')
                 setItemData(item)
                 setStoreData(store)
 
@@ -180,6 +181,20 @@ export default function SlugClientPage() {
                         avatarUrl={avatarUrl}
                         profileLoading={profileLoading}
                     />
+                </div>
+            </div>
+        )
+    }
+
+    // Serviço publicado por um perfil (service_offer): página própria
+    if (itemType === 'service') {
+        return (
+            <div className="relative min-h-dvh" style={{ background: colors.background }}>
+                <div className="fixed inset-0 z-0">
+                    <AnimatedBackgroundiUser bgMode={bgMode} customBgUrl={customBgUrl} />
+                </div>
+                <div className="relative z-10 min-h-dvh">
+                    <ServiceClientPage ownerSlug={ownerSlug} colors={colors} initialService={itemData} />
                 </div>
             </div>
         )

@@ -2,7 +2,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Check, X, MapPin, Users } from 'lucide-react'
+import { Check, X, MapPin, Users, Eye } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
@@ -44,6 +44,7 @@ interface OpenRequest {
     serviceLabel: string
     locationAddress: string
     createdAt: string
+    viewCount: number
     candidates: Candidate[]
 }
 
@@ -69,7 +70,7 @@ export default function MyOpenServiceRequests({ limit = 5, title }: MyOpenServic
 
         const { data: myRequests } = await supabase
             .from('service_requests')
-            .select('id, service_type, custom_service, location_address, created_at')
+            .select('id, service_type, custom_service, location_address, created_at, view_count')
             .eq('requester_id', userId)
             .eq('status', 'pending')
             .order('created_at', { ascending: false })
@@ -118,6 +119,7 @@ export default function MyOpenServiceRequests({ limit = 5, title }: MyOpenServic
                 serviceLabel,
                 locationAddress: r.location_address,
                 createdAt: r.created_at,
+                viewCount: r.view_count || 0,
                 candidates,
             }
         })
@@ -183,6 +185,12 @@ export default function MyOpenServiceRequests({ limit = 5, title }: MyOpenServic
                             <span className="text-[10px]" style={{ color: colors.textSecondary }}>
                                 {relativeTime(r.createdAt)}
                                 {r.candidates.length > 0 && ` · ${r.candidates.length} ${r.candidates.length === 1 ? 'profissional quer' : 'profissionais querem'} fazer`}
+                            </span>
+                            <span className="flex items-center gap-1 text-[10px]" style={{ color: colors.textSecondary }}>
+                                <Eye size={11} />
+                                {r.viewCount === 0
+                                    ? 'Ninguém viu ainda'
+                                    : `${r.viewCount} ${r.viewCount === 1 ? 'pessoa viu' : 'pessoas viram'} seu pedido`}
                             </span>
 
                             <div className="flex flex-col gap-1.5 mt-1">
