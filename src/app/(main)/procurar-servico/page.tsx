@@ -6,16 +6,18 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { useTheme } from '@/app/contexts/theme'
-import Header from '@/components/Header'
+import Header, { type Tab } from '@/components/Header'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import LoginAndRegister from '@/components/LoginAndRegister/LoginAndRegister'
 import { toast } from 'sonner'
-import { Briefcase, MapPin, Plus, Building2, Eye, Trash2, Pencil, X } from 'lucide-react'
+import { Briefcase, MapPin, Plus, Building2, Eye, Trash2, Pencil, X, ClipboardCheck, CheckCircle2, Clock, HeartCrack } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import { useActivePlans } from '@/hooks/useActivePlans'
 import DriverDebtBanner from '@/components/DriverDebtBanner'
 import { notifyServiceApplication } from '@/lib/notifyRideStatus'
 import { trackServiceRequestView } from '@/lib/trackServiceRequestView'
+import { getServiceIcon } from '@/lib/serviceTypes'
+import { useMyServiceApplications } from '@/hooks/useMyServiceApplications'
 import {
     BoardItem,
     fetchOpenBoardItems,
@@ -47,6 +49,11 @@ function SerParceiroContent() {
     // se inscreve sozinho 1s depois.
     const focusId = searchParams.get('pedido')
     const focusHandledRef = useRef(false)
+    // Abas, no mesmo molde de /aceitar-corridas: Serviços disponíveis | Me inscrevi
+    const [activeTab, setActiveTab] = useState<'disponiveis' | 'inscrevi'>(searchParams.get('aba') === 'inscrevi' ? 'inscrevi' : 'disponiveis')
+    const { items: myApplications } = useMyServiceApplications()
+    const [cancelingId, setCancelingId] = useState<string | null>(null)
+    const [confirmCancelId, setConfirmCancelId] = useState<string | null>(null)
     const [autoApplyingId, setAutoApplyingId] = useState<string | null>(null)
     const [editingJob, setEditingJob] = useState<BoardItem | null>(null)
     const [editDescription, setEditDescription] = useState('')
@@ -129,8 +136,9 @@ function SerParceiroContent() {
             if (error) throw error
             setAppliedKeys((prev) => new Set(prev).add(key))
             notifyServiceApplication(item.id)
-            toast.success('Inscrição enviada!')
+            toast.success('Inscrição enviada! Acompanhe em "Me inscrevi".')
             notifyServiceRequestsChanged()
+            setActiveTab('inscrevi')
         } catch (err: any) {
             if ((err.code === '42501' || err.code === 'PGRST301') && !hasProvider) {
                 toast.error('Assine o plano Prestador ou o Combo pra se inscrever.')
@@ -186,6 +194,10 @@ function SerParceiroContent() {
         }
         if (appliedKeys.has(itemKey(job))) {
             toast.info('Você já se inscreveu nesse serviço.')
+            setActiveTab('inscrevi')
+            setTimeout(() => {
+                document.getElementById(`application-card-${job.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+            }, 200)
             return
         }
         setAutoApplyingId(job.id)
@@ -236,11 +248,55 @@ function SerParceiroContent() {
         }
     }
 
+    // Quem já se inscreveu sai da lista e passa pra aba "Me inscrevi"
+    const availableJobs = useMemo(() => jobs.filter((j) => !appliedKeys.has(itemKey(j))), [jobs, appliedKeys])
+
     const filteredJobs = useMemo(() => {
         const query = searchQuery.trim().toLowerCase()
-        if (!query) return jobs
-        return jobs.filter((job) => getItemSearchHaystack(job).includes(query))
-    }, [jobs, searchQuery])
+        if (!query) return availableJobs
+        return availableJobs.filter((job) => getItemSearchHaystack(job).includes(query))
+    }, [availableJobs, searchQuery])
+
+    const activeApplications = myApplications.filter((a) => a.status !== 'rejected')
+
+    const headerTabs: Tab[] = [
+        {
+            id: 'disponiveis',
+            label: 'Serviços disponíveis',
+            icon: Briefcase,
+            onClick: () => setActiveTab('disponiveis'),
+            isActive: activeTab === 'disponiveis',
+            badge: availableJobs.length > 0 ? { count: availableJobs.length } : null,
+        },
+        {
+            id: 'inscrevi',
+            label: 'Me inscrevi',
+            icon: ClipboardCheck,
+            onClick: () => setActiveTab('inscrevi'),
+            isActive: activeTab === 'inscrevi',
+            badge: activeApplications.length > 0 ? { count: activeApplications.length } : null,
+        },
+    ]
+
+    const cancelApplication = async (applicationId: string) => {
+        setCancelingId(applicationId)
+        try {
+            const { data, error } = await supabase.from('service_applications').delete().eq('id', applicationId).select('id')
+            if (error) throw error
+            if (!data || data.length === 0) {
+                toast.error('Não foi possível cancelar a inscrição.')
+                return
+            }
+            toast.success('Inscrição cancelada')
+            setConfirmCancelId(null)
+            load()
+            notifyServiceRequestsChanged()
+        } catch (err: any) {
+            toast.error('Erro ao cancelar: ' + (err.message || 'tente novamente'))
+        } finally {
+            setCancelingId(null)
+        }
+    }
 
     return (
         <div className="relative min-h-dvh" style={{ background: colors.background }}>
@@ -260,6 +316,7 @@ function SerParceiroContent() {
                     searchPlaceholder="Procurar serviço, motorista, pintor..."
                     searchValue={searchQuery}
                     onSearch={setSearchQuery}
+                    tabs={headerTabs}
                 />
 
                 <section className="px-4 md:px-6 mt-4 pb-24 max-w-lg mx-auto">
@@ -300,18 +357,18 @@ function SerParceiroContent() {
                     {!loading && !showLogin && !plansLoading && hasProvider && (
                     <>
                     <DriverDebtBanner userId={userId} />
-                    {jobs.length === 0 && (
+                    {activeTab === 'disponiveis' && availableJobs.length === 0 && (
                         <div
                             className="rounded-2xl p-6 text-center"
                             style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
                         >
                             <p className="text-sm" style={{ color: colors.textSecondary }}>
-                                Nenhum pedido aberto no momento.
+                                {jobs.length > 0 ? 'Você já se inscreveu em todos os pedidos abertos. Veja em "Me inscrevi".' : 'Nenhum pedido aberto no momento.'}
                             </p>
                         </div>
                     )}
 
-                    {!loading && !showLogin && jobs.length > 0 && filteredJobs.length === 0 && (
+                    {activeTab === 'disponiveis' && !loading && !showLogin && availableJobs.length > 0 && filteredJobs.length === 0 && (
                         <div
                             className="rounded-2xl p-6 text-center"
                             style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
@@ -322,7 +379,7 @@ function SerParceiroContent() {
                         </div>
                     )}
 
-                    {!loading && !showLogin && filteredJobs.length > 0 && (
+                    {activeTab === 'disponiveis' && !loading && !showLogin && filteredJobs.length > 0 && (
                         <div className="flex flex-col gap-3">
                             {filteredJobs.map((job) => {
                                 const Icon = getItemIcon(job)
@@ -451,6 +508,99 @@ function SerParceiroContent() {
                                                 )}
                                             </button>
                                         )}
+                                    </div>
+                                )
+                            })}
+                        </div>
+                    )}
+
+                    {/* ===== ABA: ME INSCREVI ===== */}
+                    {activeTab === 'inscrevi' && myApplications.length === 0 && (
+                        <div className="rounded-2xl p-6 text-center" style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}>
+                            <p className="text-sm" style={{ color: colors.textSecondary }}>
+                                Você ainda não se inscreveu em nenhum serviço. Veja os pedidos em "Serviços disponíveis".
+                            </p>
+                        </div>
+                    )}
+
+                    {activeTab === 'inscrevi' && myApplications.length > 0 && (
+                        <div className="flex flex-col gap-3">
+                            {myApplications.map((app) => {
+                                const AppIcon = getServiceIcon(app.serviceType)
+                                return (
+                                    <div
+                                        key={app.applicationId}
+                                        id={`application-card-${app.requestId}`}
+                                        className="rounded-2xl p-4 scroll-mt-32"
+                                        style={{
+                                            background: colors.surface,
+                                            border: `1px solid ${app.status === 'accepted' ? '#22c55e' : focusId === app.requestId ? colors.accent : colors.border}`,
+                                            boxShadow: colors.shadow,
+                                            opacity: app.status === 'rejected' ? 0.75 : 1,
+                                        }}
+                                    >
+                                        <div className="flex items-center gap-2 mb-3">
+                                            {app.requesterAvatarUrl ? (
+                                                <img src={app.requesterAvatarUrl} className="w-7 h-7 rounded-full object-cover flex-shrink-0" alt="" />
+                                            ) : (
+                                                <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-black" style={{ background: GRADIENT, color: '#fff' }}>
+                                                    {(app.requesterName || '?').charAt(0).toUpperCase()}
+                                                </div>
+                                            )}
+                                            <span className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>
+                                                {app.requesterName ? `${app.requesterName.split(' ')[0]} procura` : 'Alguém procura'}
+                                            </span>
+                                            <span className="text-[10px] ml-auto flex-shrink-0" style={{ color: colors.textSecondary }}>
+                                                inscrito {relativeTime(app.appliedAt)}
+                                            </span>
+                                        </div>
+
+                                        <div className="flex items-start gap-3">
+                                            <div className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 overflow-hidden" style={{ background: app.photoUrl ? colors.border : GRADIENT, color: '#fff' }}>
+                                                {app.photoUrl ? <img src={app.photoUrl} alt="" className="w-full h-full object-cover" /> : <AppIcon size={22} />}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <span className="text-sm font-black" style={{ color: colors.textPrimary }}>{app.serviceLabel}</span>
+                                                <span className="flex items-center gap-1 text-xs mt-0.5" style={{ color: colors.textSecondary }}>
+                                                    <MapPin size={11} className="flex-shrink-0" />
+                                                    {app.locationAddress.split(',')[0]}
+                                                </span>
+                                                {app.description && <p className="text-xs mt-1.5 line-clamp-2" style={{ color: colors.textSecondary }}>{app.description}</p>}
+                                            </div>
+                                        </div>
+
+                                        <div className="mt-3">
+                                            {app.status === 'accepted' ? (
+                                                <div className="flex items-center gap-2 rounded-xl px-3 py-2.5" style={{ background: '#22c55e18' }}>
+                                                    <CheckCircle2 size={16} color="#22c55e" className="flex-shrink-0" />
+                                                    <span className="text-sm font-bold" style={{ color: '#16a34a' }}>Você foi escolhido! Combine os detalhes com {app.requesterName?.split(' ')[0] || 'quem pediu'}.</span>
+                                                </div>
+                                            ) : app.status === 'rejected' ? (
+                                                <div className="flex items-center gap-2 rounded-xl px-3 py-2.5" style={{ background: `${colors.border}30` }}>
+                                                    <HeartCrack size={16} className="flex-shrink-0" style={{ color: colors.textSecondary }} />
+                                                    <span className="text-sm font-bold" style={{ color: colors.textSecondary }}>Não foi dessa vez</span>
+                                                </div>
+                                            ) : confirmCancelId === app.applicationId ? (
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-xs flex-1" style={{ color: colors.textSecondary }}>Cancelar sua inscrição?</span>
+                                                    <button onClick={() => setConfirmCancelId(null)} className="px-3 py-2 rounded-full text-[11px] font-black uppercase" style={{ background: `${colors.border}30`, color: colors.textPrimary }}>Voltar</button>
+                                                    <button onClick={() => cancelApplication(app.applicationId)} disabled={cancelingId === app.applicationId} className="px-3 py-2 rounded-full text-[11px] font-black uppercase flex items-center gap-1.5 disabled:opacity-60" style={{ background: '#ef4444', color: '#fff' }}>
+                                                        {cancelingId === app.applicationId && <Spinner size={12} />}
+                                                        Cancelar
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <div className="flex items-center gap-2">
+                                                    <div className="flex items-center gap-2 rounded-xl px-3 py-2.5 flex-1" style={{ background: `${colors.accent}15` }}>
+                                                        <Clock size={15} className="flex-shrink-0" style={{ color: colors.accent }} />
+                                                        <span className="text-xs font-bold leading-tight" style={{ color: colors.accent }}>Inscrição enviada. Esperando a resposta.</span>
+                                                    </div>
+                                                    <button onClick={() => setConfirmCancelId(app.applicationId)} aria-label="Cancelar inscrição" className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444' }}>
+                                                        <Trash2 size={14} />
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
                                 )
                             })}

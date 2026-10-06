@@ -136,30 +136,37 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
         // quadro de /aceitar-corridas (sem candidatura própria, sem lotadas),
         // só que resumida às 3 mais recentes pra caber na home.
         const loadOpenRides = async () => {
-            if (!userId) return
+            // Visitante (sem login) também vê as corridas abertas: assim ele sabe que
+            // tem corrida pra pegar. Sem conta não tem driver_pricing nem candidatura
+            // própria, então vale a tarifa iUser e nada é filtrado por "já me candidatei".
+            let pricingRow: { pricing_mode: any; base_distance_km: any; base_fee: any; price_per_km_after_base: any } | null = null
+            let appliedIds = new Set<string>()
+            if (userId) {
+                // As corridas aparecem mesmo sem o modo motorista ativado (e sem tarifa
+                // cadastrada ainda): quem não tem driver_pricing vê o valor pela tarifa iUser.
+                const { data } = await supabase
+                    .from('driver_pricing')
+                    .select('pricing_mode, base_distance_km, base_fee, price_per_km_after_base')
+                    .eq('driver_id', userId)
+                    .maybeSingle()
+                pricingRow = data
 
-            // As corridas aparecem mesmo sem o modo motorista ativado (e sem tarifa
-            // cadastrada ainda): quem não tem driver_pricing vê o valor pela tarifa iUser.
-            const { data: pricingRow } = await supabase
-                .from('driver_pricing')
-                .select('pricing_mode, base_distance_km, base_fee, price_per_km_after_base')
-                .eq('driver_id', userId)
-                .maybeSingle()
+                const { data: myApplicationRows } = await supabase
+                    .from('ride_applications')
+                    .select('ride_request_id')
+                    .eq('applicant_id', userId)
+                    .eq('status', 'pending')
+                appliedIds = new Set((myApplicationRows || []).map((a) => a.ride_request_id))
+            }
             if (!active) return
             const pricing = pricingRow || { pricing_mode: 'platform' as const, base_distance_km: null, base_fee: null, price_per_km_after_base: null }
 
-            const { data: myApplicationRows } = await supabase
-                .from('ride_applications')
-                .select('ride_request_id')
-                .eq('applicant_id', userId)
-                .eq('status', 'pending')
-            const appliedIds = new Set((myApplicationRows || []).map((a) => a.ride_request_id))
-
-            const { data: rows } = await supabase
+            let openQuery = supabase
                 .from('ride_requests')
                 .select('id, requester_id, ride_type, origin_address, destination_address, distance_km, duration_min, passenger_count, object_description, pet_description, applicant_count, origin_needs_access, destination_needs_access, has_shopping, has_special_needs, special_needs_wheelchair, special_needs_visual_impairment, has_guide_dog, pet_has_carrier, delivery_location, wants_air_conditioning')
                 .eq('status', 'pending')
-                .neq('requester_id', userId)
+            if (userId) openQuery = openQuery.neq('requester_id', userId)
+            const { data: rows } = await openQuery
                 .order('created_at', { ascending: false })
                 .limit(15)
             if (!active) return
@@ -275,6 +282,7 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
             if (!active) return
             if (!userId) {
                 setHasPricing(false)
+                await loadOpenRides()
                 return
             }
 
