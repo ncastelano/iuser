@@ -10,6 +10,7 @@ import { useProfile } from '@/app/contexts/ProfileContext'
 import MyOpenServiceRequests from '@/components/MyOpenServiceRequests'
 import { HomeGlassCard, HomeSectionHeader, HOME_GRADIENT } from './HomeSectionKit'
 import FeaturedServices from './FeaturedServices'
+import ServiceSeekers from './ServiceSeekers'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = HOME_GRADIENT
@@ -95,6 +96,11 @@ export default function HireAService({ dragHandle }: HireAServiceProps) {
                 {/* Serviços que profissionais e lojas já oferecem */}
                 <div className="mt-6">
                     <FeaturedServices title="Quem já oferece serviço" />
+                </div>
+
+                {/* Pedidos de todo mundo: quem está procurando um profissional */}
+                <div className="mt-6">
+                    <ServiceSeekers />
                 </div>
             </HomeGlassCard>
         </section>

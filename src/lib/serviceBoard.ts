@@ -70,11 +70,13 @@ export function relativeTime(iso: string): string {
 // ===== Busca os pedidos de serviço abertos =====
 // Corridas não entram mais aqui — motoristas usam /aceitar-corridas.
 export async function fetchOpenBoardItems(limit?: number): Promise<BoardItem[]> {
-    const { data: serviceRequests } = await supabase
+    let query = supabase
         .from('service_requests')
         .select('id, requester_id, service_type, custom_service, location_address, location_needs_access, location_access_notes, description, photo_urls, created_at, view_count')
         .eq('status', 'pending')
         .order('created_at', { ascending: false })
+    if (limit) query = query.limit(limit)
+    const { data: serviceRequests } = await query
 
     const rows = serviceRequests || []
 
