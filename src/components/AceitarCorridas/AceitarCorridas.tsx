@@ -17,7 +17,7 @@ import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import LoginAndRegister from '@/components/LoginAndRegister/LoginAndRegister'
 import LocationPicker from '@/components/LocationPicker'
 import { toast } from 'sonner'
-import { MapPin, Star, Pencil, X, Package, CalendarClock, PawPrint, Car, CheckCircle2, Navigation, Ban, Flag, Share2, AlertCircle, Map as MapIcon } from 'lucide-react'
+import { MapPin, Star, Pencil, X, Package, CalendarClock, PawPrint, Car, CheckCircle2, Navigation, Ban, Flag, Share2, AlertCircle, Map as MapIcon, LocateFixed } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import { shortAddress } from '@/lib/serviceBoard'
 import { getAvatarUrl } from '@/lib/avatar'
@@ -331,6 +331,31 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
     const [liveLocationSync, setLiveLocationSync] = useState(false)
     const [liveLocationLabel, setLiveLocationLabel] = useState<string | null>(null)
     const liveLocationDebounceRef = useRef<NodeJS.Timeout | null>(null)
+    // Pedido automático de localização: sem ela a Tarifa iUser não consegue somar a
+    // distância do motorista até a partida (ver "Pedimos sua localização" na lista).
+    const gpsFixRef = useRef(false)
+    const gpsWatchRef = useRef<{ clear: () => void } | null>(null)
+    const [gpsStatus, setGpsStatus] = useState<'asking' | 'granted' | 'denied' | 'unavailable'>('asking')
+    const requestGps = useCallback(() => {
+        gpsWatchRef.current?.clear()
+        setGpsStatus(gpsFixRef.current ? 'granted' : 'asking')
+        gpsWatchRef.current = watchNativePosition(
+            (pos) => {
+                gpsFixRef.current = true
+                setGpsStatus('granted')
+                setDriverCoords([pos.coords.longitude, pos.coords.latitude])
+            },
+            (err) => {
+                if (gpsFixRef.current) return
+                setGpsStatus(err.code === 1 ? 'denied' : 'unavailable')
+            },
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 }
+        )
+    }, [])
+    useEffect(() => {
+        requestGps()
+        return () => gpsWatchRef.current?.clear()
+    }, [requestGps])
     const [mapDialogRideId, setMapDialogRideId] = useState<string | null>(null)
     // Km/tempo de cada trecho, calculados pelo mini mapa de cada card.
     const [routeInfoById, setRouteInfoById] = useState<Record<string, { toPickupKm: number | null; toPickupMin: number | null; tripKm: number; tripMin: number }>>({})
@@ -486,25 +511,23 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
 
     const load = useCallback(async () => {
         userIdRef.current = contextUserId
-        if (!contextUserId) {
-            setShowLogin(true)
-            setLoading(false)
-            return
-        }
-        setShowLogin(false)
+        // Visitante (sem login) também vê as corridas, com a Tarifa iUser e todos os
+        // tipos de veículo; o login só é pedido na hora de se candidatar.
+        if (contextUserId) setShowLogin(false)
+        const noRow = Promise.resolve({ data: null }) as unknown as PromiseLike<{ data: any }>
 
         const [{ data: pricingRow }, { data: profile }, { data: vehicleRows }] = await Promise.all([
-            supabase
+            !contextUserId ? noRow : supabase
                 .from('driver_pricing')
                 .select('pricing_mode, base_distance_km, base_fee, price_per_km_after_base, extra_fee_pessoa, extra_fee_animal, extra_fee_objeto, extra_fee_condominio, extra_fee_compras, extra_fee_necessidade_especial, extra_fee_pet_sem_caixa, extra_fee_entrega_interna, extra_fee_ar_condicionado, alert_sound_enabled, voice_navigation_enabled')
                 .eq('driver_id', contextUserId)
                 .maybeSingle(),
-            supabase
+            !contextUserId ? noRow : supabase
                 .from('profiles')
                 .select('address, address_number, address_complement, store_lat, store_lng')
                 .eq('id', contextUserId)
                 .maybeSingle(),
-            supabase
+            !contextUserId ? Promise.resolve({ data: [] as any[] }) as unknown as PromiseLike<{ data: any[] }> : supabase
                 .from('driver_vehicles')
                 .select('vehicle_kind')
                 .eq('driver_id', contextUserId),
@@ -529,7 +552,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
         setVoiceNavEnabled(pricing.voice_navigation_enabled !== false)
         const vehicleKinds = (vehicleRows || []).map((v) => v.vehicle_kind as VehicleKind)
         const hasRegisteredVehicle = vehicleKinds.length > 0
-        setHasVehicle(hasRegisteredVehicle)
+        setHasVehicle(contextUserId ? hasRegisteredVehicle : null)
         if (!hasRegisteredVehicle) vehicleKinds.push('carro')
         const acceptableVehicleTypes = new Set<VehicleType>(
             hasRegisteredVehicle
@@ -540,7 +563,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
 
         // Consulta separada e best-effort: se a coluna ainda não existir (migração
         // pendente), isso não pode derrubar a checagem de tarifa acima.
-        supabase
+        if (contextUserId) supabase
             .from('driver_pricing')
             .select('live_location_sync')
             .eq('driver_id', contextUserId)
@@ -557,7 +580,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                 // Enquanto a sincronização ao vivo não está ligada, a posição
                 // exibida é sempre a localização definida em "Definir local"
                 // desta conta — nunca a de outra conta nem um GPS "grudado".
-                if (!syncOn) {
+                if (!syncOn && !gpsFixRef.current) {
                     setDriverCoords(
                         profile?.store_lat != null && profile?.store_lng != null
                             ? [profile.store_lng, profile.store_lat]
@@ -566,7 +589,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                 }
             })
 
-        setSavedLocation(
+        if (contextUserId) setSavedLocation(
             profile?.store_lat != null && profile?.store_lng != null
                 ? {
                     lat: profile.store_lat,
@@ -578,19 +601,22 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                 : null
         )
 
-        const { data: myApplicationRows } = await supabase
-            .from('ride_applications')
-            .select('id, ride_request_id, proposed_price')
-            .eq('applicant_id', contextUserId)
-            .eq('status', 'pending')
+        const { data: myApplicationRows } = contextUserId
+            ? await supabase
+                .from('ride_applications')
+                .select('id, ride_request_id, proposed_price')
+                .eq('applicant_id', contextUserId)
+                .eq('status', 'pending')
+            : { data: [] as { id: string; ride_request_id: string; proposed_price: number | null }[] }
         const myApplications = myApplicationRows || []
         const appliedIds = new Set(myApplications.map((a) => a.ride_request_id))
 
-        const { data: openRides } = await supabase
+        let openRidesQuery = supabase
             .from('ride_requests')
             .select('id, requester_id, ride_type, origin_address, destination_address, origin_complement, destination_complement, notes, passenger_count, vehicle_type, object_description, object_is_sensitive, pet_description, has_child, children_count, child_age, child_needs_car_seat, has_shopping, bag_count, has_extra_object, extra_object_description, has_pet, pet_weight_range, pet_has_carrier, has_special_needs, special_needs_description, special_needs_wheelchair, special_needs_wheelchair_type, special_needs_visual_impairment, has_guide_dog, delivery_location, payment_method, cash_change_for, card_is_contactless, origin_needs_access, origin_access_notes, destination_needs_access, destination_access_notes, grocery_bag_size, wants_air_conditioning, distance_km, duration_min, scheduled_for, created_at, origin_lat, origin_lng, destination_lat, destination_lng, stop1_address, stop1_complement, stop1_lat, stop1_lng, stop2_address, stop2_complement, stop2_lat, stop2_lng, offered_price, order_id, store_id')
             .eq('status', 'pending')
-            .neq('requester_id', contextUserId)
+        if (contextUserId) openRidesQuery = openRidesQuery.neq('requester_id', contextUserId)
+        const { data: openRides } = await openRidesQuery
             .order('scheduled_for', { ascending: true, nullsFirst: true })
             .order('created_at', { ascending: false })
 
@@ -720,7 +746,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
         // já que o passageiro só pode ter um pedido ativo (ver migração
         // ride_requests_one_active_per_requester), e o driver_id só é
         // definido no momento em que o pedido dele vira "accepted".
-        const { data: acceptedRow } = await supabase
+        const { data: acceptedRow } = !contextUserId ? { data: null as any } : await supabase
             .from('ride_requests')
             .select('id, requester_id, vehicle_type, origin_address, destination_address, origin_complement, destination_complement, origin_lat, origin_lng, destination_lat, destination_lng, stop1_address, stop1_complement, stop1_lat, stop1_lng, stop1_reached_at, stop2_address, stop2_complement, stop2_lat, stop2_lng, stop2_reached_at, distance_km, duration_min, driver_en_route, driver_arrived_at, ride_started_at, extra_task_minutes, extra_task_fee, extra_task_description')
             .eq('driver_id', contextUserId)
@@ -879,6 +905,11 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
     const applyToRide = async (ride: RideCardData, price: number) => {
         if (price <= 0) {
             toast.error('Informe um valor válido')
+            return
+        }
+        if (!contextUserId) {
+            toast.info('Entre na sua conta para se candidatar a essa corrida.')
+            setShowLogin(true)
             return
         }
         if (hasVehicle === false) {
@@ -1289,7 +1320,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                         <LoginAndRegister onLoginSuccess={handleLoginSuccess} />
                     )}
 
-                    {!loading && !showLogin && !plansLoading && !hasDriver && (
+                    {!loading && !showLogin && !!contextUserId && !plansLoading && !hasDriver && (
                         <div
                             className="rounded-2xl p-3.5 flex items-center gap-3"
                             style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
@@ -1313,6 +1344,45 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                     {!loading && !showLogin && (
                     <>
                     {hasDriver && <DriverDebtBanner userId={contextUserId} />}
+
+                    {/* Por que pedimos a localização: a Tarifa iUser soma a distância até a partida */}
+                    {activeTab === 'servicos' && gpsStatus !== 'granted' && (
+                        <div
+                            className="rounded-2xl p-3.5 flex items-start gap-3"
+                            style={{ background: '#f9731612', border: '1px solid #f9731640' }}
+                        >
+                            <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#fff' }}>
+                                {gpsStatus === 'asking' ? <Spinner size={18} color="#fff" /> : <LocateFixed size={18} />}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                                <p className="text-sm font-black" style={{ color: colors.textPrimary }}>
+                                    {gpsStatus === 'asking' ? 'Localizando você...' : 'Precisamos da sua localização'}
+                                </p>
+                                <p className="text-xs mt-0.5 leading-snug" style={{ color: colors.textSecondary }}>
+                                    Usamos sua localização para ajustar o valor da <strong style={{ color: colors.textPrimary }}>Tarifa iUser</strong>: se você estiver longe do ponto de partida, somamos esse deslocamento ao valor para você não perder dinheiro rodando até o passageiro.
+                                </p>
+                                {gpsStatus === 'asking' && (
+                                    <p className="text-[11px] mt-1" style={{ color: colors.textSecondary }}>Permita a localização quando o navegador perguntar.</p>
+                                )}
+                                {gpsStatus !== 'asking' && (
+                                    <>
+                                        <p className="text-[11px] mt-1" style={{ color: colors.textSecondary }}>
+                                            {gpsStatus === 'denied'
+                                                ? 'A localização está bloqueada. Libere nas configurações do navegador (ou do app) e toque abaixo.'
+                                                : 'Não conseguimos obter sua localização agora.'}
+                                        </p>
+                                        <button
+                                            onClick={requestGps}
+                                            className="mt-2 px-4 py-2 rounded-full text-xs font-black"
+                                            style={{ background: GRADIENT, color: '#fff' }}
+                                        >
+                                            Permitir localização
+                                        </button>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+                    )}
                     {activeTab === 'servicos' && visibleRides.length === 0 && (
                         <div
                             className="rounded-2xl p-6 text-center"
@@ -1328,6 +1398,17 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                         <div className="flex flex-col gap-3">
                             {visibleRides.map((ride) => {
                                 const info = routeInfoById[ride.id]
+                                // Tarifa iUser = tarifa da corrida + deslocamento até a partida (km × valor/km do veículo)
+                                const perKm = PLATFORM_DEFAULT_PRICING_BY_VEHICLE[kindForRideType(ride.vehicle_type)].pricePerKmAfterBase
+                                const pickupKm = gpsStatus === 'granted'
+                                    ? (info?.toPickupKm ?? (driverCoords && ride.origin_lat != null && ride.origin_lng != null
+                                        ? haversineKm(driverCoords, [ride.origin_lng, ride.origin_lat])
+                                        : null))
+                                    : null
+                                const pickupAmount = pickupKm != null ? Math.round(pickupKm * perKm * 100) / 100 : 0
+                                const pickup = pickupKm != null
+                                    ? { state: 'ready' as const, km: pickupKm, amount: pickupAmount }
+                                    : { state: (gpsStatus === 'asking' ? 'waiting' : 'missing') as 'waiting' | 'missing' }
                                 return (
                                     <div
                                         key={ride.id}
@@ -1339,7 +1420,8 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                                             ride={ride}
                                             requester={{ name: ride.requesterName, slug: ride.requesterSlug, avatarUrl: ride.requesterAvatarUrl, rating: ride.requesterRating }}
                                             storeName={ride.storeName}
-                                            platformPrice={ride.platformPrice}
+                                            platformPrice={ride.platformPrice + (pickup.state === 'ready' ? pickup.amount : 0)}
+                                            pickup={pickup}
                                             customPrice={ride.customPrice}
                                             applying={applyingId === ride.id}
                                             onApply={(price) => applyToRide(ride, price)}

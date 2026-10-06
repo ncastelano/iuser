@@ -77,6 +77,8 @@ interface RideOfferCardProps {
     footer?: ReactNode
     onBack?: () => void
     onSkip?: () => void
+    // Deslocamento do motorista até a partida, somado à Tarifa iUser (platformPrice já vem com ele)
+    pickup?: { state: 'ready'; km: number; amount: number } | { state: 'waiting' | 'missing' }
     // Prévia (home): só o trecho da corrida, sem "até buscar"/total/horário
     compact?: boolean
 }
@@ -99,7 +101,7 @@ const kmText = (v: number) => `${v.toFixed(1).replace('.', ',')} km`
 
 // Card compacto e em linguagem simples: quem pediu, de onde pra onde, quanto
 // falta pra cada trecho e quanto cobrar — sem rótulos em caixa-alta.
-export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, customPrice = null, toPickup, trip, applying = false, onApply, miniMap, footer, onBack, onSkip, compact = false }: RideOfferCardProps) {
+export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, customPrice = null, toPickup, trip, applying = false, onApply, miniMap, footer, onBack, onSkip, compact = false, pickup }: RideOfferCardProps) {
     const { colors } = useTheme()
     const [editing, setEditing] = useState(false)
     const [value, setValue] = useState('')
@@ -233,6 +235,16 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
                         >
                             <span className="block text-[10px] font-semibold" style={{ color: colors.textSecondary }}>Tarifa iUser</span>
                             <span className="block text-[15px] font-black leading-tight" style={{ color: colors.textPrimary }}>{brl(platformPrice)}</span>
+                            {pickup?.state === 'ready' && (
+                                <span className="block text-[9px] leading-tight mt-0.5" style={{ color: '#16a34a' }}>
+                                    inclui {brl(pickup.amount)} · {kmText(pickup.km)} até a partida
+                                </span>
+                            )}
+                            {pickup && pickup.state !== 'ready' && (
+                                <span className="block text-[9px] leading-tight mt-0.5 font-semibold" style={{ color: '#d97706' }}>
+                                    {pickup.state === 'waiting' ? 'Localizando... falta somar a distância até a partida' : 'Falta somar a distância até a partida'}
+                                </span>
+                            )}
                         </button>
                         <button
                             onClick={() => customPrice != null && onApply(customPrice)}
