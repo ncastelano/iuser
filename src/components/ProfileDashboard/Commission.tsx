@@ -2,7 +2,7 @@
 
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { hexToRgb } from '@/lib/color'
@@ -29,7 +29,6 @@ import {
     Gift,
     History,
     Search,
-    Shield,
     ShieldCheck,
 } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
@@ -38,7 +37,6 @@ import { ptBR as ptBRLocale } from 'date-fns/locale'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { usePersistedExpanded } from '@/hooks/usePersistedExpanded'
-import dynamic from 'next/dynamic'
 import { callAdminApi } from '@/lib/callAdminApi'
 import { getAvatarUrl } from '@/lib/avatar'
 import {
@@ -50,8 +48,6 @@ import {
     type MyStatus,
 } from '@/lib/benefits/types'
 
-// Painel de administrador geral (pesado) — só carrega se a pessoa abrir a aba Admin.
-const AdminDashboard = dynamic(() => import('@/components/AdminDashboard/AdminDashboard'), { ssr: false })
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -143,7 +139,7 @@ const WITHDRAWAL_STATUS_COLOR: Record<WithdrawalRequest['status'], string> = {
 
 const MIN_WITHDRAWAL_AMOUNT = 20
 
-type Pane = 'rede' | 'status' | 'grant' | 'history' | 'admin'
+type Pane = 'rede' | 'status' | 'grant' | 'history'
 
 // 31/12 23:59:59 (Brasília), em dias a partir de agora.
 function daysUntilEndOfYear(): number {
@@ -227,16 +223,13 @@ export default function Commission({ userId, profileSlug, onLatestUpdate }: Comm
 
     // ============================================
     // MINHA REDE: tudo o que antes era a aba "Minha Rede" (rede, meu status,
-    // conceder, histórico e admin) mora aqui, em "Convidei para o iUser".
+    // conceder e histórico) mora aqui, em "Convidei para o iUser".
     // O que cada pessoa vê vem do banco já filtrado por permissão/escopo —
     // esconder aba aqui é só conforto; quem decide é o servidor.
     // ============================================
     const [pane, setPane] = useState<Pane>('rede')
-    // Veio do botão "Administrador" do Header (?painel=admin): abre direto o painel Admin.
-    const adminDeepLinkRef = useRef(false)
     const [status, setStatus] = useState<MyStatus | null>(null)
     const [plans, setPlans] = useState<GrantablePlan[]>([])
-    const [isSuperAdmin, setIsSuperAdmin] = useState(false)
 
     const [grantQuery, setGrantQuery] = useState('')
     const [grantResults, setGrantResults] = useState<GrantTarget[]>([])
@@ -398,9 +391,6 @@ export default function Commission({ userId, profileSlug, onLatestUpdate }: Comm
             setPlans(list)
             setGrantPlanId((prev) => (prev && list.some((p) => p.id === prev) ? prev : list[0]?.id || ''))
         })
-        callAdminApi<{ isSuperAdmin: boolean }>('/api/admin/whoami')
-            .then((json) => { if (!cancelled) setIsSuperAdmin(!!json.isSuperAdmin) })
-            .catch(() => { if (!cancelled) setIsSuperAdmin(false) })
         return () => { cancelled = true }
     }, [userId])
 
@@ -593,23 +583,12 @@ export default function Commission({ userId, profileSlug, onLatestUpdate }: Comm
         width: '100%',
     }
     const selectedGrantPlan = plans.find((p) => p.id === grantPlanId)
-    // Quem não pode conceder nada não tem Conceder/Histórico; Admin só pro administrador geral.
-    useEffect(() => {
-        if (!isSuperAdmin || adminDeepLinkRef.current) return
-        if (new URLSearchParams(window.location.search).get('painel') !== 'admin') return
-        adminDeepLinkRef.current = true
-        setIsExpanded(true)
-        setPane('admin')
-        setTimeout(() => document.getElementById('commission-admin-anchor')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 300)
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isSuperAdmin])
-
-    const activePane: Pane = (pane === 'grant' || pane === 'history') && !canManage ? 'rede' : pane === 'admin' && !isSuperAdmin ? 'rede' : pane
+    // Quem não pode conceder nada não tem Conceder/Histórico.
+    const activePane: Pane = (pane === 'grant' || pane === 'history') && !canManage ? 'rede' : pane
     const panes: { id: Pane; label: string; icon: typeof Gift }[] = [
         { id: 'rede', label: 'Minha rede', icon: Users },
         { id: 'status', label: 'Meu status', icon: ShieldCheck },
         ...(canManage ? [{ id: 'grant' as const, label: 'Conceder', icon: Gift }, { id: 'history' as const, label: 'Histórico', icon: History }] : []),
-        ...(isSuperAdmin ? [{ id: 'admin' as const, label: 'Admin', icon: Shield }] : []),
     ]
     const networkPaidValue = members.reduce((acc, m) => acc + m.planPrice, 0)
     const networkPromisedValue = members.reduce((acc, m) => acc + m.postpaidDebt, 0)
@@ -1242,9 +1221,6 @@ export default function Commission({ userId, profileSlug, onLatestUpdate }: Comm
                                     )}
                                 </div>
                             )}
-
-                            {/* ===== ADMIN (só a conta de administrador geral; o servidor reconfirma) ===== */}
-                            {activePane === 'admin' && isSuperAdmin && <div id="commission-admin-anchor"><AdminDashboard /></div>}
                         </div>
                     )}
                 </div>

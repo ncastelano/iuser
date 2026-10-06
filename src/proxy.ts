@@ -40,6 +40,7 @@ const IGNORED_ROUTES = [
     '/planos',
     '/planos/pos-pago',
     '/meus-servicos',
+    '/administrador',
     '/aceitar-corridas/mapa',
     '/pedir-motorista/escolher-local',
     '/modelodehomepage',

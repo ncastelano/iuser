@@ -4,13 +4,13 @@ Marketplace multi-serviço (lojas, perfis pessoais, motoristas, prestadores de s
 
 ## Serviços externos pagos — manter a aba Financeiro atualizada
 
-O admin (`/` → perfil → card "Convidei para o iUser" → aba Admin → **Financeiro**, componente `src/components/AdminDashboard/FinanceSection.tsx`, tabela `service_expenses`) rastreia todo serviço externo pago que o iUser depende pra continuar no ar (Supabase, Asaas, Mapbox, Firebase, hospedagem, domínio etc), pra saber quanto se gasta por mês e não deixar nenhuma conta vencer sem perceber.
+O admin (`/administrador` — aba "Administrador" do Header → **Financeiro**, componente `src/components/AdminDashboard/FinanceSection.tsx`, tabela `service_expenses`) rastreia todo serviço externo pago que o iUser depende pra continuar no ar (Supabase, Asaas, Mapbox, Firebase, hospedagem, domínio etc), pra saber quanto se gasta por mês e não deixar nenhuma conta vencer sem perceber.
 
 **Sempre que integrar um novo serviço pago** (uma nova API/SaaS que tem custo — mesmo que comece no plano grátis), cadastre uma linha em `service_expenses` numa migration (mesmo padrão da seed em `supabase/migrations/20261005000000_service_expenses.sql`): nome do serviço, categoria, `monthly_cost` (0 se ainda não souber o valor real), `billing_cycle` (`monthly`/`yearly`/`usage`/`one_time`) e uma nota dizendo pra que serve e onde no código é usado. Isso vale pra qualquer serviço novo, não só os 4 que já existem hoje.
 
 ## Tarifa da plataforma: mora no banco, editada no Admin
 
-Os valores da "Tarifa iUser" (valor base, quilometragem, tempo por minuto e extras por tipo/condição, por veículo) vivem na tabela `platform_tariffs` e são editados em perfil → "Convidei para o iUser" → Admin → **Tarifas** (`src/components/AdminDashboard/PlatformTariffsSection.tsx`). Os números em `src/lib/driverPricing.ts` (`PLATFORM_DEFAULT_PRICING_BY_VEHICLE`) são só o padrão de fábrica: `loadPlatformTariffs()` (`src/lib/platformTariffs.ts`) sobrescreve esse mesmo objeto com o que está no banco. **Antes de calcular qualquer preço da plataforma, dê `await loadPlatformTariffs(client)`** — não coloque valores de tarifa fixos em outro lugar.
+Os valores da "Tarifa iUser" (valor base, quilometragem, tempo por minuto e extras por tipo/condição, por veículo) vivem na tabela `platform_tariffs` e são editados em `/administrador` → **Tarifas** (`src/components/AdminDashboard/PlatformTariffsSection.tsx`). Os números em `src/lib/driverPricing.ts` (`PLATFORM_DEFAULT_PRICING_BY_VEHICLE`) são só o padrão de fábrica: `loadPlatformTariffs()` (`src/lib/platformTariffs.ts`) sobrescreve esse mesmo objeto com o que está no banco. **Antes de calcular qualquer preço da plataforma, dê `await loadPlatformTariffs(client)`** — não coloque valores de tarifa fixos em outro lugar.
 
 ## Roteamento: não tem middleware.ts, tem src/proxy.ts
 
