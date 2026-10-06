@@ -1,7 +1,7 @@
 // src/app/(main)/inicio/sections/HireAService.tsx
 'use client'
 
-import { ReactNode, useEffect, useMemo } from 'react'
+import { ReactNode, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
 import { Wrench, Megaphone, Search } from 'lucide-react'
@@ -19,7 +19,7 @@ const GRADIENT = HOME_GRADIENT
 
 interface HireAServiceProps {
     dragHandle?: ReactNode
-    // Sobe o card na home enquanto a pessoa tem inscrição ativa em algum serviço.
+    // Sobe o card na home enquanto a pessoa tem pedido em aberto ou inscrição ativa.
     onUrgentChange?: (urgent: boolean) => void
 }
 
@@ -30,8 +30,11 @@ export default function HireAService({ dragHandle, onUrgentChange }: HireAServic
     const { profileSlug } = useProfile()
     const { items: myApplications } = useMyServiceApplications()
     const appliedStatus = useMemo(() => new Map(myApplications.map((a) => [a.requestId, a.status])), [myApplications])
-    const hasActiveApplication = myApplications.some((a) => a.status !== 'rejected')
-    useEffect(() => { onUrgentChange?.(hasActiveApplication) }, [hasActiveApplication, onUrgentChange])
+    const [myOpenCount, setMyOpenCount] = useState(0)
+    // Pedidos em aberto meus ou inscrição ativa em pedido de outra pessoa:
+    // nos dois casos tem coisa andando, então o card sobe pra perto do topo.
+    const hasActivity = myOpenCount > 0 || myApplications.some((a) => a.status !== 'rejected')
+    useEffect(() => { onUrgentChange?.(hasActivity) }, [hasActivity, onUrgentChange])
 
     const buttonStyle = {
         display: 'flex',
@@ -98,7 +101,7 @@ export default function HireAService({ dragHandle, onUrgentChange }: HireAServic
 
                 {/* Pedidos de serviço que a própria pessoa fez, com quem se candidatou */}
                 <div className="mt-5">
-                    <MyOpenServiceRequests limit={3} title="Seus pedidos em aberto" />
+                    <MyOpenServiceRequests limit={3} title="Seus pedidos em aberto" onCountChange={setMyOpenCount} />
                 </div>
 
                 {/* Serviços em que a pessoa se inscreveu como profissional */}

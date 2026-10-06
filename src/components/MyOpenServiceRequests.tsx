@@ -44,9 +44,11 @@ interface OpenRequest {
 interface MyOpenServiceRequestsProps {
     limit?: number
     title?: string
+    // Quantos pedidos em aberto a pessoa tem (a home usa pra subir o card Serviços)
+    onCountChange?: (count: number) => void
 }
 
-export default function MyOpenServiceRequests({ limit = 5, title }: MyOpenServiceRequestsProps) {
+export default function MyOpenServiceRequests({ limit = 5, title, onCountChange }: MyOpenServiceRequestsProps) {
     const { colors } = useTheme()
     const { userId, loading: profileLoading } = useProfile()
     const [loading, setLoading] = useState(true)
@@ -110,6 +112,10 @@ export default function MyOpenServiceRequests({ limit = 5, title }: MyOpenServic
         window.addEventListener(SERVICE_REQUESTS_CHANGED, load)
         return () => window.removeEventListener(SERVICE_REQUESTS_CHANGED, load)
     }, [profileLoading, load])
+
+    useEffect(() => {
+        if (!loading) onCountChange?.(requests.length)
+    }, [loading, requests.length, onCountChange])
 
     if (loading || requests.length === 0) return null
 
