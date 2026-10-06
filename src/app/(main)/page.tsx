@@ -41,14 +41,14 @@ const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 // ===== TODAS AS SEÇÕES DISPONÍVEIS (INCLUINDO AS "EM BREVE") =====
 const DEFAULT_SECTIONS = [
     'categorias',
-    'radar',
+    'servico',
     'storeList',
     'productShowcase',
     'publicationShowcase',
     'profileShowcase',
     'motorista',
     'canalMotorista',
-    'servico',
+    'radar',
     'careerPlans',
     'orderSection',
 ]
