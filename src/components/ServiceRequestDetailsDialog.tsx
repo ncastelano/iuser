@@ -7,7 +7,7 @@
 
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { X, MapPin, Building2, Pencil, Eye, Check, Users, Clock } from 'lucide-react'
+import { X, MapPin, Building2, Pencil, Eye, Check, Users, Clock, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
@@ -146,6 +146,30 @@ function DetailsBody({ request, setRequest, decidingId, onDecide, onClose, color
     const [needsAccess, setNeedsAccess] = useState(request.needsAccess)
     const [accessNotes, setAccessNotes] = useState(request.accessNotes || '')
     const [saving, setSaving] = useState(false)
+    const [confirmDelete, setConfirmDelete] = useState(false)
+    const [deleting, setDeleting] = useState(false)
+
+    // Sem window.confirm(): dentro do app nativo o diálogo do navegador pode nem
+    // aparecer — a confirmação é o bloco "Tem certeza?" logo abaixo do botão.
+    const deleteRequest = async () => {
+        setDeleting(true)
+        try {
+            // .select() pra perceber quando o RLS bloqueia (0 linhas, sem erro).
+            const { data, error } = await supabase.from('service_requests').delete().eq('id', request.id).select('id')
+            if (error) throw error
+            if (!data || data.length === 0) {
+                toast.error('Não foi possível excluir esse pedido.')
+                return
+            }
+            toast.success('Pedido excluído')
+            notifyServiceRequestsChanged()
+            onClose()
+        } catch (err: any) {
+            toast.error('Erro ao excluir: ' + (err.message || 'tente novamente'))
+        } finally {
+            setDeleting(false)
+        }
+    }
 
     const save = async () => {
         if (!description.trim()) {
@@ -372,6 +396,42 @@ function DetailsBody({ request, setRequest, decidingId, onDecide, onClose, color
 
                 {/* Quem viu o pedido */}
                 <ServiceRequestVisitors requestId={request.id} />
+
+                {/* Excluir o pedido */}
+                {!confirmDelete ? (
+                    <button
+                        onClick={() => setConfirmDelete(true)}
+                        className="flex items-center justify-center gap-2 py-3 rounded-2xl text-sm font-black"
+                        style={{ background: '#ef444415', color: '#ef4444' }}
+                    >
+                        <Trash2 size={16} />
+                        Excluir pedido
+                    </button>
+                ) : (
+                    <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: '#ef444410', border: '1px solid #ef444440' }}>
+                        <p className="text-sm" style={{ color: colors.textPrimary }}>
+                            Tem certeza? O pedido some pra todo mundo, junto com as inscrições e os visitantes. Não dá pra desfazer.
+                        </p>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={() => setConfirmDelete(false)}
+                                className="flex-1 py-2.5 rounded-xl text-xs font-black uppercase"
+                                style={{ background: `${colors.border}30`, color: colors.textPrimary, border: `1px solid ${colors.border}` }}
+                            >
+                                Voltar
+                            </button>
+                            <button
+                                onClick={deleteRequest}
+                                disabled={deleting}
+                                className="flex-1 py-2.5 rounded-xl text-xs font-black uppercase flex items-center justify-center gap-2 disabled:opacity-60"
+                                style={{ background: '#ef4444', color: '#fff' }}
+                            >
+                                {deleting && <Spinner size={14} />}
+                                Excluir
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>,
         document.body
