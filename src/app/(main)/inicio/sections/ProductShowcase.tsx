@@ -6,6 +6,7 @@ import {
     Star,
     Package,
     Eye,
+    ArrowRight,
 } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import { useRouter } from 'next/navigation'
@@ -347,7 +348,26 @@ export default function ProductShowcase({ dragHandle }: ProductShowcaseProps) {
 
     return (
         <div className="relative w-full">
-            <HomeSectionHeader icon={Package} title="Produtos em destaque" subtitle="Separado pra você" dragHandle={dragHandle} />
+            <HomeSectionHeader
+                icon={Package}
+                title="Produtos em destaque"
+                subtitle={`${products.length} ${products.length === 1 ? 'produto' : 'produtos'}`}
+                dragHandle={dragHandle}
+                action={(
+                    <button
+                        onClick={() => { startNavProgress(); router.push('/lojas-em-destaque') }}
+                        className="flex items-center gap-2 px-5 py-2 rounded-full text-xs font-bold transition-all hover:scale-105 active:scale-95 hover:shadow-lg whitespace-nowrap flex-shrink-0"
+                        style={{
+                            background: GRADIENT,
+                            color: '#ffffff',
+                            boxShadow: `0 2px 8px rgba(249, 115, 22, 0.3)`,
+                        }}
+                    >
+                        <span>Ver todas</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
+                )}
+            />
 
             <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4" style={{ scrollbarWidth: 'none' }}>
                 {products.map((product) => {

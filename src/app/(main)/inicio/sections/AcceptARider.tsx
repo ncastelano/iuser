@@ -4,7 +4,7 @@
 import { ReactNode, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
-import { Car, Settings2, CheckCircle2, Navigation, MapPin, Users, Package, PawPrint, Clock } from 'lucide-react'
+import { Car, Bike, Motorbike, Settings2, CheckCircle2, Navigation, MapPin, Users, Package, PawPrint, Clock, ArrowRight } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { supabase } from '@/lib/supabase/client'
@@ -13,6 +13,7 @@ import { computeSuggestedPrice, computeConditionExtras, getEffectivePricing, typ
 import RideChat from '@/components/RideChat'
 import { DRIVER_CHAT_QUICK_REPLIES } from '@/lib/rideChatQuickReplies'
 import { HomeGlassCard } from './HomeSectionKit'
+import { RideOfferCard, type OfferRide, type OfferRequester } from '@/components/AceitarCorridas/RideOfferCard'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -32,20 +33,11 @@ interface AcceptedRideStatus {
     proposedPrice: number | null
 }
 
+// Corrida aberta na prévia da home: mesmos dados e mesmo card de /aceitar-corridas
 interface OpenRidePreview {
-    id: string
-    ride_type: 'pessoa' | 'objeto' | 'animal'
-    requesterName: string | null
-    requesterSlug: string | null
-    requesterAvatarUrl: string | undefined
+    ride: OfferRide
+    requester: OfferRequester
     suggestedPrice: number
-    origin_address: string
-    destination_address: string
-    distance_km: number | null
-    duration_min: number | null
-    passenger_count: number
-    object_description: string | null
-    pet_description: string | null
 }
 
 interface CandidacyPreview {
@@ -83,6 +75,7 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
     const [driverModeActive, setDriverModeActive] = useState(false)
     const [acceptedRide, setAcceptedRide] = useState<AcceptedRideStatus | null>(null)
     const [openRides, setOpenRides] = useState<OpenRidePreview[]>([])
+    const [openRidesTotal, setOpenRidesTotal] = useState(0)
     const [myCandidacies, setMyCandidacies] = useState<CandidacyPreview[]>([])
 
     useEffect(() => {
@@ -163,7 +156,7 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
 
             let openQuery = supabase
                 .from('ride_requests')
-                .select('id, requester_id, ride_type, origin_address, destination_address, distance_km, duration_min, passenger_count, object_description, pet_description, applicant_count, origin_needs_access, destination_needs_access, has_shopping, has_special_needs, special_needs_wheelchair, special_needs_visual_impairment, has_guide_dog, pet_has_carrier, delivery_location, wants_air_conditioning')
+                .select('id, requester_id, ride_type, origin_address, destination_address, origin_complement, destination_complement, notes, passenger_count, vehicle_type, object_description, object_is_sensitive, pet_description, has_child, children_count, child_age, child_needs_car_seat, has_shopping, bag_count, has_extra_object, extra_object_description, has_pet, pet_weight_range, pet_has_carrier, has_special_needs, special_needs_description, special_needs_wheelchair, special_needs_wheelchair_type, special_needs_visual_impairment, has_guide_dog, delivery_location, payment_method, cash_change_for, card_is_contactless, origin_needs_access, origin_access_notes, destination_needs_access, destination_access_notes, grocery_bag_size, wants_air_conditioning, distance_km, duration_min, scheduled_for, created_at, offered_price, order_id, applicant_count, stop1_address, stop2_address')
                 .eq('status', 'pending')
             if (userId) openQuery = openQuery.neq('requester_id', userId)
             const { data: rows } = await openQuery
@@ -172,7 +165,8 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
             if (!active) return
 
             const candidateRows = (rows || []).filter((r) => !appliedIds.has(r.id) && (r.applicant_count ?? 0) < 5)
-            const top = candidateRows.slice(0, 5)
+            const top = candidateRows.slice(0, 3)
+            setOpenRidesTotal(candidateRows.length)
 
             const requesterIds = Array.from(new Set(top.map((r) => r.requester_id)))
             const { data: profiles } = requesterIds.length > 0
@@ -197,25 +191,21 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
                         delivery_location: r.delivery_location,
                         wants_air_conditioning: r.wants_air_conditioning,
                     }
-                    const suggestedPrice = r.distance_km != null
+                    const computedPrice = r.distance_km != null
                         ? computeSuggestedPrice(r.distance_km, pricingShape, r.ride_type, conditionFlags)
                         : pricingShape.baseFee
                             + pricingShape.extraFees[r.ride_type as 'pessoa' | 'animal' | 'objeto']
                             + computeConditionExtras(conditionFlags, pricingShape.conditionExtraFees)
                     return {
-                        id: r.id,
-                        ride_type: r.ride_type,
-                        requesterName: p?.name || null,
-                        requesterSlug: p?.profileSlug || null,
-                        requesterAvatarUrl: getAvatarUrl(supabase, p?.avatar_url),
-                        suggestedPrice,
-                        origin_address: r.origin_address,
-                        destination_address: r.destination_address,
-                        distance_km: r.distance_km,
-                        duration_min: r.duration_min,
-                        passenger_count: r.passenger_count,
-                        object_description: r.object_description,
-                        pet_description: r.pet_description,
+                        ride: r as unknown as OfferRide,
+                        requester: {
+                            name: p?.name || null,
+                            slug: p?.profileSlug || null,
+                            avatarUrl: getAvatarUrl(supabase, p?.avatar_url),
+                            rating: { avg: 0, count: 0 },
+                        },
+                        // Frete de loja já vem com valor fechado; o resto sai da tarifa
+                        suggestedPrice: r.offered_price != null ? Number(r.offered_price) : computedPrice,
                     }
                 })
             )
@@ -380,15 +370,22 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
                     <div className="flex items-center gap-4">
                         {dragHandle && <div>{dragHandle}</div>}
 
-                        <div
-                            className="w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0"
-                            style={{
-                                background: GRADIENT,
-                                color: '#ffffff',
-                                boxShadow: `0 4px 12px #f9731640`,
-                            }}
-                        >
-                            <Car size={28} />
+                        {/* Carro, moto e bicicleta: qualquer um pode ser motorista */}
+                        <div className="flex -space-x-2.5 flex-shrink-0">
+                            {[Car, Motorbike, Bike].map((VehicleIcon, i) => (
+                                <div
+                                    key={i}
+                                    className="w-11 h-11 rounded-full flex items-center justify-center"
+                                    style={{
+                                        background: GRADIENT,
+                                        color: '#ffffff',
+                                        boxShadow: `0 4px 12px #f9731640`,
+                                        border: `2px solid ${colors.surface}`,
+                                    }}
+                                >
+                                    <VehicleIcon size={20} />
+                                </div>
+                            ))}
                         </div>
 
                         <div>
@@ -551,66 +548,49 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
                             className="text-[10px] font-black uppercase px-2.5 py-1 rounded-full text-white whitespace-nowrap"
                             style={{ background: GRADIENT }}
                         >
-                            {openRides.length} {openRides.length === 1 ? 'corrida' : 'corridas'}
+                            {openRidesTotal} {openRidesTotal === 1 ? 'corrida' : 'corridas'}
                         </span>
                     </div>
                 )}
 
                 {openRides.length > 0 && (
-                    <div className="flex flex-col gap-2">
-                        {openRides.map((ride) => (
-                            <button
+                    <div className="flex flex-col gap-3">
+                        {openRides.map(({ ride, requester, suggestedPrice }) => (
+                            <div
                                 key={ride.id}
-                                onClick={() => goToRide(ride.id)}
-                                className="w-full p-3 rounded-2xl text-left transition-all hover:scale-[1.01]"
-                                style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}
+                                className="rounded-2xl p-3.5"
+                                style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
                             >
-                                <div className="flex items-center gap-2 mb-1.5">
-                                    {ride.requesterAvatarUrl ? (
-                                        <img src={ride.requesterAvatarUrl} className="w-8 h-8 rounded-full object-cover flex-shrink-0" alt="" />
-                                    ) : (
-                                        <span
-                                            className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-black"
-                                            style={{ background: GRADIENT, color: '#fff' }}
+                                <RideOfferCard
+                                    compact
+                                    ride={ride}
+                                    requester={requester}
+                                    storeName={null}
+                                    toPickup={{ km: null, min: null, hasGps: true }}
+                                    trip={{ km: ride.distance_km, min: ride.duration_min }}
+                                    footer={
+                                        <button
+                                            onClick={() => goToRide(ride.id)}
+                                            className="w-full py-3 rounded-full text-sm font-black flex items-center justify-center gap-2 transition-all hover:scale-[1.02] active:scale-95"
+                                            style={{ background: GRADIENT, color: '#fff', boxShadow: '0 4px 12px #f9731640' }}
                                         >
-                                            {(ride.requesterName || ride.requesterSlug || '?').charAt(0).toUpperCase()}
-                                        </span>
-                                    )}
-                                    <div className="min-w-0 flex-1">
-                                        <p className="text-xs font-black truncate" style={{ color: colors.textPrimary }}>
-                                            {ride.requesterName || (ride.requesterSlug ? `@${ride.requesterSlug}` : 'Passageiro')}
-                                        </p>
-                                        <span className="flex items-center gap-1 text-[10px]" style={{ color: colors.textSecondary }}>
-                                            {ride.ride_type === 'objeto' ? (
-                                                <><Package size={10} className="flex-shrink-0" /> {ride.object_description || 'Objeto'}</>
-                                            ) : ride.ride_type === 'animal' ? (
-                                                <><PawPrint size={10} className="flex-shrink-0" /> {ride.pet_description || 'Animal'}</>
-                                            ) : (
-                                                <><Users size={10} className="flex-shrink-0" /> {ride.passenger_count} passageiro{ride.passenger_count > 1 ? 's' : ''}</>
-                                            )}
-                                        </span>
-                                    </div>
-                                    <span className="text-xs font-black flex-shrink-0" style={{ color: '#f97316' }}>
-                                        R$ {ride.suggestedPrice.toFixed(2)}
-                                    </span>
-                                </div>
-
-                                <div className="flex items-start gap-1.5 text-[11px] mb-1" style={{ color: colors.textSecondary }}>
-                                    <MapPin size={11} className="flex-shrink-0 mt-0.5" />
-                                    <span>{shortAddress(ride.origin_address)} → {shortAddress(ride.destination_address)}</span>
-                                </div>
-
-                                {ride.duration_min != null && (
-                                    <div className="flex items-center gap-1 opacity-50">
-                                        <Clock size={10} style={{ color: colors.textPrimary }} />
-                                        <span className="text-[10px]" style={{ color: colors.textPrimary }}>
-                                            chegada em {Math.round(ride.duration_min)} min
-                                            {ride.distance_km != null && ` · ${ride.distance_km.toFixed(1)} km`}
-                                        </span>
-                                    </div>
-                                )}
-                            </button>
+                                            Ver corrida · R$ {suggestedPrice.toFixed(2).replace('.', ',')}
+                                            <ArrowRight size={16} />
+                                        </button>
+                                    }
+                                />
+                            </div>
                         ))}
+
+                        {openRidesTotal > openRides.length && (
+                            <button
+                                onClick={() => { startNavProgress(); router.push('/aceitar-corridas') }}
+                                className="w-full py-2.5 rounded-full text-xs font-black transition-all hover:scale-[1.02] active:scale-95"
+                                style={{ background: `${colors.accent}15`, color: colors.accent, border: `1px solid ${colors.border}` }}
+                            >
+                                Ver todas as {openRidesTotal} corridas
+                            </button>
+                        )}
                     </div>
                 )}
             </HomeGlassCard>

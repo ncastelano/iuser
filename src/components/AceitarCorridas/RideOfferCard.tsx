@@ -77,6 +77,8 @@ interface RideOfferCardProps {
     footer?: ReactNode
     onBack?: () => void
     onSkip?: () => void
+    // Prévia (home): só o trecho da corrida, sem "até buscar"/total/horário
+    compact?: boolean
 }
 
 function relativeTime(iso: string): string {
@@ -97,7 +99,7 @@ const kmText = (v: number) => `${v.toFixed(1).replace('.', ',')} km`
 
 // Card compacto e em linguagem simples: quem pediu, de onde pra onde, quanto
 // falta pra cada trecho e quanto cobrar — sem rótulos em caixa-alta.
-export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, customPrice = null, toPickup, trip, applying = false, onApply, miniMap, footer, onBack, onSkip }: RideOfferCardProps) {
+export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, customPrice = null, toPickup, trip, applying = false, onApply, miniMap, footer, onBack, onSkip, compact = false }: RideOfferCardProps) {
     const { colors } = useTheme()
     const [editing, setEditing] = useState(false)
     const [value, setValue] = useState('')
@@ -198,11 +200,11 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
 
             {/* Quanto falta: cores iguais às linhas do mapa */}
             <div className="flex gap-1.5">
-                {stat(TO_PICKUP_COLOR, 'Até buscar', toPickup.km, toPickup.min, toPickup.hasGps ? 'calculando…' : 'ative o GPS')}
+                {!compact && stat(TO_PICKUP_COLOR, 'Até buscar', toPickup.km, toPickup.min, toPickup.hasGps ? 'calculando…' : 'ative o GPS')}
                 {stat(TRIP_COLOR, 'A corrida', trip.km, trip.min, 'calculando…')}
-                {stat('#a855f7', 'Total', totalKm, totalMin, '—')}
+                {!compact && stat('#a855f7', 'Total', totalKm, totalMin, '—')}
             </div>
-            {arrivalTime && (
+            {!compact && arrivalTime && (
                 <p className="text-[11px] -mt-1" style={{ color: colors.textSecondary }}>
                     Se sair agora, termina por volta das <span className="font-black" style={{ color: colors.textPrimary }}>{arrivalTime}</span>
                 </p>
