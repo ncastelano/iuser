@@ -21,7 +21,7 @@ import { MapPin, Star, Pencil, X, Package, CalendarClock, PawPrint, Car, CheckCi
 import { Spinner } from '@/components/Spinner'
 import { shortAddress } from '@/lib/serviceBoard'
 import { getAvatarUrl } from '@/lib/avatar'
-import { computeSuggestedPrice, computeConditionExtras, fetchPricePerMinuteMap, getEffectivePricing, getCustomPricing, PLATFORM_DEFAULT_PRICING_BY_VEHICLE, DriverPricing, type RideConditionFlags } from '@/lib/driverPricing'
+import { computeSuggestedPrice, computeConditionExtras, computePickupFee, fetchPricePerMinuteMap, getEffectivePricing, getCustomPricing, PLATFORM_DEFAULT_PRICING_BY_VEHICLE, DriverPricing, type RideConditionFlags } from '@/lib/driverPricing'
 import { playRideAlertSound, playNotificationSound } from '@/lib/rideAlertSound'
 import { useVoiceNavigation } from '@/lib/voiceNavigation'
 import { getProfileRideRatingsBatch, ProfileRideRating } from '@/lib/rideReviews'
@@ -1399,14 +1399,14 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                         <div className="flex flex-col gap-3">
                             {visibleRides.map((ride) => {
                                 const info = routeInfoById[ride.id]
-                                // Tarifa iUser = tarifa da corrida + deslocamento até a partida (km × valor/km do veículo)
-                                const perKm = PLATFORM_DEFAULT_PRICING_BY_VEHICLE[kindForRideType(ride.vehicle_type)].pricePerKmAfterBase
+                                // Tarifa iUser = tarifa da corrida + deslocamento até a partida (km × valor/km + minutos × valor/min do veículo)
+                                const platformShape = PLATFORM_DEFAULT_PRICING_BY_VEHICLE[kindForRideType(ride.vehicle_type)]
                                 const pickupKm = gpsStatus === 'granted'
                                     ? (info?.toPickupKm ?? (driverCoords && ride.origin_lat != null && ride.origin_lng != null
                                         ? haversineKm(driverCoords, [ride.origin_lng, ride.origin_lat])
                                         : null))
                                     : null
-                                const pickupAmount = pickupKm != null ? Math.round(pickupKm * perKm * 100) / 100 : 0
+                                const pickupAmount = pickupKm != null ? computePickupFee(platformShape, pickupKm, info?.toPickupMin) : 0
                                 const pickup = pickupKm != null
                                     ? { state: 'ready' as const, km: pickupKm, amount: pickupAmount }
                                     : { state: (gpsStatus === 'asking' ? 'waiting' : 'missing') as 'waiting' | 'missing' }

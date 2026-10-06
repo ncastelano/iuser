@@ -9,7 +9,7 @@ import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { supabase } from '@/lib/supabase/client'
 import { getAvatarUrl } from '@/lib/avatar'
-import { computeSuggestedPrice, computeConditionExtras, fetchPricePerMinuteMap, getEffectivePricing, PLATFORM_DEFAULT_PRICING_BY_VEHICLE, type RideConditionFlags } from '@/lib/driverPricing'
+import { computeSuggestedPrice, computeConditionExtras, computePickupFee, fetchPricePerMinuteMap, getEffectivePricing, PLATFORM_DEFAULT_PRICING_BY_VEHICLE, type RideConditionFlags } from '@/lib/driverPricing'
 import { kindForRideType } from '@/lib/rideVehicle'
 import { fetchRoute, haversineKm } from '@/lib/mapboxRoute'
 import { watchPosition } from '@/lib/nativeGeolocation'
@@ -91,7 +91,7 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
     const [gpsStatus, setGpsStatus] = useState<'idle' | 'asking' | 'granted' | 'denied' | 'unavailable'>('idle')
     const gpsWatchRef = useRef<{ clear: () => void } | null>(null)
     const gpsFixRef = useRef(false)
-    const [pickupKmById, setPickupKmById] = useState<Record<string, number>>({})
+    const [pickupById, setPickupById] = useState<Record<string, { km: number; min: number }>>({})
     const lastRouteRef = useRef<{ coords: [number, number]; key: string } | null>(null)
 
     const requestGps = useCallback(() => {
@@ -388,7 +388,7 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
         openRides.forEach(({ ride, origin, usesPlatformTariff }) => {
             if (!origin || !usesPlatformTariff) return
             fetchRoute(gps, origin).then((route) => {
-                setPickupKmById((prev) => ({ ...prev, [ride.id]: route.distanceKm }))
+                setPickupById((prev) => ({ ...prev, [ride.id]: { km: route.distanceKm, min: route.durationMin } }))
             })
         })
     }, [gps, openRides])
@@ -638,9 +638,10 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
                 {openRides.length > 0 && (
                     <div className="flex flex-col gap-3">
                         {openRides.map(({ ride, requester, suggestedPrice, usesPlatformTariff }) => {
-                            const perKm = PLATFORM_DEFAULT_PRICING_BY_VEHICLE[kindForRideType(ride.vehicle_type)].pricePerKmAfterBase
-                            const pickupKm = usesPlatformTariff && gpsStatus === 'granted' ? pickupKmById[ride.id] : undefined
-                            const pickupAmount = pickupKm != null ? Math.round(pickupKm * perKm * 100) / 100 : 0
+                            const platformShape = PLATFORM_DEFAULT_PRICING_BY_VEHICLE[kindForRideType(ride.vehicle_type)]
+                            const pickup = usesPlatformTariff && gpsStatus === 'granted' ? pickupById[ride.id] : undefined
+                            const pickupKm = pickup?.km
+                            const pickupAmount = pickup ? computePickupFee(platformShape, pickup.km, pickup.min) : 0
                             const total = suggestedPrice + pickupAmount
                             const brl = (v: number) => `R$ ${v.toFixed(2).replace('.', ',')}`
                             return (

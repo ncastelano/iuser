@@ -930,10 +930,10 @@ function PainelMotoristaContent() {
                                         </p>
                                     </div>
                                     <p className="text-xs" style={{ color: colors.textPrimary }}>
-                                        Até {platformPricingForVehicle.baseDistanceKm} km = R$ {platformPricingForVehicle.baseFee.toFixed(2)}, acima + R$ {platformPricingForVehicle.pricePerKmAfterBase.toFixed(2)}/km
+                                        Até {platformPricingForVehicle.baseDistanceKm} km = R$ {platformPricingForVehicle.baseFee.toFixed(2)}, acima + R$ {platformPricingForVehicle.pricePerKmAfterBase.toFixed(2)}/km, + R$ {platformPricingForVehicle.pricePerMinute.toFixed(2)}/min
                                     </p>
                                     <p className="text-[10px] mt-3 font-bold" style={{ color: colors.textPrimary }}>
-                                        Exemplo: uma corrida de {previewDistance} km sairia por R$ {previewPrice.toFixed(2)}
+                                        Exemplo: uma corrida de {previewDistance} km e {previewMinutes} min sairia por R$ {previewPrice.toFixed(2)}
                                     </p>
                                 </div>
                             ) : (

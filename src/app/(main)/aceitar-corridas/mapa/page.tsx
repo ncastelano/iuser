@@ -37,7 +37,7 @@ import { useVoiceNavigation } from '@/lib/voiceNavigation'
 import RideChat from '@/components/RideChat'
 import { DRIVER_CHAT_QUICK_REPLIES } from '@/lib/rideChatQuickReplies'
 import { kindForRideType, type VehicleType, type VehicleKind } from '@/lib/rideVehicle'
-import { PLATFORM_DEFAULT_PRICING_BY_VEHICLE, fetchPricePerMinuteMap } from '@/lib/driverPricing'
+import { PLATFORM_DEFAULT_PRICING_BY_VEHICLE, computePickupFee, fetchPricePerMinuteMap } from '@/lib/driverPricing'
 import { computeRideTariffs } from '@/lib/rideTariffs'
 import { submitRideApplication } from '@/lib/rideApplication'
 import { getAvatarUrl } from '@/lib/avatar'
@@ -352,8 +352,8 @@ function AceitarCorridasMapaContent() {
     // (km da rota "você → partida" × valor/km do veículo da corrida).
     const pickupFee: { state: 'ready'; km: number; amount: number } | { state: 'waiting' | 'missing' } = (() => {
         if (!offer || routeKm == null || !driverCoords) return { state: driverCoords ? 'waiting' : 'missing' }
-        const perKm = PLATFORM_DEFAULT_PRICING_BY_VEHICLE[kindForRideType(offer.ride.vehicle_type)].pricePerKmAfterBase
-        return { state: 'ready', km: routeKm, amount: Math.round(routeKm * perKm * 100) / 100 }
+        const platformShape = PLATFORM_DEFAULT_PRICING_BY_VEHICLE[kindForRideType(offer.ride.vehicle_type)]
+        return { state: 'ready', km: routeKm, amount: computePickupFee(platformShape, routeKm, routeMin) }
     })()
 
     const applyToOffer = async (price: number) => {

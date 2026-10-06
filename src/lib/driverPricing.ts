@@ -74,7 +74,7 @@ export const PLATFORM_DEFAULT_PRICING_BY_VEHICLE: Record<VehicleKind, DriverPric
         baseDistanceKm: 5,
         baseFee: 7,
         pricePerKmAfterBase: 2,
-        pricePerMinute: 0,
+        pricePerMinute: 0.3,
         extraFees: PLATFORM_DEFAULT_EXTRA_FEES,
         conditionExtraFees: PLATFORM_DEFAULT_CONDITION_EXTRA_FEES,
     },
@@ -82,7 +82,7 @@ export const PLATFORM_DEFAULT_PRICING_BY_VEHICLE: Record<VehicleKind, DriverPric
         baseDistanceKm: 5,
         baseFee: 5,
         pricePerKmAfterBase: 1.5,
-        pricePerMinute: 0,
+        pricePerMinute: 0.2,
         extraFees: PLATFORM_DEFAULT_EXTRA_FEES,
         conditionExtraFees: PLATFORM_DEFAULT_CONDITION_EXTRA_FEES,
     },
@@ -90,7 +90,7 @@ export const PLATFORM_DEFAULT_PRICING_BY_VEHICLE: Record<VehicleKind, DriverPric
         baseDistanceKm: 5,
         baseFee: 5,
         pricePerKmAfterBase: 1.5,
-        pricePerMinute: 0,
+        pricePerMinute: 0.2,
         extraFees: PLATFORM_DEFAULT_EXTRA_FEES,
         conditionExtraFees: PLATFORM_DEFAULT_CONDITION_EXTRA_FEES,
     },
@@ -181,6 +181,13 @@ export function computeSuggestedPrice(
     // Por tempo: minutos estimados da corrida × valor por minuto do motorista
     const timeExtra = durationMin != null && durationMin > 0 ? durationMin * pricing.pricePerMinute : 0
     return pricing.baseFee + extraKm * pricing.pricePerKmAfterBase + timeExtra + rideTypeExtra + conditionExtra
+}
+
+// Deslocamento do motorista até o ponto de partida, somado à Tarifa iUser: km × valor/km
+// mais minutos × valor/minuto (mesma lógica da corrida, só que do trecho vazio).
+export function computePickupFee(pricing: DriverPricing, km: number, minutes?: number | null): number {
+    const timePart = minutes != null && minutes > 0 ? minutes * pricing.pricePerMinute : 0
+    return Math.round((km * pricing.pricePerKmAfterBase + timePart) * 100) / 100
 }
 
 // price_per_minute é uma coluna nova: buscada à parte e sem derrubar nada se ela
