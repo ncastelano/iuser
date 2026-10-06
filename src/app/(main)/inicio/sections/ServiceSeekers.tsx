@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
-import { MapPin, Plus, Eye, Check, MoreHorizontal, Pencil, Trash2, X } from 'lucide-react'
+import { MapPin, Plus, Eye, Check, Wrench, MoreHorizontal, Pencil, Trash2, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase/client'
 import ServiceRequestDetailsDialog from '@/components/ServiceRequestDetailsDialog'
@@ -164,10 +164,10 @@ export default function ServiceSeekers({ limit = 8, applied }: { limit?: number;
                             {!mine && applied?.has(item.id) && applied.get(item.id) !== 'rejected' && (
                                 <button
                                     onClick={() => go(`/procurar-servico?pedido=${item.id}`)}
-                                    className="mt-auto w-full py-2 rounded-full text-[11px] font-black uppercase tracking-wider flex items-center justify-center gap-1.5"
+                                    className="mt-auto w-full flex items-center justify-center gap-2 py-3 rounded-full font-black text-sm"
                                     style={{ background: '#22c55e18', color: '#16a34a', border: '1px solid #22c55e55' }}
                                 >
-                                    <Check size={13} />
+                                    <Check size={16} />
                                     {applied.get(item.id) === 'accepted' ? 'Você foi escolhido!' : 'Você já se inscreveu'}
                                 </button>
                             )}
@@ -175,9 +175,10 @@ export default function ServiceSeekers({ limit = 8, applied }: { limit?: number;
                             {!mine && !(applied?.has(item.id) && applied.get(item.id) !== 'rejected') && (
                                 <button
                                     onClick={() => go(`/procurar-servico?pedido=${item.id}`)}
-                                    className="mt-auto w-full py-2 rounded-full text-[11px] font-black uppercase tracking-wider transition-all active:scale-95"
-                                    style={{ background: `${colors.accent}15`, color: colors.accent, border: `1px solid ${colors.border}` }}
+                                    className="mt-auto w-full flex items-center justify-center gap-2 py-3 rounded-full font-black text-sm transition-all hover:scale-[1.02] active:scale-95"
+                                    style={{ background: HOME_GRADIENT, color: '#fff', boxShadow: '0 4px 12px #f9731640' }}
                                 >
+                                    <Wrench size={16} />
                                     Quero fazer esse serviço
                                 </button>
                             )}

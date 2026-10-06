@@ -87,7 +87,7 @@ export default function HireAService({ dragHandle, onUrgentChange }: HireAServic
                         style={buttonStyle}
                     >
                         <Search size={16} />
-                        ver todos os serviços
+                        ver serviços
                     </button>
                     <button
                         onClick={goPublish}
@@ -95,7 +95,7 @@ export default function HireAService({ dragHandle, onUrgentChange }: HireAServic
                         style={outlineButtonStyle}
                     >
                         <Megaphone size={16} />
-                        publicar meu serviço
+                        publicar serviço
                     </button>
                 </div>
 
