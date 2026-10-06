@@ -7,7 +7,7 @@ import { Sparkles, Check, Zap } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { supabase } from '@/lib/supabase/client'
-import { HomeGlassCard, HOME_GRADIENT } from './HomeSectionKit'
+import { HomeGlassCard, HomeSectionHeader, HOME_GRADIENT } from './HomeSectionKit'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = HOME_GRADIENT
@@ -98,29 +98,96 @@ export default function CareerPlans() {
     const periodLabel = isPostpaid ? 'por uso' : displayPlan ? (CYCLE_LABEL[displayPlan.billing_cycle] || '/mês') : ''
 
     if (!userId) {
+        // Visitante: mostra os dois planos lado a lado pra ele já escolher.
+        const postpaid = plans.find((p) => p.code === 'pos_pago') || null
+        const prepaid = plans.find((p) => p.code === 'pre_pago') || null
+        const prepaidPrice = prepaid ? prepaid.price : 99
+        const priceText = (v: number) => `R$ ${v.toFixed(2).replace('.', ',')}`
+        const topFeatures = (plan: PlanRow | null, fallback: string[]) => (plan?.features && plan.features.length > 0 ? plan.features : fallback).slice(0, 3)
+
+        const postFeatures = topFeatures(postpaid, [
+            'Sem mensalidade: você paga somente quando usar',
+            'R$ 0,50 por uso: corrida, venda, novo produto, publicação e mais',
+        ])
+        const preFeatures = topFeatures(prepaid, [
+            'Tudo incluso: sem cobrança por serviço',
+            '0% de taxa sobre suas corridas ou vendas',
+        ])
+
         return (
             <section>
-                <HomeGlassCard className="p-6">
-                    <div className="flex items-center gap-4">
+                <HomeGlassCard className="p-5 sm:p-6">
+                    <HomeSectionHeader
+                        icon={Sparkles}
+                        title="Melhor plano para você"
+                        subtitle="50 centavos por serviço ou R$ 99 mensal sem taxa por serviço"
+                        action={<span />}
+                    />
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {/* Pós-pago */}
                         <div
-                            className="w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0"
-                            style={{ background: GRADIENT, color: '#ffffff', boxShadow: `0 4px 12px #f9731640` }}
+                            className="rounded-3xl p-5 flex flex-col"
+                            style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
                         >
-                            <Sparkles size={28} />
+                            <p className="text-sm font-black mb-1" style={{ color: colors.textPrimary }}>{postpaid?.name || 'Pós-pago'}</p>
+                            <div className="flex items-end gap-1 mb-1">
+                                <span className="text-2xl font-black" style={{ color: colors.textPrimary }}>R$ 0,50</span>
+                                <span className="text-xs mb-0.5" style={{ color: colors.textSecondary }}>por serviço</span>
+                            </div>
+                            <p className="text-[11px] mb-3" style={{ color: colors.textSecondary }}>Sem mensalidade. Pague só quando usar.</p>
+                            <div className="flex flex-col gap-2 flex-1 mb-4">
+                                {postFeatures.map((f) => (
+                                    <div key={f} className="flex items-start gap-1.5">
+                                        <Check size={13} className="mt-0.5 flex-shrink-0" style={{ color: colors.accent }} />
+                                        <span className="text-[11px] leading-tight" style={{ color: colors.textPrimary }}>{f}</span>
+                                    </div>
+                                ))}
+                            </div>
+                            <button
+                                onClick={() => router.push('/planos/pos-pago')}
+                                className="w-full py-2.5 rounded-full text-xs font-black transition-transform hover:scale-105 active:scale-95"
+                                style={{ background: `${colors.accent}15`, color: colors.accent, border: `1px solid ${colors.accent}` }}
+                            >
+                                Ativar
+                            </button>
                         </div>
-                        <div>
-                            <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>Entre pra ver seu plano</h3>
-                            <p className="text-sm mt-1" style={{ color: colors.textSecondary }}>Veja qual plano você tem e o que ele libera.</p>
+
+                        {/* Pré-pago (mensal) */}
+                        <div
+                            className="relative rounded-3xl p-5 flex flex-col"
+                            style={{ background: GRADIENT, boxShadow: '0 10px 30px #f9731650' }}
+                        >
+                            <span
+                                className="absolute -top-2.5 left-1/2 -translate-x-1/2 text-[9px] font-black uppercase tracking-wider px-3 py-1 rounded-full text-white flex items-center gap-1 whitespace-nowrap"
+                                style={{ background: '#111827' }}
+                            >
+                                <Zap size={10} />
+                                Melhor oferta
+                            </span>
+                            <p className="text-sm font-black text-white mb-1">{prepaid?.name || 'Pré-pago'}</p>
+                            <div className="flex items-end gap-1 mb-1">
+                                <span className="text-2xl font-black text-white">{priceText(prepaidPrice)}</span>
+                                <span className="text-xs opacity-70 mb-0.5 text-white">por mês</span>
+                            </div>
+                            <p className="text-[11px] mb-3 text-white/80">Sem taxa por serviço. Use à vontade.</p>
+                            <div className="flex flex-col gap-2 flex-1 mb-4">
+                                {preFeatures.map((f) => (
+                                    <div key={f} className="flex items-start gap-1.5">
+                                        <Check size={13} className="mt-0.5 flex-shrink-0 text-white" />
+                                        <span className="text-[11px] leading-tight text-white/90">{f}</span>
+                                    </div>
+                                ))}
+                            </div>
+                            <button
+                                onClick={() => router.push('/planos?plan=pre_pago')}
+                                className="w-full py-2.5 rounded-full text-xs font-black transition-transform hover:scale-105 active:scale-95"
+                                style={{ background: '#fff', color: '#dc2626' }}
+                            >
+                                Assinar
+                            </button>
                         </div>
                     </div>
-                    <button
-                        onClick={() => router.push('/planos')}
-                        className="mt-4 w-full flex items-center justify-center gap-2 px-6 py-3 rounded-full font-bold text-sm transition-all hover:scale-105 active:scale-95"
-                        style={{ background: GRADIENT, color: '#ffffff', boxShadow: `0 4px 12px #f9731640` }}
-                    >
-                        <Sparkles size={16} />
-                        Ver planos
-                    </button>
                 </HomeGlassCard>
             </section>
         )
