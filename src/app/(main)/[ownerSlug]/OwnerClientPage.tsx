@@ -23,6 +23,7 @@ import { isStoreOpenNow, type BusinessHours } from '@/lib/storeHours'
 import { isProfileOpenNow } from '@/lib/profileHours'
 import { captureReferral } from '@/lib/referralCapture'
 import { useMyVehicles, buildVehicleTabs } from '@/lib/vehicleHeaderTabs'
+import { useAdminHeaderTab } from '@/lib/adminHeaderTab'
 
 type OwnerType = 'profile' | 'store'
 
@@ -51,6 +52,7 @@ export default function OwnerClientPage() {
         avatarUrl: loggedUserAvatarUrl,
         loading: profileLoading
     } = useProfile()
+    const adminTab = useAdminHeaderTab(userId)
     const { vehicles: myVehicles } = useMyVehicles(userId)
     const publicationsStore = usePublicationsStore()
 
@@ -226,6 +228,8 @@ export default function OwnerClientPage() {
             },
         ]
 
+        // Administrador geral: a aba logo depois do perfil, antes das lojas
+        if (adminTab) allTabs.push(adminTab as Tab)
 
         if (loadingStores) {
             return allTabs
@@ -268,7 +272,7 @@ export default function OwnerClientPage() {
         }
 
         return allTabs
-    }, [loggedUserSlug, profileLoading, loggedUserAvatarUrl, stores, loadingStores, storeOrderCounts, pendingInvitesCount, profileOpenNow, showProfile, showStoreDashboard, myVehicles, router])
+    }, [loggedUserSlug, profileLoading, loggedUserAvatarUrl, stores, loadingStores, storeOrderCounts, pendingInvitesCount, profileOpenNow, showProfile, showStoreDashboard, adminTab, myVehicles, router])
 
     // ========== CARREGAR DADOS ==========
     const [referralOwnerProfileId, setReferralOwnerProfileId] = useState<string | null>(null)

@@ -23,6 +23,7 @@ import CreateStoreAndRegisterProfile from './inicio/CreateStoreAndRegisterProfil
 import LoginAndRegister from '@/components/LoginAndRegister/LoginAndRegister'
 import ProfileDashboard from '@/components/ProfileDashboard/ProfileDashboard'
 import { useMyVehicles, buildVehicleTabs } from '@/lib/vehicleHeaderTabs'
+import { useAdminHeaderTab } from '@/lib/adminHeaderTab'
 import { useMerchantStore } from '@/store/useMerchantStore'
 import { isStoreOpenNow, type BusinessHours } from '@/lib/storeHours'
 import { isProfileOpenNow } from '@/lib/profileHours'
@@ -115,6 +116,7 @@ function HomePageContent() {
     const [searchFocused, setSearchFocused] = useState(false)
     const [hasInteractedWithSearch, setHasInteractedWithSearch] = useState(false)
     const [stores, setStores] = useState<StoreInfo[]>([])
+    const adminTab = useAdminHeaderTab(userId)
     const { vehicles: myVehicles } = useMyVehicles(userId)
     const [showCreateStore, setShowCreateStore] = useState(false)
     const [showLogin, setShowLogin] = useState(false)
@@ -521,6 +523,9 @@ function HomePageContent() {
             },
         ]
 
+        // Administrador geral: a aba logo depois do perfil, antes das lojas
+        if (adminTab) allTabs.push(adminTab)
+
         if (loadingStores) {
             return allTabs
         }
@@ -564,7 +569,7 @@ function HomePageContent() {
         }
 
         return allTabs
-    }, [profileSlug, loading, avatarUrl, showCreateStore, showLogin, showProfile, showStoreDashboard, stores, loadingStores, storeOrderCounts, pendingInvitesCount, profileOpenNow, myVehicles, router])
+    }, [profileSlug, loading, avatarUrl, showCreateStore, showLogin, showProfile, showStoreDashboard, adminTab, stores, loadingStores, storeOrderCounts, pendingInvitesCount, profileOpenNow, myVehicles, router])
 
     const showFab = showCreateStore || showLogin || showProfile || showStoreDashboard
 

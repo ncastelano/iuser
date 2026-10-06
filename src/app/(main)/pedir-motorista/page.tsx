@@ -8,6 +8,7 @@ import 'mapbox-gl/dist/mapbox-gl.css'
 import { supabase } from '@/lib/supabase/client'
 import { getCurrentPosition as getNativeCurrentPosition } from '@/lib/nativeGeolocation'
 import { useTheme, ThemeColors } from '@/app/contexts/theme'
+import { formatBrazilianPhoneSpaced } from '@/lib/phone'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { toast } from 'sonner'
 import { haversineKm } from '@/lib/mapboxRoute'
@@ -2624,8 +2625,8 @@ export default function PedirMotoristaPage() {
                                                 <input
                                                     type="tel"
                                                     value={senderWhatsapp}
-                                                    onChange={(e) => setSenderWhatsapp(e.target.value)}
-                                                    placeholder="WhatsApp de quem entrega"
+                                                    onChange={(e) => setSenderWhatsapp(formatBrazilianPhoneSpaced(e.target.value))}
+                                                    placeholder="WhatsApp de quem entrega: (69) 99999-9999"
                                                     className="w-full pl-9 pr-4 py-3 rounded-xl text-sm focus:outline-none"
                                                     style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
                                                 />
@@ -2652,8 +2653,8 @@ export default function PedirMotoristaPage() {
                                                 <input
                                                     type="tel"
                                                     value={recipientWhatsapp}
-                                                    onChange={(e) => setRecipientWhatsapp(e.target.value)}
-                                                    placeholder="WhatsApp de quem recebe"
+                                                    onChange={(e) => setRecipientWhatsapp(formatBrazilianPhoneSpaced(e.target.value))}
+                                                    placeholder="WhatsApp de quem recebe: (69) 99999-9999"
                                                     className="w-full pl-9 pr-4 py-3 rounded-xl text-sm focus:outline-none"
                                                     style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
                                                 />
@@ -2742,8 +2743,8 @@ export default function PedirMotoristaPage() {
                                                 <input
                                                     type="tel"
                                                     value={senderWhatsapp}
-                                                    onChange={(e) => setSenderWhatsapp(e.target.value)}
-                                                    placeholder="WhatsApp de quem envia"
+                                                    onChange={(e) => setSenderWhatsapp(formatBrazilianPhoneSpaced(e.target.value))}
+                                                    placeholder="WhatsApp de quem envia: (69) 99999-9999"
                                                     className="w-full pl-9 pr-4 py-3 rounded-xl text-sm focus:outline-none"
                                                     style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
                                                 />
@@ -2770,8 +2771,8 @@ export default function PedirMotoristaPage() {
                                                 <input
                                                     type="tel"
                                                     value={recipientWhatsapp}
-                                                    onChange={(e) => setRecipientWhatsapp(e.target.value)}
-                                                    placeholder="WhatsApp de quem recebe"
+                                                    onChange={(e) => setRecipientWhatsapp(formatBrazilianPhoneSpaced(e.target.value))}
+                                                    placeholder="WhatsApp de quem recebe: (69) 99999-9999"
                                                     className="w-full pl-9 pr-4 py-3 rounded-xl text-sm focus:outline-none"
                                                     style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
                                                 />

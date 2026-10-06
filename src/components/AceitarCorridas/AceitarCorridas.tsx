@@ -19,6 +19,7 @@ import LocationPicker from '@/components/LocationPicker'
 import { toast } from 'sonner'
 import { MapPin, Star, Pencil, X, Package, CalendarClock, PawPrint, Car, CheckCircle2, Navigation, Ban, Flag, Share2, AlertCircle, Map as MapIcon, LocateFixed } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
+import { loadPlatformTariffs } from '@/lib/platformTariffs'
 import { shortAddress } from '@/lib/serviceBoard'
 import { getAvatarUrl } from '@/lib/avatar'
 import { computeSuggestedPrice, computeConditionExtras, computePickupFee, fetchPricePerMinuteMap, getEffectivePricing, getCustomPricing, PLATFORM_DEFAULT_PRICING_BY_VEHICLE, DriverPricing, type RideConditionFlags } from '@/lib/driverPricing'
@@ -511,6 +512,8 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
 
     const load = useCallback(async () => {
         userIdRef.current = contextUserId
+        // Tarifa da plataforma vem do banco (Admin → Tarifas): carrega antes de calcular os preços
+        await loadPlatformTariffs(supabase)
         // Visitante (sem login) também vê as corridas, com a Tarifa iUser e todos os
         // tipos de veículo; o login só é pedido na hora de se candidatar.
         if (contextUserId) setShowLogin(false)

@@ -11,8 +11,9 @@ import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import LoginAndRegister from '@/components/LoginAndRegister/LoginAndRegister'
 import { toast } from 'sonner'
 import { TrendingUp, Car, Camera, Star, MessageSquare, Clock, CheckCircle2, Volume2, VolumeX, Navigation2, LayoutDashboard, Trash2 } from 'lucide-react'
+import { loadPlatformTariffs } from '@/lib/platformTariffs'
 import { Spinner } from '@/components/Spinner'
-import { computeSuggestedPrice, fetchPricePerMinuteMap, PLATFORM_DEFAULT_PRICING_BY_VEHICLE, PLATFORM_DEFAULT_EXTRA_FEES, PLATFORM_DEFAULT_CONDITION_EXTRA_FEES, PricingMode } from '@/lib/driverPricing'
+import { computeSuggestedPrice, explainSuggestedPrice, fetchPricePerMinuteMap, PLATFORM_DEFAULT_PRICING_BY_VEHICLE, PLATFORM_DEFAULT_EXTRA_FEES, PLATFORM_DEFAULT_CONDITION_EXTRA_FEES, PricingMode } from '@/lib/driverPricing'
 import { VehicleKind, VEHICLE_KIND_LABELS } from '@/lib/rideVehicle'
 import { createSquareImage } from '@/lib/image'
 import { DRIVER_SERVICE_OPTIONS } from '@/lib/driverServices'
@@ -82,6 +83,8 @@ function PainelMotoristaContent() {
     const [pricePerKmAfterBase, setPricePerKmAfterBase] = useState('2')
     // Cobrança por tempo (R$ por minuto de corrida); '0' = não cobra por tempo
     const [pricePerMinute, setPricePerMinute] = useState('0')
+    // A tarifa da plataforma vem do banco (Admin → Tarifas); isso força o redesenho quando ela chega
+    const [, setTariffsVersion] = useState(0)
     const [extraFeePessoa, setExtraFeePessoa] = useState(String(PLATFORM_DEFAULT_EXTRA_FEES.pessoa))
     const [extraFeeAnimal, setExtraFeeAnimal] = useState(String(PLATFORM_DEFAULT_EXTRA_FEES.animal))
     const [extraFeeObjeto, setExtraFeeObjeto] = useState(String(PLATFORM_DEFAULT_EXTRA_FEES.objeto))
@@ -237,6 +240,9 @@ function PainelMotoristaContent() {
             return
         }
         setShowLogin(false)
+
+        await loadPlatformTariffs(supabase)
+        setTariffsVersion((v) => v + 1)
 
         const { data } = await supabase
             .from('driver_pricing')
@@ -677,14 +683,18 @@ function PainelMotoristaContent() {
             },
         }
     const previewPrice = computeSuggestedPrice(previewDistance, activePricing, undefined, undefined, previewMinutes)
+    const previewParts = explainSuggestedPrice(previewDistance, activePricing, previewMinutes)
+    const brl2 = (v: number) => `R$ ${v.toFixed(2).replace('.', ',')}`
+    // base + quilometragem + tempo, os três à vista pro motorista conferir a conta
+    const previewBreakdown = `${brl2(previewParts.base)} base + ${brl2(previewParts.kmPart)} de quilometragem (${previewParts.extraKm.toFixed(1).replace('.', ',')} km acima da base × ${brl2(activePricing.pricePerKmAfterBase)}) + ${brl2(previewParts.timePart)} de tempo (${previewMinutes} min × ${brl2(activePricing.pricePerMinute)}) = ${brl2(previewParts.total)}`
 
     const conditionExtraFeeFields = [
-        { key: 'condominio', label: 'Condomínio', value: extraFeeCondominio, setValue: setExtraFeeCondominio, platformDefault: PLATFORM_DEFAULT_CONDITION_EXTRA_FEES.condominio },
-        { key: 'compras', label: 'Compras no mercado', value: extraFeeCompras, setValue: setExtraFeeCompras, platformDefault: PLATFORM_DEFAULT_CONDITION_EXTRA_FEES.compras },
-        { key: 'necessidade_especial', label: 'Pessoa com deficiência', value: extraFeeNecessidadeEspecial, setValue: setExtraFeeNecessidadeEspecial, platformDefault: PLATFORM_DEFAULT_CONDITION_EXTRA_FEES.necessidade_especial },
-        { key: 'pet_sem_caixa', label: 'Pet sem caixa de transporte', value: extraFeePetSemCaixa, setValue: setExtraFeePetSemCaixa, platformDefault: PLATFORM_DEFAULT_CONDITION_EXTRA_FEES.pet_sem_caixa },
-        { key: 'entrega_interna', label: 'Entrega em área interna', value: extraFeeEntregaInterna, setValue: setExtraFeeEntregaInterna, platformDefault: PLATFORM_DEFAULT_CONDITION_EXTRA_FEES.entrega_interna },
-        { key: 'ar_condicionado', label: 'Ar condicionado', value: extraFeeArCondicionado, setValue: setExtraFeeArCondicionado, platformDefault: PLATFORM_DEFAULT_CONDITION_EXTRA_FEES.ar_condicionado },
+        { key: 'condominio', label: 'Condomínio', value: extraFeeCondominio, setValue: setExtraFeeCondominio, platformDefault: platformPricingForVehicle.conditionExtraFees.condominio },
+        { key: 'compras', label: 'Compras no mercado', value: extraFeeCompras, setValue: setExtraFeeCompras, platformDefault: platformPricingForVehicle.conditionExtraFees.compras },
+        { key: 'necessidade_especial', label: 'Pessoa com deficiência', value: extraFeeNecessidadeEspecial, setValue: setExtraFeeNecessidadeEspecial, platformDefault: platformPricingForVehicle.conditionExtraFees.necessidade_especial },
+        { key: 'pet_sem_caixa', label: 'Pet sem caixa de transporte', value: extraFeePetSemCaixa, setValue: setExtraFeePetSemCaixa, platformDefault: platformPricingForVehicle.conditionExtraFees.pet_sem_caixa },
+        { key: 'entrega_interna', label: 'Entrega em área interna', value: extraFeeEntregaInterna, setValue: setExtraFeeEntregaInterna, platformDefault: platformPricingForVehicle.conditionExtraFees.entrega_interna },
+        { key: 'ar_condicionado', label: 'Ar condicionado', value: extraFeeArCondicionado, setValue: setExtraFeeArCondicionado, platformDefault: platformPricingForVehicle.conditionExtraFees.ar_condicionado },
     ]
 
     const planButtonStyle = (active: boolean) => ({
@@ -935,6 +945,7 @@ function PainelMotoristaContent() {
                                     <p className="text-[10px] mt-3 font-bold" style={{ color: colors.textPrimary }}>
                                         Exemplo: uma corrida de {previewDistance} km e {previewMinutes} min sairia por R$ {previewPrice.toFixed(2)}
                                     </p>
+                                    <p className="text-[9px] mt-1" style={{ color: colors.textSecondary }}>{previewBreakdown}</p>
                                 </div>
                             ) : (
                                 <div
@@ -1013,6 +1024,7 @@ function PainelMotoristaContent() {
                                     <p className="text-[10px] mt-3 font-bold" style={{ color: colors.textPrimary }}>
                                         Exemplo: uma corrida de {previewDistance} km e {previewMinutes} min sairia por R$ {previewPrice.toFixed(2)}
                                     </p>
+                                    <p className="text-[9px] mt-1" style={{ color: colors.textSecondary }}>{previewBreakdown}</p>
                                 </div>
                             )}
 
@@ -1033,15 +1045,15 @@ function PainelMotoristaContent() {
                                     <div className="grid grid-cols-3 gap-2 text-center">
                                         <div>
                                             <p className="text-[9px] font-bold" style={{ color: colors.textSecondary }}>Pessoa</p>
-                                            <p className="text-xs font-black" style={{ color: colors.textPrimary }}>+ R$ {PLATFORM_DEFAULT_EXTRA_FEES.pessoa.toFixed(2)}</p>
+                                            <p className="text-xs font-black" style={{ color: colors.textPrimary }}>+ R$ {platformPricingForVehicle.extraFees.pessoa.toFixed(2)}</p>
                                         </div>
                                         <div>
                                             <p className="text-[9px] font-bold" style={{ color: colors.textSecondary }}>Animal</p>
-                                            <p className="text-xs font-black" style={{ color: colors.textPrimary }}>+ R$ {PLATFORM_DEFAULT_EXTRA_FEES.animal.toFixed(2)}</p>
+                                            <p className="text-xs font-black" style={{ color: colors.textPrimary }}>+ R$ {platformPricingForVehicle.extraFees.animal.toFixed(2)}</p>
                                         </div>
                                         <div>
                                             <p className="text-[9px] font-bold" style={{ color: colors.textSecondary }}>Objeto</p>
-                                            <p className="text-xs font-black" style={{ color: colors.textPrimary }}>+ R$ {PLATFORM_DEFAULT_EXTRA_FEES.objeto.toFixed(2)}</p>
+                                            <p className="text-xs font-black" style={{ color: colors.textPrimary }}>+ R$ {platformPricingForVehicle.extraFees.objeto.toFixed(2)}</p>
                                         </div>
                                     </div>
                                 ) : (

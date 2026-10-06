@@ -183,6 +183,15 @@ export function computeSuggestedPrice(
     return pricing.baseFee + extraKm * pricing.pricePerKmAfterBase + timeExtra + rideTypeExtra + conditionExtra
 }
 
+// Mesma conta de computeSuggestedPrice, aberta em partes (pra mostrar ao motorista/admin
+// como o valor foi calculado): base + km acima da distância base + tempo.
+export function explainSuggestedPrice(distanceKm: number, pricing: DriverPricing, durationMin: number) {
+    const extraKm = Math.max(0, distanceKm - pricing.baseDistanceKm)
+    const kmPart = extraKm * pricing.pricePerKmAfterBase
+    const timePart = durationMin > 0 ? durationMin * pricing.pricePerMinute : 0
+    return { base: pricing.baseFee, extraKm, kmPart, durationMin, timePart, total: pricing.baseFee + kmPart + timePart }
+}
+
 // Deslocamento do motorista até o ponto de partida, somado à Tarifa iUser: km × valor/km
 // mais minutos × valor/minuto (mesma lógica da corrida, só que do trecho vazio).
 export function computePickupFee(pricing: DriverPricing, km: number, minutes?: number | null): number {

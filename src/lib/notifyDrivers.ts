@@ -5,6 +5,7 @@ import { supabaseAdmin } from '@/lib/supabase/admin'
 import { sendPushToUser } from '@/lib/serverPush'
 import { computeRideTariffs } from '@/lib/rideTariffs'
 import { fetchPricePerMinuteMap } from '@/lib/driverPricing'
+import { loadPlatformTariffs } from '@/lib/platformTariffs'
 
 const MAX_DRIVERS = 200
 
@@ -66,6 +67,7 @@ export async function notifyDriversOfRide(ride: {
             .select('driver_id, pricing_mode, base_distance_km, base_fee, price_per_km_after_base, extra_fee_pessoa, extra_fee_animal, extra_fee_objeto, extra_fee_condominio, extra_fee_compras, extra_fee_necessidade_especial, extra_fee_pet_sem_caixa, extra_fee_entrega_interna, extra_fee_ar_condicionado')
             .in('driver_id', eligible),
     ])
+    await loadPlatformTariffs(supabaseAdmin)
     const pricePerMinuteByDriver = await fetchPricePerMinuteMap(supabaseAdmin, eligible)
     const pricingByDriver = new Map((pricingRows || []).map((p) => [p.driver_id as string, { ...p, price_per_minute: pricePerMinuteByDriver.get(p.driver_id as string) ?? null }]))
 

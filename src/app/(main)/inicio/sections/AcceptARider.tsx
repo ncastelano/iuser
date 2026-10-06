@@ -4,7 +4,7 @@
 import { ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
-import { Car, Bike, Motorbike, Settings2, CheckCircle2, Navigation, MapPin, Users, Package, PawPrint, Clock, ArrowRight, LocateFixed } from 'lucide-react'
+import { Car, Bike, Motorbike, Settings2, CheckCircle2, Navigation, MapPin, Users, Package, PawPrint, Clock, ArrowRight, LocateFixed, Plus } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { supabase } from '@/lib/supabase/client'
@@ -14,6 +14,7 @@ import { kindForRideType } from '@/lib/rideVehicle'
 import { fetchRoute, haversineKm } from '@/lib/mapboxRoute'
 import { watchPosition } from '@/lib/nativeGeolocation'
 import { Spinner } from '@/components/Spinner'
+import { loadPlatformTariffs } from '@/lib/platformTariffs'
 import RideChat from '@/components/RideChat'
 import { DRIVER_CHAT_QUICK_REPLIES } from '@/lib/rideChatQuickReplies'
 import { HomeGlassCard } from './HomeSectionKit'
@@ -163,6 +164,7 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
         // quadro de /aceitar-corridas (sem candidatura própria, sem lotadas),
         // só que resumida às 3 mais recentes pra caber na home.
         const loadOpenRides = async () => {
+            await loadPlatformTariffs(supabase)
             // Visitante (sem login) também vê as corridas abertas: assim ele sabe que
             // tem corrida pra pegar. Sem conta não tem driver_pricing nem candidatura
             // própria, então vale a tarifa iUser e nada é filtrado por "já me candidatei".
@@ -411,6 +413,8 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
     }
 
     const goToPainel = () => { startNavProgress(); router.push('/painel-motorista') }
+    // Abre direto a aba "Meu veículo" do painel do motorista
+    const goToAddVehicle = () => { startNavProgress(); router.push('/painel-motorista?aba=veiculo') }
     // Só entra direto na corrida com o modo motorista ativado — senão manda
     // pro painel pra ativar primeiro (mesmo card, mesmo destino do botão).
     // Clicou numa corrida específica: vai pra /aceitar-corridas e cai no card dela.
@@ -463,12 +467,12 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
                             {driverModeActive ? (
                                 <>
                                     <button
-                                        onClick={goToPainel}
+                                        onClick={goToAddVehicle}
                                         className="flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-3 rounded-full font-bold text-xs sm:text-sm transition-all whitespace-nowrap hover:scale-105 active:scale-95 flex-1 sm:flex-none min-w-0"
                                         style={buttonStyle}
                                     >
-                                        <Settings2 size={16} className="flex-shrink-0" />
-                                        painel do motorista
+                                        <Plus size={16} className="flex-shrink-0" />
+                                        adicionar veículo
                                     </button>
 
                                     <button

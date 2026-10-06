@@ -36,6 +36,7 @@ import { notifyRideStatus } from '@/lib/notifyRideStatus'
 import { useVoiceNavigation } from '@/lib/voiceNavigation'
 import RideChat from '@/components/RideChat'
 import { DRIVER_CHAT_QUICK_REPLIES } from '@/lib/rideChatQuickReplies'
+import { loadPlatformTariffs } from '@/lib/platformTariffs'
 import { kindForRideType, type VehicleType, type VehicleKind } from '@/lib/rideVehicle'
 import { PLATFORM_DEFAULT_PRICING_BY_VEHICLE, computePickupFee, fetchPricePerMinuteMap } from '@/lib/driverPricing'
 import { computeRideTariffs } from '@/lib/rideTariffs'
@@ -327,6 +328,7 @@ function AceitarCorridasMapaContent() {
                 r.store_id ? supabase.from('stores').select('name').eq('id', r.store_id).maybeSingle() : Promise.resolve({ data: null }),
             ])
             if (cancelled) return
+            await loadPlatformTariffs(supabase)
             const pricePerMinute = (await fetchPricePerMinuteMap(supabase, [userId])).get(userId) ?? null
             const { platformPrice, customPrice } = computeRideTariffs(
                 r as Parameters<typeof computeRideTariffs>[0],

@@ -10,6 +10,7 @@ import { playNotificationSound } from '@/lib/rideAlertSound'
 import { ridesAcceptableForVehicleKind, rideAcceptsAnyVehicle, type VehicleKind } from '@/lib/rideVehicle'
 import { computeRideTariffs, type RideTariffSource } from '@/lib/rideTariffs'
 import { fetchPricePerMinuteMap } from '@/lib/driverPricing'
+import { loadPlatformTariffs } from '@/lib/platformTariffs'
 import { NewRideAlertCard } from '@/components/NewRideAlertCard'
 
 // Global, montado em providers.tsx: com o modo motorista ligado, toca o som e
@@ -34,6 +35,7 @@ export function DriverRideAlertListener() {
                 supabase.from('driver_vehicles').select('vehicle_kind').eq('driver_id', userId),
             ])
             if (cancelled || !pricing?.driver_mode_active) return
+            await loadPlatformTariffs(supabase)
             const pricePerMinute = (await fetchPricePerMinuteMap(supabase, [userId])).get(userId) ?? null
 
             // Só avisa de corridas que o veículo cadastrado do motorista atende —

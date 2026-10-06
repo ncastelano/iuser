@@ -2,7 +2,7 @@
 
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { hexToRgb } from '@/lib/color'
@@ -232,6 +232,8 @@ export default function Commission({ userId, profileSlug, onLatestUpdate }: Comm
     // esconder aba aqui é só conforto; quem decide é o servidor.
     // ============================================
     const [pane, setPane] = useState<Pane>('rede')
+    // Veio do botão "Administrador" do Header (?painel=admin): abre direto o painel Admin.
+    const adminDeepLinkRef = useRef(false)
     const [status, setStatus] = useState<MyStatus | null>(null)
     const [plans, setPlans] = useState<GrantablePlan[]>([])
     const [isSuperAdmin, setIsSuperAdmin] = useState(false)
@@ -592,6 +594,16 @@ export default function Commission({ userId, profileSlug, onLatestUpdate }: Comm
     }
     const selectedGrantPlan = plans.find((p) => p.id === grantPlanId)
     // Quem não pode conceder nada não tem Conceder/Histórico; Admin só pro administrador geral.
+    useEffect(() => {
+        if (!isSuperAdmin || adminDeepLinkRef.current) return
+        if (new URLSearchParams(window.location.search).get('painel') !== 'admin') return
+        adminDeepLinkRef.current = true
+        setIsExpanded(true)
+        setPane('admin')
+        setTimeout(() => document.getElementById('commission-admin-anchor')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 300)
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isSuperAdmin])
+
     const activePane: Pane = (pane === 'grant' || pane === 'history') && !canManage ? 'rede' : pane === 'admin' && !isSuperAdmin ? 'rede' : pane
     const panes: { id: Pane; label: string; icon: typeof Gift }[] = [
         { id: 'rede', label: 'Minha rede', icon: Users },
@@ -1232,7 +1244,7 @@ export default function Commission({ userId, profileSlug, onLatestUpdate }: Comm
                             )}
 
                             {/* ===== ADMIN (só a conta de administrador geral; o servidor reconfirma) ===== */}
-                            {activePane === 'admin' && isSuperAdmin && <AdminDashboard />}
+                            {activePane === 'admin' && isSuperAdmin && <div id="commission-admin-anchor"><AdminDashboard /></div>}
                         </div>
                     )}
                 </div>

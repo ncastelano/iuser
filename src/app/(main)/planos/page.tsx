@@ -13,6 +13,7 @@ import { Spinner } from '@/components/Spinner'
 import { toast } from 'sonner'
 import { callAdminApi } from '@/lib/callAdminApi'
 import { useMyVehicles, buildVehicleTabs } from '@/lib/vehicleHeaderTabs'
+import { useAdminHeaderTab } from '@/lib/adminHeaderTab'
 import { getDeviceId } from '@/lib/deviceId'
 import InviteButton from '@/components/InviteButton'
 import { Car, Briefcase, Sparkles, Store, Check, Copy, X, ShieldCheck, Gift, Users, CreditCard, User, LayoutDashboard, Wallet } from 'lucide-react'
@@ -97,6 +98,7 @@ function PlanosContent() {
     const highlightPlan = searchParams.get('plan')
     const { userId, avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
     const { colors } = useTheme()
+    const adminTab = useAdminHeaderTab(userId)
     const { vehicles: myVehicles } = useMyVehicles(userId)
 
     const [loading, setLoading] = useState(true)
@@ -198,6 +200,9 @@ function PlanosContent() {
             },
         ]
 
+        // Administrador geral: a aba logo depois do perfil, antes das lojas
+        if (adminTab) allTabs.push(adminTab)
+
         if (loadingOwnedStores) return allTabs
 
         if (ownedStores.length > 0) {
@@ -229,7 +234,7 @@ function PlanosContent() {
         }
 
         return allTabs
-    }, [profileSlug, profileLoading, avatarUrl, showLogin, isSuperAdmin, ownedStores, loadingOwnedStores, myVehicles, router])
+    }, [profileSlug, profileLoading, avatarUrl, showLogin, isSuperAdmin, adminTab, ownedStores, loadingOwnedStores, myVehicles, router])
 
     const stopPolling = () => {
         if (pollRef.current) {
