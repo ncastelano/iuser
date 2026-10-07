@@ -106,8 +106,9 @@ export default function MeusServicosPage() {
     const handleDelete = async (id: string) => {
         setDeletingId(id)
         try {
-            const { error } = await supabase.from('products').delete().eq('id', id)
+            const { data: removed, error } = await supabase.from('products').delete().eq('id', id).select('id')
             if (error) throw error
+            if (!removed || removed.length === 0) throw new Error('sem permissão ou já excluído')
             setStoreServices((prev) => prev.filter((s) => s.id !== id))
             toast.success('Serviço removido')
         } catch (err: any) {

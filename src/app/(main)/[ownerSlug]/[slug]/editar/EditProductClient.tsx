@@ -89,6 +89,7 @@ export function EditProductClient() {
     const [isActive, setIsActive] = useState(true)
     const [hasAddons, setHasAddons] = useState(false)
     const [deleting, setDeleting] = useState(false)
+    const [confirmDelete, setConfirmDelete] = useState(false)
 
     const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -199,7 +200,6 @@ export function EditProductClient() {
     // Deletar produto
     const handleDelete = async () => {
         if (!product) return
-        if (!confirm('Tem certeza que deseja excluir este produto? Esta ação não pode ser desfeita.')) return
 
         setDeleting(true)
         try {
@@ -210,12 +210,14 @@ export function EditProductClient() {
                     .remove([currentImagePath])
             }
 
-            const { error } = await supabase
+            const { data: removed, error } = await supabase
                 .from('products')
                 .delete()
                 .eq('id', product.id)
+                .select('id')
 
             if (error) throw error
+            if (!removed || removed.length === 0) throw new Error('sem permissão ou já excluído')
 
             toast.success('Produto excluído com sucesso!')
             router.push(`/${ownerSlug}`)
@@ -580,8 +582,13 @@ export function EditProductClient() {
 
                             {/* Botão de deletar */}
                             <div className="pt-4 border-t" style={{ borderColor: colors.border }}>
+                                {confirmDelete && (
+                                    <p className="text-sm mb-3" style={{ color: colors.textPrimary }}>
+                                        Tem certeza que deseja excluir? Isso não pode ser desfeito.
+                                    </p>
+                                )}
                                 <button
-                                    onClick={handleDelete}
+                                    onClick={() => (confirmDelete ? handleDelete() : setConfirmDelete(true))}
                                     disabled={deleting}
                                     className="px-6 py-3 rounded-xl font-bold text-sm flex items-center gap-2 transition-all hover:scale-105 disabled:opacity-50"
                                     style={{
@@ -595,8 +602,13 @@ export function EditProductClient() {
                                     ) : (
                                         <Trash2 size={16} />
                                     )}
-                                    Excluir {product.listing_type === 'publication' ? 'Publicação' : 'Produto'}
+                                    {confirmDelete ? 'Confirmar exclusão' : `Excluir ${product.listing_type === 'publication' ? 'Publicação' : 'Produto'}`}
                                 </button>
+                                {confirmDelete && !deleting && (
+                                    <button onClick={() => setConfirmDelete(false)} className="text-xs mt-2 underline" style={{ color: colors.textSecondary }}>
+                                        Voltar
+                                    </button>
+                                )}
                                 <p className="text-xs mt-2" style={{ color: colors.textSecondary }}>
                                     Esta ação não pode ser desfeita
                                 </p>

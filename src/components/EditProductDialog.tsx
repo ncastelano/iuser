@@ -64,6 +64,9 @@ export default function EditProductDialog({ productId, colors, onClose, onSaved,
     const [isActive, setIsActive] = useState(true)
     const [hasAddons, setHasAddons] = useState(false)
     const [deleting, setDeleting] = useState(false)
+    // Confirmação dentro do próprio diálogo: window.confirm() não aparece em alguns navegadores
+    // embutidos/app nativo, e aí o botão Excluir parecia não fazer nada.
+    const [confirmDelete, setConfirmDelete] = useState(false)
 
     // Localização (só relevante pra serviços avulsos publicados por uma
     // pessoa — serviço de loja usa o endereço da própria loja).
@@ -182,15 +185,19 @@ export default function EditProductDialog({ productId, colors, onClose, onSaved,
 
     const handleDelete = async () => {
         if (!product) return
-        if (!confirm(`Tem certeza que deseja excluir ${isPublication ? 'esta' : 'este'} ${itemLabel}? Esta ação não pode ser desfeita.`)) return
 
         setDeleting(true)
         try {
             if (currentImagePath) {
                 await supabase.storage.from('product-images').remove([currentImagePath])
             }
-            const { error } = await supabase.from('products').delete().eq('id', product.id)
+            // .select() pra perceber quando o banco bloqueia (0 linhas, sem erro)
+            const { data: removed, error } = await supabase.from('products').delete().eq('id', product.id).select('id')
             if (error) throw error
+            if (!removed || removed.length === 0) {
+                toast.error(`Não foi possível excluir ${isPublication ? 'essa' : 'esse'} ${itemLabel} (sem permissão ou já não existe mais).`)
+                return
+            }
 
             toast.success(`${itemLabelCap} excluíd${isPublication ? 'a' : 'o'}`)
             onDeleted(product.id)
@@ -417,16 +424,45 @@ export default function EditProductDialog({ productId, colors, onClose, onSaved,
                         )}
 
                         {/* Ações */}
-                        <div className="flex gap-2 pt-3 border-t" style={{ borderColor: colors.border }}>
+                        <div className="pt-3 border-t space-y-3" style={{ borderColor: colors.border }}>
+                        {confirmDelete && (
+                            <p className="text-sm" style={{ color: colors.textPrimary }}>
+                                Tem certeza que deseja excluir {isPublication ? 'esta' : 'este'} {itemLabel}? Isso não pode ser desfeito.
+                            </p>
+                        )}
+                        <div className="flex gap-2">
+                            {confirmDelete ? (
+                                <>
+                                    <button
+                                        onClick={() => setConfirmDelete(false)}
+                                        disabled={deleting}
+                                        className="px-4 py-2.5 rounded-xl font-bold text-sm"
+                                        style={{ background: `${colors.border}30`, color: colors.textPrimary, border: `1px solid ${colors.border}` }}
+                                    >
+                                        Voltar
+                                    </button>
+                                    <button
+                                        onClick={handleDelete}
+                                        disabled={deleting}
+                                        className="px-4 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 disabled:opacity-60"
+                                        style={{ background: '#ef4444', color: '#fff' }}
+                                    >
+                                        {deleting && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+                                        Confirmar exclusão
+                                    </button>
+                                </>
+                            ) : (
                             <button
-                                onClick={handleDelete}
+                                onClick={() => setConfirmDelete(true)}
                                 disabled={deleting}
                                 className="px-4 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 transition-all hover:scale-105 disabled:opacity-50"
                                 style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444' }}
                             >
-                                {deleting ? <div className="w-4 h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin" /> : <Trash2 size={16} />}
+                                <Trash2 size={16} />
                                 Excluir
                             </button>
+                            )}
+                            {!confirmDelete && (
                             <button
                                 onClick={handleSave}
                                 disabled={loading}
@@ -436,6 +472,8 @@ export default function EditProductDialog({ productId, colors, onClose, onSaved,
                                 {loading ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Save size={16} />}
                                 Salvar
                             </button>
+                            )}
+                        </div>
                         </div>
                     </div>
                 )}
