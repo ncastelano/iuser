@@ -1436,8 +1436,27 @@ export default function CatalogoClientPage() {
                     </button>
                 </div>
 
-                {/* ===== BOTÃO FLUTUANTE - CARRINHO (busca agora vive no header, igual à home) ===== */}
-                <div style={{ position: 'fixed', bottom: 32, right: 24, zIndex: 998 }}>
+                {/* ===== BOTÃO FLUTUANTE - INÍCIO (lado direito; some enquanto a sacola está aberta) ===== */}
+                {!isBagExpanded && !checkoutStep && (
+                    <div style={{ position: 'fixed', bottom: 32, right: 24, zIndex: 998 }}>
+                        <button
+                            onClick={handleHome}
+                            className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95"
+                            style={{
+                                background: 'linear-gradient(135deg, #f97316, #dc2626)',
+                                color: '#ffffff',
+                                border: '2px solid #f97316',
+                                boxShadow: '0 8px 24px #f9731660',
+                            }}
+                            aria-label="Voltar ao início"
+                        >
+                            <Home size={24} />
+                        </button>
+                    </div>
+                )}
+
+                {/* ===== BOTÃO FLUTUANTE - SACOLA (agora no lado esquerdo; busca vive no header, igual à home) ===== */}
+                <div style={{ position: 'fixed', bottom: 32, left: 16, zIndex: 998, maxWidth: 'calc(100vw - 32px)' }}>
                     <CatalogBag
                         bagItems={bagItems}
                         isExpanded={isBagExpanded}
