@@ -1,23 +1,46 @@
 // src/app/(main)/inicio/sections/RadarSection.tsx
 'use client'
 
-import { ReactNode } from 'react'
+import { ReactNode, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Radar as RadarIcon, Navigation } from 'lucide-react'
+import { Radar as RadarIcon, Navigation, Store, ShoppingBag, Wrench, MapPin } from 'lucide-react'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
+import { fetchNearest, formatDistance, type NearestItem, type NearestKind } from '@/lib/radarNearest'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
 interface RadarSectionProps {
     dragHandle?: ReactNode
+    // Local da pessoa ("Definir local" do perfil); sem ele não dá pra saber o que está perto
+    origin?: { lat: number; lng: number } | null
+}
+
+const KIND_META: Record<NearestKind, { label: string; icon: typeof Store }> = {
+    loja: { label: 'Loja', icon: Store },
+    produto: { label: 'Produto', icon: ShoppingBag },
+    servico: { label: 'Serviço', icon: Wrench },
 }
 
 // Banner de destaque pro Radar — antes só existia como botão flutuante
 // (continua existindo, não mexi nele); isso aqui é o mesmo atalho com mais
 // espaço pra explicar o que é, igual ao banner do /modelodehomepage.
-export default function RadarSection({ dragHandle }: RadarSectionProps) {
+export default function RadarSection({ dragHandle, origin }: RadarSectionProps) {
     const router = useRouter()
     const startNavProgress = useNavProgressStore((s) => s.start)
+    const [nearest, setNearest] = useState<Partial<Record<NearestKind, NearestItem>> | null>(null)
+
+    const lat = origin?.lat
+    const lng = origin?.lng
+    useEffect(() => {
+        if (lat == null || lng == null) { setNearest(null); return }
+        let cancelled = false
+        fetchNearest({ lat, lng })
+            .then((res) => { if (!cancelled) setNearest(res) })
+            .catch(() => { if (!cancelled) setNearest({}) })
+        return () => { cancelled = true }
+    }, [lat, lng])
+
+    const cards = nearest ? (['loja', 'produto', 'servico'] as NearestKind[]).map((k) => nearest[k]).filter(Boolean) as NearestItem[] : []
 
     return (
         <section>
@@ -59,6 +82,59 @@ export default function RadarSection({ dragHandle }: RadarSectionProps) {
                         <Navigation size={14} />
                         Abrir radar
                     </button>
+                </div>
+
+                {/* Os 3 mais perto de você: uma loja, um produto e um serviço */}
+                <div className="relative z-10 mt-5">
+                    {origin == null ? (
+                        <p className="text-xs text-white/60 flex items-center gap-1.5">
+                            <MapPin size={12} /> Defina seu local (no topo da página) para ver o que tem perto de você.
+                        </p>
+                    ) : nearest == null ? (
+                        <div className="grid grid-cols-3 gap-2">
+                            {[0, 1, 2].map((i) => <div key={i} className="h-32 rounded-2xl animate-pulse" style={{ background: 'rgba(255,255,255,0.08)' }} />)}
+                        </div>
+                    ) : (
+                        <>
+                            <p className="text-[10px] font-black uppercase tracking-wider text-white/50 mb-2">Mais perto de você</p>
+                            <div className="grid grid-cols-3 gap-2">
+                                {cards.map((item) => {
+                                    const { label, icon: KindIcon } = KIND_META[item.kind]
+                                    return (
+                                        <button
+                                            key={item.kind}
+                                            onClick={() => { startNavProgress(); router.push(item.href) }}
+                                            className="text-left rounded-2xl overflow-hidden transition-all hover:scale-[1.03] active:scale-95"
+                                            style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)' }}
+                                        >
+                                            <div className="relative aspect-[4/3] w-full" style={{ background: item.imageUrl ? '#0b1220' : GRADIENT }}>
+                                                {item.imageUrl ? (
+                                                    <img src={item.imageUrl} alt={item.name} loading="lazy" className="w-full h-full object-cover" />
+                                                ) : (
+                                                    <div className="w-full h-full flex items-center justify-center"><KindIcon size={26} color="rgba(255,255,255,0.85)" /></div>
+                                                )}
+                                                <span className="absolute left-1.5 top-1.5 flex items-center gap-1 text-[9px] font-black uppercase px-1.5 py-0.5 rounded-full text-white" style={{ background: 'rgba(0,0,0,0.55)' }}>
+                                                    <KindIcon size={9} />
+                                                    {label}
+                                                </span>
+                                            </div>
+                                            <div className="p-2">
+                                                <p className="text-[11px] font-black text-white leading-tight line-clamp-2">{item.name}</p>
+                                                {item.subtitle && <p className="text-[9px] text-white/50 truncate mt-0.5">{item.subtitle}</p>}
+                                                <p className="text-[10px] font-black mt-1 flex items-center gap-1" style={{ color: '#fb923c' }}>
+                                                    <MapPin size={10} />
+                                                    {formatDistance(item.distanceKm)}
+                                                </p>
+                                            </div>
+                                        </button>
+                                    )
+                                })}
+                            </div>
+                            {cards.length === 0 && (
+                                <p className="text-xs text-white/60">Nada com localização por perto ainda.</p>
+                            )}
+                        </>
+                    )}
                 </div>
             </div>
         </section>
