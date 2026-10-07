@@ -44,6 +44,14 @@ const SOURCE_LABEL: Record<Grant['source'], string> = {
 }
 
 const PRESET_DAYS = [30, 60, 90, 180, 365]
+
+// Dias do começo da concessão (agora, ou a data de início escolhida) até o fim do ano (31/12, fim do dia)
+function daysUntilEndOfYear(from?: string): number {
+    const start = from ? new Date(from) : new Date()
+    // 31/12 23:59:59 no horário de Brasília (= 01/01 02:59:59 UTC), igual ao "Motorista Beta" dos Planos
+    const end = new Date(Date.UTC(start.getUTCFullYear(), 11, 32, 2, 59, 59))
+    return Math.max(1, Math.ceil((end.getTime() - start.getTime()) / 86400000))
+}
 const fmt = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—')
 const daysLeft = (iso: string | null) => (iso ? Math.max(0, Math.ceil((new Date(iso).getTime() - Date.now()) / 86400000)) : null)
 
@@ -175,6 +183,16 @@ export default function GrantsSection({ cardStyle, colors }: { cardStyle: React.
                         <div className="flex flex-col gap-1">
                             {label('Por quanto tempo (dias)')}
                             <div className="flex flex-wrap items-center gap-2">
+                                <button
+                                    onClick={() => setDays(String(daysUntilEndOfYear(startsAt || undefined)))}
+                                    className="px-3 py-1.5 rounded-full text-[11px] font-black"
+                                    style={Number(days) === daysUntilEndOfYear(startsAt || undefined) && !PRESET_DAYS.includes(Number(days))
+                                        ? { background: colors.accent, color: '#fff' }
+                                        : { border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                                    title="Até 31/12 deste ano"
+                                >
+                                    Até o fim do ano
+                                </button>
                                 {PRESET_DAYS.map((d) => (
                                     <button
                                         key={d}
