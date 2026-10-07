@@ -16,8 +16,7 @@ import {
     Trash2,
     ExternalLink,
     MessageCircle,
-    Megaphone,
-} from 'lucide-react'
+    } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { generateUniqueGlobalSlug } from '@/lib/slugUtils'
 
@@ -241,15 +240,6 @@ export default function StorePublication({ storeId }: PublicationProps) {
                     }}
                 >
                     <div className="flex items-center gap-3">
-                        <div
-                            className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
-                            style={{
-                                background: GRADIENT,
-                                color: '#ffffff',
-                            }}
-                        >
-                            <Megaphone size={24} />
-                        </div>
                         <div>
                             <h3 className="text-lg font-black" style={{ color: textPrimary }}>
                                 Publicações

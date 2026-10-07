@@ -19,7 +19,6 @@ import {
     Heart,
     Share2,
     MessageCircle,
-    Megaphone,
     Eye,
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
@@ -481,15 +480,6 @@ export default function ProfilePublication({ profileId, profileSlug, isOwner = t
                     }}
                 >
                     <div className="flex items-center gap-3">
-                        <div
-                            className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
-                            style={{
-                                background: GRADIENT,
-                                color: '#ffffff',
-                            }}
-                        >
-                            <Megaphone size={24} />
-                        </div>
                         <div>
                             <h3 className="text-lg font-black" style={{ color: textPrimary }}>
                                 Publicações
@@ -562,15 +552,6 @@ export default function ProfilePublication({ profileId, profileSlug, isOwner = t
                     }}
                 >
                     <div className="flex items-center gap-3">
-                        <div
-                            className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
-                            style={{
-                                background: GRADIENT,
-                                color: '#ffffff',
-                            }}
-                        >
-                            <Megaphone size={24} />
-                        </div>
                         <div>
                             <h3 className="text-lg font-black" style={{ color: textPrimary }}>
                                 Minhas Publicações

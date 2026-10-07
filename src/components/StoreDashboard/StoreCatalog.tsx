@@ -155,9 +155,6 @@ export default function StoreCatalog({ storeId, storeSlug, kind }: StoreCatalogP
                     style={{ padding: '0.5rem 0.75rem', borderRadius: '9999px', background: 'transparent', border: 'none', cursor: 'pointer' }}
                 >
                     <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#ffffff' }}>
-                            <Icon size={24} />
-                        </div>
                         <div>
                             <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>{title}</h3>
                             <div className="flex items-center gap-3 text-xs mt-0.5" style={{ color: colors.textSecondary }}>

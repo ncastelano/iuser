@@ -352,15 +352,6 @@ export default function StoreOperatingDays({ storeId, onSaved }: StoreOperatingD
                     }}
                 >
                     <div className="flex items-center gap-3">
-                        <div
-                            className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
-                            style={{
-                                background: GRADIENT,
-                                color: '#ffffff',
-                            }}
-                        >
-                            <Clock size={24} />
-                        </div>
                         <div>
                             <h3 className="text-lg font-black" style={{ color: textPrimary }}>
                                 Dias de Funcionamento

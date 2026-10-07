@@ -14,7 +14,6 @@ import { getWhatsAppLink } from '@/lib/whatsapp'
 import { handleShareLink } from '@/lib/share'
 import { paymentMethodLabel } from '@/lib/payment'
 import {
-    Truck,
     ChevronRight,
     X,
     Plus,
@@ -330,15 +329,6 @@ export default function Employee({
                     }}
                 >
                     <div className="flex items-center gap-3">
-                        <div
-                            className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
-                            style={{
-                                background: GRADIENT,
-                                color: '#ffffff',
-                            }}
-                        >
-                            <Truck size={24} />
-                        </div>
                         <div>
                             <h3 className="text-lg font-black" style={{ color: textPrimary }}>
                                 Funcionários

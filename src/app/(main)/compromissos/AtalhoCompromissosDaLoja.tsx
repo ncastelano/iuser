@@ -191,7 +191,6 @@ export default function AtalhoCompromissosDaLoja({
                 >
                     <div className="flex items-center gap-2 mb-4">
                         {dragHandle}
-                        <Store className="w-5 h-5" style={{ color: accentColor }} />
                         <h2 className="text-xl font-black" style={{ color: textPrimary }}>Agenda da Loja</h2>
                     </div>
                     <div className="flex gap-3 overflow-x-auto pb-2">
@@ -234,15 +233,6 @@ export default function AtalhoCompromissosDaLoja({
                 >
                     <div className="flex items-center gap-3">
                         {dragHandle}
-                        <div
-                            className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
-                            style={{
-                                background: GRADIENT,
-                                color: '#ffffff',
-                            }}
-                        >
-                            <Store size={24} />
-                        </div>
                         <div>
                             <h2 className="text-lg font-black" style={{ color: textPrimary }}>
                                 Agenda da Loja

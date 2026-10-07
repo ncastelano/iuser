@@ -3,7 +3,7 @@
 
 import { useRef, useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { Camera, Store, Link, ChevronDown, ChevronUp, ImageIcon, AlertCircle, Tag, CheckCircle2, MapPin, Phone } from 'lucide-react'
+import { Camera, Store, Link, ChevronDown, ChevronUp, AlertCircle, Tag, CheckCircle2, MapPin, Phone } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import { toast } from 'sonner'
 import { categorias } from '@/lib/categorias'
@@ -228,15 +228,6 @@ export function StoreDescription({
                 }}
             >
                 <div className="flex items-center gap-3">
-                    <div
-                        className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
-                        style={{
-                            background: GRADIENT,
-                            color: '#ffffff',
-                        }}
-                    >
-                        <ImageIcon size={24} />
-                    </div>
                     <div>
                         <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
                             Informações da Loja

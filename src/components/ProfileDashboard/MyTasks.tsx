@@ -14,7 +14,7 @@ import { useTheme } from '@/app/contexts/theme'
 import { toast } from 'sonner'
 import { hexToRgb } from '@/lib/color'
 import { paymentMethodLabel } from '@/lib/payment'
-import { Briefcase, ChevronDown, ChevronUp, CheckCircle2, MapPin, Store } from 'lucide-react'
+import { ChevronDown, ChevronUp, CheckCircle2, MapPin, Store } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -125,9 +125,6 @@ export default function MyTasks() {
                     style={{ padding: '0.5rem 0.75rem', borderRadius: '9999px', background: 'transparent', border: 'none', cursor: 'pointer' }}
                 >
                     <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#ffffff' }}>
-                            <Briefcase size={24} />
-                        </div>
                         <div>
                             <h3 className="text-lg font-black" style={{ color: textPrimary }}>Tarefas</h3>
                             <p className="text-xs mt-0.5" style={{ color: textSecondary }}>

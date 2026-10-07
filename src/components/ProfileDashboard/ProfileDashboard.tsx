@@ -14,7 +14,6 @@ import { toast } from 'sonner'
 import { hexToRgb } from '@/lib/color'
 import { pickImageFile, isNativePlatform } from '@/lib/nativeCamera'
 import {
-    Eye,
     Settings,
     X,
     DollarSign,
@@ -22,7 +21,6 @@ import {
     Package,
     Phone,
     User,
-    Calendar,
     Store,
     Heart,
     Star,
@@ -34,7 +32,6 @@ import {
     TrendingUp,
     Save,
     LogOut,
-    Type,
     Bell,
     Smartphone,
     Image as ImageIcon,
@@ -855,12 +852,6 @@ export default function ProfileDashboard({
                     style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}
                 >
                     <div className="flex items-center gap-3">
-                        <div
-                            className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
-                            style={{ background: GRADIENT, color: '#ffffff' }}
-                        >
-                            <DollarSign size={16} />
-                        </div>
                         <h3 className="text-sm font-black" style={{ color: colors.textPrimary }}>
                             Financeiro
                         </h3>
@@ -1040,12 +1031,6 @@ export default function ProfileDashboard({
                 <div className="border-t pt-5" style={{ borderColor: colors.border }}>
                     <div>
                         <div className="flex items-center gap-2 mb-3">
-                            <div
-                                className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
-                                style={{ background: GRADIENT, color: '#ffffff' }}
-                            >
-                                <Package size={16} />
-                            </div>
                             <div>
                                 <h3 className="text-sm font-black" style={{ color: colors.textPrimary }}>
                                     Pedidos
@@ -1495,7 +1480,6 @@ export default function ProfileDashboard({
                             style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}
                         >
                             <div className="flex items-center gap-2">
-                                <Eye size={18} style={{ color: '#f97316' }} />
                                 <h3 className="text-sm font-black" style={{ color: colors.textPrimary }}>
                                     Vistos Recentemente
                                 </h3>
@@ -1553,7 +1537,6 @@ export default function ProfileDashboard({
                         }}
                     >
                         <div className="flex items-center gap-2 mb-3">
-                            <Calendar size={18} style={{ color: '#f97316' }} />
                             <h3 className="text-sm font-black" style={{ color: colors.textPrimary }}>
                                 Próximos Agendamentos
                             </h3>
@@ -1645,12 +1628,6 @@ export default function ProfileDashboard({
                             }}
                         >
                             <div className="flex items-center gap-3">
-                                <div
-                                    className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
-                                    style={{ background: GRADIENT, color: '#ffffff' }}
-                                >
-                                    <Settings size={16} />
-                                </div>
                                 <h3 className="text-sm font-black" style={{ color: colors.textPrimary }}>
                                     Configurações
                                 </h3>
@@ -1673,12 +1650,6 @@ export default function ProfileDashboard({
                             }}
                         >
                             <div className="flex items-center gap-4">
-                                <div
-                                    className="w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0"
-                                    style={{ background: GRADIENT, color: '#ffffff', boxShadow: `0 4px 12px #f9731640` }}
-                                >
-                                    <ImageIcon className="w-7 h-7" />
-                                </div>
                                 <div>
                                     <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
                                         Tema do iUser
@@ -1702,12 +1673,6 @@ export default function ProfileDashboard({
                             }}
                         >
                             <div className="flex items-center gap-4">
-                                <div
-                                    className="w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0"
-                                    style={{ background: GRADIENT, color: '#ffffff', boxShadow: `0 4px 12px #f9731640` }}
-                                >
-                                    <Palette className="w-7 h-7" />
-                                </div>
                                 <div>
                                     <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
                                         Plano de Fundo
@@ -1914,12 +1879,6 @@ export default function ProfileDashboard({
                             }}
                         >
                             <div className="flex items-center gap-4">
-                                <div
-                                    className="w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0"
-                                    style={{ background: GRADIENT, color: '#ffffff', boxShadow: `0 4px 12px #f9731640` }}
-                                >
-                                    <Type className="w-7 h-7" />
-                                </div>
                                 <div>
                                     <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
                                         Tamanho da Fonte

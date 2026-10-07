@@ -8,7 +8,6 @@ import { useTheme } from '@/app/contexts/theme'
 import { toast } from 'sonner'
 import { hexToRgb } from '@/lib/color'
 import {
-    ShoppingCart,
     Send,
     X,
     Store,
@@ -936,15 +935,6 @@ export default function StoreOrders({
                         }}
                     >
                         <div className="flex items-center gap-3">
-                            <div
-                                className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
-                                style={{
-                                    background: GRADIENT,
-                                    color: '#ffffff',
-                                }}
-                            >
-                                <ShoppingCart size={24} />
-                            </div>
                             <div>
                                 <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
                                     Pedidos na loja
