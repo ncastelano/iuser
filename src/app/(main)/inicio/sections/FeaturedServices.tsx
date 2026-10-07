@@ -15,6 +15,7 @@ import { supabase } from '@/lib/supabase/client'
 import { getAvatarUrl } from '@/lib/avatar'
 import { getServiceLabel } from '@/lib/serviceTypes'
 import { HomeSectionHeader } from './HomeSectionKit'
+import { ViewServicesButton } from './ViewServicesButton'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -151,9 +152,11 @@ interface FeaturedServicesProps {
     maxItems?: number
     className?: string
     hideIcon?: boolean
+    // Botão "ver serviços" no lado direito do título (vai pro marketplace de serviços)
+    onViewAll?: () => void
 }
 
-export default function FeaturedServices({ dragHandle, title = 'Serviços em destaque', maxItems, className = '', hideIcon = false }: FeaturedServicesProps) {
+export default function FeaturedServices({ dragHandle, title = 'Serviços em destaque', maxItems, className = '', hideIcon = false, onViewAll }: FeaturedServicesProps) {
     const router = useRouter()
     const startNavProgress = useNavProgressStore((s) => s.start)
     const { colors } = useTheme()
@@ -245,7 +248,7 @@ export default function FeaturedServices({ dragHandle, title = 'Serviços em des
                 title={title}
                 subtitle={`${services.length} ${services.length === 1 ? 'serviço' : 'serviços'}`}
                 dragHandle={dragHandle}
-                action={<span />}
+                action={onViewAll ? <ViewServicesButton onClick={onViewAll} /> : <span />}
             />
 
             <div className="relative">

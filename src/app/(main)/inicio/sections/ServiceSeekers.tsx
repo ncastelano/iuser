@@ -20,6 +20,7 @@ import { useNavProgressStore } from '@/store/useNavProgressStore'
 import { BoardItem, fetchOpenBoardItems, getItemIcon, getItemLabel, shortAddress, askedAgo, notifyServiceRequestsChanged, SERVICE_REQUESTS_CHANGED } from '@/lib/serviceBoard'
 import { HOME_GRADIENT } from './HomeSectionKit'
 import { HomeSubheading } from './HomeSubheading'
+import { ViewServicesButton } from './ViewServicesButton'
 import type { ApplicationStatus } from '@/hooks/useMyServiceApplications'
 
 // Em vitrine pública, só rua/bairro — o número fica pra quem for atender.
@@ -80,6 +81,7 @@ export default function ServiceSeekers({ limit = 8, applied }: { limit?: number;
             <HomeSubheading
                 title="Quem procura serviço"
                 subtitle={items.length > 0 ? 'Pessoas precisando de um profissional agora' : 'Ninguém pediu ainda — seja o primeiro'}
+                action={<ViewServicesButton onClick={() => go('/procurar-servico')} />}
             />
 
             <div className="flex gap-3 overflow-x-auto pb-1">

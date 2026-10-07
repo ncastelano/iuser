@@ -4,7 +4,7 @@
 import { ReactNode, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
-import { Wrench, Megaphone, Search } from 'lucide-react'
+import { Wrench, Megaphone } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import MyOpenServiceRequests from '@/components/MyOpenServiceRequests'
@@ -82,14 +82,6 @@ export default function HireAService({ dragHandle, onUrgentChange }: HireAServic
 
                 <div className="flex flex-row flex-wrap gap-2">
                     <button
-                        onClick={() => { startNavProgress(); router.push('/solicitar-servico') }}
-                        className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-full font-bold text-sm transition-all shadow-lg hover:scale-105 active:scale-95"
-                        style={buttonStyle}
-                    >
-                        <Search size={16} />
-                        ver serviços
-                    </button>
-                    <button
                         onClick={goPublish}
                         className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-full font-bold text-sm transition-all hover:scale-105 active:scale-95"
                         style={outlineButtonStyle}
@@ -113,7 +105,7 @@ export default function HireAService({ dragHandle, onUrgentChange }: HireAServic
 
                 {/* Serviços que profissionais e lojas já oferecem */}
                 <div className="mt-6">
-                    <FeaturedServices title="Quem já oferece serviço" hideIcon />
+                    <FeaturedServices title="Quem já oferece serviço" hideIcon onViewAll={() => { startNavProgress(); router.push('/solicitar-servico') }} />
                 </div>
 
                 {/* Pedidos de todo mundo: quem está procurando um profissional */}
