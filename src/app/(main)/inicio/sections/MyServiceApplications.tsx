@@ -10,8 +10,7 @@ import { useTheme } from '@/app/contexts/theme'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
 import { getServiceIcon } from '@/lib/serviceTypes'
 import { MyApplication } from '@/hooks/useMyServiceApplications'
-import { HOME_GRADIENT } from './HomeSectionKit'
-import { HomeSubheading } from './HomeSubheading'
+import { HOME_GRADIENT, HomeSectionHeader } from './HomeSectionKit'
 
 function appliedAgo(iso: string): string {
     const minutes = Math.floor((Date.now() - new Date(iso).getTime()) / 60000)
@@ -39,7 +38,8 @@ export default function MyServiceApplications({ items }: { items: MyApplication[
 
     return (
         <div>
-            <HomeSubheading
+            <HomeSectionHeader
+                action={<span />}
                 title="Quais serviços me inscrevi"
                 subtitle={chosen > 0
                     ? `Você foi escolhido em ${chosen} ${chosen === 1 ? 'serviço' : 'serviços'}!`
@@ -49,11 +49,15 @@ export default function MyServiceApplications({ items }: { items: MyApplication[
             <div className="flex gap-3 overflow-x-auto pb-1">
                 {items.map((item) => {
                     const Icon = getServiceIcon(item.serviceType)
+                    const who = item.requesterName?.split(' ')[0] || 'Alguém'
+                    const go = () => { startNavProgress(); router.push(`/procurar-servico?pedido=${item.requestId}`) }
+                    // Mesmo desenho do card de "Quem procura serviço": quem pediu e há quanto tempo,
+                    // foto + o que procura + onde, descrição e, embaixo, a situação da inscrição.
                     return (
                         <div
                             key={item.applicationId}
-                            onClick={() => { startNavProgress(); router.push(`/procurar-servico?pedido=${item.requestId}`) }}
-                            className="flex-shrink-0 w-64 rounded-3xl overflow-hidden flex flex-col cursor-pointer transition-transform hover:scale-[1.02] active:scale-[0.99]"
+                            onClick={go}
+                            className="flex-shrink-0 w-64 rounded-2xl p-3.5 flex flex-col gap-2 cursor-pointer"
                             style={{
                                 background: colors.surface,
                                 border: `1px solid ${item.status === 'accepted' ? '#22c55e' : colors.border}`,
@@ -61,57 +65,60 @@ export default function MyServiceApplications({ items }: { items: MyApplication[
                                 opacity: item.status === 'rejected' ? 0.7 : 1,
                             }}
                         >
-                            <div className="relative h-28 w-full" style={{ background: item.photoUrl ? colors.border : HOME_GRADIENT }}>
-                                {item.photoUrl ? (
-                                    <img src={item.photoUrl} alt="" className="w-full h-full object-cover" loading="lazy" />
+                            <div className="flex items-center gap-2">
+                                {item.requesterAvatarUrl ? (
+                                    <img src={item.requesterAvatarUrl} className="w-7 h-7 rounded-full object-cover flex-shrink-0" alt="" />
                                 ) : (
-                                    <div className="w-full h-full flex items-center justify-center">
-                                        <Icon size={40} color="rgba(255,255,255,0.85)" />
-                                    </div>
+                                    <span className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-black" style={{ background: HOME_GRADIENT, color: '#fff' }}>
+                                        {who.charAt(0).toUpperCase()}
+                                    </span>
                                 )}
-                                <div className="absolute inset-x-0 bottom-0 h-14 pointer-events-none" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.65), transparent)' }} />
-                                <span className="absolute left-3 bottom-2.5 text-sm font-black text-white drop-shadow">{item.serviceLabel}</span>
-                            </div>
-
-                            <div className="p-3.5 flex flex-col gap-2">
-                                <div className="flex items-center gap-2 min-w-0">
-                                    {item.requesterAvatarUrl ? (
-                                        <img src={item.requesterAvatarUrl} className="w-6 h-6 rounded-full object-cover flex-shrink-0" alt="" />
-                                    ) : (
-                                        <span className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-[10px] font-black text-white" style={{ background: HOME_GRADIENT }}>
-                                            {(item.requesterName || '?').charAt(0).toUpperCase()}
-                                        </span>
-                                    )}
-                                    <span className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>
-                                        {item.requesterName ? `${item.requesterName.split(' ')[0]} procura` : 'Alguém procura'}
-                                    </span>
-                                    <span className="text-[10px] ml-auto whitespace-nowrap" style={{ color: colors.textSecondary }}>
-                                        inscrito {appliedAgo(item.appliedAt)}
-                                    </span>
+                                <div className="min-w-0 flex-1">
+                                    <p className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>{who}</p>
+                                    <p className="text-[10px] whitespace-nowrap" style={{ color: colors.textSecondary }}>inscrito {appliedAgo(item.appliedAt)}</p>
                                 </div>
-
-                                <p className="text-[11px] flex items-center gap-1 truncate" style={{ color: colors.textSecondary }}>
-                                    <MapPin size={10} className="flex-shrink-0" />
-                                    {shortAddress(item.locationAddress)}
-                                </p>
-
-                                {item.status === 'accepted' ? (
-                                    <div className="flex items-center gap-2 rounded-xl px-2.5 py-2" style={{ background: '#22c55e18' }}>
-                                        <CheckCircle2 size={15} color="#22c55e" className="flex-shrink-0" />
-                                        <span className="text-xs font-bold" style={{ color: '#16a34a' }}>Você foi escolhido!</span>
-                                    </div>
-                                ) : item.status === 'rejected' ? (
-                                    <div className="flex items-center gap-2 rounded-xl px-2.5 py-2" style={{ background: `${colors.border}30` }}>
-                                        <HeartCrack size={15} className="flex-shrink-0" style={{ color: colors.textSecondary }} />
-                                        <span className="text-xs font-bold" style={{ color: colors.textSecondary }}>Não foi dessa vez</span>
-                                    </div>
-                                ) : (
-                                    <div className="flex items-center gap-2 rounded-xl px-2.5 py-2" style={{ background: `${colors.accent}15` }}>
-                                        <Clock size={14} className="flex-shrink-0" style={{ color: colors.accent }} />
-                                        <span className="text-xs font-bold leading-tight" style={{ color: colors.accent }}>Inscrição enviada. Esperando a resposta.</span>
-                                    </div>
-                                )}
                             </div>
+
+                            <div className="flex items-center gap-3">
+                                <span
+                                    className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 overflow-hidden"
+                                    style={{ background: item.photoUrl ? colors.border : HOME_GRADIENT, color: '#fff' }}
+                                >
+                                    {item.photoUrl ? (
+                                        <img src={item.photoUrl} alt="" className="w-full h-full object-cover" loading="lazy" />
+                                    ) : (
+                                        <Icon size={22} />
+                                    )}
+                                </span>
+                                <div className="min-w-0">
+                                    <p className="text-sm font-black truncate" style={{ color: colors.textPrimary }}>Procura {item.serviceLabel.toLowerCase()}</p>
+                                    <p className="text-[11px] flex items-center gap-1 truncate" style={{ color: colors.textSecondary }}>
+                                        <MapPin size={10} className="flex-shrink-0" />
+                                        {shortAddress(item.locationAddress)}
+                                    </p>
+                                </div>
+                            </div>
+
+                            {item.description && (
+                                <p className="text-xs line-clamp-2" style={{ color: colors.textSecondary }}>{item.description}</p>
+                            )}
+
+                            {item.status === 'accepted' ? (
+                                <div className="mt-auto w-full flex items-center justify-center gap-2 py-3 rounded-full font-black text-sm" style={{ background: '#22c55e18', color: '#16a34a', border: '1px solid #22c55e55' }}>
+                                    <CheckCircle2 size={16} />
+                                    Você foi escolhido!
+                                </div>
+                            ) : item.status === 'rejected' ? (
+                                <div className="mt-auto w-full flex items-center justify-center gap-2 py-3 rounded-full font-black text-sm" style={{ background: `${colors.border}30`, color: colors.textSecondary }}>
+                                    <HeartCrack size={16} />
+                                    Não foi dessa vez
+                                </div>
+                            ) : (
+                                <div className="mt-auto w-full flex items-center justify-center gap-2 py-3 rounded-full font-black text-xs text-center leading-tight" style={{ background: `${colors.accent}15`, color: colors.accent, border: `1px solid ${colors.accent}40` }}>
+                                    <Clock size={15} className="flex-shrink-0" />
+                                    Inscrição enviada. Esperando a resposta.
+                                </div>
+                            )}
                         </div>
                     )
                 })}

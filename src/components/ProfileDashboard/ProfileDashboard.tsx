@@ -43,6 +43,7 @@ import {
 import AtalhoCompromissosPessoal from '@/app/(main)/compromissos/AtalhoCompromissosPessoal'
 import { ProfileInfo } from './ProfileInfo'
 import PlanPromotions from './PlanPromotions'
+import DashboardSection from './DashboardSection'
 import ProfileVisitors from './ProfileVisitors'
 import PublicationProfile from './ProfilePublication'
 import ProfileServiceListing from './ProfileServiceListing'
@@ -108,9 +109,10 @@ export default function ProfileDashboard({
     const [spendingPeriod, setSpendingPeriod] = useState<'week' | 'month'>('week')
     const [isFinanceiroExpanded, setIsFinanceiroExpanded] = usePersistedExpanded('financeiro', true)
     const [isRecentViewsExpanded, setIsRecentViewsExpanded] = usePersistedExpanded('produtosVisualizados', true)
-    const [isConfigExpanded, setIsConfigExpanded] = usePersistedExpanded('configuracoes', true)
     const [currentDate, setCurrentDate] = useState(new Date())
     const [totalPeriodSpent, setTotalPeriodSpent] = useState(0)
+    // Gasto da semana atual (domingo a sábado, igual ao gráfico) — resumo da seção fechada
+    const [weekSpent, setWeekSpent] = useState(0)
     const [periodLabel, setPeriodLabel] = useState('')
     const [isLoadingChart, setIsLoadingChart] = useState(false)
 
@@ -474,6 +476,11 @@ export default function ProfileDashboard({
                 const paidOrders = formattedOrders.filter((o: any) => o.status === 'paid')
                 const totalSpent = paidOrders.reduce((acc: number, o: any) => acc + o.totalPrice, 0)
                 const uniqueStores = new Set(paidOrders.map((o: any) => o.store_slug)).size
+
+                const weekStartMs = startOfWeek(new Date(), { weekStartsOn: 0 }).getTime()
+                setWeekSpent(formattedOrders
+                    .filter((o: any) => o.status === 'paid' && new Date(o.created_at).getTime() >= weekStartMs)
+                    .reduce((acc: number, o: any) => acc + o.totalPrice, 0))
 
                 setMetrics(prev => ({
                     ...prev,
@@ -851,10 +858,16 @@ export default function ProfileDashboard({
                     className="w-full p-4 flex items-center justify-between gap-3 text-left"
                     style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}
                 >
-                    <div className="flex items-center gap-3">
+                    <div className="min-w-0">
                         <h3 className="text-sm font-black" style={{ color: colors.textPrimary }}>
-                            Financeiro
+                            Compras do perfil
                         </h3>
+                        {!isFinanceiroExpanded && (
+                            <p className="text-[11px] mt-0.5" style={{ color: colors.textSecondary }}>
+                                Hoje <strong style={{ color: '#f97316' }}>R$ {metrics.daily.spent.toFixed(2).replace('.', ',')}</strong>
+                                {' · '}Esta semana <strong style={{ color: '#10b981' }}>R$ {weekSpent.toFixed(2).replace('.', ',')}</strong>
+                            </p>
+                        )}
                     </div>
                     {isFinanceiroExpanded ? (
                         <ChevronUp size={18} style={{ color: colors.textSecondary }} className="flex-shrink-0" />
@@ -1614,74 +1627,13 @@ export default function ProfileDashboard({
                 </button>
             </div>
 
-            {/* ===== CONFIGURAÇÕES (tema, plano de fundo, whatsapp, fonte) ===== */}
-            <div ref={cfgSectionRef} className="mb-6 mt-4 space-y-6">
-                        <button
-                            onClick={() => setIsConfigExpanded(!isConfigExpanded)}
-                            className="w-full rounded-2xl p-4 flex items-center justify-between gap-3 text-left"
-                            style={{
-                                background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
-                                backdropFilter: 'blur(12px)',
-                                border: `1px solid ${colors.border}`,
-                                boxShadow: colors.shadow,
-                                cursor: 'pointer',
-                            }}
-                        >
-                            <div className="flex items-center gap-3">
-                                <h3 className="text-sm font-black" style={{ color: colors.textPrimary }}>
-                                    Configurações
-                                </h3>
-                            </div>
-                            {isConfigExpanded ? (
-                                <ChevronUp size={18} style={{ color: colors.textSecondary }} className="flex-shrink-0" />
-                            ) : (
-                                <ChevronDown size={18} style={{ color: colors.textSecondary }} className="flex-shrink-0" />
-                            )}
-                        </button>
+            {/* ===== CONFIGURAÇÕES: cada função com a sua própria seção que abre e fecha (tema, plano de fundo, whatsapp, fonte, conta) ===== */}
+            <div ref={cfgSectionRef} className="mb-6 mt-4 space-y-4">
+                <DashboardSection storageKey="config-tema" title="Tema do iUser" subtitle="Escolha o tema que combina com você">
+                    <ColloriUser />
+                </DashboardSection>
 
-                        {isConfigExpanded && (
-                        <>
-                        {/* Tema do iUser */}
-                        <div
-                            className="rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4"
-                            style={{
-                                background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.4)`,
-                                border: `1px solid ${colors.border}`,
-                            }}
-                        >
-                            <div className="flex items-center gap-4">
-                                <div>
-                                    <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
-                                        Tema do iUser
-                                    </h3>
-                                    <p className="text-sm mt-1" style={{ color: colors.textSecondary }}>
-                                        Escolha o tema que combina com você
-                                    </p>
-                                </div>
-                            </div>
-                            <div className="flex-shrink-0">
-                                <ColloriUser />
-                            </div>
-                        </div>
-
-                        {/* Plano de Fundo */}
-                        <div
-                            className="rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4"
-                            style={{
-                                background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.4)`,
-                                border: `1px solid ${colors.border}`,
-                            }}
-                        >
-                            <div className="flex items-center gap-4">
-                                <div>
-                                    <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
-                                        Plano de Fundo
-                                    </h3>
-                                    <p className="text-sm mt-1" style={{ color: colors.textSecondary }}>
-                                        Escolha o visual do app
-                                    </p>
-                                </div>
-                            </div>
+                <DashboardSection storageKey="config-fundo" title="Plano de Fundo" subtitle="Escolha o visual do app">
                             <div className="flex flex-wrap items-center gap-2 flex-shrink-0">
                                 {([
                                     { mode: 'black' as const, label: 'Sem Imagem', icon: Palette },
@@ -1714,8 +1666,6 @@ export default function ProfileDashboard({
                                     )
                                 })}
                             </div>
-                        </div>
-
                         {/* Upload de imagem de fundo personalizada */}
                         {bgMode === 'custom' && (
                             <div
@@ -1772,46 +1722,18 @@ export default function ProfileDashboard({
                                 </div>
                             </div>
                         )}
+                </DashboardSection>
 
-                        {/* WhatsApp */}
-                        <div
-                            className="rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4"
-                            style={{
-                                background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.4)`,
-                                border: `1px solid ${colors.border}`,
-                            }}
-                        >
-                            <div className="flex items-center gap-4 flex-1">
-                                <div
-                                    className="w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0"
-                                    style={{ background: '#22c55e20', border: `2px solid #22c55e30` }}
-                                >
-                                    <Smartphone className="w-7 h-7" style={{ color: '#22c55e' }} />
-                                </div>
-                                <div className="flex-1">
-                                    <div className="flex items-center gap-3">
-                                        <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
-                                            WhatsApp
-                                        </h3>
-                                        <span className={`text-[10px] font-black px-3 py-1 rounded-full ${cfgUseWhatsapp ? 'bg-green-500/20 text-green-600' : 'bg-gray-500/20 text-gray-600'}`}>
-                                            {cfgUseWhatsapp ? 'Ativo' : 'Inativo'}
-                                        </span>
-                                    </div>
-                                    <p className="text-sm mt-1" style={{ color: colors.textSecondary }}>
-                                        Receba notificações em tempo real
-                                    </p>
-                                </div>
-                            </div>
-                            <div className="flex-shrink-0">
+                <DashboardSection storageKey="config-whatsapp" title="WhatsApp" subtitle={`Receba notificações em tempo real · ${cfgUseWhatsapp ? 'Ativo' : 'Inativo'}`}>
+                    <div className="flex items-center justify-between gap-3">
+                        <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>Receber notificações no WhatsApp</p>
                                 <button
                                     onClick={() => setCfgUseWhatsapp(!cfgUseWhatsapp)}
                                     className={`relative w-12 h-6 rounded-full transition-all ${cfgUseWhatsapp ? 'bg-green-500' : 'bg-gray-600'}`}
                                 >
                                     <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-all ${cfgUseWhatsapp ? 'right-0.5' : 'left-0.5'}`} />
                                 </button>
-                            </div>
-                        </div>
-
+                    </div>
                         {cfgUseWhatsapp ? (
                             <div
                                 className="rounded-2xl p-6"
@@ -1869,26 +1791,9 @@ export default function ProfileDashboard({
                                 </div>
                             </div>
                         )}
+                </DashboardSection>
 
-                        {/* Fonte */}
-                        <div
-                            className="rounded-2xl p-6 flex flex-col gap-4"
-                            style={{
-                                background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.4)`,
-                                border: `1px solid ${colors.border}`,
-                            }}
-                        >
-                            <div className="flex items-center gap-4">
-                                <div>
-                                    <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
-                                        Tamanho da Fonte
-                                    </h3>
-                                    <p className="text-sm mt-1" style={{ color: colors.textSecondary }}>
-                                        Para melhor leitura
-                                    </p>
-                                </div>
-                            </div>
-
+                <DashboardSection storageKey="config-fonte" title="Tamanho da Fonte" subtitle="Para melhor leitura">
                             <p className="text-xs" style={{ color: colors.textSecondary }}>
                                 Aumente ou diminua o tamanho dos textos em todo o aplicativo.
                             </p>
@@ -1925,9 +1830,8 @@ export default function ProfileDashboard({
                                     🔤 Exemplo de texto com esta fonte
                                 </p>
                             </div>
-                        </div>
+                </DashboardSection>
 
-                        {/* Botões de ação */}
                         <button
                             onClick={handleCfgSave}
                             disabled={cfgSaving}
@@ -1951,6 +1855,7 @@ export default function ProfileDashboard({
                             )}
                         </button>
 
+                <DashboardSection storageKey="config-conta" title="Conta" subtitle="Sair ou excluir sua conta">
                         <button
                             onClick={handleCfgLogout}
                             style={{
@@ -1989,8 +1894,7 @@ export default function ProfileDashboard({
                                 onClose={() => setShowDeleteAccount(false)}
                             />
                         )}
-                        </>
-                        )}
+                </DashboardSection>
             </div>
         </div>
     )
