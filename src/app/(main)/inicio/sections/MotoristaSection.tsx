@@ -12,7 +12,7 @@ import { getAvatarUrl } from '@/lib/avatar'
 import { fetchRoute } from '@/lib/mapboxRoute'
 import { buildRideSpecRows } from '@/lib/rideSpecs'
 import RideChat from '@/components/RideChat'
-import { HomeGlassCard } from './HomeSectionKit'
+import { ViewServicesButton } from './ViewServicesButton'
 
 interface RecentRideTrip {
     originAddress: string
@@ -370,36 +370,27 @@ export default function MotoristaSection({ dragHandle, onBreveStatusChange, onUr
 
     return (
         <section>
-            <HomeGlassCard className="p-6 relative">
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-                    <div className="flex items-center gap-4">
-                        {dragHandle && <div>{dragHandle}</div>}
-
-                        <div>
-                            <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
-                                {header.title}
-                            </h3>
-                            <p className="text-sm mt-1" style={{ color: colors.textPrimary }}>
-                                {header.subtitle}
-                            </p>
-                        </div>
+            {/* Mesmo desenho de "Produtos em destaque": título e frase à esquerda, botão em pílula à direita, sem card em volta */}
+            <div className="flex items-start justify-between gap-3 mb-4">
+                <div className="flex items-center gap-3 min-w-0">
+                    {dragHandle}
+                    <div className="min-w-0">
+                        <h2 className="text-lg font-black leading-tight" style={{ color: colors.textPrimary }}>{header.title}</h2>
+                        <p className="text-xs opacity-60" style={{ color: colors.textPrimary }}>{header.subtitle}</p>
                     </div>
-
-                    <button
-                        onClick={() => { startNavProgress(); router.push('/pedir-motorista') }}
-                        className="flex items-center justify-center gap-2 px-6 py-3 rounded-full font-bold text-sm transition-all shadow-lg whitespace-nowrap hover:scale-105 active:scale-95"
-                        style={buttonStyle}
-                    >
-                        <Car size={16} />
-                        {header.button}
-                    </button>
                 </div>
+                <ViewServicesButton
+                    label={header.button}
+                    accent={header.accent}
+                    onClick={() => { startNavProgress(); router.push('/pedir-motorista') }}
+                />
+            </div>
 
                 {activeOrder ? (
                     <div
                         onClick={() => { startNavProgress(); router.push('/pedir-motorista') }}
-                        className="w-full mt-4 p-3 rounded-xl text-left transition-all hover:scale-[1.01] cursor-pointer"
-                        style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}
+                        className="w-full p-3 rounded-xl text-left transition-all hover:scale-[1.01] cursor-pointer"
+                        style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
                     >
                         <div className="flex items-center justify-between gap-2 flex-wrap mb-1">
                             <span
@@ -493,7 +484,7 @@ export default function MotoristaSection({ dragHandle, onBreveStatusChange, onUr
                     </div>
                 ) : (
                     recentTrips.length > 0 && (
-                        <div className="flex flex-wrap gap-2 mt-4">
+                        <div className="flex flex-wrap gap-2">
                             {recentTrips.map((trip) => (
                                 <button
                                     key={`${trip.originAddress}|${trip.destinationAddress}`}
@@ -512,7 +503,6 @@ export default function MotoristaSection({ dragHandle, onBreveStatusChange, onUr
                         </div>
                     )
                 )}
-            </HomeGlassCard>
         </section>
     )
 }

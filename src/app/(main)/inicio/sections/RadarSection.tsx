@@ -34,6 +34,14 @@ export default function RadarSection({ dragHandle, origin, userId, onDefineLocat
     const [nearest, setNearest] = useState<Record<NearestKind, NearestItem[]> | null>(null)
     // Qual dos (até) 3 de cada tipo está na tela; troca sozinho a cada 5 segundos
     const [tick, setTick] = useState(0)
+    // Quantos de cada tipo cabem na tela: 1 no celular (3 cards), 2 no tablet (6) e 3 no desktop (9)
+    const [perKind, setPerKind] = useState(1)
+    useEffect(() => {
+        const update = () => setPerKind(window.innerWidth >= 1280 ? 3 : window.innerWidth >= 640 ? 2 : 1)
+        update()
+        window.addEventListener('resize', update)
+        return () => window.removeEventListener('resize', update)
+    }, [])
 
     const lat = origin?.lat
     const lng = origin?.lng
@@ -49,17 +57,19 @@ export default function RadarSection({ dragHandle, origin, userId, onDefineLocat
 
     useEffect(() => {
         if (!nearest) return
-        const rotates = (['loja', 'produto', 'servico'] as NearestKind[]).some((k) => nearest[k].length > 1)
+        const rotates = (['loja', 'produto', 'servico'] as NearestKind[]).some((k) => nearest[k].length > perKind)
         if (!rotates) return
         const timer = setInterval(() => setTick((t) => t + 1), 5000)
         return () => clearInterval(timer)
-    }, [nearest])
+    }, [nearest, perKind])
 
-    // Um card por tipo (loja, produto, serviço), cada um mostrando o da vez
+    // Até `perKind` cards de cada tipo (loja, produto, serviço); se tem mais do que cabe, a janela gira a cada 5 s
     const cards = nearest
-        ? (['loja', 'produto', 'servico'] as NearestKind[])
-            .map((k) => (nearest[k].length > 0 ? nearest[k][tick % nearest[k].length] : null))
-            .filter(Boolean) as NearestItem[]
+        ? (['loja', 'produto', 'servico'] as NearestKind[]).flatMap((k) => {
+            const list = nearest[k]
+            const n = Math.min(perKind, list.length)
+            return Array.from({ length: n }, (_, i) => list[(tick + i) % list.length])
+        })
         : []
     const goRadar = () => { startNavProgress(); router.push('/radar') }
 
@@ -128,8 +138,8 @@ export default function RadarSection({ dragHandle, origin, userId, onDefineLocat
 
                 {/* Os 3 mais perto de você: uma loja, um produto e um serviço */}
                 <div className="relative z-10 mt-5">
-                    {nearest == null ? (                        <div className="grid grid-cols-3 gap-2">
-                            {[0, 1, 2].map((i) => <div key={i} className="h-32 rounded-2xl animate-pulse" style={{ background: 'rgba(255,255,255,0.08)' }} />)}
+                    {nearest == null ? (                        <div className="grid grid-cols-3 sm:grid-cols-6 min-[1280px]:grid-cols-9 gap-2">
+                            {Array.from({ length: perKind * 3 }).map((_, i) => <div key={i} className="aspect-square rounded-2xl animate-pulse" style={{ background: 'rgba(255,255,255,0.08)' }} />)}
                         </div>
                     ) : (
                         <>
@@ -137,7 +147,7 @@ export default function RadarSection({ dragHandle, origin, userId, onDefineLocat
                                 {origin ? 'Mais perto de você' : 'Mais vistos'}
                                 {!origin && <span className="normal-case font-semibold tracking-normal text-white/40"> · defina seu local no topo pra ver os mais próximos</span>}
                             </p>
-                            <div className="grid grid-cols-3 gap-2">
+                            <div className="grid grid-cols-3 sm:grid-cols-6 min-[1280px]:grid-cols-9 gap-2">
                                 {cards.map((item) => {
                                     const { label, icon: KindIcon } = KIND_META[item.kind]
                                     return (
