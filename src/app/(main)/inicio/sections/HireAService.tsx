@@ -4,7 +4,7 @@
 import { ReactNode, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
-import { Wrench, Megaphone } from 'lucide-react'
+import { Wrench, Megaphone, Plus } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import MyOpenServiceRequests from '@/components/MyOpenServiceRequests'
@@ -80,8 +80,18 @@ export default function HireAService({ dragHandle, onUrgentChange }: HireAServic
                     action={<span />}
                 />
 
+                {/* Pedir um serviço: no topo do card, antes de tudo */}
+                <button
+                    onClick={() => { startNavProgress(); router.push('/solicitar-servico') }}
+                    className="mt-5 w-full flex items-center justify-center gap-2 py-3 rounded-full font-black text-sm transition-all hover:scale-[1.02] active:scale-95"
+                    style={{ background: GRADIENT, color: '#fff', boxShadow: '0 4px 12px #f9731640' }}
+                >
+                    <Plus size={16} />
+                    Precisa de um serviço? Peça o seu
+                </button>
+
                 {/* Pedidos de serviço que a própria pessoa fez, com quem se candidatou */}
-                <div className="mt-5">
+                <div className="mt-6">
                     <MyOpenServiceRequests limit={3} title="Seus pedidos em aberto" onCountChange={setMyOpenCount} />
                 </div>
 

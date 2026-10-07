@@ -253,17 +253,6 @@ export default function ServiceSeekers({ limit = 8, applied }: { limit?: number;
             )}
 
             {detailsId && <ServiceRequestDetailsDialog requestId={detailsId} onClose={() => { setDetailsId(null); load() }} />}
-
-            {/* Fora do carrossel de propósito: com muitos pedidos o botão ficaria
-                lá no fim da rolagem e ninguém veria. */}
-            <button
-                onClick={() => go('/solicitar-servico')}
-                className="mt-3 w-full flex items-center justify-center gap-2 py-3 rounded-full font-black text-sm transition-all hover:scale-[1.02] active:scale-95"
-                style={{ background: HOME_GRADIENT, color: '#fff', boxShadow: '0 4px 12px #f9731640' }}
-            >
-                <Plus size={16} />
-                Precisa de um serviço? Peça o seu
-            </button>
         </div>
     )
 }
