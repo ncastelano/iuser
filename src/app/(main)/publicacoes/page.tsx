@@ -33,6 +33,7 @@ import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import Header from '@/components/Header'
 import { getAvatarUrl } from '@/lib/avatar'
+import PlanAvatarRing from '@/components/PlanAvatarRing'
 import { handleShareLink } from '@/lib/share'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
@@ -173,18 +174,20 @@ function PublicationCardComponent({
         >
             {/* Header do card */}
             <div className="flex items-start gap-3">
-                <div
-                    className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center"
-                    style={{ background: GRADIENT }}
-                >
-                    {pub.ownerImageUrl ? (
-                        <img src={pub.ownerImageUrl} className="w-full h-full object-cover" alt={pub.ownerName} />
-                    ) : (
-                        <span className="text-white font-bold text-lg">
-                            {pub.ownerName?.charAt(0).toUpperCase() || '?'}
-                        </span>
-                    )}
-                </div>
+                <PlanAvatarRing userId={pub.ownerType === 'profile' ? pub.ownerId : undefined}>
+                    <div
+                        className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center"
+                        style={{ background: GRADIENT }}
+                    >
+                        {pub.ownerImageUrl ? (
+                            <img src={pub.ownerImageUrl} className="w-full h-full object-cover" alt={pub.ownerName} />
+                        ) : (
+                            <span className="text-white font-bold text-lg">
+                                {pub.ownerName?.charAt(0).toUpperCase() || '?'}
+                            </span>
+                        )}
+                    </div>
+                </PlanAvatarRing>
 
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">

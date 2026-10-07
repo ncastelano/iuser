@@ -1,7 +1,7 @@
 // src/components/ProfileDashboard/ProfileInfo.tsx
 'use client'
 
-import { useRef, useState, useEffect } from 'react'
+import { useRef, useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { Camera, User, Link as LinkIcon, ChevronDown, ChevronUp, AlertCircle, CheckCircle2, Copy } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
@@ -11,6 +11,8 @@ import { supabase } from '@/lib/supabase/client'
 import { checkSlugAvailability } from '@/lib/slugUtils'
 import { handleShareLink } from '@/lib/share'
 import InviteButton from '@/components/InviteButton'
+import PlanAvatarRing from '@/components/PlanAvatarRing'
+import AvatarBordersDialog from './AvatarBordersDialog'
 import { usePersistedExpanded } from '@/hooks/usePersistedExpanded'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
@@ -60,6 +62,16 @@ export function ProfileInfo({ profile, onProfileUpdate }: ProfileInfoProps) {
     const [avatarFile, setAvatarFile] = useState<File | null>(null)
     const [slugStatus, setSlugStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle')
     const [saving, setSaving] = useState(false)
+    const [showBorders, setShowBorders] = useState(false)
+    const [myBorderName, setMyBorderName] = useState<string | null>(null)
+
+    // Nome da borda que estou usando (aparece ao lado da foto; atualiza quando o diálogo muda algo)
+    const loadMyBorder = useCallback(async () => {
+        const { data } = await supabase.from('profiles').select('avatar_borders(name)').eq('id', profile.id).maybeSingle()
+        const b: any = (data as any)?.avatar_borders
+        setMyBorderName((Array.isArray(b) ? b[0]?.name : b?.name) || null)
+    }, [profile.id])
+    useEffect(() => { loadMyBorder() }, [loadMyBorder])
 
     useEffect(() => {
         setName(profile.name || '')
@@ -198,15 +210,17 @@ export function ProfileInfo({ profile, onProfileUpdate }: ProfileInfoProps) {
                                 Informações do Perfil
                             </h3>
                             <div className="flex items-start gap-2 text-xs mt-1" style={{ color: colors.textSecondary }}>
-                                {preview ? (
-                                    <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 border border-orange-200">
-                                        <img src={preview} className="w-full h-full object-cover" alt="Avatar" />
-                                    </div>
-                                ) : (
-                                    <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 bg-orange-100">
-                                        <User size={14} className="text-orange-400" />
-                                    </div>
-                                )}
+                                <PlanAvatarRing userId={profile.id}>
+                                    {preview ? (
+                                        <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 border border-orange-200">
+                                            <img src={preview} className="w-full h-full object-cover" alt="Avatar" />
+                                        </div>
+                                    ) : (
+                                        <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 bg-orange-100">
+                                            <User size={14} className="text-orange-400" />
+                                        </div>
+                                    )}
+                                </PlanAvatarRing>
                                 <div className="flex flex-col gap-0.5">
                                     <span className="font-bold text-sm" style={{ color: colors.textPrimary }}>
                                         {name || 'Sem nome'}
@@ -231,21 +245,38 @@ export function ProfileInfo({ profile, onProfileUpdate }: ProfileInfoProps) {
                                 <label className="block text-[10px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>
                                     Foto do perfil
                                 </label>
-                                <div
-                                    onClick={handleImageClick}
-                                    className="relative w-32 h-32 mx-auto rounded-full overflow-hidden bg-gradient-to-br from-orange-100 to-red-100 border-2 border-orange-200 group cursor-pointer hover:border-orange-500 transition-all duration-500 shadow-lg"
-                                >
-                                    {preview ? (
-                                        <img src={preview} className="w-full h-full object-cover" alt="Avatar" />
-                                    ) : (
-                                        <div className="w-full h-full flex items-center justify-center text-orange-300 text-3xl font-black">
-                                            {name?.charAt(0) || '?'}
+                                {/* Foto com a borda que estou usando + botão Bordas ao lado */}
+                                <div className="flex items-center justify-center gap-5">
+                                    <PlanAvatarRing userId={profile.id} width={4}>
+                                        <div
+                                            onClick={handleImageClick}
+                                            className="relative w-32 h-32 rounded-full overflow-hidden bg-gradient-to-br from-orange-100 to-red-100 border-2 border-orange-200 group cursor-pointer hover:border-orange-500 transition-all duration-500 shadow-lg"
+                                        >
+                                            {preview ? (
+                                                <img src={preview} className="w-full h-full object-cover" alt="Avatar" />
+                                            ) : (
+                                                <div className="w-full h-full flex items-center justify-center text-orange-300 text-3xl font-black">
+                                                    {name?.charAt(0) || '?'}
+                                                </div>
+                                            )}
+                                            <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-full">
+                                                <Camera className="w-8 h-8 text-white" />
+                                            </div>
+                                            <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
                                         </div>
-                                    )}
-                                    <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-full">
-                                        <Camera className="w-8 h-8 text-white" />
+                                    </PlanAvatarRing>
+                                    <div className="flex flex-col items-start gap-1.5">
+                                        <button
+                                            onClick={() => setShowBorders(true)}
+                                            className="px-5 py-2 rounded-full text-xs font-black text-white transition-transform hover:scale-105 active:scale-95"
+                                            style={{ background: GRADIENT, boxShadow: '0 2px 8px rgba(249,115,22,0.3)' }}
+                                        >
+                                            Bordas
+                                        </button>
+                                        <p className="text-[10px] font-bold max-w-[110px] leading-tight" style={{ color: colors.textSecondary }}>
+                                            {myBorderName ? `Borda: ${myBorderName}` : 'Sem borda'}
+                                        </p>
                                     </div>
-                                    <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
                                 </div>
                                 <p className="text-[8px] text-center font-medium" style={{ color: colors.textSecondary }}>
                                     Clique para alterar a foto (max. 5MB)
@@ -384,6 +415,16 @@ export function ProfileInfo({ profile, onProfileUpdate }: ProfileInfoProps) {
                 </button>
                 <InviteButton className="!w-auto flex-1 min-w-[160px]" />
             </div>
+
+            {showBorders && (
+                <AvatarBordersDialog
+                    profileId={profile.id}
+                    avatarUrl={preview}
+                    name={name}
+                    onClose={() => setShowBorders(false)}
+                    onChanged={loadMyBorder}
+                />
+            )}
         </div>
     )
 }

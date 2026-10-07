@@ -4,6 +4,7 @@
 import { useState, useEffect, useMemo, ReactNode } from 'react'
 import { Store } from 'lucide-react'
 import { ViewServicesButton } from './ViewServicesButton'
+import PlanAvatarRing from '@/components/PlanAvatarRing'
 import { useTheme } from '@/app/contexts/theme'
 import { useRouter } from 'next/navigation'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
@@ -294,15 +295,17 @@ export default function FeaturedPublications({
                             )}
                         </div>
                         <div className="p-2.5 flex items-center gap-2 min-w-0">
-                            <div className="w-6 h-6 rounded-full overflow-hidden flex-shrink-0">
-                                {pub.ownerImageUrl ? (
-                                    <img src={pub.ownerImageUrl} alt="" className="w-full h-full object-cover" />
-                                ) : (
-                                    <div className="w-full h-full flex items-center justify-center text-white font-bold text-[10px]" style={{ background: GRADIENT }}>
-                                        {pub.ownerName?.charAt(0).toUpperCase() || '?'}
-                                    </div>
-                                )}
-                            </div>
+                            <PlanAvatarRing userId={pub.ownerType === 'profile' ? pub.ownerId : undefined}>
+                                <div className="w-6 h-6 rounded-full overflow-hidden flex-shrink-0">
+                                    {pub.ownerImageUrl ? (
+                                        <img src={pub.ownerImageUrl} alt="" className="w-full h-full object-cover" />
+                                    ) : (
+                                        <div className="w-full h-full flex items-center justify-center text-white font-bold text-[10px]" style={{ background: GRADIENT }}>
+                                            {pub.ownerName?.charAt(0).toUpperCase() || '?'}
+                                        </div>
+                                    )}
+                                </div>
+                            </PlanAvatarRing>
                             <div className="min-w-0">
                                 <p className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>{pub.ownerName}</p>
                                 {pub.title && (

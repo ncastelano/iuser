@@ -1,8 +1,8 @@
 // src/components/PlanAvatarRing.tsx
 //
-// Moldura de agrado no avatar: quem usa o plano Pré-pago (e toda a hierarquia, do administrador pra
-// baixo) tem uma borda que gira em verde (domina), com brilhos de amarelo e azul. Envolva qualquer avatar
-// onde ele apareça, passando o id do usuário:
+// Borda do avatar: a que a pessoa escolheu usar (ex: "Eu sou brasileiro", verde com brilhos de amarelo e
+// azul) gira em volta da foto. As bordas são conquistadas (plano Pré-pago, resgates, hierarquia) e
+// escolhidas em Informações do Perfil → Bordas. Envolva qualquer avatar onde ele apareça, passando o id:
 //
 //   <PlanAvatarRing userId={profile.id}><img className="w-10 h-10 rounded-full" ... /></PlanAvatarRing>
 //
@@ -10,7 +10,7 @@
 'use client'
 
 import { ReactNode, useEffect, useState } from 'react'
-import { requestPlanRing, subscribePlanRing } from '@/lib/planRing'
+import { borderGradient, requestAvatarBorder, subscribePlanRing } from '@/lib/planRing'
 
 interface PlanAvatarRingProps {
     userId?: string | null
@@ -22,23 +22,29 @@ interface PlanAvatarRingProps {
     className?: string
 }
 
-/** Só o "tem moldura?" (pra telas que precisam trocar o próprio visual em vez de envolver um avatar). */
-export function usePlanRing(userId?: string | null): boolean {
-    const [ring, setRing] = useState<boolean>(() => requestPlanRing(userId) === true)
+/** As cores da borda que essa pessoa está usando (null = nenhuma). */
+export function useAvatarBorder(userId?: string | null): string[] | null {
+    const [colors, setColors] = useState<string[] | null>(() => requestAvatarBorder(userId) ?? null)
     useEffect(() => {
-        const sync = () => setRing(requestPlanRing(userId) === true)
+        const sync = () => setColors(requestAvatarBorder(userId) ?? null)
         sync()
         return subscribePlanRing(sync)
     }, [userId])
-    return ring
+    return colors
 }
 
-/** A moldura em si (sem consultar plano nenhum) — o que o PlanAvatarRing desenha quando o usuário tem direito a ela. */
-export function PlanRingFrame({ children, width = 2, radius = 'full', className = '' }: Omit<PlanAvatarRingProps, 'userId'>) {
+/** Só o "tem borda?" (pra telas que precisam trocar o próprio visual em vez de envolver um avatar). */
+export function usePlanRing(userId?: string | null): boolean {
+    return useAvatarBorder(userId) !== null
+}
+
+/** A borda em si (sem consultar ninguém) — o que o PlanAvatarRing desenha quando a pessoa usa uma borda. */
+export function PlanRingFrame({ children, width = 2, radius = 'full', className = '', colors }: Omit<PlanAvatarRingProps, 'userId'> & { colors?: string[] }) {
     const r = radius === 'full' ? '9999px' : radius
+    const gradient = borderGradient(colors && colors.length >= 2 ? colors : ['#4ade80', '#86efac', '#fde047', '#38bdf8', '#3b82f6', '#22c55e'])
     return (
         <span className={`relative inline-flex flex-shrink-0 ${className}`} style={{ borderRadius: r, width: 'fit-content', height: 'fit-content' }}>
-            {/* Anel que gira: gradiente cônico verde → amarelo → azul → verde, recortado só na borda */}
+            {/* Anel que gira: gradiente cônico com as cores da borda, recortado só na borda */}
             <span
                 aria-hidden
                 className="plan-ring-spin pointer-events-none absolute"
@@ -46,7 +52,7 @@ export function PlanRingFrame({ children, width = 2, radius = 'full', className 
                     inset: -(width + 1),
                     borderRadius: r,
                     padding: width,
-                    background: 'conic-gradient(from 0deg, #4ade80 0deg, #86efac 70deg, #fde047 140deg, #38bdf8 215deg, #3b82f6 270deg, #22c55e 330deg, #4ade80 360deg)',
+                    background: gradient,
                     WebkitMask: 'linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)',
                     WebkitMaskComposite: 'xor',
                     mask: 'linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)',
@@ -64,7 +70,7 @@ export function PlanRingFrame({ children, width = 2, radius = 'full', className 
 }
 
 export default function PlanAvatarRing({ userId, children, width = 2, radius = 'full', className = '' }: PlanAvatarRingProps) {
-    const ring = usePlanRing(userId)
-    if (!ring) return <>{children}</>
-    return <PlanRingFrame width={width} radius={radius} className={className}>{children}</PlanRingFrame>
+    const colors = useAvatarBorder(userId)
+    if (!colors) return <>{children}</>
+    return <PlanRingFrame colors={colors} width={width} radius={radius} className={className}>{children}</PlanRingFrame>
 }

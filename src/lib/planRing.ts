@@ -1,13 +1,13 @@
 // src/lib/planRing.ts
 //
-// Quem ganha a moldura colorida (verde, amarelo e azul) no avatar: usuários no plano Pré-pago (inclui o brinde) e toda a
-// hierarquia do administrador pra baixo. O resultado vem do RPC get_plan_ring_users, em lote
-// (vários avatares na mesma tela viram UMA chamada) e com cache por sessão do navegador.
+// Borda do avatar (a que a pessoa está usando): vem do RPC get_avatar_borders_for, em lote (vários
+// avatares na mesma tela viram UMA chamada) e com cache pela sessão do navegador. O valor é a lista de
+// cores da borda, ou null se a pessoa não usa nenhuma.
 'use client'
 
 import { supabase } from '@/lib/supabase/client'
 
-const cache = new Map<string, boolean>()
+const cache = new Map<string, string[] | null>()
 const pending = new Set<string>()
 const listeners = new Set<() => void>()
 let timer: ReturnType<typeof setTimeout> | null = null
@@ -20,13 +20,13 @@ async function flush() {
     ids.forEach((id) => pending.delete(id))
     if (ids.length === 0) return
     try {
-        const { data, error } = await supabase.rpc('get_plan_ring_users', { p_ids: ids })
+        const { data, error } = await supabase.rpc('get_avatar_borders_for', { p_ids: ids })
         if (error) throw error
-        const ring = new Set<string>((data as string[]) || [])
-        ids.forEach((id) => cache.set(id, ring.has(id)))
+        const byId = new Map<string, string[]>((data as { profile_id: string; colors: string[] }[] || []).map((r) => [r.profile_id, r.colors]))
+        ids.forEach((id) => cache.set(id, byId.get(id) || null))
     } catch {
-        // Função ainda não existe no banco (migration não rodou) ou falha de rede: sem moldura, sem erro.
-        ids.forEach((id) => cache.set(id, false))
+        // Função ainda não existe no banco (migration não rodou) ou falha de rede: sem borda, sem erro.
+        ids.forEach((id) => cache.set(id, null))
     }
     listeners.forEach((l) => l())
     if (pending.size > 0) schedule()
@@ -36,9 +36,9 @@ function schedule() {
     if (!timer) timer = setTimeout(flush, 40)
 }
 
-/** Pede (em lote) se esse usuário tem a moldura. Devolve o valor se já souber. */
-export function requestPlanRing(userId: string | null | undefined): boolean | undefined {
-    if (!userId || !UUID_RE.test(userId)) return false
+/** Pede (em lote) a borda desse usuário. Devolve o valor se já souber (null = sem borda). */
+export function requestAvatarBorder(userId: string | null | undefined): string[] | null | undefined {
+    if (!userId || !UUID_RE.test(userId)) return null
     const known = cache.get(userId)
     if (known !== undefined) return known
     pending.add(userId)
@@ -51,8 +51,16 @@ export function subscribePlanRing(listener: () => void) {
     return () => { listeners.delete(listener) }
 }
 
-/** Depois de assinar/resgatar um plano, esquece o cache pra moldura aparecer na hora. */
-export function resetPlanRingCache() {
-    cache.clear()
+/** Depois de trocar de borda (ou ela ser concedida), esquece o cache pra mudança aparecer na hora. */
+export function resetPlanRingCache(userId?: string) {
+    if (userId) cache.delete(userId)
+    else cache.clear()
     listeners.forEach((l) => l())
+}
+
+/** Cores → gradiente cônico que fecha voltando à primeira cor. */
+export function borderGradient(colors: string[]): string {
+    const n = colors.length
+    const stops = [...colors, colors[0]].map((c, i) => `${c} ${Math.round((i / n) * 360)}deg`)
+    return `conic-gradient(from 0deg, ${stops.join(', ')})`
 }

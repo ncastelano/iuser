@@ -303,10 +303,20 @@ export default function Commission({ userId, profileSlug, onLatestUpdate }: Comm
             // indicado), e essas tabelas só deixam o dono ler a própria
             // linha por RLS — a função já filtra por upline_id = auth.uid()
             // internamente, nunca vaza dado de quem não foi indicado por mim.
-            const { data: downlineData, error } = await supabase.rpc('get_referral_commission_summary')
+            let { data: downlineData, error } = await supabase.rpc('get_referral_commission_summary')
+
+            // Falha momentânea (rede, sessão renovando): tenta mais uma vez antes de desistir
+            if (error) {
+                await new Promise((r) => setTimeout(r, 1200))
+                const retry = await supabase.rpc('get_referral_commission_summary')
+                downlineData = retry.data
+                error = retry.error
+            }
 
             if (error) {
-                console.error('❌ Erro ao buscar dados:', error)
+                // O erro do Supabase não é enumerável (aparecia como {}): loga os campos que importam,
+                // como aviso — a seção só fica vazia, não precisa estourar o overlay de erro.
+                console.warn('Não foi possível carregar a Minha Rede:', error.message, error.code, error.details, error.hint)
                 setLoading(false)
                 return
             }

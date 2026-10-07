@@ -7,15 +7,16 @@ import { supabase } from '@/lib/supabase/client'
 import { Spinner } from '@/components/Spinner'
 import { toast } from 'sonner'
 import { hexToRgb } from '@/lib/color'
-import { Check, X, Copy, Plus, ShieldOff, ShieldCheck, Send, CalendarClock, Wallet, Tag, Sparkles, MessageCircle, Search, Activity, PiggyBank, Car, Gift } from 'lucide-react'
+import { Check, X, Copy, Plus, ShieldOff, ShieldCheck, Send, CalendarClock, Wallet, Tag, Sparkles, MessageCircle, Search, Activity, PiggyBank, Car, Gift, CircleDashed } from 'lucide-react'
 import HierarchyAdmin from './HierarchyAdmin'
 import ActivitySection from './ActivitySection'
 import FinanceSection from './FinanceSection'
 import PlatformTariffsSection from './PlatformTariffsSection'
 import FreeTrialSection from './FreeTrialSection'
+import AvatarBordersSection from './AvatarBordersSection'
 import { callAdminApi } from '@/lib/callAdminApi'
 
-type Section = 'pagamentos' | 'saques' | 'planos' | 'tarifas' | 'brinde' | 'hierarquia' | 'whatsapp' | 'atividade' | 'financeiro'
+type Section = 'pagamentos' | 'saques' | 'planos' | 'tarifas' | 'brinde' | 'bordas' | 'hierarquia' | 'whatsapp' | 'atividade' | 'financeiro'
 
 const SECTIONS: { id: Section; label: string; icon: typeof Send }[] = [
     { id: 'atividade', label: 'Atividade', icon: Activity },
@@ -24,6 +25,7 @@ const SECTIONS: { id: Section; label: string; icon: typeof Send }[] = [
     { id: 'planos', label: 'Planos', icon: CalendarClock },
     { id: 'tarifas', label: 'Tarifas', icon: Car },
     { id: 'brinde', label: 'Brinde', icon: Gift },
+    { id: 'bordas', label: 'Bordas', icon: CircleDashed },
     { id: 'hierarquia', label: 'Hierarquia', icon: ShieldCheck },
     { id: 'whatsapp', label: 'WhatsApp Bot', icon: MessageCircle },
     { id: 'saques', label: 'Saques', icon: Send },
@@ -98,6 +100,7 @@ export default function AdminDashboard() {
             {section === 'atividade' && <ActivitySection cardStyle={cardStyle} colors={colors} />}
             {section === 'pagamentos' && <SubscriptionsSection cardStyle={cardStyle} colors={colors} />}
             {section === 'financeiro' && <FinanceSection cardStyle={cardStyle} colors={colors} />}
+            {section === 'bordas' && <AvatarBordersSection cardStyle={cardStyle} colors={colors} />}
             {section === 'brinde' && <FreeTrialSection cardStyle={cardStyle} colors={colors} />}
             {section === 'tarifas' && <PlatformTariffsSection cardStyle={cardStyle} colors={colors} />}
             {section === 'saques' && <WithdrawalsSection cardStyle={cardStyle} colors={colors} />}

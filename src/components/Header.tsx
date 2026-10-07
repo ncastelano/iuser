@@ -7,6 +7,8 @@ import { useTheme } from '@/app/contexts/theme'
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { hexToRgb } from '@/lib/color'
 import { useCartStore } from '@/store/useCartStore'
+import { useProfile } from '@/app/contexts/ProfileContext'
+import PlanAvatarRing from '@/components/PlanAvatarRing'
 
 export interface Tab {
     id: string
@@ -69,6 +71,7 @@ export default function Header({
     const router = useRouter()
     const pathname = usePathname()
     const { colors } = useTheme()
+    const { userId: myUserId } = useProfile()
 
     const cartItemsByStore = useCartStore((state) => state.itemsByStore)
     const cartCount = useMemo(
@@ -429,11 +432,14 @@ export default function Header({
                                         }}
                                     >
                                         {tab.imageUrl ? (
-                                            <img
-                                                src={tab.imageUrl}
-                                                alt=""
-                                                className="h-7 w-7 sm:h-9 sm:w-9 object-cover rounded-full flex-shrink-0"
-                                            />
+                                            // A aba do meu perfil mostra a borda que estou usando
+                                            <PlanAvatarRing userId={tab.id === 'perfil' ? myUserId : undefined} width={2}>
+                                                <img
+                                                    src={tab.imageUrl}
+                                                    alt=""
+                                                    className="h-7 w-7 sm:h-9 sm:w-9 object-cover rounded-full flex-shrink-0"
+                                                />
+                                            </PlanAvatarRing>
                                         ) : (
                                             <div
                                                 className="h-7 w-7 sm:h-9 sm:w-9 rounded-full flex items-center justify-center flex-shrink-0"

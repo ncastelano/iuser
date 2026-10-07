@@ -5,6 +5,7 @@ import { useMemo, useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { getAvatarUrl } from '@/lib/avatar'
+import PlanAvatarRing from '@/components/PlanAvatarRing'
 import { hexToRgb } from '@/lib/color'
 import {
     ChevronRight,
@@ -307,36 +308,36 @@ export default function SocialList() {
                                             }}
                                             className="flex flex-col items-center gap-1 transition hover:scale-105"
                                         >
-                                            <div
-                                                className="w-14 h-14 rounded-full overflow-hidden"
-                                                style={{
-                                                    background: `${colors.surface}44`,
-                                                    padding: '2px',
-                                                    backgroundImage: GRADIENT,
-                                                }}
-                                            >
+                                            <PlanAvatarRing userId={profile.id} width={3}>
                                                 <div
-                                                    className="w-full h-full rounded-full overflow-hidden"
+                                                    className="w-14 h-14 rounded-full overflow-hidden"
                                                     style={{
-                                                        background: colors.surface,
+                                                        background: `${colors.surface}44`,
                                                     }}
                                                 >
-                                                    {profile.avatar_url ? (
-                                                        <img
-                                                            src={profile.avatar_url}
-                                                            alt={profile.name}
-                                                            className="w-full h-full object-cover"
-                                                        />
-                                                    ) : (
-                                                        <div
-                                                            className="w-full h-full flex items-center justify-center text-xl font-black"
-                                                            style={{ color: colors.textSecondary }}
-                                                        >
-                                                            {profile.name?.charAt(0).toUpperCase() || '?'}
-                                                        </div>
-                                                    )}
+                                                    <div
+                                                        className="w-full h-full rounded-full overflow-hidden"
+                                                        style={{
+                                                            background: colors.surface,
+                                                        }}
+                                                    >
+                                                        {profile.avatar_url ? (
+                                                            <img
+                                                                src={profile.avatar_url}
+                                                                alt={profile.name}
+                                                                className="w-full h-full object-cover"
+                                                            />
+                                                        ) : (
+                                                            <div
+                                                                className="w-full h-full flex items-center justify-center text-xl font-black"
+                                                                style={{ color: colors.textSecondary }}
+                                                            >
+                                                                {profile.name?.charAt(0).toUpperCase() || '?'}
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 </div>
-                                            </div>
+                                            </PlanAvatarRing>
                                             <span
                                                 className="text-[10px] font-bold truncate max-w-[60px]"
                                                 style={{ color: colors.textSecondary }}
@@ -448,48 +449,48 @@ export default function SocialList() {
                                                 }}
                                             >
                                                 <div className="flex gap-4">
-                                                    <div
-                                                        className="w-20 h-20 rounded-full overflow-hidden shrink-0"
-                                                        style={{
-                                                            background: `${colors.surface}44`,
-                                                            padding: '2px',
-                                                            backgroundImage: GRADIENT,
-                                                        }}
-                                                    >
+                                                    <PlanAvatarRing userId={profile.id} width={3}>
                                                         <div
-                                                            className="w-full h-full rounded-full overflow-hidden"
+                                                            className="w-20 h-20 rounded-full overflow-hidden shrink-0"
                                                             style={{
-                                                                background: colors.surface,
+                                                                background: `${colors.surface}44`,
                                                             }}
                                                         >
-                                                            {profile.avatar_url && profile.avatar_url.trim() !== '' ? (
-                                                                <img
-                                                                    src={profile.avatar_url}
-                                                                    alt={profile.name || 'Perfil'}
-                                                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                                                                    onError={(e) => {
-                                                                        const target = e.target as HTMLImageElement
-                                                                        target.style.display = 'none'
-                                                                        const parent = target.parentElement
-                                                                        if (parent) {
-                                                                            const fallback = document.createElement('div')
-                                                                            fallback.className = 'w-full h-full flex items-center justify-center text-3xl font-black'
-                                                                            fallback.style.color = colors.textSecondary
-                                                                            fallback.textContent = profile.name?.charAt(0).toUpperCase() || '?'
-                                                                            parent.appendChild(fallback)
-                                                                        }
-                                                                    }}
-                                                                />
-                                                            ) : (
-                                                                <div
-                                                                    className="w-full h-full flex items-center justify-center text-3xl font-black"
-                                                                    style={{ color: colors.textSecondary }}
-                                                                >
-                                                                    {profile.name?.charAt(0).toUpperCase() || '?'}
-                                                                </div>
-                                                            )}
+                                                            <div
+                                                                className="w-full h-full rounded-full overflow-hidden"
+                                                                style={{
+                                                                    background: colors.surface,
+                                                                }}
+                                                            >
+                                                                {profile.avatar_url && profile.avatar_url.trim() !== '' ? (
+                                                                    <img
+                                                                        src={profile.avatar_url}
+                                                                        alt={profile.name || 'Perfil'}
+                                                                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                                                        onError={(e) => {
+                                                                            const target = e.target as HTMLImageElement
+                                                                            target.style.display = 'none'
+                                                                            const parent = target.parentElement
+                                                                            if (parent) {
+                                                                                const fallback = document.createElement('div')
+                                                                                fallback.className = 'w-full h-full flex items-center justify-center text-3xl font-black'
+                                                                                fallback.style.color = colors.textSecondary
+                                                                                fallback.textContent = profile.name?.charAt(0).toUpperCase() || '?'
+                                                                                parent.appendChild(fallback)
+                                                                            }
+                                                                        }}
+                                                                    />
+                                                                ) : (
+                                                                    <div
+                                                                        className="w-full h-full flex items-center justify-center text-3xl font-black"
+                                                                        style={{ color: colors.textSecondary }}
+                                                                    >
+                                                                        {profile.name?.charAt(0).toUpperCase() || '?'}
+                                                                    </div>
+                                                                )}
+                                                            </div>
                                                         </div>
-                                                    </div>
+                                                    </PlanAvatarRing>
 
                                                     <div className="flex-1 min-w-0">
                                                         <div className="flex items-start justify-between gap-2">

@@ -9,6 +9,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { getDeviceId } from '@/lib/deviceId'
+import { resetPlanRingCache } from '@/lib/planRing'
 
 export const DEFAULT_TRIAL_DAYS = 90
 
@@ -104,6 +105,8 @@ export function useFreeTrial() {
             const json = await res.json()
             if (!res.ok) return { ok: false, needsCpf: !!json.needsCpf, error: json.error }
             await load()
+            // Entrar no Pré-pago pode dar uma borda de avatar (concedida por trigger): atualiza a que aparece
+            resetPlanRingCache()
             return { ok: true }
         } catch (err: any) {
             return { ok: false, error: err.message || 'Erro ao resgatar' }
