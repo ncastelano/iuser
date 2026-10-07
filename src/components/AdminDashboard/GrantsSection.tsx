@@ -71,7 +71,8 @@ export default function GrantsSection({ cardStyle, colors }: { cardStyle: React.
     const [reason, setReason] = useState('')
     const [granting, setGranting] = useState(false)
     const [busyId, setBusyId] = useState<string | null>(null)
-    const [extendDays, setExtendDays] = useState<Record<string, string>>({})
+    // Qual concessão está com as opções de tempo abertas (clica em Estender → aparecem os atalhos)
+    const [extendOpenId, setExtendOpenId] = useState<string | null>(null)
 
     const load = useCallback(async () => {
         try {
@@ -107,12 +108,12 @@ export default function GrantsSection({ cardStyle, colors }: { cardStyle: React.
         }
     }
 
-    const extend = async (g: Grant) => {
-        const n = Math.round(Number(extendDays[g.id] || 30))
+    const extend = async (g: Grant, n: number, label: string) => {
         setBusyId(g.id)
         try {
             await callAdminApi('/api/admin/grants/extend', { subscriptionId: g.id, days: n })
-            toast.success(`Prazo estendido em ${n} dias`)
+            toast.success(`Prazo estendido: ${label}`)
+            setExtendOpenId(null)
             await load()
         } catch (err: any) { toast.error(err.message || 'Erro ao estender') }
         setBusyId(null)
@@ -270,21 +271,45 @@ export default function GrantsSection({ cardStyle, colors }: { cardStyle: React.
                                 </span>
                             </div>
                             {g.active && g.source !== 'free_trial' && (
-                                <div className="flex flex-wrap items-center gap-2">
-                                    <input
-                                        type="text"
-                                        inputMode="numeric"
-                                        value={extendDays[g.id] ?? '30'}
-                                        onChange={(e) => setExtendDays((prev) => ({ ...prev, [g.id]: e.target.value.replace(/\D/g, '') }))}
-                                        style={{ ...input, width: 70, padding: '6px 10px' }}
-                                        aria-label="Dias a somar"
-                                    />
-                                    <button onClick={() => extend(g)} disabled={busyId !== null} className="px-3.5 py-1.5 rounded-full text-[11px] font-black text-white disabled:opacity-50" style={{ background: colors.accent }}>
-                                        {busyId === g.id ? <Spinner size={12} color="#fff" /> : 'Estender'}
-                                    </button>
-                                    <button onClick={() => revoke(g)} disabled={busyId !== null} className="px-3.5 py-1.5 rounded-full text-[11px] font-black disabled:opacity-50" style={{ border: '1px solid #ef444460', color: '#ef4444' }}>
-                                        Encerrar agora
-                                    </button>
+                                <div className="space-y-2">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <button
+                                            onClick={() => setExtendOpenId(extendOpenId === g.id ? null : g.id)}
+                                            disabled={busyId !== null}
+                                            className="px-3.5 py-1.5 rounded-full text-[11px] font-black text-white disabled:opacity-50"
+                                            style={{ background: colors.accent }}
+                                        >
+                                            {extendOpenId === g.id ? 'Fechar' : 'Estender'}
+                                        </button>
+                                        <button onClick={() => revoke(g)} disabled={busyId !== null} className="px-3.5 py-1.5 rounded-full text-[11px] font-black disabled:opacity-50" style={{ border: '1px solid #ef444460', color: '#ef4444' }}>
+                                            Encerrar agora
+                                        </button>
+                                    </div>
+                                    {extendOpenId === g.id && (() => {
+                                        // "Até o fim do ano" parte do fim atual da concessão (ou de agora, se já acabou)
+                                        const base = Math.max(Date.now(), g.endsAt ? new Date(g.endsAt).getTime() : 0)
+                                        const toYearEnd = Math.ceil((Date.UTC(new Date(base).getUTCFullYear(), 11, 32, 2, 59, 59) - base) / 86400000)
+                                        const options: { n: number; label: string }[] = [
+                                            ...(toYearEnd >= 1 ? [{ n: toYearEnd, label: 'Até o fim do ano' }] : []),
+                                            ...PRESET_DAYS.map((d) => ({ n: d, label: d === 365 ? '+ 1 ano' : `+ ${d} dias` })),
+                                        ]
+                                        return (
+                                            <div className="flex flex-wrap items-center gap-2 rounded-xl p-2.5" style={{ background: `${colors.border}25` }}>
+                                                <span className="text-[10px] font-bold w-full" style={{ color: colors.textSecondary }}>Somar quanto tempo ao prazo atual?</span>
+                                                {options.map((o) => (
+                                                    <button
+                                                        key={o.label}
+                                                        onClick={() => extend(g, o.n, o.label.replace('+ ', '+'))}
+                                                        disabled={busyId !== null}
+                                                        className="px-3 py-1.5 rounded-full text-[11px] font-black disabled:opacity-50"
+                                                        style={{ border: `1px solid ${colors.accent}`, color: colors.accent }}
+                                                    >
+                                                        {busyId === g.id ? <Spinner size={12} /> : o.label}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )
+                                    })()}
                                 </div>
                             )}
                         </div>
