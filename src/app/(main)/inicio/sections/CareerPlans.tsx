@@ -131,8 +131,7 @@ export default function CareerPlans() {
                         </div>
                         <div className="flex flex-col gap-2">
                             {[
-                                trial.enabled ? `Sem taxa por serviço nos ${trialLabel}` : 'Sem taxa por serviço',
-                                'Libera motorista, prestador, loja e recrutador',
+                                'Venda ou compre com taxa 0%',
                                 'Vale também pra quem já está no pós-pago',
                             ].map((f) => (
                                 <div key={f} className="flex items-start gap-1.5">
