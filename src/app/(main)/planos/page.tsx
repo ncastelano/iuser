@@ -119,6 +119,9 @@ function PlanosContent() {
     const [trialClaim, setTrialClaim] = useState<{ claimed_at: string; ends_at: string } | null>(null)
     const [claimingTrial, setClaimingTrial] = useState(false)
     const [trialCpfPrompt, setTrialCpfPrompt] = useState(false)
+    // Confirmação antes de começar a contar os 3 meses (e o login que vem antes, se for visitante)
+    const [confirmTrialOpen, setConfirmTrialOpen] = useState(false)
+    const trialAfterLoginRef = useRef(false)
     const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
     const load = useCallback(async () => {
@@ -389,6 +392,11 @@ function PlanosContent() {
     const handleLoginSuccess = () => {
         setShowLogin(false)
         load()
+        // Entrou pra resgatar: agora pergunta se pode começar a contar os 3 meses
+        if (trialAfterLoginRef.current) {
+            trialAfterLoginRef.current = false
+            setConfirmTrialOpen(true)
+        }
     }
 
     const getActiveSub = (planId: string) => activeSubs.find((s) => s.plan_id === planId && s.status === 'active')
@@ -486,7 +494,14 @@ function PlanosContent() {
                                             </div>
                                         ) : (
                                             <button
-                                                onClick={() => (userId ? handleClaimTrial() : setShowLogin(true))}
+                                                onClick={() => {
+                                                    if (userId) {
+                                                        setConfirmTrialOpen(true)
+                                                    } else {
+                                                        trialAfterLoginRef.current = true
+                                                        setShowLogin(true)
+                                                    }
+                                                }}
                                                 disabled={claimingTrial}
                                                 className="w-full py-3 rounded-full text-sm font-black disabled:opacity-60 flex items-center justify-center gap-2"
                                                 style={{ background: '#fff', color: '#dc2626' }}
@@ -705,6 +720,49 @@ function PlanosContent() {
                     </div>
                 </div>
             )}
+
+            {confirmTrialOpen && (() => {
+                const start = new Date()
+                const end = new Date()
+                end.setMonth(end.getMonth() + 3)
+                const fmt = (d: Date) => d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                return (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)' }}>
+                        <div className="w-full max-w-sm rounded-2xl p-6 relative" style={{ background: colors.surface }}>
+                            <button onClick={() => setConfirmTrialOpen(false)} className="absolute top-4 right-4" style={{ color: colors.textSecondary }} aria-label="Fechar">
+                                <X size={20} />
+                            </button>
+                            <div className="w-12 h-12 rounded-full flex items-center justify-center mb-3" style={{ background: GRADIENT, color: '#fff' }}>
+                                <Gift size={24} />
+                            </div>
+                            <p className="font-black text-base mb-1" style={{ color: colors.textPrimary }}>Ativar os 3 meses grátis?</p>
+                            <p className="text-sm mb-2" style={{ color: colors.textPrimary }}>
+                                Tem certeza que quer ativar os 3 meses grátis a partir de agora?
+                            </p>
+                            <p className="text-xs mb-4" style={{ color: colors.textSecondary }}>
+                                O tempo começa a contar hoje, {fmt(start)}, e vai até {fmt(end)}. O resgate é único: depois de ativar, não dá pra pausar nem resgatar de novo.
+                            </p>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => setConfirmTrialOpen(false)}
+                                    className="flex-1 py-2.5 rounded-xl font-bold text-sm"
+                                    style={{ background: `${colors.border}30`, color: colors.textPrimary, border: `1px solid ${colors.border}` }}
+                                >
+                                    Agora não
+                                </button>
+                                <button
+                                    onClick={() => { setConfirmTrialOpen(false); handleClaimTrial() }}
+                                    disabled={claimingTrial}
+                                    className="flex-1 py-2.5 rounded-xl font-bold text-sm disabled:opacity-60 flex items-center justify-center"
+                                    style={{ background: GRADIENT, color: '#fff' }}
+                                >
+                                    {claimingTrial ? <Spinner size={14} color="#ffffff" /> : 'Sim, ativar agora'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )
+            })()}
 
             {trialCpfPrompt && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)' }}>

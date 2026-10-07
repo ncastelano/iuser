@@ -98,22 +98,8 @@ export default function CareerPlans() {
     const periodLabel = isPostpaid ? 'por uso' : displayPlan ? (CYCLE_LABEL[displayPlan.billing_cycle] || '/mês') : ''
 
     if (!userId) {
-        // Visitante: mostra os dois planos lado a lado pra ele já escolher.
-        const postpaid = plans.find((p) => p.code === 'pos_pago') || null
-        const prepaid = plans.find((p) => p.code === 'pre_pago') || null
-        const prepaidPrice = prepaid ? prepaid.price : 99
-        const priceText = (v: number) => `R$ ${v.toFixed(2).replace('.', ',')}`
-        const topFeatures = (plan: PlanRow | null, fallback: string[]) => (plan?.features && plan.features.length > 0 ? plan.features : fallback).slice(0, 3)
-
-        const postFeatures = topFeatures(postpaid, [
-            'Sem mensalidade: você paga somente quando usar',
-            'R$ 0,50 por uso: corrida, venda, novo produto, publicação e mais',
-        ])
-        const preFeatures = topFeatures(prepaid, [
-            'Tudo incluso: sem cobrança por serviço',
-            '0% de taxa sobre suas corridas ou vendas',
-        ])
-
+        // Visitante: o destaque é o resgate dos 3 meses grátis do Pré-pago. Os planos
+        // (pós-pago e pré-pago) ficam em /planos, a um toque em "Ver planos".
         return (
             <section>
                 <HomeGlassCard className="p-5 sm:p-6">
@@ -124,84 +110,44 @@ export default function CareerPlans() {
                         action={<span />}
                     />
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        {/* Pós-pago */}
-                        <div
-                            className="rounded-3xl p-5 flex flex-col"
-                            style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
+                    <div className="relative rounded-3xl p-5 flex flex-col gap-3" style={{ background: GRADIENT, boxShadow: '0 10px 30px #f9731650' }}>
+                        <span
+                            className="absolute -top-2.5 left-1/2 -translate-x-1/2 text-[9px] font-black uppercase tracking-wider px-3 py-1 rounded-full text-white flex items-center gap-1 whitespace-nowrap"
+                            style={{ background: '#111827' }}
                         >
-                            <p className="text-sm font-black mb-1" style={{ color: colors.textPrimary }}>{postpaid?.name || 'Pós-pago'}</p>
-                            <div className="flex items-end gap-1 mb-1">
-                                <span className="text-2xl font-black" style={{ color: colors.textPrimary }}>R$ 0,50</span>
-                                <span className="text-xs mb-0.5" style={{ color: colors.textSecondary }}>por serviço</span>
+                            <Zap size={10} />
+                            Pra quem está chegando
+                        </span>
+                        <div className="flex items-center gap-3 pt-1">
+                            <div className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(255,255,255,0.22)' }}>
+                                <Gift size={24} color="#fff" />
                             </div>
-                            <p className="text-[11px] mb-3" style={{ color: colors.textSecondary }}>Sem mensalidade. Pague só quando usar.</p>
-                            <div className="flex flex-col gap-2 flex-1 mb-4">
-                                {postFeatures.map((f) => (
-                                    <div key={f} className="flex items-start gap-1.5">
-                                        <Check size={13} className="mt-0.5 flex-shrink-0" style={{ color: colors.accent }} />
-                                        <span className="text-[11px] leading-tight" style={{ color: colors.textPrimary }}>{f}</span>
-                                    </div>
-                                ))}
+                            <div className="min-w-0">
+                                <p className="text-xl font-black text-white leading-tight">3 meses grátis</p>
+                                <p className="text-xs text-white/80">do plano Pré-pago, começando no dia em que você resgatar</p>
                             </div>
-                            <button
-                                onClick={() => router.push('/planos/pos-pago')}
-                                className="w-full py-2.5 rounded-full text-xs font-black transition-transform hover:scale-105 active:scale-95"
-                                style={{ background: `${colors.accent}15`, color: colors.accent, border: `1px solid ${colors.accent}` }}
-                            >
-                                Ativar
-                            </button>
                         </div>
-
-                        {/* Pré-pago (mensal) */}
-                        <div
-                            className="relative rounded-3xl p-5 flex flex-col"
-                            style={{ background: GRADIENT, boxShadow: '0 10px 30px #f9731650' }}
+                        <div className="flex flex-col gap-2">
+                            {[
+                                'Sem taxa por serviço nos 3 meses',
+                                'Libera motorista, prestador, loja e recrutador',
+                                'Vale também pra quem já está no pós-pago',
+                            ].map((f) => (
+                                <div key={f} className="flex items-start gap-1.5">
+                                    <Check size={13} className="mt-0.5 flex-shrink-0 text-white" />
+                                    <span className="text-[11px] leading-tight text-white/90">{f}</span>
+                                </div>
+                            ))}
+                        </div>
+                        <button
+                            onClick={() => router.push('/planos')}
+                            className="w-full flex items-center justify-center gap-2 py-3 rounded-full text-sm font-black transition-transform hover:scale-[1.02] active:scale-95"
+                            style={{ background: '#fff', color: '#dc2626' }}
                         >
-                            <span
-                                className="absolute -top-2.5 left-1/2 -translate-x-1/2 text-[9px] font-black uppercase tracking-wider px-3 py-1 rounded-full text-white flex items-center gap-1 whitespace-nowrap"
-                                style={{ background: '#111827' }}
-                            >
-                                <Zap size={10} />
-                                Melhor oferta
-                            </span>
-                            <p className="text-sm font-black text-white mb-1">{prepaid?.name || 'Pré-pago'}</p>
-                            <div className="flex items-end gap-1 mb-1">
-                                <span className="text-2xl font-black text-white">{priceText(prepaidPrice)}</span>
-                                <span className="text-xs opacity-70 mb-0.5 text-white">por mês</span>
-                            </div>
-                            <p className="text-[11px] mb-3 text-white/80">Sem taxa por serviço. Use à vontade.</p>
-                            <div className="flex flex-col gap-2 flex-1 mb-4">
-                                {preFeatures.map((f) => (
-                                    <div key={f} className="flex items-start gap-1.5">
-                                        <Check size={13} className="mt-0.5 flex-shrink-0 text-white" />
-                                        <span className="text-[11px] leading-tight text-white/90">{f}</span>
-                                    </div>
-                                ))}
-                            </div>
-                            <button
-                                onClick={() => router.push('/planos?plan=pre_pago')}
-                                className="w-full py-2.5 rounded-full text-xs font-black transition-transform hover:scale-105 active:scale-95"
-                                style={{ background: '#fff', color: '#dc2626' }}
-                            >
-                                Assinar
-                            </button>
-                        </div>
+                            <Sparkles size={16} />
+                            Ver planos
+                        </button>
                     </div>
-
-                    {/* Leva pra /planos, onde também dá pra resgatar os 3 meses grátis do Pré-pago */}
-                    <button
-                        onClick={() => router.push('/planos')}
-                        className="mt-4 w-full flex items-center justify-center gap-2 px-6 py-3 rounded-full font-bold text-sm transition-all hover:scale-[1.02] active:scale-95"
-                        style={{ background: GRADIENT, color: '#ffffff', boxShadow: '0 4px 12px #f9731640' }}
-                    >
-                        <Sparkles size={16} />
-                        Ver planos
-                    </button>
-                    <p className="mt-2 text-center text-[11px] flex items-center justify-center gap-1" style={{ color: colors.textSecondary }}>
-                        <Gift size={12} style={{ color: colors.accent }} />
-                        Resgate 3 meses grátis do Pré-pago lá em Planos
-                    </p>
                 </HomeGlassCard>
             </section>
         )
