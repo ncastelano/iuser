@@ -30,11 +30,12 @@ type Mode = 'lojas' | 'servicos' | 'produtos'
 // em ProfileServiceListing.tsx - que nunca gravam `location`, só lat/lng;
 // sem esse fallback esses pins somem do /radar mas continuam aparecendo no
 // /solicitar-servico, que lê lat/lng direto), e por último a localização da
-// loja dona do item.
+// loja dona do item. (Number.isFinite, não isFinite: isFinite(null) é true e gerava
+// [null, null], que quebrava o mapa com "Cannot read properties of null (toFixed)".)
 function resolveItemCoords(item: any, mode: Mode, stores: any[]): [number, number] | null {
     if (mode === 'lojas') return parseCoords(item.location)
     const ownCoords = parseCoords(item.location)
-        || (isFinite(item.lat) && isFinite(item.lng) ? [item.lng, item.lat] as [number, number] : null)
+        || (Number.isFinite(item.lat) && Number.isFinite(item.lng) ? [item.lng, item.lat] as [number, number] : null)
     if (ownCoords) return ownCoords
     const store = stores.find(s => s.id === item.store_id)
     return parseCoords(store?.location)
