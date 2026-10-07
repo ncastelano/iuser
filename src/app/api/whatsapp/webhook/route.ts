@@ -30,8 +30,8 @@ export async function GET(req: Request) {
 // — antes disso era sempre grátis. O aviso de cobrança vem separado, num
 // webhook de "status" (entrega/leitura), não junto da mensagem em si:
 // value.statuses[i].pricing.billable. Quando vier true, lança a cobrança
-// (estimativa da Meta + margem, ver service_pricing) na dívida da loja —
-// vale pra pré-pago também, a mensalidade não cobre custo de terceiro.
+// na dívida da loja — vale pra pré-pago também (a mensalidade não cobre custo
+// de terceiro): R$ 0,25 no pré-pago, R$ 0,50 no pós-pago (conta como um uso).
 async function chargeWhatsAppBotMessage(phoneNumberId: string, waMessageId: string) {
     const { data: store } = await supabaseAdmin
         .from('stores')
@@ -40,10 +40,13 @@ async function chargeWhatsAppBotMessage(phoneNumberId: string, waMessageId: stri
         .maybeSingle()
     if (!store?.owner_id) return
 
+    // Sempre cobrada à parte (custo de terceiro), em qualquer plano — com valor por plano:
+    // Pré-pago R$ 0,25 por mensagem; Pós-pago conta como um uso de R$ 0,50 no saldo.
+    const { data: isPostpaid } = await supabaseAdmin.rpc('is_postpaid_user', { p_user_id: store.owner_id })
     const { data: pricing } = await supabaseAdmin
         .from('service_pricing')
         .select('postpaid_price')
-        .eq('service_type', 'whatsapp_bot_message_fee')
+        .eq('service_type', isPostpaid ? 'whatsapp_bot_message_fee_postpaid' : 'whatsapp_bot_message_fee')
         .maybeSingle()
 
     const { error } = await supabaseAdmin
@@ -52,7 +55,7 @@ async function chargeWhatsAppBotMessage(phoneNumberId: string, waMessageId: stri
             driver_id: store.owner_id,
             store_id: store.id,
             type: 'whatsapp_bot_message_fee',
-            amount: pricing?.postpaid_price ?? 0.25,
+            amount: pricing?.postpaid_price ?? (isPostpaid ? 0.5 : 0.25),
             wa_message_id: waMessageId,
         })
     // unique_violation (23505) = mesmo webhook reentregue, já cobramos essa mensagem.

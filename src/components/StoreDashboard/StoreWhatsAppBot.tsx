@@ -44,7 +44,9 @@ export default function StoreWhatsAppBot({ storeId }: StoreWhatsAppBotProps) {
     const [displayNumber, setDisplayNumber] = useState<string | null>(null)
     const [requestedNumber, setRequestedNumber] = useState('')
     const [dialogStep, setDialogStep] = useState<'closed' | 'terms' | 'number'>('closed')
+    // Valor por mensagem além da cota grátis: pré-pago (R$ 0,25 por padrão) e pós-pago (R$ 0,50, conta como um uso)
     const [feePrice, setFeePrice] = useState<number | null>(null)
+    const [feePricePostpaid, setFeePricePostpaid] = useState<number | null>(null)
 
     const load = useCallback(async () => {
         if (!storeId) return
@@ -67,10 +69,13 @@ export default function StoreWhatsAppBot({ storeId }: StoreWhatsAppBotProps) {
     useEffect(() => {
         supabase
             .from('service_pricing')
-            .select('postpaid_price')
-            .eq('service_type', 'whatsapp_bot_message_fee')
-            .maybeSingle()
-            .then(({ data }) => setFeePrice(data?.postpaid_price ?? null))
+            .select('service_type, postpaid_price')
+            .in('service_type', ['whatsapp_bot_message_fee', 'whatsapp_bot_message_fee_postpaid'])
+            .then(({ data }) => {
+                const by = Object.fromEntries((data || []).map((r: any) => [r.service_type, Number(r.postpaid_price)]))
+                setFeePrice(by.whatsapp_bot_message_fee ?? null)
+                setFeePricePostpaid(by.whatsapp_bot_message_fee_postpaid ?? null)
+            })
     }, [])
 
     const request = async () => {
@@ -241,11 +246,20 @@ export default function StoreWhatsAppBot({ storeId }: StoreWhatsAppBotProps) {
 
                                 <div className="rounded-xl p-3 flex items-start gap-2" style={{ background: '#f9731615', border: '1px solid #f9731640' }}>
                                     <ShieldCheck size={16} style={{ color: '#f97316' }} className="flex-shrink-0 mt-0.5" />
-                                    <p className="text-[11px] leading-relaxed" style={{ color: colors.textPrimary }}>
-                                        Mensagens do bot além da cota gratuita mensal da Meta são cobradas à parte
-                                        {feePrice != null ? ` (${feePrice.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} por mensagem, estimativa)` : ' (custo estimado + R$0,15)'}
-                                        , descontadas do extrato da loja — vale pro pré-pago e pro pós-pago.
-                                    </p>
+                                    <div className="text-[11px] leading-relaxed" style={{ color: colors.textPrimary }}>
+                                        <p>
+                                            A Meta dá uma cota gratuita de mensagens por mês. Passou dela, cada mensagem do bot é cobrada <strong>à parte, em qualquer plano</strong> — é custo da Meta, fora da mensalidade:
+                                        </p>
+                                        <ul className="mt-1.5 flex flex-col gap-1">
+                                            <li>
+                                                <strong>Pré-pago:</strong> {(feePrice ?? 0.25).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} por mensagem, além da mensalidade.
+                                            </li>
+                                            <li>
+                                                <strong>Pós-pago:</strong> {(feePricePostpaid ?? 0.5).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} por mensagem — conta como um uso normal e entra no seu saldo.
+                                            </li>
+                                        </ul>
+                                        <p className="mt-1.5 opacity-80">O valor cobrado aparece no extrato da loja.</p>
+                                    </div>
                                 </div>
 
                                 <div className="flex gap-3 pt-1">

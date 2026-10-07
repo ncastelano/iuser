@@ -185,6 +185,9 @@ export default function FreeTrialGift({ onRequireLogin, onClaimed, hideWhenEnded
                                 </div>
                             ))}
                         </div>
+                        <p className="text-[11px] mb-2" style={{ color: colors.textSecondary }}>
+                            Exceção: as mensagens do bot de WhatsApp além da cota gratuita da Meta continuam cobradas à parte (R$ 0,25 por mensagem), porque é custo da Meta.
+                        </p>
                         <p className="text-xs mb-4" style={{ color: colors.textSecondary }}>
                             O tempo começa a contar hoje, {fmt(new Date())}, e vai até {fmt(end)}. O resgate é único: depois de ativar, não dá pra pausar nem resgatar de novo.
                         </p>

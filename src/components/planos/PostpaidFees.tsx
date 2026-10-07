@@ -7,13 +7,13 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Car, Wrench, ShoppingBag, Package, Megaphone, CalendarCheck, CalendarPlus, Wallet, Briefcase, Store } from 'lucide-react'
+import { Car, Wrench, ShoppingBag, Package, Megaphone, CalendarCheck, CalendarPlus, Wallet, Briefcase, Store, MessageCircle } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 
 export type ChargeType =
     | 'ride_fee' | 'service_fee' | 'service_listing_fee' | 'order_fee' | 'in_person_fee' | 'product_fee' | 'publication_fee'
-    | 'schedule_activation_fee' | 'appointment_fee' | 'payment'
+    | 'schedule_activation_fee' | 'appointment_fee' | 'whatsapp_bot_message_fee' | 'payment'
 
 export const TYPE_INFO: Record<ChargeType, { label: string; plural: string; icon: any; how: string }> = {
     ride_fee: { label: 'Corrida finalizada', plural: 'corridas', icon: Car, how: 'Cada corrida que você finaliza como motorista.' },
@@ -25,6 +25,7 @@ export const TYPE_INFO: Record<ChargeType, { label: string; plural: string; icon
     publication_fee: { label: 'Publicação criada', plural: 'publicações', icon: Megaphone, how: 'Cada publicação nova na sua loja ou no seu perfil.' },
     schedule_activation_fee: { label: 'Agenda ativada', plural: 'ativações de agenda', icon: CalendarPlus, how: 'Ao ativar a agenda da loja ou do perfil (uma única vez em cada).' },
     appointment_fee: { label: 'Agendamento aceito', plural: 'agendamentos', icon: CalendarCheck, how: 'Cada agendamento de cliente que você aceita, na loja ou no perfil.' },
+    whatsapp_bot_message_fee: { label: 'Mensagem do bot de WhatsApp', plural: 'mensagens do bot', icon: MessageCircle, how: 'Cada mensagem do bot depois da cota gratuita mensal da Meta — sempre cobrada à parte, em qualquer plano. No Pós-pago conta como um uso normal e entra no saldo; no Pré-pago custa R$ 0,25 por mensagem, fora da mensalidade.' },
     payment: { label: 'Pagamento via Pix', plural: 'pagamentos', icon: Wallet, how: '' },
 }
 
@@ -33,6 +34,7 @@ const GROUPS: { title: string; icon: any; types: ChargeType[] }[] = [
     { title: 'Motorista', icon: Car, types: ['ride_fee'] },
     { title: 'Serviços', icon: Briefcase, types: ['service_listing_fee', 'service_fee'] },
     { title: 'Agenda', icon: CalendarCheck, types: ['schedule_activation_fee', 'appointment_fee'] },
+    { title: 'WhatsApp', icon: MessageCircle, types: ['whatsapp_bot_message_fee'] },
 ]
 
 const brl = (n: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n)
@@ -57,7 +59,7 @@ export function PostpaidFees({ className = '' }: { className?: string }) {
         <div className={`rounded-2xl p-5 ${className}`} style={card}>
             <h2 className="text-sm font-black mb-1" style={{ color: colors.textPrimary }}>O que o Pós-pago cobra</h2>
             <p className="text-xs mb-4" style={{ color: colors.textSecondary }}>
-                Sem mensalidade: você só paga quando usa. Quem está no Pré-pago, ou no brinde de 90 dias, não paga nenhuma destas taxas — taxa 0% na loja, no motorista e nos serviços.
+                Sem mensalidade: você só paga quando usa. Quem está no Pré-pago, ou no brinde de 90 dias, não paga estas taxas — taxa 0% na loja, no motorista e nos serviços. A única exceção são as mensagens do bot de WhatsApp: a Meta cobra depois da cota gratuita, então elas são sempre cobradas à parte (R$ 0,25 por mensagem no Pré-pago).
             </p>
 
             <div className="flex flex-col gap-4">
@@ -73,7 +75,8 @@ export function PostpaidFees({ className = '' }: { className?: string }) {
                                 {g.types.map((t) => {
                                     const info = TYPE_INFO[t]
                                     const Icon = info.icon
-                                    const price = prices[t] ?? DEFAULT_PRICE
+                                    // O bot de WhatsApp mostra o valor do Pós-pago (R$ 0,50); o do Pré-pago vai no texto
+                                    const price = t === 'whatsapp_bot_message_fee' ? (prices.whatsapp_bot_message_fee_postpaid ?? 0.5) : (prices[t] ?? DEFAULT_PRICE)
                                     return (
                                         <div key={t} className="flex items-start gap-3">
                                             <Icon size={16} className="flex-shrink-0 mt-0.5" style={{ color: '#f97316' }} />
