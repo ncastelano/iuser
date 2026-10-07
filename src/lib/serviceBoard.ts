@@ -69,6 +69,15 @@ export function relativeTime(iso: string): string {
 
 // ===== Busca os pedidos de serviço abertos =====
 // Corridas não entram mais aqui — motoristas usam /aceitar-corridas.
+// Total de pedidos em aberto (o quadro da home só carrega os primeiros).
+export async function fetchOpenRequestCount(): Promise<number> {
+    const { count } = await supabase
+        .from('service_requests')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'pending')
+    return count || 0
+}
+
 export async function fetchOpenBoardItems(limit?: number): Promise<BoardItem[]> {
     let query = supabase
         .from('service_requests')

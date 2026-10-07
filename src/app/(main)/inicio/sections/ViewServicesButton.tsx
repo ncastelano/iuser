@@ -7,7 +7,7 @@
 import { ArrowRight } from 'lucide-react'
 import { HOME_GRADIENT } from './HomeSectionKit'
 
-export function ViewServicesButton({ onClick }: { onClick: () => void }) {
+export function ViewServicesButton({ onClick, count }: { onClick: () => void; count?: number }) {
     return (
         <button
             onClick={onClick}
@@ -15,6 +15,14 @@ export function ViewServicesButton({ onClick }: { onClick: () => void }) {
             style={{ background: HOME_GRADIENT, color: '#ffffff', boxShadow: '0 2px 8px rgba(249, 115, 22, 0.3)' }}
         >
             <span>ver serviços</span>
+            {!!count && count > 0 && (
+                <span
+                    className="min-w-[20px] h-5 px-1.5 rounded-full flex items-center justify-center text-[11px] font-black leading-none"
+                    style={{ background: '#ffffff', color: '#ea580c' }}
+                >
+                    {count}
+                </span>
+            )}
             <ArrowRight className="w-3.5 h-3.5" />
         </button>
     )

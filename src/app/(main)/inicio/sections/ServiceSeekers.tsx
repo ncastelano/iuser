@@ -17,7 +17,7 @@ import { Spinner } from '@/components/Spinner'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
-import { BoardItem, fetchOpenBoardItems, getItemIcon, getItemLabel, shortAddress, askedAgo, notifyServiceRequestsChanged, SERVICE_REQUESTS_CHANGED } from '@/lib/serviceBoard'
+import { BoardItem, fetchOpenBoardItems, fetchOpenRequestCount, getItemIcon, getItemLabel, shortAddress, askedAgo, notifyServiceRequestsChanged, SERVICE_REQUESTS_CHANGED } from '@/lib/serviceBoard'
 import { HOME_GRADIENT } from './HomeSectionKit'
 import { HomeSubheading } from './HomeSubheading'
 import { ViewServicesButton } from './ViewServicesButton'
@@ -34,6 +34,7 @@ export default function ServiceSeekers({ limit = 8, applied }: { limit?: number;
     const startNavProgress = useNavProgressStore((s) => s.start)
     const { userId } = useProfile()
     const [items, setItems] = useState<BoardItem[] | null>(null)
+    const [totalCount, setTotalCount] = useState(0)
     const [menuItem, setMenuItem] = useState<BoardItem | null>(null)
     const [confirmDelete, setConfirmDelete] = useState(false)
     const [deleting, setDeleting] = useState(false)
@@ -41,6 +42,7 @@ export default function ServiceSeekers({ limit = 8, applied }: { limit?: number;
 
     const load = useCallback(() => {
         fetchOpenBoardItems(limit).then(setItems)
+        fetchOpenRequestCount().then(setTotalCount)
     }, [limit])
 
     useEffect(() => {
@@ -81,7 +83,7 @@ export default function ServiceSeekers({ limit = 8, applied }: { limit?: number;
             <HomeSubheading
                 title="Quem procura serviço"
                 subtitle={items.length > 0 ? 'Pessoas precisando de um profissional agora' : 'Ninguém pediu ainda — seja o primeiro'}
-                action={<ViewServicesButton onClick={() => go('/procurar-servico')} />}
+                action={<ViewServicesButton onClick={() => go('/procurar-servico')} count={totalCount} />}
             />
 
             <div className="flex gap-3 overflow-x-auto pb-1">
@@ -253,6 +255,17 @@ export default function ServiceSeekers({ limit = 8, applied }: { limit?: number;
             )}
 
             {detailsId && <ServiceRequestDetailsDialog requestId={detailsId} onClose={() => { setDetailsId(null); load() }} />}
+
+            {/* Fora do carrossel de propósito: com muitos pedidos o botão ficaria
+                lá no fim da rolagem e ninguém veria. */}
+            <button
+                onClick={() => go('/solicitar-servico')}
+                className="mt-3 w-full flex items-center justify-center gap-2 py-3 rounded-full font-black text-sm transition-all hover:scale-[1.02] active:scale-95"
+                style={{ background: HOME_GRADIENT, color: '#fff', boxShadow: '0 4px 12px #f9731640' }}
+            >
+                <Plus size={16} />
+                Precisa de um serviço? Peça o seu
+            </button>
         </div>
     )
 }

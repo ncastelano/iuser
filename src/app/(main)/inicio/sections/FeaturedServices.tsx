@@ -249,9 +249,9 @@ export default function FeaturedServices({ dragHandle, title = 'Serviços em des
             <HomeSectionHeader
                 icon={hideIcon ? undefined : Wrench}
                 title={title}
-                subtitle={`${services.length} ${services.length === 1 ? 'serviço' : 'serviços'}`}
+                subtitle={onViewAll ? undefined : `${services.length} ${services.length === 1 ? 'serviço' : 'serviços'}`}
                 dragHandle={dragHandle}
-                action={onViewAll ? <ViewServicesButton onClick={onViewAll} /> : <span />}
+                action={onViewAll ? <ViewServicesButton onClick={onViewAll} count={services.length} /> : <span />}
             />
 
             <div className="relative">
