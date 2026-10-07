@@ -15,6 +15,8 @@ interface RadarSectionProps {
     origin?: { lat: number; lng: number } | null
     // Dono do que está logado: o que é dele não aparece nos cards
     userId?: string | null
+    // Abre o seletor de local (logado: salva no perfil; visitante: salva neste aparelho)
+    onDefineLocation?: () => void
 }
 
 const KIND_META: Record<NearestKind, { label: string; icon: typeof Store }> = {
@@ -26,7 +28,7 @@ const KIND_META: Record<NearestKind, { label: string; icon: typeof Store }> = {
 // Banner de destaque pro Radar — antes só existia como botão flutuante
 // (continua existindo, não mexi nele); isso aqui é o mesmo atalho com mais
 // espaço pra explicar o que é, igual ao banner do /modelodehomepage.
-export default function RadarSection({ dragHandle, origin, userId }: RadarSectionProps) {
+export default function RadarSection({ dragHandle, origin, userId, onDefineLocation }: RadarSectionProps) {
     const router = useRouter()
     const startNavProgress = useNavProgressStore((s) => s.start)
     const [nearest, setNearest] = useState<Record<NearestKind, NearestItem[]> | null>(null)
@@ -198,8 +200,18 @@ export default function RadarSection({ dragHandle, origin, userId }: RadarSectio
                     )}
                 </div>
 
-                {/* Abrir radar: embaixo do "mais perto de você", no lado direito */}
-                <div className="relative z-10 mt-4 flex justify-end">
+                {/* Definir local (esquerda) e Abrir radar (direita), embaixo do "mais perto de você" */}
+                <div className="relative z-10 mt-4 flex justify-end gap-2">
+                    {onDefineLocation && (
+                        <button
+                            onClick={(e) => { e.stopPropagation(); onDefineLocation() }}
+                            className="flex items-center gap-1.5 px-4 py-2.5 rounded-full font-bold text-sm text-white transition-all hover:scale-105 active:scale-95"
+                            style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.3)' }}
+                        >
+                            <MapPin size={14} />
+                            Definir local
+                        </button>
+                    )}
                     <button
                         onClick={(e) => { e.stopPropagation(); goRadar() }}
                         className="flex items-center gap-1.5 px-5 py-2.5 rounded-full font-bold text-sm text-white transition-all hover:scale-105 active:scale-95"

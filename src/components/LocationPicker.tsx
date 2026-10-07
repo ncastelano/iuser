@@ -30,6 +30,8 @@ interface LocationPickerProps {
     allowDriverSync?: boolean
     /** Sobre o que é a localização: a própria pessoa (padrão) ou uma loja — só muda os textos. */
     subject?: 'profile' | 'store'
+    /** Deixa quem não tem conta definir um local (o chamador guarda só no aparelho). Sem isso, visitante é mandado pro login. */
+    allowGuest?: boolean
 }
 
 const geocodeCache: Map<string, { lat: number; lng: number; address: string } | null> = new Map()
@@ -130,12 +132,13 @@ function extractStreetDisplay(fullAddress: string): string {
     return parts[0].trim()
 }
 
-export default function LocationPicker({ initialLocation, onSave, onClose, allowDriverSync = true, subject = 'profile' }: LocationPickerProps) {
+export default function LocationPicker({ initialLocation, onSave, onClose, allowDriverSync = true, subject = 'profile', allowGuest = false }: LocationPickerProps) {
     const isStore = subject === 'store'
     const { colors } = useTheme()
     const router = useRouter()
 
-    const { userId, isLoggedIn: isAuthenticated, loading: profileLoading } = useProfile()
+    const { userId, isLoggedIn: isLoggedInCtx, loading: profileLoading } = useProfile()
+    const isAuthenticated = isLoggedInCtx || allowGuest
     const authChecked = !profileLoading
 
     const mapContainerRef = useRef<HTMLDivElement>(null)

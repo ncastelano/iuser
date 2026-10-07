@@ -3,6 +3,7 @@
 
 import { useState, useEffect, useMemo, useRef, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { toast } from 'sonner'
 import { User, Store, Home, MapPin, LayoutDashboard, X } from 'lucide-react'
 
 import CategoriasSection from './inicio/sections/CanIhelp'
@@ -55,6 +56,9 @@ const DEFAULT_SECTIONS = [
 ]
 
 const ORDER_STORAGE_KEY = 'homepage_sections_order'
+// Visitante (sem conta) também pode definir um local: fica só neste aparelho e serve apenas
+// pra calcular o que está perto (Radar). Quem tem conta salva o local no perfil.
+const DEVICE_LOCATION_KEY = 'iuser_device_location'
 
 // ---------- Função para formatar endereço ----------
 function formatAddress(address: string, addressNumber?: string): string {
@@ -195,7 +199,13 @@ function HomePageContent() {
     useEffect(() => {
         const fetchLocationFromProfile = async () => {
             if (!userId) {
-                setSavedLocation(null)
+                try {
+                    const raw = localStorage.getItem(DEVICE_LOCATION_KEY)
+                    const parsed = raw ? JSON.parse(raw) : null
+                    setSavedLocation(parsed && Number.isFinite(parsed.lat) && Number.isFinite(parsed.lng) ? parsed : null)
+                } catch {
+                    setSavedLocation(null)
+                }
                 return
             }
 
@@ -371,9 +381,19 @@ function HomePageContent() {
         try {
             const { data: { user }, error: authError } = await supabase.auth.getUser()
             if (!user) {
-                alert('Você precisa estar logado para salvar uma localização!')
+                // Visitante: guarda só neste aparelho, apenas pra calcular o que está perto
+                const deviceLocation = {
+                    lat: location.lat,
+                    lng: location.lng,
+                    address: location.address,
+                    addressNumber: location.addressNumber || '',
+                    addressComplement: location.addressComplement || '',
+                }
+                try { localStorage.setItem(DEVICE_LOCATION_KEY, JSON.stringify(deviceLocation)) } catch { /* sem storage: vale só até recarregar */ }
+                setSavedLocation(deviceLocation)
                 setShowLocationDialog(false)
                 setIsSavingLocation(false)
+                toast.success('Local definido neste aparelho — usamos só pra mostrar o que está perto de você.')
                 return
             }
 
@@ -445,7 +465,7 @@ function HomePageContent() {
             case 'categorias':
                 return <CategoriasSection />
             case 'radar':
-                return <RadarSection origin={savedLocation ? { lat: savedLocation.lat, lng: savedLocation.lng } : null} userId={userId} />
+                return <RadarSection origin={savedLocation ? { lat: savedLocation.lat, lng: savedLocation.lng } : null} userId={userId} onDefineLocation={() => setShowLocationDialog(true)} />
             case 'productShowcase':
                 return <ProductShowcase />
             case 'publicationShowcase':
@@ -797,6 +817,7 @@ function HomePageContent() {
                         onSave={handleLocationSave}
                         onClose={() => setShowLocationDialog(false)}
                         allowDriverSync={false}
+                        allowGuest
                     />
                 )}
             </main>
