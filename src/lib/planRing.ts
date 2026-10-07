@@ -1,6 +1,6 @@
 // src/lib/planRing.ts
 //
-// Quem ganha a moldura esmeralda no avatar: usuários no plano Pré-pago (inclui o brinde) e toda a
+// Quem ganha a moldura colorida (verde, amarelo e azul) no avatar: usuários no plano Pré-pago (inclui o brinde) e toda a
 // hierarquia do administrador pra baixo. O resultado vem do RPC get_plan_ring_users, em lote
 // (vários avatares na mesma tela viram UMA chamada) e com cache por sessão do navegador.
 'use client'

@@ -1399,7 +1399,7 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
 
                 <div className="flex flex-col items-center text-center">
                     <div className="relative">
-                        {/* Plano Pré-pago (ou hierarquia): a borda laranja dá lugar à moldura esmeralda que gira */}
+                        {/* Plano Pré-pago (ou hierarquia): a borda laranja dá lugar à moldura colorida que gira */}
                         <PlanAvatarRing userId={owner.id} width={4}>
                             <div
                                 className={`w-28 h-28 rounded-full p-[3px] ${ownerHasRing ? '' : 'animate-pulse-glow'}`}
