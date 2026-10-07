@@ -195,7 +195,8 @@ function usePublications() {
 }
 
 // ---------- Componente Principal ----------
-// Grade 2 colunas, imagem quadrada + rodapé com quem publicou — igual ao
+// Grade 2 colunas no celular (4 cards); no web uma linha só — 4 colunas no
+// tablet e 6 no desktop (os 2 últimos só aparecem lá), cards menores; imagem quadrada + rodapé com quem publicou — igual ao
 // "Publicações" do /modelodehomepage.
 export default function FeaturedPublications({
     dragHandle,
@@ -240,7 +241,7 @@ export default function FeaturedPublications({
                     {dragHandle}
                     <div className="h-6 rounded w-48 animate-pulse" style={{ background: `${colors.border}60` }} />
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     {Array.from({ length: 4 }).map((_, i) => (
                         <div key={i} className="rounded-2xl overflow-hidden animate-pulse" style={{ background: `${colors.border}30` }}>
                             <div className="w-full aspect-square" style={{ background: `${colors.border}40` }} />
@@ -281,12 +282,12 @@ export default function FeaturedPublications({
                 ) : <span />}
             />
 
-            <div className="grid grid-cols-2 gap-3">
-                {displayPublications.map((pub) => (
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                {displayPublications.map((pub, index) => (
                     <div
                         key={pub.id}
                         onClick={() => handlePublicationClick(pub)}
-                        className="rounded-2xl overflow-hidden cursor-pointer group"
+                        className={`rounded-2xl overflow-hidden cursor-pointer group ${index >= 4 ? 'hidden lg:block' : ''}`}
                         style={{ background: colors.surface, border: `1px solid ${colors.border}` }}
                     >
                         <div className="w-full aspect-square relative overflow-hidden">

@@ -497,7 +497,7 @@ function HomePageContent() {
             case 'productShowcase':
                 return <ProductShowcase />
             case 'publicationShowcase':
-                return <FeaturedPublications maxItems={4} />
+                return <FeaturedPublications maxItems={6} />
             case 'profileShowcase':
                 return <FeaturedProfiles />
             case 'motorista':
