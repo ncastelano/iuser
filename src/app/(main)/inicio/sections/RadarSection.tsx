@@ -13,6 +13,8 @@ interface RadarSectionProps {
     dragHandle?: ReactNode
     // Local da pessoa ("Definir local" do perfil); sem ele não dá pra saber o que está perto
     origin?: { lat: number; lng: number } | null
+    // Dono do que está logado: o que é dele não aparece nos cards
+    userId?: string | null
 }
 
 const KIND_META: Record<NearestKind, { label: string; icon: typeof Store }> = {
@@ -24,7 +26,7 @@ const KIND_META: Record<NearestKind, { label: string; icon: typeof Store }> = {
 // Banner de destaque pro Radar — antes só existia como botão flutuante
 // (continua existindo, não mexi nele); isso aqui é o mesmo atalho com mais
 // espaço pra explicar o que é, igual ao banner do /modelodehomepage.
-export default function RadarSection({ dragHandle, origin }: RadarSectionProps) {
+export default function RadarSection({ dragHandle, origin, userId }: RadarSectionProps) {
     const router = useRouter()
     const startNavProgress = useNavProgressStore((s) => s.start)
     const [nearest, setNearest] = useState<Partial<Record<NearestKind, NearestItem>> | null>(null)
@@ -34,11 +36,11 @@ export default function RadarSection({ dragHandle, origin }: RadarSectionProps) 
     useEffect(() => {
         if (lat == null || lng == null) { setNearest(null); return }
         let cancelled = false
-        fetchNearest({ lat, lng })
+        fetchNearest({ lat, lng }, userId)
             .then((res) => { if (!cancelled) setNearest(res) })
             .catch(() => { if (!cancelled) setNearest({}) })
         return () => { cancelled = true }
-    }, [lat, lng])
+    }, [lat, lng, userId])
 
     const cards = nearest ? (['loja', 'produto', 'servico'] as NearestKind[]).map((k) => nearest[k]).filter(Boolean) as NearestItem[] : []
 
@@ -104,27 +106,39 @@ export default function RadarSection({ dragHandle, origin }: RadarSectionProps) 
                                         <button
                                             key={item.kind}
                                             onClick={() => { startNavProgress(); router.push(item.href) }}
-                                            className="text-left rounded-2xl overflow-hidden transition-all hover:scale-[1.03] active:scale-95"
-                                            style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)' }}
+                                            className="group relative block overflow-hidden rounded-xl aspect-square text-left transition-all hover:scale-[1.03] active:scale-95"
                                         >
-                                            <div className="relative aspect-[4/3] w-full" style={{ background: item.imageUrl ? '#0b1220' : GRADIENT }}>
-                                                {item.imageUrl ? (
-                                                    <img src={item.imageUrl} alt={item.name} loading="lazy" className="w-full h-full object-cover" />
-                                                ) : (
-                                                    <div className="w-full h-full flex items-center justify-center"><KindIcon size={26} color="rgba(255,255,255,0.85)" /></div>
+                                            {/* Imagem do tamanho do card inteiro */}
+                                            {item.imageUrl ? (
+                                                <img src={item.imageUrl} alt={item.name} loading="lazy" className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                                            ) : (
+                                                <div className="absolute inset-0 flex items-center justify-center" style={{ background: GRADIENT }}>
+                                                    <KindIcon size={34} color="rgba(255,255,255,0.8)" strokeWidth={1.5} />
+                                                </div>
+                                            )}
+                                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent pointer-events-none" />
+
+                                            {/* Tipo: botão laranja → vermelho, texto e ícone brancos */}
+                                            <span
+                                                className="absolute top-1.5 left-1.5 flex items-center gap-1 px-2 py-1 rounded-full text-[9px] font-black uppercase tracking-wide text-white pointer-events-none"
+                                                style={{ background: GRADIENT, boxShadow: '0 2px 6px rgba(249,115,22,0.4)' }}
+                                            >
+                                                <KindIcon size={10} color="#ffffff" />
+                                                {label}
+                                            </span>
+
+                                            <div className="absolute bottom-0 left-0 right-0 p-2 pointer-events-none">
+                                                <h4 className="text-[11px] font-bold text-white leading-tight line-clamp-2">{item.name}</h4>
+                                                {item.subtitle && <p className="text-[9px] text-white/60 truncate">{item.subtitle}</p>}
+                                                {item.kind === 'produto' && item.price != null && (
+                                                    <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded-md text-[10px] font-black text-white" style={{ background: 'rgba(249,115,22,0.85)' }}>
+                                                        R$ {item.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                                    </span>
                                                 )}
-                                                <span className="absolute left-1.5 top-1.5 flex items-center gap-1 text-[9px] font-black uppercase px-1.5 py-0.5 rounded-full text-white" style={{ background: 'rgba(0,0,0,0.55)' }}>
-                                                    <KindIcon size={9} />
-                                                    {label}
-                                                </span>
-                                            </div>
-                                            <div className="p-2">
-                                                <p className="text-[11px] font-black text-white leading-tight line-clamp-2">{item.name}</p>
-                                                {item.subtitle && <p className="text-[9px] text-white/50 truncate mt-0.5">{item.subtitle}</p>}
-                                                <p className="text-[10px] font-black mt-1 flex items-center gap-1" style={{ color: '#fb923c' }}>
-                                                    <MapPin size={10} />
-                                                    {formatDistance(item.distanceKm)}
-                                                </p>
+                                                <div className="flex items-center gap-1 mt-0.5">
+                                                    <MapPin size={10} className="text-white/70" />
+                                                    <span className="text-[10px] font-semibold text-white/70">{formatDistance(item.distanceKm)}</span>
+                                                </div>
                                             </div>
                                         </button>
                                     )

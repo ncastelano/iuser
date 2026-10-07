@@ -15,6 +15,7 @@ export interface NearestItem {
     name: string
     subtitle: string | null
     imageUrl: string | null
+    price: number | null
     distanceKm: number
     href: string
 }
@@ -24,7 +25,8 @@ export function formatDistance(km: number): string {
     return `${km.toFixed(1).replace('.', ',')} km`
 }
 
-export async function fetchNearest(origin: { lat: number; lng: number }): Promise<Partial<Record<NearestKind, NearestItem>>> {
+// userId: o que é da própria pessoa (loja, produto ou serviço dela) nunca entra.
+export async function fetchNearest(origin: { lat: number; lng: number }, userId?: string | null): Promise<Partial<Record<NearestKind, NearestItem>>> {
     const from: [number, number] = [origin.lng, origin.lat]
 
     const [{ data: stores }, { data: products }] = await Promise.all([
@@ -46,8 +48,9 @@ export async function fetchNearest(origin: { lat: number; lng: number }): Promis
     for (const s of (stores || []) as any[]) {
         const d = km(parseCoords(s.location))
         if (d == null || !s.storeSlug) continue
+        if (userId && s.owner_id === userId) continue
         if (!nearestStore || d < nearestStore.distanceKm) {
-            nearestStore = { kind: 'loja', id: s.id, name: s.name, subtitle: s.category || null, imageUrl: storeImage(s.logo_url), distanceKm: d, href: `/${s.storeSlug}` }
+            nearestStore = { kind: 'loja', id: s.id, name: s.name, subtitle: s.category || null, imageUrl: storeImage(s.logo_url), price: null, distanceKm: d, href: `/${s.storeSlug}` }
         }
     }
 
@@ -70,18 +73,19 @@ export async function fetchNearest(origin: { lat: number; lng: number }): Promis
         if (d == null) continue
         const store = storeById.get(p.store_id)
         const owner = ownerById.get(p.owner_id)
+        if (userId && (p.owner_id === userId || store?.owner_id === userId)) continue
         const baseSlug = store?.storeSlug || owner?.profileSlug
         if (!baseSlug || !p.slug) continue
         const isService = p.listing_type === 'service_offer' || p.type === 'service'
         if (isService) {
             if (!nearestService || d < nearestService.distanceKm) {
-                nearestService = { kind: 'servico', id: p.id, name: p.name, subtitle: store?.name || owner?.name || null, imageUrl: productImage(p.image_url), distanceKm: d, href: `/${baseSlug}/${p.slug}` }
+                nearestService = { kind: 'servico', id: p.id, name: p.name, subtitle: store?.name || owner?.name || null, imageUrl: productImage(p.image_url), price: null, distanceKm: d, href: `/${baseSlug}/${p.slug}` }
             }
         } else if (p.listing_type === 'sale' && p.type === 'physical') {
             if (!nearestProduct || d < nearestProduct.distanceKm) {
                 nearestProduct = {
                     kind: 'produto', id: p.id, name: p.name, subtitle: store?.name || null,
-                    imageUrl: productImage(p.image_url), distanceKm: d, href: `/${baseSlug}/${p.slug}`,
+                    imageUrl: productImage(p.image_url), price: p.price != null ? Number(p.price) : null, distanceKm: d, href: `/${baseSlug}/${p.slug}`,
                 }
             }
         }

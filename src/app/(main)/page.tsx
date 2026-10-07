@@ -445,7 +445,7 @@ function HomePageContent() {
             case 'categorias':
                 return <CategoriasSection />
             case 'radar':
-                return <RadarSection origin={savedLocation ? { lat: savedLocation.lat, lng: savedLocation.lng } : null} />
+                return <RadarSection origin={savedLocation ? { lat: savedLocation.lat, lng: savedLocation.lng } : null} userId={userId} />
             case 'productShowcase':
                 return <ProductShowcase />
             case 'publicationShowcase':
