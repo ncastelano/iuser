@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Sparkles, Check, Zap } from 'lucide-react'
+import { Sparkles, Check, Zap, Gift } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { supabase } from '@/lib/supabase/client'
@@ -188,6 +188,20 @@ export default function CareerPlans() {
                             </button>
                         </div>
                     </div>
+
+                    {/* Leva pra /planos, onde também dá pra resgatar os 3 meses grátis do Pré-pago */}
+                    <button
+                        onClick={() => router.push('/planos')}
+                        className="mt-4 w-full flex items-center justify-center gap-2 px-6 py-3 rounded-full font-bold text-sm transition-all hover:scale-[1.02] active:scale-95"
+                        style={{ background: GRADIENT, color: '#ffffff', boxShadow: '0 4px 12px #f9731640' }}
+                    >
+                        <Sparkles size={16} />
+                        Ver planos
+                    </button>
+                    <p className="mt-2 text-center text-[11px] flex items-center justify-center gap-1" style={{ color: colors.textSecondary }}>
+                        <Gift size={12} style={{ color: colors.accent }} />
+                        Resgate 3 meses grátis do Pré-pago lá em Planos
+                    </p>
                 </HomeGlassCard>
             </section>
         )

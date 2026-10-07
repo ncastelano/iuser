@@ -47,7 +47,7 @@ function activePromoPrice(plan: Plan): number | null {
 interface ActiveSub {
     plan_id: string
     status: string
-    source: 'asaas' | 'admin_grant' | 'code' | 'leader_grant' | 'postpaid'
+    source: 'asaas' | 'admin_grant' | 'code' | 'leader_grant' | 'postpaid' | 'free_trial'
     current_period_end: string | null
 }
 
@@ -57,6 +57,7 @@ const SOURCE_LABEL: Record<ActiveSub['source'], string> = {
     code: 'Resgatado por código',
     leader_grant: 'Concedido por líder',
     postpaid: 'Pós-pago ativo',
+    free_trial: 'Teste grátis ativo',
 }
 
 interface PixData {
@@ -114,6 +115,10 @@ function PlanosContent() {
     const [promoCode, setPromoCode] = useState('')
     const [redeeming, setRedeeming] = useState(false)
     const [subscriberCounts, setSubscriberCounts] = useState<Record<string, number>>({})
+    // 3 meses grátis do Pré-pago: resgate único por pessoa
+    const [trialClaim, setTrialClaim] = useState<{ claimed_at: string; ends_at: string } | null>(null)
+    const [claimingTrial, setClaimingTrial] = useState(false)
+    const [trialCpfPrompt, setTrialCpfPrompt] = useState(false)
     const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
     const load = useCallback(async () => {
@@ -144,9 +149,16 @@ function PlanosContent() {
             ])
             setActiveSubs((subsData as ActiveSub[]) || [])
             setIsSuperAdmin(!!whoami.isSuperAdmin)
+            const { data: claimData } = await supabase
+                .from('free_trial_claims')
+                .select('claimed_at, ends_at')
+                .eq('profile_id', userId)
+                .maybeSingle()
+            setTrialClaim(claimData || null)
         } else {
             setActiveSubs([])
             setIsSuperAdmin(false)
+            setTrialClaim(null)
         }
         setLoading(false)
     }, [userId])
@@ -320,6 +332,48 @@ function PlanosContent() {
         }
     }
 
+    // Resgata os 3 meses grátis do Pré-pago (começam a contar agora)
+    const handleClaimTrial = async (cpfCnpj?: string) => {
+        setClaimingTrial(true)
+        try {
+            const { data: { session } } = await supabase.auth.getSession()
+            if (!session) {
+                setShowLogin(true)
+                return
+            }
+            const res = await fetch('/api/subscriptions/free-trial', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+                body: JSON.stringify({ cpfCnpj, deviceId: getDeviceId() }),
+            })
+            const json = await res.json()
+            if (!res.ok) {
+                if (json.needsCpf) {
+                    setTrialCpfPrompt(true)
+                    return
+                }
+                throw new Error(json.error || 'Erro ao resgatar')
+            }
+            toast.success('3 meses grátis do Pré-pago ativados!')
+            await load()
+        } catch (err: any) {
+            toast.error(err.message || 'Erro ao resgatar')
+        } finally {
+            setClaimingTrial(false)
+        }
+    }
+
+    const handleConfirmTrialCpf = () => {
+        const clean = cpfInput.replace(/\D/g, '')
+        if (clean.length !== 11 && clean.length !== 14) {
+            toast.error('CPF (11 dígitos) ou CNPJ (14 dígitos) inválido')
+            return
+        }
+        setTrialCpfPrompt(false)
+        setCpfInput('')
+        handleClaimTrial(clean)
+    }
+
     const handleConfirmCpf = () => {
         const clean = cpfInput.replace(/\D/g, '')
         if (clean.length !== 11 && clean.length !== 14) {
@@ -384,6 +438,66 @@ function PlanosContent() {
                                     </p>
                                 </div>
                             )}
+
+                            {/* ===== 3 MESES GRÁTIS DO PRÉ-PAGO (resgate único) ===== */}
+                            {!isSuperAdmin && (() => {
+                                const prepaid = plans.find((p) => p.code === 'pre_pago')
+                                const prepaidSub = prepaid ? getActiveSub(prepaid.id) : undefined
+                                const paidPrepaid = !!prepaidSub && prepaidSub.source !== 'free_trial'
+                                if (paidPrepaid) return null
+                                const trialActive = prepaidSub?.source === 'free_trial'
+                                const trialEnded = !!trialClaim && !trialActive
+                                const left = trialActive ? daysLeft(prepaidSub!.current_period_end) : null
+                                const fmt = (iso: string) => new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                                return (
+                                    <div
+                                        className="relative rounded-3xl p-5 max-w-xl w-full mx-auto flex flex-col gap-3 overflow-hidden"
+                                        style={{ background: GRADIENT, boxShadow: '0 10px 30px #f9731650' }}
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(255,255,255,0.22)' }}>
+                                                <Gift size={22} color="#fff" />
+                                            </div>
+                                            <div className="min-w-0">
+                                                <p className="text-lg font-black text-white leading-tight">3 meses grátis do Pré-pago</p>
+                                                <p className="text-xs text-white/80">Pra quem já está no pós-pago e pra quem está chegando</p>
+                                            </div>
+                                        </div>
+                                        <ul className="flex flex-col gap-1.5">
+                                            {[
+                                                'Sem taxa por serviço durante os 3 meses',
+                                                'Os 3 meses contam a partir do dia em que você resgatar',
+                                                'Resgate único, sem precisar de cartão',
+                                            ].map((t) => (
+                                                <li key={t} className="flex items-start gap-1.5 text-xs text-white/90">
+                                                    <Check size={13} className="mt-0.5 flex-shrink-0" />
+                                                    {t}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                        {trialActive ? (
+                                            <div className="rounded-xl px-3 py-2.5 text-xs font-bold text-white" style={{ background: 'rgba(255,255,255,0.22)' }}>
+                                                Teste ativo até {fmt(prepaidSub!.current_period_end as string)}
+                                                {left != null && ` — faltam ${left} ${left === 1 ? 'dia' : 'dias'}`}
+                                            </div>
+                                        ) : trialEnded ? (
+                                            <div className="rounded-xl px-3 py-2.5 text-xs font-bold text-white" style={{ background: 'rgba(0,0,0,0.25)' }}>
+                                                Você já resgatou seus 3 meses grátis (de {fmt(trialClaim!.claimed_at)} a {fmt(trialClaim!.ends_at)}). Pra continuar sem taxa por serviço, assine o Pré-pago abaixo.
+                                            </div>
+                                        ) : (
+                                            <button
+                                                onClick={() => (userId ? handleClaimTrial() : setShowLogin(true))}
+                                                disabled={claimingTrial}
+                                                className="w-full py-3 rounded-full text-sm font-black disabled:opacity-60 flex items-center justify-center gap-2"
+                                                style={{ background: '#fff', color: '#dc2626' }}
+                                            >
+                                                {claimingTrial ? <Spinner size={16} color="#dc2626" /> : <Gift size={16} />}
+                                                {userId ? 'Resgatar 3 meses grátis' : 'Entrar pra resgatar 3 meses grátis'}
+                                            </button>
+                                        )}
+                                    </div>
+                                )
+                            })()}
 
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-start">
                                 {plans.map((plan) => {
@@ -587,6 +701,37 @@ function PlanosContent() {
                             style={{ background: GRADIENT, color: '#fff' }}
                         >
                             {buyingPlanId === cpfPromptPlan.id ? <Spinner size={14} color="#ffffff" /> : 'Continuar'}
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {trialCpfPrompt && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)' }}>
+                    <div className="w-full max-w-sm rounded-2xl p-6 relative" style={{ background: colors.surface }}>
+                        <button onClick={() => { setTrialCpfPrompt(false); setCpfInput('') }} className="absolute top-4 right-4" style={{ color: colors.textSecondary }}>
+                            <X size={20} />
+                        </button>
+                        <p className="font-black text-sm mb-1" style={{ color: colors.textPrimary }}>Falta seu CPF ou CNPJ</p>
+                        <p className="text-xs mb-4" style={{ color: colors.textSecondary }}>
+                            Usamos pra garantir que cada pessoa resgate os 3 meses grátis uma única vez. Só pede uma vez.
+                        </p>
+                        <input
+                            type="text"
+                            inputMode="numeric"
+                            value={cpfInput}
+                            onChange={(e) => setCpfInput(e.target.value)}
+                            placeholder="Só números"
+                            className="w-full px-3 py-2.5 rounded-lg border text-sm focus:outline-none mb-3"
+                            style={{ background: colors.background, borderColor: colors.border, color: colors.textPrimary }}
+                        />
+                        <button
+                            onClick={handleConfirmTrialCpf}
+                            disabled={claimingTrial}
+                            className="w-full py-2.5 rounded-xl font-bold text-sm disabled:opacity-60"
+                            style={{ background: GRADIENT, color: '#fff' }}
+                        >
+                            {claimingTrial ? <Spinner size={14} color="#ffffff" /> : 'Resgatar'}
                         </button>
                     </div>
                 </div>

@@ -121,7 +121,7 @@ interface SectionProps {
 interface SubscriptionRow {
     id: string
     status: 'pending' | 'active' | 'past_due' | 'canceled'
-    source: 'asaas' | 'admin_grant' | 'code' | 'leader_grant'
+    source: 'asaas' | 'admin_grant' | 'code' | 'leader_grant' | 'free_trial'
     current_period_end: string | null
     created_at: string
     plans: { code: string; name: string; price: number } | { code: string; name: string; price: number }[] | null
@@ -153,6 +153,7 @@ const SUBSCRIPTION_SOURCE_LABEL: Record<SubscriptionRow['source'], string> = {
     admin_grant: 'Concedido pelo admin',
     code: 'Código promocional',
     leader_grant: 'Concedido por liderança',
+    free_trial: 'Teste grátis (3 meses)',
 }
 
 // Quem comprou (ou ganhou) cada plano — visão de negócio pro admin: quantos
