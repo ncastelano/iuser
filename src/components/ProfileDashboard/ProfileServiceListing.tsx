@@ -15,6 +15,7 @@ import { toast } from 'sonner'
 import { hexToRgb } from '@/lib/color'
 import { getCurrentPosition as getNativeCurrentPosition } from '@/lib/nativeGeolocation'
 import { SERVICE_TYPES, ServiceType } from '@/lib/serviceTypes'
+import EditServiceDialog from '@/components/EditServiceDialog'
 import {
     ChevronDown,
     ChevronUp,
@@ -88,6 +89,8 @@ export default function ProfileServiceListing({ profileId, profileSlug }: Profil
     const [isExpanded, setIsExpanded] = usePersistedExpanded('profileServiceListing', true)
     const [isCreating, setIsCreating] = useState(false)
     const [listings, setListings] = useState<ServiceListing[]>([])
+    // Editar abre o diálogo aqui mesmo, igual aos serviços das lojas
+    const [editingServiceId, setEditingServiceId] = useState<string | null>(null)
     const [loading, setLoading] = useState(false)
 
     const [name, setName] = useState('')
@@ -354,7 +357,7 @@ export default function ProfileServiceListing({ profileId, profileSlug }: Profil
                                                     key={listing.id}
                                                     className="flex-shrink-0 w-40 rounded-2xl border p-3 flex flex-col gap-2 cursor-pointer hover:shadow-md transition-shadow relative"
                                                     style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`, borderColor: colors.border }}
-                                                    onClick={() => router.push(`/${profileSlug}/${listing.slug}/editar`)}
+                                                    onClick={() => setEditingServiceId(listing.id)}
                                                 >
                                                     <button
                                                         onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(listing.id) }}
@@ -364,7 +367,7 @@ export default function ProfileServiceListing({ profileId, profileSlug }: Profil
                                                         <Trash2 size={13} color="white" />
                                                     </button>
                                                     <button
-                                                        onClick={(e) => { e.stopPropagation(); router.push(`/${profileSlug}/${listing.slug}/editar`) }}
+                                                        onClick={(e) => { e.stopPropagation(); setEditingServiceId(listing.id) }}
                                                         className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center hover:bg-black/50 transition-colors z-10"
                                                         title="Editar serviço"
                                                     >
@@ -575,6 +578,22 @@ export default function ProfileServiceListing({ profileId, profileSlug }: Profil
                         </div>
                     </div>
                 </div>
+            )}
+
+            {editingServiceId && (
+                <EditServiceDialog
+                    productId={editingServiceId}
+                    colors={colors}
+                    onClose={() => setEditingServiceId(null)}
+                    onSaved={(updated) => {
+                        setEditingServiceId(null)
+                        setListings(prev => prev.map(l => (l.id === updated.id ? { ...l, ...updated } : l)))
+                    }}
+                    onDeleted={(id) => {
+                        setEditingServiceId(null)
+                        setListings(prev => prev.filter(l => l.id !== id))
+                    }}
+                />
             )}
         </div>
     )
