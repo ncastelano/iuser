@@ -792,49 +792,6 @@ export function PublicationClientPage({
                             </div>
                         )}
 
-                        {/* Loja + data + compartilhar - no rodapé da foto. */}
-                        <div
-                            className={imageUrl ? 'flex items-center gap-2 px-4 py-3' : 'absolute bottom-0 inset-x-0 flex items-center gap-2 px-4 pb-4 pt-8'}
-                            style={{ background: imageUrl ? 'rgba(17,17,17,0.88)' : 'linear-gradient(to top, rgba(0,0,0,0.72), transparent)' }}
-                        >
-                            <button
-                                onClick={goToStore}
-                                className="flex items-center gap-2 min-w-0 flex-1 text-left transition hover:opacity-90"
-                            >
-                                <div
-                                    className="w-8 h-8 rounded-full overflow-hidden border flex-shrink-0"
-                                    style={{ borderColor: 'rgba(255,255,255,0.6)', background: 'rgba(255,255,255,0.15)' }}
-                                >
-                                    {finalOwnerImage ? (
-                                        <img src={finalOwnerImage} alt={ownerDisplay.name} className="w-full h-full object-cover" />
-                                    ) : (
-                                        <div className="w-full h-full flex items-center justify-center">
-                                            <Store size={14} color="#ffffff" />
-                                        </div>
-                                    )}
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                    <p className="text-xs font-bold truncate" style={{ color: '#ffffff' }}>
-                                        {ownerDisplay.name}
-                                    </p>
-                                    <p className="flex items-center gap-1 text-[10px]" style={{ color: 'rgba(255,255,255,0.8)' }}>
-                                        <Calendar size={9} />
-                                        {formattedDate}
-                                    </p>
-                                </div>
-                            </button>
-                            <button
-                                onClick={() => handleShareLink({
-                                    title: `${publication.name || 'Publicação'} | ${ownerDisplay.name}`,
-                                    text: publication.description || 'Confira no iUser!'
-                                })}
-                                aria-label="Compartilhar"
-                                className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 backdrop-blur-md transition hover:scale-105"
-                                style={{ background: 'rgba(17,17,17,0.4)' }}
-                            >
-                                <Share2 size={18} color="#ffffff" />
-                            </button>
-                        </div>
                     </div>
 
                     {/* Sheet de conteúdo (mobile: sobreposto à imagem / web: coluna ao lado) */}
@@ -865,14 +822,47 @@ export function PublicationClientPage({
                             )}
 
                             <div className="flex flex-wrap gap-2">
-                                <button
-                                    onClick={goToStore}
-                                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition hover:scale-105"
-                                    style={{ background: GRADIENT, color: '#fff' }}
+                                {/* Quem publicou (antes ficava embaixo da imagem): avatar, nome, data e compartilhar */}
+                                <div
+                                    className="w-full flex items-center gap-2 px-3 py-2.5 rounded-2xl"
+                                    style={{ background: colors.surface, border: `1px solid ${colors.border}` }}
                                 >
-                                    <Store size={16} />
-                                    Visitar Loja
-                                </button>
+                                    <button
+                                        onClick={goToStore}
+                                        className="flex items-center gap-2.5 min-w-0 flex-1 text-left transition hover:opacity-90"
+                                    >
+                                        <div
+                                            className="w-10 h-10 rounded-full overflow-hidden border flex-shrink-0 flex items-center justify-center"
+                                            style={{ borderColor: colors.border, background: `${colors.accentLight}25` }}
+                                        >
+                                            {finalOwnerImage ? (
+                                                <img src={finalOwnerImage} alt={ownerDisplay.name} className="w-full h-full object-cover" />
+                                            ) : (
+                                                <Store size={16} style={{ color: colors.accent }} />
+                                            )}
+                                        </div>
+                                        <div className="min-w-0 flex-1">
+                                            <p className="text-sm font-bold truncate" style={{ color: colors.textPrimary }}>
+                                                {ownerDisplay.name}
+                                            </p>
+                                            <p className="flex items-center gap-1 text-[11px]" style={{ color: colors.textSecondary }}>
+                                                <Calendar size={10} />
+                                                {formattedDate}
+                                            </p>
+                                        </div>
+                                    </button>
+                                    <button
+                                        onClick={() => handleShareLink({
+                                            title: `${publication.name || 'Publicação'} | ${ownerDisplay.name}`,
+                                            text: publication.description || 'Confira no iUser!'
+                                        })}
+                                        aria-label="Compartilhar"
+                                        className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition hover:scale-105"
+                                        style={{ background: `${colors.border}40`, color: colors.textPrimary }}
+                                    >
+                                        <Share2 size={18} />
+                                    </button>
+                                </div>
 
                                 {publication.show_whatsapp && publication.store?.whatsapp && publication.store?.show_whatsapp !== false && (
                                     <a
