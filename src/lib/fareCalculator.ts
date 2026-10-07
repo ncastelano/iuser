@@ -35,6 +35,12 @@ const fromCents = (cents: number) => cents / 100
 /** Número finito e >= 0, senão 0 (tarifa com campo vazio/NaN/negativo vira 0 em vez de quebrar a conta). */
 const safe = (n: number) => (Number.isFinite(n) && n > 0 ? n : 0)
 
+/** Quantas corridas dessa distância cabem em 1 hora a 40 km/h (40 ÷ km). Null se a distância for 0. */
+export function calculateRidesPerHour(distanceKm: number): number | null {
+    const d = safe(distanceKm)
+    return d > 0 ? VELOCIDADE_MEDIA_KMH / d : null
+}
+
 /** Valor da corrida (R$) pela tarifa: base até a distância base, + km excedente × valor/km. */
 export function calculateFare(distanceKm: number, tariff: FareTariff): number {
     const d = safe(distanceKm)
@@ -136,6 +142,11 @@ export function calculateGoalComparison(tariff: FareTariff, goalPerHour: number)
 /** "R$ 17,50" */
 export function formatBRL(value: number): string {
     return `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
+/** "4", "2,67" — contagem com até 2 casas */
+export function formatCount(n: number): string {
+    return n.toLocaleString('pt-BR', { maximumFractionDigits: 2 })
 }
 
 /** "12,35 km", "5 km" — até 2 casas, sem zeros sobrando */

@@ -13,7 +13,7 @@ import { toast } from 'sonner'
 import { TrendingUp, Car, Camera, Star, MessageSquare, Clock, CheckCircle2, Volume2, VolumeX, Navigation2, LayoutDashboard, Trash2 } from 'lucide-react'
 import { loadPlatformTariffs } from '@/lib/platformTariffs'
 import { Spinner } from '@/components/Spinner'
-import FareCalculator from '@/components/FareCalculator'
+import { calculateHourlyEarning, calculateRidesPerHour, calculateTimeFromDistance, formatBRL, formatCount, formatDuration, VELOCIDADE_MEDIA_KMH } from '@/lib/fareCalculator'
 import { computeSuggestedPrice, explainSuggestedPrice, PLATFORM_DEFAULT_PRICING_BY_VEHICLE, PLATFORM_DEFAULT_EXTRA_FEES, PLATFORM_DEFAULT_CONDITION_EXTRA_FEES, PricingMode } from '@/lib/driverPricing'
 import { VehicleKind, VEHICLE_KIND_LABELS } from '@/lib/rideVehicle'
 import { createSquareImage } from '@/lib/image'
@@ -682,6 +682,24 @@ function PainelMotoristaContent() {
     // base + quilometragem à vista pro motorista conferir a conta
     const previewBreakdown = `${brl2(previewParts.base)} base + ${brl2(previewParts.kmPart)} de quilometragem (${previewParts.extraKm.toFixed(1).replace('.', ',')} km acima da base × ${brl2(activePricing.pricePerKmAfterBase)}) = ${brl2(previewParts.total)}`
 
+    // Quanto rende por hora fazendo corridas desse tamanho (a 40 km/h): quantas cabem em 1 hora × o valor de cada uma
+    const previewRidesPerHour = calculateRidesPerHour(previewDistance)
+    const previewHourlyEarning = calculateHourlyEarning(previewDistance, previewPrice)
+    const previewRideDuration = formatDuration(calculateTimeFromDistance(previewDistance))
+    const previewHourlyBlock = previewRidesPerHour != null && previewHourlyEarning != null ? (
+        <div className="mt-2 rounded-xl p-2.5" style={{ background: '#22c55e14', border: '1px solid #22c55e40' }}>
+            <p className="text-[10px] font-bold" style={{ color: colors.textPrimary }}>
+                Por hora: em 1 hora dá pra fazer {formatCount(previewRidesPerHour)} {previewRidesPerHour === 1 ? 'corrida' : 'corridas'} de {previewDistance} km (cada uma leva {previewRideDuration}).
+            </p>
+            <p className="text-[11px] font-black mt-1" style={{ color: '#16a34a' }}>
+                {formatCount(previewRidesPerHour)} × {formatBRL(previewPrice)} = {formatBRL(previewHourlyEarning)} por hora
+            </p>
+            <p className="text-[9px] mt-1" style={{ color: colors.textSecondary }}>
+                Estimativa a {VELOCIDADE_MEDIA_KMH} km/h, sem tempo parado entre as corridas.
+            </p>
+        </div>
+    ) : null
+
     const conditionExtraFeeFields = [
         { key: 'condominio', label: 'Condomínio', value: extraFeeCondominio, setValue: setExtraFeeCondominio, platformDefault: platformPricingForVehicle.conditionExtraFees.condominio },
         { key: 'compras', label: 'Compras no mercado', value: extraFeeCompras, setValue: setExtraFeeCompras, platformDefault: platformPricingForVehicle.conditionExtraFees.compras },
@@ -940,6 +958,7 @@ function PainelMotoristaContent() {
                                         Exemplo: uma corrida de {previewDistance} km sairia por R$ {previewPrice.toFixed(2)}
                                     </p>
                                     <p className="text-[9px] mt-1" style={{ color: colors.textSecondary }}>{previewBreakdown}</p>
+                                    {previewHourlyBlock}
                                 </div>
                             ) : (
                                 <div
@@ -1000,32 +1019,9 @@ function PainelMotoristaContent() {
                                         Exemplo: uma corrida de {previewDistance} km sairia por R$ {previewPrice.toFixed(2)}
                                     </p>
                                     <p className="text-[9px] mt-1" style={{ color: colors.textSecondary }}>{previewBreakdown}</p>
+                                    {previewHourlyBlock}
                                 </div>
                             )}
-
-                            {/* Calculadora: distância ↔ tempo ↔ valor ↔ rendimento por hora (40 km/h fixos), com a tarifa escolhida acima */}
-                            <FareCalculator
-                                tariff={{
-                                    baseDistanceKm: activePricing.baseDistanceKm,
-                                    baseFee: activePricing.baseFee,
-                                    pricePerKm: activePricing.pricePerKmAfterBase,
-                                }}
-                                tariffLabel={pricingMode === 'platform' ? 'Tarifa da plataforma' : 'Tarifa Personalizada'}
-                                // A outra tarifa, pra comparar o mesmo cálculo lado a lado (a personalizada só existe se o motorista mexeu nela)
-                                compare={pricingMode === 'platform'
-                                    ? (customTouched ? {
-                                        label: 'Tarifa Personalizada',
-                                        tariff: { baseDistanceKm: parseFloat(baseDistanceKm) || 0, baseFee: parseFloat(baseFee) || 0, pricePerKm: parseFloat(pricePerKmAfterBase) || 0 },
-                                    } : undefined)
-                                    : {
-                                        label: 'Tarifa da plataforma',
-                                        tariff: {
-                                            baseDistanceKm: platformPricingForVehicle.baseDistanceKm,
-                                            baseFee: platformPricingForVehicle.baseFee,
-                                            pricePerKm: platformPricingForVehicle.pricePerKmAfterBase,
-                                        },
-                                    }}
-                            />
 
                             <div
                                 className="p-4 rounded-2xl border"

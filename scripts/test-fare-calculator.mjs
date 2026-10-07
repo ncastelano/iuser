@@ -9,6 +9,8 @@ import {
     calculateDistanceFromTime,
     calculateHourlyEarning,
     calculateRequiredPricePerKm,
+    calculateRidesPerHour,
+    formatCount,
     calculateSimulationTable,
     calculateGoalComparison,
     formatBRL,
@@ -164,4 +166,18 @@ test('leitura e validação do que o motorista digita', () => {
     assert.ok('error' in validateMinutesInput('0'))
     assert.ok('error' in validateGoalInput('0'))
     assert.ok('empty' in validateGoalInput(''))
+})
+
+test('corridas por hora: 40 ÷ km, e o valor da hora é corridas × valor', () => {
+    assert.equal(calculateRidesPerHour(10), 4)
+    assert.equal(calculateRidesPerHour(40), 1)
+    assert.equal(calculateRidesPerHour(0), null)
+    assert.equal(formatCount(4), '4')
+    assert.equal(formatCount(40 / 15), '2,67')
+    // tarifa do exemplo do painel: até 3 km = R$ 20, +R$ 30/km → 10 km = R$ 230 → 4 corridas = R$ 920/h
+    const t = { baseDistanceKm: 3, baseFee: 20, pricePerKm: 30 }
+    const fare = calculateFare(10, t)
+    assert.equal(fare, 230)
+    assert.equal(calculateRidesPerHour(10) * fare, 920)
+    assert.equal(calculateHourlyEarning(10, fare), 920)
 })
