@@ -866,12 +866,18 @@ export default function PublicationClientPage() {
             <div className="pb-8 md:pb-0 md:max-w-4xl md:mx-auto md:px-6 md:pt-6">
                 <div className="md:grid md:grid-cols-2 md:gap-10 md:items-start">
                     {/* Imagem em destaque, tipo capa de publicação */}
-                    <div className="relative mx-4 md:mx-0 mt-4 md:mt-0 h-[26vh] min-h-[200px] max-h-[320px] rounded-3xl overflow-hidden md:h-auto md:aspect-square md:sticky md:top-6">
+                    <div
+                        className={`relative mx-4 md:mx-0 mt-4 md:mt-0 rounded-3xl overflow-hidden md:sticky md:top-6 ${imageUrl ? 'flex flex-col' : 'h-[26vh] min-h-[200px] max-h-[320px] md:h-auto md:aspect-square'}`}
+                        style={imageUrl ? { background: `${colors.accentLight}25` } : undefined}
+                    >
                         {imageUrl ? (
+                            // Imagem inteira, sem cortar: altura natural (limitada à tela, com a
+                            // imagem inteira dentro do limite) em vez de um quadro fixo com object-cover. A barra
+                            // do dono/data/compartilhar fica embaixo da imagem, sem cobrir nada dela.
                             <img
                                 src={imageUrl}
                                 alt={publication.name || 'Publicação'}
-                                className="w-full h-full object-cover"
+                                className="block w-full h-auto max-h-[80vh] object-contain"
                             />
                         ) : (
                             <div className="w-full h-full flex items-center justify-center" style={{ background: `${colors.accentLight}25` }}>
@@ -881,8 +887,8 @@ export default function PublicationClientPage() {
 
                         {/* Dono (loja ou perfil) + data + compartilhar - no rodapé da foto. */}
                         <div
-                            className="absolute bottom-0 inset-x-0 flex items-center gap-2 px-4 pb-4 pt-8"
-                            style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.72), transparent)' }}
+                            className={imageUrl ? 'flex items-center gap-2 px-4 py-3' : 'absolute bottom-0 inset-x-0 flex items-center gap-2 px-4 pb-4 pt-8'}
+                            style={{ background: imageUrl ? 'rgba(17,17,17,0.88)' : 'linear-gradient(to top, rgba(0,0,0,0.72), transparent)' }}
                         >
                             <button
                                 onClick={goToOwner}
