@@ -98,6 +98,10 @@ export default function EditProductDialog({ productId, colors, onClose, onSaved,
 
     const isServiceOffer = product?.listing_type === 'service_offer'
     const isPublication = product?.listing_type === 'publication'
+    // Serviço (de perfil ou de loja) não é "produto": os textos dizem serviço.
+    const isService = isServiceOffer || product?.type === 'service'
+    const itemLabel = isPublication ? 'publicação' : isService ? 'serviço' : 'produto'
+    const itemLabelCap = itemLabel.charAt(0).toUpperCase() + itemLabel.slice(1)
 
     const handleSave = async () => {
         if (!name.trim()) {
@@ -163,7 +167,7 @@ export default function EditProductDialog({ productId, colors, onClose, onSaved,
 
             if (updateError) throw updateError
 
-            toast.success(isPublication ? 'Publicação atualizada!' : 'Produto atualizado!')
+            toast.success(`${itemLabelCap} atualizado${isPublication ? 'a' : ''}!`)
             onSaved({
                 ...updated,
                 image_url: updated.image_url ? resolveImageUrl(updated.image_url) : null,
@@ -178,7 +182,7 @@ export default function EditProductDialog({ productId, colors, onClose, onSaved,
 
     const handleDelete = async () => {
         if (!product) return
-        if (!confirm(`Tem certeza que deseja excluir ${isPublication ? 'esta publicação' : 'este produto'}? Esta ação não pode ser desfeita.`)) return
+        if (!confirm(`Tem certeza que deseja excluir ${isPublication ? 'esta' : 'este'} ${itemLabel}? Esta ação não pode ser desfeita.`)) return
 
         setDeleting(true)
         try {
@@ -188,7 +192,7 @@ export default function EditProductDialog({ productId, colors, onClose, onSaved,
             const { error } = await supabase.from('products').delete().eq('id', product.id)
             if (error) throw error
 
-            toast.success(isPublication ? 'Publicação excluída' : 'Produto excluído')
+            toast.success(`${itemLabelCap} excluíd${isPublication ? 'a' : 'o'}`)
             onDeleted(product.id)
         } catch (err: any) {
             console.error('Erro ao deletar:', err)
@@ -217,7 +221,7 @@ export default function EditProductDialog({ productId, colors, onClose, onSaved,
             >
                 <div className="flex items-center justify-between mb-5">
                     <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
-                        {isPublication ? 'Editar Publicação' : 'Editar Produto'}
+                        Editar {itemLabelCap}
                     </h3>
                     <button onClick={onClose} className="p-1.5 rounded-full hover:bg-black/5 transition" style={{ color: colors.textSecondary }}>
                         <X size={20} />

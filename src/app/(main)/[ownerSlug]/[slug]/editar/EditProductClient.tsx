@@ -20,6 +20,7 @@ import Header from '@/components/Header'
 import { Spinner } from '@/components/Spinner'
 import { generateUniqueGlobalSlug } from '@/lib/slugUtils'
 import ProductAddonsManager from '@/components/StoreDashboard/ProductAddonsManager'
+import { EditServiceClient } from './EditServiceClient'
 
 export function EditProductClient() {
     const router = useRouter()
@@ -245,6 +246,11 @@ export function EditProductClient() {
                 </div>
             </div>
         )
+    }
+
+    // Serviço de perfil (service_offer) tem a própria tela: sem preço, estoque e adicionais.
+    if (product.listing_type === 'service_offer') {
+        return <EditServiceClient product={product} ownerSlug={ownerSlug} />
     }
 
     return (
