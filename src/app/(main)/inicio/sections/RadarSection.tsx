@@ -29,7 +29,9 @@ const KIND_META: Record<NearestKind, { label: string; icon: typeof Store }> = {
 export default function RadarSection({ dragHandle, origin, userId }: RadarSectionProps) {
     const router = useRouter()
     const startNavProgress = useNavProgressStore((s) => s.start)
-    const [nearest, setNearest] = useState<Partial<Record<NearestKind, NearestItem>> | null>(null)
+    const [nearest, setNearest] = useState<Record<NearestKind, NearestItem[]> | null>(null)
+    // Qual dos (até) 3 de cada tipo está na tela; troca sozinho a cada 5 segundos
+    const [tick, setTick] = useState(0)
 
     const lat = origin?.lat
     const lng = origin?.lng
@@ -38,17 +40,34 @@ export default function RadarSection({ dragHandle, origin, userId }: RadarSectio
         let cancelled = false
         fetchNearest({ lat, lng }, userId)
             .then((res) => { if (!cancelled) setNearest(res) })
-            .catch(() => { if (!cancelled) setNearest({}) })
+            .catch(() => { if (!cancelled) setNearest({ loja: [], produto: [], servico: [] }) })
         return () => { cancelled = true }
     }, [lat, lng, userId])
 
-    const cards = nearest ? (['loja', 'produto', 'servico'] as NearestKind[]).map((k) => nearest[k]).filter(Boolean) as NearestItem[] : []
+    useEffect(() => {
+        if (!nearest) return
+        const rotates = (['loja', 'produto', 'servico'] as NearestKind[]).some((k) => nearest[k].length > 1)
+        if (!rotates) return
+        const timer = setInterval(() => setTick((t) => t + 1), 5000)
+        return () => clearInterval(timer)
+    }, [nearest])
+
+    // Um card por tipo (loja, produto, serviço), cada um mostrando o da vez
+    const cards = nearest
+        ? (['loja', 'produto', 'servico'] as NearestKind[])
+            .map((k) => (nearest[k].length > 0 ? nearest[k][tick % nearest[k].length] : null))
+            .filter(Boolean) as NearestItem[]
+        : []
+    const goRadar = () => { startNavProgress(); router.push('/radar') }
 
     return (
         <section>
             {dragHandle && <div className="flex mb-2">{dragHandle}</div>}
             <div
-                className="relative rounded-3xl p-6 overflow-hidden"
+                onClick={goRadar}
+                role="link"
+                aria-label="Abrir o radar"
+                className="relative rounded-3xl p-6 overflow-hidden cursor-pointer"
                 style={{ background: 'linear-gradient(135deg, #111827, #1f2937)', boxShadow: '0 8px 32px rgba(0,0,0,0.25)' }}
             >
                 {/* Anéis do radar, decorativos: no celular o centro fica na borda direita,
@@ -81,10 +100,15 @@ export default function RadarSection({ dragHandle, origin, userId }: RadarSectio
                         0%, 100% { transform: scale(1); box-shadow: 0 0 10px #f97316; }
                         50% { transform: scale(1.35); box-shadow: 0 0 22px #f97316; }
                     }
+                    @keyframes radarCardIn {
+                        0% { opacity: 0; transform: translateY(10px) scale(0.94); }
+                        100% { opacity: 1; transform: translateY(0) scale(1); }
+                    }
+                    .radar-card-in { animation: radarCardIn 0.55s ease-out; }
                     .radar-ring { animation: radarRing 2.7s ease-in-out infinite; }
                     .radar-dot { animation: radarDot 2.7s ease-in-out infinite; }
                     @media (prefers-reduced-motion: reduce) {
-                        .radar-ring, .radar-dot { animation: none; }
+                        .radar-ring, .radar-dot, .radar-card-in { animation: none; }
                         .radar-ring { border-width: 2px; opacity: 0.4; }
                     }
                 `}</style>
@@ -118,9 +142,9 @@ export default function RadarSection({ dragHandle, origin, userId }: RadarSectio
                                     const { label, icon: KindIcon } = KIND_META[item.kind]
                                     return (
                                         <button
-                                            key={item.kind}
-                                            onClick={() => { startNavProgress(); router.push(item.href) }}
-                                            className="group relative block overflow-hidden rounded-xl aspect-square text-left transition-all hover:scale-[1.03] active:scale-95"
+                                            key={`${item.kind}-${item.id}`}
+                                            onClick={(e) => { e.stopPropagation(); startNavProgress(); router.push(item.href) }}
+                                            className="group relative block overflow-hidden rounded-xl aspect-square text-left transition-all hover:scale-[1.03] active:scale-95 radar-card-in"
                                             style={{ border: '1px solid rgba(255,255,255,0.3)' }}
                                         >
                                             {/* Imagem do tamanho do card inteiro */}
@@ -169,7 +193,7 @@ export default function RadarSection({ dragHandle, origin, userId }: RadarSectio
                 {/* Abrir radar: embaixo do "mais perto de você", no lado direito */}
                 <div className="relative z-10 mt-4 flex justify-end">
                     <button
-                        onClick={() => { startNavProgress(); router.push('/radar') }}
+                        onClick={(e) => { e.stopPropagation(); goRadar() }}
                         className="flex items-center gap-1.5 px-5 py-2.5 rounded-full font-bold text-sm text-white transition-all hover:scale-105 active:scale-95"
                         style={{ background: GRADIENT, boxShadow: '0 4px 14px #f9731650' }}
                     >

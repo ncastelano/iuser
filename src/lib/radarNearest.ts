@@ -1,7 +1,7 @@
 // src/lib/radarNearest.ts
 //
-// Os 3 mais próximos de uma pessoa — uma loja, um produto e um serviço — pros
-// cards do Radar da home. Mesmas fontes e mesma leitura de coordenadas do /radar
+// Os 3 mais próximos de cada tipo (lojas, produtos e serviços), do mais perto pro mais
+// longe — o Radar da home alterna entre eles. Mesmas fontes e mesma leitura de coordenadas do /radar
 // (stores.location; products.location ou lat/lng, senão a loja dona do item).
 import { supabase } from '@/lib/supabase/client'
 import { parseCoords } from '@/lib/geoParse'
@@ -26,7 +26,7 @@ export function formatDistance(km: number): string {
 }
 
 // userId: o que é da própria pessoa (loja, produto ou serviço dela) nunca entra.
-export async function fetchNearest(origin: { lat: number; lng: number }, userId?: string | null): Promise<Partial<Record<NearestKind, NearestItem>>> {
+export async function fetchNearest(origin: { lat: number; lng: number }, userId?: string | null): Promise<Record<NearestKind, NearestItem[]>> {
     const from: [number, number] = [origin.lng, origin.lat]
 
     const [{ data: stores }, { data: products }] = await Promise.all([
@@ -44,14 +44,12 @@ export async function fetchNearest(origin: { lat: number; lng: number }, userId?
     const productImage = (path: string | null) => (path ? supabase.storage.from('product-images').getPublicUrl(path).data.publicUrl : null)
 
     // --- loja mais próxima ---
-    let nearestStore: NearestItem | undefined
+    const nearestStores: NearestItem[] = []
     for (const s of (stores || []) as any[]) {
         const d = km(parseCoords(s.location))
         if (d == null || !s.storeSlug) continue
         if (userId && s.owner_id === userId) continue
-        if (!nearestStore || d < nearestStore.distanceKm) {
-            nearestStore = { kind: 'loja', id: s.id, name: s.name, subtitle: s.category || null, imageUrl: storeImage(s.logo_url), price: null, distanceKm: d, href: `/${s.storeSlug}` }
-        }
+        nearestStores.push({ kind: 'loja', id: s.id, name: s.name, subtitle: s.category || null, imageUrl: storeImage(s.logo_url), price: null, distanceKm: d, href: `/${s.storeSlug}` })
     }
 
     // --- produto e serviço mais próximos ---
@@ -66,8 +64,8 @@ export async function fetchNearest(origin: { lat: number; lng: number }, userId?
         : { data: [] as any[] }
     const ownerById = new Map((owners || []).map((o: any) => [o.id, o]))
 
-    let nearestProduct: NearestItem | undefined
-    let nearestService: NearestItem | undefined
+    const nearestProducts: NearestItem[] = []
+    const nearestServices: NearestItem[] = []
     for (const p of (products || []) as any[]) {
         const d = km(coordsOf(p))
         if (d == null) continue
@@ -78,18 +76,15 @@ export async function fetchNearest(origin: { lat: number; lng: number }, userId?
         if (!baseSlug || !p.slug) continue
         const isService = p.listing_type === 'service_offer' || p.type === 'service'
         if (isService) {
-            if (!nearestService || d < nearestService.distanceKm) {
-                nearestService = { kind: 'servico', id: p.id, name: p.name, subtitle: store?.name || owner?.name || null, imageUrl: productImage(p.image_url), price: null, distanceKm: d, href: `/${baseSlug}/${p.slug}` }
-            }
+            nearestServices.push({ kind: 'servico', id: p.id, name: p.name, subtitle: store?.name || owner?.name || null, imageUrl: productImage(p.image_url), price: null, distanceKm: d, href: `/${baseSlug}/${p.slug}` })
         } else if (p.listing_type === 'sale' && p.type === 'physical') {
-            if (!nearestProduct || d < nearestProduct.distanceKm) {
-                nearestProduct = {
-                    kind: 'produto', id: p.id, name: p.name, subtitle: store?.name || null,
-                    imageUrl: productImage(p.image_url), price: p.price != null ? Number(p.price) : null, distanceKm: d, href: `/${baseSlug}/${p.slug}`,
-                }
-            }
+            nearestProducts.push({
+                kind: 'produto', id: p.id, name: p.name, subtitle: store?.name || null,
+                imageUrl: productImage(p.image_url), price: p.price != null ? Number(p.price) : null, distanceKm: d, href: `/${baseSlug}/${p.slug}`,
+            })
         }
     }
 
-    return { loja: nearestStore, produto: nearestProduct, servico: nearestService }
+    const top3 = (list: NearestItem[]) => list.sort((a, b) => a.distanceKm - b.distanceKm).slice(0, 3)
+    return { loja: top3(nearestStores), produto: top3(nearestProducts), servico: top3(nearestServices) }
 }
