@@ -154,9 +154,11 @@ interface FeaturedServicesProps {
     hideIcon?: boolean
     // Botão "ver serviços" no lado direito do título (vai pro marketplace de serviços)
     onViewAll?: () => void
+    // Botão no lado esquerdo da linha de navegação (embaixo dos cards), ex: "publicar serviço"
+    leftAction?: ReactNode
 }
 
-export default function FeaturedServices({ dragHandle, title = 'Serviços em destaque', maxItems, className = '', hideIcon = false, onViewAll }: FeaturedServicesProps) {
+export default function FeaturedServices({ dragHandle, title = 'Serviços em destaque', maxItems, className = '', hideIcon = false, onViewAll, leftAction }: FeaturedServicesProps) {
     const router = useRouter()
     const startNavProgress = useNavProgressStore((s) => s.start)
     const { colors } = useTheme()
@@ -235,7 +237,8 @@ export default function FeaturedServices({ dragHandle, title = 'Serviços em des
         )
     }
 
-    if (!services.length) return null
+    // Sem serviço nenhum a seção some, mas o botão da esquerda (publicar) continua à mão
+    if (!services.length) return leftAction ? <div className="flex">{leftAction}</div> : null
 
     return (
         <div
@@ -307,47 +310,52 @@ export default function FeaturedServices({ dragHandle, title = 'Serviços em des
                     ))}
                 </div>
 
+                {(leftAction || totalPages > 1) && (
+                    <div className="flex items-center justify-between gap-3 mt-4">
+                        {leftAction}
                 {totalPages > 1 && (
-                    <div className="flex items-center justify-center gap-3 mt-4">
-                        <button
-                            onClick={goToPrev}
-                            className="w-7 h-7 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95"
-                            style={{ background: GRADIENT, color: '#ffffff' }}
-                            aria-label="Anterior"
-                        >
-                            <ChevronLeft size={14} />
-                        </button>
-
-                        <div className="flex items-center gap-1.5">
-                            {Array.from({ length: totalPages }).map((_, idx) => (
-                                <button
-                                    key={idx}
-                                    onClick={() => goToPage(idx)}
-                                    className="rounded-full transition-all duration-300"
-                                    style={{
-                                        width: idx === currentIndex ? '1.2rem' : '0.5rem',
-                                        height: '0.5rem',
-                                        background: idx === currentIndex ? '#f97316' : colors.border,
-                                        boxShadow: idx === currentIndex ? `0 0 8px #f9731650` : 'none',
-                                    }}
-                                    aria-label={`Ir para página ${idx + 1}`}
-                                />
-                            ))}
+                        <div className="flex items-center justify-center gap-3 ml-auto">
+                            <button
+                                onClick={goToPrev}
+                                className="w-7 h-7 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95"
+                                style={{ background: GRADIENT, color: '#ffffff' }}
+                                aria-label="Anterior"
+                            >
+                                <ChevronLeft size={14} />
+                            </button>
+    
+                            <div className={`items-center gap-1.5 ${leftAction ? 'hidden sm:flex' : 'flex'}`}>
+                                {Array.from({ length: totalPages }).map((_, idx) => (
+                                    <button
+                                        key={idx}
+                                        onClick={() => goToPage(idx)}
+                                        className="rounded-full transition-all duration-300"
+                                        style={{
+                                            width: idx === currentIndex ? '1.2rem' : '0.5rem',
+                                            height: '0.5rem',
+                                            background: idx === currentIndex ? '#f97316' : colors.border,
+                                            boxShadow: idx === currentIndex ? `0 0 8px #f9731650` : 'none',
+                                        }}
+                                        aria-label={`Ir para página ${idx + 1}`}
+                                    />
+                                ))}
+                            </div>
+    
+                            <span className="text-xs font-medium px-2" style={{ color: colors.textPrimary }}>
+                                {currentIndex + 1}/{totalPages}
+                            </span>
+    
+                            <button
+                                onClick={goToNext}
+                                className="w-7 h-7 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95"
+                                style={{ background: GRADIENT, color: '#ffffff' }}
+                                aria-label="Próximo"
+                            >
+                                <ChevronRight size={14} />
+                            </button>
                         </div>
-
-                        <span className="text-xs font-medium px-2" style={{ color: colors.textPrimary }}>
-                            {currentIndex + 1}/{totalPages}
-                        </span>
-
-                        <button
-                            onClick={goToNext}
-                            className="w-7 h-7 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95"
-                            style={{ background: GRADIENT, color: '#ffffff' }}
-                            aria-label="Próximo"
-                        >
-                            <ChevronRight size={14} />
-                        </button>
-                    </div>
+                    )}
+                        </div>
                 )}
             </div>
 

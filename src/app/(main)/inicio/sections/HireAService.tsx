@@ -80,17 +80,6 @@ export default function HireAService({ dragHandle, onUrgentChange }: HireAServic
                     action={<span />}
                 />
 
-                <div className="flex flex-row flex-wrap gap-2">
-                    <button
-                        onClick={goPublish}
-                        className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-full font-bold text-sm transition-all hover:scale-105 active:scale-95"
-                        style={outlineButtonStyle}
-                    >
-                        <Megaphone size={16} />
-                        publicar serviço
-                    </button>
-                </div>
-
                 {/* Pedidos de serviço que a própria pessoa fez, com quem se candidatou */}
                 <div className="mt-5">
                     <MyOpenServiceRequests limit={3} title="Seus pedidos em aberto" onCountChange={setMyOpenCount} />
@@ -105,7 +94,21 @@ export default function HireAService({ dragHandle, onUrgentChange }: HireAServic
 
                 {/* Serviços que profissionais e lojas já oferecem */}
                 <div className="mt-6">
-                    <FeaturedServices title="Quem já oferece serviço" hideIcon onViewAll={() => { startNavProgress(); router.push('/solicitar-servico') }} />
+                    <FeaturedServices
+                        title="Quem já oferece serviço"
+                        hideIcon
+                        onViewAll={() => { startNavProgress(); router.push('/solicitar-servico') }}
+                        leftAction={(
+                            <button
+                                onClick={goPublish}
+                                className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-full font-bold text-sm transition-all hover:scale-105 active:scale-95 flex-shrink-0"
+                                style={outlineButtonStyle}
+                            >
+                                <Megaphone size={16} />
+                                publicar serviço
+                            </button>
+                        )}
+                    />
                 </div>
 
                 {/* Pedidos de todo mundo: quem está procurando um profissional */}
