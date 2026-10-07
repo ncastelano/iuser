@@ -706,22 +706,25 @@ export default function MapPage() {
                 }
 
                 if (index === 0 && group.length > 1) {
+                    // O número do cluster é um marcador PRÓPRIO, com z-index acima de qualquer
+                    // marcador de loja/produto (inclusive os do top 3, z 600). Dentro do marcador da
+                    // loja ele ficava preso no z-index dele e sumia atrás da imagem de outro.
                     const badge = document.createElement('div')
                     badge.innerHTML = `${group.length}`
                     badge.style.cssText = `
-                        position: absolute;
-                        bottom: -8px;
-                        right: -8px;
                         background: linear-gradient(135deg, #f97316, #ef4444);
                         color: white;
-                        font-size: 10px;
+                        font-size: 12px;
                         font-weight: 900;
-                        padding: 3px 8px;
+                        line-height: 1;
+                        min-width: 24px;
+                        text-align: center;
+                        padding: 5px 8px;
                         border-radius: 20px;
                         border: 2px solid white;
-                        z-index: 10;
+                        z-index: 2000;
                         cursor: pointer;
-                        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+                        box-shadow: 0 2px 8px rgba(0,0,0,0.35);
                     `
                     badge.onclick = (e) => {
                         e.stopPropagation()
@@ -733,7 +736,11 @@ export default function MapPage() {
                         })
                         map.flyTo({ center: [lng, lat], zoom: 18, duration: 600 })
                     }
-                    el.appendChild(badge)
+                    // Canto inferior direito do marcador da loja (âncora 'bottom' = base no ponto)
+                    const badgeMarker = new mapboxgl.Marker({ element: badge, anchor: 'center', offset: [boxSize / 2 - 2, -2] })
+                        .setLngLat([lng, lat])
+                        .addTo(map)
+                    markersRef.current.push(badgeMarker)
                 }
 
                 el.onclick = async () => {
