@@ -202,7 +202,8 @@ export default function RadarSection({ dragHandle, origin, userId, onDefineLocat
 
                 {/* Definir local (esquerda) e Abrir radar (direita), embaixo do "mais perto de você" */}
                 <div className="relative z-10 mt-4 flex justify-end gap-2">
-                    {onDefineLocation && (
+                    {/* Só aparece enquanto não há local definido; com local, o Radar já mostra o que está perto */}
+                    {onDefineLocation && !origin && (
                         <button
                             onClick={(e) => { e.stopPropagation(); onDefineLocation() }}
                             className="flex items-center gap-1.5 px-4 py-2.5 rounded-full font-bold text-sm text-white transition-all hover:scale-105 active:scale-95"
