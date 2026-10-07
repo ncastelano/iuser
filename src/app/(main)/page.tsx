@@ -10,7 +10,9 @@ import CategoriasSection from './inicio/sections/CanIhelp'
 import RadarSection from './inicio/sections/RadarSection'
 import MotoristaSection from './inicio/sections/MotoristaSection'
 import AcceptARider from './inicio/sections/AcceptARider'
-import HireAService from './inicio/sections/HireAService'
+import MyServiceRequests from './inicio/sections/MyServiceRequests'
+import OfferAService from './inicio/sections/OfferAService'
+import NeedAService from './inicio/sections/NeedAService'
 import SortableSection from './inicio/sections/SortableSection'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { useProfile } from '../contexts/ProfileContext'
@@ -43,7 +45,9 @@ const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 // ===== TODAS AS SEÇÕES DISPONÍVEIS (INCLUINDO AS "EM BREVE") =====
 const DEFAULT_SECTIONS = [
     'categorias',
-    'servico',
+    'meusPedidos',
+    'servicosOferecidos',
+    'servicosProcurados',
     'storeList',
     'radar',
     'canalMotorista',
@@ -163,8 +167,11 @@ function HomePageContent() {
                 if (Array.isArray(parsed)) {
                     const unique = Array.from(new Set(parsed))
                     const hasCategorias = unique.includes('categorias')
-                    // 'servicoShowcase' virou parte do card 'servico' (HireAService)
-                    let filtered = unique.filter(s => s !== 'categorias' && s !== 'servicoShowcase')
+                    // 'servicoShowcase' virou parte do card 'servico', que depois foi
+                    // separado em 3 cards: o 'servico' salvo vira os 3, na mesma posição.
+                    let filtered = unique
+                        .filter(s => s !== 'categorias' && s !== 'servicoShowcase')
+                        .flatMap(s => s === 'servico' ? ['meusPedidos', 'servicosOferecidos', 'servicosProcurados'] : [s])
                     const missing = DEFAULT_SECTIONS.filter(s => !filtered.includes(s))
                     const final = hasCategorias ? ['categorias', ...filtered, ...missing] : [...filtered, ...missing]
                     setSections(final)
@@ -328,7 +335,7 @@ function HomePageContent() {
         const list: string[] = []
         if (canalMotoristaUrgent) list.push('canalMotorista')
         // Inscrito num serviço: o card de Serviços fica logo abaixo do Canal do Motorista
-        if (servicoUrgent) list.push('servico')
+        if (servicoUrgent) list.push('meusPedidos')
         if (motoristaUrgent) list.push('motorista')
         return list
     }, [motoristaUrgent, canalMotoristaUrgent, servicoUrgent])
@@ -497,8 +504,12 @@ function HomePageContent() {
                 return <MotoristaSection onBreveStatusChange={breveCallbacks.motorista} onUrgentChange={setMotoristaUrgent} />
             case 'canalMotorista':
                 return <AcceptARider onUrgentChange={setCanalMotoristaUrgent} />
-            case 'servico':
-                return <HireAService onUrgentChange={setServicoUrgent} />
+            case 'meusPedidos':
+                return <MyServiceRequests onUrgentChange={setServicoUrgent} />
+            case 'servicosOferecidos':
+                return <OfferAService />
+            case 'servicosProcurados':
+                return <NeedAService />
             default:
                 return null
         }

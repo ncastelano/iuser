@@ -1,15 +1,15 @@
-// src/app/(main)/inicio/sections/ServiceSeekers.tsx
+// src/app/(main)/inicio/sections/NeedAService.tsx
 //
-// "Quem procura serviço": os pedidos de serviço abertos de TODO mundo (inclusive
+// Card da home "Quem procura serviço": os pedidos de serviço abertos de TODO mundo (inclusive
 // os da própria pessoa), pra qualquer um ver que tem gente precisando e poder
 // pedir o seu também. Inscrever-se continua em /procurar-servico (exige plano
 // Prestador); aqui é só a vitrine.
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
-import { MapPin, Plus, Eye, Check, Wrench, MoreHorizontal, Pencil, Trash2, X } from 'lucide-react'
+import { MapPin, Plus, Eye, Check, Wrench, HandHelping, MoreHorizontal, Pencil, Trash2, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase/client'
 import ServiceRequestDetailsDialog from '@/components/ServiceRequestDetailsDialog'
@@ -18,21 +18,22 @@ import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
 import { BoardItem, fetchOpenBoardItems, fetchOpenRequestCount, getItemIcon, getItemLabel, shortAddress, askedAgo, notifyServiceRequestsChanged, SERVICE_REQUESTS_CHANGED } from '@/lib/serviceBoard'
-import { HOME_GRADIENT } from './HomeSectionKit'
-import { HomeSubheading } from './HomeSubheading'
+import { HOME_GRADIENT, HomeGlassCard, HomeSectionHeader } from './HomeSectionKit'
 import { ViewServicesButton } from './ViewServicesButton'
-import type { ApplicationStatus } from '@/hooks/useMyServiceApplications'
+import { useMyServiceApplications } from '@/hooks/useMyServiceApplications'
 
 // Em vitrine pública, só rua/bairro — o número fica pra quem for atender.
 function publicPlace(address: string): string {
     return shortAddress(address).replace(/[,\s]+\d+\s*\w*$/, '')
 }
 
-export default function ServiceSeekers({ limit = 8, applied }: { limit?: number; applied?: Map<string, ApplicationStatus> }) {
+export default function NeedAService({ dragHandle, limit = 8 }: { dragHandle?: ReactNode; limit?: number }) {
     const { colors } = useTheme()
     const router = useRouter()
     const startNavProgress = useNavProgressStore((s) => s.start)
     const { userId } = useProfile()
+    const { items: myApplications } = useMyServiceApplications()
+    const applied = useMemo(() => new Map(myApplications.map((a) => [a.requestId, a.status])), [myApplications])
     const [items, setItems] = useState<BoardItem[] | null>(null)
     const [totalCount, setTotalCount] = useState(0)
     const [menuItem, setMenuItem] = useState<BoardItem | null>(null)
@@ -79,8 +80,11 @@ export default function ServiceSeekers({ limit = 8, applied }: { limit?: number;
     if (items === null) return null
 
     return (
-        <div>
-            <HomeSubheading
+        <section>
+          <HomeGlassCard className="p-5 sm:p-6 relative">
+            <HomeSectionHeader
+                icon={HandHelping}
+                dragHandle={dragHandle}
                 title="Quem procura serviço"
                 subtitle={items.length > 0 ? 'Pessoas precisando de um profissional agora' : 'Ninguém pediu ainda — seja o primeiro'}
                 action={<ViewServicesButton onClick={() => go('/procurar-servico')} count={totalCount} />}
@@ -266,6 +270,7 @@ export default function ServiceSeekers({ limit = 8, applied }: { limit?: number;
                 <Plus size={16} />
                 Precisa de um serviço? Peça o seu
             </button>
-        </div>
+          </HomeGlassCard>
+        </section>
     )
 }

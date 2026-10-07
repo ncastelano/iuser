@@ -1,7 +1,7 @@
 // app/(main)/meus-servicos/page.tsx
 //
 // "Meus serviços publicados" — pra onde o botão "publicar serviço" da home
-// (HireAService.tsx) leva. Junta numa página só os dois tipos de serviço
+// (OfferAService.tsx) leva. Junta numa página só os dois tipos de serviço
 // que a pessoa pode ter: os que uma loja dela vende (products.type=
 // 'service', com store_id) e os pessoais/freelance (ProfileServiceListing,
 // products.listing_type='service_offer', sem loja). Antes disso não

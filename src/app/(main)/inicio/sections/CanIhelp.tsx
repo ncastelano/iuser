@@ -82,7 +82,7 @@ export default function CanIhelp({ dragHandle }: CanIhelpProps) {
     const { profileSlug } = useProfile()
     const startNavProgress = useNavProgressStore((s) => s.start)
 
-    // Mesmas rotas já usadas em MotoristaSection/HireAService — "publicar"
+    // Mesmas rotas já usadas em MotoristaSection/OfferAService — "publicar"
     // sem perfil ainda manda pro login, igual lá.
     const featuredActions: FeaturedAction[] = [
         {
