@@ -51,16 +51,17 @@ export default function RadarSection({ dragHandle, origin, userId }: RadarSectio
                 className="relative rounded-3xl p-6 overflow-hidden"
                 style={{ background: 'linear-gradient(135deg, #111827, #1f2937)', boxShadow: '0 8px 32px rgba(0,0,0,0.25)' }}
             >
-                {/* Anéis do radar, decorativos */}
-                <div className="absolute -right-6 sm:right-6 top-1/2 -translate-y-1/2 pointer-events-none">
-                    {[140, 100, 60].map((size, i) => (
+                {/* Anéis do radar, decorativos: no celular o centro fica na borda direita,
+                    então os círculos aparecem cortados ao meio (efeito de radar saindo do card) */}
+                <div className="absolute right-0 sm:right-6 top-[92px] -translate-y-1/2 pointer-events-none">
+                    {[200, 140, 84].map((size, i) => (
                         <div
                             key={size}
                             className="absolute rounded-full border"
                             style={{
                                 width: size, height: size,
                                 left: -size / 2, top: -size / 2,
-                                borderColor: `rgba(249,115,22,${0.35 - i * 0.08})`,
+                                borderColor: `rgba(249,115,22,${0.4 - i * 0.09})`,
                             }}
                         />
                     ))}
@@ -73,17 +74,9 @@ export default function RadarSection({ dragHandle, origin, userId }: RadarSectio
                         <span className="text-[10px] font-black uppercase tracking-wider text-white/60">iUser</span>
                     </div>
                     <h3 className="text-xl font-black text-white mb-1.5">Radar</h3>
-                    <p className="text-sm text-white/70 mb-4">
+                    <p className="text-sm text-white/70">
                         Veja quem e o que tem perto de você agora — lojas, pessoas e ofertas em tempo real.
                     </p>
-                    <button
-                        onClick={() => { startNavProgress(); router.push('/radar') }}
-                        className="flex items-center gap-1.5 px-5 py-2.5 rounded-full font-bold text-sm text-white transition-all hover:scale-105 active:scale-95"
-                        style={{ background: GRADIENT, boxShadow: '0 4px 14px #f9731650' }}
-                    >
-                        <Navigation size={14} />
-                        Abrir radar
-                    </button>
                 </div>
 
                 {/* Os 3 mais perto de você: uma loja, um produto e um serviço */}
@@ -107,6 +100,7 @@ export default function RadarSection({ dragHandle, origin, userId }: RadarSectio
                                             key={item.kind}
                                             onClick={() => { startNavProgress(); router.push(item.href) }}
                                             className="group relative block overflow-hidden rounded-xl aspect-square text-left transition-all hover:scale-[1.03] active:scale-95"
+                                            style={{ boxShadow: '0 8px 24px rgba(0,0,0,0.5)' }}
                                         >
                                             {/* Imagem do tamanho do card inteiro */}
                                             {item.imageUrl ? (
@@ -149,6 +143,18 @@ export default function RadarSection({ dragHandle, origin, userId }: RadarSectio
                             )}
                         </>
                     )}
+                </div>
+
+                {/* Abrir radar: embaixo do "mais perto de você", no lado direito */}
+                <div className="relative z-10 mt-4 flex justify-end">
+                    <button
+                        onClick={() => { startNavProgress(); router.push('/radar') }}
+                        className="flex items-center gap-1.5 px-5 py-2.5 rounded-full font-bold text-sm text-white transition-all hover:scale-105 active:scale-95"
+                        style={{ background: GRADIENT, boxShadow: '0 4px 14px #f9731650' }}
+                    >
+                        <Navigation size={14} />
+                        Abrir radar
+                    </button>
                 </div>
             </div>
         </section>
