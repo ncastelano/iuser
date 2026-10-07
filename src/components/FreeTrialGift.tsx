@@ -123,7 +123,7 @@ export default function FreeTrialGift({ onRequireLogin, onClaimed, hideWhenEnded
                     <button
                         onClick={startClaim}
                         disabled={t.claiming}
-                        className="w-full flex items-center justify-center gap-2 px-5 pt-4 pb-3 rounded-full text-sm font-black text-white transition-transform hover:scale-[1.02] active:scale-95 disabled:opacity-60"
+                        className="gift-pulse w-full flex items-center justify-center gap-2 px-5 pt-4 pb-3 rounded-full text-sm font-black text-white active:scale-95 disabled:opacity-60"
                         style={{ background: GRADIENT, boxShadow: '0 8px 24px #f9731650' }}
                     >
                         {t.claiming ? <Spinner size={16} color="#ffffff" /> : <Gift size={16} />}
@@ -131,6 +131,17 @@ export default function FreeTrialGift({ onRequireLogin, onClaimed, hideWhenEnded
                     </button>
                 )}
             </div>
+
+            {/* Pulso suave pra chamar atenção pro brinde (um respiro de escala + um anel de luz que se expande) */}
+            <style>{`
+                @keyframes giftPulse {
+                    0%, 100% { transform: scale(1); box-shadow: 0 8px 24px #f9731650, 0 0 0 0 rgba(249,115,22,0.55); }
+                    50% { transform: scale(1.025); box-shadow: 0 10px 28px #f9731680, 0 0 0 10px rgba(249,115,22,0); }
+                }
+                .gift-pulse { animation: giftPulse 2s ease-in-out infinite; }
+                .gift-pulse:hover { animation-play-state: paused; transform: scale(1.03); }
+                @media (prefers-reduced-motion: reduce) { .gift-pulse { animation: none; } }
+            `}</style>
 
             {confirmOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)' }}>

@@ -17,7 +17,7 @@ import { Spinner } from '@/components/Spinner'
 import { loadPlatformTariffs } from '@/lib/platformTariffs'
 import RideChat from '@/components/RideChat'
 import { DRIVER_CHAT_QUICK_REPLIES } from '@/lib/rideChatQuickReplies'
-import { HomeGlassCard } from './HomeSectionKit'
+import { ViewServicesButton } from './ViewServicesButton'
 import { useMyVehicles } from '@/lib/vehicleHeaderTabs'
 import { RideOfferCard, type OfferRide, type OfferRequester } from '@/components/AceitarCorridas/RideOfferCard'
 
@@ -430,63 +430,39 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
 
     return (
         <section>
-            <HomeGlassCard className="p-6 relative">
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-                    <div className="flex items-center gap-4">
-                        {dragHandle && <div>{dragHandle}</div>}
-
-                        <div>
-                            <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
-                                Canal do Motorista
-                            </h3>
-                            <p className="text-sm mt-1" style={{ color: colors.textPrimary }}>
-                                Defina sua tarifa e aceite corridas disponíveis
-                            </p>
-                        </div>
-                    </div>
-
-                    <div className="flex flex-col items-stretch sm:items-end gap-2 w-full sm:w-auto">
-                        <div className="flex flex-row flex-nowrap gap-2 justify-center sm:justify-end">
-                            {driverModeActive ? (
-                                <>
-                                    {/* Sem veículo cadastrado: convida a adicionar; com veículo: vai pro painel */}
-                                    <button
-                                        onClick={hasVehicle ? goToPainel : goToAddVehicle}
-                                        className="flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-3 rounded-full font-bold text-xs sm:text-sm transition-all whitespace-nowrap hover:scale-105 active:scale-95 flex-1 sm:flex-none min-w-0"
-                                        style={buttonStyle}
-                                    >
-                                        {hasVehicle ? <Settings2 size={16} className="flex-shrink-0" /> : <Plus size={16} className="flex-shrink-0" />}
-                                        {hasVehicle ? 'painel do motorista' : 'adicionar veículo'}
-                                    </button>
-
-                                    <button
-                                        onClick={goToCorridas}
-                                        className="flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-6 py-3 rounded-full font-bold text-xs sm:text-sm transition-all shadow-lg whitespace-nowrap hover:scale-105 active:scale-95 flex-1 sm:flex-none min-w-0"
-                                        style={buttonStyle}
-                                    >
-                                        <Car size={16} className="flex-shrink-0" />
-                                        ver corridas
-                                    </button>
-                                </>
-                            ) : (
-                                <button
-                                    onClick={goToPainel}
-                                    className="flex items-center justify-center gap-2 px-6 py-3 rounded-full font-bold text-sm transition-all shadow-lg whitespace-nowrap hover:scale-105 active:scale-95"
-                                    style={buttonStyle}
-                                >
-                                    <Settings2 size={16} />
-                                    Ativar modo motorista
-                                </button>
-                            )}
-                        </div>
+            {/* Mesmo desenho de "Produtos em destaque" / Motorista Particular: título e frase, sem card em volta */}
+            <div className="flex items-start justify-between gap-3 mb-4">
+                <div className="flex items-center gap-3 min-w-0">
+                    {dragHandle}
+                    <div className="min-w-0">
+                        <h2 className="text-lg font-black leading-tight" style={{ color: colors.textPrimary }}>Canal do Motorista</h2>
+                        <p className="text-xs opacity-60" style={{ color: colors.textPrimary }}>Defina sua tarifa e aceite corridas disponíveis</p>
                     </div>
                 </div>
+                {!driverModeActive && (
+                    <ViewServicesButton label="Ativar modo motorista" onClick={goToPainel} />
+                )}
+            </div>
+
+            {driverModeActive && (
+                <div className="flex gap-2 mb-4">
+                    {/* Sem veículo cadastrado: convida a adicionar; com veículo: vai pro painel */}
+                    <button
+                        onClick={hasVehicle ? goToPainel : goToAddVehicle}
+                        className="flex-1 flex items-center justify-center py-2 rounded-full font-black text-xs transition-all hover:scale-[1.02] active:scale-95 whitespace-nowrap"
+                        style={{ background: 'transparent', color: colors.accent, border: `2px solid ${colors.accent}` }}
+                    >
+                        {hasVehicle ? 'painel do motorista' : 'adicionar veículo'}
+                    </button>
+                    <ViewServicesButton label="ver corridas" onClick={goToCorridas} />
+                </div>
+            )}
 
                 {acceptedRide && (
                     <div
                         onClick={goToCorridas}
-                        className="w-full mt-4 p-3 rounded-2xl text-left transition-all hover:scale-[1.01] cursor-pointer"
-                        style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}
+                        className="w-full mb-4 p-3 rounded-2xl text-left transition-all hover:scale-[1.01] cursor-pointer"
+                        style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
                     >
                         <div className="flex items-center justify-between gap-2 flex-wrap mb-1">
                             <span
@@ -516,13 +492,13 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
                 )}
 
                 {myCandidacies.length > 0 && (
-                    <div className="flex flex-col gap-2 mt-4">
+                    <div className="flex flex-col gap-2 mb-4">
                         {myCandidacies.map((ride) => (
                             <button
                                 key={ride.id}
                                 onClick={() => goToRide(ride.id, 'candidatos')}
                                 className="w-full p-3 rounded-2xl text-left transition-all hover:scale-[1.01]"
-                                style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}
+                                style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
                             >
                                 <div className="flex items-center justify-between gap-2 mb-1.5">
                                     <span
@@ -696,7 +672,6 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
                         )}
                     </div>
                 )}
-            </HomeGlassCard>
         </section>
     )
 }

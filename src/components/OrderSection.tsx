@@ -2,9 +2,9 @@
 'use client'
 
 import { ReactNode, useState, useEffect } from 'react'
-import { Settings2, Save, RotateCcw, X, Layout } from 'lucide-react'
+import { Settings2, Layout } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
-import { HomeGlassCard, HOME_GRADIENT } from '@/app/(main)/inicio/sections/HomeSectionKit'
+import { HOME_GRADIENT } from '@/app/(main)/inicio/sections/HomeSectionKit'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = HOME_GRADIENT
@@ -128,95 +128,57 @@ export default function OrderSection({
 
     return (
         <section>
-            <HomeGlassCard className="p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
-                    {dragHandle && <div>{dragHandle}</div>}
-
-                    {/* Ícone com gradiente laranja-vermelho */}
-                    <div
-                        className="w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0"
-                        style={{
-                            background: GRADIENT,
-                            color: '#ffffff',
-                            boxShadow: `0 4px 12px #f9731640`,
-                        }}
-                    >
-                        <Settings2 size={28} />
-                    </div>
-
-                    <div>
-                        <h2 className="text-lg font-black" style={{ color: colors.textPrimary }}>
-                            Organizar Página
-                        </h2>
-                        <p className="text-sm mt-1" style={{ color: colors.textPrimary }}>
-                            Personalize a ordem das seções na sua página inicial.
+            {/* Mesmo desenho das outras seções da home: título e frase à esquerda, botão em pílula à direita, sem card */}
+            <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                    {dragHandle}
+                    <div className="min-w-0">
+                        <h2 className="text-lg font-black leading-tight" style={{ color: colors.textPrimary }}>Organizar Página</h2>
+                        <p className="text-xs opacity-60" style={{ color: colors.textPrimary }}>
+                            Personalize a ordem das seções na sua página inicial
+                            {defaultOrder.length > 0 && ` · ${defaultOrder.length} seções`}
                         </p>
-                        {defaultOrder.length > 0 && (
-                            <p className="text-xs mt-0.5 opacity-60" style={{ color: colors.textPrimary }}>
-                                {defaultOrder.length} seções disponíveis
-                            </p>
-                        )}
                     </div>
                 </div>
 
-                {!isEditing ? (
+                {!isEditing && (
                     <button
                         onClick={onToggleEdit}
                         disabled={disabled}
-                        className="px-6 py-3 rounded-full font-bold text-sm flex items-center gap-2 transition-all hover:scale-105 active:scale-95 shadow-lg flex-shrink-0"
-                        style={{
-                            background: GRADIENT,
-                            color: '#ffffff',
-                            boxShadow: `0 4px 14px #f9731660`,
-                        }}
+                        className="flex items-center gap-2 px-5 py-2 rounded-full text-xs font-bold transition-all hover:scale-105 active:scale-95 hover:shadow-lg whitespace-nowrap flex-shrink-0 disabled:opacity-50"
+                        style={{ background: GRADIENT, color: '#ffffff', boxShadow: '0 2px 8px rgba(249, 115, 22, 0.3)' }}
                     >
-                        <Layout size={16} />
                         Personalizar ordem
                     </button>
-                ) : (
-                    <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto flex-shrink-0">
-                        <button
-                            onClick={onSave}
-                            className="px-6 py-3 rounded-full font-bold text-sm flex items-center gap-2 transition-all hover:scale-105 active:scale-95 shadow-lg"
-                            style={{
-                                background: GRADIENT,
-                                color: '#ffffff',
-                                boxShadow: `0 4px 14px #f9731660`,
-                            }}
-                        >
-                            <Save size={16} />
-                            Salvar Ordem
-                        </button>
-
-                        <button
-                            onClick={onToggleEdit}
-                            className="px-6 py-3 rounded-full font-bold text-sm flex items-center gap-2 transition-all hover:opacity-70 active:scale-95"
-                            style={{
-                                background: 'transparent',
-                                color: colors.textPrimary,
-                                border: `1px solid ${colors.border}`,
-                            }}
-                        >
-                            <X size={16} />
-                            Cancelar
-                        </button>
-
-                        <button
-                            onClick={handleRestore}
-                            className="px-6 py-3 rounded-full font-bold text-sm flex items-center gap-2 transition-all hover:opacity-70 active:scale-95"
-                            style={{
-                                background: 'transparent',
-                                color: colors.textPrimary,
-                                border: `1px solid ${colors.border}`,
-                            }}
-                            title="Restaurar ordem padrão"
-                        >
-                            <RotateCcw size={16} />
-                            Restaurar Padrão
-                        </button>
-                    </div>
                 )}
-            </HomeGlassCard>
+            </div>
+
+            {isEditing && (
+                <div className="flex gap-2 mt-4">
+                    <button
+                        onClick={onSave}
+                        className="flex-1 py-2 rounded-full font-black text-xs transition-all hover:scale-[1.02] active:scale-95 whitespace-nowrap"
+                        style={{ background: GRADIENT, color: '#ffffff', boxShadow: '0 2px 8px rgba(249, 115, 22, 0.3)' }}
+                    >
+                        Salvar ordem
+                    </button>
+                    <button
+                        onClick={onToggleEdit}
+                        className="flex-1 py-2 rounded-full font-black text-xs transition-all hover:opacity-70 active:scale-95 whitespace-nowrap"
+                        style={{ background: 'transparent', color: colors.textPrimary, border: `1px solid ${colors.border}` }}
+                    >
+                        Cancelar
+                    </button>
+                    <button
+                        onClick={handleRestore}
+                        className="flex-1 py-2 rounded-full font-black text-xs transition-all hover:opacity-70 active:scale-95 whitespace-nowrap"
+                        style={{ background: 'transparent', color: colors.textPrimary, border: `1px solid ${colors.border}` }}
+                        title="Restaurar ordem padrão"
+                    >
+                        Restaurar padrão
+                    </button>
+                </div>
+            )}
 
             {isEditing && (
                 <div className="mt-3 px-1">
