@@ -1,8 +1,8 @@
 // src/app/(main)/inicio/sections/OfferAService.tsx
 //
 // Seção da home "Quem já oferece serviço": vitrine dos serviços que
-// profissionais e lojas já publicaram, sem card em volta (tudo flutuante), com o "ver serviços" (badge com o total)
-// ao lado do atalho "Oferecer um serviço" pra quem quer publicar o seu.
+// profissionais e lojas já publicaram, sem card em volta (tudo flutuante), 
+// "Oferecer um serviço" (esquerda) e "ver serviços" com o total (direita) logo abaixo da frase do título.
 'use client'
 
 import { ReactNode } from 'react'
@@ -38,9 +38,8 @@ export default function OfferAService({ dragHandle }: OfferAServiceProps) {
                 subtitle="Profissionais e lojas prontos para te atender"
                 hideIcon
                 dragHandle={dragHandle}
-                footer={(count) => (
+                actions={(count) => (
                     <div className="flex gap-2">
-                        <ViewServicesButton onClick={() => { startNavProgress(); router.push('/solicitar-servico') }} count={count} />
                         <button
                             onClick={goPublish}
                             className="flex-1 flex items-center justify-center gap-2 py-2 rounded-full font-black text-xs transition-all hover:scale-[1.02] active:scale-95"
@@ -49,6 +48,7 @@ export default function OfferAService({ dragHandle }: OfferAServiceProps) {
                             <Megaphone size={14} />
                             Oferecer um serviço
                         </button>
+                        <ViewServicesButton onClick={() => { startNavProgress(); router.push('/solicitar-servico') }} count={count} />
                     </div>
                 )}
             />

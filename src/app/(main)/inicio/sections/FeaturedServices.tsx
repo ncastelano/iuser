@@ -158,11 +158,12 @@ interface FeaturedServicesProps {
     leftAction?: ReactNode
     // Frase abaixo do título (some o contador "N serviços" quando há onViewAll, que mostra o total no badge)
     subtitle?: string
-    // Linha de botões embaixo de tudo; recebe o total de serviços (ex: "ver serviços" com badge + "Oferecer um serviço")
-    footer?: (count: number) => ReactNode
+    // Linha de botões logo abaixo da frase do título (antes dos cards); recebe o total de serviços
+    // (ex: "Oferecer um serviço" + "ver serviços" com badge)
+    actions?: (count: number) => ReactNode
 }
 
-export default function FeaturedServices({ dragHandle, title = 'Serviços em destaque', maxItems, className = '', hideIcon = false, onViewAll, leftAction, subtitle, footer }: FeaturedServicesProps) {
+export default function FeaturedServices({ dragHandle, title = 'Serviços em destaque', maxItems, className = '', hideIcon = false, onViewAll, leftAction, subtitle, actions }: FeaturedServicesProps) {
     const router = useRouter()
     const startNavProgress = useNavProgressStore((s) => s.start)
     const { colors } = useTheme()
@@ -242,7 +243,7 @@ export default function FeaturedServices({ dragHandle, title = 'Serviços em des
     }
 
     // Sem serviço nenhum a seção some, mas o botão da esquerda (publicar) continua à mão
-    if (!services.length) return footer ? <div>{footer(0)}</div> : leftAction ? <div className="flex">{leftAction}</div> : null
+    if (!services.length) return actions ? <div>{actions(0)}</div> : leftAction ? <div className="flex">{leftAction}</div> : null
 
     return (
         <div
@@ -257,6 +258,8 @@ export default function FeaturedServices({ dragHandle, title = 'Serviços em des
                 dragHandle={dragHandle}
                 action={onViewAll ? <ViewServicesButton onClick={onViewAll} count={services.length} /> : <span />}
             />
+
+            {actions && <div className="-mt-1 mb-4">{actions(services.length)}</div>}
 
             <div className="relative">
                 <div className={`grid ${gridCols} gap-4 transition-all duration-500`}>
@@ -315,10 +318,10 @@ export default function FeaturedServices({ dragHandle, title = 'Serviços em des
                 </div>
 
                 {(leftAction || totalPages > 1) && (
-                    <div className="flex items-center justify-between gap-3 mt-4">
+                    <div className={`flex items-center gap-3 mt-4 ${leftAction ? 'justify-between' : 'justify-center'}`}>
                         {leftAction}
                 {totalPages > 1 && (
-                        <div className="flex items-center justify-center gap-3 ml-auto">
+                        <div className={`flex items-center justify-center gap-3 ${leftAction ? 'ml-auto' : ''}`}>
                             <button
                                 onClick={goToPrev}
                                 className="w-7 h-7 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95"
@@ -363,7 +366,6 @@ export default function FeaturedServices({ dragHandle, title = 'Serviços em des
                 )}
             </div>
 
-            {footer && <div className="mt-4">{footer(services.length)}</div>}
         </div>
     )
 }
