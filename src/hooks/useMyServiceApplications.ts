@@ -5,9 +5,13 @@
 // inscrevi" e marca "Quero fazer esse serviço" como já feito em "Quem procura
 // serviço". Recarrega quando algum pedido muda e quando a aba volta ao foco
 // (a inscrição costuma ser feita em /procurar-servico, noutra página).
+//
+// O estado é compartilhado (um store no módulo): vários componentes da home usam
+// este hook ao mesmo tempo e, mesmo assim, só uma busca roda por vez — sem isso
+// cada card repetia as mesmas 3 consultas ao Supabase.
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useSyncExternalStore } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { getAvatarUrl } from '@/lib/avatar'
@@ -30,17 +34,27 @@ export interface MyApplication {
     requesterAvatarUrl: string | undefined
 }
 
-export function useMyServiceApplications() {
-    const { userId, loading: profileLoading } = useProfile()
-    const [items, setItems] = useState<MyApplication[]>([])
-    const [loading, setLoading] = useState(true)
+interface Snapshot {
+    userId: string | null | undefined // undefined = ainda não buscou pra ninguém
+    items: MyApplication[]
+    loading: boolean
+}
 
-    const load = useCallback(async () => {
-        if (!userId) {
-            setItems([])
-            setLoading(false)
-            return
-        }
+// Não rebusca no mount se os dados são mais novos que isso (outro card acabou de buscar).
+const FRESH_MS = 3000
+
+let snapshot: Snapshot = { userId: undefined, items: [], loading: true }
+let fetchedAt = 0
+let inflight: Promise<void> | null = null
+let inflightUser: string | null = null
+const listeners = new Set<() => void>()
+
+function emit(next: Snapshot) {
+    snapshot = next
+    listeners.forEach((l) => l())
+}
+
+async function fetchApplications(userId: string): Promise<MyApplication[]> {
         const { data: apps } = await supabase
             .from('service_applications')
             .select('id, service_request_id, status, created_at')
@@ -48,11 +62,7 @@ export function useMyServiceApplications() {
             .order('created_at', { ascending: false })
             .limit(20)
 
-        if (!apps || apps.length === 0) {
-            setItems([])
-            setLoading(false)
-            return
-        }
+        if (!apps || apps.length === 0) return []
 
         const { data: requests } = await supabase
             .from('service_requests')
@@ -85,23 +95,73 @@ export function useMyServiceApplications() {
                 requesterAvatarUrl: getAvatarUrl(supabase, p?.avatar_url),
             })
         }
-        setItems(result)
-        setLoading(false)
-    }, [userId])
+    return result
+}
+
+function refresh(userId: string | null): Promise<void> {
+    if (!userId) {
+        emit({ userId: null, items: [], loading: false })
+        return Promise.resolve()
+    }
+    // Já tem uma busca desse usuário em andamento: todo mundo espera a mesma.
+    if (inflight && inflightUser === userId) return inflight
+    inflightUser = userId
+    const run = fetchApplications(userId)
+        .then((items) => {
+            if (inflightUser === userId) emit({ userId, items, loading: false })
+            fetchedAt = Date.now()
+        })
+        .catch(() => {
+            if (inflightUser === userId) emit({ userId, items: snapshot.userId === userId ? snapshot.items : [], loading: false })
+        })
+        .finally(() => { if (inflight === run) inflight = null })
+    inflight = run
+    return run
+}
+
+// Gatilhos de recarga: ligados só enquanto houver alguém usando o hook.
+let activeUserId: string | null = null
+const onTrigger = () => { refresh(activeUserId) }
+const onVisible = () => { if (document.visibilityState === 'visible') refresh(activeUserId) }
+
+function subscribe(listener: () => void) {
+    if (listeners.size === 0) {
+        window.addEventListener(SERVICE_REQUESTS_CHANGED, onTrigger)
+        window.addEventListener('focus', onTrigger)
+        document.addEventListener('visibilitychange', onVisible)
+    }
+    listeners.add(listener)
+    return () => {
+        listeners.delete(listener)
+        if (listeners.size === 0) {
+            window.removeEventListener(SERVICE_REQUESTS_CHANGED, onTrigger)
+            window.removeEventListener('focus', onTrigger)
+            document.removeEventListener('visibilitychange', onVisible)
+        }
+    }
+}
+
+const getSnapshot = () => snapshot
+const SERVER_SNAPSHOT: Snapshot = { userId: undefined, items: [], loading: true }
+
+export function useMyServiceApplications() {
+    const { userId, loading: profileLoading } = useProfile()
+    const state = useSyncExternalStore(subscribe, getSnapshot, () => SERVER_SNAPSHOT)
 
     useEffect(() => {
         if (profileLoading) return
-        load()
-        const onVisible = () => { if (document.visibilityState === 'visible') load() }
-        window.addEventListener(SERVICE_REQUESTS_CHANGED, load)
-        window.addEventListener('focus', load)
-        document.addEventListener('visibilitychange', onVisible)
-        return () => {
-            window.removeEventListener(SERVICE_REQUESTS_CHANGED, load)
-            window.removeEventListener('focus', load)
-            document.removeEventListener('visibilitychange', onVisible)
+        activeUserId = userId ?? null
+        const sameUser = snapshot.userId === activeUserId
+        if (!sameUser) {
+            // Trocou de conta (ou primeira vez): limpa o que era de outra pessoa.
+            emit({ userId: activeUserId, items: [], loading: !!activeUserId })
+            refresh(activeUserId)
+        } else if (Date.now() - fetchedAt > FRESH_MS) {
+            refresh(activeUserId)
         }
-    }, [profileLoading, load])
+    }, [profileLoading, userId])
 
-    return { items, loading, reload: load }
+    // loading continua true enquanto o perfil carrega ou o store é de outro usuário
+    const loading = profileLoading || state.loading || state.userId !== (userId ?? null)
+    return { items: state.userId === (userId ?? null) ? state.items : [], loading, reload: () => refresh(userId ?? null) }
 }
