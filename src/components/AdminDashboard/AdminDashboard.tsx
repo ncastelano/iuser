@@ -7,20 +7,22 @@ import { supabase } from '@/lib/supabase/client'
 import { Spinner } from '@/components/Spinner'
 import { toast } from 'sonner'
 import { hexToRgb } from '@/lib/color'
-import { Check, X, Copy, Plus, ShieldOff, ShieldCheck, Send, CalendarClock, Wallet, Tag, Sparkles, MessageCircle, Search, Activity, PiggyBank, Car, Gift, CircleDashed } from 'lucide-react'
+import { Check, X, Copy, Plus, ShieldOff, ShieldCheck, Send, CalendarClock, Wallet, Tag, Sparkles, MessageCircle, Search, Activity, PiggyBank, Car, Gift, CircleDashed, Handshake } from 'lucide-react'
 import HierarchyAdmin from './HierarchyAdmin'
 import ActivitySection from './ActivitySection'
 import FinanceSection from './FinanceSection'
 import PlatformTariffsSection from './PlatformTariffsSection'
 import FreeTrialSection from './FreeTrialSection'
 import AvatarBordersSection from './AvatarBordersSection'
+import GrantsSection from './GrantsSection'
 import { callAdminApi } from '@/lib/callAdminApi'
 
-type Section = 'pagamentos' | 'saques' | 'planos' | 'tarifas' | 'brinde' | 'bordas' | 'hierarquia' | 'whatsapp' | 'atividade' | 'financeiro'
+type Section = 'pagamentos' | 'concedidos' | 'saques' | 'planos' | 'tarifas' | 'brinde' | 'bordas' | 'hierarquia' | 'whatsapp' | 'atividade' | 'financeiro'
 
 const SECTIONS: { id: Section; label: string; icon: typeof Send }[] = [
     { id: 'atividade', label: 'Atividade', icon: Activity },
     { id: 'pagamentos', label: 'Pagamentos', icon: Wallet },
+    { id: 'concedidos', label: 'Concedidos', icon: Handshake },
     { id: 'financeiro', label: 'Financeiro', icon: PiggyBank },
     { id: 'planos', label: 'Planos', icon: CalendarClock },
     { id: 'tarifas', label: 'Tarifas', icon: Car },
@@ -99,6 +101,7 @@ export default function AdminDashboard() {
 
             {section === 'atividade' && <ActivitySection cardStyle={cardStyle} colors={colors} />}
             {section === 'pagamentos' && <SubscriptionsSection cardStyle={cardStyle} colors={colors} />}
+            {section === 'concedidos' && <GrantsSection cardStyle={cardStyle} colors={colors} />}
             {section === 'financeiro' && <FinanceSection cardStyle={cardStyle} colors={colors} />}
             {section === 'bordas' && <AvatarBordersSection cardStyle={cardStyle} colors={colors} />}
             {section === 'brinde' && <FreeTrialSection cardStyle={cardStyle} colors={colors} />}
@@ -111,7 +114,6 @@ export default function AdminDashboard() {
                     <PlanManageSection cardStyle={cardStyle} colors={colors} />
                     <PlanPricingSection cardStyle={cardStyle} colors={colors} />
                     <ServicePricingSection cardStyle={cardStyle} colors={colors} />
-                    <PlanGrantsSection cardStyle={cardStyle} colors={colors} />
                     <PlanCodesSection cardStyle={cardStyle} colors={colors} />
                 </div>
             )}
@@ -219,27 +221,6 @@ function SubscriptionsSection({ cardStyle, colors }: SectionProps) {
                     {paid.activeCount} assinatura{paid.activeCount !== 1 ? 's' : ''} ativa{paid.activeCount !== 1 ? 's' : ''} via Asaas ·{' '}
                     {paid.onceCount} pagou 1x · {paid.multipleCount} pagou 2x ou mais
                 </p>
-            </div>
-
-            <div style={cardStyle} className="space-y-2">
-                <p className="text-xs font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>
-                    Concedido de graça (não é receita)
-                </p>
-                <p className="text-2xl font-black" style={{ color: colors.textPrimary }}>{grantedFree.activeCount}</p>
-                <div className="flex flex-wrap gap-2">
-                    {grantedFree.plans.map((p) => (
-                        <span
-                            key={p.code}
-                            className="text-[11px] font-bold px-3 py-1.5 rounded-full"
-                            style={{ background: `${colors.border}30`, color: colors.textSecondary }}
-                        >
-                            {p.name}: {p.count}
-                        </span>
-                    ))}
-                    {grantedFree.plans.length === 0 && (
-                        <span className="text-xs" style={{ color: colors.textSecondary }}>Nenhum plano concedido de graça ativo.</span>
-                    )}
-                </div>
             </div>
 
             <div className="space-y-2">
