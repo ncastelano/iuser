@@ -47,7 +47,7 @@ INSERT INTO public.avatar_borders (slug, name, description, colors, grant_mode, 
 VALUES (
     'eu-sou-brasileiro',
     'Eu sou brasileiro',
-    'Verde com brilhos de amarelo e azul. Pra quem entrou no plano Pré-pago até 15 de novembro.',
+    'E não desisto nunca - Pra quem entrou no plano Pré-pago até 15 de novembro.',
     ARRAY['#4ade80', '#86efac', '#fde047', '#38bdf8', '#3b82f6', '#22c55e'],
     'auto_prepaid',
     '2026-11-15 23:59:59-03',

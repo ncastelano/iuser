@@ -273,9 +273,11 @@ export function ProfileInfo({ profile, onProfileUpdate }: ProfileInfoProps) {
                                         >
                                             Bordas
                                         </button>
-                                        <p className="text-[10px] font-bold max-w-[110px] leading-tight" style={{ color: colors.textSecondary }}>
-                                            {myBorderName ? `Borda: ${myBorderName}` : 'Sem borda'}
-                                        </p>
+                                        {myBorderName && (
+                                            <p className="text-[10px] font-bold max-w-[110px] leading-tight" style={{ color: colors.textSecondary }}>
+                                                Borda: {myBorderName}
+                                            </p>
+                                        )}
                                     </div>
                                 </div>
                                 <p className="text-[8px] text-center font-medium" style={{ color: colors.textSecondary }}>
