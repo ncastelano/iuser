@@ -3,6 +3,7 @@
 
 import { useState, useEffect, useMemo, ReactNode } from 'react'
 import { ViewServicesButton } from './ViewServicesButton'
+import PlanAvatarRing from '@/components/PlanAvatarRing'
 import { useTheme } from '@/app/contexts/theme'
 import { useRouter } from 'next/navigation'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
@@ -87,7 +88,7 @@ function useFeaturedProfiles() {
 // mais simples de navegar no celular (é só arrastar o dedo).
 export default function FeaturedProfiles({
     dragHandle,
-    title = 'Pessoas em destaque',
+    title = 'Acabou de entrar',
     maxItems,
     className = '',
     onProfileClick,
@@ -147,35 +148,37 @@ export default function FeaturedProfiles({
         <div className={`relative w-full ${className}`}>
             <HomeSectionHeader
                 title={title}
-                subtitle="Melhores perfis"
+                subtitle="Seja bem-vindo"
                 dragHandle={dragHandle}
                 action={hasProfiles ? (
                     <ViewServicesButton label="ver pessoas" count={profiles.length} onClick={handleViewAll} />
                 ) : <span />}
             />
 
-            <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4" style={{ scrollbarWidth: 'none' }}>
+            <div className="flex gap-3 overflow-x-auto pt-1.5 pb-2 -mx-4 px-4" style={{ scrollbarWidth: 'none' }}>
                 {displayProfiles.map((profile) => (
                     <div
                         key={profile.id}
                         onClick={() => handleProfileClick(profile)}
                         className="w-24 flex-shrink-0 flex flex-col items-center gap-2 cursor-pointer group"
                     >
-                        {profile.avatarUrl ? (
-                            <img
-                                src={profile.avatarUrl}
-                                alt={profile.name}
-                                loading="lazy"
-                                className="w-20 h-20 rounded-full object-cover transition-transform duration-300 group-hover:scale-105"
-                            />
-                        ) : (
-                            <div
-                                className="w-20 h-20 rounded-full flex items-center justify-center font-black text-white text-xl transition-transform duration-300 group-hover:scale-105"
-                                style={{ background: GRADIENT }}
-                            >
-                                {profile.slug?.charAt(0).toUpperCase() || '?'}
-                            </div>
-                        )}
+                        <PlanAvatarRing userId={profile.id} width={3}>
+                            {profile.avatarUrl ? (
+                                <img
+                                    src={profile.avatarUrl}
+                                    alt={profile.name}
+                                    loading="lazy"
+                                    className="w-20 h-20 rounded-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                />
+                            ) : (
+                                <div
+                                    className="w-20 h-20 rounded-full flex items-center justify-center font-black text-white text-xl transition-transform duration-300 group-hover:scale-105"
+                                    style={{ background: GRADIENT }}
+                                >
+                                    {profile.slug?.charAt(0).toUpperCase() || '?'}
+                                </div>
+                            )}
+                        </PlanAvatarRing>
                         <div className="text-center w-24">
                             <p className="text-[11px] font-bold truncate" style={{ color: colors.textPrimary }}>{profile.name}</p>
                             <p className="text-[9px] opacity-50 truncate" style={{ color: colors.textPrimary }}>@{profile.slug}</p>

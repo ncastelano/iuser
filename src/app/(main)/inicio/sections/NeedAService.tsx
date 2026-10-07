@@ -21,6 +21,7 @@ import { BoardItem, fetchOpenBoardItems, fetchOpenRequestCount, getItemIcon, get
 import { HOME_GRADIENT, HomeSectionHeader } from './HomeSectionKit'
 import { ViewServicesButton } from './ViewServicesButton'
 import { useMyServiceApplications } from '@/hooks/useMyServiceApplications'
+import PlanAvatarRing from '@/components/PlanAvatarRing'
 
 // Em vitrine pública, só rua/bairro — o número fica pra quem for atender.
 function publicPlace(address: string): string {
@@ -104,13 +105,15 @@ export default function NeedAService({ dragHandle, limit = 8 }: { dragHandle?: R
                             }}
                         >
                             <div className="flex items-center gap-2">
-                                {item.requester?.avatarUrl ? (
-                                    <img src={item.requester.avatarUrl} className="w-7 h-7 rounded-full object-cover flex-shrink-0" alt="" />
-                                ) : (
-                                    <span className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-black" style={{ background: HOME_GRADIENT, color: '#fff' }}>
-                                        {who.charAt(0).toUpperCase()}
-                                    </span>
-                                )}
+                                <PlanAvatarRing userId={item.requester_id}>
+                                    {item.requester?.avatarUrl ? (
+                                        <img src={item.requester.avatarUrl} className="w-7 h-7 rounded-full object-cover flex-shrink-0" alt="" />
+                                    ) : (
+                                        <span className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-black" style={{ background: HOME_GRADIENT, color: '#fff' }}>
+                                            {who.charAt(0).toUpperCase()}
+                                        </span>
+                                    )}
+                                </PlanAvatarRing>
                                 <div className="min-w-0 flex-1">
                                     <p className="text-xs font-bold truncate flex items-center gap-1.5" style={{ color: colors.textPrimary }}>
                                         {who}

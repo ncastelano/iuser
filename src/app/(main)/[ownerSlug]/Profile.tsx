@@ -45,6 +45,7 @@ import { Spinner } from '@/components/Spinner'
 import ProfileScheduleModal from '@/components/ProfileScheduleModal'
 import { toast } from 'sonner'
 import { getAvatarUrl } from '@/lib/avatar'
+import PlanAvatarRing, { usePlanRing } from '@/components/PlanAvatarRing'
 import { usePublicationsStore } from '@/store/usePublicationStore'
 import { handleShareLink } from '@/lib/share'
 import { Follows } from './Follows'
@@ -250,6 +251,7 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
     const [services, setServices] = useState<any[]>([])
     const [ratings, setRatings] = useState<RatingRow[]>([])
     const [imageUrl, setImageUrl] = useState<string | null>(null)
+    const ownerHasRing = usePlanRing(owner?.id)
     const [uploadingAvatar, setUploadingAvatar] = useState(false)
     const [stores, setStores] = useState<any[]>([])
     const [activeTab, setActiveTab] = useState<ProfileTab>('publications')
@@ -1397,20 +1399,23 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
 
                 <div className="flex flex-col items-center text-center">
                     <div className="relative">
-                        <div
-                            className="w-28 h-28 rounded-full p-[3px] animate-pulse-glow"
-                            style={{ background: GRADIENT }}
-                        >
-                            <div className="w-full h-full rounded-full overflow-hidden bg-white flex items-center justify-center">
-                                {imageUrl ? (
-                                    <img src={imageUrl} alt={owner.name} className="w-full h-full object-cover" />
-                                ) : (
-                                    <span className="text-5xl font-black" style={{ color: '#f97316' }}>
-                                        {owner.name?.charAt(0) || '?'}
-                                    </span>
-                                )}
+                        {/* Plano Pré-pago (ou hierarquia): a borda laranja dá lugar à moldura esmeralda que gira */}
+                        <PlanAvatarRing userId={owner.id} width={4}>
+                            <div
+                                className={`w-28 h-28 rounded-full p-[3px] ${ownerHasRing ? '' : 'animate-pulse-glow'}`}
+                                style={{ background: ownerHasRing ? 'transparent' : GRADIENT }}
+                            >
+                                <div className="w-full h-full rounded-full overflow-hidden bg-white flex items-center justify-center">
+                                    {imageUrl ? (
+                                        <img src={imageUrl} alt={owner.name} className="w-full h-full object-cover" />
+                                    ) : (
+                                        <span className="text-5xl font-black" style={{ color: '#f97316' }}>
+                                            {owner.name?.charAt(0) || '?'}
+                                        </span>
+                                    )}
+                                </div>
                             </div>
-                        </div>
+                        </PlanAvatarRing>
                         {isOwner && (
                             <>
                                 <input type="file" ref={fileInputRef} onChange={handleAvatarChange} accept="image/*" style={{ display: 'none' }} />

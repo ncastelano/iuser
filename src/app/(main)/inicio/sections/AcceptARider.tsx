@@ -20,6 +20,7 @@ import { DRIVER_CHAT_QUICK_REPLIES } from '@/lib/rideChatQuickReplies'
 import { ViewServicesButton } from './ViewServicesButton'
 import { useMyVehicles } from '@/lib/vehicleHeaderTabs'
 import { RideOfferCard, type OfferRide, type OfferRequester } from '@/components/AceitarCorridas/RideOfferCard'
+import PlanAvatarRing from '@/components/PlanAvatarRing'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -53,6 +54,7 @@ interface OpenRidePreview {
 interface CandidacyPreview {
     id: string
     ride_type: 'pessoa' | 'objeto' | 'animal'
+    requesterId?: string
     requesterName: string | null
     requesterSlug: string | null
     requesterAvatarUrl: string | undefined
@@ -293,6 +295,7 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
                 list.push({
                     id: r.id,
                     ride_type: r.ride_type,
+                    requesterId: r.requester_id,
                     requesterName: p?.name || null,
                     requesterSlug: p?.profileSlug || null,
                     requesterAvatarUrl: getAvatarUrl(supabase, p?.avatar_url),
@@ -515,16 +518,18 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
                                 </div>
 
                                 <div className="flex items-center gap-2 mb-1.5">
-                                    {ride.requesterAvatarUrl ? (
-                                        <img src={ride.requesterAvatarUrl} className="w-8 h-8 rounded-full object-cover flex-shrink-0" alt="" />
-                                    ) : (
-                                        <span
-                                            className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-black"
-                                            style={{ background: GRADIENT, color: '#fff' }}
-                                        >
-                                            {(ride.requesterName || ride.requesterSlug || '?').charAt(0).toUpperCase()}
-                                        </span>
-                                    )}
+                                    <PlanAvatarRing userId={ride.requesterId}>
+                                        {ride.requesterAvatarUrl ? (
+                                            <img src={ride.requesterAvatarUrl} className="w-8 h-8 rounded-full object-cover flex-shrink-0" alt="" />
+                                        ) : (
+                                            <span
+                                                className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-black"
+                                                style={{ background: GRADIENT, color: '#fff' }}
+                                            >
+                                                {(ride.requesterName || ride.requesterSlug || '?').charAt(0).toUpperCase()}
+                                            </span>
+                                        )}
+                                    </PlanAvatarRing>
                                     <div className="min-w-0 flex-1">
                                         <p className="text-xs font-black truncate" style={{ color: colors.textPrimary }}>
                                             {ride.requesterName || (ride.requesterSlug ? `@${ride.requesterSlug}` : 'Passageiro')}

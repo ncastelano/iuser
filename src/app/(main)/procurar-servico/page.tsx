@@ -18,6 +18,7 @@ import { notifyServiceApplication } from '@/lib/notifyRideStatus'
 import { trackServiceRequestView } from '@/lib/trackServiceRequestView'
 import { getServiceIcon } from '@/lib/serviceTypes'
 import { useMyServiceApplications } from '@/hooks/useMyServiceApplications'
+import PlanAvatarRing from '@/components/PlanAvatarRing'
 import {
     BoardItem,
     fetchOpenBoardItems,
@@ -415,13 +416,15 @@ function SerParceiroContent() {
                                     >
                                         {/* Quem está pedindo */}
                                         <div className="flex items-center gap-2 mb-3">
-                                            {job.requester?.avatarUrl ? (
-                                                <img src={job.requester.avatarUrl} className="w-7 h-7 rounded-full object-cover flex-shrink-0" alt="" />
-                                            ) : (
-                                                <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-black" style={{ background: GRADIENT, color: '#fff' }}>
-                                                    {(job.requester?.name || '?').charAt(0).toUpperCase()}
-                                                </div>
-                                            )}
+                                            <PlanAvatarRing userId={job.requester_id}>
+                                                {job.requester?.avatarUrl ? (
+                                                    <img src={job.requester.avatarUrl} className="w-7 h-7 rounded-full object-cover flex-shrink-0" alt="" />
+                                                ) : (
+                                                    <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-black" style={{ background: GRADIENT, color: '#fff' }}>
+                                                        {(job.requester?.name || '?').charAt(0).toUpperCase()}
+                                                    </div>
+                                                )}
+                                            </PlanAvatarRing>
                                             <span className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>
                                                 {job.requester?.name || (job.requester?.profileSlug ? `@${job.requester.profileSlug}` : 'Alguém')}
                                             </span>
@@ -554,13 +557,15 @@ function SerParceiroContent() {
                                         }}
                                     >
                                         <div className="flex items-center gap-2 mb-3">
-                                            {app.requesterAvatarUrl ? (
-                                                <img src={app.requesterAvatarUrl} className="w-7 h-7 rounded-full object-cover flex-shrink-0" alt="" />
-                                            ) : (
-                                                <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-black" style={{ background: GRADIENT, color: '#fff' }}>
-                                                    {(app.requesterName || '?').charAt(0).toUpperCase()}
-                                                </div>
-                                            )}
+                                            <PlanAvatarRing userId={app.requesterId}>
+                                                {app.requesterAvatarUrl ? (
+                                                    <img src={app.requesterAvatarUrl} className="w-7 h-7 rounded-full object-cover flex-shrink-0" alt="" />
+                                                ) : (
+                                                    <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-black" style={{ background: GRADIENT, color: '#fff' }}>
+                                                        {(app.requesterName || '?').charAt(0).toUpperCase()}
+                                                    </div>
+                                                )}
+                                            </PlanAvatarRing>
                                             <span className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>
                                                 {app.requesterName ? `${app.requesterName.split(' ')[0]} procura` : 'Alguém procura'}
                                             </span>

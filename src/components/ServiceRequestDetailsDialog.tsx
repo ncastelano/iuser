@@ -16,6 +16,7 @@ import { getAvatarUrl } from '@/lib/avatar'
 import { askedAgo, notifyServiceRequestsChanged } from '@/lib/serviceBoard'
 import { Spinner } from '@/components/Spinner'
 import ServiceRequestVisitors from '@/components/ServiceRequestVisitors'
+import PlanAvatarRing from '@/components/PlanAvatarRing'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -25,6 +26,7 @@ interface DialogCandidate {
     name: string | null
     profileSlug: string | null
     avatarUrl: string | undefined
+    applicantId?: string
 }
 
 interface DialogRequest {
@@ -90,6 +92,7 @@ export default function ServiceRequestDetailsDialog({ requestId, onClose }: Prop
                     name: p?.name || null,
                     profileSlug: p?.profileSlug || null,
                     avatarUrl: getAvatarUrl(supabase, p?.avatar_url),
+                    applicantId: a.applicant_id,
                 }
             }),
         })
@@ -359,13 +362,15 @@ function DetailsBody({ request, setRequest, decidingId, onDecide, onClose, color
                             <div className="flex flex-col gap-2">
                                 {request.candidates.map((c) => (
                                     <div key={c.applicationId} className="flex items-center gap-2.5 rounded-xl px-3 py-2" style={{ background: `${colors.border}30` }}>
-                                        {c.avatarUrl ? (
-                                            <img src={c.avatarUrl} className="w-8 h-8 rounded-full object-cover flex-shrink-0" alt="" />
-                                        ) : (
-                                            <span className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT }}>
-                                                <Users size={14} color="#fff" />
-                                            </span>
-                                        )}
+                                        <PlanAvatarRing userId={c.applicantId}>
+                                            {c.avatarUrl ? (
+                                                <img src={c.avatarUrl} className="w-8 h-8 rounded-full object-cover flex-shrink-0" alt="" />
+                                            ) : (
+                                                <span className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT }}>
+                                                    <Users size={14} color="#fff" />
+                                                </span>
+                                            )}
+                                        </PlanAvatarRing>
                                         <span className="text-sm font-bold flex-1 truncate" style={{ color: colors.textPrimary }}>
                                             {c.name || (c.profileSlug ? `@${c.profileSlug}` : 'Profissional')}
                                         </span>

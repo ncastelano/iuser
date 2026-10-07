@@ -30,6 +30,7 @@ export interface MyApplication {
     locationAddress: string
     description: string
     photoUrl: string | null
+    requesterId: string | null
     requesterName: string | null
     requesterAvatarUrl: string | undefined
 }
@@ -91,6 +92,7 @@ async function fetchApplications(userId: string): Promise<MyApplication[]> {
                 locationAddress: r.location_address,
                 description: r.description || '',
                 photoUrl: r.photo_urls?.[0] || null,
+                requesterId: r.requester_id,
                 requesterName: p?.name || null,
                 requesterAvatarUrl: getAvatarUrl(supabase, p?.avatar_url),
             })

@@ -11,6 +11,7 @@ import { useNavProgressStore } from '@/store/useNavProgressStore'
 import { getServiceIcon } from '@/lib/serviceTypes'
 import { MyApplication } from '@/hooks/useMyServiceApplications'
 import { HOME_GRADIENT, HomeSectionHeader } from './HomeSectionKit'
+import PlanAvatarRing from '@/components/PlanAvatarRing'
 
 function appliedAgo(iso: string): string {
     const minutes = Math.floor((Date.now() - new Date(iso).getTime()) / 60000)
@@ -66,13 +67,15 @@ export default function MyServiceApplications({ items }: { items: MyApplication[
                             }}
                         >
                             <div className="flex items-center gap-2">
-                                {item.requesterAvatarUrl ? (
-                                    <img src={item.requesterAvatarUrl} className="w-7 h-7 rounded-full object-cover flex-shrink-0" alt="" />
-                                ) : (
-                                    <span className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-black" style={{ background: HOME_GRADIENT, color: '#fff' }}>
-                                        {who.charAt(0).toUpperCase()}
-                                    </span>
-                                )}
+                                <PlanAvatarRing userId={item.requesterId}>
+                                    {item.requesterAvatarUrl ? (
+                                        <img src={item.requesterAvatarUrl} className="w-7 h-7 rounded-full object-cover flex-shrink-0" alt="" />
+                                    ) : (
+                                        <span className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-black" style={{ background: HOME_GRADIENT, color: '#fff' }}>
+                                            {who.charAt(0).toUpperCase()}
+                                        </span>
+                                    )}
+                                </PlanAvatarRing>
                                 <div className="min-w-0 flex-1">
                                     <p className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>{who}</p>
                                     <p className="text-[10px] whitespace-nowrap" style={{ color: colors.textSecondary }}>inscrito {appliedAgo(item.appliedAt)}</p>

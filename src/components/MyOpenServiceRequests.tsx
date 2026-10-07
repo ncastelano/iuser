@@ -28,6 +28,7 @@ interface Candidate {
     status: 'pending' | 'accepted' | 'rejected'
     name: string | null
     avatarUrl: string | undefined
+    applicantId?: string
 }
 
 interface OpenRequest {
@@ -100,7 +101,7 @@ export default function MyOpenServiceRequests({ limit = 5, title, onCountChange 
                 .filter((a) => a.service_request_id === r.id)
                 .map((a) => {
                     const p = profilesById.get(a.applicant_id)
-                    return { id: a.id, status: a.status, name: p?.name || null, avatarUrl: getAvatarUrl(supabase, p?.avatar_url) }
+                    return { id: a.id, status: a.status, name: p?.name || null, avatarUrl: getAvatarUrl(supabase, p?.avatar_url), applicantId: a.applicant_id }
                 }),
         })))
         setLoading(false)
