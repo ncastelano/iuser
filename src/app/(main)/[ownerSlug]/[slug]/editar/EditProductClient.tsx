@@ -1,6 +1,7 @@
 // src/app/(app)/[ownerSlug]/[slug]/editar/EditProductClient.tsx
 'use client'
 
+import MoneyInput from '@/components/MoneyInput'
 import CategorySuggestions from '@/components/StoreDashboard/CategorySuggestions'
 import { useState, useRef, useEffect } from 'react'
 import { useRouter, useParams } from 'next/navigation'
@@ -418,12 +419,9 @@ export function EditProductClient() {
                                     <label className="text-sm font-bold" style={{ color: colors.textPrimary }}>
                                         Preço (R$)
                                     </label>
-                                    <input
-                                        type="number"
-                                        step="0.01"
+                                    <MoneyInput
                                         value={price}
-                                        onChange={(e) => setPrice(e.target.value)}
-                                        placeholder="0.00"
+                                        onChange={setPrice}
                                         className="w-full px-4 py-3 rounded-xl border focus:outline-none focus:ring-2 transition-all"
                                         style={{
                                             background: colors.surface,
