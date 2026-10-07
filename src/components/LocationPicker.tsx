@@ -186,29 +186,43 @@ export default function LocationPicker({ initialLocation, onSave, onClose, allow
     // sempre no mesmo ponto fixo (Brasília), em vez de onde a pessoa está.
     const [resolvingMapEntry, setResolvingMapEntry] = useState(false)
 
+    // "Marcar no mapa" pergunta antes onde a pessoa está, só pra abrir o mapa perto dela e
+    // mostrar um lugar melhor pra marcar. Essa posição não é salva em lugar nenhum.
+    const [askLocationForMap, setAskLocationForMap] = useState(false)
+
     const chooseMethod = useCallback((m: 'search' | 'map') => {
         setMethod(m)
-
-        if (m === 'map' && !initialLocation) {
-            setResolvingMapEntry(true)
-            getNativeCurrentPosition(
-                (pos) => {
-                    setSelectedPosition({ lat: pos.coords.latitude, lng: pos.coords.longitude })
-                    setResolvingMapEntry(false)
-                    setStep('address')
-                },
-                () => {
-                    // sem permissão/indisponível: segue mesmo assim com o ponto padrão
-                    setResolvingMapEntry(false)
-                    setStep('address')
-                },
-                { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
-            )
+        if (m === 'map') {
+            setAskLocationForMap(true)
             return
         }
-
         setStep('address')
-    }, [initialLocation])
+    }, [])
+
+    // Aceitou: abre o mapa já na posição atual (o pino laranja começa onde ela está)
+    const useCurrentPositionForMap = useCallback(() => {
+        setAskLocationForMap(false)
+        setResolvingMapEntry(true)
+        getNativeCurrentPosition(
+            (pos) => {
+                setSelectedPosition({ lat: pos.coords.latitude, lng: pos.coords.longitude })
+                setResolvingMapEntry(false)
+                setStep('address')
+            },
+            () => {
+                // sem permissão/indisponível: segue com a localização salva ou o ponto padrão
+                setResolvingMapEntry(false)
+                setStep('address')
+            },
+            { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
+        )
+    }, [])
+
+    // Recusou: abre o mapa onde já estaria (localização salva ou ponto padrão)
+    const skipCurrentPositionForMap = useCallback(() => {
+        setAskLocationForMap(false)
+        setStep('address')
+    }, [])
 
     // ===== SINCRONIZAÇÃO DE LOCALIZAÇÃO PARA MOTORISTA =====
     // Só aparece pra quem já aceitou um plano de tarifa em /painel-motorista
@@ -852,7 +866,36 @@ export default function LocationPicker({ initialLocation, onSave, onClose, allow
                                 </div>
                             )}
 
-                            {resolvingMapEntry ? (
+                            {askLocationForMap ? (
+                                <div className="flex flex-col gap-3 py-1">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-9 h-9 rounded-full flex items-center justify-center" style={{ background: '#f9731622', color: '#f97316' }}>
+                                            <Navigation size={18} />
+                                        </div>
+                                        <p className="text-sm font-black" style={{ color: colors.textPrimary }}>Onde você está agora?</p>
+                                    </div>
+                                    <p className="text-xs leading-relaxed" style={{ color: colors.textSecondary }}>
+                                        Se você permitir, abrimos o mapa perto de onde você está pra ficar mais fácil achar o melhor lugar pra marcar. Usamos sua posição só pra isso — ela não é salva.
+                                    </p>
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={skipCurrentPositionForMap}
+                                            className="flex-1 py-2.5 rounded-xl text-xs font-bold border"
+                                            style={{ borderColor: colors.border, color: colors.textPrimary }}
+                                        >
+                                            Agora não
+                                        </button>
+                                        <button
+                                            onClick={useCurrentPositionForMap}
+                                            className="flex-1 py-2.5 rounded-xl text-xs font-black text-white flex items-center justify-center gap-1.5"
+                                            style={{ background: 'linear-gradient(135deg, #f97316, #dc2626)' }}
+                                        >
+                                            <Navigation size={13} />
+                                            Usar minha localização
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : resolvingMapEntry ? (
                                 <div className="flex flex-col items-center gap-2 py-6">
                                     <Spinner size={24} color="#f97316" />
                                     <p className="text-xs font-medium" style={{ color: colors.textPrimary, opacity: 0.7 }}>
