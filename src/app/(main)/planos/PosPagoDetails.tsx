@@ -14,16 +14,13 @@ import Header from '@/components/Header'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import DriverDebtBanner from '@/components/DriverDebtBanner'
 import FreeTrialGift from '@/components/FreeTrialGift'
+import { PostpaidFees, TYPE_INFO, type ChargeType } from '@/components/planos/PostpaidFees'
 import { Spinner } from '@/components/Spinner'
 import { Car, Wrench, ShoppingBag, Package, Megaphone, CalendarCheck, CalendarPlus, Wallet, Info } from 'lucide-react'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 const DEBT_LIMIT = 50
 const MAX_ROWS = 1000
-
-type ChargeType =
-    | 'ride_fee' | 'service_fee' | 'order_fee' | 'in_person_fee' | 'product_fee' | 'publication_fee'
-    | 'schedule_activation_fee' | 'appointment_fee' | 'payment'
 
 interface Charge {
     id: string
@@ -35,18 +32,6 @@ interface Charge {
     product_id: string | null
     appointment_id: string | null
     store_id: string | null
-}
-
-const TYPE_INFO: Record<ChargeType, { label: string; plural: string; icon: any; how: string }> = {
-    ride_fee: { label: 'Corrida finalizada', plural: 'corridas', icon: Car, how: 'Cada corrida que você finaliza como motorista.' },
-    service_fee: { label: 'Serviço aceito', plural: 'serviços', icon: Wrench, how: 'Cada serviço em que o cliente aceita a sua candidatura.' },
-    order_fee: { label: 'Pedido de loja pago', plural: 'pedidos', icon: ShoppingBag, how: 'Cada pedido pago na sua loja.' },
-    in_person_fee: { label: 'Venda presencial', plural: 'vendas presenciais', icon: ShoppingBag, how: 'Cada venda presencial registrada no balcão da loja.' },
-    product_fee: { label: 'Produto cadastrado', plural: 'produtos', icon: Package, how: 'Cada produto novo que você adiciona à sua loja ou ao seu perfil.' },
-    publication_fee: { label: 'Publicação criada', plural: 'publicações', icon: Megaphone, how: 'Cada publicação nova na sua loja ou no seu perfil.' },
-    schedule_activation_fee: { label: 'Agenda ativada', plural: 'ativações de agenda', icon: CalendarPlus, how: 'Ao ativar a agenda da loja ou do perfil (uma única vez em cada).' },
-    appointment_fee: { label: 'Agendamento aceito', plural: 'agendamentos', icon: CalendarCheck, how: 'Cada agendamento de cliente que você aceita, na loja ou no perfil.' },
-    payment: { label: 'Pagamento via Pix', plural: 'pagamentos', icon: Wallet, how: '' },
 }
 
 const brl = (n: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n)
@@ -63,20 +48,6 @@ export default function PosPagoDetails() {
     const [isPostpaid, setIsPostpaid] = useState(false)
     const [charges, setCharges] = useState<Charge[]>([])
     const [details, setDetails] = useState<Record<string, string>>({})
-    const [servicePrices, setServicePrices] = useState<Record<string, number>>({})
-
-    // Preço vivo por tipo de serviço — o admin pode ajustar cada um a
-    // qualquer momento (até 3x uma referência), então o texto aqui nunca
-    // cravamos um valor fixo, buscamos sempre o atual.
-    useEffect(() => {
-        let cancelled = false
-        supabase.from('service_pricing').select('service_type, postpaid_price').then(({ data }) => {
-            if (cancelled || !data) return
-            setServicePrices(Object.fromEntries(data.map((r: any) => [r.service_type, Number(r.postpaid_price)])))
-        })
-        return () => { cancelled = true }
-    }, [])
-
     useEffect(() => {
         if (profileLoading) return
         if (!userId) { setLoading(false); return }
@@ -264,38 +235,11 @@ export default function PosPagoDetails() {
                                     <p className="text-[11px] mt-3 text-center" style={{ color: colors.textSecondary }}>Mostrando os 100 lançamentos mais recentes.</p>
                                 )}
                             </div>
-
-                            {/* O que gera cobrança */}
-                            <div className="rounded-2xl p-5" style={card}>
-                                <h2 className="text-sm font-black mb-1" style={{ color: colors.textPrimary }}>O que gera cobrança</h2>
-                                <p className="text-xs mb-3" style={{ color: colors.textSecondary }}>Só quem está no plano Pós-pago é cobrado. Quem tem o Pré-pago não paga por serviço.</p>
-                                <div className="flex flex-col gap-2.5">
-                                    {(Object.keys(TYPE_INFO) as ChargeType[]).filter((t) => t !== 'payment').map((t) => {
-                                        const Icon = TYPE_INFO[t].icon
-                                        const price = servicePrices[t]
-                                        return (
-                                            <div key={t} className="flex items-start gap-3">
-                                                <Icon size={16} className="flex-shrink-0 mt-0.5" style={{ color: '#f97316' }} />
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="flex items-center justify-between gap-2">
-                                                        <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>{TYPE_INFO[t].label}</p>
-                                                        {price != null && (
-                                                            <p className="text-sm font-black flex-shrink-0" style={{ color: '#f97316' }}>{brl(price)}</p>
-                                                        )}
-                                                    </div>
-                                                    <p className="text-[11px]" style={{ color: colors.textSecondary }}>{TYPE_INFO[t].how}</p>
-                                                </div>
-                                            </div>
-                                        )
-                                    })}
-                                </div>
-                                <p className="text-xs mt-4 font-bold" style={{ color: colors.textPrimary }}>Ao chegar em R$ 50,00</p>
-                                <p className="text-[11px] mt-1" style={{ color: colors.textSecondary }}>
-                                    Você paga via Pix (ou cartão) e volta a oferecer serviços na hora. Até quitar, o iUser pausa novas corridas, serviços, pedidos, produtos, publicações e agendamentos aceitos.
-                                </p>
-                            </div>
                         </>
                     )}
+
+                    {/* O que o Pós-pago cobra (preços vivos do admin) — visível pra todo mundo, logado ou não */}
+                    <PostpaidFees />
                 </section>
             </main>
         </div>

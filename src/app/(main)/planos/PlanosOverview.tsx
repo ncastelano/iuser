@@ -19,6 +19,7 @@ import { useMyVehicles, buildVehicleTabs } from '@/lib/vehicleHeaderTabs'
 import { useAdminHeaderTab } from '@/lib/adminHeaderTab'
 import { getDeviceId } from '@/lib/deviceId'
 import FreeTrialGift from '@/components/FreeTrialGift'
+import { PostpaidFees } from '@/components/planos/PostpaidFees'
 import InviteButton from '@/components/InviteButton'
 import { Car, Briefcase, Sparkles, Store, Check, Copy, X, ShieldCheck, Gift, Users, CreditCard, User, LayoutDashboard, Wallet } from 'lucide-react'
 
@@ -523,6 +524,9 @@ function PlanosContent({ focusPlan }: { focusPlan?: string }) {
                                     )
                                 })}
                             </div>
+
+                            {/* Como o Pós-pago cobra: loja, motorista, serviços e agenda (preços vivos do admin) */}
+                            <PostpaidFees className="max-w-xl w-full mx-auto" />
 
                             {userId && !isSuperAdmin && (
                                 <div className="rounded-2xl p-4 max-w-xl w-full mx-auto flex flex-col gap-2" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
