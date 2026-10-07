@@ -31,6 +31,7 @@ import {
     Banknote,
     User,
     Camera,
+    MoreHorizontal,
 } from 'lucide-react'
 import { handleShareLink } from '@/lib/share'
 import { toast } from 'sonner'
@@ -40,6 +41,8 @@ import { RatingStars } from '@/components/ratings/RatingStars'
 import { getAvatarUrl } from '@/lib/avatar'
 import AddToCartModal from '@/components/AddToCartModal'
 import FallbackImage from '@/components/FallbackImage'
+import EditProductDialog from '@/components/EditProductDialog'
+import { useProfile } from '@/app/contexts/ProfileContext'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -118,6 +121,8 @@ export function ProductClientPage({
     initialStore,
 }: ProductClientPageProps) {
     const router = useRouter()
+    const { userId: currentUserId } = useProfile()
+    const [editingProduct, setEditingProduct] = useState(false)
 
     const { itemsByStore, addItem, updateQuantity, removeItem } = useCartStore()
     const [showStoreCart, setShowStoreCart] = useState(false)
@@ -978,6 +983,23 @@ export function ProductClientPage({
 
     return (
         <div className="relative min-h-dvh" style={{ background: colors.background }}>
+            {editingProduct && (
+                <EditProductDialog
+                    productId={product.id}
+                    colors={colors}
+                    onClose={() => setEditingProduct(false)}
+                    onSaved={(updated) => {
+                        setProduct((prev) => (prev ? { ...prev, ...updated } : prev))
+                        setEditingProduct(false)
+                        // o slug pode mudar se o nome mudou
+                        if (updated?.slug && updated.slug !== slug) router.replace(`/${ownerSlug}/${updated.slug}`)
+                    }}
+                    onDeleted={() => {
+                        setEditingProduct(false)
+                        router.push(`/${ownerSlug}`)
+                    }}
+                />
+            )}
             {/* Barra do topo (mobile): tudo na mesma linha — voltar, quantidade e adicionar.
                 Fica grudada no topo enquanto rola (antes ficava embaixo, onde a barra
                 do iPhone atrapalha). */}
@@ -1086,6 +1108,17 @@ export function ProductClientPage({
                             >
                                 <Share2 size={18} color="#ffffff" />
                             </button>
+                            {!!currentUserId && currentUserId === product.store?.owner_id && (
+                                <button
+                                    onClick={() => setEditingProduct(true)}
+                                    aria-label="Editar produto"
+                                    title="Editar produto"
+                                    className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 backdrop-blur-md transition hover:scale-105"
+                                    style={{ background: 'rgba(17,17,17,0.4)' }}
+                                >
+                                    <MoreHorizontal size={18} color="#ffffff" />
+                                </button>
+                            )}
                         </div>
                     </div>
 
