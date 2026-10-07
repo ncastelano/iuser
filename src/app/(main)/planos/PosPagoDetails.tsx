@@ -1,4 +1,4 @@
-// app/(main)/planos/pos-pago/page.tsx
+// app/(main)/planos/PosPagoDetails.tsx
 //
 // Detalhes do plano Pós-pago: como funciona, quanto já foi acumulado e o extrato
 // de cada serviço que gerou cobrança (corrida, serviço, pedido, produto, etc.).
@@ -13,10 +13,9 @@ import { useTheme } from '@/app/contexts/theme'
 import Header from '@/components/Header'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import DriverDebtBanner from '@/components/DriverDebtBanner'
+import FreeTrialGift from '@/components/FreeTrialGift'
 import { Spinner } from '@/components/Spinner'
 import { Car, Wrench, ShoppingBag, Package, Megaphone, CalendarCheck, CalendarPlus, Wallet, Info } from 'lucide-react'
-
-export const dynamic = 'force-dynamic'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 const DEBT_LIMIT = 50
@@ -55,7 +54,7 @@ const fmtDate = (iso: string) =>
     new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 const short = (addr?: string | null) => (addr || '').split(',')[0]
 
-export default function PosPagoPage() {
+export default function PosPagoDetails() {
     const router = useRouter()
     const { colors } = useTheme()
     const { userId, avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
@@ -166,6 +165,9 @@ export default function PosPagoPage() {
                             Sem mensalidade. Cada serviço realizado gera um crédito (o valor varia por tipo — veja abaixo) e você paga via Pix quando o total chegar a R$ 50,00.
                         </p>
                     </div>
+
+                    {/* Brinde: teste grátis do Pré-pago, resgate único (pra quem já está no pós-pago também) */}
+                    <FreeTrialGift />
 
                     {loading || profileLoading ? (
                         <div className="flex justify-center py-10"><Spinner size={24} color={colors.textSecondary} /></div>

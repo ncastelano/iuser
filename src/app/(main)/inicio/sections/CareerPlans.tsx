@@ -8,6 +8,7 @@ import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { supabase } from '@/lib/supabase/client'
 import { HomeGlassCard, HomeSectionHeader, HOME_GRADIENT } from './HomeSectionKit'
+import { useFreeTrialSettings, trialDaysLabel } from '@/hooks/useFreeTrial'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = HOME_GRADIENT
@@ -44,6 +45,8 @@ export default function CareerPlans() {
     const { colors } = useTheme()
     const router = useRouter()
     const { userId } = useProfile()
+    const { settings: trial } = useFreeTrialSettings()
+    const trialLabel = trialDaysLabel(trial.durationDays)
 
     const [plans, setPlans] = useState<PlanRow[]>([])
     const [plansLoading, setPlansLoading] = useState(true)
@@ -93,12 +96,13 @@ export default function CareerPlans() {
     const displayPlan = activePlan || recommendedPlan
     const isActive = !!activePlan
     const isPostpaid = displayPlan?.code === 'pos_pago'
-    const destination = isPostpaid ? '/planos/pos-pago' : '/planos'
+    // "Ver detalhes" do plano leva sempre pra /planos, onde estão todas as informações de planos
+    const destination = '/planos'
     const priceLabel = isPostpaid ? 'R$ 0,50' : displayPlan ? `R$ ${displayPlan.price.toFixed(2)}` : ''
     const periodLabel = isPostpaid ? 'por uso' : displayPlan ? (CYCLE_LABEL[displayPlan.billing_cycle] || '/mês') : ''
 
     if (!userId) {
-        // Visitante: o destaque é o resgate dos 3 meses grátis do Pré-pago. Os planos
+        // Visitante: o destaque é o brinde (teste grátis do Pré-pago, resgate único). Os planos
         // (pós-pago e pré-pago) ficam em /planos, a um toque em "Ver planos".
         return (
             <section>
@@ -123,13 +127,15 @@ export default function CareerPlans() {
                                 <Gift size={24} color="#fff" />
                             </div>
                             <div className="min-w-0">
-                                <p className="text-xl font-black text-white leading-tight">3 meses grátis</p>
-                                <p className="text-xs text-white/80">do plano Pré-pago, começando no dia em que você resgatar</p>
+                                <p className="text-xl font-black text-white leading-tight">{trial.enabled ? `${trialLabel} grátis` : 'Plano Pré-pago'}</p>
+                                <p className="text-xs text-white/80">
+                                    {trial.enabled ? 'do plano Pré-pago, começando no dia em que você resgatar' : 'mensalidade única, sem taxa por serviço'}
+                                </p>
                             </div>
                         </div>
                         <div className="flex flex-col gap-2">
                             {[
-                                'Sem taxa por serviço nos 3 meses',
+                                trial.enabled ? `Sem taxa por serviço nos ${trialLabel}` : 'Sem taxa por serviço',
                                 'Libera motorista, prestador, loja e recrutador',
                                 'Vale também pra quem já está no pós-pago',
                             ].map((f) => (

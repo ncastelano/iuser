@@ -7,14 +7,15 @@ import { supabase } from '@/lib/supabase/client'
 import { Spinner } from '@/components/Spinner'
 import { toast } from 'sonner'
 import { hexToRgb } from '@/lib/color'
-import { Check, X, Copy, Plus, ShieldOff, ShieldCheck, Send, CalendarClock, Wallet, Tag, Sparkles, MessageCircle, Search, Activity, PiggyBank, Car } from 'lucide-react'
+import { Check, X, Copy, Plus, ShieldOff, ShieldCheck, Send, CalendarClock, Wallet, Tag, Sparkles, MessageCircle, Search, Activity, PiggyBank, Car, Gift } from 'lucide-react'
 import HierarchyAdmin from './HierarchyAdmin'
 import ActivitySection from './ActivitySection'
 import FinanceSection from './FinanceSection'
 import PlatformTariffsSection from './PlatformTariffsSection'
+import FreeTrialSection from './FreeTrialSection'
 import { callAdminApi } from '@/lib/callAdminApi'
 
-type Section = 'pagamentos' | 'saques' | 'planos' | 'tarifas' | 'hierarquia' | 'whatsapp' | 'atividade' | 'financeiro'
+type Section = 'pagamentos' | 'saques' | 'planos' | 'tarifas' | 'brinde' | 'hierarquia' | 'whatsapp' | 'atividade' | 'financeiro'
 
 const SECTIONS: { id: Section; label: string; icon: typeof Send }[] = [
     { id: 'atividade', label: 'Atividade', icon: Activity },
@@ -22,6 +23,7 @@ const SECTIONS: { id: Section; label: string; icon: typeof Send }[] = [
     { id: 'financeiro', label: 'Financeiro', icon: PiggyBank },
     { id: 'planos', label: 'Planos', icon: CalendarClock },
     { id: 'tarifas', label: 'Tarifas', icon: Car },
+    { id: 'brinde', label: 'Brinde', icon: Gift },
     { id: 'hierarquia', label: 'Hierarquia', icon: ShieldCheck },
     { id: 'whatsapp', label: 'WhatsApp Bot', icon: MessageCircle },
     { id: 'saques', label: 'Saques', icon: Send },
@@ -96,6 +98,7 @@ export default function AdminDashboard() {
             {section === 'atividade' && <ActivitySection cardStyle={cardStyle} colors={colors} />}
             {section === 'pagamentos' && <SubscriptionsSection cardStyle={cardStyle} colors={colors} />}
             {section === 'financeiro' && <FinanceSection cardStyle={cardStyle} colors={colors} />}
+            {section === 'brinde' && <FreeTrialSection cardStyle={cardStyle} colors={colors} />}
             {section === 'tarifas' && <PlatformTariffsSection cardStyle={cardStyle} colors={colors} />}
             {section === 'saques' && <WithdrawalsSection cardStyle={cardStyle} colors={colors} />}
             {section === 'hierarquia' && <HierarchyAdmin cardStyle={cardStyle} colors={colors} />}
@@ -153,7 +156,7 @@ const SUBSCRIPTION_SOURCE_LABEL: Record<SubscriptionRow['source'], string> = {
     admin_grant: 'Concedido pelo admin',
     code: 'Código promocional',
     leader_grant: 'Concedido por liderança',
-    free_trial: 'Teste grátis (3 meses)',
+    free_trial: 'Brinde (teste grátis)',
 }
 
 // Quem comprou (ou ganhou) cada plano — visão de negócio pro admin: quantos

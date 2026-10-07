@@ -1,13 +1,13 @@
 // app/api/subscriptions/free-trial/route.ts
 //
-// Resgata os 3 meses grátis do plano Pré-pago, contados a partir de agora. Vale pra
+// Resgata o brinde do plano Pré-pago (90 dias por padrão, configurável no Admin → Brinde), contado a partir de agora. Vale pra
 // quem já está no Pós-pago (o pós-pago fica guardado e volta a cobrar quando o teste
 // acabar) e pra quem está chegando. Uma vez por pessoa: CPF/CNPJ e aparelho únicos.
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { getAuthedUser } from '@/lib/adminAuth'
 
-const TRIAL_MONTHS = 3
+const DEFAULT_TRIAL_DAYS = 90
 
 export async function POST(req: Request) {
     try {
@@ -18,6 +18,17 @@ export async function POST(req: Request) {
 
         const { cpfCnpj, deviceId } = await req.json()
 
+        // O admin pode desligar o brinde ou mudar a duração (Admin → Brinde)
+        const { data: settings } = await supabaseAdmin
+            .from('free_trial_settings')
+            .select('enabled, duration_days')
+            .eq('id', 1)
+            .maybeSingle()
+        if (settings && !settings.enabled) {
+            return NextResponse.json({ error: 'O brinde não está disponível agora.' }, { status: 403 })
+        }
+        const trialDays = settings?.duration_days || DEFAULT_TRIAL_DAYS
+
         // Já resgatou antes? (vale pra sempre, mesmo depois de acabar)
         const { data: ownClaim } = await supabaseAdmin
             .from('free_trial_claims')
@@ -25,7 +36,7 @@ export async function POST(req: Request) {
             .eq('profile_id', user.id)
             .maybeSingle()
         if (ownClaim) {
-            return NextResponse.json({ error: 'Você já resgatou os 3 meses grátis.' }, { status: 409 })
+            return NextResponse.json({ error: 'Você já resgatou o brinde.' }, { status: 409 })
         }
 
         const { data: plan } = await supabaseAdmin
@@ -69,7 +80,7 @@ export async function POST(req: Request) {
             .or(`cpf_cnpj.eq.${resolvedCpf},device_id.eq.${deviceId}`)
             .neq('profile_id', user.id)
         if ((clashes || []).length > 0) {
-            return NextResponse.json({ error: 'Este CPF/CNPJ ou aparelho já resgatou os 3 meses grátis em outra conta.' }, { status: 409 })
+            return NextResponse.json({ error: 'Este CPF/CNPJ ou aparelho já resgatou o brinde em outra conta.' }, { status: 409 })
         }
 
         if (cleanCpf && cleanCpf !== profile?.cpf_cnpj) {
@@ -79,9 +90,9 @@ export async function POST(req: Request) {
             }
         }
 
-        // 3 meses a partir de hoje
+        // N dias a partir de hoje
         const endsAt = new Date()
-        endsAt.setMonth(endsAt.getMonth() + TRIAL_MONTHS)
+        endsAt.setDate(endsAt.getDate() + trialDays)
 
         const { data: sub, error: subError } = await supabaseAdmin
             .from('subscriptions')
@@ -98,10 +109,10 @@ export async function POST(req: Request) {
         if (claimError) {
             // Não deixa um teste ativo sem registro de resgate (daria pra repetir)
             await supabaseAdmin.from('subscriptions').delete().eq('id', sub.id)
-            return NextResponse.json({ error: 'Este CPF/CNPJ ou aparelho já resgatou os 3 meses grátis.' }, { status: 409 })
+            return NextResponse.json({ error: 'Este CPF/CNPJ ou aparelho já resgatou o brinde.' }, { status: 409 })
         }
 
-        return NextResponse.json({ activated: true, endsAt: endsAt.toISOString() })
+        return NextResponse.json({ activated: true, endsAt: endsAt.toISOString(), days: trialDays })
     } catch (err: any) {
         return NextResponse.json({ error: err.message || 'Erro ao resgatar' }, { status: 500 })
     }
