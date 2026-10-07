@@ -406,7 +406,7 @@ export default function StorePage() {
                                                     )}
                                                     <span className="absolute top-2 left-2 px-2 py-0.5 bg-black/50 backdrop-blur-md text-white text-[10px] font-bold rounded-full uppercase">
                                                         {product.type === 'physical'
-                                                            ? 'Físico'
+                                                            ? 'Produto'
                                                             : product.type === 'service'
                                                                 ? 'Serviço'
                                                                 : 'Digital'}

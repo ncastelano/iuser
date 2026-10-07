@@ -1312,7 +1312,7 @@ export default function CatalogoClientPage() {
                                             {product.type && (
                                                 <span className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[8px] font-black uppercase backdrop-blur-md"
                                                     style={{ background: 'rgba(0,0,0,0.3)', color: '#ffffff' }}>
-                                                    {product.type === 'physical' ? 'Físico' : product.type === 'service' ? 'Serviço' : 'Digital'}
+                                                    {product.type === 'physical' ? 'Produto' : product.type === 'service' ? 'Serviço' : 'Digital'}
                                                 </span>
                                             )}
                                             {product.stock !== null && product.stock <= 0 && (
@@ -2171,7 +2171,7 @@ export default function CatalogoClientPage() {
                                                     <span className="text-[10px] font-bold" style={{ color: textColor }}>Tipo</span>
                                                 </div>
                                                 <p className="text-xs font-semibold mt-0.5" style={{ color: textColor }}>
-                                                    {selectedProduct.type === 'physical' ? 'Físico' :
+                                                    {selectedProduct.type === 'physical' ? 'Produto' :
                                                         selectedProduct.type === 'service' ? 'Serviço' : 'Digital'}
                                                 </p>
                                             </div>

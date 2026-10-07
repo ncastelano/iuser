@@ -348,7 +348,7 @@ export default function EditProductDialog({ productId, colors, onClose, onSaved,
                                             className="w-full px-4 py-2.5 rounded-xl border focus:outline-none focus:ring-2 transition-all"
                                             style={inputStyle}
                                         >
-                                            <option value="physical">Físico</option>
+                                            <option value="physical">Produto</option>
                                             <option value="service">Serviço</option>
                                             <option value="digital">Digital</option>
                                         </select>

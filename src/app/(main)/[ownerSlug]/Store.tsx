@@ -840,7 +840,7 @@ export function Store({
                                 <div className="flex justify-between">
                                     <span>Tipo</span>
                                     <span className="font-bold" style={{ color: colors.textPrimary }}>
-                                        {selectedProduct.type === 'physical' ? 'Físico' :
+                                        {selectedProduct.type === 'physical' ? 'Produto' :
                                             selectedProduct.type === 'service' ? 'Serviço' : 'Digital'}
                                     </span>
                                 </div>
@@ -1448,7 +1448,7 @@ export function Store({
                                                         {product.type && (
                                                             <span className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[8px] font-black uppercase backdrop-blur-md"
                                                                 style={{ background: 'rgba(0,0,0,0.3)', color: '#fff' }}>
-                                                                {product.type === 'physical' ? 'Físico' : product.type === 'service' ? 'Serviço' : 'Digital'}
+                                                                {product.type === 'physical' ? 'Produto' : product.type === 'service' ? 'Serviço' : 'Digital'}
                                                             </span>
                                                         )}
                                                     </div>

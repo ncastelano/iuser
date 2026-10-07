@@ -488,7 +488,7 @@ export function EditProductClient() {
                                             '--tw-ring-color': '#f97316',
                                         } as React.CSSProperties}
                                     >
-                                        <option value="physical">Físico</option>
+                                        <option value="physical">Produto</option>
                                         <option value="service">Serviço</option>
                                         <option value="digital">Digital</option>
                                     </select>
