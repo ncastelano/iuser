@@ -1,6 +1,6 @@
 // src/components/FreeTrialGift.tsx
 //
-// Card do brinde: N dias (90 por padrão) do plano Pré-pago de graça, resgate único
+// Botão do brinde: N dias (90 por padrão) do plano Pré-pago de graça, resgate único
 // por conta — vale pra quem já tem plano e pra quem está chegando. Mesmo visual do
 // card "Seu plano" (gradiente laranja→vermelho com selo no topo). Aparece no topo do
 // ProfileDashboard e nas páginas de planos; o admin liga/desliga e define os dias em
@@ -10,7 +10,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Gift, Check, X } from 'lucide-react'
+import { Gift, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTheme } from '@/app/contexts/theme'
 import { Spinner } from '@/components/Spinner'
@@ -99,60 +99,35 @@ export default function FreeTrialGift({ onRequireLogin, onClaimed, hideWhenEnded
 
     return (
         <>
-            <div
-                className={`relative rounded-3xl p-5 flex flex-col gap-3 ${className}`}
-                style={{ background: GRADIENT, boxShadow: '0 10px 30px #f9731650' }}
-            >
+            {/* Só o botão (laranja → vermelho) com o selo "Brinde" por cima; os detalhes
+                (o que libera, regras) aparecem no diálogo de confirmação. */}
+            <div className={`relative pt-2.5 ${className}`}>
                 <span
-                    className="absolute -top-2.5 left-1/2 -translate-x-1/2 text-[9px] font-black uppercase tracking-wider px-3 py-1 rounded-full text-white flex items-center gap-1 whitespace-nowrap"
+                    className="absolute top-0 left-1/2 -translate-x-1/2 z-10 text-[9px] font-black uppercase tracking-wider px-3 py-1 rounded-full text-white flex items-center gap-1 whitespace-nowrap"
                     style={{ background: '#111827', border: '1px solid #ffffff' }}
                 >
                     <Gift size={10} />
                     {t.trialActive ? 'Brinde ativo' : 'Brinde'}
                 </span>
 
-                <div className="flex items-center gap-3 pt-1">
-                    <div className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(255,255,255,0.22)' }}>
-                        <Gift size={24} color="#fff" />
-                    </div>
-                    <div className="min-w-0">
-                        <p className="text-xl font-black text-white leading-tight">{daysLabel} grátis</p>
-                        <p className="text-xs text-white/80">do plano Pré-pago, começando no dia em que você resgatar</p>
-                    </div>
-                </div>
-
-                <div className="flex flex-col gap-2">
-                    {[
-                        `Sem taxa por serviço durante os ${daysLabel}`,
-                        'Libera motorista, prestador, loja e recrutador',
-                        'Vale pra quem já tem plano e pra quem está chegando',
-                        'Resgate único por conta, sem precisar de cartão',
-                    ].map((f) => (
-                        <div key={f} className="flex items-start gap-1.5">
-                            <Check size={13} className="mt-0.5 flex-shrink-0 text-white" />
-                            <span className="text-[11px] leading-tight text-white/90">{f}</span>
-                        </div>
-                    ))}
-                </div>
-
                 {t.trialActive && t.prepaid?.endsAt ? (
-                    <div className="rounded-xl px-3 py-2.5 text-xs font-bold text-white" style={{ background: 'rgba(255,255,255,0.22)' }}>
-                        Brinde ativo até {fmt(t.prepaid.endsAt)}
+                    <div className="rounded-full px-5 pt-4 pb-3 text-center text-sm font-black text-white" style={{ background: GRADIENT, boxShadow: '0 8px 24px #f9731640' }}>
+                        Ativo até {fmt(t.prepaid.endsAt)}
                         {left != null && ` — faltam ${left} ${left === 1 ? 'dia' : 'dias'}`}
                     </div>
                 ) : t.trialEnded && t.claim ? (
-                    <div className="rounded-xl px-3 py-2.5 text-xs font-bold text-white" style={{ background: 'rgba(0,0,0,0.25)' }}>
+                    <div className="rounded-3xl px-5 pt-4 pb-3 text-center text-xs font-bold text-white" style={{ background: 'rgba(17,24,39,0.8)' }}>
                         Você já resgatou o brinde (de {fmt(t.claim.claimed_at)} a {fmt(t.claim.ends_at)}). Pra continuar sem taxa por serviço, assine o Pré-pago.
                     </div>
                 ) : (
                     <button
                         onClick={startClaim}
                         disabled={t.claiming}
-                        className="w-full flex items-center justify-center gap-2 py-3 rounded-full text-sm font-black transition-transform hover:scale-[1.02] active:scale-95 disabled:opacity-60"
-                        style={{ background: '#fff', color: '#dc2626' }}
+                        className="w-full flex items-center justify-center gap-2 px-5 pt-4 pb-3 rounded-full text-sm font-black text-white transition-transform hover:scale-[1.02] active:scale-95 disabled:opacity-60"
+                        style={{ background: GRADIENT, boxShadow: '0 8px 24px #f9731650' }}
                     >
-                        {t.claiming ? <Spinner size={16} color="#dc2626" /> : <Gift size={16} />}
-                        {t.userId ? `Resgatar ${daysLabel} grátis` : `Entrar pra resgatar ${daysLabel} grátis`}
+                        {t.claiming ? <Spinner size={16} color="#ffffff" /> : <Gift size={16} />}
+                        {t.userId ? `Resgatar ${daysLabel} grátis taxa 0%` : `Entrar pra resgatar ${daysLabel} grátis taxa 0%`}
                     </button>
                 )}
             </div>
@@ -170,6 +145,11 @@ export default function FreeTrialGift({ onRequireLogin, onClaimed, hideWhenEnded
                         <p className="text-sm mb-2" style={{ color: colors.textPrimary }}>
                             Tem certeza que quer ativar os {daysLabel} grátis a partir de agora?
                         </p>
+                        <ul className="flex flex-col gap-1 mb-2 text-xs" style={{ color: colors.textPrimary }}>
+                            <li>• Sem taxa por serviço durante os {daysLabel}</li>
+                            <li>• Libera motorista, prestador, loja e recrutador</li>
+                            <li>• Sem precisar de cartão</li>
+                        </ul>
                         <p className="text-xs mb-4" style={{ color: colors.textSecondary }}>
                             O tempo começa a contar hoje, {fmt(new Date())}, e vai até {fmt(end)}. O resgate é único: depois de ativar, não dá pra pausar nem resgatar de novo.
                         </p>
