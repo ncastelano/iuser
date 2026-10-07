@@ -2,7 +2,8 @@
 'use client'
 
 import { useState, useEffect, useMemo, ReactNode } from 'react'
-import { Store, ArrowRight } from 'lucide-react'
+import { Store } from 'lucide-react'
+import { ViewServicesButton } from './ViewServicesButton'
 import { useTheme } from '@/app/contexts/theme'
 import { useRouter } from 'next/navigation'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
@@ -263,21 +264,10 @@ export default function FeaturedPublications({
         <div className={`relative w-full ${className}`}>
             <HomeSectionHeader
                 title={title || 'Publicações em destaque'}
-                subtitle={`${publications.length} ${publications.length === 1 ? 'publicação' : 'publicações'}`}
+                subtitle="Veja o que lojas e pessoas estão compartilhando"
                 dragHandle={dragHandle}
                 action={hasPublications ? (
-                    <button
-                        onClick={handleViewAll}
-                        className="flex items-center gap-2 px-5 py-2 rounded-full text-xs font-bold transition-all hover:scale-105 active:scale-95 hover:shadow-lg whitespace-nowrap flex-shrink-0"
-                        style={{
-                            background: GRADIENT,
-                            color: '#ffffff',
-                            boxShadow: `0 2px 8px rgba(249, 115, 22, 0.3)`,
-                        }}
-                    >
-                        <span>Ver todas</span>
-                        <ArrowRight className="w-3.5 h-3.5" />
-                    </button>
+                    <ViewServicesButton label="ver publicações" count={publications.length} onClick={handleViewAll} />
                 ) : <span />}
             />
 

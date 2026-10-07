@@ -696,23 +696,6 @@ function SerParceiroContent() {
                         </div>
                     </div>
                 )}
-
-                {/* ===== BOTAO FLUTUANTE - SOLICITAR SERVICO ===== */}
-                <div style={{ position: 'fixed', bottom: 24, right: 24, zIndex: 998 }}>
-                    <button
-                        onClick={() => router.push('/solicitar-servico')}
-                        className="flex items-center gap-2 px-5 h-14 rounded-full shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95"
-                        style={{
-                            background: GRADIENT,
-                            color: '#ffffff',
-                            boxShadow: `0 8px 24px #f9731660`,
-                        }}
-                        aria-label="Solicitar serviço"
-                    >
-                        <Plus size={22} />
-                        <span className="font-semibold text-sm">Solicitar serviço</span>
-                    </button>
-                </div>
             </main>
         </div>
     )
