@@ -105,17 +105,17 @@ function SerParceiroContent() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [profileLoading, userId])
 
-    // Conta visita só quando os cards de fato aparecem na tela (precisa do
-    // plano Prestador) e só pra quem não é o dono do pedido.
+    // Conta visita quando os cards aparecem na tela (qualquer pessoa vê a lista, com ou sem
+    // plano) e só pra quem não é o dono do pedido.
     useEffect(() => {
-        if (loading || plansLoading || !hasProvider || jobs.length === 0) return
+        if (loading || profileLoading || jobs.length === 0) return
         for (const job of jobs) {
             if (job.requester_id !== userId) {
                 trackServiceRequestView(job.id)
             }
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [jobs, loading, plansLoading, hasProvider])
+    }, [jobs, loading, profileLoading])
 
     const handleLoginSuccess = () => {
         setShowLogin(false)
@@ -126,6 +126,14 @@ function SerParceiroContent() {
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) {
             setShowLogin(true)
+            return
+        }
+
+        // A lista é aberta a todos; só se inscrever exige o plano Prestador (ou Combo)
+        if (!plansLoading && !hasProvider) {
+            toast.error('Assine o plano Prestador ou o Combo pra se inscrever.', {
+                action: { label: 'Ver planos', onClick: () => router.push('/planos?plan=prestador') },
+            })
             return
         }
 
@@ -177,7 +185,6 @@ function SerParceiroContent() {
             }
             return
         }
-        if (!hasProvider) return // a própria página já mostra o aviso de assinar o plano
         const job = jobs.find((j) => j.id === focusId)
         focusHandledRef.current = true
         if (!job) {
@@ -198,6 +205,13 @@ function SerParceiroContent() {
             setTimeout(() => {
                 document.getElementById(`application-card-${job.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
             }, 200)
+            return
+        }
+        if (!hasProvider) {
+            // Vê o pedido, mas pra se inscrever precisa do plano
+            toast.info('Assine o plano Prestador ou o Combo pra se inscrever nesse serviço.', {
+                action: { label: 'Ver planos', onClick: () => router.push('/planos?plan=prestador') },
+            })
             return
         }
         setAutoApplyingId(job.id)
@@ -330,33 +344,33 @@ function SerParceiroContent() {
                         <LoginAndRegister onLoginSuccess={handleLoginSuccess} />
                     )}
 
+                    {/* A lista de pedidos é aberta a todos; o plano só vale pra se inscrever */}
                     {!loading && !showLogin && !plansLoading && !hasProvider && (
                         <div
-                            className="rounded-2xl p-6 text-center flex flex-col items-center gap-3"
+                            className="rounded-2xl p-3.5 mb-3 flex items-center gap-3"
                             style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
                         >
-                            <div className="w-16 h-16 rounded-full flex items-center justify-center" style={{ background: GRADIENT, color: '#fff' }}>
-                                <Briefcase size={28} />
+                            <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#fff' }}>
+                                <Briefcase size={18} />
                             </div>
-                            <div>
-                                <h2 className="text-lg font-black" style={{ color: colors.textPrimary }}>Assine pra se inscrever</h2>
-                                <p className="text-xs mt-1" style={{ color: colors.textSecondary }}>
-                                    Pra ver e se inscrever nos pedidos de serviço disponíveis, você precisa do plano Prestador ou do Combo.
-                                </p>
-                            </div>
+                            <p className="flex-1 min-w-0 text-xs" style={{ color: colors.textSecondary }}>
+                                {userId
+                                    ? <>Você pode ver todos os pedidos. Pra se inscrever, assine o plano <strong style={{ color: colors.textPrimary }}>Prestador</strong> ou o <strong style={{ color: colors.textPrimary }}>Combo</strong>.</>
+                                    : <>Você pode ver todos os pedidos. Pra se inscrever, entre na sua conta e assine o plano <strong style={{ color: colors.textPrimary }}>Prestador</strong>.</>}
+                            </p>
                             <button
-                                onClick={() => router.push('/planos?plan=prestador')}
-                                className="w-full py-3.5 rounded-full font-black uppercase text-xs tracking-wider"
+                                onClick={() => (userId ? router.push('/planos?plan=prestador') : setShowLogin(true))}
+                                className="px-3.5 py-2 rounded-full font-black text-[11px] flex-shrink-0"
                                 style={{ background: GRADIENT, color: '#fff' }}
                             >
-                                Ver planos
+                                {userId ? 'Ver planos' : 'Entrar'}
                             </button>
                         </div>
                     )}
 
-                    {!loading && !showLogin && !plansLoading && hasProvider && (
+                    {!loading && !showLogin && (
                     <>
-                    <DriverDebtBanner userId={userId} />
+                    {hasProvider && <DriverDebtBanner userId={userId} />}
                     {activeTab === 'disponiveis' && availableJobs.length === 0 && (
                         <div
                             className="rounded-2xl p-6 text-center"
