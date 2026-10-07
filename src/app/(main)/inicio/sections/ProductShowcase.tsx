@@ -349,7 +349,6 @@ export default function ProductShowcase({ dragHandle }: ProductShowcaseProps) {
     return (
         <div className="relative w-full">
             <HomeSectionHeader
-                icon={Package}
                 title="Produtos em destaque"
                 subtitle={`${products.length} ${products.length === 1 ? 'produto' : 'produtos'}`}
                 dragHandle={dragHandle}

@@ -3,7 +3,7 @@
 
 import { ReactNode, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Radar as RadarIcon, Navigation, Store, ShoppingBag, Wrench, MapPin, Eye } from 'lucide-react'
+import { Radar as Navigation, Store, ShoppingBag, Wrench, MapPin, Eye } from 'lucide-react'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
 import { fetchNearest, formatDistance, type NearestItem, type NearestKind } from '@/lib/radarNearest'
 
@@ -118,7 +118,6 @@ export default function RadarSection({ dragHandle, origin, userId, onDefineLocat
 
                 <div className="relative z-10 max-w-[75%] sm:max-w-[65%]">
                     <div className="flex items-center gap-2 mb-2">
-                        <RadarIcon size={20} color="#f97316" />
                         <span className="text-[10px] font-black uppercase tracking-wider text-white/60">iUser</span>
                     </div>
                     <h3 className="text-xl font-black text-white mb-1.5">Radar</h3>

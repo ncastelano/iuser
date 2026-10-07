@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Sparkles, Check, Zap, Gift } from 'lucide-react'
+import { Sparkles, Check, Zap } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { supabase } from '@/lib/supabase/client'
@@ -108,7 +108,6 @@ export default function CareerPlans() {
             <section>
                 <HomeGlassCard className="p-5 sm:p-6">
                     <HomeSectionHeader
-                        icon={Sparkles}
                         title="Melhor plano para você"
                         subtitle="50 centavos por serviço ou R$ 99 mensal sem taxa por serviço"
                         action={<span />}
@@ -123,9 +122,6 @@ export default function CareerPlans() {
                             Pra quem está chegando
                         </span>
                         <div className="flex items-center gap-3 pt-1">
-                            <div className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(255,255,255,0.22)' }}>
-                                <Gift size={24} color="#fff" />
-                            </div>
                             <div className="min-w-0">
                                 <p className="text-xl font-black text-white leading-tight">{trial.enabled ? `${trialLabel} grátis` : 'Plano Pré-pago'}</p>
                                 <p className="text-xs text-white/80">

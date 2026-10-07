@@ -4,7 +4,7 @@
 import { ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
-import { Car, Bike, Motorbike, Settings2, CheckCircle2, Navigation, MapPin, Users, Package, PawPrint, Clock, ArrowRight, LocateFixed, Plus } from 'lucide-react'
+import { Car, Settings2, CheckCircle2, Navigation, MapPin, Users, Package, PawPrint, Clock, ArrowRight, LocateFixed, Plus } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { supabase } from '@/lib/supabase/client'
@@ -434,24 +434,6 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                     <div className="flex items-center gap-4">
                         {dragHandle && <div>{dragHandle}</div>}
-
-                        {/* Carro, moto e bicicleta: qualquer um pode ser motorista */}
-                        <div className="flex -space-x-2.5 flex-shrink-0">
-                            {[Car, Motorbike, Bike].map((VehicleIcon, i) => (
-                                <div
-                                    key={i}
-                                    className="w-11 h-11 rounded-full flex items-center justify-center"
-                                    style={{
-                                        background: GRADIENT,
-                                        color: '#ffffff',
-                                        boxShadow: `0 4px 12px #f9731640`,
-                                        border: `2px solid ${colors.surface}`,
-                                    }}
-                                >
-                                    <VehicleIcon size={20} />
-                                </div>
-                            ))}
-                        </div>
 
                         <div>
                             <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>

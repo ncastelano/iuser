@@ -2,7 +2,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, ReactNode } from 'react'
-import { ArrowRight, Users } from 'lucide-react'
+import { ArrowRight } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import { useRouter } from 'next/navigation'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
@@ -145,7 +145,6 @@ export default function FeaturedProfiles({
     return (
         <div className={`relative w-full ${className}`}>
             <HomeSectionHeader
-                icon={Users}
                 title={title}
                 subtitle={`${profiles.length} ${profiles.length === 1 ? 'pessoa' : 'pessoas'}`}
                 dragHandle={dragHandle}

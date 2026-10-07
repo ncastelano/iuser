@@ -2,12 +2,11 @@
 //
 // Seção da home "Quem já oferece serviço": vitrine dos serviços que
 // profissionais e lojas já publicaram, sem card em volta (tudo flutuante), 
-// "Oferecer um serviço" (esquerda) e "ver serviços" com o total (direita) logo abaixo da frase do título.
+// "Publicar serviço" (esquerda) e "ver serviços" com o total (direita) logo abaixo da frase do título.
 'use client'
 
 import { ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
-import { Megaphone } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
@@ -45,8 +44,7 @@ export default function OfferAService({ dragHandle }: OfferAServiceProps) {
                             className="flex-1 flex items-center justify-center gap-2 py-2 rounded-full font-black text-xs transition-all hover:scale-[1.02] active:scale-95"
                             style={{ background: 'transparent', color: colors.accent, border: `2px solid ${colors.accent}` }}
                         >
-                            <Megaphone size={14} />
-                            Oferecer um serviço
+                            Publicar serviço
                         </button>
                         <ViewServicesButton onClick={() => { startNavProgress(); router.push('/solicitar-servico') }} count={count} />
                     </div>

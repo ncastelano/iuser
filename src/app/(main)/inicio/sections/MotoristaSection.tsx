@@ -367,7 +367,6 @@ export default function MotoristaSection({ dragHandle, onBreveStatusChange, onUr
         }
         return { title: 'Motorista confirmado!', subtitle: `${firstName} aceitou sua corrida e já já sai pra te buscar`, button: 'ver meu pedido', accent: GREEN_GRADIENT, Icon: CheckCircle2 }
     })()
-    const HeaderIcon = header.Icon
 
     return (
         <section>
@@ -375,19 +374,6 @@ export default function MotoristaSection({ dragHandle, onBreveStatusChange, onUr
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                     <div className="flex items-center gap-4">
                         {dragHandle && <div>{dragHandle}</div>}
-
-                        {/* Ícone com gradiente laranja-vermelho - igual ao ButtonSettingsHome */}
-                        <div
-                            className="w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0"
-                            style={{
-                                background: header.accent,
-                                color: '#ffffff',
-                                boxShadow: `0 4px 12px ${header.accent === GRADIENT ? '#f9731640' : header.accent === GREEN_GRADIENT ? '#22c55e40' : `${header.accent}40`}`,
-                                transition: 'background 0.4s',
-                            }}
-                        >
-                            <HeaderIcon size={28} />
-                        </div>
 
                         <div>
                             <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
