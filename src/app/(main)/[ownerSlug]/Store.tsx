@@ -2,7 +2,7 @@
 'use client'
 
 import { notifyNewFollower } from '@/lib/notifyRideStatus'
-import { useCallback, useEffect, useState, useMemo } from 'react'
+import { useCallback, useEffect, useRef, useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
@@ -106,7 +106,7 @@ type Publication = {
     created_at: string
 }
 
-type TabType = 'products' | 'reviews'
+type TabType = 'products' | 'services' | 'reviews'
 
 export function Store({
     ownerSlug,
@@ -227,15 +227,31 @@ export function Store({
         setMounted(true)
     }, [])
 
+    // ========== PRODUTOS x SERVIÇOS ==========
+    // A loja publica as duas coisas na mesma tabela (products.type = 'service' é serviço);
+    // cada uma tem a própria aba, pra não ficarem misturadas.
+    const goods = useMemo(() => products.filter(p => p.type !== 'service'), [products])
+    const services = useMemo(() => products.filter(p => p.type === 'service'), [products])
+    const catalogList = activeTab === 'services' ? services : goods
+
+    // Se a loja só tem serviços (nenhum produto), a aba de serviços já abre na frente
+    const defaultTabPickedRef = useRef(false)
+    useEffect(() => {
+        if (loading || defaultTabPickedRef.current) return
+        if (goods.length + services.length === 0) return // ainda carregando (ou loja vazia): espera
+        defaultTabPickedRef.current = true
+        if (goods.length === 0 && services.length > 0) setActiveTab('services')
+    }, [loading, goods.length, services.length])
+
     // ========== FILTRO ==========
     const filteredProducts = useMemo(() => {
-        if (!searchQuery.trim()) return products
+        if (!searchQuery.trim()) return catalogList
         const query = searchQuery.toLowerCase()
-        return products.filter(p =>
+        return catalogList.filter(p =>
             p.name?.toLowerCase().includes(query) ||
             p.description?.toLowerCase().includes(query)
         )
-    }, [products, searchQuery])
+    }, [catalogList, searchQuery])
 
     // ========== GROUP PRODUCTS ==========
     const groupedProducts = useMemo(() => {
@@ -1212,10 +1228,13 @@ export function Store({
 
             {/* ===== TABS ===== */}
             <div className="flex rounded-2xl p-1.5 gap-1" style={cardStyle}>
-                {[
-                    { id: 'products', label: 'Produtos', count: products.length },
-                    { id: 'reviews', label: 'Avaliações', count: ratings.length },
-                ].map(tab => {
+                {(() => {
+                    const productsTab = { id: 'products', label: 'Produtos', count: goods.length }
+                    const servicesTab = { id: 'services', label: 'Serviços', count: services.length }
+                    // Normal: Produtos, Serviços, Avaliações. Sem produtos, mas com serviços: Serviços vem na frente.
+                    const catalogTabs = goods.length === 0 && services.length > 0 ? [servicesTab, productsTab] : [productsTab, servicesTab]
+                    return [...catalogTabs, { id: 'reviews', label: 'Avaliações', count: ratings.length }]
+                })().map(tab => {
                     const isActive = activeTab === tab.id
                     return (
                         <button
@@ -1248,13 +1267,13 @@ export function Store({
 
             {/* ===== CONTEÚDO DAS TABS ===== */}
             <div className="space-y-4">
-                {/* TAB PRODUTOS */}
-                {activeTab === 'products' && (
+                {/* TAB PRODUTOS / SERVIÇOS (mesmo layout, listas separadas) */}
+                {(activeTab === 'products' || activeTab === 'services') && (
                     <div className="rounded-2xl p-4" style={cardStyle}>
                         <div className="flex items-center gap-2 mb-3">
                             <ShoppingCart size={16} style={{ color: '#f97316' }} />
                             <h3 className="text-xs font-black uppercase tracking-widest" style={{ color: colors.textPrimary }}>
-                                Produtos
+                                {activeTab === 'services' ? 'Serviços' : 'Produtos'}
                             </h3>
                             {!isStoreOpen && (
                                 <span className="text-[8px] font-bold px-2 py-0.5 rounded-full" style={{ background: '#ef444420', color: '#ef4444' }}>
@@ -1263,12 +1282,12 @@ export function Store({
                             )}
                             {isOwner && storeSubscriptionActive !== false && (
                                 <button
-                                    onClick={() => router.push(`/${ownerSlug}/criar-produto`)}
+                                    onClick={() => router.push(`/${ownerSlug}/criar-produto${activeTab === 'services' ? '?type=service' : ''}`)}
                                     className="ml-auto flex items-center gap-1.5 h-8 px-3 rounded-full shadow-md hover:scale-105 transition-transform text-xs font-bold whitespace-nowrap"
                                     style={{ background: GRADIENT, color: '#ffffff' }}
                                 >
                                     <Plus size={14} />
-                                    Adicionar produto
+                                    {activeTab === 'services' ? 'Adicionar serviço' : 'Adicionar produto'}
                                 </button>
                             )}
                         </div>
@@ -1278,7 +1297,7 @@ export function Store({
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: colors.textSecondary }} />
                                 <input
                                     type="text"
-                                    placeholder="Buscar produtos..."
+                                    placeholder={activeTab === 'services' ? 'Buscar serviços...' : 'Buscar produtos...'}
                                     value={searchQuery}
                                     onChange={e => setSearchQuery(e.target.value)}
                                     className="w-full rounded-xl py-2 pl-9 pr-3 text-sm border focus:outline-none focus:ring-2 transition-all"
@@ -1324,14 +1343,14 @@ export function Store({
                                 }}>
                                     <StoreIcon className="w-8 h-8 mx-auto mb-2" style={{ color: colors.textSecondary }} />
                                     <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>
-                                        Sua loja está vazia
+                                        {activeTab === 'services' ? 'Você ainda não publicou serviços' : 'Sua loja está vazia'}
                                     </p>
                                     <button
-                                        onClick={() => router.push(`/${ownerSlug}/criar-produto`)}
+                                        onClick={() => router.push(`/${ownerSlug}/criar-produto${activeTab === 'services' ? '?type=service' : ''}`)}
                                         className="mt-3 w-full"
                                         style={primaryButtonStyle}
                                     >
-                                        <Plus size={16} /> Adicionar Produto
+                                        <Plus size={16} /> {activeTab === 'services' ? 'Adicionar serviço' : 'Adicionar Produto'}
                                     </button>
                                 </div>
                             ) : (
@@ -1341,7 +1360,7 @@ export function Store({
                                 }}>
                                     <Search className="w-8 h-8 mx-auto mb-2" style={{ color: colors.textSecondary }} />
                                     <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>
-                                        Nenhum produto disponível
+                                        {activeTab === 'services' ? 'Nenhum serviço disponível' : 'Nenhum produto disponível'}
                                     </p>
                                     <p className="text-xs" style={{ color: colors.textSecondary }}>
                                         Esta loja ainda não publicou nada.
