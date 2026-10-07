@@ -298,24 +298,36 @@ export default function ProfileServiceListing({ profileId, profileSlug, linkToPr
                     className="w-full flex items-center justify-between text-left"
                     style={{ padding: '0.5rem 0.75rem', borderRadius: '9999px', background: 'transparent', border: 'none', cursor: 'pointer' }}
                 >
-                    <div
-                        className="flex items-center gap-3"
-                        onClick={linkToProfile ? (e) => { e.stopPropagation(); router.push(`/${profileSlug}`) } : undefined}
-                        style={linkToProfile ? { cursor: 'pointer' } : undefined}
-                        title={linkToProfile ? 'Ir para o meu perfil' : undefined}
-                    >
-                        <div className="w-12 h-12 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#ffffff' }}>
-                            {owner?.avatarUrl ? <img src={owner.avatarUrl} className="w-full h-full object-cover" alt="" /> : <span className="text-lg font-black">{(profileSlug || owner?.name || '?').charAt(0).toUpperCase()}</span>}
+                    {linkToProfile ? (
+                        <div
+                            className="flex items-center gap-3"
+                            onClick={linkToProfile ? (e) => { e.stopPropagation(); router.push(`/${profileSlug}`) } : undefined}
+                            style={linkToProfile ? { cursor: 'pointer' } : undefined}
+                            title={linkToProfile ? 'Ir para o meu perfil' : undefined}
+                        >
+                            <div className="w-12 h-12 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#ffffff' }}>
+                                {owner?.avatarUrl ? <img src={owner.avatarUrl} className="w-full h-full object-cover" alt="" /> : <span className="text-lg font-black">{(profileSlug || owner?.name || '?').charAt(0).toUpperCase()}</span>}
+                            </div>
+                            <div className="min-w-0">
+                                <h3 className="text-lg font-black truncate" style={{ color: textPrimary }}>{owner?.name || `@${profileSlug}`}</h3>
+                                <p className="text-xs mt-0.5" style={{ color: textSecondary }}>
+                                    @{profileSlug} · serviços do seu perfil (sem loja)
+                                </p>
+                            </div>
                         </div>
-                        <div className="min-w-0">
-                            <h3 className="text-lg font-black truncate" style={{ color: textPrimary }}>{owner?.name || `@${profileSlug}`}</h3>
-                            <p className="text-xs mt-0.5" style={{ color: textSecondary }}>
-                                @{profileSlug} · serviços do seu perfil (sem loja)
-                            </p>
+                    ) : (
+                        // No ProfileDashboard o perfil já está na página: só o título da seção, como "Publicações"
+                        <div className="flex items-center gap-3">
+                            <div>
+                                <h3 className="text-lg font-black" style={{ color: textPrimary }}>Meus Serviços</h3>
+                                <p className="text-xs mt-0.5" style={{ color: textSecondary }}>
+                                    {listings.length} {listings.length === 1 ? 'serviço' : 'serviços'}
+                                </p>
+                            </div>
                         </div>
-                    </div>
+                    )}
                     <div className="flex items-center gap-2">
-                        {listings.length > 0 && (
+                        {linkToProfile && listings.length > 0 && (
                             <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: '#f9731620', color: '#f97316' }}>
                                 {listings.length}
                             </span>
