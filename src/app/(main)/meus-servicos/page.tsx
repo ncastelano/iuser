@@ -19,6 +19,7 @@ import { Wrench, Store, Plus, Pencil, Trash2, ArrowLeft } from 'lucide-react'
 import { toast } from 'sonner'
 import EditProductDialog from '@/components/EditProductDialog'
 import ProfileServiceListing from '@/components/ProfileDashboard/ProfileServiceListing'
+import MyOpenServiceRequests from '@/components/MyOpenServiceRequests'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -145,6 +146,9 @@ export default function MeusServicosPage() {
                         Os serviços de cada uma das suas lojas, e depois os seus serviços pessoais (sem loja).
                     </p>
                 </div>
+
+                {/* ===== Pedidos de serviço que eu fiz (mesmos cards de "Seus pedidos em aberto" da home) ===== */}
+                <MyOpenServiceRequests limit={30} title="Seus pedidos em aberto" />
 
                 {/* ===== Serviços das lojas — um card por loja ===== */}
                 {loading ? (
