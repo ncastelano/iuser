@@ -890,6 +890,48 @@ export default function PublicationClientPage() {
                     {/* Sheet de conteúdo (mobile: sobreposto à imagem / web: coluna ao lado) */}
                     <main className="relative z-10" style={{ background: colors.background }}>
                         <div className="px-5 pt-4 md:px-0 md:pt-0 space-y-3">
+                            {/* Quem publicou: em cima do título, pra descrição longa não empurrar o perfil pra baixo */}
+                            <div
+                                className="w-full flex items-center gap-2 px-3 py-2.5 rounded-2xl"
+                                style={{ background: colors.surface, border: `1px solid ${colors.border}` }}
+                            >
+                                <button
+                                    onClick={goToOwner}
+                                    className="flex items-center gap-2.5 min-w-0 flex-1 text-left transition hover:opacity-90"
+                                >
+                                    <div
+                                        className="w-10 h-10 rounded-full overflow-hidden border flex-shrink-0 flex items-center justify-center"
+                                        style={{ borderColor: colors.border, background: `${colors.accentLight}25` }}
+                                    >
+                                        {finalOwnerImage ? (
+                                            <img src={finalOwnerImage} alt={ownerDisplay.name} className="w-full h-full object-cover" />
+                                        ) : (
+                                            <OwnerIcon size={16} style={{ color: colors.accent }} />
+                                        )}
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                        <p className="text-sm font-bold truncate" style={{ color: colors.textPrimary }}>
+                                            {ownerDisplay.name}
+                                        </p>
+                                        <p className="flex items-center gap-1 text-[11px]" style={{ color: colors.textSecondary }}>
+                                            <Calendar size={10} />
+                                            {formattedDate}
+                                        </p>
+                                    </div>
+                                </button>
+                                <button
+                                    onClick={() => handleShareLink({
+                                        title: `${publication.name || 'Publicação'} | ${ownerDisplay.name}`,
+                                        text: publication.description || 'Confira no iUser!'
+                                    })}
+                                    aria-label="Compartilhar"
+                                    className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition hover:scale-105"
+                                    style={{ background: `${colors.border}40`, color: colors.textPrimary }}
+                                >
+                                    <Share2 size={18} />
+                                </button>
+                            </div>
+
                             {/* Título (mobile - no header web já mostra) */}
                             <h1 className="md:hidden text-2xl font-black leading-tight" style={{ color: colors.textPrimary }}>
                                 {publication.name || 'Sem título'}
@@ -915,47 +957,6 @@ export default function PublicationClientPage() {
                             )}
 
                             <div className="flex flex-wrap gap-2">
-                                {/* Quem publicou (antes ficava embaixo da imagem): avatar, nome, data e compartilhar */}
-                                <div
-                                    className="w-full flex items-center gap-2 px-3 py-2.5 rounded-2xl"
-                                    style={{ background: colors.surface, border: `1px solid ${colors.border}` }}
-                                >
-                                    <button
-                                        onClick={goToOwner}
-                                        className="flex items-center gap-2.5 min-w-0 flex-1 text-left transition hover:opacity-90"
-                                    >
-                                        <div
-                                            className="w-10 h-10 rounded-full overflow-hidden border flex-shrink-0 flex items-center justify-center"
-                                            style={{ borderColor: colors.border, background: `${colors.accentLight}25` }}
-                                        >
-                                            {finalOwnerImage ? (
-                                                <img src={finalOwnerImage} alt={ownerDisplay.name} className="w-full h-full object-cover" />
-                                            ) : (
-                                                <OwnerIcon size={16} style={{ color: colors.accent }} />
-                                            )}
-                                        </div>
-                                        <div className="min-w-0 flex-1">
-                                            <p className="text-sm font-bold truncate" style={{ color: colors.textPrimary }}>
-                                                {ownerDisplay.name}
-                                            </p>
-                                            <p className="flex items-center gap-1 text-[11px]" style={{ color: colors.textSecondary }}>
-                                                <Calendar size={10} />
-                                                {formattedDate}
-                                            </p>
-                                        </div>
-                                    </button>
-                                    <button
-                                        onClick={() => handleShareLink({
-                                            title: `${publication.name || 'Publicação'} | ${ownerDisplay.name}`,
-                                            text: publication.description || 'Confira no iUser!'
-                                        })}
-                                        aria-label="Compartilhar"
-                                        className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition hover:scale-105"
-                                        style={{ background: `${colors.border}40`, color: colors.textPrimary }}
-                                    >
-                                        <Share2 size={18} />
-                                    </button>
-                                </div>
 
                                 {publication.show_whatsapp && publication.store?.whatsapp && publication.store?.show_whatsapp !== false && (
                                     <a
