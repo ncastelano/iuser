@@ -4,7 +4,6 @@
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { sendPushToUser } from '@/lib/serverPush'
 import { computeRideTariffs } from '@/lib/rideTariffs'
-import { fetchPricePerMinuteMap } from '@/lib/driverPricing'
 import { loadPlatformTariffs } from '@/lib/platformTariffs'
 
 const MAX_DRIVERS = 200
@@ -59,7 +58,7 @@ export async function notifyDriversOfRide(ride: {
     const [{ data: fullRide }, { data: pricingRows }] = await Promise.all([
         supabaseAdmin
             .from('ride_requests')
-            .select('ride_type, vehicle_type, distance_km, duration_min, origin_needs_access, destination_needs_access, has_shopping, has_special_needs, special_needs_wheelchair, special_needs_visual_impairment, has_guide_dog, pet_has_carrier, delivery_location, wants_air_conditioning')
+            .select('ride_type, vehicle_type, distance_km, origin_needs_access, destination_needs_access, has_shopping, has_special_needs, special_needs_wheelchair, special_needs_visual_impairment, has_guide_dog, pet_has_carrier, delivery_location, wants_air_conditioning')
             .eq('id', ride.id)
             .maybeSingle(),
         supabaseAdmin
@@ -68,8 +67,7 @@ export async function notifyDriversOfRide(ride: {
             .in('driver_id', eligible),
     ])
     await loadPlatformTariffs(supabaseAdmin)
-    const pricePerMinuteByDriver = await fetchPricePerMinuteMap(supabaseAdmin, eligible)
-    const pricingByDriver = new Map((pricingRows || []).map((p) => [p.driver_id as string, { ...p, price_per_minute: pricePerMinuteByDriver.get(p.driver_id as string) ?? null }]))
+    const pricingByDriver = new Map((pricingRows || []).map((p) => [p.driver_id as string, p]))
 
     const short = (a: string) => a.split(',')[0]
     const priceText = ride.offered_price != null ? ` · Frete R$ ${Number(ride.offered_price).toFixed(2)}` : ''

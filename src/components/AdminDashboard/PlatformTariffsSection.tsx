@@ -6,7 +6,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Car, Bike, Motorbike, Route, Clock, Save } from 'lucide-react'
+import { Car, Bike, Motorbike, Route, Save } from 'lucide-react'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase/client'
 import { callAdminApi } from '@/lib/callAdminApi'
@@ -28,7 +28,6 @@ const MAIN_FIELDS: { key: keyof Form; label: string; hint: string }[] = [
     { key: 'base_fee', label: 'Valor base (R$)', hint: 'cobrado até a distância base' },
     { key: 'base_distance_km', label: 'Distância base (km)', hint: 'km incluídos no valor base' },
     { key: 'price_per_km', label: 'Quilometragem: extra por km (R$)', hint: 'por km acima da distância base' },
-    { key: 'price_per_minute', label: 'Tempo: extra por minuto (R$)', hint: 'por minuto de corrida (tempo estimado)' },
 ]
 const TYPE_FIELDS: { key: keyof Form; label: string }[] = [
     { key: 'extra_fee_pessoa', label: 'Pessoa' },
@@ -122,11 +121,10 @@ export default function PlatformTariffsSection({ cardStyle, colors }: { cardStyl
         baseDistanceKm: num(form.base_distance_km),
         baseFee: num(form.base_fee),
         pricePerKmAfterBase: num(form.price_per_km),
-        pricePerMinute: num(form.price_per_minute),
         extraFees: { pessoa: 0, animal: 0, objeto: 0 },
         conditionExtraFees: { condominio: 0, compras: 0, necessidade_especial: 0, pet_sem_caixa: 0, entrega_interna: 0, ar_condicionado: 0 },
     }
-    const example = explainSuggestedPrice(10, live, 20)
+    const example = explainSuggestedPrice(10, live)
 
     const field = (key: keyof Form, label: string, hint?: string) => (
         <div key={key} className="flex flex-col gap-0.5">
@@ -141,7 +139,7 @@ export default function PlatformTariffsSection({ cardStyle, colors }: { cardStyl
             <div style={cardStyle} className="space-y-1">
                 <p className="text-xs font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>Tarifa da plataforma</p>
                 <p className="text-xs" style={{ color: colors.textSecondary }}>
-                    Tudo da Tarifa iUser num lugar só. O preço de uma corrida é: <strong style={{ color: colors.textPrimary }}>valor base + quilometragem acima da distância base + tempo + extras</strong>. A mudança vale na hora para todos os motoristas que usam a tarifa da plataforma.
+                    Tudo da Tarifa iUser num lugar só. O preço de uma corrida é: <strong style={{ color: colors.textPrimary }}>valor base + quilometragem acima da distância base + extras</strong>. A mudança vale na hora para todos os motoristas que usam a tarifa da plataforma.
                 </p>
             </div>
 
@@ -163,13 +161,13 @@ export default function PlatformTariffsSection({ cardStyle, colors }: { cardStyl
 
             <div style={cardStyle} className="space-y-3">
                 <p className="text-xs font-black flex items-center gap-1.5" style={{ color: colors.textPrimary }}>
-                    <Route size={13} /> Valor base e quilometragem <Clock size={13} className="ml-1" /> tempo
+                    <Route size={13} /> Valor base e quilometragem
                 </p>
                 <div className="grid grid-cols-2 gap-3">
                     {MAIN_FIELDS.map((f) => field(f.key, f.label, f.hint))}
                 </div>
                 <div className="rounded-xl p-3 text-[11px] leading-snug" style={{ background: `${colors.accent}12`, color: colors.textPrimary, border: `1px solid ${colors.border}` }}>
-                    <strong>Exemplo (10 km, 20 min):</strong> {brl(example.base)} base + {brl(example.kmPart)} de quilometragem ({example.extraKm.toFixed(1).replace('.', ',')} km acima da base × {brl(live.pricePerKmAfterBase)}) + {brl(example.timePart)} de tempo (20 min × {brl(live.pricePerMinute)}) = <strong>{brl(example.total)}</strong>
+                    <strong>Exemplo (10 km):</strong> {brl(example.base)} base + {brl(example.kmPart)} de quilometragem ({example.extraKm.toFixed(1).replace('.', ',')} km acima da base × {brl(live.pricePerKmAfterBase)}) = <strong>{brl(example.total)}</strong>
                 </div>
             </div>
 

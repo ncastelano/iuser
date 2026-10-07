@@ -10,7 +10,7 @@ O admin (`/administrador` — aba "Administrador" do Header → **Financeiro**, 
 
 ## Tarifa da plataforma: mora no banco, editada no Admin
 
-Os valores da "Tarifa iUser" (valor base, quilometragem, tempo por minuto e extras por tipo/condição, por veículo) vivem na tabela `platform_tariffs` e são editados em `/administrador` → **Tarifas** (`src/components/AdminDashboard/PlatformTariffsSection.tsx`). Os números em `src/lib/driverPricing.ts` (`PLATFORM_DEFAULT_PRICING_BY_VEHICLE`) são só o padrão de fábrica: `loadPlatformTariffs()` (`src/lib/platformTariffs.ts`) sobrescreve esse mesmo objeto com o que está no banco. **Antes de calcular qualquer preço da plataforma, dê `await loadPlatformTariffs(client)`** — não coloque valores de tarifa fixos em outro lugar.
+Os valores da "Tarifa iUser" (valor base, distância base, valor por km e extras por tipo/condição, por veículo) vivem na tabela `platform_tariffs` e são editados em `/administrador` → **Tarifas** (`src/components/AdminDashboard/PlatformTariffsSection.tsx`). Os números em `src/lib/driverPricing.ts` (`PLATFORM_DEFAULT_PRICING_BY_VEHICLE`) são só o padrão de fábrica: `loadPlatformTariffs()` (`src/lib/platformTariffs.ts`) sobrescreve esse mesmo objeto com o que está no banco. **Antes de calcular qualquer preço da plataforma, dê `await loadPlatformTariffs(client)`** — não coloque valores de tarifa fixos em outro lugar.
 
 ## Roteamento: não tem middleware.ts, tem src/proxy.ts
 

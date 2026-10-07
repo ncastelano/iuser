@@ -5,7 +5,7 @@ import { requireSuperAdmin } from '@/lib/adminAuth'
 
 const VEHICLES = ['carro', 'moto', 'bicicleta']
 const FIELDS = [
-    'base_distance_km', 'base_fee', 'price_per_km', 'price_per_minute',
+    'base_distance_km', 'base_fee', 'price_per_km',
     'extra_fee_pessoa', 'extra_fee_animal', 'extra_fee_objeto',
     'fee_condominio', 'fee_compras', 'fee_necessidade_especial', 'fee_pet_sem_caixa', 'fee_entrega_interna', 'fee_ar_condicionado',
 ] as const

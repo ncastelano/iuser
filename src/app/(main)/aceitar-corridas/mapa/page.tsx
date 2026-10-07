@@ -38,7 +38,7 @@ import RideChat from '@/components/RideChat'
 import { DRIVER_CHAT_QUICK_REPLIES } from '@/lib/rideChatQuickReplies'
 import { loadPlatformTariffs } from '@/lib/platformTariffs'
 import { kindForRideType, type VehicleType, type VehicleKind } from '@/lib/rideVehicle'
-import { PLATFORM_DEFAULT_PRICING_BY_VEHICLE, computePickupFee, fetchPricePerMinuteMap } from '@/lib/driverPricing'
+import { PLATFORM_DEFAULT_PRICING_BY_VEHICLE, computePickupFee } from '@/lib/driverPricing'
 import { computeRideTariffs } from '@/lib/rideTariffs'
 import { submitRideApplication } from '@/lib/rideApplication'
 import { getAvatarUrl } from '@/lib/avatar'
@@ -329,10 +329,9 @@ function AceitarCorridasMapaContent() {
             ])
             if (cancelled) return
             await loadPlatformTariffs(supabase)
-            const pricePerMinute = (await fetchPricePerMinuteMap(supabase, [userId])).get(userId) ?? null
             const { platformPrice, customPrice } = computeRideTariffs(
                 r as Parameters<typeof computeRideTariffs>[0],
-                (pricing ? { ...pricing, price_per_minute: pricePerMinute } : { pricing_mode: 'platform', base_distance_km: null, base_fee: null, price_per_km_after_base: null }) as Parameters<typeof computeRideTariffs>[1]
+                (pricing ? pricing : { pricing_mode: 'platform', base_distance_km: null, base_fee: null, price_per_km_after_base: null }) as Parameters<typeof computeRideTariffs>[1]
             )
             setOffer({
                 ride: r,
@@ -355,7 +354,7 @@ function AceitarCorridasMapaContent() {
     const pickupFee: { state: 'ready'; km: number; amount: number } | { state: 'waiting' | 'missing' } = (() => {
         if (!offer || routeKm == null || !driverCoords) return { state: driverCoords ? 'waiting' : 'missing' }
         const platformShape = PLATFORM_DEFAULT_PRICING_BY_VEHICLE[kindForRideType(offer.ride.vehicle_type)]
-        return { state: 'ready', km: routeKm, amount: computePickupFee(platformShape, routeKm, routeMin) }
+        return { state: 'ready', km: routeKm, amount: computePickupFee(platformShape, routeKm) }
     })()
 
     const applyToOffer = async (price: number) => {

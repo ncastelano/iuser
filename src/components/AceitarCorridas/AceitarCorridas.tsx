@@ -22,7 +22,7 @@ import { Spinner } from '@/components/Spinner'
 import { loadPlatformTariffs } from '@/lib/platformTariffs'
 import { shortAddress } from '@/lib/serviceBoard'
 import { getAvatarUrl } from '@/lib/avatar'
-import { computeSuggestedPrice, computeConditionExtras, computePickupFee, fetchPricePerMinuteMap, getEffectivePricing, getCustomPricing, PLATFORM_DEFAULT_PRICING_BY_VEHICLE, DriverPricing, type RideConditionFlags } from '@/lib/driverPricing'
+import { computeSuggestedPrice, computeConditionExtras, computePickupFee, getEffectivePricing, getCustomPricing, PLATFORM_DEFAULT_PRICING_BY_VEHICLE, DriverPricing, type RideConditionFlags } from '@/lib/driverPricing'
 import { playRideAlertSound, playNotificationSound } from '@/lib/rideAlertSound'
 import { useVoiceNavigation } from '@/lib/voiceNavigation'
 import { getProfileRideRatingsBatch, ProfileRideRating } from '@/lib/rideReviews'
@@ -539,8 +539,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
         // Qualquer pessoa vê as corridas disponíveis, mesmo sem ter completado o
         // cadastro de motorista: sem tarifa própria o valor sai pela Tarifa iUser,
         // e sem veículo cadastrado aparecem as corridas de todos os tipos.
-        const pricePerMinute = contextUserId ? (await fetchPricePerMinuteMap(supabase, [contextUserId])).get(contextUserId) ?? null : null
-        const pricing = pricingRow ? { ...pricingRow, price_per_minute: pricePerMinute } : {
+        const pricing = pricingRow || {
             pricing_mode: 'platform' as const,
             base_distance_km: null, base_fee: null, price_per_km_after_base: null,
             extra_fee_pessoa: null, extra_fee_animal: null, extra_fee_objeto: null,
@@ -689,7 +688,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                 wants_air_conditioning: r.wants_air_conditioning,
             }
             const priceWith = (shape: DriverPricing) => hasDistance
-                ? computeSuggestedPrice(r.distance_km!, shape, r.ride_type, conditionFlags, r.duration_min)
+                ? computeSuggestedPrice(r.distance_km!, shape, r.ride_type, conditionFlags)
                 : shape.baseFee
                     + shape.extraFees[r.ride_type as 'pessoa' | 'animal' | 'objeto']
                     + computeConditionExtras(conditionFlags, shape.conditionExtraFees)
@@ -1402,14 +1401,14 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                         <div className="flex flex-col gap-3">
                             {visibleRides.map((ride) => {
                                 const info = routeInfoById[ride.id]
-                                // Tarifa iUser = tarifa da corrida + deslocamento até a partida (km × valor/km + minutos × valor/min do veículo)
+                                // Tarifa iUser = tarifa da corrida + deslocamento até a partida (km × valor/km do veículo)
                                 const platformShape = PLATFORM_DEFAULT_PRICING_BY_VEHICLE[kindForRideType(ride.vehicle_type)]
                                 const pickupKm = gpsStatus === 'granted'
                                     ? (info?.toPickupKm ?? (driverCoords && ride.origin_lat != null && ride.origin_lng != null
                                         ? haversineKm(driverCoords, [ride.origin_lng, ride.origin_lat])
                                         : null))
                                     : null
-                                const pickupAmount = pickupKm != null ? computePickupFee(platformShape, pickupKm, info?.toPickupMin) : 0
+                                const pickupAmount = pickupKm != null ? computePickupFee(platformShape, pickupKm) : 0
                                 const pickup = pickupKm != null
                                     ? { state: 'ready' as const, km: pickupKm, amount: pickupAmount }
                                     : { state: (gpsStatus === 'asking' ? 'waiting' : 'missing') as 'waiting' | 'missing' }

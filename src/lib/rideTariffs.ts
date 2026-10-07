@@ -20,7 +20,6 @@ export interface RideTariffSource {
     ride_type?: RideRequestType | null
     vehicle_type?: VehicleType | null
     distance_km?: number | null
-    duration_min?: number | null
     origin_needs_access?: boolean | null
     destination_needs_access?: boolean | null
     has_shopping?: boolean | null
@@ -52,7 +51,7 @@ export function computeRideTariffs(ride: RideTariffSource, pricing: DriverPricin
         wants_air_conditioning: !!ride.wants_air_conditioning,
     }
     const priceWith = (shape: DriverPricing) => ride.distance_km != null
-        ? computeSuggestedPrice(ride.distance_km, shape, rideType, flags, ride.duration_min)
+        ? computeSuggestedPrice(ride.distance_km, shape, rideType, flags)
         : shape.baseFee + shape.extraFees[rideType] + computeConditionExtras(flags, shape.conditionExtraFees)
 
     const customShape = getCustomPricing(pricing, rideKind)

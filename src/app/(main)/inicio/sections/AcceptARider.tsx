@@ -9,7 +9,7 @@ import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { supabase } from '@/lib/supabase/client'
 import { getAvatarUrl } from '@/lib/avatar'
-import { computeSuggestedPrice, computeConditionExtras, computePickupFee, fetchPricePerMinuteMap, getEffectivePricing, PLATFORM_DEFAULT_PRICING_BY_VEHICLE, type RideConditionFlags } from '@/lib/driverPricing'
+import { computeSuggestedPrice, computeConditionExtras, computePickupFee, getEffectivePricing, PLATFORM_DEFAULT_PRICING_BY_VEHICLE, type RideConditionFlags } from '@/lib/driverPricing'
 import { kindForRideType } from '@/lib/rideVehicle'
 import { fetchRoute, haversineKm } from '@/lib/mapboxRoute'
 import { watchPosition } from '@/lib/nativeGeolocation'
@@ -188,10 +188,7 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
                 appliedIds = new Set((myApplicationRows || []).map((a) => a.ride_request_id))
             }
             if (!active) return
-            const pricePerMinute = userId ? (await fetchPricePerMinuteMap(supabase, [userId])).get(userId) ?? null : null
-            const pricing = pricingRow
-                ? { ...pricingRow, price_per_minute: pricePerMinute }
-                : { pricing_mode: 'platform' as const, base_distance_km: null, base_fee: null, price_per_km_after_base: null, price_per_minute: null }
+            const pricing = pricingRow || { pricing_mode: 'platform' as const, base_distance_km: null, base_fee: null, price_per_km_after_base: null }
 
             let openQuery = supabase
                 .from('ride_requests')
@@ -231,7 +228,7 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
                         wants_air_conditioning: r.wants_air_conditioning,
                     }
                     const computedPrice = r.distance_km != null
-                        ? computeSuggestedPrice(r.distance_km, pricingShape, r.ride_type, conditionFlags, r.duration_min)
+                        ? computeSuggestedPrice(r.distance_km, pricingShape, r.ride_type, conditionFlags)
                         : pricingShape.baseFee
                             + pricingShape.extraFees[r.ride_type as 'pessoa' | 'animal' | 'objeto']
                             + computeConditionExtras(conditionFlags, pricingShape.conditionExtraFees)
@@ -645,7 +642,7 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
                             const platformShape = PLATFORM_DEFAULT_PRICING_BY_VEHICLE[kindForRideType(ride.vehicle_type)]
                             const pickup = usesPlatformTariff && gpsStatus === 'granted' ? pickupById[ride.id] : undefined
                             const pickupKm = pickup?.km
-                            const pickupAmount = pickup ? computePickupFee(platformShape, pickup.km, pickup.min) : 0
+                            const pickupAmount = pickup ? computePickupFee(platformShape, pickup.km) : 0
                             const total = suggestedPrice + pickupAmount
                             const brl = (v: number) => `R$ ${v.toFixed(2).replace('.', ',')}`
                             return (

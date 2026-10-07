@@ -24,8 +24,6 @@ export interface DriverPricing {
     baseDistanceKm: number
     baseFee: number
     pricePerKmAfterBase: number
-    // Valor por minuto de corrida, somado ao km (0 = não cobra por tempo)
-    pricePerMinute: number
     extraFees: DriverExtraFees
     conditionExtraFees: DriverConditionExtraFees
 }
@@ -74,7 +72,6 @@ export const PLATFORM_DEFAULT_PRICING_BY_VEHICLE: Record<VehicleKind, DriverPric
         baseDistanceKm: 5,
         baseFee: 7,
         pricePerKmAfterBase: 2,
-        pricePerMinute: 0.3,
         extraFees: PLATFORM_DEFAULT_EXTRA_FEES,
         conditionExtraFees: PLATFORM_DEFAULT_CONDITION_EXTRA_FEES,
     },
@@ -82,7 +79,6 @@ export const PLATFORM_DEFAULT_PRICING_BY_VEHICLE: Record<VehicleKind, DriverPric
         baseDistanceKm: 5,
         baseFee: 5,
         pricePerKmAfterBase: 1.5,
-        pricePerMinute: 0.2,
         extraFees: PLATFORM_DEFAULT_EXTRA_FEES,
         conditionExtraFees: PLATFORM_DEFAULT_CONDITION_EXTRA_FEES,
     },
@@ -90,7 +86,6 @@ export const PLATFORM_DEFAULT_PRICING_BY_VEHICLE: Record<VehicleKind, DriverPric
         baseDistanceKm: 5,
         baseFee: 5,
         pricePerKmAfterBase: 1.5,
-        pricePerMinute: 0.2,
         extraFees: PLATFORM_DEFAULT_EXTRA_FEES,
         conditionExtraFees: PLATFORM_DEFAULT_CONDITION_EXTRA_FEES,
     },
@@ -105,7 +100,6 @@ export interface DriverPricingRow {
     base_distance_km: number | null
     base_fee: number | null
     price_per_km_after_base: number | null
-    price_per_minute?: number | null
     extra_fee_pessoa?: number | null
     extra_fee_animal?: number | null
     extra_fee_objeto?: number | null
@@ -128,7 +122,6 @@ export function getEffectivePricing(row: DriverPricingRow, vehicleKind: VehicleK
         baseDistanceKm: row.base_distance_km ?? platformDefault.baseDistanceKm,
         baseFee: row.base_fee ?? platformDefault.baseFee,
         pricePerKmAfterBase: row.price_per_km_after_base ?? platformDefault.pricePerKmAfterBase,
-        pricePerMinute: row.price_per_minute ?? 0,
         extraFees: {
             pessoa: row.extra_fee_pessoa ?? PLATFORM_DEFAULT_EXTRA_FEES.pessoa,
             animal: row.extra_fee_animal ?? PLATFORM_DEFAULT_EXTRA_FEES.animal,
@@ -172,51 +165,25 @@ export function computeSuggestedPrice(
     distanceKm: number,
     pricing: DriverPricing,
     rideType?: RideRequestType,
-    ride?: RideConditionFlags,
-    durationMin?: number | null
+    ride?: RideConditionFlags
 ): number {
     const extraKm = Math.max(0, distanceKm - pricing.baseDistanceKm)
     const rideTypeExtra = rideType ? pricing.extraFees[rideType] : 0
     const conditionExtra = ride ? computeConditionExtras(ride, pricing.conditionExtraFees) : 0
-    // Por tempo: minutos estimados da corrida × valor por minuto do motorista
-    const timeExtra = durationMin != null && durationMin > 0 ? durationMin * pricing.pricePerMinute : 0
-    return pricing.baseFee + extraKm * pricing.pricePerKmAfterBase + timeExtra + rideTypeExtra + conditionExtra
+    return pricing.baseFee + extraKm * pricing.pricePerKmAfterBase + rideTypeExtra + conditionExtra
 }
 
 // Mesma conta de computeSuggestedPrice, aberta em partes (pra mostrar ao motorista/admin
-// como o valor foi calculado): base + km acima da distância base + tempo.
-export function explainSuggestedPrice(distanceKm: number, pricing: DriverPricing, durationMin: number) {
+// como o valor foi calculado): base + quilometragem acima da distância base.
+export function explainSuggestedPrice(distanceKm: number, pricing: DriverPricing) {
     const extraKm = Math.max(0, distanceKm - pricing.baseDistanceKm)
     const kmPart = extraKm * pricing.pricePerKmAfterBase
-    const timePart = durationMin > 0 ? durationMin * pricing.pricePerMinute : 0
-    return { base: pricing.baseFee, extraKm, kmPart, durationMin, timePart, total: pricing.baseFee + kmPart + timePart }
+    return { base: pricing.baseFee, extraKm, kmPart, total: pricing.baseFee + kmPart }
 }
 
-// Deslocamento do motorista até o ponto de partida, somado à Tarifa iUser: km × valor/km
-// mais minutos × valor/minuto (mesma lógica da corrida, só que do trecho vazio).
-export function computePickupFee(pricing: DriverPricing, km: number, minutes?: number | null): number {
-    const timePart = minutes != null && minutes > 0 ? minutes * pricing.pricePerMinute : 0
-    return Math.round((km * pricing.pricePerKmAfterBase + timePart) * 100) / 100
-}
-
-// price_per_minute é uma coluna nova: buscada à parte e sem derrubar nada se ela
-// ainda não existir no banco (migração pendente) — nesse caso ninguém cobra por tempo.
-export async function fetchPricePerMinuteMap(
-    client: { from: (table: string) => any },
-    driverIds: string[]
-): Promise<Map<string, number>> {
-    const map = new Map<string, number>()
-    if (driverIds.length === 0) return map
-    try {
-        const { data, error } = await client.from('driver_pricing').select('driver_id, price_per_minute').in('driver_id', driverIds)
-        if (error) return map
-        for (const row of (data || []) as { driver_id: string; price_per_minute: number | null }[]) {
-            if (row.price_per_minute != null) map.set(row.driver_id, Number(row.price_per_minute))
-        }
-    } catch {
-        // sem a coluna: segue sem cobrança por tempo
-    }
-    return map
+// Deslocamento do motorista até o ponto de partida, somado à Tarifa iUser: km × valor/km.
+export function computePickupFee(pricing: DriverPricing, km: number): number {
+    return Math.round(km * pricing.pricePerKmAfterBase * 100) / 100
 }
 
 // "Minha tarifa": os valores próprios que o motorista deixou salvos, mesmo

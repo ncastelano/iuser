@@ -18,7 +18,6 @@ export interface PlatformTariffRow {
     base_distance_km: number
     base_fee: number
     price_per_km: number
-    price_per_minute: number
     extra_fee_pessoa: number
     extra_fee_animal: number
     extra_fee_objeto: number
@@ -31,7 +30,7 @@ export interface PlatformTariffRow {
 }
 
 export const PLATFORM_TARIFF_COLUMNS =
-    'vehicle_kind, base_distance_km, base_fee, price_per_km, price_per_minute, extra_fee_pessoa, extra_fee_animal, extra_fee_objeto, fee_condominio, fee_compras, fee_necessidade_especial, fee_pet_sem_caixa, fee_entrega_interna, fee_ar_condicionado'
+    'vehicle_kind, base_distance_km, base_fee, price_per_km, extra_fee_pessoa, extra_fee_animal, extra_fee_objeto, fee_condominio, fee_compras, fee_necessidade_especial, fee_pet_sem_caixa, fee_entrega_interna, fee_ar_condicionado'
 
 export function applyPlatformTariffRows(rows: PlatformTariffRow[]) {
     for (const row of rows) {
@@ -41,7 +40,6 @@ export function applyPlatformTariffRows(rows: PlatformTariffRow[]) {
         shape.baseDistanceKm = num(row.base_distance_km, shape.baseDistanceKm)
         shape.baseFee = num(row.base_fee, shape.baseFee)
         shape.pricePerKmAfterBase = num(row.price_per_km, shape.pricePerKmAfterBase)
-        shape.pricePerMinute = num(row.price_per_minute, shape.pricePerMinute)
         const extraFees: DriverExtraFees = {
             pessoa: num(row.extra_fee_pessoa, shape.extraFees.pessoa),
             animal: num(row.extra_fee_animal, shape.extraFees.animal),
