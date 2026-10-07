@@ -73,9 +73,9 @@ export default function RadarSection({ dragHandle, origin, userId }: RadarSectio
                 </div>
                 <style>{`
                     @keyframes radarRing {
-                        0%, 100% { border-width: 1px; opacity: 0.14; filter: blur(1.5px); box-shadow: 0 0 8px rgba(249,115,22,0.25), inset 0 0 8px rgba(249,115,22,0.15); }
-                        35% { border-width: 6px; opacity: 0.5; filter: blur(3.5px); box-shadow: 0 0 26px rgba(249,115,22,0.55), inset 0 0 22px rgba(249,115,22,0.35); }
-                        65% { border-width: 2px; opacity: 0.26; filter: blur(2.5px); box-shadow: 0 0 14px rgba(249,115,22,0.35), inset 0 0 12px rgba(249,115,22,0.2); }
+                        0%, 100% { border-width: 1px; opacity: 0.2; filter: blur(0.5px); box-shadow: 0 0 5px rgba(249,115,22,0.2); }
+                        35% { border-width: 5px; opacity: 0.65; filter: blur(1.2px); box-shadow: 0 0 14px rgba(249,115,22,0.4); }
+                        65% { border-width: 2px; opacity: 0.35; filter: blur(0.8px); box-shadow: 0 0 8px rgba(249,115,22,0.28); }
                     }
                     @keyframes radarDot {
                         0%, 100% { transform: scale(1); box-shadow: 0 0 10px #f97316; }
@@ -85,7 +85,7 @@ export default function RadarSection({ dragHandle, origin, userId }: RadarSectio
                     .radar-dot { animation: radarDot 2.7s ease-in-out infinite; }
                     @media (prefers-reduced-motion: reduce) {
                         .radar-ring, .radar-dot { animation: none; }
-                        .radar-ring { border-width: 2px; opacity: 0.3; filter: blur(2px); }
+                        .radar-ring { border-width: 2px; opacity: 0.35; filter: blur(0.8px); }
                     }
                 `}</style>
 
