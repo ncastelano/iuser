@@ -146,7 +146,7 @@ export default function FeaturedProfiles({
         <div className={`relative w-full ${className}`}>
             <HomeSectionHeader
                 title={title}
-                subtitle="Conheça quem está no iUser"
+                subtitle="Melhores perfis"
                 dragHandle={dragHandle}
                 action={hasProfiles ? (
                     <ViewServicesButton label="ver pessoas" count={profiles.length} onClick={handleViewAll} />
