@@ -13,7 +13,8 @@ import { toast } from 'sonner'
 import { TrendingUp, Car, Camera, Star, MessageSquare, Clock, CheckCircle2, Volume2, VolumeX, Navigation2, LayoutDashboard, Trash2 } from 'lucide-react'
 import { loadPlatformTariffs } from '@/lib/platformTariffs'
 import { Spinner } from '@/components/Spinner'
-import { computeSuggestedPrice, explainSuggestedPrice, computeHourlyEarnings, computePickupFee, HOURLY_ASSUMED_SPEED_KMH, PLATFORM_DEFAULT_PRICING_BY_VEHICLE, PLATFORM_DEFAULT_EXTRA_FEES, PLATFORM_DEFAULT_CONDITION_EXTRA_FEES, PricingMode } from '@/lib/driverPricing'
+import FareCalculator from '@/components/FareCalculator'
+import { computeSuggestedPrice, explainSuggestedPrice, PLATFORM_DEFAULT_PRICING_BY_VEHICLE, PLATFORM_DEFAULT_EXTRA_FEES, PLATFORM_DEFAULT_CONDITION_EXTRA_FEES, PricingMode } from '@/lib/driverPricing'
 import { VehicleKind, VEHICLE_KIND_LABELS } from '@/lib/rideVehicle'
 import { createSquareImage } from '@/lib/image'
 import { DRIVER_SERVICE_OPTIONS } from '@/lib/driverServices'
@@ -642,8 +643,6 @@ function PainelMotoristaContent() {
     }
 
     const previewDistance = 10
-    // Exemplo de ganho por hora: corrida de 10 km + 2 km até o passageiro, sempre a 40 km/h
-    const previewPickupKm = 2
     const platformPricingForVehicle = PLATFORM_DEFAULT_PRICING_BY_VEHICLE[vehicleKind]
     const activePricing = pricingMode === 'platform'
         ? platformPricingForVehicle
@@ -668,13 +667,6 @@ function PainelMotoristaContent() {
     const previewPrice = computeSuggestedPrice(previewDistance, activePricing)
     const previewParts = explainSuggestedPrice(previewDistance, activePricing)
     const brl2 = (v: number) => `R$ ${v.toFixed(2).replace('.', ',')}`
-    // Ganho por hora do exemplo: a Tarifa iUser soma o deslocamento até o passageiro (km × valor/km);
-    // a Tarifa Personalizada não soma nada, mas as horas contam o deslocamento igual.
-    const previewPickupFee = pricingMode === 'platform' ? computePickupFee(activePricing, previewPickupKm) : 0
-    const previewHourly = computeHourlyEarnings(previewPrice + previewPickupFee, previewDistance, previewPickupKm)
-    const previewHourlyText = previewHourly
-        ? `Por hora: ${brl2(previewPrice + previewPickupFee)}${previewPickupFee > 0 ? ` (${brl2(previewPrice)} da corrida + ${brl2(previewPickupFee)} do deslocamento de ${previewPickupKm} km)` : ''} ÷ ${previewHourly.hours.toFixed(2).replace('.', ',')} h (${previewPickupKm} km até o passageiro + ${previewDistance} km de corrida = ${previewHourly.totalKm} km a ${HOURLY_ASSUMED_SPEED_KMH} km/h = ${previewHourly.totalMin} min) = ${brl2(previewHourly.perHour)} por hora`
-        : ''
     // base + quilometragem à vista pro motorista conferir a conta
     const previewBreakdown = `${brl2(previewParts.base)} base + ${brl2(previewParts.kmPart)} de quilometragem (${previewParts.extraKm.toFixed(1).replace('.', ',')} km acima da base × ${brl2(activePricing.pricePerKmAfterBase)}) = ${brl2(previewParts.total)}`
 
@@ -936,10 +928,6 @@ function PainelMotoristaContent() {
                                         Exemplo: uma corrida de {previewDistance} km sairia por R$ {previewPrice.toFixed(2)}
                                     </p>
                                     <p className="text-[9px] mt-1" style={{ color: colors.textSecondary }}>{previewBreakdown}</p>
-                                    <p className="text-[10px] mt-2 font-bold" style={{ color: '#16a34a' }}>{previewHourlyText}</p>
-                                    <p className="text-[9px] mt-1" style={{ color: colors.textSecondary }}>
-                                        O deslocamento até o passageiro também é cobrado (km × R$ {platformPricingForVehicle.pricePerKmAfterBase.toFixed(2)}) e entra no valor da corrida. O tempo é estimado sempre a {HOURLY_ASSUMED_SPEED_KMH} km/h, pra você comparar o valor por hora entre corridas.
-                                    </p>
                                 </div>
                             ) : (
                                 <div
@@ -1000,12 +988,18 @@ function PainelMotoristaContent() {
                                         Exemplo: uma corrida de {previewDistance} km sairia por R$ {previewPrice.toFixed(2)}
                                     </p>
                                     <p className="text-[9px] mt-1" style={{ color: colors.textSecondary }}>{previewBreakdown}</p>
-                                    <p className="text-[10px] mt-2 font-bold" style={{ color: '#16a34a' }}>{previewHourlyText}</p>
-                                    <p className="text-[9px] mt-1" style={{ color: colors.textSecondary }}>
-                                        Na tarifa personalizada o deslocamento até o passageiro não é somado ao preço, mas conta no tempo. O tempo é estimado sempre a {HOURLY_ASSUMED_SPEED_KMH} km/h.
-                                    </p>
                                 </div>
                             )}
+
+                            {/* Calculadora: distância ↔ tempo ↔ valor ↔ rendimento por hora (40 km/h fixos), com a tarifa escolhida acima */}
+                            <FareCalculator
+                                tariff={{
+                                    baseDistanceKm: activePricing.baseDistanceKm,
+                                    baseFee: activePricing.baseFee,
+                                    pricePerKm: activePricing.pricePerKmAfterBase,
+                                }}
+                                tariffLabel={pricingMode === 'platform' ? 'Tarifa da plataforma' : 'Tarifa Personalizada'}
+                            />
 
                             <div
                                 className="p-4 rounded-2xl border"

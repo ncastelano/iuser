@@ -6,6 +6,7 @@
     "dev": "next dev -H 0.0.0.0",
     "build": "next build",
     "start": "next start",
+    "test:fare": "node --test scripts/test-fare-calculator.mjs",
     "cap:sync": "cap sync",
     "cap:ios": "cap open ios",
     "cap:android": "cap open android"
