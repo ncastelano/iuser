@@ -113,7 +113,7 @@ export default function CareerPlans() {
                     <div className="relative rounded-3xl p-5 flex flex-col gap-3" style={{ background: GRADIENT, boxShadow: '0 10px 30px #f9731650' }}>
                         <span
                             className="absolute -top-2.5 left-1/2 -translate-x-1/2 text-[9px] font-black uppercase tracking-wider px-3 py-1 rounded-full text-white flex items-center gap-1 whitespace-nowrap"
-                            style={{ background: '#111827' }}
+                            style={{ background: '#111827', border: '1px solid #ffffff' }}
                         >
                             <Zap size={10} />
                             Pra quem está chegando
