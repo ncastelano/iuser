@@ -9,7 +9,7 @@ import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { categorias, resolveCategoria, type Categoria } from '@/lib/categorias'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
-import { HomeSectionHeader, HomeGlassCard, HOME_GRADIENT } from './HomeSectionKit'
+import { HomeGlassCard, HOME_GRADIENT } from './HomeSectionKit'
 import { supabase } from '@/lib/supabase/client'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
@@ -161,7 +161,7 @@ export default function CanIhelp({ dragHandle }: CanIhelpProps) {
 
     return (
         <section>
-            <HomeSectionHeader icon={Sparkles} title="Categorias" subtitle="Ações rápidas e onde procurar" dragHandle={dragHandle} action={<span />} />
+            {dragHandle && <div className="flex mb-2">{dragHandle}</div>}
 
             <HomeGlassCard className="p-6">
                 {/* Ações em destaque — os 3 principais "o que o app faz",
