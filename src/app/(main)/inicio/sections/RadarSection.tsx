@@ -3,7 +3,7 @@
 
 import { ReactNode, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Radar as RadarIcon, Navigation, Store, ShoppingBag, Wrench, MapPin } from 'lucide-react'
+import { Radar as RadarIcon, Navigation, Store, ShoppingBag, Wrench, MapPin, Eye } from 'lucide-react'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
 import { fetchNearest, formatDistance, type NearestItem, type NearestKind } from '@/lib/radarNearest'
 
@@ -35,10 +35,11 @@ export default function RadarSection({ dragHandle, origin, userId }: RadarSectio
 
     const lat = origin?.lat
     const lng = origin?.lng
+    // Sem local definido mostra os mais vistos; assim que houver local, troca pros mais próximos.
     useEffect(() => {
-        if (lat == null || lng == null) { setNearest(null); return }
         let cancelled = false
-        fetchNearest({ lat, lng }, userId)
+        setNearest(null)
+        fetchNearest(lat != null && lng != null ? { lat, lng } : null, userId)
             .then((res) => { if (!cancelled) setNearest(res) })
             .catch(() => { if (!cancelled) setNearest({ loja: [], produto: [], servico: [] }) })
         return () => { cancelled = true }
@@ -126,17 +127,15 @@ export default function RadarSection({ dragHandle, origin, userId }: RadarSectio
 
                 {/* Os 3 mais perto de você: uma loja, um produto e um serviço */}
                 <div className="relative z-10 mt-5">
-                    {origin == null ? (
-                        <p className="text-xs text-white/60 flex items-center gap-1.5">
-                            <MapPin size={12} /> Defina seu local (no topo da página) para ver o que tem perto de você.
-                        </p>
-                    ) : nearest == null ? (
-                        <div className="grid grid-cols-3 gap-2">
+                    {nearest == null ? (                        <div className="grid grid-cols-3 gap-2">
                             {[0, 1, 2].map((i) => <div key={i} className="h-32 rounded-2xl animate-pulse" style={{ background: 'rgba(255,255,255,0.08)' }} />)}
                         </div>
                     ) : (
                         <>
-                            <p className="text-[10px] font-black uppercase tracking-wider text-white/50 mb-2">Mais perto de você</p>
+                            <p className="text-[10px] font-black uppercase tracking-wider text-white/50 mb-2">
+                                {origin ? 'Mais perto de você' : 'Mais vistos'}
+                                {!origin && <span className="normal-case font-semibold tracking-normal text-white/40"> · defina seu local no topo pra ver os mais próximos</span>}
+                            </p>
                             <div className="grid grid-cols-3 gap-2">
                                 {cards.map((item) => {
                                     const { label, icon: KindIcon } = KIND_META[item.kind]
@@ -175,8 +174,17 @@ export default function RadarSection({ dragHandle, origin, userId }: RadarSectio
                                                     </span>
                                                 )}
                                                 <div className="flex items-center gap-1 mt-0.5">
-                                                    <MapPin size={10} className="text-white/70" />
-                                                    <span className="text-[10px] font-semibold text-white/70">{formatDistance(item.distanceKm)}</span>
+                                                    {item.distanceKm != null ? (
+                                                        <>
+                                                            <MapPin size={10} className="text-white/70" />
+                                                            <span className="text-[10px] font-semibold text-white/70">{formatDistance(item.distanceKm)}</span>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <Eye size={10} className="text-white/70" />
+                                                            <span className="text-[10px] font-semibold text-white/70">{item.viewCount} {item.viewCount === 1 ? 'visita' : 'visitas'}</span>
+                                                        </>
+                                                    )}
                                                 </div>
                                             </div>
                                         </button>
