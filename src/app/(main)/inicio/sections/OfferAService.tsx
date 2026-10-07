@@ -1,8 +1,8 @@
 // src/app/(main)/inicio/sections/OfferAService.tsx
 //
-// Card da home "Quem já oferece serviço": vitrine dos serviços que
-// profissionais e lojas já publicaram, com o total no botão "ver serviços" e
-// o atalho "Oferecer um serviço" pra quem quer publicar o seu.
+// Seção da home "Quem já oferece serviço": vitrine dos serviços que
+// profissionais e lojas já publicaram, sem card em volta (tudo flutuante), com o "ver serviços" (badge com o total)
+// ao lado do atalho "Oferecer um serviço" pra quem quer publicar o seu.
 'use client'
 
 import { ReactNode } from 'react'
@@ -11,7 +11,7 @@ import { Megaphone } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
-import { HomeGlassCard } from './HomeSectionKit'
+import { ViewServicesButton } from './ViewServicesButton'
 import FeaturedServices from './FeaturedServices'
 
 interface OfferAServiceProps {
@@ -33,22 +33,25 @@ export default function OfferAService({ dragHandle }: OfferAServiceProps) {
 
     return (
         <section>
-            <HomeGlassCard className="p-5 sm:p-6 relative">
-                <FeaturedServices
-                    title="Quem já oferece serviço"
-                    subtitle="Profissionais e lojas prontos para te atender"
-                    dragHandle={dragHandle}
-                    onViewAll={() => { startNavProgress(); router.push('/solicitar-servico') }}
-                />
-                <button
-                    onClick={goPublish}
-                    className="mt-3 w-full flex items-center justify-center gap-2 py-3 rounded-full font-black text-sm transition-all hover:scale-[1.02] active:scale-95"
-                    style={{ background: 'transparent', color: colors.accent, border: `2px solid ${colors.accent}` }}
-                >
-                    <Megaphone size={16} />
-                    Oferecer um serviço
-                </button>
-            </HomeGlassCard>
+            <FeaturedServices
+                title="Quem já oferece serviço"
+                subtitle="Profissionais e lojas prontos para te atender"
+                hideIcon
+                dragHandle={dragHandle}
+                footer={(count) => (
+                    <div className="flex gap-2">
+                        <ViewServicesButton onClick={() => { startNavProgress(); router.push('/solicitar-servico') }} count={count} />
+                        <button
+                            onClick={goPublish}
+                            className="flex-1 flex items-center justify-center gap-2 py-2 rounded-full font-black text-xs transition-all hover:scale-[1.02] active:scale-95"
+                            style={{ background: 'transparent', color: colors.accent, border: `2px solid ${colors.accent}` }}
+                        >
+                            <Megaphone size={14} />
+                            Oferecer um serviço
+                        </button>
+                    </div>
+                )}
+            />
         </section>
     )
 }

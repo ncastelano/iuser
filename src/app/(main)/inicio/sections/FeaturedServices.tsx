@@ -158,9 +158,11 @@ interface FeaturedServicesProps {
     leftAction?: ReactNode
     // Frase abaixo do título (some o contador "N serviços" quando há onViewAll, que mostra o total no badge)
     subtitle?: string
+    // Linha de botões embaixo de tudo; recebe o total de serviços (ex: "ver serviços" com badge + "Oferecer um serviço")
+    footer?: (count: number) => ReactNode
 }
 
-export default function FeaturedServices({ dragHandle, title = 'Serviços em destaque', maxItems, className = '', hideIcon = false, onViewAll, leftAction, subtitle }: FeaturedServicesProps) {
+export default function FeaturedServices({ dragHandle, title = 'Serviços em destaque', maxItems, className = '', hideIcon = false, onViewAll, leftAction, subtitle, footer }: FeaturedServicesProps) {
     const router = useRouter()
     const startNavProgress = useNavProgressStore((s) => s.start)
     const { colors } = useTheme()
@@ -240,7 +242,7 @@ export default function FeaturedServices({ dragHandle, title = 'Serviços em des
     }
 
     // Sem serviço nenhum a seção some, mas o botão da esquerda (publicar) continua à mão
-    if (!services.length) return leftAction ? <div className="flex">{leftAction}</div> : null
+    if (!services.length) return footer ? <div>{footer(0)}</div> : leftAction ? <div className="flex">{leftAction}</div> : null
 
     return (
         <div
@@ -361,6 +363,7 @@ export default function FeaturedServices({ dragHandle, title = 'Serviços em des
                 )}
             </div>
 
+            {footer && <div className="mt-4">{footer(services.length)}</div>}
         </div>
     )
 }
