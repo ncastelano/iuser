@@ -127,7 +127,7 @@ export default function FreeTrialGift({ onRequireLogin, onClaimed, hideWhenEnded
                         style={{ background: GRADIENT, boxShadow: '0 8px 24px #f9731650' }}
                     >
                         {t.claiming ? <Spinner size={16} color="#ffffff" /> : <Gift size={16} />}
-                        {t.userId ? `Resgatar ${daysLabel} grátis taxa 0%` : `Entrar pra resgatar ${daysLabel} grátis taxa 0%`}
+                        {t.userId ? `Resgatar ${daysLabel} de Plano Pré-pago` : `Entrar pra resgatar ${daysLabel} de Plano Pré-pago`}
                     </button>
                 )}
             </div>

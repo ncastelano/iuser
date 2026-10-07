@@ -45,7 +45,7 @@ import {
 } from 'lucide-react'
 import AtalhoCompromissosPessoal from '@/app/(main)/compromissos/AtalhoCompromissosPessoal'
 import { ProfileInfo } from './ProfileInfo'
-import FreeTrialGift from '@/components/FreeTrialGift'
+import PlanPromotions from './PlanPromotions'
 import ProfileVisitors from './ProfileVisitors'
 import PublicationProfile from './ProfilePublication'
 import ProfileServiceListing from './ProfileServiceListing'
@@ -1376,8 +1376,8 @@ export default function ProfileDashboard({
 
     return (
         <div className="w-full px-4 md:px-6 pb-28">
-            {/* ===== BRINDE: teste grátis do Pré-pago (resgate único por conta) — bem em cima ===== */}
-            <FreeTrialGift hideWhenEnded className="mt-3 mb-6" />
+            {/* ===== PROMOÇÕES E PLANOS — bem em cima: o brinde do Pré-pago + os planos ativos ===== */}
+            <PlanPromotions profileId={profile.id} className="mt-3 mb-6" />
 
             {/* ===== Informações do Perfil — mesmo design de "Informações da Loja" ===== */}
             <div className="mb-6">
