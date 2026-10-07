@@ -30,6 +30,7 @@ import {
 } from '@/lib/storeHours'
 import { toast } from 'sonner'
 import { HomeSectionHeader } from './HomeSectionKit'
+import { ViewServicesButton } from './ViewServicesButton'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -69,6 +70,8 @@ type StoreListProps = {
     maxItems?: number
     className?: string
     title?: string
+    // Frase abaixo do título
+    subtitle?: string
     dragHandle?: ReactNode
 }
 
@@ -415,6 +418,7 @@ export function StoreList({
     maxItems = 8,
     className = '',
     title = 'As Lojas Mais Visitadas',
+    subtitle,
     dragHandle,
 }: StoreListProps) {
     const router = useRouter()
@@ -431,6 +435,15 @@ export function StoreList({
     const [currentIndex, setCurrentIndex] = useState(0)
     const [isAutoPlayPaused, setIsAutoPlayPaused] = useState(false)
     const [isHovered, setIsHovered] = useState(false)
+    // Total de lojas (a lista só carrega as mais visitadas) — vai no badge do "ver lojas"
+    const [totalStores, setTotalStores] = useState(0)
+
+    useEffect(() => {
+        supabase
+            .from('stores')
+            .select('id', { count: 'exact', head: true })
+            .then(({ count }) => setTotalStores(count || 0))
+    }, [])
 
     const itemsPerPage = useBreakpoint()
     const totalPages = Math.max(1, Math.ceil(filteredStores.length / itemsPerPage))
@@ -788,22 +801,15 @@ export function StoreList({
             onMouseLeave={() => setIsHovered(false)}
         >
             <HomeSectionHeader
-                icon={Store}
                 title={title}
+                subtitle={subtitle}
                 dragHandle={dragHandle}
                 action={hasAnyProduct ? (
-                    <button
+                    <ViewServicesButton
+                        label="ver lojas"
+                        count={totalStores || filteredStores.length}
                         onClick={() => { startNavProgress(); router.push('/lojas-em-destaque') }}
-                        className="flex items-center gap-2 px-5 py-2 rounded-full text-xs font-bold transition-all hover:scale-105 active:scale-95 hover:shadow-lg whitespace-nowrap flex-shrink-0"
-                        style={{
-                            background: GRADIENT,
-                            color: '#ffffff',
-                            boxShadow: `0 2px 8px rgba(249, 115, 22, 0.3)`,
-                        }}
-                    >
-                        <span>Ver todas</span>
-                        <ArrowRight className="w-3.5 h-3.5" />
-                    </button>
+                    />
                 ) : <span />}
             />
 

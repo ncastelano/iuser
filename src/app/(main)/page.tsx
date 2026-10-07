@@ -470,6 +470,7 @@ function HomePageContent() {
                 return (
                     <StoreList
                         title="Lojas"
+                        subtitle="Conheça as lojas e peça pelo iUser"
                         maxItems={5}
                         onStoreClick={(storeSlug) => {
                             startNavProgress()
