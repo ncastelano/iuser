@@ -1,6 +1,6 @@
 // src/app/(main)/inicio/sections/NeedAService.tsx
 //
-// Card da home "Quem procura serviço": os pedidos de serviço abertos de TODO mundo (inclusive
+// Seção da home "Quem procura serviço" (sem card em volta, tudo flutuante): os pedidos de serviço abertos de TODO mundo (inclusive
 // os da própria pessoa), pra qualquer um ver que tem gente precisando e poder
 // pedir o seu também. Inscrever-se continua em /procurar-servico (exige plano
 // Prestador); aqui é só a vitrine.
@@ -9,7 +9,7 @@
 import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
-import { MapPin, Plus, Eye, Check, Wrench, HandHelping, MoreHorizontal, Pencil, Trash2, X } from 'lucide-react'
+import { MapPin, Plus, Eye, Check, Wrench, MoreHorizontal, Pencil, Trash2, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase/client'
 import ServiceRequestDetailsDialog from '@/components/ServiceRequestDetailsDialog'
@@ -18,7 +18,7 @@ import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
 import { BoardItem, fetchOpenBoardItems, fetchOpenRequestCount, getItemIcon, getItemLabel, shortAddress, askedAgo, notifyServiceRequestsChanged, SERVICE_REQUESTS_CHANGED } from '@/lib/serviceBoard'
-import { HOME_GRADIENT, HomeGlassCard, HomeSectionHeader } from './HomeSectionKit'
+import { HOME_GRADIENT, HomeSectionHeader } from './HomeSectionKit'
 import { ViewServicesButton } from './ViewServicesButton'
 import { useMyServiceApplications } from '@/hooks/useMyServiceApplications'
 
@@ -81,9 +81,7 @@ export default function NeedAService({ dragHandle, limit = 8 }: { dragHandle?: R
 
     return (
         <section>
-          <HomeGlassCard className="p-5 sm:p-6 relative">
             <HomeSectionHeader
-                icon={HandHelping}
                 dragHandle={dragHandle}
                 title="Quem procura serviço"
                 subtitle={items.length > 0 ? 'Pessoas precisando de um profissional agora' : 'Ninguém pediu ainda — seja o primeiro'}
@@ -270,7 +268,6 @@ export default function NeedAService({ dragHandle, limit = 8 }: { dragHandle?: R
                 <Plus size={16} />
                 Precisa de um serviço? Peça o seu
             </button>
-          </HomeGlassCard>
         </section>
     )
 }
