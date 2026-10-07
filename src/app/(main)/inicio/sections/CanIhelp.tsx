@@ -9,7 +9,7 @@ import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { categorias, resolveCategoria, type Categoria } from '@/lib/categorias'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
-import { HomeGlassCard, HOME_GRADIENT } from './HomeSectionKit'
+import { HOME_GRADIENT } from './HomeSectionKit'
 import { supabase } from '@/lib/supabase/client'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
@@ -163,7 +163,8 @@ export default function CanIhelp({ dragHandle }: CanIhelpProps) {
         <section>
             {dragHandle && <div className="flex mb-2">{dragHandle}</div>}
 
-            <HomeGlassCard className="p-6">
+            {/* Sem card em volta: os botões flutuam direto sobre o fundo da página */}
+            <div>
                 {/* Ações em destaque — os 3 principais "o que o app faz",
                     em cards cheios de cor (gradiente) pra se diferenciar
                     das categorias, que são só ícone/contorno abaixo. */}
@@ -186,10 +187,8 @@ export default function CanIhelp({ dragHandle }: CanIhelpProps) {
                     })}
                 </div>
 
-                <div className="h-px mb-5" style={{ background: colors.border }} />
-
-                {/* Lista de categorias em wrap - a mais clicada fica primeiro */}
-                <div className="flex flex-wrap gap-3 justify-center">
+                {/* Categorias, 4 por linha - a mais clicada fica primeiro */}
+                <div className="grid grid-cols-4 gap-x-1 gap-y-3">
                     {orderedCategorias.map((cat) => {
                         const Icon = cat.icone
                         const iconColor = cat.color || '#f97316'
@@ -207,7 +206,7 @@ export default function CanIhelp({ dragHandle }: CanIhelpProps) {
                                     bumpClickCount(cat.slug)
                                     startNavProgress()
                                 }}
-                                className="relative flex flex-col items-center justify-center p-3 rounded-xl transition-all duration-200 hover:scale-105 active:scale-95 group flex-shrink-0 w-20"
+                                className="relative flex flex-col items-center justify-start p-1.5 rounded-xl transition-all duration-200 hover:scale-105 active:scale-95 group min-w-0"
                                 style={{
                                     background: 'transparent',
                                     border: 'none',
@@ -218,6 +217,7 @@ export default function CanIhelp({ dragHandle }: CanIhelpProps) {
                                         className="w-14 h-14 flex items-center justify-center rounded-full transition-all duration-200 group-hover:shadow-lg"
                                         style={{
                                             background: `${iconColor}20`,
+                                            boxShadow: `0 6px 16px ${iconColor}30`,
                                         }}
                                     >
                                         <Icon
@@ -258,7 +258,7 @@ export default function CanIhelp({ dragHandle }: CanIhelpProps) {
                         )
                     })}
                 </div>
-            </HomeGlassCard>
+            </div>
 
             <style jsx>{`
                 @keyframes badge-pop {
