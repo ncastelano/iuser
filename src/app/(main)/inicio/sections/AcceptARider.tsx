@@ -18,6 +18,7 @@ import { loadPlatformTariffs } from '@/lib/platformTariffs'
 import RideChat from '@/components/RideChat'
 import { DRIVER_CHAT_QUICK_REPLIES } from '@/lib/rideChatQuickReplies'
 import { HomeGlassCard } from './HomeSectionKit'
+import { useMyVehicles } from '@/lib/vehicleHeaderTabs'
 import { RideOfferCard, type OfferRide, type OfferRequester } from '@/components/AceitarCorridas/RideOfferCard'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
@@ -80,6 +81,8 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
     const router = useRouter()
     const startNavProgress = useNavProgressStore((s) => s.start)
     const { userId: contextUserId, loading: profileLoading } = useProfile()
+    const { vehicles: myVehicles, loaded: vehiclesLoaded } = useMyVehicles(contextUserId)
+    const hasVehicle = vehiclesLoaded && myVehicles.length > 0
     const [hasPricing, setHasPricing] = useState<boolean | null>(null)
     const [driverModeActive, setDriverModeActive] = useState(false)
     const [acceptedRide, setAcceptedRide] = useState<AcceptedRideStatus | null>(null)
@@ -464,13 +467,14 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
                         <div className="flex flex-row flex-nowrap gap-2 justify-center sm:justify-end">
                             {driverModeActive ? (
                                 <>
+                                    {/* Sem veículo cadastrado: convida a adicionar; com veículo: vai pro painel */}
                                     <button
-                                        onClick={goToAddVehicle}
+                                        onClick={hasVehicle ? goToPainel : goToAddVehicle}
                                         className="flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-3 rounded-full font-bold text-xs sm:text-sm transition-all whitespace-nowrap hover:scale-105 active:scale-95 flex-1 sm:flex-none min-w-0"
                                         style={buttonStyle}
                                     >
-                                        <Plus size={16} className="flex-shrink-0" />
-                                        adicionar veículo
+                                        {hasVehicle ? <Settings2 size={16} className="flex-shrink-0" /> : <Plus size={16} className="flex-shrink-0" />}
+                                        {hasVehicle ? 'painel do motorista' : 'adicionar veículo'}
                                     </button>
 
                                     <button
