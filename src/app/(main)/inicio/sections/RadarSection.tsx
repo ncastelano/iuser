@@ -133,7 +133,7 @@ export default function RadarSection({ dragHandle, origin, userId, onDefineLocat
                         </div>
                     ) : (
                         <>
-                            <p className="text-[10px] font-black uppercase tracking-wider text-white/50 mb-2">
+                            <p className="text-[10px] font-black uppercase tracking-wider text-white/50 mb-4">
                                 {origin ? 'Mais perto de você' : 'Mais vistos'}
                                 {!origin && <span className="normal-case font-semibold tracking-normal text-white/40"> · defina seu local no topo pra ver os mais próximos</span>}
                             </p>
@@ -141,10 +141,19 @@ export default function RadarSection({ dragHandle, origin, userId, onDefineLocat
                                 {cards.map((item) => {
                                     const { label, icon: KindIcon } = KIND_META[item.kind]
                                     return (
+                                        // Wrapper sem overflow cortado: o selo do tipo fica pendurado na borda de cima do card
+                                        // (lado direito), como o selo do "Seu plano", em vez de dentro da imagem em cima do preço.
+                                        <div key={`${item.kind}-${item.id}`} className="relative radar-card-in">
+                                        <span
+                                            className="absolute -top-2.5 right-2 z-10 flex items-center gap-1 text-[9px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full text-white whitespace-nowrap pointer-events-none"
+                                            style={{ background: '#111827', border: '1px solid #ffffff' }}
+                                        >
+                                            <KindIcon size={10} color="#ffffff" />
+                                            {label}
+                                        </span>
                                         <button
-                                            key={`${item.kind}-${item.id}`}
                                             onClick={(e) => { e.stopPropagation(); startNavProgress(); router.push(item.href) }}
-                                            className="group relative block overflow-hidden rounded-xl aspect-square text-left transition-all hover:scale-[1.03] active:scale-95 radar-card-in"
+                                            className="group relative block w-full overflow-hidden rounded-xl aspect-square text-left transition-all hover:scale-[1.03] active:scale-95"
                                             style={{ border: '1px solid rgba(255,255,255,0.3)' }}
                                         >
                                             {/* Imagem do tamanho do card inteiro */}
@@ -156,15 +165,6 @@ export default function RadarSection({ dragHandle, origin, userId, onDefineLocat
                                                 </div>
                                             )}
                                             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent pointer-events-none" />
-
-                                            {/* Tipo: botão laranja → vermelho, texto e ícone brancos */}
-                                            <span
-                                                className="absolute top-1.5 left-1.5 flex items-center gap-1 px-2 py-1 rounded-full text-[9px] font-black uppercase tracking-wide text-white pointer-events-none"
-                                                style={{ background: GRADIENT, boxShadow: '0 2px 6px rgba(249,115,22,0.4)' }}
-                                            >
-                                                <KindIcon size={10} color="#ffffff" />
-                                                {label}
-                                            </span>
 
                                             <div className="absolute bottom-0 left-0 right-0 p-2 pointer-events-none">
                                                 <h4 className="text-[11px] font-bold text-white leading-tight line-clamp-2">{item.name}</h4>
@@ -189,6 +189,7 @@ export default function RadarSection({ dragHandle, origin, userId, onDefineLocat
                                                 </div>
                                             </div>
                                         </button>
+                                        </div>
                                     )
                                 })}
                             </div>
