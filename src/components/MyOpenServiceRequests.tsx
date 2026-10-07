@@ -136,24 +136,30 @@ export default function MyOpenServiceRequests({ limit = 5, title, onCountChange 
                             className="flex-shrink-0 w-64 rounded-3xl overflow-hidden flex flex-col cursor-pointer transition-transform hover:scale-[1.02] active:scale-[0.99]"
                             style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
                         >
-                            {/* Capa: foto do que a pessoa pediu (ícone só quando não tem foto) */}
-                            <div className="relative h-32 w-full" style={{ background: r.photoUrl ? colors.border : GRADIENT }}>
+                            {/* Capa de tamanho padrão: a foto aparece INTEIRA (object-contain), qualquer que seja
+                                a proporção dela, sobre uma cópia desfocada da própria foto pra não ficar faixa vazia */}
+                            <div className="relative h-36 w-full overflow-hidden" style={{ background: r.photoUrl ? '#0b1220' : GRADIENT }}>
                                 {r.photoUrl ? (
-                                    <img src={r.photoUrl} alt="" className="w-full h-full object-cover" loading="lazy" />
+                                    <>
+                                        <img src={r.photoUrl} alt="" aria-hidden className="absolute inset-0 w-full h-full object-cover scale-125 blur-xl opacity-60" loading="lazy" />
+                                        <img src={r.photoUrl} alt={r.serviceLabel} className="relative w-full h-full object-contain" loading="lazy" />
+                                    </>
                                 ) : (
                                     <div className="w-full h-full flex items-center justify-center">
                                         <Icon size={44} color="rgba(255,255,255,0.85)" />
                                     </div>
                                 )}
-                                <div className="absolute inset-x-0 bottom-0 h-16 pointer-events-none" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.65), transparent)' }} />
-                                <span className="absolute left-3 bottom-2.5 text-sm font-black text-white drop-shadow">{r.serviceLabel}</span>
-                                <span className="absolute right-2.5 top-2.5 flex items-center gap-1 text-[10px] font-bold text-white px-2 py-1 rounded-full" style={{ background: 'rgba(0,0,0,0.45)' }}>
+                                <span className="absolute right-2.5 top-2.5 flex items-center gap-1 text-[10px] font-bold text-white px-2 py-1 rounded-full" style={{ background: 'rgba(0,0,0,0.5)' }}>
                                     <Eye size={11} />
                                     {r.viewCount}
                                 </span>
                             </div>
 
                             <div className="p-3.5 flex flex-col gap-2">
+                                <p className="flex items-center gap-1.5 text-sm font-black" style={{ color: colors.textPrimary }}>
+                                    <Icon size={14} style={{ color: colors.accent }} />
+                                    {r.serviceLabel}
+                                </p>
                                 <div className="flex items-center justify-between gap-2 text-[11px]" style={{ color: colors.textSecondary }}>
                                     <span className="flex items-center gap-1 min-w-0">
                                         <MapPin size={11} className="flex-shrink-0" />
