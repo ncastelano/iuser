@@ -1002,6 +1002,25 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
         }
     }
 
+    // Remove o local salvo no perfil (recomeçar do zero)
+    const handleLocationClear = async () => {
+        try {
+            const { data: { user } } = await supabase.auth.getUser()
+            if (!user) return
+            const { error } = await supabase
+                .from('profiles')
+                .update({ address: null, address_number: null, address_complement: null, store_lat: null, store_lng: null })
+                .eq('id', user.id)
+            if (error) throw error
+            setSavedLocation(null)
+            if (!gpsFixRef.current) setDriverCoords(null)
+            setShowLocationDialog(false)
+            toast.success('Localização removida.')
+        } catch (err: any) {
+            toast.error('Erro ao remover: ' + (err.message || 'tente novamente'))
+        }
+    }
+
     const withdrawApplication = async (applicationId: string) => {
         setWithdrawingId(applicationId)
         try {
@@ -1789,6 +1808,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                         } : null}
                         onSave={handleLocationSave}
                         onClose={() => setShowLocationDialog(false)}
+                        onClear={savedLocation ? handleLocationClear : undefined}
                     />
                 )}
             </main>

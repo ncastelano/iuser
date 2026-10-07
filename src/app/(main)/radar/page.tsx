@@ -597,6 +597,27 @@ export default function MapPage() {
         }
     }
 
+    // Remove o local salvo no perfil (recomeçar do zero)
+    const handleLocationClear = async () => {
+        try {
+            const { data: { user } } = await supabase.auth.getUser()
+            if (!user) return
+            const { error } = await supabase
+                .from('profiles')
+                .update({ address: null, address_number: null, address_complement: null, store_lat: null, store_lng: null })
+                .eq('id', user.id)
+            if (error) throw error
+            setProfileLocation(null)
+            setUserAddress(null)
+            setAddressNumber('')
+            setAddressComplement('')
+            setShowLocationDialog(false)
+            toast.success('Localização removida.')
+        } catch (err) {
+            toast.error('Erro ao remover: ' + ((err as Error).message || 'tente de novo'))
+        }
+    }
+
     // MARKERS - CORRIGIDO COM LOGS
     useEffect(() => {
         if (!mapReady || !mapRef.current) {
@@ -1219,6 +1240,7 @@ export default function MapPage() {
                     } : null}
                     onSave={handleLocationSave}
                     onClose={() => setShowLocationDialog(false)}
+                    onClear={profileLocation ? handleLocationClear : undefined}
                 />
             )}
 

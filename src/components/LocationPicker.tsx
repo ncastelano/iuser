@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useTheme } from '@/app/contexts/theme'
-import { MapPin, X, Check, Navigation, Search, Home, MoveVertical, Hash, FileText, AlertCircle, Car, Radio } from 'lucide-react'
+import { MapPin, X, Check, Navigation, Search, Home, MoveVertical, Hash, FileText, AlertCircle, Car, Radio, Trash2 } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
@@ -32,6 +32,8 @@ interface LocationPickerProps {
     subject?: 'profile' | 'store'
     /** Deixa quem não tem conta definir um local (o chamador guarda só no aparelho). Sem isso, visitante é mandado pro login. */
     allowGuest?: boolean
+    /** Quando passado, a localização salva ganha o botão "Remover localização" (pra recomeçar do zero). O chamador apaga de onde ela está guardada. */
+    onClear?: () => void | Promise<void>
 }
 
 const geocodeCache: Map<string, { lat: number; lng: number; address: string } | null> = new Map()
@@ -132,7 +134,7 @@ function extractStreetDisplay(fullAddress: string): string {
     return parts[0].trim()
 }
 
-export default function LocationPicker({ initialLocation, onSave, onClose, allowDriverSync = true, subject = 'profile', allowGuest = false }: LocationPickerProps) {
+export default function LocationPicker({ initialLocation, onSave, onClose, allowDriverSync = true, subject = 'profile', allowGuest = false, onClear }: LocationPickerProps) {
     const isStore = subject === 'store'
     const { colors } = useTheme()
     const router = useRouter()
@@ -158,6 +160,8 @@ export default function LocationPicker({ initialLocation, onSave, onClose, allow
         initialLocation ? { lat: initialLocation.lat, lng: initialLocation.lng } : null
     )
     const [savedAddress, setSavedAddress] = useState('')
+    const [confirmClear, setConfirmClear] = useState(false)
+    const [clearing, setClearing] = useState(false)
     const [savedNumber, setSavedNumber] = useState(initialLocation?.addressNumber || '')
     const [savedComplement, setSavedComplement] = useState(initialLocation?.addressComplement || '')
     const [newAddress, setNewAddress] = useState('')
@@ -801,6 +805,48 @@ export default function LocationPicker({ initialLocation, onSave, onClose, allow
                                         )}
                                         {savedComplement && (
                                             <p className="text-[11px] mt-0.5 opacity-70 italic" style={{ color: colors.textPrimary }}>"{savedComplement}"</p>
+                                        )}
+
+                                        {/* Apagar a localização salva e começar do zero */}
+                                        {onClear && (
+                                            confirmClear ? (
+                                                <div className="mt-2.5 flex flex-col gap-2">
+                                                    <p className="text-[11px] font-semibold" style={{ color: colors.textPrimary }}>
+                                                        Remover a localização salva? Você pode definir outra quando quiser.
+                                                    </p>
+                                                    <div className="flex gap-2">
+                                                        <button
+                                                            onClick={() => setConfirmClear(false)}
+                                                            disabled={clearing}
+                                                            className="flex-1 py-1.5 rounded-full text-[11px] font-bold border"
+                                                            style={{ borderColor: colors.border, color: colors.textPrimary }}
+                                                        >
+                                                            Cancelar
+                                                        </button>
+                                                        <button
+                                                            onClick={async () => {
+                                                                setClearing(true)
+                                                                try { await onClear() } finally { setClearing(false); setConfirmClear(false) }
+                                                            }}
+                                                            disabled={clearing}
+                                                            className="flex-1 py-1.5 rounded-full text-[11px] font-bold text-white flex items-center justify-center gap-1 disabled:opacity-60"
+                                                            style={{ background: '#ef4444' }}
+                                                        >
+                                                            {clearing ? <Spinner size={12} color="#ffffff" /> : <Trash2 size={12} />}
+                                                            Remover
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <button
+                                                    onClick={() => setConfirmClear(true)}
+                                                    className="mt-2 flex items-center gap-1 text-[11px] font-bold"
+                                                    style={{ color: '#ef4444' }}
+                                                >
+                                                    <Trash2 size={12} />
+                                                    Remover localização
+                                                </button>
+                                            )
                                         )}
                                     </div>
                                 </div>

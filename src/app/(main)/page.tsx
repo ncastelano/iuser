@@ -435,6 +435,27 @@ function HomePageContent() {
         }
     }
 
+    // ---------- REMOVER LOCALIZAÇÃO (recomeçar do zero) ----------
+    const handleLocationClear = async () => {
+        try {
+            const { data: { user } } = await supabase.auth.getUser()
+            if (user) {
+                const { error } = await supabase
+                    .from('profiles')
+                    .update({ address: null, address_number: null, address_complement: null, store_lat: null, store_lng: null })
+                    .eq('id', user.id)
+                if (error) throw error
+            } else {
+                try { localStorage.removeItem(DEVICE_LOCATION_KEY) } catch { /* ok */ }
+            }
+            setSavedLocation(null)
+            setShowLocationDialog(false)
+            toast.success('Localização removida.')
+        } catch (err) {
+            toast.error('Erro ao remover: ' + ((err as Error).message || 'tente de novo'))
+        }
+    }
+
     // ---------- RENDERIZAR SEÇÃO ----------
     const renderSection = (sectionId: string) => {
         switch (sectionId) {
@@ -818,6 +839,7 @@ function HomePageContent() {
                         onClose={() => setShowLocationDialog(false)}
                         allowDriverSync={false}
                         allowGuest
+                        onClear={savedLocation ? handleLocationClear : undefined}
                     />
                 )}
             </main>
