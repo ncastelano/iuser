@@ -186,13 +186,19 @@ export function computePickupFee(pricing: DriverPricing, km: number): number {
     return Math.round(km * pricing.pricePerKmAfterBase * 100) / 100
 }
 
-// Ganho por hora (só informativo, não muda nenhum preço): valor ÷ horas gastas. As horas
-// contam o deslocamento até o passageiro MAIS a corrida, seja a tarifa por distância ou não.
-export function computeHourlyEarnings(price: number, tripMin: number, pickupMin: number) {
-    const totalMin = tripMin + pickupMin
-    if (!(totalMin > 0)) return null
-    const hours = totalMin / 60
-    return { totalMin, hours, perHour: price / hours }
+// Velocidade média suposta pra estimar o tempo de qualquer corrida: cada corrida tem a sua
+// distância, e o tempo é sempre essa distância ÷ 40 km/h (não usamos o tempo real do trânsito,
+// pra o "valor por hora" ser comparável entre corridas).
+export const HOURLY_ASSUMED_SPEED_KMH = 40
+
+// Ganho por hora (só informativo, não muda nenhum preço): valor ÷ horas gastas. As horas são
+// (km até o passageiro + km da corrida) ÷ 40 km/h. O deslocamento até o passageiro conta no
+// tempo sempre; no valor ele só entra na Tarifa iUser (km × valor/km, já somado em `price`).
+export function computeHourlyEarnings(price: number, tripKm: number, pickupKm: number) {
+    const totalKm = tripKm + pickupKm
+    if (!(totalKm > 0)) return null
+    const hours = totalKm / HOURLY_ASSUMED_SPEED_KMH
+    return { totalKm, totalMin: Math.round(hours * 60), hours, perHour: price / hours }
 }
 
 // "Minha tarifa": os valores próprios que o motorista deixou salvos, mesmo

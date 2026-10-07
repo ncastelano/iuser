@@ -650,8 +650,8 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
                             const pickupKm = pickup?.km
                             const pickupAmount = pickup ? computePickupFee(platformShape, pickup.km) : 0
                             const total = suggestedPrice + pickupAmount
-                            // Ganho por hora: o tempo conta o deslocamento até o passageiro + a corrida
-                            const hourly = route && ride.duration_min != null ? computeHourlyEarnings(total, ride.duration_min, route.min) : null
+                            // Ganho por hora: km até o passageiro + km da corrida, a 40 km/h
+                            const hourly = route && ride.distance_km != null ? computeHourlyEarnings(total, ride.distance_km, route.km) : null
                             const brl = (v: number) => `R$ ${v.toFixed(2).replace('.', ',')}`
                             return (
                             <div

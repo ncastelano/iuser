@@ -13,7 +13,7 @@ import { toast } from 'sonner'
 import { TrendingUp, Car, Camera, Star, MessageSquare, Clock, CheckCircle2, Volume2, VolumeX, Navigation2, LayoutDashboard, Trash2 } from 'lucide-react'
 import { loadPlatformTariffs } from '@/lib/platformTariffs'
 import { Spinner } from '@/components/Spinner'
-import { computeSuggestedPrice, explainSuggestedPrice, computeHourlyEarnings, computePickupFee, PLATFORM_DEFAULT_PRICING_BY_VEHICLE, PLATFORM_DEFAULT_EXTRA_FEES, PLATFORM_DEFAULT_CONDITION_EXTRA_FEES, PricingMode } from '@/lib/driverPricing'
+import { computeSuggestedPrice, explainSuggestedPrice, computeHourlyEarnings, computePickupFee, HOURLY_ASSUMED_SPEED_KMH, PLATFORM_DEFAULT_PRICING_BY_VEHICLE, PLATFORM_DEFAULT_EXTRA_FEES, PLATFORM_DEFAULT_CONDITION_EXTRA_FEES, PricingMode } from '@/lib/driverPricing'
 import { VehicleKind, VEHICLE_KIND_LABELS } from '@/lib/rideVehicle'
 import { createSquareImage } from '@/lib/image'
 import { DRIVER_SERVICE_OPTIONS } from '@/lib/driverServices'
@@ -642,10 +642,8 @@ function PainelMotoristaContent() {
     }
 
     const previewDistance = 10
-    // Exemplo de ganho por hora: corrida de 10 km (20 min) + 2 km (5 min) até o passageiro
-    const previewTripMin = 20
+    // Exemplo de ganho por hora: corrida de 10 km + 2 km até o passageiro, sempre a 40 km/h
     const previewPickupKm = 2
-    const previewPickupMin = 5
     const platformPricingForVehicle = PLATFORM_DEFAULT_PRICING_BY_VEHICLE[vehicleKind]
     const activePricing = pricingMode === 'platform'
         ? platformPricingForVehicle
@@ -671,11 +669,11 @@ function PainelMotoristaContent() {
     const previewParts = explainSuggestedPrice(previewDistance, activePricing)
     const brl2 = (v: number) => `R$ ${v.toFixed(2).replace('.', ',')}`
     // Ganho por hora do exemplo: a Tarifa iUser soma o deslocamento até o passageiro (km × valor/km);
-    // a Minha tarifa não soma nada, mas as horas contam o deslocamento igual.
+    // a Tarifa Personalizada não soma nada, mas as horas contam o deslocamento igual.
     const previewPickupFee = pricingMode === 'platform' ? computePickupFee(activePricing, previewPickupKm) : 0
-    const previewHourly = computeHourlyEarnings(previewPrice + previewPickupFee, previewTripMin, previewPickupMin)
+    const previewHourly = computeHourlyEarnings(previewPrice + previewPickupFee, previewDistance, previewPickupKm)
     const previewHourlyText = previewHourly
-        ? `Por hora: ${brl2(previewPrice + previewPickupFee)}${previewPickupFee > 0 ? ` (${brl2(previewPrice)} da corrida + ${brl2(previewPickupFee)} do deslocamento de ${previewPickupKm} km)` : ''} ÷ ${previewHourly.hours.toFixed(2).replace('.', ',')} h (${previewPickupMin} min até o passageiro + ${previewTripMin} min de corrida = ${previewHourly.totalMin} min) = ${brl2(previewHourly.perHour)} por hora`
+        ? `Por hora: ${brl2(previewPrice + previewPickupFee)}${previewPickupFee > 0 ? ` (${brl2(previewPrice)} da corrida + ${brl2(previewPickupFee)} do deslocamento de ${previewPickupKm} km)` : ''} ÷ ${previewHourly.hours.toFixed(2).replace('.', ',')} h (${previewPickupKm} km até o passageiro + ${previewDistance} km de corrida = ${previewHourly.totalKm} km a ${HOURLY_ASSUMED_SPEED_KMH} km/h = ${previewHourly.totalMin} min) = ${brl2(previewHourly.perHour)} por hora`
         : ''
     // base + quilometragem à vista pro motorista conferir a conta
     const previewBreakdown = `${brl2(previewParts.base)} base + ${brl2(previewParts.kmPart)} de quilometragem (${previewParts.extraKm.toFixed(1).replace('.', ',')} km acima da base × ${brl2(activePricing.pricePerKmAfterBase)}) = ${brl2(previewParts.total)}`
@@ -725,7 +723,7 @@ function PainelMotoristaContent() {
                 id: 'veiculo', label: 'Meu veículo', icon: Car, isActive: activeTab === 'veiculo', onClick: () => setActiveTab('veiculo'),
                 badge: driverStatus === 'incomplete' ? { count: missingFields.length || 1, color: '#eab308' } : null,
             },
-            { id: 'plano', label: 'Minha tarifa', icon: TrendingUp, isActive: activeTab === 'plano', onClick: () => setActiveTab('plano'), badge: null },
+            { id: 'plano', label: 'Tarifa', icon: TrendingUp, isActive: activeTab === 'plano', onClick: () => setActiveTab('plano'), badge: null },
             { id: 'avaliacoes', label: 'Avaliações', icon: Star, isActive: activeTab === 'avaliacoes', onClick: () => setActiveTab('avaliacoes'), badge: null },
         ]
 
@@ -897,10 +895,10 @@ function PainelMotoristaContent() {
                                 </div>
                                 <div>
                                     <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
-                                        Minha tarifa
+                                        Tarifa
                                     </h3>
                                     <p className="text-xs" style={{ color: colors.textSecondary }}>
-                                        Usada para calcular o preço sugerido em cada corrida disponível
+                                        Como o preço de cada corrida é calculado: pela tarifa da plataforma ou pela sua
                                     </p>
                                 </div>
                             </div>
@@ -915,8 +913,8 @@ function PainelMotoristaContent() {
                                     <div className="text-[10px] font-normal mt-0.5 opacity-80">Valor padrão, sem configurar nada</div>
                                 </button>
                                 <button onClick={() => { setPricingMode('custom'); setCustomTouched(true) }} style={planButtonStyle(pricingMode === 'custom')}>
-                                    Minha tarifa
-                                    <div className="text-[10px] font-normal mt-0.5 opacity-80">Fica salva — você escolhe qual usar ao se candidatar</div>
+                                    Tarifa Personalizada
+                                    <div className="text-[10px] font-normal mt-0.5 opacity-80">Seus próprios valores, sempre salvos — ao se candidatar você escolhe qual usar</div>
                                 </button>
                             </div>
 
@@ -939,6 +937,9 @@ function PainelMotoristaContent() {
                                     </p>
                                     <p className="text-[9px] mt-1" style={{ color: colors.textSecondary }}>{previewBreakdown}</p>
                                     <p className="text-[10px] mt-2 font-bold" style={{ color: '#16a34a' }}>{previewHourlyText}</p>
+                                    <p className="text-[9px] mt-1" style={{ color: colors.textSecondary }}>
+                                        O deslocamento até o passageiro também é cobrado (km × R$ {platformPricingForVehicle.pricePerKmAfterBase.toFixed(2)}) e entra no valor da corrida. O tempo é estimado sempre a {HOURLY_ASSUMED_SPEED_KMH} km/h, pra você comparar o valor por hora entre corridas.
+                                    </p>
                                 </div>
                             ) : (
                                 <div
@@ -1000,6 +1001,9 @@ function PainelMotoristaContent() {
                                     </p>
                                     <p className="text-[9px] mt-1" style={{ color: colors.textSecondary }}>{previewBreakdown}</p>
                                     <p className="text-[10px] mt-2 font-bold" style={{ color: '#16a34a' }}>{previewHourlyText}</p>
+                                    <p className="text-[9px] mt-1" style={{ color: colors.textSecondary }}>
+                                        Na tarifa personalizada o deslocamento até o passageiro não é somado ao preço, mas conta no tempo. O tempo é estimado sempre a {HOURLY_ASSUMED_SPEED_KMH} km/h.
+                                    </p>
                                 </div>
                             )}
 

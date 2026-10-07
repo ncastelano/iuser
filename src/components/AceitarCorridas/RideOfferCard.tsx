@@ -13,6 +13,7 @@ import { Spinner } from '@/components/Spinner'
 import { shortAddress } from '@/lib/serviceBoard'
 import { humanizeRideSpecs, type HumanSpecKind, type RideSpecFields } from '@/lib/rideSpecs'
 import { VEHICLE_TYPE_LABELS, type VehicleType } from '@/lib/rideVehicle'
+import { computeHourlyEarnings } from '@/lib/driverPricing'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 export const TO_PICKUP_COLOR = '#3b82f6'
@@ -106,9 +107,12 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
     const [editing, setEditing] = useState(false)
     const [value, setValue] = useState('')
 
-    // Ganho por hora (informativo): valor ÷ (tempo até o passageiro + tempo da corrida)
-    const hoursTotal = toPickup.min != null && trip.min != null ? (toPickup.min + trip.min) / 60 : null
-    const perHour = (price: number) => (hoursTotal && hoursTotal > 0 ? Math.round(price / hoursTotal) : null)
+    // Ganho por hora (informativo): valor ÷ ((km até o passageiro + km da corrida) ÷ 40 km/h)
+    const perHour = (price: number) => {
+        if (toPickup.km == null || trip.km == null) return null
+        const h = computeHourlyEarnings(price, trip.km, toPickup.km)
+        return h ? Math.round(h.perHour) : null
+    }
 
     const haveTotal = toPickup.km != null && toPickup.min != null && trip.km != null && trip.min != null
     const totalKm = haveTotal ? (toPickup.km as number) + (trip.km as number) : null
