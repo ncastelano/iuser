@@ -9,6 +9,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { callAdminApi } from '@/lib/callAdminApi'
 import { Spinner } from '@/components/Spinner'
+import ProfilePicker from './ProfilePicker'
 import type { ThemeColors } from '@/app/contexts/theme'
 
 interface Grant {
@@ -163,7 +164,7 @@ export default function GrantsSection({ cardStyle, colors }: { cardStyle: React.
                 ) : (
                     <>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <div className="flex flex-col gap-0.5">{label('Perfil (@)')}<input value={slug} onChange={(e) => setSlug(e.target.value)} placeholder="@slug do perfil" style={input} /></div>
+                            <div className="flex flex-col gap-0.5">{label('Perfil (digite o nome ou o @)')}<ProfilePicker value={slug} onChange={setSlug} colors={colors} /></div>
                             <div className="flex flex-col gap-0.5">
                                 {label('Plano')}
                                 <select value={planCode} onChange={(e) => setPlanCode(e.target.value)} style={input}>

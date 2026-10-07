@@ -10,6 +10,7 @@ import { Plus, Save, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { callAdminApi } from '@/lib/callAdminApi'
 import { Spinner } from '@/components/Spinner'
+import ProfilePicker from './ProfilePicker'
 import { PlanRingFrame } from '@/components/PlanAvatarRing'
 import type { ThemeColors } from '@/app/contexts/theme'
 
@@ -131,7 +132,9 @@ export default function AvatarBordersSection({ cardStyle, colors }: { cardStyle:
                     </button>
                 </div>
                 <div className="flex items-center gap-2 pt-1">
-                    <input value={grantProfile} onChange={(e) => setGrantProfile(e.target.value)} placeholder="@ do perfil pra conceder/remover uma borda" style={{ ...input, maxWidth: 360 }} />
+                    <div style={{ width: '100%', maxWidth: 360 }}>
+                        <ProfilePicker value={grantProfile} onChange={setGrantProfile} colors={colors} placeholder="Nome ou @ do perfil pra conceder/remover uma borda" />
+                    </div>
                 </div>
             </div>
 
