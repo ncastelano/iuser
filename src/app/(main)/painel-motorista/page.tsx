@@ -13,7 +13,7 @@ import { toast } from 'sonner'
 import { TrendingUp, Car, Camera, Star, MessageSquare, Clock, CheckCircle2, Volume2, VolumeX, Navigation2, LayoutDashboard, Trash2 } from 'lucide-react'
 import { loadPlatformTariffs } from '@/lib/platformTariffs'
 import { Spinner } from '@/components/Spinner'
-import { computeSuggestedPrice, explainSuggestedPrice, PLATFORM_DEFAULT_PRICING_BY_VEHICLE, PLATFORM_DEFAULT_EXTRA_FEES, PLATFORM_DEFAULT_CONDITION_EXTRA_FEES, PricingMode } from '@/lib/driverPricing'
+import { computeSuggestedPrice, explainSuggestedPrice, computeHourlyEarnings, computePickupFee, PLATFORM_DEFAULT_PRICING_BY_VEHICLE, PLATFORM_DEFAULT_EXTRA_FEES, PLATFORM_DEFAULT_CONDITION_EXTRA_FEES, PricingMode } from '@/lib/driverPricing'
 import { VehicleKind, VEHICLE_KIND_LABELS } from '@/lib/rideVehicle'
 import { createSquareImage } from '@/lib/image'
 import { DRIVER_SERVICE_OPTIONS } from '@/lib/driverServices'
@@ -642,6 +642,10 @@ function PainelMotoristaContent() {
     }
 
     const previewDistance = 10
+    // Exemplo de ganho por hora: corrida de 10 km (20 min) + 2 km (5 min) até o passageiro
+    const previewTripMin = 20
+    const previewPickupKm = 2
+    const previewPickupMin = 5
     const platformPricingForVehicle = PLATFORM_DEFAULT_PRICING_BY_VEHICLE[vehicleKind]
     const activePricing = pricingMode === 'platform'
         ? platformPricingForVehicle
@@ -666,6 +670,13 @@ function PainelMotoristaContent() {
     const previewPrice = computeSuggestedPrice(previewDistance, activePricing)
     const previewParts = explainSuggestedPrice(previewDistance, activePricing)
     const brl2 = (v: number) => `R$ ${v.toFixed(2).replace('.', ',')}`
+    // Ganho por hora do exemplo: a Tarifa iUser soma o deslocamento até o passageiro (km × valor/km);
+    // a Minha tarifa não soma nada, mas as horas contam o deslocamento igual.
+    const previewPickupFee = pricingMode === 'platform' ? computePickupFee(activePricing, previewPickupKm) : 0
+    const previewHourly = computeHourlyEarnings(previewPrice + previewPickupFee, previewTripMin, previewPickupMin)
+    const previewHourlyText = previewHourly
+        ? `Por hora: ${brl2(previewPrice + previewPickupFee)}${previewPickupFee > 0 ? ` (${brl2(previewPrice)} da corrida + ${brl2(previewPickupFee)} do deslocamento de ${previewPickupKm} km)` : ''} ÷ ${previewHourly.hours.toFixed(2).replace('.', ',')} h (${previewPickupMin} min até o passageiro + ${previewTripMin} min de corrida = ${previewHourly.totalMin} min) = ${brl2(previewHourly.perHour)} por hora`
+        : ''
     // base + quilometragem à vista pro motorista conferir a conta
     const previewBreakdown = `${brl2(previewParts.base)} base + ${brl2(previewParts.kmPart)} de quilometragem (${previewParts.extraKm.toFixed(1).replace('.', ',')} km acima da base × ${brl2(activePricing.pricePerKmAfterBase)}) = ${brl2(previewParts.total)}`
 
@@ -927,6 +938,7 @@ function PainelMotoristaContent() {
                                         Exemplo: uma corrida de {previewDistance} km sairia por R$ {previewPrice.toFixed(2)}
                                     </p>
                                     <p className="text-[9px] mt-1" style={{ color: colors.textSecondary }}>{previewBreakdown}</p>
+                                    <p className="text-[10px] mt-2 font-bold" style={{ color: '#16a34a' }}>{previewHourlyText}</p>
                                 </div>
                             ) : (
                                 <div
@@ -987,6 +999,7 @@ function PainelMotoristaContent() {
                                         Exemplo: uma corrida de {previewDistance} km sairia por R$ {previewPrice.toFixed(2)}
                                     </p>
                                     <p className="text-[9px] mt-1" style={{ color: colors.textSecondary }}>{previewBreakdown}</p>
+                                    <p className="text-[10px] mt-2 font-bold" style={{ color: '#16a34a' }}>{previewHourlyText}</p>
                                 </div>
                             )}
 

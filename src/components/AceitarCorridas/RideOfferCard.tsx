@@ -106,6 +106,10 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
     const [editing, setEditing] = useState(false)
     const [value, setValue] = useState('')
 
+    // Ganho por hora (informativo): valor ÷ (tempo até o passageiro + tempo da corrida)
+    const hoursTotal = toPickup.min != null && trip.min != null ? (toPickup.min + trip.min) / 60 : null
+    const perHour = (price: number) => (hoursTotal && hoursTotal > 0 ? Math.round(price / hoursTotal) : null)
+
     const haveTotal = toPickup.km != null && toPickup.min != null && trip.km != null && trip.min != null
     const totalKm = haveTotal ? (toPickup.km as number) + (trip.km as number) : null
     const totalMin = haveTotal ? (toPickup.min as number) + (trip.min as number) : null
@@ -235,6 +239,9 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
                         >
                             <span className="block text-[10px] font-semibold" style={{ color: colors.textSecondary }}>Tarifa iUser</span>
                             <span className="block text-[15px] font-black leading-tight" style={{ color: colors.textPrimary }}>{brl(platformPrice)}</span>
+                            {perHour(platformPrice) != null && (
+                                <span className="block text-[9px] leading-tight font-semibold" style={{ color: colors.textSecondary }}>≈ R$ {perHour(platformPrice)}/h</span>
+                            )}
                             {pickup?.state === 'ready' && (
                                 <span className="block text-[9px] leading-tight mt-0.5" style={{ color: '#16a34a' }}>
                                     inclui {brl(pickup.amount)} · {kmText(pickup.km)} até a partida
@@ -256,6 +263,9 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
                             <span className="block text-[15px] font-black leading-tight" style={{ color: customPrice != null ? '#fff' : colors.textSecondary }}>
                                 {customPrice != null ? brl(customPrice) : 'não definida'}
                             </span>
+                            {customPrice != null && perHour(customPrice) != null && (
+                                <span className="block text-[9px] leading-tight font-semibold" style={{ color: 'rgba(255,255,255,0.85)' }}>≈ R$ {perHour(customPrice)}/h</span>
+                            )}
                         </button>
                         <button
                             onClick={() => {

@@ -9,7 +9,7 @@ import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { supabase } from '@/lib/supabase/client'
 import { getAvatarUrl } from '@/lib/avatar'
-import { computeSuggestedPrice, computeConditionExtras, computePickupFee, getEffectivePricing, PLATFORM_DEFAULT_PRICING_BY_VEHICLE, type RideConditionFlags } from '@/lib/driverPricing'
+import { computeSuggestedPrice, computeConditionExtras, computeHourlyEarnings, computePickupFee, getEffectivePricing, PLATFORM_DEFAULT_PRICING_BY_VEHICLE, type RideConditionFlags } from '@/lib/driverPricing'
 import { kindForRideType } from '@/lib/rideVehicle'
 import { fetchRoute, haversineKm } from '@/lib/mapboxRoute'
 import { watchPosition } from '@/lib/nativeGeolocation'
@@ -372,7 +372,8 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
     }, [acceptedRide, myCandidacies.length, driverModeActive, openRides.length])
 
     // Pede a localização sozinho assim que existe corrida na Tarifa iUser pra mostrar.
-    const needsLocation = openRides.some((r) => r.usesPlatformTariff)
+    // (o deslocamento até o passageiro também entra no ganho por hora, qualquer que seja a tarifa)
+    const needsLocation = openRides.length > 0
     useEffect(() => {
         if (needsLocation && gpsStatus === 'idle') requestGps()
     }, [needsLocation, gpsStatus, requestGps])
@@ -384,8 +385,8 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
         const last = lastRouteRef.current
         if (last && last.key === key && haversineKm(last.coords, gps) < 0.3) return
         lastRouteRef.current = { coords: gps, key }
-        openRides.forEach(({ ride, origin, usesPlatformTariff }) => {
-            if (!origin || !usesPlatformTariff) return
+        openRides.forEach(({ ride, origin }) => {
+            if (!origin) return
             fetchRoute(gps, origin).then((route) => {
                 setPickupById((prev) => ({ ...prev, [ride.id]: { km: route.distanceKm, min: route.durationMin } }))
             })
@@ -625,7 +626,7 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
                                 {gpsStatus === 'asking' || gpsStatus === 'idle' ? 'Localizando você...' : 'Precisamos da sua localização'}
                             </p>
                             <p className="text-[11px] mt-0.5 leading-snug" style={{ color: colors.textSecondary }}>
-                                Para mostrar quanto você pode ganhar: somamos à Tarifa iUser a distância até o ponto de partida, pra você não perder dinheiro rodando até o passageiro.
+                                Para mostrar quanto você pode ganhar (e quanto isso rende por hora): contamos o deslocamento até o ponto de partida, pra você não perder dinheiro rodando até o passageiro.
                             </p>
                             {gpsStatus !== 'asking' && gpsStatus !== 'idle' && (
                                 <button onClick={requestGps} className="mt-2 px-3.5 py-1.5 rounded-full text-[11px] font-black" style={{ background: GRADIENT, color: '#fff' }}>
@@ -640,10 +641,13 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
                     <div className="flex flex-col gap-3">
                         {openRides.map(({ ride, requester, suggestedPrice, usesPlatformTariff }) => {
                             const platformShape = PLATFORM_DEFAULT_PRICING_BY_VEHICLE[kindForRideType(ride.vehicle_type)]
-                            const pickup = usesPlatformTariff && gpsStatus === 'granted' ? pickupById[ride.id] : undefined
+                            const route = gpsStatus === 'granted' ? pickupById[ride.id] : undefined
+                            const pickup = usesPlatformTariff ? route : undefined
                             const pickupKm = pickup?.km
                             const pickupAmount = pickup ? computePickupFee(platformShape, pickup.km) : 0
                             const total = suggestedPrice + pickupAmount
+                            // Ganho por hora: o tempo conta o deslocamento até o passageiro + a corrida
+                            const hourly = route && ride.duration_min != null ? computeHourlyEarnings(total, ride.duration_min, route.min) : null
                             const brl = (v: number) => `R$ ${v.toFixed(2).replace('.', ',')}`
                             return (
                             <div
@@ -664,6 +668,11 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
                                                 <div>
                                                     <span className="block text-[10px] font-semibold" style={{ color: colors.textSecondary }}>Você pode ganhar</span>
                                                     <span className="block text-xl font-black leading-tight" style={{ color: '#16a34a' }}>{brl(total)}</span>
+                                                    {hourly && (
+                                                        <span className="block text-[10px] font-semibold leading-tight mt-0.5" style={{ color: colors.textSecondary }}>
+                                                            ≈ R$ {Math.round(hourly.perHour)} por hora (com o deslocamento)
+                                                        </span>
+                                                    )}
                                                 </div>
                                                 {usesPlatformTariff && (
                                                     <span className="text-[10px] leading-tight text-right font-semibold" style={{ color: pickupKm != null ? '#16a34a' : '#d97706' }}>

@@ -13,7 +13,7 @@ import { callAdminApi } from '@/lib/callAdminApi'
 import { Spinner } from '@/components/Spinner'
 import type { ThemeColors } from '@/app/contexts/theme'
 import { PLATFORM_TARIFF_COLUMNS, loadPlatformTariffs, type PlatformTariffRow } from '@/lib/platformTariffs'
-import { explainSuggestedPrice, type DriverPricing } from '@/lib/driverPricing'
+import { computeHourlyEarnings, computePickupFee, explainSuggestedPrice, type DriverPricing } from '@/lib/driverPricing'
 import type { VehicleKind } from '@/lib/rideVehicle'
 
 const VEHICLES: { kind: VehicleKind; label: string; icon: typeof Car }[] = [
@@ -125,6 +125,10 @@ export default function PlatformTariffsSection({ cardStyle, colors }: { cardStyl
         conditionExtraFees: { condominio: 0, compras: 0, necessidade_especial: 0, pet_sem_caixa: 0, entrega_interna: 0, ar_condicionado: 0 },
     }
     const example = explainSuggestedPrice(10, live)
+    // Ganho por hora do exemplo: corrida de 10 km (20 min) + 2 km (5 min) até o passageiro.
+    // A Tarifa iUser soma o deslocamento (km × valor/km); as horas contam o deslocamento também.
+    const pickupFee = computePickupFee(live, 2)
+    const hourly = computeHourlyEarnings(example.total + pickupFee, 20, 5)
 
     const field = (key: keyof Form, label: string, hint?: string) => (
         <div key={key} className="flex flex-col gap-0.5">
@@ -169,6 +173,11 @@ export default function PlatformTariffsSection({ cardStyle, colors }: { cardStyl
                 <div className="rounded-xl p-3 text-[11px] leading-snug" style={{ background: `${colors.accent}12`, color: colors.textPrimary, border: `1px solid ${colors.border}` }}>
                     <strong>Exemplo (10 km):</strong> {brl(example.base)} base + {brl(example.kmPart)} de quilometragem ({example.extraKm.toFixed(1).replace('.', ',')} km acima da base × {brl(live.pricePerKmAfterBase)}) = <strong>{brl(example.total)}</strong>
                 </div>
+                {hourly && (
+                    <div className="rounded-xl p-3 text-[11px] leading-snug" style={{ background: '#22c55e14', color: colors.textPrimary, border: '1px solid #22c55e40' }}>
+                        <strong>Ganho por hora (exemplo):</strong> corrida de 10 km (20 min) + 2 km (5 min) até o passageiro. {brl(example.total)} da corrida + {brl(pickupFee)} do deslocamento = {brl(example.total + pickupFee)} ÷ {hourly.hours.toFixed(2).replace('.', ',')} h ({hourly.totalMin} min) = <strong>{brl(hourly.perHour)} por hora</strong>
+                    </div>
+                )}
             </div>
 
             <div style={cardStyle} className="space-y-3">
