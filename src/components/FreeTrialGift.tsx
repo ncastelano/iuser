@@ -10,7 +10,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Gift, X } from 'lucide-react'
+import { Gift, X, Store, Car, Wrench } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTheme } from '@/app/contexts/theme'
 import { Spinner } from '@/components/Spinner'
@@ -134,7 +134,7 @@ export default function FreeTrialGift({ onRequireLogin, onClaimed, hideWhenEnded
 
             {confirmOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)' }}>
-                    <div className="w-full max-w-sm rounded-2xl p-6 relative" style={{ background: colors.surface }}>
+                    <div className="w-full max-w-sm max-h-[90vh] overflow-y-auto rounded-2xl p-6 relative" style={{ background: colors.surface }}>
                         <button onClick={() => setConfirmOpen(false)} className="absolute top-4 right-4" style={{ color: colors.textSecondary }} aria-label="Fechar">
                             <X size={20} />
                         </button>
@@ -145,11 +145,35 @@ export default function FreeTrialGift({ onRequireLogin, onClaimed, hideWhenEnded
                         <p className="text-sm mb-2" style={{ color: colors.textPrimary }}>
                             Tem certeza que quer ativar os {daysLabel} grátis a partir de agora?
                         </p>
-                        <ul className="flex flex-col gap-1 mb-2 text-xs" style={{ color: colors.textPrimary }}>
-                            <li>• Sem taxa por serviço durante os {daysLabel}</li>
-                            <li>• Libera motorista, prestador, loja e recrutador</li>
-                            <li>• Sem precisar de cartão</li>
-                        </ul>
+                        <div className="flex flex-col gap-2.5 mb-3">
+                            {[
+                                {
+                                    icon: Store,
+                                    title: 'Taxa 0% na loja',
+                                    text: 'No pós-pago a loja paga R$ 0,50 por venda, R$ 0,50 por produto cadastrado e R$ 0,50 por publicação. Durante o brinde você vende, cadastra e publica à vontade, sem pagar nada por isso.',
+                                },
+                                {
+                                    icon: Car,
+                                    title: 'Taxa 0% no motorista',
+                                    text: 'Cada corrida finalizada custa R$ 0,50 no pós-pago. Com o brinde você faz quantas corridas quiser e fica com tudo, sem a taxa por corrida.',
+                                },
+                                {
+                                    icon: Wrench,
+                                    title: 'Taxa 0% em serviços',
+                                    text: 'Publicar um serviço, no perfil ou na loja, custa R$ 0,50, e se inscrever num pedido também gera taxa. Durante o brinde você publica e se inscreve sem pagar nada.',
+                                },
+                            ].map(({ icon: Icon, title, text }) => (
+                                <div key={title} className="flex items-start gap-2.5 rounded-xl p-2.5" style={{ background: `${colors.border}20`, border: `1px solid ${colors.border}` }}>
+                                    <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT }}>
+                                        <Icon size={15} color="#fff" />
+                                    </div>
+                                    <div className="min-w-0">
+                                        <p className="text-xs font-black" style={{ color: colors.textPrimary }}>{title}</p>
+                                        <p className="text-[11px] leading-snug mt-0.5" style={{ color: colors.textSecondary }}>{text}</p>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
                         <p className="text-xs mb-4" style={{ color: colors.textSecondary }}>
                             O tempo começa a contar hoje, {fmt(new Date())}, e vai até {fmt(end)}. O resgate é único: depois de ativar, não dá pra pausar nem resgatar de novo.
                         </p>
