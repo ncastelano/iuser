@@ -83,7 +83,7 @@ function PainelMotoristaContent() {
     const [baseFee, setBaseFee] = useState('7')
     const [pricePerKmAfterBase, setPricePerKmAfterBase] = useState('2')
     // A tarifa da plataforma vem do banco (Admin → Tarifas); isso força o redesenho quando ela chega
-    const [, setTariffsVersion] = useState(0)
+    const [tariffsVersion, setTariffsVersion] = useState(0)
     const [extraFeePessoa, setExtraFeePessoa] = useState(String(PLATFORM_DEFAULT_EXTRA_FEES.pessoa))
     const [extraFeeAnimal, setExtraFeeAnimal] = useState(String(PLATFORM_DEFAULT_EXTRA_FEES.animal))
     const [extraFeeObjeto, setExtraFeeObjeto] = useState(String(PLATFORM_DEFAULT_EXTRA_FEES.objeto))
@@ -642,6 +642,18 @@ function PainelMotoristaContent() {
         }
     }
 
+    // Enquanto o motorista nunca mexeu na Tarifa Personalizada, os campos acompanham a tarifa da
+    // plataforma do veículo escolhido (carro, moto e bicicleta têm tarifas diferentes) — em vez de
+    // ficarem num 5 / 7 / 2 fixo que parece salvo mas não tem nada a ver com o veículo.
+    useEffect(() => {
+        if (customTouched) return
+        const t = PLATFORM_DEFAULT_PRICING_BY_VEHICLE[vehicleKind]
+        setBaseDistanceKm(String(t.baseDistanceKm))
+        setBaseFee(String(t.baseFee))
+        setPricePerKmAfterBase(String(t.pricePerKmAfterBase))
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [customTouched, vehicleKind, tariffsVersion])
+
     const previewDistance = 10
     const platformPricingForVehicle = PLATFORM_DEFAULT_PRICING_BY_VEHICLE[vehicleKind]
     const activePricing = pricingMode === 'platform'
@@ -999,6 +1011,20 @@ function PainelMotoristaContent() {
                                     pricePerKm: activePricing.pricePerKmAfterBase,
                                 }}
                                 tariffLabel={pricingMode === 'platform' ? 'Tarifa da plataforma' : 'Tarifa Personalizada'}
+                                // A outra tarifa, pra comparar o mesmo cálculo lado a lado (a personalizada só existe se o motorista mexeu nela)
+                                compare={pricingMode === 'platform'
+                                    ? (customTouched ? {
+                                        label: 'Tarifa Personalizada',
+                                        tariff: { baseDistanceKm: parseFloat(baseDistanceKm) || 0, baseFee: parseFloat(baseFee) || 0, pricePerKm: parseFloat(pricePerKmAfterBase) || 0 },
+                                    } : undefined)
+                                    : {
+                                        label: 'Tarifa da plataforma',
+                                        tariff: {
+                                            baseDistanceKm: platformPricingForVehicle.baseDistanceKm,
+                                            baseFee: platformPricingForVehicle.baseFee,
+                                            pricePerKm: platformPricingForVehicle.pricePerKmAfterBase,
+                                        },
+                                    }}
                             />
 
                             <div

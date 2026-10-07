@@ -40,9 +40,11 @@ interface FareCalculatorProps {
     tariff: FareTariff
     /** "Tarifa da plataforma" ou "Tarifa Personalizada" — só pra mostrar qual está sendo usada */
     tariffLabel: string
+    /** A outra tarifa (plataforma ↔ personalizada), pra mostrar o mesmo cálculo nas duas */
+    compare?: { label: string; tariff: FareTariff }
 }
 
-export default function FareCalculator({ tariff, tariffLabel }: FareCalculatorProps) {
+export default function FareCalculator({ tariff, tariffLabel, compare }: FareCalculatorProps) {
     const { colors } = useTheme()
     const [mode, setMode] = useState<Mode>('distancia')
     const [distance, setDistance] = useState('15')
@@ -111,6 +113,18 @@ export default function FareCalculator({ tariff, tariffLabel }: FareCalculatorPr
                 {row('Valor da corrida', formatBRL(fare))}
                 <div className="h-px my-1.5" style={{ background: colors.border }} />
                 {row('Rendimento', perHour != null ? `${formatBRL(perHour)}/h` : '—', true)}
+                {compare && (() => {
+                    const otherFare = calculateFare(distanceKm, compare.tariff)
+                    const otherPerHour = calculateHourlyEarning(distanceKm, otherFare)
+                    const diff = Math.round((otherFare - fare) * 100) / 100
+                    return (
+                        <div className="mt-2 rounded-xl px-3 py-2 text-[11px] font-semibold" style={{ background: `${colors.border}25`, color: colors.textSecondary }}>
+                            Pela {compare.label}: <strong style={{ color: colors.textPrimary }}>{formatBRL(otherFare)}</strong>
+                            {otherPerHour != null && ` · ${formatBRL(otherPerHour)}/h`}
+                            {diff === 0 ? ' — o mesmo valor.' : ` — ${diff > 0 ? `${formatBRL(diff)} a mais` : `${formatBRL(-diff)} a menos`} que a ${tariffLabel}.`}
+                        </div>
+                    )
+                })()}
             </div>
         )
     }
