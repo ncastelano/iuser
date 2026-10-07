@@ -173,7 +173,6 @@ export default function LocationPicker({ initialLocation, onSave, onClose, allow
     const [error, setError] = useState('')
     const [numberError, setNumberError] = useState('')
     const [mapReady, setMapReady] = useState(false)
-    const [usingGPS, setUsingGPS] = useState(false)
 
     // ===== ETAPAS (mesmo padrão do CatalogBag: uma pergunta por vez) =====
     // 'choose' pergunta como a pessoa quer definir o local (escrever ou
@@ -642,51 +641,6 @@ export default function LocationPicker({ initialLocation, onSave, onClose, allow
         setMapReady(false)
     }, [step, method])
 
-    const handleGetCurrentLocation = useCallback(() => {
-        setUsingGPS(true)
-        setLoading(true)
-        setError('')
-
-        getNativeCurrentPosition(
-            async (pos) => {
-                const newPos = {
-                    lat: pos.coords.latitude,
-                    lng: pos.coords.longitude
-                }
-                setSelectedPosition(newPos)
-                flyTo(newPos.lat, newPos.lng)
-
-                setResolvingAddress(true)
-                try {
-                    const result = await reverseGeocode(newPos.lat, newPos.lng)
-                    setNewAddress(result.fullAddress)
-                    if (result.extractedNumber) {
-                        setNewNumber(result.extractedNumber)
-                    }
-                } catch (err) {
-                    const fallback = `Local (${newPos.lat.toFixed(4)}, ${newPos.lng.toFixed(4)})`
-                    setNewAddress(fallback)
-                } finally {
-                    setResolvingAddress(false)
-                    setLoading(false)
-                    setUsingGPS(false)
-                }
-            },
-            (err) => {
-                let msg = 'Erro ao obter localização. '
-                switch (err.code) {
-                    case err.PERMISSION_DENIED: msg += 'Permissão negada.'; break
-                    case err.POSITION_UNAVAILABLE: msg += 'Localização indisponível.'; break
-                    case err.TIMEOUT: msg += 'Tempo esgotado.'; break
-                }
-                setError(msg)
-                setLoading(false)
-                setUsingGPS(false)
-            },
-            { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
-        )
-    }, [flyTo])
-
     // ===== HANDLE SAVE WITH CONFIRMATION =====
     const handleSaveWithConfirmation = useCallback(() => {
         if (!newNumber.trim()) {
@@ -984,16 +938,6 @@ export default function LocationPicker({ initialLocation, onSave, onClose, allow
                                             </button>
                                         </div>
 
-                                        <button
-                                            onClick={handleGetCurrentLocation}
-                                            disabled={loading}
-                                            className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold transition-all hover:opacity-80 disabled:opacity-50 flex-shrink-0"
-                                            style={{ background: '#f9731620', color: '#f97316', border: '1px solid #f9731640' }}
-                                            title="Usar GPS"
-                                        >
-                                            {usingGPS ? <Spinner size={14} color="#f97316" /> : <Navigation size={14} />}
-                                            <span className="hidden sm:inline">GPS</span>
-                                        </button>
                                     </div>
                                 </>
                             )}
@@ -1003,16 +947,6 @@ export default function LocationPicker({ initialLocation, onSave, onClose, allow
                                     <p className="text-xs font-black" style={{ color: colors.textPrimary }}>
                                         Toque no mapa ou arraste o pino laranja
                                     </p>
-                                    <button
-                                        onClick={handleGetCurrentLocation}
-                                        disabled={loading}
-                                        className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold transition-all hover:opacity-80 disabled:opacity-50 flex-shrink-0"
-                                        style={{ background: '#f9731620', color: '#f97316', border: '1px solid #f9731640' }}
-                                        title="Usar GPS"
-                                    >
-                                        {usingGPS ? <Spinner size={14} color="#f97316" /> : <Navigation size={14} />}
-                                        GPS
-                                    </button>
                                 </div>
                             )}
 
