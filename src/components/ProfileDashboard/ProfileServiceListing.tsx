@@ -48,6 +48,8 @@ interface ServiceListing {
 interface ProfileServiceListingProps {
     profileId: string
     profileSlug: string
+    // Em /meus-servicos: tocar na foto/nome do perfil leva pra página do perfil
+    linkToProfile?: boolean
 }
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -80,7 +82,7 @@ async function reverseGeocode(lng: number, lat: number): Promise<string | null> 
     }
 }
 
-export default function ProfileServiceListing({ profileId, profileSlug }: ProfileServiceListingProps) {
+export default function ProfileServiceListing({ profileId, profileSlug, linkToProfile = false }: ProfileServiceListingProps) {
     const { colors } = useTheme()
     const surfaceRgb = hexToRgb(colors.surface)
     const router = useRouter()
@@ -296,7 +298,12 @@ export default function ProfileServiceListing({ profileId, profileSlug }: Profil
                     className="w-full flex items-center justify-between text-left"
                     style={{ padding: '0.5rem 0.75rem', borderRadius: '9999px', background: 'transparent', border: 'none', cursor: 'pointer' }}
                 >
-                    <div className="flex items-center gap-3">
+                    <div
+                        className="flex items-center gap-3"
+                        onClick={linkToProfile ? (e) => { e.stopPropagation(); router.push(`/${profileSlug}`) } : undefined}
+                        style={linkToProfile ? { cursor: 'pointer' } : undefined}
+                        title={linkToProfile ? 'Ir para o meu perfil' : undefined}
+                    >
                         <div className="w-12 h-12 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#ffffff' }}>
                             {owner?.avatarUrl ? <img src={owner.avatarUrl} className="w-full h-full object-cover" alt="" /> : <span className="text-lg font-black">{(profileSlug || owner?.name || '?').charAt(0).toUpperCase()}</span>}
                         </div>

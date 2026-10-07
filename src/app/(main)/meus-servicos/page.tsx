@@ -140,15 +140,15 @@ export default function MeusServicosPage() {
                     <ArrowLeft size={16} /> Voltar
                 </button>
 
+                {/* ===== Pedidos de serviço que eu fiz (mesmos cards de "Seus pedidos em aberto" da home) ===== */}
+                <MyOpenServiceRequests limit={30} title="Seus pedidos em aberto" />
+
                 <div>
                     <h1 className="text-xl font-black" style={{ color: textPrimary }}>Meus serviços publicados</h1>
                     <p className="text-sm mt-1" style={{ color: textSecondary }}>
                         Os serviços de cada uma das suas lojas, e depois os seus serviços pessoais (sem loja).
                     </p>
                 </div>
-
-                {/* ===== Pedidos de serviço que eu fiz (mesmos cards de "Seus pedidos em aberto" da home) ===== */}
-                <MyOpenServiceRequests limit={30} title="Seus pedidos em aberto" />
 
                 {/* ===== Serviços das lojas — um card por loja ===== */}
                 {loading ? (
@@ -190,15 +190,22 @@ export default function MeusServicosPage() {
                                 }}
                             >
                                 <div className="flex items-center gap-3">
-                                    <div className="w-12 h-12 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center" style={{ background: GRADIENT, color: '#fff' }}>
-                                        {logo ? <img src={logo} className="w-full h-full object-cover" alt="" /> : <Store size={22} />}
-                                    </div>
-                                    <div className="min-w-0 flex-1">
-                                        <h3 className="text-base font-black truncate" style={{ color: textPrimary }}>{store.name}</h3>
-                                        <p className="text-xs mt-0.5" style={{ color: textSecondary }}>
-                                            {services.length === 0 ? 'Nenhum serviço publicado' : `${services.length} ${services.length === 1 ? 'serviço publicado' : 'serviços publicados'}`}
-                                        </p>
-                                    </div>
+                                    {/* Logo + nome: levam pra página da loja */}
+                                    <button
+                                        onClick={() => router.push(`/${store.storeSlug}`)}
+                                        className="flex items-center gap-3 min-w-0 flex-1 text-left transition hover:opacity-90"
+                                        title="Ir para a página da loja"
+                                    >
+                                        <div className="w-12 h-12 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center" style={{ background: GRADIENT, color: '#fff' }}>
+                                            {logo ? <img src={logo} className="w-full h-full object-cover" alt="" /> : <Store size={22} />}
+                                        </div>
+                                        <div className="min-w-0 flex-1">
+                                            <h3 className="text-base font-black truncate" style={{ color: textPrimary }}>{store.name}</h3>
+                                            <p className="text-xs mt-0.5" style={{ color: textSecondary }}>
+                                                {services.length === 0 ? 'Nenhum serviço publicado' : `${services.length} ${services.length === 1 ? 'serviço publicado' : 'serviços publicados'}`}
+                                            </p>
+                                        </div>
+                                    </button>
                                     {services.length > 0 && (
                                         <button
                                             onClick={publish}
@@ -261,7 +268,7 @@ export default function MeusServicosPage() {
                 )}
 
                 {/* ===== Serviços pessoais (reaproveita o dashboard do perfil) ===== */}
-                {profileSlug && <ProfileServiceListing profileId={userId} profileSlug={profileSlug} />}
+                {profileSlug && <ProfileServiceListing profileId={userId} profileSlug={profileSlug} linkToProfile />}
             </div>
 
             {editingId && (
