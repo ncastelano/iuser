@@ -54,19 +54,40 @@ export default function RadarSection({ dragHandle, origin, userId }: RadarSectio
                 {/* Anéis do radar, decorativos: no celular o centro fica na borda direita,
                     então os círculos aparecem cortados ao meio (efeito de radar saindo do card) */}
                 <div className="absolute right-0 sm:right-6 top-[92px] -translate-y-1/2 pointer-events-none">
+                    {/* A espessura da borda "viaja" de fora pra dentro: cada anel engrossa e afina
+                        um instante depois do anterior, como o pulso de um radar */}
                     {[200, 140, 84].map((size, i) => (
                         <div
                             key={size}
-                            className="absolute rounded-full border"
+                            className="absolute rounded-full radar-ring"
                             style={{
                                 width: size, height: size,
                                 left: -size / 2, top: -size / 2,
-                                borderColor: `rgba(249,115,22,${0.4 - i * 0.09})`,
+                                borderStyle: 'solid',
+                                borderColor: '#f97316',
+                                animationDelay: `${i * 0.9}s`,
                             }}
                         />
                     ))}
-                    <div className="absolute w-3 h-3 rounded-full" style={{ left: -6, top: -6, background: GRADIENT, boxShadow: '0 0 16px #f97316' }} />
+                    <div className="absolute w-3 h-3 rounded-full radar-dot" style={{ left: -6, top: -6, background: GRADIENT, boxShadow: '0 0 16px #f97316' }} />
                 </div>
+                <style>{`
+                    @keyframes radarRing {
+                        0%, 100% { border-width: 1px; opacity: 0.22; }
+                        35% { border-width: 5px; opacity: 0.75; }
+                        65% { border-width: 2px; opacity: 0.4; }
+                    }
+                    @keyframes radarDot {
+                        0%, 100% { transform: scale(1); box-shadow: 0 0 10px #f97316; }
+                        50% { transform: scale(1.35); box-shadow: 0 0 22px #f97316; }
+                    }
+                    .radar-ring { animation: radarRing 2.7s ease-in-out infinite; }
+                    .radar-dot { animation: radarDot 2.7s ease-in-out infinite; }
+                    @media (prefers-reduced-motion: reduce) {
+                        .radar-ring, .radar-dot { animation: none; }
+                        .radar-ring { border-width: 2px; opacity: 0.4; }
+                    }
+                `}</style>
 
                 <div className="relative z-10 max-w-[75%] sm:max-w-[65%]">
                     <div className="flex items-center gap-2 mb-2">
@@ -100,7 +121,7 @@ export default function RadarSection({ dragHandle, origin, userId }: RadarSectio
                                             key={item.kind}
                                             onClick={() => { startNavProgress(); router.push(item.href) }}
                                             className="group relative block overflow-hidden rounded-xl aspect-square text-left transition-all hover:scale-[1.03] active:scale-95"
-                                            style={{ boxShadow: '0 8px 24px rgba(0,0,0,0.5)' }}
+                                            style={{ border: '1px solid rgba(255,255,255,0.3)' }}
                                         >
                                             {/* Imagem do tamanho do card inteiro */}
                                             {item.imageUrl ? (
