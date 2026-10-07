@@ -44,12 +44,12 @@ const DEFAULT_SECTIONS = [
     'categorias',
     'servico',
     'storeList',
+    'radar',
     'canalMotorista',
     'productShowcase',
     'publicationShowcase',
     'profileShowcase',
     'motorista',
-    'radar',
     'careerPlans',
     'orderSection',
 ]
