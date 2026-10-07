@@ -4,7 +4,6 @@
 // seções da home) usado ao lado dos títulos do card Serviços.
 'use client'
 
-import { ArrowRight } from 'lucide-react'
 import { HOME_GRADIENT } from './HomeSectionKit'
 
 export function ViewServicesButton({ onClick, count }: { onClick: () => void; count?: number }) {
@@ -23,7 +22,6 @@ export function ViewServicesButton({ onClick, count }: { onClick: () => void; co
                     {count}
                 </span>
             )}
-            <ArrowRight className="w-3.5 h-3.5" />
         </button>
     )
 }

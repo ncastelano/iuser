@@ -98,16 +98,7 @@ export default function HireAService({ dragHandle, onUrgentChange }: HireAServic
                         title="Quem já oferece serviço"
                         hideIcon
                         onViewAll={() => { startNavProgress(); router.push('/solicitar-servico') }}
-                        leftAction={(
-                            <button
-                                onClick={goPublish}
-                                className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-full font-bold text-sm transition-all hover:scale-105 active:scale-95 flex-shrink-0"
-                                style={outlineButtonStyle}
-                            >
-                                <Megaphone size={16} />
-                                publicar serviço
-                            </button>
-                        )}
+                        subtitle="Profissionais e lojas prontos para te atender"
                     />
                     <button
                         onClick={goPublish}

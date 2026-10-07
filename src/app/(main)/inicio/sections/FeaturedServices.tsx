@@ -156,9 +156,11 @@ interface FeaturedServicesProps {
     onViewAll?: () => void
     // Botão no lado esquerdo da linha de navegação (embaixo dos cards), ex: "publicar serviço"
     leftAction?: ReactNode
+    // Frase abaixo do título (some o contador "N serviços" quando há onViewAll, que mostra o total no badge)
+    subtitle?: string
 }
 
-export default function FeaturedServices({ dragHandle, title = 'Serviços em destaque', maxItems, className = '', hideIcon = false, onViewAll, leftAction }: FeaturedServicesProps) {
+export default function FeaturedServices({ dragHandle, title = 'Serviços em destaque', maxItems, className = '', hideIcon = false, onViewAll, leftAction, subtitle }: FeaturedServicesProps) {
     const router = useRouter()
     const startNavProgress = useNavProgressStore((s) => s.start)
     const { colors } = useTheme()
@@ -249,7 +251,7 @@ export default function FeaturedServices({ dragHandle, title = 'Serviços em des
             <HomeSectionHeader
                 icon={hideIcon ? undefined : Wrench}
                 title={title}
-                subtitle={onViewAll ? undefined : `${services.length} ${services.length === 1 ? 'serviço' : 'serviços'}`}
+                subtitle={subtitle ?? (onViewAll ? undefined : `${services.length} ${services.length === 1 ? 'serviço' : 'serviços'}`)}
                 dragHandle={dragHandle}
                 action={onViewAll ? <ViewServicesButton onClick={onViewAll} count={services.length} /> : <span />}
             />
