@@ -862,7 +862,7 @@ export default function StoreOrders({
     return (
         <>
             <div
-                className="rounded-2xl p-6 pt-7 flex flex-col gap-5 relative overflow-hidden"
+                className={`rounded-2xl relative overflow-hidden flex flex-col ${isOrdersExpanded ? 'p-6 pt-7 gap-5' : 'p-4'}`}
                 style={{
                     background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
                     backdropFilter: 'blur(12px)',
@@ -920,7 +920,7 @@ export default function StoreOrders({
                 <div
                     className="w-full flex items-center justify-between text-left relative z-10"
                     style={{
-                        padding: '0.5rem 0.75rem',
+                        padding: isOrdersExpanded ? '0.5rem 0.75rem' : 0,
                         borderRadius: '9999px',
                     }}
                 >
@@ -936,7 +936,7 @@ export default function StoreOrders({
                     >
                         <div className="flex items-center gap-3">
                             <div>
-                                <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
+                                <h3 className={`${isOrdersExpanded ? 'text-lg' : 'text-sm'} font-black`} style={{ color: colors.textPrimary }}>
                                     Pedidos na loja
                                 </h3>
                                 <div className="flex items-center gap-2 text-xs mt-0.5">

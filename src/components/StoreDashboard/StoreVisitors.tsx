@@ -250,7 +250,7 @@ export default function StoreVisitors({ storeId }: StoreVisitorsProps) {
     return (
         <div className="mb-6 mt-4">
             <div
-                className="rounded-2xl p-6 pt-7 flex flex-col gap-5 relative"
+                className={`rounded-2xl relative flex flex-col ${isExpanded ? 'p-6 pt-7 gap-5' : 'p-4'}`}
                 style={{
                     background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
                     backdropFilter: 'blur(12px)',
@@ -267,7 +267,7 @@ export default function StoreVisitors({ storeId }: StoreVisitorsProps) {
                 >
                     <div className="flex items-center gap-3">
                         <div>
-                            <h3 className="text-lg font-black" style={{ color: textPrimary }}>
+                            <h3 className={`${isExpanded ? 'text-lg' : 'text-sm'} font-black`} style={{ color: textPrimary }}>
                                 Visitantes
                             </h3>
                             <div className="flex items-center gap-3 text-xs mt-0.5" style={{ color: textSecondary }}>
@@ -295,9 +295,9 @@ export default function StoreVisitors({ storeId }: StoreVisitorsProps) {
                         </div>
                     </div>
                     {isExpanded ? (
-                        <ChevronUp size={22} style={{ color: textSecondary }} className="flex-shrink-0" />
+                        <ChevronUp size={isExpanded ? 22 : 18} style={{ color: textSecondary }} className="flex-shrink-0" />
                     ) : (
-                        <ChevronDown size={22} style={{ color: textSecondary }} className="flex-shrink-0" />
+                        <ChevronDown size={isExpanded ? 22 : 18} style={{ color: textSecondary }} className="flex-shrink-0" />
                     )}
                 </button>
 

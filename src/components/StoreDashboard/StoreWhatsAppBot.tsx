@@ -135,7 +135,7 @@ export default function StoreWhatsAppBot({ storeId }: StoreWhatsAppBotProps) {
     }
 
     return (
-        <div className="rounded-2xl p-6 flex flex-col gap-4" style={cardStyle}>
+        <div className={`rounded-2xl flex flex-col ${isExpanded ? 'p-6 gap-4' : 'p-4'}`} style={cardStyle}>
             <button
                 onClick={() => setIsExpanded(!isExpanded)}
                 className="w-full flex items-center justify-between gap-3 text-left"
@@ -143,16 +143,16 @@ export default function StoreWhatsAppBot({ storeId }: StoreWhatsAppBotProps) {
             >
                 <div className="flex items-center gap-3">
                     <div>
-                        <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>Atendimento automático por WhatsApp</h3>
+                        <h3 className={`${isExpanded ? 'text-lg' : 'text-sm'} font-black`} style={{ color: colors.textPrimary }}>Atendimento automático por WhatsApp</h3>
                         <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>
                             Cliente conversa com o WhatsApp da sua loja e o bot responde: catálogo, horário, pedido e status — sozinho.
                         </p>
                     </div>
                 </div>
                 {isExpanded ? (
-                    <ChevronUp size={22} style={{ color: colors.textSecondary }} className="flex-shrink-0" />
+                    <ChevronUp size={isExpanded ? 22 : 18} style={{ color: colors.textSecondary }} className="flex-shrink-0" />
                 ) : (
-                    <ChevronDown size={22} style={{ color: colors.textSecondary }} className="flex-shrink-0" />
+                    <ChevronDown size={isExpanded ? 22 : 18} style={{ color: colors.textSecondary }} className="flex-shrink-0" />
                 )}
             </button>
 

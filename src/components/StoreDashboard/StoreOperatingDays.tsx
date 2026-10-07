@@ -266,7 +266,7 @@ export default function StoreOperatingDays({ storeId, onSaved }: StoreOperatingD
 
     return (
         <div
-            className="rounded-2xl p-6 flex flex-col gap-5 relative"
+            className={`rounded-2xl relative flex flex-col ${isExpanded ? 'p-6 gap-5' : 'p-4'}`}
             style={{
                 background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
                 backdropFilter: 'blur(12px)',
@@ -338,7 +338,7 @@ export default function StoreOperatingDays({ storeId, onSaved }: StoreOperatingD
             <div
                 className="w-full flex items-center justify-between text-left relative z-10"
                 style={{
-                    padding: '0.5rem 0.75rem',
+                    padding: isExpanded ? '0.5rem 0.75rem' : 0,
                     borderRadius: '9999px',
                 }}
             >
@@ -353,7 +353,7 @@ export default function StoreOperatingDays({ storeId, onSaved }: StoreOperatingD
                 >
                     <div className="flex items-center gap-3">
                         <div>
-                            <h3 className="text-lg font-black" style={{ color: textPrimary }}>
+                            <h3 className={`${isExpanded ? 'text-lg' : 'text-sm'} font-black`} style={{ color: textPrimary }}>
                                 Dias de Funcionamento
                             </h3>
                             {/* ===== INFORMAÇÕES EM COLUNA (UM EMBAIXO DO OUTRO) ===== */}
@@ -372,7 +372,7 @@ export default function StoreOperatingDays({ storeId, onSaved }: StoreOperatingD
                     </div>
                     <div className="flex items-center gap-2">
                         {isExpanded ? (
-                            <ChevronUp size={22} style={{ color: textSecondary }} />
+                            <ChevronUp size={isExpanded ? 22 : 18} style={{ color: textSecondary }} />
                         ) : (
                             <ChevronDown size={22} style={{ color: textSecondary }} />
                         )}

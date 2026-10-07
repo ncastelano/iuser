@@ -195,7 +195,7 @@ export default function StoreDeliverySettings({ storeId, onRefresh }: StoreDeliv
 
     return (
         <div
-            className="rounded-2xl p-6 flex flex-col gap-5 relative"
+            className={`rounded-2xl relative flex flex-col ${isExpanded ? 'p-6 gap-5' : 'p-4'}`}
             style={{
                 background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
                 backdropFilter: 'blur(12px)',
@@ -209,7 +209,7 @@ export default function StoreDeliverySettings({ storeId, onRefresh }: StoreDeliv
                 onClick={() => setIsExpanded(!isExpanded)}
                 className="w-full flex items-center justify-between text-left"
                 style={{
-                    padding: '0.5rem 0.75rem',
+                    padding: isExpanded ? '0.5rem 0.75rem' : 0,
                     borderRadius: '9999px',
                     background: 'transparent',
                     border: 'none',
@@ -218,7 +218,7 @@ export default function StoreDeliverySettings({ storeId, onRefresh }: StoreDeliv
             >
                 <div className="flex items-center gap-3">
                     <div>
-                        <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
+                        <h3 className={`${isExpanded ? 'text-lg' : 'text-sm'} font-black`} style={{ color: colors.textPrimary }}>
                             Configurações de Entrega
                         </h3>
                         <div className="flex flex-col gap-0.5 mt-0.5">
@@ -237,9 +237,9 @@ export default function StoreDeliverySettings({ storeId, onRefresh }: StoreDeliv
                 </div>
                 <div className="flex items-center gap-2">
                     {isExpanded ? (
-                        <ChevronUp size={22} style={{ color: colors.textSecondary }} />
+                        <ChevronUp size={isExpanded ? 22 : 18} style={{ color: colors.textSecondary }} />
                     ) : (
-                        <ChevronDown size={22} style={{ color: colors.textSecondary }} />
+                        <ChevronDown size={isExpanded ? 22 : 18} style={{ color: colors.textSecondary }} />
                     )}
                 </div>
             </button>

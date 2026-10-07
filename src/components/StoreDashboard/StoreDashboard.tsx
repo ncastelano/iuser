@@ -667,7 +667,7 @@ export default function StoreDashboard({
             {/* ===== Vendas do dia ===== */}
             <div className="mb-6">
                 <div
-                    className="rounded-2xl p-6 pt-7 flex flex-col gap-5 relative"
+                    className={`rounded-2xl relative flex flex-col ${isSalesExpanded ? 'p-6 pt-7 gap-5' : 'p-4'}`}
                     style={{
                         background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
                         backdropFilter: 'blur(12px)',
@@ -682,14 +682,14 @@ export default function StoreDashboard({
                         style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}
                     >
                         <div className="flex items-center gap-3">
-                            <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
+                            <h3 className={`${isSalesExpanded ? 'text-lg' : 'text-sm'} font-black`} style={{ color: colors.textPrimary }}>
                                 Vendas
                             </h3>
                         </div>
                         {isSalesExpanded ? (
-                            <ChevronUp size={22} style={{ color: colors.textSecondary }} className="flex-shrink-0" />
+                            <ChevronUp size={isSalesExpanded ? 22 : 18} style={{ color: colors.textSecondary }} className="flex-shrink-0" />
                         ) : (
-                            <ChevronDown size={22} style={{ color: colors.textSecondary }} className="flex-shrink-0" />
+                            <ChevronDown size={isSalesExpanded ? 22 : 18} style={{ color: colors.textSecondary }} className="flex-shrink-0" />
                         )}
                     </button>
 

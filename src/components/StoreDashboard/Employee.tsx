@@ -307,7 +307,7 @@ export default function Employee({
     return (
         <>
             <div
-                className="mb-6 rounded-2xl p-6 pt-7 flex flex-col gap-5 relative"
+                className={`mb-6 rounded-2xl relative flex flex-col ${isExpanded ? 'p-6 pt-7 gap-5' : 'p-4'}`}
                 style={{
                     background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
                     backdropFilter: 'blur(12px)',
@@ -321,7 +321,7 @@ export default function Employee({
                     onClick={() => setIsExpanded(!isExpanded)}
                     className="w-full flex items-center justify-between text-left"
                     style={{
-                        padding: '0.5rem 0.75rem',
+                        padding: isExpanded ? '0.5rem 0.75rem' : 0,
                         borderRadius: '9999px',
                         background: 'transparent',
                         border: 'none',
@@ -330,7 +330,7 @@ export default function Employee({
                 >
                     <div className="flex items-center gap-3">
                         <div>
-                            <h3 className="text-lg font-black" style={{ color: textPrimary }}>
+                            <h3 className={`${isExpanded ? 'text-lg' : 'text-sm'} font-black`} style={{ color: textPrimary }}>
                                 Funcionários
                             </h3>
                             <p className="text-xs mt-0.5" style={{ color: textSecondary }}>
@@ -345,9 +345,9 @@ export default function Employee({
                             </span>
                         )}
                         {isExpanded ? (
-                            <ChevronUp size={22} style={{ color: textSecondary }} />
+                            <ChevronUp size={isExpanded ? 22 : 18} style={{ color: textSecondary }} />
                         ) : (
-                            <ChevronDown size={22} style={{ color: textSecondary }} />
+                            <ChevronDown size={isExpanded ? 22 : 18} style={{ color: textSecondary }} />
                         )}
                     </div>
                 </button>
