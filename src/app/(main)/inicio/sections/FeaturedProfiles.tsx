@@ -44,7 +44,8 @@ function useFeaturedProfiles() {
                     .select('id, name, avatar_url, "profileSlug"')
                     .eq('is_active', true)
                     .not('profileSlug', 'is', null)
-                    .order('view_count', { ascending: false })
+                    // Do mais novo que entrou pro mais antigo, da esquerda pra direita
+                    .order('created_at', { ascending: false })
                     .limit(30)
 
                 if (error) {
