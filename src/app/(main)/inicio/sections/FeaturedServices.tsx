@@ -238,7 +238,7 @@ export default function FeaturedServices({ dragHandle, title = 'Serviços em des
                 </div>
                 <div className={`grid ${gridCols} gap-4`}>
                     {Array.from({ length: Math.min(itemsPerView, 6) }).map((_, i) => (
-                        <div key={i} className="h-64 rounded-3xl animate-pulse" style={{ background: `${colors.border}40` }} />
+                        <div key={i} className="aspect-[3/4] rounded-3xl animate-pulse" style={{ background: `${colors.border}40` }} />
                     ))}
                 </div>
             </div>
@@ -270,32 +270,39 @@ export default function FeaturedServices({ dragHandle, title = 'Serviços em des
                         <div
                             key={`${service.id}-${idx}`}
                             onClick={() => handleServiceClick(service)}
-                            className="group rounded-3xl overflow-hidden border transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 cursor-pointer flex flex-col"
-                            style={{ borderColor: colors.border, background: colors.surface, boxShadow: colors.shadow }}
+                            className="group relative rounded-3xl overflow-hidden border transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 cursor-pointer"
+                            style={{ borderColor: colors.border, background: GRADIENT, boxShadow: colors.shadow, aspectRatio: '3/4' }}
                         >
-                            <div className="relative w-full h-36 overflow-hidden flex-shrink-0" style={{ background: GRADIENT }}>
-                                {service.imageUrl ? (
-                                    <>
-                                        <img src={service.imageUrl} alt="" aria-hidden className="absolute inset-0 w-full h-full object-cover scale-125 blur-xl opacity-70" loading="lazy" />
-                                        <img src={service.imageUrl} alt={service.title} className="relative w-full h-full object-contain transition-transform duration-500 group-hover:scale-105" loading="lazy" />
-                                    </>
-                                ) : (
-                                    <div className="w-full h-full flex items-center justify-center">
-                                        <Wrench className="w-10 h-10 text-white opacity-70" />
-                                    </div>
-                                )}
-                            </div>
+                            {/* A foto é o próprio card; as informações ficam na frente dela */}
+                            {service.imageUrl ? (
+                                <img
+                                    src={service.imageUrl}
+                                    alt=""
+                                    aria-hidden
+                                    className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                                    loading="lazy"
+                                />
+                            ) : (
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                    <Wrench className="w-14 h-14 text-white opacity-40" />
+                                </div>
+                            )}
+                            <div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.25) 0%, rgba(0,0,0,0) 30%, rgba(0,0,0,0.35) 58%, rgba(0,0,0,0.88) 100%)' }} />
 
-                            <div className="p-3.5 flex flex-col gap-2 flex-1">
-                                <h3 className="text-sm font-black leading-snug line-clamp-2" style={{ color: colors.textPrimary }}>
+                            {service.serviceType && (
+                                <span
+                                    className="absolute top-3 left-3 z-10 max-w-[80%] truncate text-[11px] font-black px-3 py-1 rounded-full text-white backdrop-blur-md"
+                                    style={{ background: 'rgba(249,115,22,0.85)', boxShadow: '0 2px 10px rgba(0,0,0,0.3)' }}
+                                >
+                                    {getServiceLabel(service.serviceType)}
+                                </span>
+                            )}
+
+                            <div className="absolute bottom-0 left-0 right-0 p-3.5 z-10 flex flex-col gap-2.5">
+                                <h3 className="text-white font-black text-base leading-tight line-clamp-3" style={{ textShadow: '0 2px 8px rgba(0,0,0,0.6)' }}>
                                     {service.title}
                                 </h3>
-                                {service.serviceType && (
-                                    <span className="self-start text-[11px] font-bold px-2.5 py-0.5 rounded-full" style={{ background: '#f9731618', color: '#ea580c' }}>
-                                        {getServiceLabel(service.serviceType)}
-                                    </span>
-                                )}
-                                <div className="flex items-center gap-2 min-w-0 mt-auto pt-1">
+                                <div className="flex items-center gap-2 min-w-0 self-start max-w-full rounded-full pl-1 pr-3 py-1 backdrop-blur-md" style={{ background: 'rgba(255,255,255,0.18)', border: '1px solid rgba(255,255,255,0.25)' }}>
                                     <PlanAvatarRing userId={service.providerId}>
                                         <div className="w-6 h-6 rounded-full overflow-hidden flex-shrink-0">
                                             {service.providerImageUrl ? (
@@ -307,7 +314,7 @@ export default function FeaturedServices({ dragHandle, title = 'Serviços em des
                                             )}
                                         </div>
                                     </PlanAvatarRing>
-                                    <span className="text-xs truncate" style={{ color: colors.textSecondary }}>{service.providerName}</span>
+                                    <span className="text-xs font-bold text-white truncate">{service.providerName}</span>
                                 </div>
                             </div>
                         </div>
