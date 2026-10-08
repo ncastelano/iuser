@@ -534,38 +534,32 @@ export function ProductClientPage({
     const storeCartBar = storeCartCount > 0 ? (
         <div className="animate-slide-in">
             <button
-                onClick={() => setShowStoreCart((v) => !v)}
-                className="w-full flex items-center gap-4 px-4 py-4 text-left transition active:scale-[0.99]"
+                onClick={() => { if (checkout.checkoutStep) setShowStoreCart((v) => !v) }}
+                className={`w-full flex items-center gap-4 px-4 py-4 text-left transition ${checkout.checkoutStep ? 'active:scale-[0.99]' : 'cursor-default'}`}
                 style={{ background: GRADIENT }}
                 aria-expanded={showStoreCart}
             >
-                {/* Fotos dos produtos no carrinho (até 3, uma sobre a outra) */}
-                <div className="relative flex-shrink-0" style={{ width: 56 + Math.min(storeCartItems.length - 1, 2) * 34, height: 56 }}>
-                    {storeCartItems.slice(0, 3).map((item, i) => (
-                        <div
-                            key={`${item.product.id}-${i}`}
-                            className="absolute top-0 w-14 h-14 rounded-2xl overflow-hidden"
-                            style={{ left: i * 34, zIndex: 3 - i, border: '3px solid #ffffff', background: '#ffffff', boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }}
-                        >
-                            <FallbackImage
-                                srcs={[item.product.image_url, finalStoreImage]}
-                                alt={item.product.name}
-                                name={item.product.name}
-                                className="w-full h-full object-cover"
-                                initialClassName="text-lg"
-                            />
-                        </div>
-                    ))}
+                {/* Quem vende: a imagem da loja. As fotos dos produtos ficam na lista logo abaixo */}
+                <div className="w-14 h-14 rounded-full overflow-hidden flex-shrink-0" style={{ border: '3px solid #ffffff', background: '#ffffff', boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }}>
+                    <FallbackImage
+                        srcs={[finalStoreImage]}
+                        alt={storeDisplay.name}
+                        name={storeDisplay.name}
+                        className="w-full h-full object-cover"
+                        initialClassName="text-lg"
+                    />
                 </div>
                 <div className="flex-1 min-w-0">
                     <p className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-white/80"><ShoppingCart size={12} strokeWidth={3} />Seu carrinho · {storeCartCount} {storeCartCount === 1 ? 'item' : 'itens'}</p>
                     <p className="text-sm font-bold text-white truncate">{storeDisplay.name}</p>
                     <p className="text-xl font-black text-white leading-tight">{formattedStoreCartTotal}</p>
                 </div>
-                <span className="flex items-center gap-1 flex-shrink-0 px-4 py-2 rounded-full text-xs font-black" style={{ background: '#ffffff', color: '#dc2626' }}>
-                    {showStoreCart ? 'Fechar' : 'Finalizar'}
-                    <ChevronRight size={16} style={{ transform: showStoreCart ? 'rotate(90deg)' : undefined, transition: 'transform 0.2s' }} />
-                </span>
+                {checkout.checkoutStep && (
+                    <span className="flex items-center gap-1 flex-shrink-0 px-4 py-2 rounded-full text-xs font-black" style={{ background: '#ffffff', color: '#dc2626' }}>
+                        {showStoreCart ? 'Fechar' : 'Continuar'}
+                        <ChevronRight size={16} style={{ transform: showStoreCart ? 'rotate(90deg)' : undefined, transition: 'transform 0.2s' }} />
+                    </span>
+                )}
             </button>
 
             {showStoreCart && checkout.checkoutStep === 'delivery' && (
@@ -941,66 +935,74 @@ export function ProductClientPage({
                 </div>
             )}
 
-            {showStoreCart && !checkout.checkoutStep && (
-                <div className="px-4 pb-3 space-y-2 max-h-64 overflow-y-auto">
-                    {storeCartItems.map((item) => {
-                        return (
-                            <div
-                                key={`${item.product.id}::${item.comment || ''}::${(item.addons || []).map(a => a.id).sort().join(',')}`}
-                                className="flex items-center gap-2 p-2 rounded-xl"
-                                style={{ background: colors.surface }}
-                            >
-                                <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0" style={{ background: `${colors.accentLight}20` }}>
-                                    <FallbackImage
-                                        srcs={[item.product.image_url, finalStoreImage]}
-                                        alt={item.product.name}
-                                        name={storeDisplay.name}
-                                        className="w-full h-full object-cover"
-                                        initialClassName="text-sm"
-                                    />
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                    <p className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>
-                                        {item.product.name}
+            {!checkout.checkoutStep && (
+                <div className="p-3 space-y-2.5">
+                    <p className="px-1 text-[11px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>Produtos do pedido</p>
+                    {storeCartItems.map((item) => (
+                        <div
+                            key={`${item.product.id}::${item.comment || ''}::${(item.addons || []).map(a => a.id).sort().join(',')}`}
+                            className="flex items-start gap-3 p-2.5 rounded-2xl"
+                            style={{ background: colors.background, border: `1px solid ${colors.border}` }}
+                        >
+                            {/* Só a foto do produto (sem trocar pela da loja) */}
+                            <div className="w-16 h-16 rounded-xl overflow-hidden flex-shrink-0" style={{ background: `${colors.accentLight}25` }}>
+                                <FallbackImage
+                                    srcs={[item.product.image_url]}
+                                    alt={item.product.name}
+                                    name={item.product.name}
+                                    className="w-full h-full object-cover"
+                                    initialClassName="text-xl"
+                                />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <p className="text-sm font-black leading-snug line-clamp-2" style={{ color: colors.textPrimary }}>
+                                    {item.product.name}
+                                </p>
+                                {item.product.description && (
+                                    <p className="text-xs leading-snug line-clamp-2 mt-0.5" style={{ color: colors.textSecondary }}>
+                                        {item.product.description.replace(/\s*\n+\s*/g, ' · ')}
                                     </p>
-                                    <p className="text-xs font-bold" style={{ color: colors.accent }}>
-                                        {formatPrice(cartItemUnitPrice(item))}
+                                )}
+                                {item.addons && item.addons.length > 0 && (
+                                    <p className="text-[11px] truncate mt-0.5" style={{ color: colors.textSecondary }}>
+                                        + {item.addons.map(a => a.name).join(', ')}
                                     </p>
-                                    {item.addons && item.addons.length > 0 && (
-                                        <p className="text-[10px] truncate" style={{ color: colors.textSecondary }}>
-                                            + {item.addons.map(a => a.name).join(', ')}
-                                        </p>
-                                    )}
-                                </div>
-                                <div className="flex items-center gap-1 flex-shrink-0">
-                                    <button
-                                        onClick={() => updateQuantity(ownerSlug, item.product.id, -1, item.comment, item.addons)}
-                                        className="w-6 h-6 rounded-full flex items-center justify-center hover:scale-110 transition-transform"
-                                        style={{ background: GRADIENT, color: '#ffffff' }}
-                                    >
-                                        <Minus size={10} />
-                                    </button>
-                                    <span className="text-xs font-bold min-w-[16px] text-center" style={{ color: colors.textPrimary }}>
-                                        {item.quantity}
-                                    </span>
-                                    <button
-                                        onClick={() => updateQuantity(ownerSlug, item.product.id, 1, item.comment, item.addons)}
-                                        className="w-6 h-6 rounded-full flex items-center justify-center hover:scale-110 transition-transform"
-                                        style={{ background: GRADIENT, color: '#ffffff' }}
-                                    >
-                                        <Plus size={10} />
-                                    </button>
-                                    <button
-                                        onClick={() => removeItem(ownerSlug, item.product.id, item.comment, item.addons)}
-                                        className="w-6 h-6 rounded-full flex items-center justify-center hover:scale-110 transition-transform"
-                                        style={{ background: '#ef4444', color: '#ffffff' }}
-                                    >
-                                        <Trash2 size={10} />
-                                    </button>
+                                )}
+                                <div className="flex items-center justify-between gap-2 mt-2">
+                                    <div className="flex items-center gap-1">
+                                        <button
+                                            onClick={() => updateQuantity(ownerSlug, item.product.id, -1, item.comment, item.addons)}
+                                            aria-label="Diminuir"
+                                            className="w-7 h-7 rounded-full flex items-center justify-center hover:scale-110 transition-transform"
+                                            style={{ background: GRADIENT, color: '#ffffff' }}
+                                        >
+                                            <Minus size={12} />
+                                        </button>
+                                        <span className="text-sm font-black min-w-[22px] text-center" style={{ color: colors.textPrimary }}>
+                                            {item.quantity}
+                                        </span>
+                                        <button
+                                            onClick={() => updateQuantity(ownerSlug, item.product.id, 1, item.comment, item.addons)}
+                                            aria-label="Aumentar"
+                                            className="w-7 h-7 rounded-full flex items-center justify-center hover:scale-110 transition-transform"
+                                            style={{ background: GRADIENT, color: '#ffffff' }}
+                                        >
+                                            <Plus size={12} />
+                                        </button>
+                                        <button
+                                            onClick={() => removeItem(ownerSlug, item.product.id, item.comment, item.addons)}
+                                            aria-label="Remover"
+                                            className="w-7 h-7 rounded-full flex items-center justify-center hover:scale-110 transition-transform ml-1"
+                                            style={{ background: '#ef4444', color: '#ffffff' }}
+                                        >
+                                            <Trash2 size={12} />
+                                        </button>
+                                    </div>
+                                    <span className="text-sm font-black" style={{ color: '#f97316' }}>{formatPrice(cartItemLineTotal(item))}</span>
                                 </div>
                             </div>
-                        )
-                    })}
+                        </div>
+                    ))}
 
                     <button
                         onClick={checkout.startCheckout}
