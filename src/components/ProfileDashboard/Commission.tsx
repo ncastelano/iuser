@@ -2,6 +2,8 @@
 
 'use client'
 
+import { useLevelsFor } from '@/hooks/useLevelsFor'
+import LevelBadge from '@/components/Graduation/LevelBadge'
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
@@ -201,6 +203,8 @@ export default function Commission({ userId, profileSlug, onLatestUpdate }: Comm
 
     const [loading, setLoading] = useState(true)
     const [members, setMembers] = useState<CommissionMember[]>([])
+    // Graduação de cada indicado (selo ao lado do nome)
+    const memberLevels = useLevelsFor(members.map((m) => m.id))
     const [isExpanded, setIsExpanded] = usePersistedExpanded('commission', true)
     const [copied, setCopied] = useState(false)
     const [showShareModal, setShowShareModal] = useState(false)
@@ -949,9 +953,12 @@ export default function Commission({ userId, profileSlug, onLatestUpdate }: Comm
                                                     </PlanAvatarRing>
 
                                                     <div className="flex-1 min-w-0">
-                                                        <p className="text-sm font-bold truncate" style={{ color: textPrimary }}>
-                                                            {member.name}
-                                                        </p>
+                                                        <div className="flex items-center gap-1.5 min-w-0">
+                                                            <p className="text-sm font-bold truncate" style={{ color: textPrimary }}>
+                                                                {member.name}
+                                                            </p>
+                                                            {memberLevels.get(member.id) && <LevelBadge level={memberLevels.get(member.id)!} size="sm" />}
+                                                        </div>
                                                         <p className="text-[10px] mt-0.5" style={{ color: textSecondary }}>
                                                             Entrou {formatDistanceToNow(new Date(member.created_at), {
                                                                 addSuffix: true,

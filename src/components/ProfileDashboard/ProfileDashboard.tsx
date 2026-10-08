@@ -48,6 +48,7 @@ import ProfileVisitors from './ProfileVisitors'
 import PublicationProfile from './ProfilePublication'
 import ProfileServiceListing from './ProfileServiceListing'
 import Commission from './Commission'
+import MyGraduation from './MyGraduation'
 import MyTasks from './MyTasks'
 import DeleteConfirmDialog from '@/components/DeleteConfirmDialog'
 import { callAdminApi } from '@/lib/callAdminApi'
@@ -1358,7 +1359,8 @@ export default function ProfileDashboard({
         </>
     )
     const indicacoesNode = (
-        <div className="mb-6">
+        <div className="mb-6 flex flex-col gap-4">
+            <MyGraduation />
             <Commission userId={profile.id} onLatestUpdate={onIndicacoesUpdate} />
         </div>
     )

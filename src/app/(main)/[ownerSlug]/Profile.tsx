@@ -1,6 +1,8 @@
 // src/components/owner/Profile.tsx
 'use client'
 
+import { useLevelsFor } from '@/hooks/useLevelsFor'
+import LevelBadge from '@/components/Graduation/LevelBadge'
 import { notifyNewFollower } from '@/lib/notifyRideStatus'
 import { useCallback, useEffect, useState, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
@@ -252,6 +254,8 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
     const [ratings, setRatings] = useState<RatingRow[]>([])
     const [imageUrl, setImageUrl] = useState<string | null>(null)
     const ownerHasRing = usePlanRing(owner?.id)
+    // Graduação de quem é o dono do perfil (selo discreto abaixo do nome)
+    const ownerLevel = useLevelsFor([owner?.id]).get(owner?.id || '') || null
     const [uploadingAvatar, setUploadingAvatar] = useState(false)
     const [stores, setStores] = useState<any[]>([])
     const [activeTab, setActiveTab] = useState<ProfileTab>('publications')
@@ -1433,6 +1437,9 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                     <h1 className="text-2xl font-black mt-3 tracking-tight" style={{ color: colors.textPrimary }}>
                         {owner.name}
                     </h1>
+                    {ownerLevel && (
+                        <div className="mt-1.5 flex justify-center"><LevelBadge level={ownerLevel} size="sm" /></div>
+                    )}
 
                     {owner.description && (
                         <div className="mt-3 text-sm leading-relaxed max-w-lg mx-auto" style={{ color: colors.textSecondary }}>

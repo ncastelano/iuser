@@ -18,6 +18,17 @@ Esse projeto **não usa** o `middleware.ts` padrão do Next.js — o roteamento 
 
 **Sempre que criar uma página nova de 1 segmento na raiz** (`/algo`, ex: `/meus-servicos`, `/planos`), adicione o caminho em `IGNORED_ROUTES` em `src/proxy.ts`. Sem isso, o proxy tenta casar `/algo` com `profiles.profileSlug` / `stores.storeSlug`, não acha, e redireciona pra "Perfil ou loja não encontrado" — a página existe mas nunca é alcançada em produção (em dev o proxy deixa passar de qualquer jeito, então o bug só aparece depois do deploy). Rotas aninhadas com segmento **dinâmico** (`/algo/[param]`, ex: `/acompanhar-corrida/[id]`) normalmente não precisam disso — o primeiro segmento (`algo`) já está em `IGNORED_ROUTES` ou é validado como perfil/loja, e o proxy só olha o primeiro segmento pra decidir. **Mas rotas aninhadas com segmento fixo** (`/algo/outro`, ex: `/pedir-motorista/escolher-local`, `/aceitar-corridas/mapa`) **precisam sim** de uma entrada própria e exata em `IGNORED_ROUTES` — o proxy não propaga "ignorado" do pai pro filho, e como o primeiro segmento (`algo`) não é slug de perfil/loja nem bate em nenhum caso especial, cai direto no 404 em produção. Se o segmento dinâmico for o próprio pai (ex: `/acompanhar-corrida/<id>`, sem página em `/acompanhar-corrida` sozinho), a entrada precisa ser um prefixo em `IGNORED_PREFIXES` (`/acompanhar-corrida/`), não uma rota exata.
 
+## Graduação e comissão de indicação: mora no banco, nunca fixe um percentual no código
+
+A comissão que quem indica ganha vem da **graduação** (Inicial/Bronze/Prata/Ouro/Diamante... — níveis que o admin cria e edita em `/administrador` → **Graduação**, tabela `network_levels`). Não confundir com a "Hierarquia" (`user_statuses`: Usuário/Líder/Supervisor/Gestor/Administrador), que é autoridade administrativa.
+
+- **Fonte única da verdade = funções do banco** (`supabase/migrations/20261029000000_graduation_levels_and_commissions.sql`): `get_effective_commission(user, 'prepaid'|'postpaid')`, `check_and_upgrade_user_level`, `record_referral_commission` (livro-caixa `commissions` + carteira na mesma transação, idempotente por pagamento, taxa congelada na linha). **Nunca** calcule ou fixe um percentual de comissão em TS/React; o webhook da Asaas (`creditReferralCommission`) só chama a RPC.
+- Prioridade: comissão personalizada ativa > nível efetivo (o MAIOR entre o conquistado e o concedido pelo admin) > nível inicial. O nível **nunca desce**; comissão personalizada **não** muda o nome do nível. Teto padrão 70% (`network_settings`).
+- Dinheiro em **centavos** e percentual em **pontos-base** (50% = 5000): sem ponto flutuante (`src/lib/graduation.ts`, `commission_cents` no banco).
+- Base de cálculo: Pré-pago = a mensalidade realmente paga (R$ 100); Pós-pago = a quitação por Pix (hoje R$ 50) — sempre o valor **realmente pago**, nunca o preço da tabela.
+- O estado de cada pessoa fica em `user_network_state` (cliente só lê a própria linha), não em `profiles` (legível por todos). Escritas só por funções `admin_*` via `/api/admin/graduation` (`requireSuperAdmin`).
+- Testes: `npm run test:graduation` (conta em centavos) e `supabase/tests/graduation_scenarios.sql` (33 cenários, rode dentro de `begin; ... rollback;`).
+
 ## Telemetria própria de Egress/Realtime — não mexer sem saber
 
 O Supabase não expõe Egress nem Realtime Messages por nenhuma API pública documentada (confirmado testando ao vivo os endpoints da Management API — ver commit `b1b81d8`). Por isso o iUser mede isso sozinho:

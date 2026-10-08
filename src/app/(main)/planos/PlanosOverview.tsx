@@ -534,7 +534,7 @@ function PlanosContent({ focusPlan }: { focusPlan?: string }) {
                                         <Users size={12} /> Indique e ganhe
                                     </p>
                                     <p className="text-[11px]" style={{ color: colors.textSecondary }}>
-                                        Qualquer pessoa cadastrada pode convidar — não precisa de nenhum plano específico. Quando quem você indicou pagar um plano, metade do valor vira comissão sua.
+                                        Qualquer pessoa cadastrada pode convidar — não precisa de nenhum plano específico. Quando quem você indicou pagar o Pré-pago ou quitar o Pós-pago, uma parte do valor vira comissão sua — de 40% a 70%, conforme a sua graduação (quanto mais gente você indica, mais você ganha, e o nível conquistado nunca se perde).
                                     </p>
                                     <InviteButton />
                                 </div>

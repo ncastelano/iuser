@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase/client'
 import { Spinner } from '@/components/Spinner'
 import { toast } from 'sonner'
 import { hexToRgb } from '@/lib/color'
-import { Check, X, Copy, Plus, ShieldOff, ShieldCheck, Send, CalendarClock, Wallet, Tag, Sparkles, MessageCircle, Search, Activity, PiggyBank, Car, Gift, CircleDashed, Handshake } from 'lucide-react'
+import { Check, X, Copy, Plus, ShieldOff, ShieldCheck, Send, CalendarClock, Wallet, Tag, Sparkles, MessageCircle, Search, Activity, PiggyBank, Car, Gift, CircleDashed, Handshake, Award } from 'lucide-react'
 import HierarchyAdmin from './HierarchyAdmin'
 import ActivitySection from './ActivitySection'
 import FinanceSection from './FinanceSection'
@@ -15,9 +15,10 @@ import PlatformTariffsSection from './PlatformTariffsSection'
 import FreeTrialSection from './FreeTrialSection'
 import AvatarBordersSection from './AvatarBordersSection'
 import GrantsSection from './GrantsSection'
+import GraduationSection from './GraduationSection'
 import { callAdminApi } from '@/lib/callAdminApi'
 
-type Section = 'pagamentos' | 'concedidos' | 'saques' | 'planos' | 'tarifas' | 'brinde' | 'bordas' | 'hierarquia' | 'whatsapp' | 'atividade' | 'financeiro'
+type Section = 'pagamentos' | 'concedidos' | 'graduacao' | 'saques' | 'planos' | 'tarifas' | 'brinde' | 'bordas' | 'hierarquia' | 'whatsapp' | 'atividade' | 'financeiro'
 
 const SECTIONS: { id: Section; label: string; icon: typeof Send }[] = [
     { id: 'atividade', label: 'Atividade', icon: Activity },
@@ -28,6 +29,7 @@ const SECTIONS: { id: Section; label: string; icon: typeof Send }[] = [
     { id: 'tarifas', label: 'Tarifas', icon: Car },
     { id: 'brinde', label: 'Brinde', icon: Gift },
     { id: 'bordas', label: 'Bordas', icon: CircleDashed },
+    { id: 'graduacao', label: 'Graduação', icon: Award },
     { id: 'hierarquia', label: 'Hierarquia', icon: ShieldCheck },
     { id: 'whatsapp', label: 'WhatsApp Bot', icon: MessageCircle },
     { id: 'saques', label: 'Saques', icon: Send },
@@ -107,6 +109,7 @@ export default function AdminDashboard() {
             {section === 'brinde' && <FreeTrialSection cardStyle={cardStyle} colors={colors} />}
             {section === 'tarifas' && <PlatformTariffsSection cardStyle={cardStyle} colors={colors} />}
             {section === 'saques' && <WithdrawalsSection cardStyle={cardStyle} colors={colors} />}
+            {section === 'graduacao' && <GraduationSection cardStyle={cardStyle} colors={colors} />}
             {section === 'hierarquia' && <HierarchyAdmin cardStyle={cardStyle} colors={colors} />}
             {section === 'whatsapp' && <WhatsAppBotSection cardStyle={cardStyle} colors={colors} />}
             {section === 'planos' && (

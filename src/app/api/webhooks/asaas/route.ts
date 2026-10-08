@@ -6,6 +6,8 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { getSubscription } from '@/lib/asaas'
+import { sendPushToUser } from '@/lib/serverPush'
+import { formatCents, formatPercent } from '@/lib/graduation'
 
 const ASAAS_WEBHOOK_TOKEN = process.env.ASAAS_WEBHOOK_TOKEN
 
@@ -50,6 +52,27 @@ export async function POST(req: Request) {
                 console.error('Erro ao registrar quitação de pós-pago:', error)
                 return NextResponse.json({ error: error.message }, { status: 500 })
             }
+
+            // A quitação (hoje R$ 50) é a "venda" do pós-pago: quem indicou ganha a comissão pós-pago da sua
+            // graduação sobre o valor REALMENTE pago. O livro-caixa é idempotente por pagamento, então
+            // reentrega do mesmo evento não credita duas vezes.
+            // A assinatura Pós-pago de quem quitou liga o crédito ao resumo de ganhos por indicado.
+            const { data: posPagoSub } = await supabaseAdmin
+                .from('subscriptions')
+                .select('id, plan_id, plans!inner(code)')
+                .eq('user_id', driverId)
+                .eq('plans.code', 'pos_pago')
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .maybeSingle()
+            await creditReferralCommission({
+                payingUserId: driverId,
+                planType: 'postpaid',
+                subscriptionId: posPagoSub?.id ?? null,
+                planId: posPagoSub?.plan_id ?? null,
+                paymentId: payment.id,
+                paymentValue: Number(payment.value),
+            })
         }
         return NextResponse.json({ ok: true })
     }
@@ -94,7 +117,9 @@ export async function POST(req: Request) {
             // se fosse R$50).
             await creditReferralCommission({
                 payingUserId: subscription.user_id,
+                planType: 'prepaid',
                 subscriptionId: subscription.id,
+                planId: subscription.plan_id,
                 paymentId: payment.id,
                 paymentValue: Number(payment.value),
             })
@@ -129,37 +154,38 @@ export async function POST(req: Request) {
     }
 }
 
-// Comissão de indicação: só 1 nível, nunca em cascata — lê upline_id de
-// quem pagou e para por aí. Nunca lê o upline_id do upline.
+// Comissão de indicação: só 1 nível, nunca em cascata — lê upline_id de quem pagou e para por aí.
+// O percentual NÃO fica aqui: vem da graduação de quem indicou (comissão personalizada > nível concedido >
+// nível conquistado > nível inicial), calculado no banco por record_referral_commission, que grava o livro-caixa
+// (commissions, com a taxa congelada) e o crédito na carteira na MESMA transação. Valores em centavos.
 async function creditReferralCommission(params: {
     payingUserId: string
-    subscriptionId: string
+    planType: 'prepaid' | 'postpaid'
+    subscriptionId?: string | null
+    planId?: string | null
     paymentId: string
     paymentValue: number
 }) {
-    const { data: payingProfile } = await supabaseAdmin
-        .from('profiles')
-        .select('upline_id')
-        .eq('id', params.payingUserId)
-        .maybeSingle()
+    const baseCents = Math.round(params.paymentValue * 100)
+    const { data, error } = await supabaseAdmin.rpc('record_referral_commission', {
+        p_paying_user: params.payingUserId,
+        p_plan_type: params.planType,
+        p_base_cents: baseCents,
+        p_payment_id: params.paymentId,
+        p_subscription_id: params.subscriptionId ?? null,
+        p_plan_id: params.planId ?? null,
+    })
 
-    if (!payingProfile?.upline_id) return
-
-    const { error } = await supabaseAdmin
-        .from('wallet_transactions')
-        .insert({
-            user_id: payingProfile.upline_id,
-            type: 'commission_credit',
-            amount: params.paymentValue * 0.5,
-            source_subscription_id: params.subscriptionId,
-            source_payment_id: params.paymentId,
-            description: 'Comissão de indicação (50% da mensalidade)',
-        })
-
-    // Índice único em source_payment_id ignora silenciosamente reentrega
-    // do mesmo evento — só loga se for um erro de verdade (outro motivo).
-    if (error && error.code !== '23505') {
+    if (error) {
         console.error('Erro ao creditar comissão de indicação:', error)
+        return
     }
-}
+    if (!data?.credited) return // sem indicador, valor zero ou evento já processado
 
+    await sendPushToUser(data.upline_id, {
+        title: 'Comissão recebida!',
+        body: `Você ganhou ${formatCents(data.amount_cents)} (${formatPercent(data.rate_bp)} · ${data.level}) de comissão de indicação`,
+        url: '/',
+        tag: `commission-${params.paymentId}`,
+    }).catch((err) => console.error('Erro ao enviar push de comissão:', err))
+}

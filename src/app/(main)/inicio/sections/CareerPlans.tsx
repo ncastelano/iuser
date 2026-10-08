@@ -109,7 +109,7 @@ export default function CareerPlans() {
                 <HomeGlassCard className="p-5 sm:p-6">
                     <HomeSectionHeader
                         title="Melhor plano para você"
-                        subtitle="50 centavos por serviço ou R$ 99 mensal sem taxa por serviço"
+                        subtitle="50 centavos por serviço ou R$ 100 mensal sem taxa por serviço"
                         action={<span />}
                     />
 
