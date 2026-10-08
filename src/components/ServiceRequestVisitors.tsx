@@ -8,8 +8,9 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Users, Eye, Calendar, TrendingUp, User, Smartphone, Monitor, Tablet, BarChart3, ExternalLink } from 'lucide-react'
-import { format, formatDistanceToNow, subDays, startOfDay, eachDayOfInterval } from 'date-fns'
+import { Users, Eye, Calendar, TrendingUp, User, Smartphone, Monitor, Tablet, BarChart3, ExternalLink, X } from 'lucide-react'
+import { createPortal } from 'react-dom'
+import { format, formatDistanceToNow, subDays, startOfDay, startOfMonth, eachDayOfInterval } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
@@ -20,6 +21,7 @@ import PlanAvatarRing from '@/components/PlanAvatarRing'
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
 type Period = 'today' | '7days' | '30days'
+type Group = 'online' | 'today' | 'month' | 'unique'
 
 interface Visit {
     id: string
@@ -43,6 +45,7 @@ export default function ServiceRequestVisitors({ requestId }: { requestId: strin
     const [period, setPeriod] = useState<Period>('7days')
     const [visits, setVisits] = useState<Visit[]>([])
     const [viewers, setViewers] = useState<Map<string, Viewer>>(new Map())
+    const [openGroup, setOpenGroup] = useState<Group | null>(null)
 
     const load = useCallback(async () => {
         const { data } = await supabase
@@ -73,7 +76,14 @@ export default function ServiceRequestVisitors({ requestId }: { requestId: strin
     const todayStart = startOfDay(new Date()).getTime()
     const oneMinAgo = Date.now() - 60 * 1000
     const todayVisits = visits.filter((v) => new Date(v.created_at).getTime() >= todayStart)
-    const onlineNow = unique(visits.filter((v) => new Date(v.created_at).getTime() >= oneMinAgo))
+    const monthStart = startOfMonth(new Date()).getTime()
+    const monthVisits = visits.filter((v) => new Date(v.created_at).getTime() >= monthStart)
+    const onlineVisits = visits.filter((v) => new Date(v.created_at).getTime() >= oneMinAgo)
+    const onlineNow = unique(onlineVisits)
+
+    // Quem entra em cada lista: uma linha por PESSOA, com quantas vezes viu e quando foi a última
+    const groupVisits: Record<Group, Visit[]> = { online: onlineVisits, today: todayVisits, month: monthVisits, unique: visits }
+    const groupTitles: Record<Group, string> = { online: 'Online agora', today: 'Visitaram hoje', month: 'Visitaram este mês', unique: 'Todos os visitantes (únicos)' }
 
     const endDate = new Date()
     const startDate = period === 'today' ? startOfDay(endDate) : subDays(endDate, period === '30days' ? 29 : 6)
@@ -90,11 +100,17 @@ export default function ServiceRequestVisitors({ requestId }: { requestId: strin
 
     const deviceIcon = (t: string | null) => (t === 'mobile' ? <Smartphone size={12} /> : t === 'tablet' ? <Tablet size={12} /> : <Monitor size={12} />)
 
-    const metric = (icon: React.ReactNode, label: string, value: number) => (
-        <div className="p-3 rounded-2xl border" style={{ borderColor: colors.border, background: `${colors.border}20` }}>
+    const metric = (icon: React.ReactNode, label: string, value: number, group: Group) => (
+        <button
+            type="button"
+            onClick={() => setOpenGroup(group)}
+            title="Ver quem é"
+            className="p-3 rounded-2xl border text-left transition-transform hover:scale-[1.03] active:scale-95 cursor-pointer"
+            style={{ borderColor: colors.border, background: `${colors.border}20` }}
+        >
             <div className="flex items-center gap-1.5 text-[11px]" style={{ color: colors.textSecondary }}>{icon}<span>{label}</span></div>
             <p className="text-xl font-black" style={{ color: colors.textPrimary }}>{value}</p>
-        </div>
+        </button>
     )
 
     return (
@@ -114,10 +130,10 @@ export default function ServiceRequestVisitors({ requestId }: { requestId: strin
             </div>
 
             <div className="grid grid-cols-2 gap-2">
-                {metric(<Eye size={13} />, 'Online', onlineNow)}
-                {metric(<Calendar size={13} />, 'Hoje', unique(todayVisits))}
-                {metric(<TrendingUp size={13} />, 'Visitas', visits.length)}
-                {metric(<Users size={13} />, 'Únicos', unique(visits))}
+                {metric(<Eye size={13} />, 'Online', onlineNow, 'online')}
+                {metric(<Calendar size={13} />, 'Hoje', unique(todayVisits), 'today')}
+                {metric(<TrendingUp size={13} />, 'Este mês', monthVisits.length, 'month')}
+                {metric(<Users size={13} />, 'Únicos', unique(visits), 'unique')}
             </div>
 
             <div>
@@ -217,6 +233,104 @@ export default function ServiceRequestVisitors({ requestId }: { requestId: strin
                     )}
                 </div>
             )}
+
+            {openGroup && createPortal(
+                <GroupDialog
+                    title={groupTitles[openGroup]}
+                    visits={groupVisits[openGroup]}
+                    viewers={viewers}
+                    colors={colors}
+                    onClose={() => setOpenGroup(null)}
+                    onOpenProfile={(slug) => { setOpenGroup(null); router.push(`/${slug}`) }}
+                    deviceIcon={deviceIcon}
+                />,
+                document.body,
+            )}
+        </div>
+    )
+}
+
+// Lista de PESSOAS (não de visitas) de um dos números: quem está online, quem veio hoje/neste mês, todos os únicos
+function GroupDialog({ title, visits, viewers, colors, onClose, onOpenProfile, deviceIcon }: {
+    title: string
+    visits: Visit[]
+    viewers: Map<string, Viewer>
+    colors: any
+    onClose: () => void
+    onOpenProfile: (slug: string) => void
+    deviceIcon: (t: string | null) => React.ReactNode
+}) {
+    useEffect(() => {
+        const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+        window.addEventListener('keydown', onKey)
+        return () => window.removeEventListener('keydown', onKey)
+    }, [onClose])
+
+    // visits vem do mais recente pro mais antigo: a 1ª vez que a pessoa aparece é a última visita dela
+    const people = new Map<string, { visit: Visit; count: number }>()
+    for (const v of visits) {
+        const key = v.viewer_id || v.anonymous_id || v.id
+        const cur = people.get(key)
+        if (cur) cur.count += 1
+        else people.set(key, { visit: v, count: 1 })
+    }
+    const list = Array.from(people.values())
+
+    return (
+        <div onClick={onClose} role="dialog" aria-modal="true" className="fixed inset-0 z-[1100] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.55)' }}>
+            <div
+                onClick={(e) => e.stopPropagation()}
+                className="w-full max-w-md rounded-3xl flex flex-col overflow-hidden"
+                style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow, maxHeight: '80vh' }}
+            >
+                <div className="p-5 pb-3 flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                        <h3 className="text-base font-black leading-tight" style={{ color: colors.textPrimary }}>{title}</h3>
+                        <p className="text-xs" style={{ color: colors.textSecondary }}>{list.length} {list.length === 1 ? 'pessoa' : 'pessoas'}</p>
+                    </div>
+                    <button onClick={onClose} aria-label="Fechar" className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: `${colors.border}66`, color: colors.textSecondary }}>
+                        <X size={16} />
+                    </button>
+                </div>
+                <div className="overflow-y-auto px-3 pb-4 flex-1">
+                    {list.length === 0 ? (
+                        <p className="text-sm text-center py-8" style={{ color: colors.textSecondary }}>Ninguém por aqui ainda.</p>
+                    ) : (
+                        <div className="space-y-1">
+                            {list.map(({ visit: v, count }) => {
+                                const viewer = v.viewer_id ? viewers.get(v.viewer_id) : null
+                                const anonymous = !v.viewer_id
+                                const slug = viewer?.profileSlug || null
+                                const name = anonymous ? 'Visitante anônimo' : viewer?.name || (slug ? `@${slug}` : 'Usuário')
+                                const row = (
+                                    <>
+                                        <PlanAvatarRing userId={v.viewer_id}>
+                                            <div className="w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden" style={{ background: anonymous ? '#ef444430' : '#f9731630' }}>
+                                                {anonymous ? <User size={18} style={{ color: '#ef4444' }} />
+                                                    : viewer?.avatarUrl ? <img src={viewer.avatarUrl} alt="" className="w-full h-full object-cover" />
+                                                        : <span className="font-bold text-sm" style={{ color: '#f97316' }}>{viewer?.name?.charAt(0) || '?'}</span>}
+                                            </div>
+                                        </PlanAvatarRing>
+                                        <div className="min-w-0 flex-1 text-left">
+                                            <p className="text-sm font-black truncate" style={{ color: colors.textPrimary }}>{name}</p>
+                                            <p className="text-[11px] flex items-center gap-1.5" style={{ color: colors.textSecondary }}>
+                                                {count} {count === 1 ? 'visita' : 'visitas'} · {formatDistanceToNow(new Date(v.created_at), { addSuffix: true, locale: ptBR })}
+                                                <span className="flex items-center gap-1">{deviceIcon(v.device_type)}</span>
+                                            </p>
+                                        </div>
+                                        {slug && <span className="text-[11px] font-black flex-shrink-0" style={{ color: colors.accent }}>Ver perfil</span>}
+                                    </>
+                                )
+                                return slug ? (
+                                    <button key={v.viewer_id || v.id} onClick={() => onOpenProfile(slug)} className="w-full flex items-center gap-3 p-2.5 rounded-2xl hover:bg-black/5">{row}</button>
+                                ) : (
+                                    <div key={v.anonymous_id || v.id} className="w-full flex items-center gap-3 p-2.5 rounded-2xl opacity-80">{row}</div>
+                                )
+                            })}
+                        </div>
+                    )}
+                </div>
+            </div>
         </div>
     )
 }

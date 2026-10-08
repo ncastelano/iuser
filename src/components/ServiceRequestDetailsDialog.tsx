@@ -11,7 +11,8 @@ import { X, MapPin, Building2, Pencil, Eye, Check, Users, Clock, Trash2 } from '
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
-import { getServiceIcon, getServiceLabel, getRequestTitle, SERVICE_TYPES } from '@/lib/serviceTypes'
+import { getServiceIcon, getServiceLabel, getRequestTitle } from '@/lib/serviceTypes'
+import ServiceTypePicker from '@/components/ServiceTypePicker'
 import { getAvatarUrl } from '@/lib/avatar'
 import { askedAgo, notifyServiceRequestsChanged } from '@/lib/serviceBoard'
 import { Spinner } from '@/components/Spinner'
@@ -34,6 +35,7 @@ interface DialogRequest {
     serviceType: string
     serviceLabel: string
     customService: string | null
+    customIcon: string | null
     locationAddress: string
     description: string
     photoUrls: string[]
@@ -59,7 +61,7 @@ export default function ServiceRequestDetailsDialog({ requestId, onClose }: Prop
     const load = async () => {
         const { data: r } = await supabase
             .from('service_requests')
-            .select('id, service_type, custom_service, location_address, description, photo_urls, location_needs_access, location_access_notes, created_at, view_count')
+            .select('id, service_type, custom_service, custom_icon, location_address, description, photo_urls, location_needs_access, location_access_notes, created_at, view_count')
             .eq('id', requestId)
             .maybeSingle()
         if (!r) { onClose(); return }
@@ -79,6 +81,7 @@ export default function ServiceRequestDetailsDialog({ requestId, onClose }: Prop
             serviceType: r.service_type,
             serviceLabel: getServiceLabel(r.service_type, r.custom_service),
             customService: r.custom_service || null,
+            customIcon: r.custom_icon || null,
             locationAddress: r.location_address,
             description: r.description || '',
             photoUrls: r.photo_urls || [],
@@ -144,16 +147,13 @@ function DetailsBody({ request, setRequest, decidingId, onDecide, onClose, color
     colors: any
 }) {
     const whenAsked = `você ${askedAgo(request.createdAt)}`
-    const Icon = getServiceIcon(request.serviceType)
+    const Icon = getServiceIcon(request.serviceType, request.customIcon)
     // Título = o que a pessoa escreveu; o tipo (jardineiro, veterinário...) vira uma etiqueta e pode ser trocado em Editar
     const title = getRequestTitle(request.description, request.serviceType, request.customService, 90)
 
     const [editing, setEditing] = useState(false)
     const [description, setDescription] = useState(request.description)
-    const [serviceType, setServiceType] = useState(request.serviceType)
-    const [customService, setCustomService] = useState(request.customService || '')
-    const [needsAccess, setNeedsAccess] = useState(request.needsAccess)
-    const [accessNotes, setAccessNotes] = useState(request.accessNotes || '')
+    const [typeValue, setTypeValue] = useState({ type: request.serviceType, customName: request.customService || '', customIcon: request.customIcon })
     const [saving, setSaving] = useState(false)
     const [confirmDelete, setConfirmDelete] = useState(false)
     const [deleting, setDeleting] = useState(false)
@@ -185,18 +185,17 @@ function DetailsBody({ request, setRequest, decidingId, onDecide, onClose, color
             toast.error('Descreva o que você precisa')
             return
         }
-        if (serviceType === 'outro' && !customService.trim()) {
+        if (typeValue.type === 'outro' && !typeValue.customName.trim()) {
             toast.error('Diga que tipo de profissional você procura')
             return
         }
         setSaving(true)
         try {
             const patch = {
-                service_type: serviceType,
-                custom_service: serviceType === 'outro' ? customService.trim() : null,
+                service_type: typeValue.type,
+                custom_service: typeValue.type === 'outro' ? typeValue.customName.trim() : null,
+                custom_icon: typeValue.type === 'outro' ? (typeValue.customIcon || 'briefcase') : null,
                 description: description.trim(),
-                location_needs_access: needsAccess,
-                location_access_notes: needsAccess ? (accessNotes.trim() || null) : null,
             }
             // .select() pra perceber quando o RLS bloqueia (0 linhas, sem erro).
             const { data, error } = await supabase.from('service_requests').update(patch).eq('id', request.id).select('id')
@@ -211,9 +210,8 @@ function DetailsBody({ request, setRequest, decidingId, onDecide, onClose, color
                 description: patch.description,
                 serviceType: patch.service_type,
                 customService: patch.custom_service,
+                customIcon: patch.custom_icon,
                 serviceLabel: getServiceLabel(patch.service_type, patch.custom_service),
-                needsAccess,
-                accessNotes: patch.location_access_notes,
             }))
             notifyServiceRequestsChanged()
             setEditing(false)
@@ -280,35 +278,9 @@ function DetailsBody({ request, setRequest, decidingId, onDecide, onClose, color
                         {editing ? (
                             <>
                                 <p className="text-[11px] font-black uppercase tracking-widest mb-2" style={{ color: colors.textSecondary }}>Tipo de profissional</p>
-                                <div className="flex flex-wrap gap-1.5 mb-3">
-                                    {SERVICE_TYPES.map((t) => {
-                                        const active = serviceType === t.id
-                                        const TIcon = t.icon
-                                        return (
-                                            <button
-                                                key={t.id}
-                                                type="button"
-                                                onClick={() => setServiceType(t.id)}
-                                                className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-black"
-                                                style={active ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
-                                            >
-                                                <TIcon size={12} />
-                                                {t.label}
-                                            </button>
-                                        )
-                                    })}
+                                <div className="mb-3">
+                                    <ServiceTypePicker value={typeValue} onChange={setTypeValue} colors={colors} />
                                 </div>
-                                {serviceType === 'outro' && (
-                                    <input
-                                        type="text"
-                                        value={customService}
-                                        onChange={(e) => setCustomService(e.target.value)}
-                                        placeholder="Que tipo de profissional? Ex: tosador, fotógrafo..."
-                                        maxLength={60}
-                                        className="w-full mb-3 px-3 py-2 rounded-lg text-sm focus:outline-none"
-                                        style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
-                                    />
-                                )}
                                 <p className="text-[11px] font-black uppercase tracking-widest mb-2" style={{ color: colors.textSecondary }}>O que você precisa</p>
                                 <textarea
                                     value={description}
@@ -317,43 +289,12 @@ function DetailsBody({ request, setRequest, decidingId, onDecide, onClose, color
                                     className="w-full px-3 py-2.5 rounded-xl text-sm focus:outline-none resize-none"
                                     style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
                                 />
-                                <div className="flex items-center justify-between gap-2 mt-3">
-                                    <span className="flex items-center gap-1.5 text-xs font-bold" style={{ color: colors.textPrimary }}>
-                                        <Building2 size={13} style={{ color: '#ef4444' }} />
-                                        É um condomínio fechado?
-                                    </span>
-                                    <div className="flex items-center gap-1.5">
-                                        {[true, false].map((v) => (
-                                            <button
-                                                key={String(v)}
-                                                onClick={() => setNeedsAccess(v)}
-                                                className="px-3 py-1 rounded-full text-[11px] font-black"
-                                                style={needsAccess === v ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
-                                            >
-                                                {v ? 'SIM' : 'NÃO'}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                                {needsAccess && (
-                                    <input
-                                        type="text"
-                                        value={accessNotes}
-                                        onChange={(e) => setAccessNotes(e.target.value)}
-                                        placeholder="Número da rua, apartamento ou quadra..."
-                                        className="w-full mt-2 px-3 py-2 rounded-lg text-sm focus:outline-none"
-                                        style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
-                                    />
-                                )}
                                 <div className="flex gap-2 mt-4">
                                     <button
                                         onClick={() => {
                                             setEditing(false)
                                             setDescription(request.description)
-                                            setServiceType(request.serviceType)
-                                            setCustomService(request.customService || '')
-                                            setNeedsAccess(request.needsAccess)
-                                            setAccessNotes(request.accessNotes || '')
+                                            setTypeValue({ type: request.serviceType, customName: request.customService || '', customIcon: request.customIcon })
                                         }}
                                         className="px-5 py-2.5 rounded-xl font-black uppercase text-xs tracking-wider"
                                         style={{ background: `${colors.border}30`, color: colors.textPrimary, border: `1px solid ${colors.border}` }}

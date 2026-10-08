@@ -11,7 +11,8 @@ import { useTheme, ThemeColors } from '@/app/contexts/theme'
 import { toast } from 'sonner'
 import { addRecentServiceLocation, getRecentServiceLocations, RecentServiceLocation } from '@/lib/recentServiceLocations'
 import { createSquareImage } from '@/lib/image'
-import { SERVICE_TYPES, ServiceType, getServiceLabel } from '@/lib/serviceTypes'
+import { SERVICE_TYPES, SERVICE_ICON_OPTIONS, ServiceType, getServiceLabel, getServiceIcon } from '@/lib/serviceTypes'
+import { usePopularCustomServices } from '@/hooks/usePopularCustomServices'
 import MyOpenServiceRequests from '@/components/MyOpenServiceRequests'
 import { getAvatarUrl } from '@/lib/avatar'
 import {
@@ -228,6 +229,7 @@ export default function PedirServicoPage() {
     const [step, setStep] = useState<Step>('type')
     const [serviceType, setServiceType] = useState<ServiceType | null>(null)
     const [customService, setCustomService] = useState('')
+    const [customIcon, setCustomIcon] = useState<string | null>(null)
     const [location, setLocation] = useState<Place>({ address: '', coords: null })
     const [recentLocations, setRecentLocations] = useState<RecentServiceLocation[]>([])
     const [activeField, setActiveField] = useState<ActiveField>(null)
@@ -246,7 +248,8 @@ export default function PedirServicoPage() {
     const [submitted, setSubmitted] = useState(false)
     const [showConfirmDialog, setShowConfirmDialog] = useState(false)
 
-    const [popularCustomServices, setPopularCustomServices] = useState<{ label: string; count: number }[]>([])
+    // Tipos "Outro" que mais gente pediu (entram na lista de tipos, com o ícone mais escolhido)
+    const popularCustomServices = usePopularCustomServices()
     const [publishedServices, setPublishedServices] = useState<PublishedService[]>([])
     const [serviceSearchQuery, setServiceSearchQuery] = useState('')
     const [selectedService, setSelectedService] = useState<PublishedService | null>(null)
@@ -301,45 +304,6 @@ export default function PedirServicoPage() {
         setRecentLocations(getRecentServiceLocations())
     }, [])
 
-    // ===== SERVIÇOS CUSTOMIZADOS POPULARES (pedidos por mais de 2 pessoas) =====
-    useEffect(() => {
-        let cancelled = false
-        const loadPopular = async () => {
-            const { data } = await supabase
-                .from('service_requests')
-                .select('custom_service, requester_id')
-                .eq('service_type', 'outro')
-                .eq('status', 'pending')
-                .not('custom_service', 'is', null)
-            if (cancelled || !data) return
-
-            const groups = new Map<string, { requesters: Set<string>; counts: Map<string, number> }>()
-            for (const row of data as { custom_service: string | null; requester_id: string }[]) {
-                const raw = (row.custom_service || '').trim()
-                if (!raw) continue
-                const key = raw.toLowerCase()
-                if (!groups.has(key)) groups.set(key, { requesters: new Set(), counts: new Map() })
-                const g = groups.get(key)!
-                g.requesters.add(row.requester_id)
-                g.counts.set(raw, (g.counts.get(raw) || 0) + 1)
-            }
-
-            const popular = Array.from(groups.values())
-                .filter((g) => g.requesters.size > 2)
-                .map((g) => {
-                    let bestLabel = ''
-                    let bestCount = 0
-                    g.counts.forEach((count, label) => {
-                        if (count > bestCount) { bestCount = count; bestLabel = label }
-                    })
-                    return { label: bestLabel, count: g.requesters.size }
-                })
-
-            if (!cancelled) setPopularCustomServices(popular)
-        }
-        loadPopular()
-        return () => { cancelled = true }
-    }, [])
 
     // ===== SERVIÇOS DISPONÍVEIS NA PLATAFORMA =====
     // Dois tipos, unificados numa lista só: serviços publicados por pessoas no
@@ -549,6 +513,7 @@ export default function PedirServicoPage() {
         if (draft.step) setStep(draft.step)
         if (draft.serviceType) setServiceType(draft.serviceType)
         if (typeof draft.customService === 'string') setCustomService(draft.customService)
+        if (typeof draft.customIcon === 'string') setCustomIcon(draft.customIcon)
         if (draft.location) setLocation(draft.location)
         if (typeof draft.locationNeedsAccess === 'boolean') setLocationNeedsAccess(draft.locationNeedsAccess)
         if (typeof draft.locationAccessNotes === 'string') setLocationAccessNotes(draft.locationAccessNotes)
@@ -834,7 +799,7 @@ export default function PedirServicoPage() {
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) {
             saveDraft({
-                step, serviceType, customService, location,
+                step, serviceType, customService, customIcon, location,
                 locationNeedsAccess, locationAccessNotes,
                 description, notes,
             })
@@ -865,6 +830,7 @@ export default function PedirServicoPage() {
                 requester_id: user.id,
                 service_type: serviceType,
                 custom_service: serviceType === 'outro' ? customService.trim() || null : null,
+                custom_icon: serviceType === 'outro' ? (customIcon || 'briefcase') : null,
                 location_address: location.address.trim(),
                 location_needs_access: locationNeedsAccess,
                 location_access_notes: locationNeedsAccess ? locationAccessNotes.trim() || null : null,
@@ -1337,7 +1303,7 @@ export default function PedirServicoPage() {
                                     return (
                                         <button
                                             key={service.label}
-                                            onClick={() => { setServiceType('outro'); setCustomService(service.label); setStep('where') }}
+                                            onClick={() => { setServiceType('outro'); setCustomService(service.label); setCustomIcon(service.icon); setStep('where') }}
                                             className="flex-shrink-0 flex flex-col items-center gap-1.5 py-3 px-4 rounded-2xl transition-all hover:scale-[1.03] active:scale-95"
                                             style={
                                                 active
@@ -1349,7 +1315,7 @@ export default function PedirServicoPage() {
                                                 className="w-9 h-9 rounded-full flex items-center justify-center"
                                                 style={active ? { background: 'rgba(255,255,255,0.25)', color: '#fff' } : { background: GRADIENT, color: '#fff' }}
                                             >
-                                                <Briefcase size={18} />
+                                                {(() => { const PIcon = getServiceIcon('outro', service.icon); return <PIcon size={18} /> })()}
                                             </div>
                                             <span className="text-[11px] font-bold text-center leading-tight capitalize whitespace-nowrap" style={{ color: active ? '#fff' : colors.textPrimary }}>
                                                 {service.label}
@@ -1370,6 +1336,27 @@ export default function PedirServicoPage() {
                                         className="w-full px-4 py-3 rounded-xl text-sm focus:outline-none"
                                         style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
                                     />
+                                    <p className="text-[11px] font-bold mt-3 mb-1.5" style={{ color: colors.textSecondary }}>Escolha um ícone</p>
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {SERVICE_ICON_OPTIONS.map((o) => {
+                                            const OIcon = o.icon
+                                            const active = (customIcon || 'briefcase') === o.key
+                                            return (
+                                                <button
+                                                    key={o.key}
+                                                    type="button"
+                                                    title={o.label}
+                                                    aria-label={o.label}
+                                                    onClick={() => setCustomIcon(o.key)}
+                                                    className="w-9 h-9 rounded-xl flex items-center justify-center"
+                                                    style={active ? { background: GRADIENT, color: '#fff' } : { background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                                                >
+                                                    <OIcon size={16} />
+                                                </button>
+                                            )
+                                        })}
+                                    </div>
+                                    <p className="text-[11px] mt-2" style={{ color: colors.textSecondary }}>Quando mais de 2 pessoas pedirem esse mesmo tipo, ele entra na lista pra todo mundo.</p>
                                     <button
                                         onClick={() => setStep('where')}
                                         disabled={!customService.trim()}

@@ -1,5 +1,10 @@
 // src/lib/serviceTypes.ts
-import { PaintRoller, Wrench, Leaf, Zap, Sparkles, Hammer, Briefcase, Brain, PawPrint, Smile, Scissors, HandHeart, GraduationCap, Dumbbell, LucideIcon } from 'lucide-react'
+import {
+    PaintRoller, Wrench, Leaf, Zap, Sparkles, Hammer, Briefcase, Brain, PawPrint, Smile, Scissors, HandHeart, GraduationCap, Dumbbell,
+    Camera, Car, Truck, Utensils, Cake, Music, Palette, Laptop, Smartphone, Heart, Baby, Dog, Bike, House, Sofa, Shirt, BookOpen,
+    Languages, Flower2, Bug, Wind, Droplets, KeyRound, Shield, Package, Mic, Video, Plug, Fan,
+    type LucideIcon,
+} from 'lucide-react'
 
 export type ServiceType =
     | 'psicologa' | 'veterinario' | 'dentista' | 'cabeleireiro' | 'massageador' | 'instrutor' | 'personal'
@@ -22,7 +27,48 @@ export const SERVICE_TYPES: { id: ServiceType; label: string; icon: LucideIcon }
     { id: 'outro', label: 'Outro', icon: Briefcase },
 ]
 
-export function getServiceIcon(type: string): LucideIcon {
+/** Ícones que a pessoa pode escolher ao criar um tipo "Outro" (guardamos só a chave em service_requests.custom_icon) */
+export const SERVICE_ICON_OPTIONS: { key: string; label: string; icon: LucideIcon }[] = [
+    { key: 'briefcase', label: 'Trabalho', icon: Briefcase },
+    { key: 'camera', label: 'Foto', icon: Camera },
+    { key: 'video', label: 'Vídeo', icon: Video },
+    { key: 'music', label: 'Música', icon: Music },
+    { key: 'mic', label: 'Som', icon: Mic },
+    { key: 'palette', label: 'Arte', icon: Palette },
+    { key: 'laptop', label: 'Computador', icon: Laptop },
+    { key: 'smartphone', label: 'Celular', icon: Smartphone },
+    { key: 'plug', label: 'Instalação', icon: Plug },
+    { key: 'fan', label: 'Ar-condicionado', icon: Fan },
+    { key: 'wind', label: 'Ventilação', icon: Wind },
+    { key: 'droplets', label: 'Água', icon: Droplets },
+    { key: 'key', label: 'Chaveiro', icon: KeyRound },
+    { key: 'shield', label: 'Segurança', icon: Shield },
+    { key: 'house', label: 'Casa', icon: House },
+    { key: 'sofa', label: 'Móveis', icon: Sofa },
+    { key: 'hammer', label: 'Reforma', icon: Hammer },
+    { key: 'wrench', label: 'Conserto', icon: Wrench },
+    { key: 'bug', label: 'Dedetização', icon: Bug },
+    { key: 'flower', label: 'Plantas', icon: Flower2 },
+    { key: 'truck', label: 'Frete', icon: Truck },
+    { key: 'package', label: 'Entrega', icon: Package },
+    { key: 'car', label: 'Carro', icon: Car },
+    { key: 'bike', label: 'Bicicleta', icon: Bike },
+    { key: 'utensils', label: 'Comida', icon: Utensils },
+    { key: 'cake', label: 'Festa', icon: Cake },
+    { key: 'shirt', label: 'Roupas', icon: Shirt },
+    { key: 'scissors', label: 'Beleza', icon: Scissors },
+    { key: 'baby', label: 'Crianças', icon: Baby },
+    { key: 'dog', label: 'Pets', icon: Dog },
+    { key: 'heart', label: 'Cuidados', icon: Heart },
+    { key: 'book', label: 'Aulas', icon: BookOpen },
+    { key: 'languages', label: 'Idiomas', icon: Languages },
+]
+
+export function getServiceIcon(type: string, customIcon?: string | null): LucideIcon {
+    if (type === 'outro' && customIcon) {
+        const custom = SERVICE_ICON_OPTIONS.find((o) => o.key === customIcon)
+        if (custom) return custom.icon
+    }
     return SERVICE_TYPES.find((t) => t.id === type)?.icon || Briefcase
 }
 

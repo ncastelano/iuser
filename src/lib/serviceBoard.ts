@@ -9,6 +9,7 @@ export interface ServiceRequestRow {
     requester_id: string
     service_type: string
     custom_service: string | null
+    custom_icon?: string | null
     location_address: string
     location_needs_access: boolean
     location_access_notes: string | null
@@ -31,7 +32,7 @@ export function itemKey(item: BoardItem): string {
 }
 
 export function getItemIcon(item: BoardItem): LucideIcon {
-    return getServiceIcon(item.service_type)
+    return getServiceIcon(item.service_type, item.custom_icon)
 }
 
 export function getItemLabel(item: BoardItem): string {
@@ -81,7 +82,7 @@ export async function fetchOpenRequestCount(): Promise<number> {
 export async function fetchOpenBoardItems(limit?: number): Promise<BoardItem[]> {
     let query = supabase
         .from('service_requests')
-        .select('id, requester_id, service_type, custom_service, location_address, location_needs_access, location_access_notes, description, photo_urls, created_at, view_count')
+        .select('id, requester_id, service_type, custom_service, custom_icon, location_address, location_needs_access, location_access_notes, description, photo_urls, created_at, view_count')
         .eq('status', 'pending')
         .order('created_at', { ascending: false })
     if (limit) query = query.limit(limit)

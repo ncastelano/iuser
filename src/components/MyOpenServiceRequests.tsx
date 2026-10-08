@@ -34,6 +34,7 @@ interface Candidate {
 interface OpenRequest {
     id: string
     serviceType: string
+    customIcon: string | null
     serviceLabel: string
     /** O que a pessoa escreveu (título do card) */
     title: string
@@ -67,7 +68,7 @@ export default function MyOpenServiceRequests({ limit = 5, title, onCountChange 
 
         const { data: myRequests } = await supabase
             .from('service_requests')
-            .select('id, service_type, custom_service, description, location_address, created_at, view_count, photo_urls')
+            .select('id, service_type, custom_service, custom_icon, description, location_address, created_at, view_count, photo_urls')
             .eq('requester_id', userId)
             .eq('status', 'pending')
             .order('created_at', { ascending: false })
@@ -94,6 +95,7 @@ export default function MyOpenServiceRequests({ limit = 5, title, onCountChange 
         setRequests(myRequests.map((r) => ({
             id: r.id,
             serviceType: r.service_type,
+            customIcon: r.custom_icon || null,
             serviceLabel: getServiceLabel(r.service_type, r.custom_service),
             title: getRequestTitle(r.description, r.service_type, r.custom_service),
             locationAddress: r.location_address,
@@ -130,7 +132,7 @@ export default function MyOpenServiceRequests({ limit = 5, title, onCountChange 
             )}
             <div className="flex gap-3 overflow-x-auto pb-1">
                 {requests.map((r) => {
-                    const Icon = getServiceIcon(r.serviceType)
+                    const Icon = getServiceIcon(r.serviceType, r.customIcon)
                     const hired = r.candidates.find((c) => c.status === 'accepted')
                     const waiting = r.candidates.filter((c) => c.status === 'pending')
                     return (
