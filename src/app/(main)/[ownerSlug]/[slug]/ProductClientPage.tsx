@@ -144,6 +144,15 @@ export function ProductClientPage({
         image_url: string | null
         price: number | null
     }[]>([])
+    // Produtos da loja que outras pessoas já pediram (com quantas pessoas), separados dos demais produtos
+    const [orderedProducts, setOrderedProducts] = useState<{
+        id: string
+        name: string
+        slug: string
+        image_url: string | null
+        price: number | null
+        buyers: number
+    }[]>([])
     const [productReviews, setProductReviews] = useState<{
         id: string
         rating: number
@@ -218,10 +227,28 @@ export function ProductClientPage({
         const currentProductId = product?.id
         if (!storeId || !currentProductId) {
             setOtherProducts([])
+            setOrderedProducts([])
             return
         }
 
         let isMounted = true
+
+        // "Outras pessoas pediram": o banco devolve só a contagem por produto (nunca quem pediu)
+        supabase
+            .rpc('get_store_ordered_products', { p_store_id: storeId, p_exclude_product: currentProductId })
+            .then(async ({ data: counts }) => {
+                const rows = (counts || []) as { product_id: string; buyers: number }[]
+                if (!rows.length) { if (isMounted) setOrderedProducts([]); return }
+                const { data: prods } = await supabase
+                    .from('products')
+                    .select('id, name, slug, image_url, price')
+                    .in('id', rows.map((r) => r.product_id))
+                const byId = new Map((prods || []).map((p) => [p.id, p]))
+                const list = rows
+                    .map((r) => (byId.has(r.product_id) ? { ...byId.get(r.product_id)!, buyers: Number(r.buyers) } : null))
+                    .filter(Boolean) as typeof orderedProducts
+                if (isMounted) setOrderedProducts(list)
+            })
 
         supabase
             .from('products')
@@ -508,31 +535,31 @@ export function ProductClientPage({
         <div className="animate-slide-in">
             <button
                 onClick={() => setShowStoreCart((v) => !v)}
-                className="w-full flex items-center gap-3 px-4 py-3 transition hover:opacity-80"
+                className="w-full flex items-center gap-4 px-4 py-4 text-left transition active:scale-[0.99]"
+                style={{ background: GRADIENT }}
+                aria-expanded={showStoreCart}
             >
-                <div
-                    className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
-                    style={{ background: GRADIENT }}
-                >
-                    <ShoppingCart size={16} color="#ffffff" />
+                {/* Carrinho de verdade: ícone grande com a quantidade em cima */}
+                <div className="relative flex-shrink-0">
+                    <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.35)' }}>
+                        <ShoppingCart size={28} color="#ffffff" strokeWidth={2.25} />
+                    </div>
+                    <span
+                        className="absolute -top-2 -right-2 min-w-[24px] h-6 px-1.5 rounded-full flex items-center justify-center text-xs font-black"
+                        style={{ background: '#ffffff', color: '#dc2626', boxShadow: '0 2px 8px rgba(0,0,0,0.3)' }}
+                    >
+                        {storeCartCount}
+                    </span>
                 </div>
-                <div className="flex-1 text-left min-w-0">
-                    <p className="text-sm font-bold truncate" style={{ color: colors.textPrimary }}>
-                        Carrinho de {storeDisplay.name}
-                    </p>
-                    <p className="text-xs" style={{ color: colors.textSecondary, opacity: 0.75 }}>
-                        {storeCartCount} {storeCartCount === 1 ? 'item' : 'itens'} · {formattedStoreCartTotal}
-                    </p>
+                <div className="flex-1 min-w-0">
+                    <p className="text-[11px] font-black uppercase tracking-wider text-white/80">Seu carrinho</p>
+                    <p className="text-sm font-bold text-white truncate">{storeDisplay.name}</p>
+                    <p className="text-xl font-black text-white leading-tight">{formattedStoreCartTotal}</p>
                 </div>
-                <ChevronRight
-                    size={18}
-                    style={{
-                        color: colors.textSecondary,
-                        opacity: 0.5,
-                        transform: showStoreCart ? 'rotate(90deg)' : undefined,
-                        transition: 'transform 0.2s',
-                    }}
-                />
+                <span className="flex items-center gap-1 flex-shrink-0 px-4 py-2 rounded-full text-xs font-black" style={{ background: '#ffffff', color: '#dc2626' }}>
+                    {showStoreCart ? 'Fechar' : 'Finalizar'}
+                    <ChevronRight size={16} style={{ transform: showStoreCart ? 'rotate(90deg)' : undefined, transition: 'transform 0.2s' }} />
+                </span>
             </button>
 
             {showStoreCart && checkout.checkoutStep === 'delivery' && (
@@ -1231,7 +1258,7 @@ export function ProductClientPage({
 
                             {/* Carrinho da loja: abaixo da descrição; "outras pessoas pediram" vem depois */}
                             {storeCartBar && (
-                                <div className="rounded-2xl overflow-hidden" style={{ border: `1px solid ${colors.border}`, background: colors.surface }}>
+                                <div className="rounded-3xl overflow-hidden" style={{ border: '2px solid #f97316', background: colors.surface, boxShadow: '0 8px 28px #f9731645' }}>
                                     {storeCartBar}
                                 </div>
                             )}
@@ -1239,60 +1266,73 @@ export function ProductClientPage({
                     </main>
                 </div>
 
-                {/* Outros produtos da loja */}
-                {otherProducts.length > 0 && (
-                    <div className="px-5 md:px-0 mt-3 md:mt-6">
-                        <h2 className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: colors.textSecondary, opacity: 0.6 }}>
-                            Outras pessoas pediram
-                        </h2>
-                        <div className="flex gap-3 overflow-x-auto pb-1 -mx-5 px-5 md:mx-0 md:px-0 scrollbar-hide">
-                            {otherProducts.map((other) => {
-                                const otherImageUrl = other.image_url
-                                    ? supabase.storage.from('product-images').getPublicUrl(other.image_url).data.publicUrl
-                                    : finalStoreImage
+                {/* Cada coisa na sua seção: o que outras pessoas já pediram, e os demais produtos da loja */}
+                {(() => {
+                    const orderedIds = new Set(orderedProducts.map((o) => o.id))
+                    const moreProducts = otherProducts.filter((o) => !orderedIds.has(o.id))
 
-                                const otherPrice = other.price !== null && other.price !== undefined
-                                    ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(other.price)
-                                    : 'Sob consulta'
+                    const renderCard = (other: { id: string; name: string; slug: string; image_url: string | null; price: number | null }, buyers?: number) => {
+                        const otherImageUrl = other.image_url
+                            ? supabase.storage.from('product-images').getPublicUrl(other.image_url).data.publicUrl
+                            : finalStoreImage
+                        const otherPrice = other.price !== null && other.price !== undefined
+                            ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(other.price)
+                            : 'Sob consulta'
+                        return (
+                            <button
+                                key={other.id}
+                                onClick={() => router.push(`/${ownerSlug}/${other.slug}`)}
+                                className="text-left rounded-3xl overflow-hidden flex-shrink-0 w-44 md:w-48 flex flex-col transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl"
+                                style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
+                            >
+                                <div className="relative w-full h-32 overflow-hidden" style={{ background: GRADIENT }}>
+                                    {otherImageUrl ? (
+                                        <>
+                                            <img src={otherImageUrl} alt="" aria-hidden className="absolute inset-0 w-full h-full object-cover scale-125 blur-xl opacity-70" />
+                                            <img src={otherImageUrl} alt={other.name} className={`relative w-full h-full ${other.image_url ? 'object-contain' : 'object-contain p-4'}`} />
+                                        </>
+                                    ) : (
+                                        <div className="w-full h-full flex items-center justify-center">
+                                            <Store size={28} color="#fff" opacity={0.8} />
+                                        </div>
+                                    )}
+                                    {buyers ? (
+                                        <span className="absolute bottom-2 left-2 text-[11px] font-black text-white px-2.5 py-1 rounded-full" style={{ background: 'rgba(0,0,0,0.55)' }}>
+                                            {buyers} {buyers === 1 ? 'pessoa pediu' : 'pessoas pediram'}
+                                        </span>
+                                    ) : null}
+                                </div>
+                                <div className="p-3 flex flex-col gap-1">
+                                    <p className="text-sm font-black leading-snug line-clamp-2" style={{ color: colors.textPrimary }}>{other.name}</p>
+                                    <p className="text-base font-black" style={{ color: '#f97316' }}>{otherPrice}</p>
+                                </div>
+                            </button>
+                        )
+                    }
 
-                                return (
-                                    <button
-                                        key={other.id}
-                                        onClick={() => router.push(`/${ownerSlug}/${other.slug}`)}
-                                        className="text-left rounded-2xl overflow-hidden flex-shrink-0 w-36 md:w-44 transition-transform hover:scale-[1.02]"
-                                        style={{
-                                            background: colors.surface,
-                                            border: `1px solid ${colors.border}`,
-                                            boxShadow: colors.shadow,
-                                        }}
-                                    >
-                                        <div className="w-full aspect-square" style={{ background: `${colors.accentLight}20` }}>
-                                            {otherImageUrl ? (
-                                                <img
-                                                    src={otherImageUrl}
-                                                    alt={other.name}
-                                                    className={`w-full h-full ${other.image_url ? 'object-cover' : 'object-contain p-4'}`}
-                                                />
-                                            ) : (
-                                                <div className="w-full h-full flex items-center justify-center">
-                                                    <Store size={24} style={{ color: colors.textSecondary }} />
-                                                </div>
-                                            )}
-                                        </div>
-                                        <div className="p-2.5">
-                                            <p className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>
-                                                {other.name}
-                                            </p>
-                                            <p className="text-xs font-black mt-0.5" style={{ color: colors.accent }}>
-                                                {otherPrice}
-                                            </p>
-                                        </div>
-                                    </button>
-                                )
-                            })}
+                    const section = (title: string, subtitle: string, cards: React.ReactNode) => (
+                        <div className="px-5 md:px-0 mt-5 md:mt-8">
+                            <h2 className="text-lg font-black leading-tight" style={{ color: colors.textPrimary }}>{title}</h2>
+                            <p className="text-xs mb-3" style={{ color: colors.textSecondary }}>{subtitle}</p>
+                            <div className="flex gap-3 overflow-x-auto pb-2 -mx-5 px-5 md:mx-0 md:px-0 scrollbar-hide items-stretch">{cards}</div>
                         </div>
-                    </div>
-                )}
+                    )
+
+                    return (
+                        <>
+                            {orderedProducts.length > 0 && section(
+                                'Outras pessoas pediram',
+                                `O que mais saiu em ${storeDisplay.name}`,
+                                orderedProducts.map((o) => renderCard(o, o.buyers)),
+                            )}
+                            {moreProducts.length > 0 && section(
+                                `Mais de ${storeDisplay.name}`,
+                                'Outros produtos da loja',
+                                moreProducts.map((o) => renderCard(o)),
+                            )}
+                        </>
+                    )
+                })()}
             </div>
 
             {/* ===== MODAL DE ADICIONAR (observação sempre; adicionais se a loja habilitar) ===== */}
