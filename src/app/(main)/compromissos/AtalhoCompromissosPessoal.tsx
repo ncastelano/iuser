@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { Plus, Check, X, Calendar, User, Lock, Earth, Eye, EyeOff, Clock, ChevronDown, ChevronUp } from 'lucide-react'
 import { usePersistedExpanded } from '@/hooks/usePersistedExpanded'
 import { useAppointments, useDeleteAppointment } from '@/app/(main)/compromissos/dadosDoCompromisso'
+import { avatarOwnerIdFromUrl } from '@/lib/avatar'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
@@ -610,7 +611,7 @@ export default function AtalhoCompromissosPessoal({
 
                                             {profileSlugTarget ? (
                                                 <Link href={`/${profileSlugTarget}`} onClick={(e) => e.stopPropagation()} className="flex-shrink-0">
-                                                    <PlanAvatarRing userId={appointment.direction === 'incoming' || appointment.direction === 'outgoing' ? appointment.customer_id : userId}>
+                                                    <PlanAvatarRing userId={appointment.direction === 'incoming' || appointment.direction === 'outgoing' ? avatarOwnerIdFromUrl(appointment.customer_avatar_url) : userId}>
                                                     {avatarUrl ? (
                                                         <img src={avatarUrl} alt="" className="w-11 h-11 rounded-full object-cover" />
                                                     ) : (
@@ -628,7 +629,7 @@ export default function AtalhoCompromissosPessoal({
                                                 </Link>
                                             ) : (
                                                 <div className="flex-shrink-0">
-                                                    <PlanAvatarRing userId={appointment.direction === 'incoming' || appointment.direction === 'outgoing' ? appointment.customer_id : userId}>
+                                                    <PlanAvatarRing userId={appointment.direction === 'incoming' || appointment.direction === 'outgoing' ? avatarOwnerIdFromUrl(appointment.customer_avatar_url) : userId}>
                                                     {avatarUrl ? (
                                                         <img src={avatarUrl} alt="" className="w-11 h-11 rounded-full object-cover" />
                                                     ) : (

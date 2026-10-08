@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { Plus, X, Earth, Lock, User, Store, Check, Eye, EyeOff, Clock, Calendar, ChevronDown, ChevronUp } from 'lucide-react'
 import { usePersistedExpanded } from '@/hooks/usePersistedExpanded'
 import { useAppointments, useDeleteAppointment } from '@/app/(main)/compromissos/dadosDoCompromisso'
+import { avatarOwnerIdFromUrl } from '@/lib/avatar'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
@@ -432,7 +433,7 @@ export default function AtalhoCompromissosDaLoja({
                                             {/* Avatar do cliente - arredondado */}
                                             {customerSlug ? (
                                                 <Link href={`/${customerSlug}`} onClick={(e) => e.stopPropagation()} className="flex-shrink-0">
-                                                    <PlanAvatarRing userId={appointment.customer_id}>
+                                                    <PlanAvatarRing userId={avatarOwnerIdFromUrl(appointment.customer_avatar_url)}>
                                                     {avatarUrl ? (
                                                         <img src={avatarUrl} alt="" className="w-11 h-11 rounded-full object-cover" />
                                                     ) : (
@@ -450,7 +451,7 @@ export default function AtalhoCompromissosDaLoja({
                                                 </Link>
                                             ) : (
                                                 <div className="flex-shrink-0">
-                                                    <PlanAvatarRing userId={appointment.customer_id}>
+                                                    <PlanAvatarRing userId={avatarOwnerIdFromUrl(appointment.customer_avatar_url)}>
                                                     {avatarUrl ? (
                                                         <img src={avatarUrl} alt="" className="w-11 h-11 rounded-full object-cover" />
                                                     ) : (

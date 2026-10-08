@@ -42,6 +42,7 @@ import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import Header from '@/components/Header' // ajuste o caminho conforme necessário
 import PlanAvatarRing from '@/components/PlanAvatarRing'
+import { avatarOwnerIdFromUrl } from '@/lib/avatar'
 
 type BgMode = 'animated' | 'black' | 'custom'
 
@@ -687,7 +688,7 @@ export default function CompromissosPage() {
     // Quem aparece na foto: a outra pessoa (convite), você (pessoal) ou ninguém (loja) — pra borda do avatar.
     const getAvatarOwnerId = (appointment: Appointment, type: 'store' | 'personal' | 'invite'): string | null => {
         if (type === 'store') return null
-        if (type === 'invite') return appointment.customer_id || null
+        if (type === 'invite') return avatarOwnerIdFromUrl(appointment.customer_avatar_url)
         return userId || null
     }
 
@@ -1012,7 +1013,7 @@ export default function CompromissosPage() {
                                     pendentesLoja.map((agendamento) => (
                                         <div key={agendamento.id} style={{ ...cardStyle, padding: 16, marginBottom: 12 }}>
                                             <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-                                                <AppointmentAvatar userId={agendamento.store_id ? null : agendamento.customer_id} url={agendamento.store_id ? (agendamento.store_logo_url ?? null) : getPublicUrl(agendamento.customer_avatar_url, 'avatars')} name={agendamento.store_id ? (agendamento.store_name || 'Loja') : (agendamento.customer_slug || 'Cliente')} type={agendamento.store_id ? 'store' : 'invite'} size={56} colors={colors} />
+                                                <AppointmentAvatar userId={agendamento.store_id ? null : avatarOwnerIdFromUrl(agendamento.customer_avatar_url)} url={agendamento.store_id ? (agendamento.store_logo_url ?? null) : getPublicUrl(agendamento.customer_avatar_url, 'avatars')} name={agendamento.store_id ? (agendamento.store_name || 'Loja') : (agendamento.customer_slug || 'Cliente')} type={agendamento.store_id ? 'store' : 'invite'} size={56} colors={colors} />
                                                 <div style={{ flex: 1 }}>
                                                     <h3 style={{ fontWeight: 800, fontSize: 16, color: colors.textPrimary }}>{agendamento.service_name}</h3>
                                                     <p style={{ color: colors.textSecondary, fontSize: 14, marginTop: 2 }}>Cliente: @{agendamento.customer_slug}</p>

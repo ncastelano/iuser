@@ -38,21 +38,24 @@ export function usePlanRing(userId?: string | null): boolean {
     return useAvatarBorder(userId) !== null
 }
 
-/** A borda em si (sem consultar ninguém) — o que o PlanAvatarRing desenha quando a pessoa usa uma borda. */
+/** A borda em si (sem consultar ninguém) — o que o PlanAvatarRing desenha quando a pessoa usa uma borda.
+ *  Redonda ('full'): gira o anel. Com cantos arredondados (quadrado/retângulo): o anel NÃO pode girar o próprio
+ *  retângulo (viraria um quadrado rodando), então o que gira é o ângulo do gradiente, com o anel parado. */
 export function PlanRingFrame({ children, width = 2, radius = 'full', className = '', colors }: Omit<PlanAvatarRingProps, 'userId'> & { colors?: string[] }) {
-    const r = radius === 'full' ? '9999px' : radius
-    const gradient = borderGradient(colors && colors.length >= 2 ? colors : ['#4ade80', '#86efac', '#fde047', '#38bdf8', '#3b82f6', '#22c55e'])
+    const round = radius === 'full'
+    const r = round ? '9999px' : radius
+    const list = colors && colors.length >= 2 ? colors : ['#4ade80', '#86efac', '#fde047', '#38bdf8', '#3b82f6', '#22c55e']
+    const stops = [...list, list[0]].map((c, i) => `${c} ${Math.round((i / list.length) * 360)}deg`).join(', ')
     return (
         <span className={`relative inline-flex flex-shrink-0 ${className}`} style={{ borderRadius: r, width: 'fit-content', height: 'fit-content' }}>
-            {/* Anel que gira: gradiente cônico com as cores da borda, recortado só na borda */}
             <span
                 aria-hidden
-                className="plan-ring-spin pointer-events-none absolute"
+                className={`${round ? 'plan-ring-spin' : 'plan-ring-inset'} pointer-events-none absolute`}
                 style={{
                     inset: -(width + 1),
-                    borderRadius: r,
+                    borderRadius: round ? r : `calc(${r} + ${width + 1}px)`,
                     padding: width,
-                    background: gradient,
+                    background: round ? borderGradient(list) : `conic-gradient(from var(--plan-ring-angle), ${stops})`,
                     WebkitMask: 'linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)',
                     WebkitMaskComposite: 'xor',
                     mask: 'linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)',
@@ -61,9 +64,12 @@ export function PlanRingFrame({ children, width = 2, radius = 'full', className 
             />
             {children}
             <style>{`
+                @property --plan-ring-angle { syntax: '<angle>'; initial-value: 0deg; inherits: false; }
                 @keyframes planRingSpin { to { transform: rotate(360deg); } }
+                @keyframes planRingInset { to { --plan-ring-angle: 360deg; } }
                 .plan-ring-spin { animation: planRingSpin 2.4s linear infinite; }
-                @media (prefers-reduced-motion: reduce) { .plan-ring-spin { animation: none; } }
+                .plan-ring-inset { animation: planRingInset 2.4s linear infinite; }
+                @media (prefers-reduced-motion: reduce) { .plan-ring-spin, .plan-ring-inset { animation: none; } }
             `}</style>
         </span>
     )
