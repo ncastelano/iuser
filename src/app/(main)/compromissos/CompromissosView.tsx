@@ -39,6 +39,7 @@ import {
 import { supabase } from '@/lib/supabase/client'
 import HorarioEDisponibilidade from './HorarioEDisponibilidade'
 import AgendaHorarios from './AgendaHorarios'
+import AgendaCard, { AgendaIconButton, AGENDA_DARK, AGENDA_GRID, AGENDA_GRID_SINGLE } from './AgendaCard'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
@@ -219,18 +220,6 @@ function VisibilityBadge({ isPublic }: { isPublic: boolean }) {
     )
 }
 
-function ParticipantsMini({ participants }: { participants: any[] }) {
-    if (!participants.length) return null
-    const displayNames = participants.slice(0, 3).map(p => p.profile?.name || p.customer_slug)
-    const extra = participants.length - 3
-    return (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, fontSize: 12, color: '#94a3b8' }}>
-            <Users size={12} />
-            <span>{displayNames.join(', ')}{extra > 0 && ` +${extra}`}</span>
-        </div>
-    )
-}
-
 /* ===================================================
    Página principal
    =================================================== */
@@ -278,8 +267,6 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
     const [showSettingsModal, setShowSettingsModal] = useState(false)
     const [horariosKey, setHorariosKey] = useState(0)
 
-    const [participantsMap, setParticipantsMap] = useState<Record<string, any[]>>({})
-    const fetchedIdsRef = useRef<Set<string>>(new Set())
 
     // Estados do fundo dinâmico
     const [bgMode, setBgMode] = useState<BgMode>('black')
@@ -475,82 +462,6 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
         )
     }, [listaAceitos, acceptedSearch])
 
-    const fetchParticipantsForAppointments = useCallback(async (appointmentsList: Appointment[]) => {
-        if (!appointmentsList.length) return
-        const idsToFetch = appointmentsList
-            .map(app => app.id)
-            .filter(id => !fetchedIdsRef.current.has(id))
-        if (idsToFetch.length === 0) return
-        idsToFetch.forEach(id => fetchedIdsRef.current.add(id))
-
-        const groupsMap = new Map<string, { id: string; store_id: string | null; provider_profile_id: string | null; date: string; time: string }[]>()
-        for (const app of appointmentsList) {
-            if (!idsToFetch.includes(app.id)) continue
-            let groupKey: string
-            let storeId: string | null = null
-            let providerId: string | null = null
-            if (app.store_id) {
-                groupKey = `store_${app.store_id}|${app.date}|${app.time}`
-                storeId = app.store_id
-            } else {
-                const provider = app.provider_profile_id ?? null
-                groupKey = `profile_${provider ?? 'null'}|${app.date}|${app.time}`
-                providerId = provider
-            }
-            if (!groupsMap.has(groupKey)) groupsMap.set(groupKey, [])
-            groupsMap.get(groupKey)!.push({
-                id: app.id,
-                store_id: storeId,
-                provider_profile_id: providerId,
-                date: app.date,
-                time: app.time
-            })
-        }
-
-        const newMap: Record<string, any[]> = {}
-        for (const [_, groupApps] of groupsMap) {
-            const first = groupApps[0]
-            let query = supabase
-                .from('appointments')
-                .select('customer_id, customer_slug, status, direction')
-                .eq('date', first.date)
-                .eq('time', first.time)
-            if (first.store_id) {
-                query = query.eq('store_id', first.store_id)
-            } else if (first.provider_profile_id) {
-                query = query.eq('provider_profile_id', first.provider_profile_id)
-            } else {
-                continue
-            }
-            const { data } = await query
-            let enriched: any[] = []
-            if (data) {
-                enriched = await Promise.all(
-                    data.map(async (p) => {
-                        const { data: profile } = await supabase
-                            .from('profiles')
-                            .select('name, profileSlug, avatar_url')
-                            .eq('profileSlug', p.customer_slug)
-                            .maybeSingle()
-                        return { ...p, profile }
-                    })
-                )
-            }
-            for (const app of groupApps) {
-                newMap[app.id] = enriched
-            }
-        }
-        if (Object.keys(newMap).length) {
-            setParticipantsMap(prev => ({ ...prev, ...newMap }))
-        }
-    }, [])
-
-    useEffect(() => {
-        const allDisplayed = [...proximosCompromissos, ...aceitosExibidos]
-        if (allDisplayed.length) {
-            fetchParticipantsForAppointments(allDisplayed)
-        }
-    }, [proximosCompromissos, aceitosExibidos])
 
     const aceitarCompromisso = useCallback(async (appointmentId: string) => {
         const success = await updateStatus(appointmentId, 'confirmed')
@@ -591,6 +502,63 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
             <Trash2 size={Math.round(size * 0.5)} color="#ef4444" />
         </button>
     ) : null
+
+    // Cartão compacto (mesmo desenho dos atalhos dos dashboards). Tudo já aparece aberto, sem "expandir".
+    const renderCard = (
+        a: Appointment,
+        o: { accept?: boolean; highlight?: string; subtitle?: React.ReactNode; dark?: boolean } = {},
+    ) => {
+        const type = getAvatarType(a)
+        const isToday = a.date === formatDate(new Date())
+        const dateLabel = isToday ? 'Hoje' : parseDate(a.date).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short' })
+        const when = new Date(`${a.date}T${a.time}`)
+        const answerable = !!o.accept && a.status === 'pending'
+        const personInvite = isPersonInvite(a, type)
+        const subtitle = o.subtitle ?? (
+            type === 'store' ? <><Store size={11} /> {a.store_name}</>
+                : type === 'invite' ? (activeTab !== 'pessoal' ? <><User size={11} /> {personName(a)}</> : <><Users size={11} /> {inviteLine(a)}</>)
+                    : <><Lock size={11} /> Compromisso pessoal</>
+        )
+        return (
+            <AgendaCard
+                key={a.id}
+                palette={o.dark ? { ...AGENDA_DARK, accent: colors.accent } : colors}
+                avatar={
+                    <AppointmentAvatar
+                        userId={getAvatarOwnerId(a, type)}
+                        url={getAvatarUrl(a, type)}
+                        name={type === 'store' ? a.store_name || 'Loja' : type === 'invite' ? 'Convite' : 'Pessoal'}
+                        type={type}
+                        size={44}
+                        colors={colors}
+                    />
+                }
+                dateLabel={dateLabel}
+                status={a.status}
+                statusLabel={personInvite && a.status === 'confirmed' ? 'Aceito' : undefined}
+                isPast={!isNaN(when.getTime()) && when.getTime() < Date.now()}
+                title={cardTitle(a, type)}
+                durationMin={a.duration_minutes}
+                subtitle={subtitle}
+                isPublic={personInvite ? undefined : a.is_public}
+                time={formatTime(a.time)}
+                badge={o.highlight ?? (answerable ? 'Novo' : undefined)}
+                highlight={!!o.highlight}
+                onClick={() => openDetailModal(a)}
+                actions={
+                    <>
+                        {shareBtn(a, 26)}
+                        {answerable ? (
+                            <>
+                                <AgendaIconButton kind="accept" onClick={() => aceitarCompromisso(a.id)} />
+                                <AgendaIconButton kind="decline" onClick={() => recusarCompromisso(a.id)} />
+                            </>
+                        ) : trashBtn(a, 26)}
+                    </>
+                }
+            />
+        )
+    }
 
     const openDetailModal = async (appointment: Appointment) => {
         setSelectedAppointment(appointment)
@@ -866,31 +834,12 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
                                 {convitesRecebidos.length === 0 ? (
                                     <div style={{ ...cardStyle, padding: 20, color: colors.textSecondary }}>Nenhum convite pendente.</div>
                                 ) : (
-                                    convitesRecebidos.map((convite) => {
-                                        const avatarType = getAvatarType(convite)
-                                        const avatarUrl = getAvatarUrl(convite, avatarType)
-                                        return (
-                                            <div key={convite.id} style={{ ...cardStyle, padding: 16, marginBottom: 12 }}>
-                                                <div style={{ display: 'flex', gap: 16 }}>
-                                                    <AppointmentAvatar userId={getAvatarOwnerId(convite, avatarType === 'store' ? 'store' : 'invite')} url={avatarUrl} name={avatarType === 'store' ? convite.store_name || 'Loja' : 'Convite'} type={avatarType === 'store' ? 'store' : 'invite'} size={56} colors={colors} />
-                                                    <div style={{ flex: 1 }}>
-                                                        <h3 style={{ fontWeight: 800, color: colors.textPrimary }}>{convite.service_name}</h3>
-                                                        <p style={{ marginTop: 4, fontSize: 14, color: colors.textSecondary }}><SenderName ownerSlug={convite.owner_slug} /> convidou você</p>
-                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: colors.textSecondary, marginTop: 4 }}>
-                                                            <Clock3 size={14} />
-                                                            <span>{convite.date.split('-').reverse().join('/')} • {formatTime(convite.time)}</span>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                <div style={{ display: 'flex', gap: 8, marginTop: 16, alignItems: 'center' }}>
-                                                    <button onClick={() => aceitarCompromisso(convite.id)} style={{ flex: 1, background: '#10b981', color: '#fff', border: 'none', borderRadius: 14, padding: '10px 14px', fontWeight: 700, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 14 }}><Check size={16} /> Aceitar</button>
-                                                    <button onClick={() => recusarCompromisso(convite.id)} style={{ flex: 1, background: '#ef4444', color: '#fff', border: 'none', borderRadius: 14, padding: '10px 14px', fontWeight: 700, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 14 }}><X size={16} /> Recusar</button>
-                                                    <button onClick={(e) => { e.stopPropagation(); openDetailModal(convite) }} style={{ background: 'rgba(255,255,255,0.1)', color: colors.textPrimary, border: 'none', borderRadius: 14, padding: '10px 14px', fontWeight: 700, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 14 }}><Eye size={16} /> Detalhes</button>
-                                                    {shareBtn(convite, 40)}
-                                                </div>
-                                            </div>
-                                        )
-                                    })
+                                    <div style={AGENDA_GRID}>
+                                        {convitesRecebidos.map((convite) => renderCard(convite, {
+                                            accept: true,
+                                            subtitle: <><User size={11} /> <SenderName ownerSlug={convite.owner_slug} /> convidou você</>,
+                                        }))}
+                                    </div>
                                 )}
                             </section>
                         )}
@@ -916,51 +865,10 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
                                     Nenhum compromisso futuro.
                                 </div>
                             ) : (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                                    {proximosCompromissos.map((comp, idx) => {
-                                        const isFirst = idx === 0
-                                        const remaining = getTimeRemaining(comp.date, comp.time)
-                                        const avatarType = getAvatarType(comp)
-                                        const avatarUrl = getAvatarUrl(comp, avatarType)
-                                        const compParticipants = participantsMap[comp.id] || []
-                                        const displayDate = parseDate(comp.date).toLocaleDateString('pt-BR')
-                                        return (
-                                            <div key={comp.id} onClick={() => openDetailModal(comp)} style={{
-                                                ...cardStyle,
-                                                padding: 16, display: 'flex', alignItems: 'center', gap: 16,
-                                                boxShadow: isFirst ? `0 8px 25px ${colors.accent}40` : colors.shadow,
-                                                border: isFirst ? `2px solid ${colors.accent}` : `1px solid ${colors.border}`,
-                                                position: 'relative', cursor: 'pointer', transition: 'all 0.2s',
-                                            }}>
-                                                {isFirst && <div style={{ position: 'absolute', top: -10, left: -10, background: colors.accent, borderRadius: 20, padding: '2px 10px', color: colors.accentText, fontWeight: 700, fontSize: 12, boxShadow: `0 4px 10px ${colors.accent}80` }}>{remaining}</div>}
-                                                <AppointmentAvatar userId={getAvatarOwnerId(comp, avatarType)} url={avatarUrl} name={avatarType === 'store' ? comp.store_name || 'Loja' : avatarType === 'invite' ? 'Convite' : 'Pessoal'} type={avatarType} size={56} colors={colors} />
-                                                <div style={{ flex: 1 }}>
-                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                                        <div>
-                                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                                                                <h3 style={{ fontWeight: 800, fontSize: 17, color: isFirst ? colors.accent : colors.textPrimary }}>{cardTitle(comp, avatarType)}</h3>
-                                                                {comp.is_public !== undefined && !isPersonInvite(comp, avatarType) && <VisibilityBadge isPublic={comp.is_public} />}
-                                                                <span style={{ fontSize: 10, fontWeight: 700, background: comp.status === 'confirmed' ? 'rgba(16,185,129,0.2)' : 'rgba(234,179,8,0.2)', color: comp.status === 'confirmed' ? '#10b981' : '#facc15', padding: '2px 8px', borderRadius: 12 }}>
-                                                                    {comp.status === 'confirmed' ? 'Confirmado' : 'Pendente'}
-                                                                </span>
-                                                            </div>
-                                                            <p style={{ color: colors.textSecondary, fontSize: 14, marginTop: 2, display: 'flex', alignItems: 'center', gap: 4 }}>
-                                                                {avatarType === 'store' && <><Store size={12} /> {comp.store_name}</>}
-                                                                {avatarType === 'invite' && (isPersonInvite(comp, avatarType) ? <><Users size={12} /> {inviteLine(comp)}</> : <><User size={12} /> {activeTab !== 'pessoal' ? `Cliente: ${personName(comp)}` : 'Convite'}</>)}
-                                                                {avatarType === 'personal' && <><Lock size={12} /> Compromisso pessoal</>}
-                                                            </p>
-                                                            {!isPersonInvite(comp, avatarType) && <ParticipantsMini participants={compParticipants} />}
-                                                        </div>
-                                                        <div style={{ textAlign: 'right' }}>
-                                                            <p style={{ fontWeight: 700, fontSize: 18, color: isFirst ? colors.accent : colors.textPrimary }}>{formatTime(comp.time)}</p>
-                                                            <p style={{ fontSize: 12, color: colors.textSecondary }}>{displayDate}</p>
-                                                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, marginTop: 6 }}>{shareBtn(comp, 28)}{trashBtn(comp, 28)}</div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        )
-                                    })}
+                                <div style={AGENDA_GRID}>
+                                    {proximosCompromissos.map((comp, idx) => renderCard(comp, {
+                                        highlight: idx === 0 ? `Próximo · ${getTimeRemaining(comp.date, comp.time)}` : undefined,
+                                    }))}
                                 </div>
                             )}
                         </section>
@@ -1061,30 +969,7 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
                                     </div>
                                     <div style={{ marginTop: 24 }}>
                                         <h3 style={{ fontWeight: 700, fontSize: 18, marginBottom: 12, color: colors.textPrimary }}>Agendamentos de {meses[calendarMonth]} {calendarYear}</h3>
-                                        {eventosDoMes.length === 0 ? <p style={{ color: colors.textSecondary, textAlign: 'center' }}>Nenhum agendamento neste mês</p> : eventosDoMes.map((evento) => {
-                                            const avatarType = getAvatarType(evento)
-                                            const avatarUrl = getAvatarUrl(evento, avatarType)
-                                            return (
-                                                <div key={evento.id} style={{ ...cardStyle, padding: 16, marginBottom: 12, display: 'flex', gap: 16, alignItems: 'center' }}>
-                                                    <AppointmentAvatar userId={getAvatarOwnerId(evento, avatarType)} url={avatarUrl} name={avatarType === 'store' ? evento.store_name || 'Loja' : avatarType === 'invite' ? 'Convite' : 'Pessoal'} type={avatarType} size={56} colors={colors} />
-                                                    <div style={{ flex: 1 }}>
-                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                                <h4 style={{ fontWeight: 800, fontSize: 16, color: colors.textPrimary }}>{cardTitle(evento, avatarType)}</h4>
-                                                                {evento.is_public !== undefined && !isPersonInvite(evento, avatarType) && <VisibilityBadge isPublic={evento.is_public} />}
-                                                            </div>
-                                                            <span style={{ fontWeight: 700, color: evento.status === 'confirmed' ? '#10b981' : '#facc15' }}>{evento.status === 'confirmed' ? 'Confirmado' : 'Pendente'}</span>
-                                                        </div>
-                                                        <p style={{ color: colors.textSecondary, marginTop: 2 }}>{avatarType === 'store' ? evento.store_name : avatarType === 'invite' ? (isPersonInvite(evento, avatarType) ? inviteLine(evento) : activeTab !== 'pessoal' ? `Cliente: ${personName(evento)}` : 'Convite') : 'Compromisso pessoal'}</p>
-                                                        <div style={{ display: 'flex', gap: 12, marginTop: 8, alignItems: 'center', color: colors.textSecondary }}>
-                                                            <Clock3 size={14} />
-                                                            <span>{evento.date.split('-').reverse().join('/')} • {formatTime(evento.time)}</span>
-                                                            <span style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>{shareBtn(evento, 28)}{trashBtn(evento, 28)}</span>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            )
-                                        })}
+                                        {eventosDoMes.length === 0 ? <p style={{ color: colors.textSecondary, textAlign: 'center' }}>Nenhum agendamento neste mês</p> : <div style={AGENDA_GRID_SINGLE}>{eventosDoMes.map((evento) => renderCard(evento))}</div>}
                                     </div>
                                 </div>
                             </div>
@@ -1098,34 +983,9 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
                             {eventosDoDia.length === 0 ? (
                                 <div style={{ ...cardStyle, padding: 24, textAlign: 'center', color: colors.textSecondary }}>Nenhum agendamento para este dia.</div>
                             ) : (
-                                eventosDoDia.map((evento) => {
-                                    const avatarType = getAvatarType(evento)
-                                    const avatarUrl = getAvatarUrl(evento, avatarType)
-                                    return (
-                                        <div key={evento.id} style={{ ...cardStyle, padding: 16, marginBottom: 12, display: 'flex', gap: 16, alignItems: 'center' }}>
-                                            <AppointmentAvatar userId={getAvatarOwnerId(evento, avatarType)} url={avatarUrl} name={avatarType === 'store' ? evento.store_name || 'Loja' : avatarType === 'invite' ? 'Convite' : 'Pessoal'} type={avatarType} size={64} colors={colors} />
-                                            <div style={{ flex: 1 }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                                                    <h3 style={{ fontWeight: 800, fontSize: 18, color: colors.textPrimary }}>{cardTitle(evento, avatarType)}</h3>
-                                                    {evento.is_public !== undefined && !isPersonInvite(evento, avatarType) && <VisibilityBadge isPublic={evento.is_public} />}
-                                                </div>
-                                                <p style={{ color: colors.textSecondary, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 4 }}>
-                                                    {avatarType === 'store' && <><Store size={14} /> {evento.store_name}</>}
-                                                    {avatarType === 'invite' && (isPersonInvite(evento, avatarType) ? <><Users size={14} /> {inviteLine(evento)}</> : <><User size={14} /> {activeTab !== 'pessoal' ? `Cliente: ${personName(evento)}` : 'Convite'}</>)}
-                                                    {avatarType === 'personal' && <><Lock size={14} /> Compromisso pessoal</>}
-                                                </p>
-                                                <div style={{ fontSize: 20, fontWeight: 800, color: colors.accent, marginBottom: 8 }}>{formatTime(evento.time)}</div>
-                                                <div style={{ display: 'flex', gap: 8 }}>
-                                                    {evento.status === 'confirmed' && <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Check size={16} color="#fff" /></div>}
-                                                    {evento.status === 'pending' && <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#facc15', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Clock3 size={16} color="#000" /></div>}
-                                                    <button onClick={(e) => { e.stopPropagation(); handleDelete(evento.id) }} style={{ width: 32, height: 32, borderRadius: '50%', background: '#ef4444', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><Trash2 size={16} color="#fff" /></button>
-                                                    <button onClick={(e) => { e.stopPropagation(); openDetailModal(evento) }} style={{ width: 32, height: 32, borderRadius: '50%', background: colors.accent, border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><Edit3 size={16} color={colors.accentText} /></button>
-                                                    {shareBtn(evento, 32)}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    )
-                                })
+                                <div style={AGENDA_GRID}>
+                                    {eventosDoDia.map((evento) => renderCard(evento))}
+                                </div>
                             )}
                         </section>
 
@@ -1138,28 +998,9 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
                                 {pendentesLoja.length === 0 ? (
                                     <div style={{ ...cardStyle, padding: 20, color: colors.textSecondary }}>Nenhum agendamento pendente.</div>
                                 ) : (
-                                    pendentesLoja.map((agendamento) => (
-                                        <div key={agendamento.id} style={{ ...cardStyle, padding: 16, marginBottom: 12 }}>
-                                            <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-                                                <AppointmentAvatar userId={personIdOf(agendamento)} url={getAvatarUrl(agendamento, 'invite')} name={personName(agendamento) || 'Cliente'} type="invite" size={56} colors={colors} />
-                                                <div style={{ flex: 1 }}>
-                                                    <h3 style={{ fontWeight: 800, fontSize: 16, color: colors.textPrimary }}>{agendamento.service_name}</h3>
-                                                    <p style={{ color: colors.textSecondary, fontSize: 14, marginTop: 2 }}>Cliente: {personName(agendamento)} · @{agendamento.customer_slug}</p>
-                                                    <div style={{ display: 'flex', gap: 12, marginTop: 8, alignItems: 'center', color: colors.textSecondary }}>
-                                                        <Clock3 size={14} />
-                                                        <span>{agendamento.date.split('-').reverse().join('/')} • {formatTime(agendamento.time)}</span>
-                                                    </div>
-                                                </div>
-                                                <span style={{ background: 'rgba(234,179,8,0.2)', color: '#facc15', padding: '4px 12px', borderRadius: 12, fontWeight: 700, fontSize: 12 }}>Pendente</span>
-                                            </div>
-                                            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-                                                <button onClick={() => aceitarCompromisso(agendamento.id)} style={{ flex: 1, background: '#10b981', color: '#fff', border: 'none', borderRadius: 14, padding: '10px 14px', fontWeight: 700, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 14 }}><Check size={16} /> Aceitar</button>
-                                                <button onClick={() => recusarCompromisso(agendamento.id)} style={{ flex: 1, background: '#ef4444', color: '#fff', border: 'none', borderRadius: 14, padding: '10px 14px', fontWeight: 700, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 14 }}><X size={16} /> Recusar</button>
-                                                <button onClick={() => openDetailModal(agendamento)} style={{ background: 'rgba(255,255,255,0.1)', color: colors.textPrimary, border: 'none', borderRadius: 14, padding: '10px 14px', fontWeight: 700, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 14 }}><Eye size={16} /> Detalhes</button>
-                                                {shareBtn(agendamento, 40)}
-                                            </div>
-                                        </div>
-                                    ))
+                                    <div style={AGENDA_GRID}>
+                                        {pendentesLoja.map((agendamento) => renderCard(agendamento, { accept: true }))}
+                                    </div>
                                 )}
                             </section>
                         )}
@@ -1175,34 +1016,8 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
                             {listaAceitos.length === 0 ? (
                                 <div style={{ ...cardStyle, padding: 20, color: colors.textSecondary }}>{activeTab === 'pessoal' ? 'Nenhum convite aceito.' : 'Nenhum agendamento confirmado.'}</div>
                             ) : (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                                    {aceitosExibidos.map((item) => {
-                                        const avatarType = getAvatarType(item)
-                                        const avatarUrl = getAvatarUrl(item, avatarType)
-                                        const itemParticipants = participantsMap[item.id] || []
-                                        const displayDate = parseDate(item.date).toLocaleDateString('pt-BR')
-                                        return (
-                                            <div key={item.id} style={{ ...cardStyle, padding: 16, display: 'flex', gap: 16, alignItems: 'center' }}>
-                                                <AppointmentAvatar userId={getAvatarOwnerId(item, avatarType)} url={avatarUrl} name={avatarType === 'store' ? item.store_name || 'Loja' : avatarType === 'invite' ? 'Convite' : 'Pessoal'} type={avatarType} size={56} colors={colors} />
-                                                <div style={{ flex: 1 }}>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                        <h3 style={{ fontWeight: 800, fontSize: 18, color: colors.textPrimary }}>{cardTitle(item, avatarType)}</h3>
-                                                        {item.is_public !== undefined && !isPersonInvite(item, avatarType) && <VisibilityBadge isPublic={item.is_public} />}
-                                                    </div>
-                                                    <p style={{ color: colors.textSecondary, marginTop: 4 }}>{avatarType === 'store' ? item.store_name : activeTab !== 'pessoal' ? `Cliente: ${personName(item)}` : avatarType === 'invite' ? (isPersonInvite(item, avatarType) ? inviteLine(item) : 'Convite') : 'Compromisso pessoal'}</p>
-                                                    <div style={{ display: 'flex', gap: 12, marginTop: 10, alignItems: 'center', color: colors.textSecondary }}>
-                                                        <Clock3 size={16} />
-                                                        <span>{displayDate} • {formatTime(item.time)}</span>
-                                                    </div>
-                                                    {!isPersonInvite(item, avatarType) && <ParticipantsMini participants={itemParticipants} />}
-                                                </div>
-                                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
-                                                    <span style={{ background: 'rgba(16,185,129,0.2)', color: '#10b981', padding: '4px 12px', borderRadius: 12, fontWeight: 700, fontSize: 12 }}>{isPersonInvite(item, avatarType) ? 'Aceito' : 'Confirmado'}</span>
-                                                    <div style={{ display: 'flex', gap: 6 }}>{shareBtn(item)}{trashBtn(item)}</div>
-                                                </div>
-                                            </div>
-                                        )
-                                    })}
+                                <div style={AGENDA_GRID}>
+                                    {aceitosExibidos.map((item) => renderCard(item))}
                                 </div>
                             )}
                         </section>
@@ -1252,26 +1067,7 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
                                         <input type="text" value={acceptedSearch} onChange={(e) => setAcceptedSearch(e.target.value)} placeholder="Buscar por nome ou compromisso..." style={{ width: '100%', padding: '12px 16px 12px 40px', borderRadius: 14, border: '1px solid rgba(255,255,255,0.2)', fontSize: 14, outline: 'none', background: 'rgba(255,255,255,0.1)', color: '#fff' }} />
                                     </div>
                                 </div>
-                                {filteredAceitos.length === 0 ? <p style={{ color: '#94a3b8', textAlign: 'center' }}>Nenhum encontrado.</p> : filteredAceitos.map((item) => {
-                                    const avatarType = getAvatarType(item)
-                                    const avatarUrl = getAvatarUrl(item, avatarType)
-                                    const displayDate = parseDate(item.date).toLocaleDateString('pt-BR')
-                                    return (
-                                        <div key={item.id} style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 20, padding: 16, marginBottom: 12, display: 'flex', gap: 16, alignItems: 'center', border: '1px solid rgba(255,255,255,0.1)' }}>
-                                            <AppointmentAvatar userId={getAvatarOwnerId(item, avatarType)} url={avatarUrl} name={avatarType === 'store' ? item.store_name || 'Loja' : avatarType === 'invite' ? 'Convite' : 'Pessoal'} type={avatarType} size={56} colors={colors} />
-                                            <div style={{ flex: 1 }}>
-                                                <h4 style={{ fontWeight: 800, fontSize: 16 }}>{cardTitle(item, avatarType)}</h4>
-                                                <p style={{ color: '#94a3b8', marginTop: 2 }}>{avatarType === 'store' ? item.store_name : avatarType === 'invite' ? (isPersonInvite(item, avatarType) ? inviteLine(item) : activeTab !== 'pessoal' ? `Cliente: ${personName(item)}` : 'Convite') : 'Compromisso pessoal'}</p>
-                                                <div style={{ display: 'flex', gap: 12, marginTop: 8, alignItems: 'center', color: '#94a3b8' }}>
-                                                    <Clock3 size={14} />
-                                                    <span>{displayDate} • {formatTime(item.time)}</span>
-                                                </div>
-                                            </div>
-                                            <span style={{ background: 'rgba(16,185,129,0.2)', color: '#10b981', padding: '4px 12px', borderRadius: 12, fontWeight: 700, fontSize: 12 }}>Confirmado</span>
-                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>{shareBtn(item)}{trashBtn(item)}</div>
-                                        </div>
-                                    )
-                                })}
+                                {filteredAceitos.length === 0 ? <p style={{ color: '#94a3b8', textAlign: 'center' }}>Nenhum encontrado.</p> : <div style={AGENDA_GRID_SINGLE}>{filteredAceitos.map((item) => renderCard(item, { dark: true }))}</div>}
                             </div>
                         </div>
                     )}
