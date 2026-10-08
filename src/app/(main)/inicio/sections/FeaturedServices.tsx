@@ -309,10 +309,6 @@ export default function FeaturedServices({ dragHandle, title = 'Serviços em des
                                             <Wrench size={40} color="rgba(255,255,255,0.85)" />
                                         </div>
                                     )}
-                                    <span className="absolute left-2.5 top-2.5 flex items-center gap-1.5 text-[10px] font-black px-2.5 py-1 rounded-full text-white backdrop-blur-sm" style={{ background: 'rgba(22,163,74,0.9)' }}>
-                                        <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-                                        Disponível
-                                    </span>
                                     {service.viewCount > 0 && (
                                         <span className="absolute right-2.5 top-2.5 flex items-center gap-1 text-[10px] font-bold text-white px-2 py-1 rounded-full" style={{ background: 'rgba(0,0,0,0.5)' }}>
                                             <Eye size={11} />
