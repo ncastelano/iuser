@@ -32,6 +32,8 @@ import {
     History,
     Search,
     ShieldCheck,
+    GraduationCap,
+    Coins,
 } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import { formatDistanceToNow } from 'date-fns'
@@ -50,6 +52,7 @@ import {
     type MyStatus,
 } from '@/lib/benefits/types'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
+import { useMyGraduation, GraduationOverview, GraduationCommissions, GraduationTree } from './MyGraduation'
 
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
@@ -142,7 +145,7 @@ const WITHDRAWAL_STATUS_COLOR: Record<WithdrawalRequest['status'], string> = {
 
 const MIN_WITHDRAWAL_AMOUNT = 20
 
-type Pane = 'rede' | 'status' | 'grant' | 'history'
+type Pane = 'graduacao' | 'rede' | 'comissoes' | 'status' | 'grant' | 'history'
 
 // 31/12 23:59:59 (Brasília), em dias a partir de agora.
 function daysUntilEndOfYear(): number {
@@ -228,11 +231,13 @@ export default function Commission({ userId, profileSlug, onLatestUpdate }: Comm
 
     // ============================================
     // MINHA REDE: tudo o que antes era a aba "Minha Rede" (rede, meu status,
-    // conceder e histórico) mora aqui, em "Convidei para o iUser".
+    // conceder e histórico) mora aqui, em "Minha graduação".
     // O que cada pessoa vê vem do banco já filtrado por permissão/escopo —
     // esconder aba aqui é só conforto; quem decide é o servidor.
     // ============================================
-    const [pane, setPane] = useState<Pane>('rede')
+    const [pane, setPane] = useState<Pane>('graduacao')
+    // Graduação (nível, comissões, escada, árvore da rede): tudo no mesmo cartão, em abas
+    const graduation = useMyGraduation()
     const [status, setStatus] = useState<MyStatus | null>(null)
     const [plans, setPlans] = useState<GrantablePlan[]>([])
 
@@ -599,11 +604,15 @@ export default function Commission({ userId, profileSlug, onLatestUpdate }: Comm
     }
     const selectedGrantPlan = plans.find((p) => p.id === grantPlanId)
     // Quem não pode conceder nada não tem Conceder/Histórico.
-    const activePane: Pane = (pane === 'grant' || pane === 'history') && !canManage ? 'rede' : pane
+    const activePane: Pane = (pane === 'grant' || pane === 'history') && !canManage
+        ? 'rede'
+        : (pane === 'graduacao' || pane === 'comissoes') && !graduation.loading && !graduation.data ? 'rede' : pane
     const panes: { id: Pane; label: string; icon: typeof Gift }[] = [
+        ...(graduation.data || graduation.loading ? [{ id: 'graduacao' as const, label: 'Graduação', icon: GraduationCap }] : []),
         { id: 'rede', label: 'Minha rede', icon: Users },
+        ...(graduation.data ? [{ id: 'comissoes' as const, label: 'Comissões', icon: Coins }] : []),
         { id: 'status', label: 'Meu status', icon: ShieldCheck },
-        ...(canManage ? [{ id: 'grant' as const, label: 'Conceder', icon: Gift }, { id: 'history' as const, label: 'Histórico', icon: History }] : []),
+        ...(canManage ? [{ id: 'grant' as const, label: 'Conceder', icon: Gift }, { id: 'history' as const, label: 'Concessões', icon: History }] : []),
     ]
     const networkPaidValue = members.reduce((acc, m) => acc + m.planPrice, 0)
     const networkPromisedValue = members.reduce((acc, m) => acc + m.postpaidDebt, 0)
@@ -636,7 +645,7 @@ export default function Commission({ userId, profileSlug, onLatestUpdate }: Comm
                         <div className="flex items-center gap-3">
                             <div>
                                 <h3 className={`${isExpanded ? 'text-lg' : 'text-sm'} font-black`} style={{ color: textPrimary }}>
-                                    Convidei para o iUser
+                                    Minha graduação
                                 </h3>
                                 <p className="text-xs mt-0.5" style={{ color: textSecondary }}>
                                     {members.length} pessoa{members.length !== 1 ? 's' : ''} na sua rede
@@ -645,6 +654,7 @@ export default function Commission({ userId, profileSlug, onLatestUpdate }: Comm
                             </div>
                         </div>
                         <div className="flex items-center gap-2">
+                            {graduation.data && <LevelBadge level={graduation.data.level} size="sm" />}
                             {members.length > 0 && (
                                 <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: '#f9731620', color: '#f97316' }}>
                                     {members.length}
@@ -680,6 +690,16 @@ export default function Commission({ userId, profileSlug, onLatestUpdate }: Comm
                                     )
                                 })}
                             </div>
+
+                            {activePane === 'graduacao' && (
+                                graduation.data
+                                    ? <GraduationOverview data={graduation.data} />
+                                    : <div className="flex justify-center py-6"><Spinner size={24} color={accentColor} /></div>
+                            )}
+
+                            {activePane === 'comissoes' && graduation.data && (
+                                <GraduationCommissions commissions={graduation.commissions} />
+                            )}
 
                             {activePane === 'rede' && (
                             <>
@@ -1030,6 +1050,17 @@ export default function Commission({ userId, profileSlug, onLatestUpdate }: Comm
                                             </div>
                                         )
                                     })}
+                                </div>
+                            )}
+
+                            {/* Árvore da rede: quem eles indicaram, com a graduação de cada um */}
+                            {graduation.data && (
+                                <div className="flex flex-col gap-3 pt-2">
+                                    <div>
+                                        <h4 className="text-sm font-black" style={{ color: textPrimary }}>Árvore da rede</h4>
+                                        <p className="text-[11px]" style={{ color: textSecondary }}>Quem você indicou, a graduação de cada um e quem eles indicaram</p>
+                                    </div>
+                                    <GraduationTree />
                                 </div>
                             )}
                             </>

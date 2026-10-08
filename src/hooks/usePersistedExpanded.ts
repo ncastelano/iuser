@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
 
 // Lembra se a pessoa deixou um card do dashboard (perfil/loja) aberto ou
 // fechado, pra não abrir tudo de novo a cada visita — alguns desses cards
-// são grandes (Convidei para o iUser, Informações do Perfil, Descrição da
+// são grandes (Informações do Perfil, Descrição da
 // loja) e não precisam ficar expandidos toda hora. É só preferência de
 // interface por navegador, então localStorage já resolve — não precisa
 // sincronizar entre dispositivos.

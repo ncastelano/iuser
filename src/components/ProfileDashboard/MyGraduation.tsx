@@ -1,8 +1,9 @@
 // src/components/ProfileDashboard/MyGraduation.tsx
 //
-// "Minha graduação" — nível atual, comissão padrão / personalizada / atual (pré e pós-pago), progresso pro próximo
-// nível, escada completa, minha rede (árvore paginada) e minhas comissões. Tudo vem do banco (get_my_graduation,
-// get_network_children, get_my_commissions): aqui só se mostra. A graduação conquistada nunca se perde, e uma
+// Peças da "Minha graduação" — nível atual, comissão padrão / personalizada / atual (pré e pós-pago), progresso pro
+// próximo nível, escada completa, minha rede (árvore paginada) e minhas comissões. Não é mais um cartão separado: o
+// Commission (um único cartão "Minha graduação", com abas) usa o hook e estas peças. Tudo vem do banco
+// (get_my_graduation, get_network_children, get_my_commissions): aqui só se mostra. A graduação conquistada nunca se perde, e uma
 // comissão personalizada NÃO muda o nome do nível — por isso as duas aparecem separadas.
 'use client'
 
@@ -13,7 +14,6 @@ import { hexToRgb } from '@/lib/color'
 import { Spinner } from '@/components/Spinner'
 import LevelBadge from '@/components/Graduation/LevelBadge'
 import NetworkTree, { TREE_PAGE_SIZE, type TreeLoader } from '@/components/Graduation/NetworkTree'
-import DashboardSection from './DashboardSection'
 import {
     commissionCents, formatCents, formatPercent, SOURCE_LABELS,
     type CommissionSource, type MyGraduation as MyGraduationData, type NetworkChild, type PlanType,
@@ -35,9 +35,7 @@ interface MyCommission {
     source_slug: string | null
 }
 
-export default function MyGraduation() {
-    const { colors } = useTheme()
-    const surfaceRgb = hexToRgb(colors.surface)
+export function useMyGraduation() {
     const [data, setData] = useState<MyGraduationData | null>(null)
     const [loading, setLoading] = useState(true)
     const [commissions, setCommissions] = useState<MyCommission[] | null>(null)
@@ -56,19 +54,34 @@ export default function MyGraduation() {
         return () => { cancelled = true }
     }, [])
 
-    // A própria rede: o banco só deixa abrir a própria rede ou a de quem está abaixo de você
+    return { data, loading, commissions }
+}
+
+// A própria rede: o banco só deixa abrir a própria rede ou a de quem está abaixo de você
+export function GraduationTree() {
     const loader = useCallback<TreeLoader>(async (parentId, offset) => {
         const { data: rows, error } = await supabase.rpc('get_network_children', { p_parent: parentId, p_limit: TREE_PAGE_SIZE, p_offset: offset })
         if (error) throw new Error(error.message)
         const list = (rows || []) as NetworkChild[]
         return { children: list, total: Number(list[0]?.total_count ?? 0) }
     }, [])
+    return <NetworkTree rootId={null} loader={loader} rootLabel="Você" />
+}
 
-    if (loading) {
-        return <div className="flex justify-center py-6"><Spinner size={24} color={colors.accent} /></div>
-    }
-    if (!data) return null // ainda sem a migration/sem login: não atrapalha o painel
+function SubTitle({ title, subtitle }: { title: string; subtitle?: string }) {
+    const { colors } = useTheme()
+    return (
+        <div>
+            <h4 className="text-sm font-black" style={{ color: colors.textPrimary }}>{title}</h4>
+            {subtitle && <p className="text-[11px]" style={{ color: colors.textSecondary }}>{subtitle}</p>}
+        </div>
+    )
+}
 
+// Nível, comissões, progresso, escada e histórico
+export function GraduationOverview({ data }: { data: MyGraduationData }) {
+    const { colors } = useTheme()
+    const surfaceRgb = hexToRgb(colors.surface)
     const { level, highest_level: highest, next_level: next } = data
     const isManualAbove = highest.level_order < level.level_order
     const card: React.CSSProperties = {
@@ -102,7 +115,7 @@ export default function MyGraduation() {
     )
 
     return (
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-5">
             <div style={card} className="p-4 flex flex-col gap-4">
                 <div className="flex items-center justify-between gap-3 flex-wrap">
                     <div>
@@ -158,7 +171,8 @@ export default function MyGraduation() {
                 </div>
             </div>
 
-            <DashboardSection storageKey="graduacao-escada" title="Escada de níveis" subtitle="Quanto cada nível paga e quantos indicados pede">
+            <div className="flex flex-col gap-3">
+                <SubTitle title="Escada de níveis" subtitle="Quanto cada nível paga e quantos indicados pede" />
                 <div className="flex flex-col gap-2">
                     {data.levels.map((l) => {
                         const current = l.id === level.id
@@ -180,13 +194,34 @@ export default function MyGraduation() {
                         )
                     })}
                 </div>
-            </DashboardSection>
+            </div>
 
-            <DashboardSection storageKey="graduacao-rede" title="Minha rede" subtitle="Quem você indicou, a graduação de cada um e quem eles indicaram">
-                <NetworkTree rootId={null} loader={loader} rootLabel="Você" />
-            </DashboardSection>
+            {data.history.length > 0 && (
+                <div className="flex flex-col gap-3">
+                    <SubTitle title="Como cheguei até aqui" subtitle="Cada passo da sua graduação" />
+                    <div className="flex flex-col gap-1.5">
+                        {data.history.map((h, i) => (
+                            <div key={i} className="text-xs flex items-baseline justify-between gap-3">
+                                <span style={{ color: colors.textPrimary }}>
+                                    {h.type === 'manual_grant' ? 'Concedido: ' : h.type === 'admin_change' ? 'Ajustado: ' : 'Conquistou '}
+                                    <b>{h.new}</b>{h.reason ? ` — ${h.reason}` : ''}
+                                </span>
+                                <span className="flex-shrink-0" style={{ color: colors.textSecondary }}>{new Date(h.at).toLocaleDateString('pt-BR')}</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+        </div>
+    )
+}
 
-            <DashboardSection storageKey="graduacao-ganhos" title="Minhas comissões" subtitle="O que você ganhou, com a taxa usada em cada venda">
+// Comissões recebidas, com a taxa usada em cada venda
+export function GraduationCommissions({ commissions }: { commissions: MyCommission[] | null }) {
+    const { colors } = useTheme()
+    return (
+        <div className="flex flex-col gap-3">
+                <SubTitle title="Minhas comissões" subtitle="O que você ganhou, com a taxa usada em cada venda" />
                 {commissions === null ? (
                     <div className="flex justify-center py-3"><Spinner size={18} color={colors.accent} /></div>
                 ) : commissions.length === 0 ? (
@@ -209,23 +244,6 @@ export default function MyGraduation() {
                         ))}
                     </div>
                 )}
-            </DashboardSection>
-
-            {data.history.length > 0 && (
-                <DashboardSection storageKey="graduacao-historico" title="Como cheguei até aqui" subtitle="Cada passo da sua graduação">
-                    <div className="flex flex-col gap-1.5">
-                        {data.history.map((h, i) => (
-                            <div key={i} className="text-xs flex items-baseline justify-between gap-3">
-                                <span style={{ color: colors.textPrimary }}>
-                                    {h.type === 'manual_grant' ? 'Concedido: ' : h.type === 'admin_change' ? 'Ajustado: ' : 'Conquistou '}
-                                    <b>{h.new}</b>{h.reason ? ` — ${h.reason}` : ''}
-                                </span>
-                                <span className="flex-shrink-0" style={{ color: colors.textSecondary }}>{new Date(h.at).toLocaleDateString('pt-BR')}</span>
-                            </div>
-                        ))}
-                    </div>
-                </DashboardSection>
-            )}
-        </div>
+            </div>
     )
 }

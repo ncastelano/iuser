@@ -535,7 +535,7 @@ function HomePageContent() {
 
     useEffect(() => {
         const view = searchParams.get('view')
-        // 'rede' era a aba Minha Rede (agora dentro do perfil, em "Convidei para o iUser"): links antigos caem no perfil.
+        // 'rede' era a aba Minha Rede (agora dentro do perfil, em "Minha graduação"): links antigos caem no perfil.
         if (view === 'perfil' || view === 'rede') {
             setShowProfile(true); setShowLogin(false); setShowCreateStore(false); setShowStoreDashboard(null)
         } else if (view === 'login') {

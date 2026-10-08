@@ -203,10 +203,10 @@ export function StoreCard({
                         <p className="text-xs italic line-clamp-2" style={{ color: colors.textPrimary }}>
                             {review.comment ? `“${review.comment}”` : 'Avaliou esta loja'}
                         </p>
-                        <p className="flex items-center gap-1.5 mt-1 text-[11px]" style={{ color: colors.textSecondary }}>
+                        <div className="flex items-center gap-1.5 mt-1 text-[11px]" style={{ color: colors.textSecondary }}>
                             <RatingStars value={review.rating} size={10} />
                             {review.profile_name || 'Cliente'}
-                        </p>
+                        </div>
                     </div>
                 )}
 
