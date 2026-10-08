@@ -59,20 +59,56 @@ export async function POST(req: Request) {
         .slice(-14)
         .map(([date, count]) => ({ date, count }))
 
-    const recent = rows.slice(0, 50)
-    const userIds = [...new Set(recent.map((r) => r.user_id).filter(Boolean))] as string[]
-    let profilesById = new Map<string, { name: string | null; profileSlug: string | null }>()
+    // Visitantes: uma linha por PESSOA (cadastrada, pelo user_id; ou anônima, pelo anonymous_id), em vez de uma
+    // por visita — quem faz muita coisa não repete mais. "Fez" = as últimas páginas em ordem, juntando as
+    // repetidas em seguida (ex: /radar ×3). `rows` já vem do mais recente pro mais antigo.
+    const byVisitor = new Map<string, (typeof rows)>()
+    for (const r of rows) {
+        const key = visitorKey(r)
+        const list = byVisitor.get(key)
+        if (list) list.push(r)
+        else byVisitor.set(key, [r])
+    }
+    const visitorEntries = Array.from(byVisitor.entries()).slice(0, 40) // já ordenado pela visita mais recente
+
+    const userIds = [...new Set(visitorEntries.map(([, v]) => v[0].user_id).filter(Boolean))] as string[]
+    let profilesById = new Map<string, { name: string | null; profileSlug: string | null; avatarUrl: string | null }>()
     if (userIds.length > 0) {
         const { data: profiles } = await supabaseAdmin
             .from('profiles')
-            .select('id, name, profileSlug')
+            .select('id, name, profileSlug, avatar_url')
             .in('id', userIds)
-        profilesById = new Map((profiles || []).map((p) => [p.id, { name: p.name, profileSlug: p.profileSlug }]))
+        profilesById = new Map((profiles || []).map((p) => [p.id, {
+            name: p.name,
+            profileSlug: p.profileSlug,
+            avatarUrl: p.avatar_url
+                ? (p.avatar_url.startsWith('http') ? p.avatar_url : supabaseAdmin.storage.from('avatars').getPublicUrl(p.avatar_url).data.publicUrl)
+                : null,
+        }]))
     }
-    const recentWithProfile = recent.map((r) => ({
-        ...r,
-        profile: r.user_id ? profilesById.get(r.user_id) || null : null,
-    }))
+
+    const visitors = visitorEntries.map(([key, visits]) => {
+        const steps: { path: string; count: number; at: string }[] = []
+        for (const v of visits) {
+            const last = steps[steps.length - 1]
+            if (last && last.path === v.path) last.count += 1
+            else steps.push({ path: v.path, count: 1, at: v.created_at })
+            if (steps.length >= 8) break
+        }
+        const first = visits[0]
+        return {
+            key,
+            userId: first.user_id,
+            anonymousId: first.anonymous_id,
+            profile: first.user_id ? profilesById.get(first.user_id) || null : null,
+            visits: visits.length,
+            lastSeen: first.created_at,
+            firstSeen: visits[visits.length - 1].created_at,
+            online: first.created_at >= onlineSince,
+            referrer: visits.find((v) => v.referrer)?.referrer || null,
+            steps,
+        }
+    })
 
     return NextResponse.json({
         onlineNow: onlineSet.size,
@@ -84,6 +120,7 @@ export async function POST(req: Request) {
         totalVisits30d: rows.length,
         topPaths,
         daily,
-        recent: recentWithProfile,
+        visitors,
+        visitorsTotal: byVisitor.size,
     })
 }
