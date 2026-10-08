@@ -35,6 +35,7 @@ import {
 } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import { toast } from 'sonner'
+import { checkSlugAvailability, sanitizeSlug, RESERVED_SLUGS } from '@/lib/slugUtils'
 import { getDeviceId } from '@/lib/deviceId'
 import { isCpfCnpjTaken, CPF_CNPJ_TAKEN_MESSAGE } from '@/lib/checkCpfCnpjAvailable'
 
@@ -127,6 +128,12 @@ function RegisterContent() {
   const [registered, setRegistered] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
+  // O link acompanha o nome enquanto a pessoa não mexer nele; depois que ela edita, deixamos em paz.
+  const [slugTouched, setSlugTouched] = useState(false)
+  const [slugState, setSlugState] = useState<'idle' | 'checking' | 'ok' | 'taken'>('idle')
+  const [slugMessage, setSlugMessage] = useState<string | null>(null)
+  const [slugSuggestions, setSlugSuggestions] = useState<string[]>([])
+  const [slugSimilar, setSlugSimilar] = useState<string[]>([])
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
   const avatarInputRef = useRef<HTMLInputElement>(null)
@@ -189,6 +196,68 @@ function RegisterContent() {
 
     return () => clearInterval(interval)
   }, [storeWords.length, actionWords.length, taxWords.length])
+
+  // Disponibilidade do link: se já existir (perfil, loja ou palavra reservada) — ou se houver links PARECIDOS
+  // (o mesmo texto sem hífen, ou começando igual) — mostra o aviso e sugestões livres
+  useEffect(() => {
+    const slug = profileSlug.trim()
+    if (!slug) {
+      setSlugState('idle')
+      setSlugMessage(null)
+      setSlugSuggestions([])
+      setSlugSimilar([])
+      return
+    }
+    setSlugState('checking')
+    let cancelled = false
+    const timer = setTimeout(async () => {
+      const noHyphen = slug.replace(/-/g, '')
+      const [result, profs, stores] = await Promise.all([
+        checkSlugAvailability(slug, { skipProductCheck: true }),
+        supabase.from('profiles').select('profileSlug').or(`profileSlug.ilike.${noHyphen}*,profileSlug.ilike.${slug}*`).limit(5),
+        supabase.from('stores').select('storeSlug').or(`storeSlug.ilike.${noHyphen}*,storeSlug.ilike.${slug}*`).limit(5),
+      ])
+      if (cancelled) return
+      const similar = Array.from(new Set([
+        ...(profs.data || []).map((r: any) => r.profileSlug as string),
+        ...(stores.data || []).map((r: any) => r.storeSlug as string),
+      ])).filter((x) => x && x !== slug).slice(0, 3)
+      setSlugSimilar(similar)
+
+      if (result.available) {
+        setSlugState('ok')
+        setSlugMessage(null)
+      } else {
+        setSlugState('taken')
+        setSlugMessage(result.message || 'Este link já está em uso.')
+      }
+      if (result.available && similar.length === 0) {
+        setSlugSuggestions([])
+        return
+      }
+
+      // Sugestões livres: sem hífen, inicial do sobrenome, nome+sobrenome colado e números (-1, -2...).
+      // Tudo conferido de uma vez só (uma consulta por tabela), não uma sugestão por vez.
+      const parts = sanitizeSlug(name).split('-').filter(Boolean)
+      const candidates = Array.from(new Set([
+        noHyphen,
+        parts.length > 1 ? `${parts[0]}-${parts[parts.length - 1][0]}` : '',
+        parts.length > 1 ? `${parts[0]}${parts[parts.length - 1]}` : '',
+        ...[1, 2, 3, 4, 5, 6].map((n) => `${slug}-${n}`),
+      ])).filter((c) => c && c !== slug && !similar.includes(c) && !RESERVED_SLUGS.has(c))
+      const [takenProfs, takenStores] = await Promise.all([
+        supabase.from('profiles').select('profileSlug').in('profileSlug', candidates),
+        supabase.from('stores').select('storeSlug').in('storeSlug', candidates),
+      ])
+      if (cancelled) return
+      const taken = new Set([
+        ...(takenProfs.data || []).map((r: any) => r.profileSlug as string),
+        ...(takenStores.data || []).map((r: any) => r.storeSlug as string),
+      ])
+      setSlugSuggestions(candidates.filter((c) => !taken.has(c)).slice(0, 5))
+    }, 500)
+    return () => { cancelled = true; clearTimeout(timer) }
+  }, [profileSlug, name])
 
   // Item da lista de obrigatoriedades (mesmo desenho do "Criar loja"): verde = ok, vermelho = falta
   const rule = (label: string, ok: boolean) => (
@@ -580,14 +649,14 @@ function RegisterContent() {
                   </button>
                 </div>
                 <span className="text-[10px] font-bold" style={{ color: textSecondary }}>
-                  Foto de perfil (obrigatória)
+                  Foto de perfil <span className="text-red-500">*</span>
                 </span>
               </div>
 
               <div className="space-y-1">
                 <label className="text-[10px] font-black uppercase tracking-wider flex items-center gap-2" style={{ color: textSecondary }}>
                   <User className="w-3.5 h-3.5" style={{ color: accentColor }} />
-                  Nome
+                  Nome <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -600,7 +669,11 @@ function RegisterContent() {
                   } as React.CSSProperties}
                   placeholder="Como você quer ser chamado?"
                   value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  onChange={(e) => {
+                    setName(e.target.value)
+                    // Enquanto o link não foi editado à mão, ele segue o nome
+                    if (!slugTouched) setProfileSlug(sanitizeSlug(e.target.value))
+                  }}
                   required
                   disabled={loading}
                 />
@@ -609,7 +682,7 @@ function RegisterContent() {
               <div className="space-y-1">
                 <label className="text-[10px] font-black uppercase tracking-wider flex items-center gap-2" style={{ color: textSecondary }}>
                   <LinkIcon className="w-3.5 h-3.5" style={{ color: accentColor }} />
-                  Seu link
+                  Seu link <span className="text-red-500">*</span>
                 </label>
                 <div
                   className="flex items-center rounded-xl transition-all overflow-hidden focus-within:ring-2"
@@ -631,20 +704,55 @@ function RegisterContent() {
                     }}
                     placeholder="seu-nome"
                     value={profileSlug}
-                    onChange={(e) => setProfileSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                    onChange={(e) => {
+                      setSlugTouched(true)
+                      setProfileSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))
+                    }}
                     required
                     disabled={loading}
                   />
                 </div>
                 <p className="text-[10px]" style={{ color: textSecondary }}>
                   Seu link público: <span className="font-mono font-bold" style={{ color: accentColor }}>/{profileSlug || "seu-nome"}</span>
+                  {slugState === 'checking' && <span> · verificando...</span>}
+                  {slugState === 'ok' && <span className="font-bold text-green-500"> · disponível</span>}
                 </p>
+                {(slugState === 'taken' || slugSimilar.length > 0) && (
+                  <div className="space-y-1.5">
+                    {slugState === 'taken' ? (
+                      <p className="text-[10px] font-bold text-red-400">{slugMessage} Que tal um destes?</p>
+                    ) : (
+                      <p className="text-[10px] font-bold" style={{ color: textSecondary }}>
+                        Já existem links parecidos: {slugSimilar.map((x) => `/${x}`).join(', ')}.
+                        {slugSuggestions.length > 0 ? ' Se quiser um bem seu, que tal um destes?' : ''}
+                      </p>
+                    )}
+                    {slugState === 'taken' && slugSimilar.length > 0 && (
+                      <p className="text-[10px]" style={{ color: textSecondary }}>Parecidos já existentes: {slugSimilar.map((x) => `/${x}`).join(', ')}.</p>
+                    )}
+                    {slugSuggestions.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {slugSuggestions.map((sug) => (
+                          <button
+                            key={sug}
+                            type="button"
+                            onClick={() => { setSlugTouched(true); setProfileSlug(sug) }}
+                            className="px-2.5 py-1 rounded-full text-[11px] font-mono font-bold transition-transform active:scale-95 hover:scale-105"
+                            style={{ background: `${accentColor}15`, border: `1px solid ${accentColor}50`, color: accentColor }}
+                          >
+                            /{sug}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="space-y-1">
                 <label className="text-[10px] font-black uppercase tracking-wider flex items-center gap-2" style={{ color: textSecondary }}>
                   <Mail className="w-3.5 h-3.5" style={{ color: accentColor }} />
-                  E-mail
+                  E-mail <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="email"
@@ -666,7 +774,7 @@ function RegisterContent() {
               <div className="space-y-1">
                 <label className="text-[10px] font-black uppercase tracking-wider flex items-center gap-2" style={{ color: textSecondary }}>
                   <IdCard className="w-3.5 h-3.5" style={{ color: accentColor }} />
-                  CPF ou CNPJ
+                  CPF ou CNPJ <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -693,7 +801,7 @@ function RegisterContent() {
                 <div className="space-y-1">
                   <label className="text-[10px] font-black uppercase tracking-wider flex items-center gap-2" style={{ color: textSecondary }}>
                     <Lock className="w-3.5 h-3.5" style={{ color: accentColor }} />
-                    Senha
+                    Senha <span className="text-red-500">*</span>
                   </label>
                   <div className="relative">
                     <input
@@ -726,7 +834,7 @@ function RegisterContent() {
                 <div className="space-y-1">
                   <label className="text-[10px] font-black uppercase tracking-wider flex items-center gap-2" style={{ color: textSecondary }}>
                     <Lock className="w-3.5 h-3.5" style={{ color: accentColor }} />
-                    Confirmar
+                    Confirmar <span className="text-red-500">*</span>
                   </label>
                   <div className="relative">
                     <input
@@ -789,7 +897,7 @@ function RegisterContent() {
             <div className="flex flex-wrap gap-3 justify-center text-[9px]" style={{ color: textSecondary }}>
               {rule('Foto', !!avatarFile)}
               {rule('Nome', name.trim().length > 1)}
-              {rule('Link', /^[a-z0-9-]+$/.test(profileSlug))}
+              {rule('Link', /^[a-z0-9-]+$/.test(profileSlug) && slugState !== 'taken')}
               {rule('E-mail', /\S+@\S+\.\S+/.test(email))}
               {rule('CPF/CNPJ', [11, 14].includes(cpfCnpj.replace(/\D/g, '').length))}
               {rule('Senha', password.length >= 6)}
