@@ -43,7 +43,7 @@ import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import Header from '@/components/Header' // ajuste o caminho conforme necessário
 import PlanAvatarRing from '@/components/PlanAvatarRing'
-import { avatarOwnerIdFromUrl } from '@/lib/avatar'
+import { useProfilesById } from '@/hooks/useProfilesById'
 
 type BgMode = 'animated' | 'black' | 'custom'
 
@@ -167,29 +167,6 @@ function SenderName({ ownerSlug }: { ownerSlug: string }) {
     return <span style={{ opacity: 0.5 }}>@{ownerSlug}</span>
 }
 
-/* Primeiro nome de quem está do outro lado do convite (cache simples pra não repetir a consulta). */
-const firstNameCache = new Map<string, string | null>()
-function PersonFirstName({ slug }: { slug: string }) {
-    const [name, setName] = useState<string | null>(() => firstNameCache.get(slug) ?? null)
-    useEffect(() => {
-        if (!slug || firstNameCache.has(slug)) { setName(firstNameCache.get(slug) ?? null); return }
-        let cancelled = false
-        supabase
-            .from('profiles')
-            .select('name')
-            .eq('profileSlug', slug)
-            .maybeSingle()
-            .then(({ data }) => {
-                const first = (data?.name || '').trim().split(' ')[0] || null
-                firstNameCache.set(slug, first)
-                if (!cancelled) setName(first)
-            })
-        return () => { cancelled = true }
-    }, [slug])
-    if (name) return <>{name}</>
-    return <>@{slug}</>
-}
-
 /* ===================================================
    Funções auxiliares
    =================================================== */
@@ -264,6 +241,8 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
     // Movida para antes do uso
 
     const { appointments, loading, error, refetch } = useAppointments()
+    // Foto/nome ATUAIS de todo mundo que aparece nos cards (a cópia salva no agendamento fica velha)
+    const people = useProfilesById(appointments.flatMap((a) => [a.customer_id, a.owner_id, a.provider_profile_id]))
     const { updateStatus } = useUpdateAppointmentStatus()
     const { deleteAppointment } = useDeleteAppointment()
 
@@ -718,34 +697,46 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
         if (store?.storeSlug) router.push(`/compromissos/${store.storeSlug}`)
     }
 
+    // Quem aparece no card: nas agendas de loja e de clientes, o CLIENTE; em "Meus compromissos", a outra pessoa
+    // (quem me convidou / quem eu convidei) — ou nenhuma, se for compromisso só meu ou numa loja (aí vai o logo).
+    const personIdOf = (a: Appointment): string | null => {
+        if (activeTab !== 'pessoal') return a.customer_id || null
+        if (a.store_id) return null
+        if (a.owner_id && a.owner_id !== userId) return a.owner_id
+        if (a.provider_profile_id && a.provider_profile_id !== userId) return a.provider_profile_id
+        return null
+    }
+
     const getAvatarType = (appointment: Appointment): 'store' | 'personal' | 'invite' => {
-        if (appointment.store_id) {
-            if (userId && appointment.customer_id === userId) {
-                return 'store'
-            } else {
-                return 'invite'
-            }
-        }
-        if (appointment.direction) return 'invite'
-        return 'personal'
+        if (activeTab !== 'pessoal') return 'invite'
+        if (appointment.store_id) return 'store'
+        return personIdOf(appointment) ? 'invite' : 'personal'
     }
 
     const getAvatarUrl = (appointment: Appointment, type: 'store' | 'personal' | 'invite'): string | null => {
         if (type === 'store') return getPublicUrl(appointment.store_logo_url, 'store-logos')
-        if (type === 'invite') return getPublicUrl(appointment.customer_avatar_url, 'avatars')
+        if (type === 'invite') {
+            const id = personIdOf(appointment)
+            return (id && people.get(id)?.avatarUrl) || null
+        }
         return getPublicUrl(userAvatarUrl, 'avatars')
     }
 
     // Convite entre duas pessoas (sem loja/prestador): o card diz "Você e Fulano" em vez de só "Convite".
     const isPersonInvite = (a: Appointment, type: 'store' | 'personal' | 'invite') =>
         type === 'invite' && !a.store_id && activeTab === 'pessoal'
-    const otherPersonSlug = (a: Appointment) => (a.owner_id === userId ? a.customer_slug : a.owner_slug) || a.owner_slug || a.customer_slug
+    // Nome da pessoa do card (atual); cai pro @ se o perfil ainda não carregou
+    const personName = (a: Appointment) => {
+        const id = personIdOf(a)
+        const info = id ? people.get(id) : null
+        return info?.name || (id === a.customer_id ? a.customer_slug : a.owner_slug) || ''
+    }
     const inviteReason = (a: Appointment) => {
         const t = (a.service_name || '').trim()
         return ['', 'convite', 'compromisso'].includes(t.toLowerCase()) ? null : t
     }
     const cardTitle = (a: Appointment, type: 'store' | 'personal' | 'invite'): React.ReactNode =>
-        isPersonInvite(a, type) ? <>Você e <PersonFirstName slug={otherPersonSlug(a)} /></> : a.service_name
+        isPersonInvite(a, type) ? <>Você e {(personName(a) || '').trim().split(' ')[0] || 'convidado'}</> : a.service_name
     const inviteLine = (a: Appointment) => {
         const reason = inviteReason(a)
         return reason ? `Motivo: ${reason}` : 'Encontro marcado entre vocês dois'
@@ -754,7 +745,7 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
     // Quem aparece na foto: a outra pessoa (convite), você (pessoal) ou ninguém (loja) — pra borda do avatar.
     const getAvatarOwnerId = (appointment: Appointment, type: 'store' | 'personal' | 'invite'): string | null => {
         if (type === 'store') return null
-        if (type === 'invite') return avatarOwnerIdFromUrl(appointment.customer_avatar_url)
+        if (type === 'invite') return personIdOf(appointment)
         return userId || null
     }
 
@@ -926,7 +917,7 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
                                                             </div>
                                                             <p style={{ color: colors.textSecondary, fontSize: 14, marginTop: 2, display: 'flex', alignItems: 'center', gap: 4 }}>
                                                                 {avatarType === 'store' && <><Store size={12} /> {comp.store_name}</>}
-                                                                {avatarType === 'invite' && (isPersonInvite(comp, avatarType) ? <><Users size={12} /> {inviteLine(comp)}</> : <><User size={12} /> Convite</>)}
+                                                                {avatarType === 'invite' && (isPersonInvite(comp, avatarType) ? <><Users size={12} /> {inviteLine(comp)}</> : <><User size={12} /> {activeTab !== 'pessoal' ? `Cliente: ${personName(comp)}` : 'Convite'}</>)}
                                                                 {avatarType === 'personal' && <><Lock size={12} /> Compromisso pessoal</>}
                                                             </p>
                                                             {!isPersonInvite(comp, avatarType) && <ParticipantsMini participants={compParticipants} />}
@@ -1055,7 +1046,7 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
                                                             </div>
                                                             <span style={{ fontWeight: 700, color: evento.status === 'confirmed' ? '#10b981' : '#facc15' }}>{evento.status === 'confirmed' ? 'Confirmado' : 'Pendente'}</span>
                                                         </div>
-                                                        <p style={{ color: colors.textSecondary, marginTop: 2 }}>{avatarType === 'store' ? evento.store_name : avatarType === 'invite' ? (isPersonInvite(evento, avatarType) ? inviteLine(evento) : 'Convite') : 'Compromisso pessoal'}</p>
+                                                        <p style={{ color: colors.textSecondary, marginTop: 2 }}>{avatarType === 'store' ? evento.store_name : avatarType === 'invite' ? (isPersonInvite(evento, avatarType) ? inviteLine(evento) : activeTab !== 'pessoal' ? `Cliente: ${personName(evento)}` : 'Convite') : 'Compromisso pessoal'}</p>
                                                         <div style={{ display: 'flex', gap: 12, marginTop: 8, alignItems: 'center', color: colors.textSecondary }}>
                                                             <Clock3 size={14} />
                                                             <span>{evento.date.split('-').reverse().join('/')} • {formatTime(evento.time)}</span>
@@ -1091,7 +1082,7 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
                                                 </div>
                                                 <p style={{ color: colors.textSecondary, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 4 }}>
                                                     {avatarType === 'store' && <><Store size={14} /> {evento.store_name}</>}
-                                                    {avatarType === 'invite' && (isPersonInvite(evento, avatarType) ? <><Users size={14} /> {inviteLine(evento)}</> : <><User size={14} /> Convite</>)}
+                                                    {avatarType === 'invite' && (isPersonInvite(evento, avatarType) ? <><Users size={14} /> {inviteLine(evento)}</> : <><User size={14} /> {activeTab !== 'pessoal' ? `Cliente: ${personName(evento)}` : 'Convite'}</>)}
                                                     {avatarType === 'personal' && <><Lock size={14} /> Compromisso pessoal</>}
                                                 </p>
                                                 <div style={{ fontSize: 20, fontWeight: 800, color: colors.accent, marginBottom: 8 }}>{formatTime(evento.time)}</div>
@@ -1120,10 +1111,10 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
                                     pendentesLoja.map((agendamento) => (
                                         <div key={agendamento.id} style={{ ...cardStyle, padding: 16, marginBottom: 12 }}>
                                             <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-                                                <AppointmentAvatar userId={agendamento.store_id ? null : avatarOwnerIdFromUrl(agendamento.customer_avatar_url)} url={agendamento.store_id ? (agendamento.store_logo_url ?? null) : getPublicUrl(agendamento.customer_avatar_url, 'avatars')} name={agendamento.store_id ? (agendamento.store_name || 'Loja') : (agendamento.customer_slug || 'Cliente')} type={agendamento.store_id ? 'store' : 'invite'} size={56} colors={colors} />
+                                                <AppointmentAvatar userId={personIdOf(agendamento)} url={getAvatarUrl(agendamento, 'invite')} name={personName(agendamento) || 'Cliente'} type="invite" size={56} colors={colors} />
                                                 <div style={{ flex: 1 }}>
                                                     <h3 style={{ fontWeight: 800, fontSize: 16, color: colors.textPrimary }}>{agendamento.service_name}</h3>
-                                                    <p style={{ color: colors.textSecondary, fontSize: 14, marginTop: 2 }}>Cliente: @{agendamento.customer_slug}</p>
+                                                    <p style={{ color: colors.textSecondary, fontSize: 14, marginTop: 2 }}>Cliente: {personName(agendamento)} · @{agendamento.customer_slug}</p>
                                                     <div style={{ display: 'flex', gap: 12, marginTop: 8, alignItems: 'center', color: colors.textSecondary }}>
                                                         <Clock3 size={14} />
                                                         <span>{agendamento.date.split('-').reverse().join('/')} • {formatTime(agendamento.time)}</span>
@@ -1167,7 +1158,7 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
                                                         <h3 style={{ fontWeight: 800, fontSize: 18, color: colors.textPrimary }}>{cardTitle(item, avatarType)}</h3>
                                                         {item.is_public !== undefined && !isPersonInvite(item, avatarType) && <VisibilityBadge isPublic={item.is_public} />}
                                                     </div>
-                                                    <p style={{ color: colors.textSecondary, marginTop: 4 }}>{avatarType === 'store' ? item.store_name : activeTab === 'agenda-perfil' ? `Cliente: @${item.customer_slug}` : avatarType === 'invite' ? (isPersonInvite(item, avatarType) ? inviteLine(item) : 'Convite') : 'Compromisso pessoal'}</p>
+                                                    <p style={{ color: colors.textSecondary, marginTop: 4 }}>{avatarType === 'store' ? item.store_name : activeTab !== 'pessoal' ? `Cliente: ${personName(item)}` : avatarType === 'invite' ? (isPersonInvite(item, avatarType) ? inviteLine(item) : 'Convite') : 'Compromisso pessoal'}</p>
                                                     <div style={{ display: 'flex', gap: 12, marginTop: 10, alignItems: 'center', color: colors.textSecondary }}>
                                                         <Clock3 size={16} />
                                                         <span>{displayDate} • {formatTime(item.time)}</span>
@@ -1239,7 +1230,7 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
                                             <AppointmentAvatar userId={getAvatarOwnerId(item, avatarType)} url={avatarUrl} name={avatarType === 'store' ? item.store_name || 'Loja' : avatarType === 'invite' ? 'Convite' : 'Pessoal'} type={avatarType} size={56} colors={colors} />
                                             <div style={{ flex: 1 }}>
                                                 <h4 style={{ fontWeight: 800, fontSize: 16 }}>{cardTitle(item, avatarType)}</h4>
-                                                <p style={{ color: '#94a3b8', marginTop: 2 }}>{avatarType === 'store' ? item.store_name : avatarType === 'invite' ? (isPersonInvite(item, avatarType) ? inviteLine(item) : 'Convite') : 'Compromisso pessoal'}</p>
+                                                <p style={{ color: '#94a3b8', marginTop: 2 }}>{avatarType === 'store' ? item.store_name : avatarType === 'invite' ? (isPersonInvite(item, avatarType) ? inviteLine(item) : activeTab !== 'pessoal' ? `Cliente: ${personName(item)}` : 'Convite') : 'Compromisso pessoal'}</p>
                                                 <div style={{ display: 'flex', gap: 12, marginTop: 8, alignItems: 'center', color: '#94a3b8' }}>
                                                     <Clock3 size={14} />
                                                     <span>{displayDate} • {formatTime(item.time)}</span>
