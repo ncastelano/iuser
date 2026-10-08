@@ -47,6 +47,7 @@ import {
     type GrantablePlan,
     type MyStatus,
 } from '@/lib/benefits/types'
+import PlanAvatarRing from '@/components/PlanAvatarRing'
 
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
@@ -930,6 +931,7 @@ export default function Commission({ userId, profileSlug, onLatestUpdate }: Comm
                                                         }
                                                     }}
                                                 >
+                                                    <PlanAvatarRing userId={member.id}>
                                                     <div
                                                         className="w-12 h-12 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0"
                                                         style={{ background: `${accentColor}15` }}
@@ -944,6 +946,7 @@ export default function Commission({ userId, profileSlug, onLatestUpdate }: Comm
                                                             <User size={22} style={{ color: '#f97316' }} />
                                                         )}
                                                     </div>
+                                                    </PlanAvatarRing>
 
                                                     <div className="flex-1 min-w-0">
                                                         <p className="text-sm font-bold truncate" style={{ color: textPrimary }}>
@@ -1110,9 +1113,11 @@ export default function Commission({ userId, profileSlug, onLatestUpdate }: Comm
                                                                         className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-black/5"
                                                                         style={{ borderBottom: `1px solid ${borderColor}` }}
                                                                     >
+                                                                        <PlanAvatarRing userId={r.id}>
                                                                         <span className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0" style={{ background: `${borderColor}40` }}>
                                                                             {avatar && <img src={avatar} alt="" className="w-full h-full object-cover" />}
                                                                         </span>
+                                                                        </PlanAvatarRing>
                                                                         <span className="min-w-0">
                                                                             <span className="block text-sm font-bold truncate" style={{ color: textPrimary }}>{r.name || `@${r.profile_slug}`}</span>
                                                                             {r.profile_slug && <span className="block text-[11px]" style={{ color: textSecondary }}>@{r.profile_slug}</span>}

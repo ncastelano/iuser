@@ -10,6 +10,7 @@ import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { hexToRgb } from '@/lib/color'
+import PlanAvatarRing from '@/components/PlanAvatarRing'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -609,6 +610,7 @@ export default function AtalhoCompromissosPessoal({
 
                                             {profileSlugTarget ? (
                                                 <Link href={`/${profileSlugTarget}`} onClick={(e) => e.stopPropagation()} className="flex-shrink-0">
+                                                    <PlanAvatarRing userId={appointment.direction === 'incoming' || appointment.direction === 'outgoing' ? appointment.customer_id : userId}>
                                                     {avatarUrl ? (
                                                         <img src={avatarUrl} alt="" className="w-11 h-11 rounded-full object-cover" />
                                                     ) : (
@@ -622,9 +624,11 @@ export default function AtalhoCompromissosPessoal({
                                                             <User size={22} />
                                                         </div>
                                                     )}
+                                                    </PlanAvatarRing>
                                                 </Link>
                                             ) : (
                                                 <div className="flex-shrink-0">
+                                                    <PlanAvatarRing userId={appointment.direction === 'incoming' || appointment.direction === 'outgoing' ? appointment.customer_id : userId}>
                                                     {avatarUrl ? (
                                                         <img src={avatarUrl} alt="" className="w-11 h-11 rounded-full object-cover" />
                                                     ) : (
@@ -638,6 +642,7 @@ export default function AtalhoCompromissosPessoal({
                                                             <User size={22} />
                                                         </div>
                                                     )}
+                                                    </PlanAvatarRing>
                                                 </div>
                                             )}
 

@@ -69,6 +69,37 @@ export function PlanRingFrame({ children, width = 2, radius = 'full', className 
     )
 }
 
+/** Borda por DENTRO de um card/foto que ocupa o quadrado todo (o pai precisa ser `relative` e `overflow-hidden`).
+ *  Gira trocando o ângulo do gradiente (e não rotacionando o quadrado, que sairia do card). */
+export function PlanRingInset({ userId, width = 3, radius = '12px' }: { userId?: string | null; width?: number; radius?: string }) {
+    const colors = useAvatarBorder(userId)
+    if (!colors) return null
+    const stops = [...colors, colors[0]].map((c, i) => `${c} ${Math.round((i / colors.length) * 360)}deg`).join(', ')
+    return (
+        <>
+            <span
+                aria-hidden
+                className="plan-ring-inset pointer-events-none absolute inset-0 z-10"
+                style={{
+                    borderRadius: radius,
+                    padding: width,
+                    background: `conic-gradient(from var(--plan-ring-angle), ${stops})`,
+                    WebkitMask: 'linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)',
+                    WebkitMaskComposite: 'xor',
+                    mask: 'linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)',
+                    maskComposite: 'exclude',
+                }}
+            />
+            <style>{`
+                @property --plan-ring-angle { syntax: '<angle>'; initial-value: 0deg; inherits: false; }
+                @keyframes planRingInset { to { --plan-ring-angle: 360deg; } }
+                .plan-ring-inset { animation: planRingInset 2.4s linear infinite; }
+                @media (prefers-reduced-motion: reduce) { .plan-ring-inset { animation: none; } }
+            `}</style>
+        </>
+    )
+}
+
 export default function PlanAvatarRing({ userId, children, width = 2, radius = 'full', className = '' }: PlanAvatarRingProps) {
     const colors = useAvatarBorder(userId)
     if (!colors) return <>{children}</>

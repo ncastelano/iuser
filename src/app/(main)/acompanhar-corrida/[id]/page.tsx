@@ -10,6 +10,7 @@ import { useParams } from 'next/navigation'
 import { useTheme } from '@/app/contexts/theme'
 import { Spinner } from '@/components/Spinner'
 import { MapPin, Car, CheckCircle2, Clock, XCircle, Navigation, ShieldCheck } from 'lucide-react'
+import PlanAvatarRing from '@/components/PlanAvatarRing'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -28,6 +29,7 @@ interface RideShareData {
     rideStartedAt: string | null
     createdAt: string
     driver: {
+        id?: string
         name: string | null
         avatarUrl: string | null
         carModel: string | null
@@ -158,6 +160,7 @@ export default function AcompanharCorridaPage() {
                         className="rounded-2xl p-4 flex items-center gap-3"
                         style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
                     >
+                        <PlanAvatarRing userId={data.driver.id}>
                         {data.driver.avatarUrl ? (
                             <img src={data.driver.avatarUrl} className="w-12 h-12 rounded-full object-cover flex-shrink-0" alt="" />
                         ) : (
@@ -165,6 +168,7 @@ export default function AcompanharCorridaPage() {
                                 {(data.driver.name || '?').charAt(0).toUpperCase()}
                             </span>
                         )}
+                        </PlanAvatarRing>
                         <div className="min-w-0 flex-1">
                             <p className="text-sm font-black truncate" style={{ color: colors.textPrimary }}>
                                 {data.driver.name || 'Motorista'}

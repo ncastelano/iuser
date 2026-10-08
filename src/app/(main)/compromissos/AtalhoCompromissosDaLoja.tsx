@@ -10,6 +10,7 @@ import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { hexToRgb } from '@/lib/color'
+import PlanAvatarRing from '@/components/PlanAvatarRing'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -431,6 +432,7 @@ export default function AtalhoCompromissosDaLoja({
                                             {/* Avatar do cliente - arredondado */}
                                             {customerSlug ? (
                                                 <Link href={`/${customerSlug}`} onClick={(e) => e.stopPropagation()} className="flex-shrink-0">
+                                                    <PlanAvatarRing userId={appointment.customer_id}>
                                                     {avatarUrl ? (
                                                         <img src={avatarUrl} alt="" className="w-11 h-11 rounded-full object-cover" />
                                                     ) : (
@@ -444,9 +446,11 @@ export default function AtalhoCompromissosDaLoja({
                                                             <User size={22} />
                                                         </div>
                                                     )}
+                                                    </PlanAvatarRing>
                                                 </Link>
                                             ) : (
                                                 <div className="flex-shrink-0">
+                                                    <PlanAvatarRing userId={appointment.customer_id}>
                                                     {avatarUrl ? (
                                                         <img src={avatarUrl} alt="" className="w-11 h-11 rounded-full object-cover" />
                                                     ) : (
@@ -460,6 +464,7 @@ export default function AtalhoCompromissosDaLoja({
                                                             <User size={22} />
                                                         </div>
                                                     )}
+                                                    </PlanAvatarRing>
                                                 </div>
                                             )}
 

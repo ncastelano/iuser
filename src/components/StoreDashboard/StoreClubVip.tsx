@@ -19,6 +19,7 @@ import {
     Receipt,
 } from 'lucide-react'
 import { generateUniqueGlobalSlug } from '@/lib/slugUtils'
+import PlanAvatarRing from '@/components/PlanAvatarRing'
 
 interface StoreClubVipProps {
     storeId: string
@@ -367,9 +368,11 @@ export default function StoreClubVip({ storeId }: StoreClubVipProps) {
                                                         const avatarUrl = getImageUrl(m.profiles?.avatar_url || null)
                                                         return (
                                                             <div key={m.id} className="flex items-center gap-2 pr-3 rounded-full" style={{ background: `${colors.border}20` }}>
+                                                                <PlanAvatarRing userId={m.profile_id}>
                                                                 <div className="w-7 h-7 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0" style={{ background: `${colors.accent}20` }}>
                                                                     {avatarUrl ? <img src={avatarUrl} className="w-full h-full object-cover" alt="" /> : <Users size={12} style={{ color: colors.accent }} />}
                                                                 </div>
+                                                                </PlanAvatarRing>
                                                                 <span className="text-[11px] font-bold" style={{ color: textPrimary }}>
                                                                     {m.profiles?.name || (m.profiles?.profileSlug ? `@${m.profiles.profileSlug}` : 'Membro')}
                                                                 </span>

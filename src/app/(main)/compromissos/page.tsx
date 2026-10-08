@@ -41,6 +41,7 @@ import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import Header from '@/components/Header' // ajuste o caminho conforme necessário
+import PlanAvatarRing from '@/components/PlanAvatarRing'
 
 type BgMode = 'animated' | 'black' | 'custom'
 
@@ -67,7 +68,16 @@ function ProfileName({ slug }: { slug: string }) {
 /* ===================================================
    Avatar adaptável
    =================================================== */
-function AppointmentAvatar({
+function AppointmentAvatar({ userId, ...props }: Parameters<typeof AppointmentAvatarBase>[0] & { userId?: string | null }) {
+    const radius = (props.size ?? 72) > 56 ? '18px' : '16px'
+    return (
+        <PlanAvatarRing userId={userId} radius={radius}>
+            <AppointmentAvatarBase {...props} />
+        </PlanAvatarRing>
+    )
+}
+
+function AppointmentAvatarBase({
     url,
     name,
     type,
@@ -674,6 +684,13 @@ export default function CompromissosPage() {
         return getPublicUrl(userAvatarUrl, 'avatars')
     }
 
+    // Quem aparece na foto: a outra pessoa (convite), você (pessoal) ou ninguém (loja) — pra borda do avatar.
+    const getAvatarOwnerId = (appointment: Appointment, type: 'store' | 'personal' | 'invite'): string | null => {
+        if (type === 'store') return null
+        if (type === 'invite') return appointment.customer_id || null
+        return userId || null
+    }
+
     // Estilos do tema
     const cardStyle = {
         background: `rgba(${hexToRgb(colors.surface).r}, ${hexToRgb(colors.surface).g}, ${hexToRgb(colors.surface).b}, 0.6)`,
@@ -730,7 +747,7 @@ export default function CompromissosPage() {
                                         return (
                                             <div key={convite.id} style={{ ...cardStyle, padding: 16, marginBottom: 12 }}>
                                                 <div style={{ display: 'flex', gap: 16 }}>
-                                                    <AppointmentAvatar url={avatarUrl} name={avatarType === 'store' ? convite.store_name || 'Loja' : 'Convite'} type={avatarType === 'store' ? 'store' : 'invite'} size={56} colors={colors} />
+                                                    <AppointmentAvatar userId={getAvatarOwnerId(convite, avatarType === 'store' ? 'store' : 'invite')} url={avatarUrl} name={avatarType === 'store' ? convite.store_name || 'Loja' : 'Convite'} type={avatarType === 'store' ? 'store' : 'invite'} size={56} colors={colors} />
                                                     <div style={{ flex: 1 }}>
                                                         <h3 style={{ fontWeight: 800, color: colors.textPrimary }}>{convite.service_name}</h3>
                                                         <p style={{ marginTop: 4, fontSize: 14, color: colors.textSecondary }}>de <SenderName ownerSlug={convite.owner_slug} /></p>
@@ -790,7 +807,7 @@ export default function CompromissosPage() {
                                                 position: 'relative', cursor: 'pointer', transition: 'all 0.2s',
                                             }}>
                                                 {isFirst && <div style={{ position: 'absolute', top: -10, left: -10, background: colors.accent, borderRadius: 20, padding: '2px 10px', color: colors.accentText, fontWeight: 700, fontSize: 12, boxShadow: `0 4px 10px ${colors.accent}80` }}>{remaining}</div>}
-                                                <AppointmentAvatar url={avatarUrl} name={avatarType === 'store' ? comp.store_name || 'Loja' : avatarType === 'invite' ? 'Convite' : 'Pessoal'} type={avatarType} size={56} colors={colors} />
+                                                <AppointmentAvatar userId={getAvatarOwnerId(comp, avatarType)} url={avatarUrl} name={avatarType === 'store' ? comp.store_name || 'Loja' : avatarType === 'invite' ? 'Convite' : 'Pessoal'} type={avatarType} size={56} colors={colors} />
                                                 <div style={{ flex: 1 }}>
                                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                                         <div>
@@ -922,7 +939,7 @@ export default function CompromissosPage() {
                                             const avatarUrl = getAvatarUrl(evento, avatarType)
                                             return (
                                                 <div key={evento.id} style={{ ...cardStyle, padding: 16, marginBottom: 12, display: 'flex', gap: 16, alignItems: 'center' }}>
-                                                    <AppointmentAvatar url={avatarUrl} name={avatarType === 'store' ? evento.store_name || 'Loja' : avatarType === 'invite' ? 'Convite' : 'Pessoal'} type={avatarType} size={56} colors={colors} />
+                                                    <AppointmentAvatar userId={getAvatarOwnerId(evento, avatarType)} url={avatarUrl} name={avatarType === 'store' ? evento.store_name || 'Loja' : avatarType === 'invite' ? 'Convite' : 'Pessoal'} type={avatarType} size={56} colors={colors} />
                                                     <div style={{ flex: 1 }}>
                                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -958,7 +975,7 @@ export default function CompromissosPage() {
                                     const avatarUrl = getAvatarUrl(evento, avatarType)
                                     return (
                                         <div key={evento.id} style={{ ...cardStyle, padding: 16, marginBottom: 12, display: 'flex', gap: 16, alignItems: 'center' }}>
-                                            <AppointmentAvatar url={avatarUrl} name={avatarType === 'store' ? evento.store_name || 'Loja' : avatarType === 'invite' ? 'Convite' : 'Pessoal'} type={avatarType} size={64} colors={colors} />
+                                            <AppointmentAvatar userId={getAvatarOwnerId(evento, avatarType)} url={avatarUrl} name={avatarType === 'store' ? evento.store_name || 'Loja' : avatarType === 'invite' ? 'Convite' : 'Pessoal'} type={avatarType} size={64} colors={colors} />
                                             <div style={{ flex: 1 }}>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                                                     <h3 style={{ fontWeight: 800, fontSize: 18, color: colors.textPrimary }}>{evento.service_name}</h3>
@@ -995,7 +1012,7 @@ export default function CompromissosPage() {
                                     pendentesLoja.map((agendamento) => (
                                         <div key={agendamento.id} style={{ ...cardStyle, padding: 16, marginBottom: 12 }}>
                                             <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-                                                <AppointmentAvatar url={agendamento.store_id ? (agendamento.store_logo_url ?? null) : getPublicUrl(agendamento.customer_avatar_url, 'avatars')} name={agendamento.store_id ? (agendamento.store_name || 'Loja') : (agendamento.customer_slug || 'Cliente')} type={agendamento.store_id ? 'store' : 'invite'} size={56} colors={colors} />
+                                                <AppointmentAvatar userId={agendamento.store_id ? null : agendamento.customer_id} url={agendamento.store_id ? (agendamento.store_logo_url ?? null) : getPublicUrl(agendamento.customer_avatar_url, 'avatars')} name={agendamento.store_id ? (agendamento.store_name || 'Loja') : (agendamento.customer_slug || 'Cliente')} type={agendamento.store_id ? 'store' : 'invite'} size={56} colors={colors} />
                                                 <div style={{ flex: 1 }}>
                                                     <h3 style={{ fontWeight: 800, fontSize: 16, color: colors.textPrimary }}>{agendamento.service_name}</h3>
                                                     <p style={{ color: colors.textSecondary, fontSize: 14, marginTop: 2 }}>Cliente: @{agendamento.customer_slug}</p>
@@ -1036,7 +1053,7 @@ export default function CompromissosPage() {
                                         const displayDate = parseDate(item.date).toLocaleDateString('pt-BR')
                                         return (
                                             <div key={item.id} style={{ ...cardStyle, padding: 16, display: 'flex', gap: 16, alignItems: 'center' }}>
-                                                <AppointmentAvatar url={avatarUrl} name={avatarType === 'store' ? item.store_name || 'Loja' : avatarType === 'invite' ? 'Convite' : 'Pessoal'} type={avatarType} size={56} colors={colors} />
+                                                <AppointmentAvatar userId={getAvatarOwnerId(item, avatarType)} url={avatarUrl} name={avatarType === 'store' ? item.store_name || 'Loja' : avatarType === 'invite' ? 'Convite' : 'Pessoal'} type={avatarType} size={56} colors={colors} />
                                                 <div style={{ flex: 1 }}>
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                                         <h3 style={{ fontWeight: 800, fontSize: 18, color: colors.textPrimary }}>{item.service_name}</h3>
@@ -1071,7 +1088,7 @@ export default function CompromissosPage() {
                                     const avatarUrl = getAvatarUrl(convite, avatarType)
                                     return (
                                         <div key={convite.id} style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 20, padding: 16, marginBottom: 12, display: 'flex', gap: 16, alignItems: 'center', border: '1px solid rgba(255,255,255,0.1)' }}>
-                                            <AppointmentAvatar url={avatarUrl} name={avatarType === 'store' ? convite.store_name || 'Loja' : 'Convite'} type={avatarType === 'store' ? 'store' : 'invite'} size={56} colors={colors} />
+                                            <AppointmentAvatar userId={getAvatarOwnerId(convite, avatarType === 'store' ? 'store' : 'invite')} url={avatarUrl} name={avatarType === 'store' ? convite.store_name || 'Loja' : 'Convite'} type={avatarType === 'store' ? 'store' : 'invite'} size={56} colors={colors} />
                                             <div style={{ flex: 1 }}>
                                                 <h4 style={{ fontWeight: 800, fontSize: 16 }}>{convite.service_name}</h4>
                                                 <p style={{ color: '#94a3b8', marginTop: 2 }}>Para: @{convite.customer_slug}</p>
@@ -1108,7 +1125,7 @@ export default function CompromissosPage() {
                                     const displayDate = parseDate(item.date).toLocaleDateString('pt-BR')
                                     return (
                                         <div key={item.id} style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 20, padding: 16, marginBottom: 12, display: 'flex', gap: 16, alignItems: 'center', border: '1px solid rgba(255,255,255,0.1)' }}>
-                                            <AppointmentAvatar url={avatarUrl} name={avatarType === 'store' ? item.store_name || 'Loja' : avatarType === 'invite' ? 'Convite' : 'Pessoal'} type={avatarType} size={56} colors={colors} />
+                                            <AppointmentAvatar userId={getAvatarOwnerId(item, avatarType)} url={avatarUrl} name={avatarType === 'store' ? item.store_name || 'Loja' : avatarType === 'invite' ? 'Convite' : 'Pessoal'} type={avatarType} size={56} colors={colors} />
                                             <div style={{ flex: 1 }}>
                                                 <h4 style={{ fontWeight: 800, fontSize: 16 }}>{item.service_name}</h4>
                                                 <p style={{ color: '#94a3b8', marginTop: 2 }}>{avatarType === 'store' ? item.store_name : avatarType === 'invite' ? 'Convite' : 'Compromisso pessoal'}</p>
@@ -1135,6 +1152,7 @@ export default function CompromissosPage() {
                                 </div>
                                 <div style={{ display: 'flex', gap: 16, marginBottom: 24, alignItems: 'center' }}>
                                     <AppointmentAvatar
+                                        userId={getAvatarOwnerId(selectedAppointment, getAvatarType(selectedAppointment))}
                                         url={getAvatarUrl(selectedAppointment, getAvatarType(selectedAppointment))}
                                         name={!selectedAppointment.store_id ? (selectedAppointment.direction ? 'Convite' : 'Pessoal') : selectedAppointment.store_name || 'Loja'}
                                         type={getAvatarType(selectedAppointment)}

@@ -25,6 +25,7 @@ import DriverDebtBanner from '@/components/DriverDebtBanner'
 import InviteButton from '@/components/InviteButton'
 import AceitarCorridas, { CandidateiTabIcon, type AceitarCorridasTab } from '@/components/AceitarCorridas/AceitarCorridas'
 import { callAdminApi } from '@/lib/callAdminApi'
+import PlanAvatarRing from '@/components/PlanAvatarRing'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -173,7 +174,7 @@ function PainelMotoristaContent() {
     }, [rideSummaryLoaded, activeTab, rideSummary])
 
     // ===== AVALIAÇÕES E HISTÓRICO =====
-    const [reviews, setReviews] = useState<{ rating: number; comment: string | null; created_at: string; reviewerName: string | null; reviewerAvatarUrl: string | undefined }[]>([])
+    const [reviews, setReviews] = useState<{ rating: number; comment: string | null; created_at: string; reviewerId?: string; reviewerName: string | null; reviewerAvatarUrl: string | undefined }[]>([])
     const [rideHistory, setRideHistory] = useState<{ id: string; origin_address: string; destination_address: string; created_at: string; distance_km: number | null }[]>([])
 
     useEffect(() => {
@@ -316,6 +317,7 @@ function PainelMotoristaContent() {
             rating: r.rating,
             comment: r.comment,
             created_at: r.created_at,
+            reviewerId: r.reviewer_id,
             reviewerName: reviewersById.get(r.reviewer_id)?.name || null,
             reviewerAvatarUrl: getAvatarUrl(supabase, reviewersById.get(r.reviewer_id)?.avatar_url),
         })))
@@ -1487,6 +1489,7 @@ function PainelMotoristaContent() {
                                 <div className="flex flex-col gap-2">
                                     {reviews.map((r, i) => (
                                         <div key={i} className="p-3 rounded-xl flex items-start gap-2.5" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
+                                            <PlanAvatarRing userId={r.reviewerId}>
                                             {r.reviewerAvatarUrl ? (
                                                 <img src={r.reviewerAvatarUrl} className="w-8 h-8 rounded-full object-cover flex-shrink-0" alt="" />
                                             ) : (
@@ -1494,6 +1497,7 @@ function PainelMotoristaContent() {
                                                     <MessageSquare size={13} />
                                                 </div>
                                             )}
+                                            </PlanAvatarRing>
                                             <div className="min-w-0 flex-1">
                                                 <div className="flex items-center justify-between gap-2">
                                                     <span className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>

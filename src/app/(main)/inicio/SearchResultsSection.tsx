@@ -1,6 +1,7 @@
 // src/app/SearchResultsSection.tsx
 'use client'
 
+import { PlanRingInset } from '@/components/PlanAvatarRing'
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -338,6 +339,7 @@ export default function SearchResultsSection({ searchQuery, onSearchSelect }: Se
                                         onClick={(e) => handleProfileClick(profile, e)}
                                         className="group relative block overflow-hidden rounded-xl aspect-square cursor-pointer"
                                     >
+                                        <PlanRingInset userId={profile.id} />
                                         <div className="w-full h-full relative">
                                             {profile.avatar_url && profile.avatar_url.trim() !== '' ? (
                                                 <img

@@ -22,6 +22,7 @@ import { useProfile } from '@/app/contexts/ProfileContext'
 import Header from '@/components/Header'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { Spinner } from '@/components/Spinner'
+import PlanAvatarRing from '@/components/PlanAvatarRing'
 
 /* ============= HELPERS ============= */
 function toMinutes(timeStr: string): number { const [h, m] = timeStr.split(':').map(Number); return h * 60 + m }
@@ -418,6 +419,7 @@ export default function CriarCompromissoComAlguem({ onBack }: Props) {
                                                         className="w-full py-3.5 px-4 flex items-center gap-3 border-none bg-transparent cursor-pointer text-left"
                                                         style={{ color: colors.textPrimary }}
                                                     >
+                                                        <PlanAvatarRing userId={item.id}>
                                                         {avatarUrl && !isBroken ? (
                                                             <img
                                                                 src={avatarUrl}
@@ -437,6 +439,7 @@ export default function CriarCompromissoComAlguem({ onBack }: Props) {
                                                                 <User size={18} />
                                                             </div>
                                                         )}
+                                                        </PlanAvatarRing>
                                                         <div>
                                                             <p className="text-sm font-bold m-0" style={{ color: colors.textPrimary }}>{item.name}</p>
                                                             <p className="text-xs m-0" style={{ color: colors.textSecondary }}>@{item.slug}</p>
@@ -456,6 +459,7 @@ export default function CriarCompromissoComAlguem({ onBack }: Props) {
                         <>
                             <div className="rounded-2xl p-6 mb-6" style={cardStyle}>
                                 <div className="flex items-center gap-4 mb-5">
+                                    <PlanAvatarRing userId={target.id}>
                                     {targetImgError || !getPublicAvatarUrl(target.avatar_url) ? (
                                         <div
                                             className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
@@ -475,6 +479,7 @@ export default function CriarCompromissoComAlguem({ onBack }: Props) {
                                             onError={() => setTargetImgError(true)}
                                         />
                                     )}
+                                    </PlanAvatarRing>
                                     <div className="flex-1">
                                         <p className="text-lg font-black" style={{ color: colors.textPrimary }}>{target.name}</p>
                                         <p className="text-sm" style={{ color: colors.textSecondary }}>Convite pessoal</p>
@@ -619,9 +624,11 @@ export default function CriarCompromissoComAlguem({ onBack }: Props) {
                     {/* CONFIRMAÇÃO */}
                     {step === 'confirm' && selectedDate && selectedTime && target && (
                         <div className="rounded-2xl p-7" style={cardStyle}>
+                            <div className="flex justify-center mb-6">
+                            <PlanAvatarRing userId={target.id}>
                             {targetImgError || !getPublicAvatarUrl(target.avatar_url) ? (
                                 <div
-                                    className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6"
+                                    className="w-16 h-16 rounded-full flex items-center justify-center"
                                     style={{
                                         background: `linear-gradient(135deg, ${colors.accent}, ${colors.accent}dd)`,
                                         boxShadow: `0 10px 30px ${colors.accent}40`,
@@ -633,15 +640,18 @@ export default function CriarCompromissoComAlguem({ onBack }: Props) {
                                 <img
                                     src={getPublicAvatarUrl(target.avatar_url)!}
                                     alt={target.name}
-                                    className="w-16 h-16 rounded-full object-cover mx-auto mb-6 block"
+                                    className="w-16 h-16 rounded-full object-cover block"
                                     style={{ boxShadow: `0 10px 30px ${colors.accent}40` }}
                                     onError={() => setTargetImgError(true)}
                                 />
                             )}
+                            </PlanAvatarRing>
+                            </div>
                             <h2 className="text-center text-xl font-black tracking-tight mb-3" style={{ color: colors.textPrimary }}>{appointmentNote || 'Convite'}</h2>
                             <div className="flex items-center justify-center gap-2.5 mb-6">
                                 <span className="font-semibold" style={{ color: colors.textSecondary }}>Com</span>
                                 <div className="flex items-center gap-2 rounded-full py-2 px-4" style={{ background: `${colors.accent}20` }}>
+                                    <PlanAvatarRing userId={target.id}>
                                     {targetImgError || !getPublicAvatarUrl(target.avatar_url) ? (
                                         <div
                                             className="w-8 h-8 rounded-full flex items-center justify-center"
@@ -655,6 +665,7 @@ export default function CriarCompromissoComAlguem({ onBack }: Props) {
                                     ) : (
                                         <img src={getPublicAvatarUrl(target.avatar_url)!} alt={target.name} className="w-8 h-8 rounded-full object-cover" />
                                     )}
+                                    </PlanAvatarRing>
                                     <span className="font-bold" style={{ color: colors.textPrimary }}>{target.name}</span>
                                 </div>
                             </div>

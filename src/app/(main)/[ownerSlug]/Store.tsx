@@ -48,6 +48,7 @@ import { handleShareLink } from '@/lib/share'
 import { Follows } from './Follows'
 import StoreVipClubMember from './StoreVipClubMember'
 import EditProductDialog from '@/components/EditProductDialog'
+import PlanAvatarRing from '@/components/PlanAvatarRing'
 
 interface StoreProps {
     ownerSlug: string
@@ -1529,6 +1530,7 @@ export function Store({
                                             background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
                                             borderColor: colors.border,
                                         }}>
+                                            <PlanAvatarRing userId={rating.is_anonymous ? null : rating.profile_id} radius="12px">
                                             <div className="w-8 h-8 rounded-xl p-[2px] shrink-0" style={{ background: GRADIENT }}>
                                                 <div className="w-full h-full rounded-xl overflow-hidden bg-white flex items-center justify-center">
                                                     {avatarUrl ? (
@@ -1540,6 +1542,7 @@ export function Store({
                                                     )}
                                                 </div>
                                             </div>
+                                            </PlanAvatarRing>
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center justify-between">
                                                     <p className="text-xs font-bold" style={{ color: colors.textPrimary }}>

@@ -17,6 +17,7 @@ import { shortAddress } from '@/lib/serviceBoard'
 import { notifyRideStatus } from '@/lib/notifyRideStatus'
 import { getAvatarUrl } from '@/lib/avatar'
 import { haversineKm } from '@/lib/mapboxRoute'
+import PlanAvatarRing from '@/components/PlanAvatarRing'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 const FINISH_RADIUS_METERS = 100
@@ -30,6 +31,7 @@ interface AcceptedRide {
     ride_started_at: string | null
     requesterName: string | null
     requesterSlug: string | null
+    requesterId?: string
     requesterAvatarUrl: string | undefined
 }
 
@@ -85,6 +87,7 @@ export default function MinhasCorridasPage() {
                     ride_started_at: r.ride_started_at,
                     requesterName: p?.name || null,
                     requesterSlug: p?.profileSlug || null,
+                    requesterId: r.requester_id,
                     requesterAvatarUrl: getAvatarUrl(supabase, p?.avatar_url),
                 }
             })
@@ -216,11 +219,13 @@ export default function MinhasCorridasPage() {
                                     style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
                                 >
                                     <div className="flex items-center gap-2 mb-2">
+                                        <PlanAvatarRing userId={ride.requesterId}>
                                         {ride.requesterAvatarUrl ? (
                                             <img src={ride.requesterAvatarUrl} className="w-8 h-8 rounded-full object-cover flex-shrink-0" alt="" />
                                         ) : (
                                             <span className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT }} />
                                         )}
+                                        </PlanAvatarRing>
                                         <p className="text-xs font-black" style={{ color: colors.textPrimary }}>
                                             {ride.requesterName || (ride.requesterSlug ? `@${ride.requesterSlug}` : 'Passageiro')}
                                         </p>

@@ -32,6 +32,7 @@ import {
     UserCheck,
     UserX,
 } from 'lucide-react'
+import PlanAvatarRing from '@/components/PlanAvatarRing'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -580,6 +581,7 @@ export default function Employee({
                             </label>
                             {linkedProfile ? (
                                 <div className="flex items-center gap-2 p-2.5 rounded-2xl" style={{ background: '#22c55e15', border: '1px solid #22c55e40' }}>
+                                    <PlanAvatarRing userId={linkedProfile.id}>
                                     <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center" style={{ background: '#22c55e30' }}>
                                         {linkedProfile.avatar_url ? (
                                             <img src={linkedProfile.avatar_url} className="w-full h-full object-cover" alt="" />
@@ -587,6 +589,7 @@ export default function Employee({
                                             <UserCheck size={14} style={{ color: '#22c55e' }} />
                                         )}
                                     </div>
+                                    </PlanAvatarRing>
                                     <div className="flex-1 min-w-0">
                                         <p className="text-xs font-bold truncate" style={{ color: textPrimary }}>{linkedProfile.name || linkedProfile.profileSlug}</p>
                                         <p className="text-[10px]" style={{ color: textSecondary }}>@{linkedProfile.profileSlug} · vai ver as tarefas logado</p>
@@ -616,6 +619,7 @@ export default function Employee({
                                                     className="w-full flex items-center gap-2 p-2 rounded-xl text-left hover:bg-white/5 transition-colors"
                                                     style={{ border: `1px solid ${borderColor}` }}
                                                 >
+                                                    <PlanAvatarRing userId={p.id}>
                                                     <div className="w-7 h-7 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center" style={{ background: `${colors.border}30` }}>
                                                         {p.avatar_url ? (
                                                             <img src={p.avatar_url} className="w-full h-full object-cover" alt="" />
@@ -623,6 +627,7 @@ export default function Employee({
                                                             <span className="text-[10px] font-bold" style={{ color: textPrimary }}>{(p.name || p.profileSlug).charAt(0).toUpperCase()}</span>
                                                         )}
                                                     </div>
+                                                    </PlanAvatarRing>
                                                     <div className="min-w-0">
                                                         <p className="text-xs font-bold truncate" style={{ color: textPrimary }}>{p.name || p.profileSlug}</p>
                                                         <p className="text-[10px]" style={{ color: textSecondary }}>@{p.profileSlug}</p>

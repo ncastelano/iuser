@@ -33,6 +33,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     const requesterFirstName = (requester?.name || requester?.profileSlug || 'Passageiro').split(' ')[0]
 
     let driver: {
+        id: string
         name: string | null
         avatarUrl: string | null
         carModel: string | null
@@ -51,6 +52,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
         const vehicle = (vehicleRows || []).find((v) => v.vehicle_kind === rideKind) || (vehicleRows || [])[0]
 
         driver = {
+            id: ride.driver_id,
             name: driverProfile?.name || (driverProfile?.profileSlug ? `@${driverProfile.profileSlug}` : null),
             avatarUrl: driverProfile?.avatar_url
                 ? (driverProfile.avatar_url.startsWith('http')
