@@ -98,7 +98,7 @@ export default function NeedAService({ dragHandle, limit = 8 }: { dragHandle?: R
                     const mine = item.requester_id === userId
                     const photo = item.photo_urls?.[0] || null
                     const title = getRequestTitle(item.description, item.service_type, item.custom_service)
-                    const who = mine ? 'Você' : item.requester?.name?.split(' ')[0] || (item.requester?.profileSlug ? `@${item.requester.profileSlug}` : 'Alguém')
+                    const who = mine ? 'Você' : item.requester?.name?.trim() || (item.requester?.profileSlug ? `@${item.requester.profileSlug}` : 'Alguém')
                     return (
                         <SeenBox
                             key={item.id}

@@ -29,7 +29,7 @@ import { useTheme } from '@/app/contexts/theme'
 import Header from '@/components/Header'
 import { categoriasMap } from '@/lib/categorias'
 import { isStoreOpenNow, type BusinessHours } from '@/lib/storeHours'
-import { RatingStars } from '@/components/ratings/RatingStars'
+import { StoreCard } from '@/components/StoreCard'
 import CreatePublicationDialog from '@/components/CreatePublicationDialog'
 
 // ===== GRADIENTE =====
@@ -78,173 +78,6 @@ interface CategoryPublication {
     storeSlug: string
 }
 
-// ===== COMPONENTE DE STATUS =====
-function StoreStatus({ businessHours }: { businessHours: BusinessHours | null | undefined }) {
-    const [statusText, setStatusText] = useState('')
-    const [isOpen, setIsOpen] = useState(false)
-
-    useEffect(() => {
-        const open = isStoreOpenNow(businessHours)
-        setIsOpen(open)
-        setStatusText(open ? 'Aberto' : 'Fechado')
-    }, [businessHours])
-
-    const statusColor = isOpen ? '#10b981' : '#ef4444'
-
-    return (
-        <div className="flex items-center gap-1.5">
-            <Clock className="w-3 h-3 flex-shrink-0" style={{ color: statusColor }} />
-            <span className="text-[10px] font-medium truncate" style={{ color: statusColor }}>
-                {statusText}
-            </span>
-        </div>
-    )
-}
-
-// ===== COMPONENTE CARD =====
-function StoreCard({ store, onClick, colors }: { store: StoreCardData; onClick: () => void; colors: any }) {
-    const isOpen = isStoreOpenNow(store.business_hours)
-    const addressShort = store.address ? store.address.split(',')[0]?.trim() || store.address : ''
-
-    const hasProducts = store.top_products && store.top_products.length > 0
-    const hasReviews = store.recent_reviews && store.recent_reviews.length > 0
-    const hasRating = store.ratings_count && store.ratings_count > 0
-    const hasAddress = store.address && store.address.trim().length > 0
-
-    return (
-        <div
-            onClick={onClick}
-            className="group w-full h-[420px] rounded-2xl overflow-hidden border transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 cursor-pointer flex flex-col"
-            style={{ background: colors.surface, borderColor: colors.border }}
-        >
-            <div className="relative w-full h-48 overflow-hidden flex-shrink-0" style={{ background: GRADIENT }}>
-                {store.logo_url ? (
-                    <img src={store.logo_url} alt={store.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" />
-                ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-black/10">
-                        <Store className="w-16 h-16 opacity-50" style={{ color: '#ffffff' }} />
-                    </div>
-                )}
-
-                <div className="absolute top-3 right-3 px-3 py-1.5 rounded-full text-[10px] font-black uppercase shadow-lg flex items-center gap-1.5"
-                    style={{ background: isOpen ? 'rgba(16,185,129,0.9)' : 'rgba(239,68,68,0.9)', color: '#fff' }}
-                >
-                    <div className={`w-1.5 h-1.5 rounded-full animate-pulse ${isOpen ? 'bg-white' : 'bg-white/60'}`} />
-                    {isOpen ? 'Aberto' : 'Fechado'}
-                </div>
-
-                {store.view_count && store.view_count > 0 && (
-                    <div className="absolute bottom-3 left-3 px-2 py-1 rounded-full text-[9px] font-bold shadow-md flex items-center gap-1"
-                        style={{ background: 'rgba(0,0,0,0.5)', color: '#fff' }}
-                    >
-                        <Eye className="w-3 h-3" />
-                        {store.view_count}
-                    </div>
-                )}
-            </div>
-
-            <div className="p-4 space-y-2 flex-1 flex flex-col min-h-[180px] overflow-hidden">
-                <div className="flex items-start justify-between gap-2 flex-shrink-0">
-                    <div className="flex-1 min-w-0">
-                        <h3 className="text-sm font-bold truncate" style={{ color: colors.textPrimary }}>
-                            {store.name}
-                        </h3>
-                        {hasAddress && (
-                            <div className="flex items-center gap-1 mt-0.5 text-[10px]" style={{ color: colors.textSecondary }}>
-                                <MapPin className="w-3 h-3 flex-shrink-0" />
-                                <span className="truncate">{addressShort}</span>
-                            </div>
-                        )}
-                    </div>
-                    <ChevronRight className="w-4 h-4 flex-shrink-0 opacity-40 group-hover:opacity-100 transition-opacity" style={{ color: colors.textSecondary }} />
-                </div>
-
-                <div className="flex-shrink-0">
-                    {hasRating ? (
-                        <div className="flex items-center gap-2">
-                            <div className="flex items-center gap-1">
-                                <RatingStars value={store.ratings_avg || 0} size={12} />
-                                <span className="text-xs font-bold" style={{ color: colors.textPrimary }}>
-                                    {store.ratings_avg?.toFixed(1)}
-                                </span>
-                            </div>
-                            <span className="text-[9px] opacity-60" style={{ color: colors.textSecondary }}>
-                                ({store.ratings_count})
-                            </span>
-                        </div>
-                    ) : (
-                        <div className="flex items-center gap-1">
-                            <Star className="w-3 h-3 opacity-30" style={{ color: colors.textSecondary }} />
-                            <span className="text-[9px] opacity-60" style={{ color: colors.textSecondary }}>
-                                Sem avaliações
-                            </span>
-                        </div>
-                    )}
-                </div>
-
-                <div className="flex-shrink-0">
-                    <StoreStatus businessHours={store.business_hours} />
-                </div>
-
-                <div className="flex-1 min-h-0">
-                    {hasProducts && (
-                        <div className="pt-2 border-t" style={{ borderColor: colors.border }}>
-                            <p className="text-[9px] font-black uppercase tracking-wider mb-1.5 opacity-60" style={{ color: colors.textSecondary }}>
-                                <TrendingUp className="inline w-3 h-3 mr-1" style={{ color: '#f97316' }} />
-                                Destaques
-                            </p>
-                            <div className="flex gap-1.5">
-                                {store.top_products!.slice(0, 2).map((product) => (
-                                    <div key={product.id} className="flex-1 flex items-center gap-1.5 px-2 py-1 rounded-lg"
-                                        style={{ background: 'rgba(255,255,255,0.05)', border: `1px solid ${colors.border}` }}
-                                    >
-                                        {product.image_url ? (
-                                            <img src={product.image_url} alt="" className="w-5 h-5 rounded object-cover flex-shrink-0" />
-                                        ) : (
-                                            <ShoppingCart className="w-3 h-3 flex-shrink-0 opacity-40" style={{ color: colors.textSecondary }} />
-                                        )}
-                                        <span className="text-[9px] font-medium truncate flex-1" style={{ color: colors.textPrimary }}>
-                                            {product.name}
-                                        </span>
-                                        <span className="text-[8px] font-bold flex-shrink-0" style={{ color: '#f97316' }}>
-                                            R$ {product.price.toFixed(2)}
-                                        </span>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-                </div>
-
-                <div className="flex-shrink-0 min-h-[40px]">
-                    {hasReviews && (
-                        <div className="pt-2 border-t" style={{ borderColor: colors.border }}>
-                            {store.recent_reviews!.slice(0, 1).map((review) => (
-                                <div key={review.id} className="flex items-start gap-1.5">
-                                    <Star className="w-3 h-3 flex-shrink-0 mt-0.5" style={{ color: '#f59e0b' }} />
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-1.5">
-                                            <span className="text-[8px] font-bold" style={{ color: colors.textPrimary }}>
-                                                {review.profile_name}
-                                            </span>
-                                            <RatingStars value={review.rating} size={7} />
-                                        </div>
-                                        {review.comment && (
-                                            <p className="text-[9px] truncate opacity-70" style={{ color: colors.textSecondary }}>
-                                                "{review.comment}"
-                                            </p>
-                                        )}
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
-            </div>
-        </div>
-    )
-}
-
 // ===== COMPONENTE CARD PARA CRIAR LOJA =====
 function CreateStoreCard({ colors, category }: { colors: any; category: string }) {
     const router = useRouter()
@@ -264,7 +97,7 @@ function CreateStoreCard({ colors, category }: { colors: any; category: string }
     return (
         <div
             onClick={handleCreateStore}
-            className="group w-full h-[420px] rounded-2xl overflow-hidden border-2 border-dashed transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 cursor-pointer flex flex-col items-center justify-center p-8 text-center"
+            className="group w-full h-full min-h-[420px] rounded-3xl overflow-hidden border-2 border-dashed transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 cursor-pointer flex flex-col items-center justify-center p-8 text-center"
             style={{
                 background: cardBg,
                 backdropFilter: 'blur(12px)',
