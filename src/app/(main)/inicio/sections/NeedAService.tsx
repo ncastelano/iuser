@@ -24,6 +24,7 @@ import { useMyServiceApplications } from '@/hooks/useMyServiceApplications'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
 import SeenBox from '@/components/SeenBox'
 import { trackServiceRequestView } from '@/lib/trackServiceRequestView'
+import { getRequestTitle } from '@/lib/serviceTypes'
 
 // Em vitrine pública, só rua/bairro — o número fica pra quem for atender.
 function publicPlace(address: string): string {
@@ -95,6 +96,8 @@ export default function NeedAService({ dragHandle, limit = 8 }: { dragHandle?: R
                 {items.map((item) => {
                     const Icon = getItemIcon(item)
                     const mine = item.requester_id === userId
+                    const photo = item.photo_urls?.[0] || null
+                    const title = getRequestTitle(item.description, item.service_type, item.custom_service)
                     const who = mine ? 'Você' : item.requester?.name?.split(' ')[0] || (item.requester?.profileSlug ? `@${item.requester.profileSlug}` : 'Alguém')
                     return (
                         <SeenBox
@@ -102,78 +105,80 @@ export default function NeedAService({ dragHandle, limit = 8 }: { dragHandle?: R
                             // Só passar por cima (ou ficar visível) já conta como visto: aparece em "Visitantes dos serviços" do pedido
                             onSeen={() => trackServiceRequestView(item.id)}
                             seenKey={`request:${item.id}`}
-                            className="flex-shrink-0 w-64 rounded-2xl p-3.5 flex flex-col gap-2"
+                            className="flex-shrink-0 w-64 rounded-3xl overflow-hidden flex flex-col"
                             style={{
                                 background: colors.surface,
                                 border: `1px solid ${mine ? colors.accent : colors.border}`,
                                 boxShadow: colors.shadow,
                             }}
                         >
-                            <div className="flex items-center gap-2">
-                                <PlanAvatarRing userId={item.requester_id}>
-                                    {item.requester?.avatarUrl ? (
-                                        <img src={item.requester.avatarUrl} className="w-7 h-7 rounded-full object-cover flex-shrink-0" alt="" />
-                                    ) : (
-                                        <span className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-black" style={{ background: HOME_GRADIENT, color: '#fff' }}>
-                                            {who.charAt(0).toUpperCase()}
-                                        </span>
-                                    )}
-                                </PlanAvatarRing>
-                                <div className="min-w-0 flex-1">
-                                    <p className="text-xs font-bold truncate flex items-center gap-1.5" style={{ color: colors.textPrimary }}>
-                                        {who}
-                                        {mine && (
-                                            <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ background: `${colors.accent}20`, color: colors.accent }}>
-                                                seu pedido
-                                            </span>
-                                        )}
-                                    </p>
-                                    <p className="text-[10px] whitespace-nowrap" style={{ color: colors.textSecondary }}>{askedAgo(item.created_at)}</p>
-                                </div>
+                            {/* Capa: a FOTO do pedido inteira (sobre uma cópia desfocada dela); sem foto, o ícone do tipo */}
+                            <div className="relative h-36 w-full overflow-hidden flex-shrink-0" style={{ background: photo ? '#0b1220' : HOME_GRADIENT }}>
+                                {photo ? (
+                                    <>
+                                        <img src={photo} alt="" aria-hidden className="absolute inset-0 w-full h-full object-cover scale-125 blur-xl opacity-60" loading="lazy" />
+                                        <img src={photo} alt={title} className="relative w-full h-full object-contain" loading="lazy" />
+                                    </>
+                                ) : (
+                                    <div className="w-full h-full flex items-center justify-center">
+                                        <Icon size={44} color="rgba(255,255,255,0.85)" />
+                                    </div>
+                                )}
                                 <span
-                                    className="flex items-center gap-1 text-[10px] flex-shrink-0"
-                                    style={{ color: colors.textSecondary }}
+                                    className="absolute right-2.5 top-2.5 flex items-center gap-1 text-[10px] font-bold text-white px-2 py-1 rounded-full"
+                                    style={{ background: 'rgba(0,0,0,0.5)' }}
                                     title={`${item.view_count} ${item.view_count === 1 ? 'pessoa viu' : 'pessoas viram'} este pedido`}
                                 >
                                     <Eye size={11} />
                                     {item.view_count}
                                 </span>
                                 {mine && (
-                                    <button
-                                        onClick={() => setMenuItem(item)}
-                                        aria-label="Mais opções do seu pedido"
-                                        className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 -mr-1 transition-colors hover:bg-black/10"
-                                        style={{ color: colors.textPrimary }}
-                                    >
-                                        <MoreHorizontal size={17} />
-                                    </button>
+                                    <span className="absolute left-2.5 top-2.5 text-[9px] font-black uppercase px-2 py-1 rounded-full text-white" style={{ background: HOME_GRADIENT }}>
+                                        seu pedido
+                                    </span>
                                 )}
                             </div>
 
-                            <div className="flex items-center gap-3">
-                                {/* Foto do que está procurando; o ícone só aparece quando não tem foto */}
-                                <span
-                                    className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 overflow-hidden"
-                                    style={{ background: item.photo_urls?.[0] ? colors.border : HOME_GRADIENT, color: '#fff' }}
-                                >
-                                    {item.photo_urls?.[0] ? (
-                                        <img src={item.photo_urls[0]} alt="" className="w-full h-full object-cover" loading="lazy" />
-                                    ) : (
-                                        <Icon size={22} />
-                                    )}
+                            <div className="p-3.5 flex flex-col gap-2 flex-1">
+                                {/* O que a pessoa escreveu é o título; o tipo (jardineiro, veterinário...) é só uma etiqueta */}
+                                <p className="text-sm font-black leading-snug" title={title} style={{ color: colors.textPrimary, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                                    {title}
+                                </p>
+                                <span className="self-start flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: `${colors.accent}15`, color: colors.accent }}>
+                                    <Icon size={11} />
+                                    {getItemLabel(item)}
                                 </span>
-                                <div className="min-w-0">
-                                    <p className="text-sm font-black truncate" style={{ color: colors.textPrimary }}>Procura {getItemLabel(item).toLowerCase()}</p>
-                                    <p className="text-[11px] flex items-center gap-1 truncate" style={{ color: colors.textSecondary }}>
-                                        <MapPin size={10} className="flex-shrink-0" />
-                                        {publicPlace(item.location_address)}
-                                    </p>
-                                </div>
-                            </div>
 
-                            {item.description && (
-                                <p className="text-xs line-clamp-2" style={{ color: colors.textSecondary }}>{item.description}</p>
-                            )}
+                                <div className="flex items-center justify-between gap-2 text-[11px]" style={{ color: colors.textSecondary }}>
+                                    <span className="flex items-center gap-1 min-w-0">
+                                        <MapPin size={11} className="flex-shrink-0" />
+                                        <span className="truncate">{publicPlace(item.location_address)}</span>
+                                    </span>
+                                    <span className="flex-shrink-0">{askedAgo(item.created_at).replace('pediu ', '')}</span>
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                    <PlanAvatarRing userId={item.requester_id}>
+                                        {item.requester?.avatarUrl ? (
+                                            <img src={item.requester.avatarUrl} className="w-6 h-6 rounded-full object-cover flex-shrink-0" alt="" />
+                                        ) : (
+                                            <span className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-[10px] font-black" style={{ background: HOME_GRADIENT, color: '#fff' }}>
+                                                {who.charAt(0).toUpperCase()}
+                                            </span>
+                                        )}
+                                    </PlanAvatarRing>
+                                    <span className="text-xs font-bold truncate flex-1" style={{ color: colors.textPrimary }}>{who}</span>
+                                    {mine && (
+                                        <button
+                                            onClick={() => setMenuItem(item)}
+                                            aria-label="Mais opções do seu pedido"
+                                            className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 -mr-1 transition-colors hover:bg-black/10"
+                                            style={{ color: colors.textPrimary }}
+                                        >
+                                            <MoreHorizontal size={17} />
+                                        </button>
+                                    )}
+                                </div>
 
                             {!mine && applied?.has(item.id) && applied.get(item.id) !== 'rejected' && (
                                 <button
@@ -196,6 +201,7 @@ export default function NeedAService({ dragHandle, limit = 8 }: { dragHandle?: R
                                     Quero fazer esse serviço
                                 </button>
                             )}
+                            </div>
                         </SeenBox>
                     )
                 })}
