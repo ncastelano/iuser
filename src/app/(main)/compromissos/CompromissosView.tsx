@@ -268,7 +268,7 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
     const [horariosKey, setHorariosKey] = useState(0)
 
     // Cada aba do cabeçalho é uma SEÇÃO desta agenda (convites/pendentes, próximos, hoje, aceitos/confirmados, horários)
-    type SectionId = 'convites' | 'pendentes' | 'proximos' | 'hoje' | 'aceitos' | 'horarios'
+    type SectionId = 'convites' | 'pendentes' | 'hoje' | 'aceitos' | 'horarios'
     const [section, setSection] = useState<SectionId | null>(null)
     const [acceptedFilter, setAcceptedFilter] = useState<'todos' | 'proximos' | 'passados'>('todos')
     const [pastLimit, setPastLimit] = useState(6)
@@ -660,26 +660,36 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
         router.replace(agendaUrl({ aba: activeTab === 'agenda-perfil' ? 'clientes' : null, secao: id }), { scroll: false })
     }
 
-    // 'convites' (pessoal) e 'pendentes' (loja/clientes) são a mesma aba de "o que espera sua resposta"
-    const effectiveSection: SectionId | null = section === 'convites' && isClientSide ? 'pendentes' : section === 'pendentes' && !isClientSide ? 'convites' : section
+    // Convites (perfil) e Pendentes (loja/clientes) são a mesma aba de "o que espera sua resposta": só existe
+    // enquanto há algo pra responder; sem nada, a agenda abre em Hoje.
+    const waitingCount = isClientSide ? pendentesLoja.length : convitesRecebidos.length
+    const waitingId: SectionId = isClientSide ? 'pendentes' : 'convites'
+    const effectiveSection: SectionId | null = section === null
+        ? null
+        : (section === 'convites' || section === 'pendentes')
+            ? (waitingCount > 0 ? waitingId : 'hoje')
+            : section
 
     // Abre direto na seção do link (?secao=) ou, se não tiver, em Convites/Pendentes quando há algo esperando resposta
+    // e em Hoje quando não há.
     useEffect(() => {
         if (section !== null || loading || !profileLoaded || !storesLoaded || agendaMissing) return
         const fromUrl = new URLSearchParams(window.location.search).get('secao')
-        if (fromUrl && ['convites', 'pendentes', 'proximos', 'hoje', 'aceitos', 'horarios'].includes(fromUrl)) {
+        if (fromUrl === 'proximos') { setSection('hoje'); return } // links antigos: os próximos agora vivem em Hoje
+        if (fromUrl && ['convites', 'pendentes', 'hoje', 'aceitos', 'horarios'].includes(fromUrl)) {
             setSection(fromUrl as SectionId)
             return
         }
-        const waiting = activeTab === 'pessoal' ? convitesRecebidos.length : pendentesLoja.length
-        setSection(waiting > 0 ? (activeTab === 'pessoal' ? 'convites' : 'pendentes') : 'proximos')
-    }, [section, loading, profileLoaded, storesLoaded, agendaMissing, activeTab, convitesRecebidos.length, pendentesLoja.length])
+        setSection(waitingCount > 0 ? waitingId : 'hoje')
+    }, [section, loading, profileLoaded, storesLoaded, agendaMissing, waitingCount, waitingId])
+
+    // Próximos = o que vem depois; o dia que já aparece na agenda do dia não repete
+    const proximosDepois = proximosCompromissos.filter((a) => a.date !== selectedDateStr)
 
     const sectionTabs: { id: SectionId; label: string; icon: any; count: number; attention?: boolean }[] = [
-        isClientSide
-            ? { id: 'pendentes', label: 'Pendentes', icon: Bell, count: pendentesLoja.length, attention: true }
-            : { id: 'convites', label: 'Convites', icon: Bell, count: convitesRecebidos.length, attention: true },
-        { id: 'proximos', label: 'Próximos', icon: ListChecks, count: proximosCompromissos.length },
+        ...(waitingCount > 0
+            ? [{ id: waitingId, label: isClientSide ? 'Pendentes' : 'Convites', icon: Bell, count: waitingCount, attention: true }]
+            : []),
         { id: 'hoje', label: 'Hoje', icon: Clock3, count: filteredAppointments.filter((a) => a.date === todayStr).length },
         { id: 'aceitos', label: isClientSide ? 'Confirmados' : 'Aceitos', icon: UserCheck, count: listaAceitos.length },
         { id: 'horarios', label: 'Horários', icon: CalendarClock, count: 0 },
@@ -854,37 +864,6 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
                             </section>
                         )}
 
-                        {/* PRÓXIMOS COMPROMISSOS */}
-                        {effectiveSection === 'proximos' && (
-                        <section>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-                                <h2 style={{ fontWeight: 800, fontSize: 22, color: colors.textPrimary, display: 'flex', alignItems: 'center', gap: 8 }}>
-                                    <ListChecks size={22} color={colors.accent} /> Próximos Compromissos
-                                </h2>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                    <span style={{ fontSize: 13, color: colors.textSecondary, fontWeight: 600 }}>Mostrar pendentes</span>
-                                    <label style={{ position: 'relative', display: 'inline-block', width: 44, height: 24 }}>
-                                        <input type="checkbox" checked={showPendingInNext} onChange={(e) => setShowPendingInNext(e.target.checked)} style={{ opacity: 0, width: 0, height: 0 }} />
-                                        <span style={{ position: 'absolute', cursor: 'pointer', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: showPendingInNext ? colors.accent : '#475569', borderRadius: 24, transition: '0.3s' }}>
-                                            <span style={{ position: 'absolute', height: 18, width: 18, left: showPendingInNext ? 23 : 3, bottom: 3, backgroundColor: 'white', transition: '0.3s', borderRadius: '50%' }} />
-                                        </span>
-                                    </label>
-                                </div>
-                            </div>
-                            {proximosCompromissos.length === 0 ? (
-                                <div style={{ ...cardStyle, padding: 28, textAlign: 'center', color: colors.textSecondary }}>
-                                    Nenhum compromisso futuro.
-                                </div>
-                            ) : (
-                                <div style={AGENDA_GRID}>
-                                    {proximosCompromissos.map((comp, idx) => renderCard(comp, {
-                                        highlight: idx === 0 ? `Próximo · ${getTimeRemaining(comp.date, comp.time)}` : undefined,
-                                    }))}
-                                </div>
-                            )}
-                        </section>
-                        )}
-
                         {/* HOJE: faixa da semana, calendário e a agenda do dia */}
                         {effectiveSection === 'hoje' && (
                         <>
@@ -1002,6 +981,35 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
                                 </div>
                             )}
                         </section>
+
+                        {/* PRÓXIMOS COMPROMISSOS (agora dentro de Hoje) */}
+                        <section>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                                <h2 style={{ fontWeight: 800, fontSize: 22, color: colors.textPrimary, display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    <ListChecks size={22} color={colors.accent} /> {isSelectedToday ? 'Depois de hoje' : 'Próximos compromissos'}
+                                </h2>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    <span style={{ fontSize: 13, color: colors.textSecondary, fontWeight: 600 }}>Mostrar pendentes</span>
+                                    <label style={{ position: 'relative', display: 'inline-block', width: 44, height: 24 }}>
+                                        <input type="checkbox" checked={showPendingInNext} onChange={(e) => setShowPendingInNext(e.target.checked)} style={{ opacity: 0, width: 0, height: 0 }} />
+                                        <span style={{ position: 'absolute', cursor: 'pointer', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: showPendingInNext ? colors.accent : '#475569', borderRadius: 24, transition: '0.3s' }}>
+                                            <span style={{ position: 'absolute', height: 18, width: 18, left: showPendingInNext ? 23 : 3, bottom: 3, backgroundColor: 'white', transition: '0.3s', borderRadius: '50%' }} />
+                                        </span>
+                                    </label>
+                                </div>
+                            </div>
+                            {proximosDepois.length === 0 ? (
+                                <div style={{ ...cardStyle, padding: 28, textAlign: 'center', color: colors.textSecondary }}>
+                                    Nenhum compromisso à frente.
+                                </div>
+                            ) : (
+                                <div style={AGENDA_GRID}>
+                                    {proximosDepois.map((comp, idx) => renderCard(comp, {
+                                        highlight: idx === 0 ? `Próximo · ${getTimeRemaining(comp.date, comp.time)}` : undefined,
+                                    }))}
+                                </div>
+                            )}
+                        </section>
                         </>
                         )}
 
@@ -1036,21 +1044,30 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
                             const totalPast = listaAceitos.length - totalUpcoming
 
                             const today0 = new Date(); today0.setHours(0, 0, 0, 0)
-                            const groupLabel = (a: Appointment) => {
-                                const d = Math.round((parseDate(a.date).getTime() - today0.getTime()) / 86400000)
-                                if (d <= 0) return 'Hoje'
+                            // Agrupa por DIA: Hoje, Amanhã, Ontem, Anteontem e, nos outros, "Quarta, 9 de setembro"
+                            const dayLabel = (date: string) => {
+                                const d = Math.round((parseDate(date).getTime() - today0.getTime()) / 86400000)
+                                if (d === 0) return 'Hoje'
                                 if (d === 1) return 'Amanhã'
-                                if (d <= 7) return 'Esta semana'
-                                const dt = parseDate(a.date)
-                                return dt.getMonth() === today0.getMonth() && dt.getFullYear() === today0.getFullYear() ? 'Este mês' : 'Mais para frente'
+                                if (d === -1) return 'Ontem'
+                                if (d === -2) return 'Anteontem'
+                                const dt = parseDate(date)
+                                const txt = dt.toLocaleDateString('pt-BR', {
+                                    weekday: 'long', day: 'numeric', month: 'long',
+                                    ...(dt.getFullYear() !== today0.getFullYear() ? { year: 'numeric' as const } : {}),
+                                })
+                                return txt.charAt(0).toUpperCase() + txt.slice(1)
                             }
-                            const ORDER = ['Hoje', 'Amanhã', 'Esta semana', 'Este mês', 'Mais para frente']
-                            const groups = ORDER
-                                .map((label) => ({ label, items: upcoming.filter((a) => groupLabel(a) === label) }))
-                                .filter((g) => g.items.length > 0)
+                            const groupByDay = (items: Appointment[]) => {
+                                const map = new Map<string, Appointment[]>()
+                                items.forEach((a) => map.set(a.date, [...(map.get(a.date) || []), a]))
+                                return Array.from(map.entries()).map(([date, list]) => ({ key: date, label: dayLabel(date), items: list }))
+                            }
+                            const groups = groupByDay(upcoming)
                             const showUpcoming = acceptedFilter !== 'passados'
                             const showPast = acceptedFilter !== 'proximos'
                             const pastShown = past.slice(0, pastLimit)
+                            const pastGroups = groupByDay(pastShown)
                             const nothing = (showUpcoming ? upcoming.length : 0) + (showPast ? past.length : 0) === 0
 
                             const chip = (id: 'todos' | 'proximos' | 'passados', label: string, count: number) => (
@@ -1110,16 +1127,24 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
                                                 <div style={{ ...cardStyle, padding: 20, textAlign: 'center', color: colors.textSecondary }}>Nada encontrado.</div>
                                             ) : (
                                                 <>
+                                                    {showUpcoming && groups.length > 0 && showPast && past.length > 0 && (
+                                                        <h3 style={{ fontWeight: 900, fontSize: 15, color: colors.textPrimary, margin: '0 0 2px' }}>Próximos</h3>
+                                                    )}
                                                     {showUpcoming && groups.map((g) => (
-                                                        <div key={g.label}>
+                                                        <div key={g.key}>
                                                             {groupTitle(g.label, g.items.length)}
                                                             <div style={AGENDA_GRID}>{g.items.map((a) => renderCard(a))}</div>
                                                         </div>
                                                     ))}
                                                     {showPast && past.length > 0 && (
                                                         <div>
-                                                            {groupTitle('Passados', past.length)}
-                                                            <div style={AGENDA_GRID}>{pastShown.map((a) => renderCard(a))}</div>
+                                                            <h3 style={{ fontWeight: 900, fontSize: 15, color: colors.textPrimary, margin: '8px 0 2px' }}>Passados</h3>
+                                                            {pastGroups.map((g) => (
+                                                                <div key={g.key}>
+                                                                    {groupTitle(g.label, g.items.length)}
+                                                                    <div style={AGENDA_GRID}>{g.items.map((a) => renderCard(a))}</div>
+                                                                </div>
+                                                            ))}
                                                             {past.length > pastShown.length && (
                                                                 <button
                                                                     onClick={() => setPastLimit((n) => n + 12)}
