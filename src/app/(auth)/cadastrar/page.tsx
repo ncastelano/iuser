@@ -20,6 +20,7 @@ import {
   Sparkles,
   Eye,
   EyeOff,
+  AlertCircle,
   Briefcase,
   BookOpen,
   ShoppingCart,
@@ -125,6 +126,7 @@ function RegisterContent() {
   const [loading, setLoading] = useState(false)
   const [registered, setRegistered] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
   const avatarInputRef = useRef<HTMLInputElement>(null)
@@ -187,6 +189,14 @@ function RegisterContent() {
 
     return () => clearInterval(interval)
   }, [storeWords.length, actionWords.length, taxWords.length])
+
+  // Item da lista de obrigatoriedades (mesmo desenho do "Criar loja"): verde = ok, vermelho = falta
+  const rule = (label: string, ok: boolean) => (
+    <span key={label} className="flex items-center gap-1">
+      {ok ? <CheckCircle2 className="w-3 h-3 text-green-500" /> : <AlertCircle className="w-3 h-3 text-red-400" />}
+      {label}
+    </span>
+  )
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -704,6 +714,7 @@ function RegisterContent() {
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
+                      aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
                       className="absolute right-3 top-1/2 -translate-y-1/2 transition-colors"
                       style={{ color: textSecondary }}
                     >
@@ -717,22 +728,39 @@ function RegisterContent() {
                     <Lock className="w-3.5 h-3.5" style={{ color: accentColor }} />
                     Confirmar
                   </label>
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    className="w-full px-4 py-3 rounded-xl text-sm transition-all focus:outline-none focus:ring-2"
-                    style={{
-                      background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.4)`,
-                      border: `2px solid ${borderColor}`,
-                      color: textPrimary,
-                      '--tw-ring-color': accentColor,
-                    } as React.CSSProperties}
-                    placeholder="••••••••"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    required
-                    disabled={loading}
-                  />
+                  <div className="relative">
+                    <input
+                      type={showConfirm ? 'text' : 'password'}
+                      className="w-full px-4 py-3 rounded-xl text-sm transition-all focus:outline-none focus:ring-2 pr-10"
+                      style={{
+                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.4)`,
+                        border: `2px solid ${borderColor}`,
+                        color: textPrimary,
+                        '--tw-ring-color': accentColor,
+                      } as React.CSSProperties}
+                      placeholder="••••••••"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      required
+                      disabled={loading}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirm(!showConfirm)}
+                      aria-label={showConfirm ? 'Ocultar confirmação de senha' : 'Mostrar confirmação de senha'}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 transition-colors"
+                      style={{ color: textSecondary }}
+                    >
+                      {showConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
                 </div>
+              </div>
+
+              {/* O que a senha precisa ter (verde = ok, vermelho = falta) */}
+              <div className="flex flex-wrap gap-3 justify-center text-[9px]" style={{ color: textSecondary }}>
+                {rule('Mínimo de 6 caracteres', password.length >= 6)}
+                {rule('Senhas iguais', confirmPassword.length > 0 && password === confirmPassword)}
               </div>
             </div>
 
@@ -756,6 +784,17 @@ function RegisterContent() {
                 </>
               )}
             </button>
+
+            {/* O que ainda falta pra criar a conta */}
+            <div className="flex flex-wrap gap-3 justify-center text-[9px]" style={{ color: textSecondary }}>
+              {rule('Foto', !!avatarFile)}
+              {rule('Nome', name.trim().length > 1)}
+              {rule('Link', /^[a-z0-9-]+$/.test(profileSlug))}
+              {rule('E-mail', /\S+@\S+\.\S+/.test(email))}
+              {rule('CPF/CNPJ', [11, 14].includes(cpfCnpj.replace(/\D/g, '').length))}
+              {rule('Senha', password.length >= 6)}
+              {rule('Confirmar senha', confirmPassword.length > 0 && password === confirmPassword)}
+            </div>
 
             {/* Termos */}
             <div className="text-center">

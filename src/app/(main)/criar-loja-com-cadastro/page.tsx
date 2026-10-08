@@ -39,7 +39,6 @@ import { getDeviceId } from '@/lib/deviceId'
 import AnimatedBackground from '@/components/AnimatedBackground'
 import { createSquareImage } from '@/lib/image'
 import { checkSlugAvailability, getSlugSuggestions, sanitizeSlug } from '@/lib/slugUtils'
-import { StoreAccessGate } from '@/components/StoreAccessGate'
 import { Spinner } from '@/components/Spinner'
 import Header from '@/components/Header'
 import { categorias } from '@/lib/categorias'
@@ -748,9 +747,8 @@ function CriarLojaComCadastroContent() {
                 console.error('Erro ao limpar cookie:', error)
             }
 
-            // 3.1 Ativa o plano Pós-pago automaticamente — assim o gate de
-            // "assine pra criar loja" (StoreAccessGate, etapa seguinte) já
-            // passa direto, sem precisar visitar /planos.
+            // 3.1 Ativa o plano Pós-pago automaticamente (criar loja não exige plano,
+            // mas toda conta nova já começa nele, sem precisar visitar /planos).
             try {
                 const { data: { session: newSession } } = await supabase.auth.getSession()
                 const { data: posPagoPlan } = await supabase.from('plans').select('id').eq('code', 'pos_pago').maybeSingle()
@@ -1497,12 +1495,11 @@ function CriarLojaComCadastroContent() {
                         <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-orange-200/50 p-6 space-y-5 shadow-sm">
                             <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-gray-500">
                                 <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
-                                Conta criada! Falta liberar a loja "{storeName}"
+                                Conta criada! Falta confirmar a loja "{storeName}"
                             </div>
-                            <StoreAccessGate userId={createdUserId}>
                                 <div className="space-y-4">
                                     <div className="p-3 bg-orange-50 border border-orange-200 rounded-xl text-sm text-gray-700">
-                                        Acesso liberado! Agora é só confirmar a criação da loja <strong>{storeName}</strong>.
+                                        Agora é só confirmar a criação da loja <strong>{storeName}</strong>.
                                     </div>
                                     <button
                                         type="button"
@@ -1518,7 +1515,6 @@ function CriarLojaComCadastroContent() {
                                         )}
                                     </button>
                                 </div>
-                            </StoreAccessGate>
                         </div>
                     )}
 

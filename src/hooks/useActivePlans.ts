@@ -8,8 +8,7 @@ import { supabase } from '@/lib/supabase/client'
 // troca de sessão e é usado em página que não tem nada a ver com pagamento
 // (juntar aumentaria a latência de todo mundo à toa). Chamado nos pontos
 // que checam plano pago (motorista/prestador/loja/recrutador), na tela de
-// planos, e em StoreAccessGate (que trava tanto criar quanto manter a loja
-// aberta pra vender atrás do mesmo hasStore).
+// planos e em Store.tsx (manter a loja aberta pra vender). Criar loja não exige plano.
 export function useActivePlans(userId: string | null) {
     const [loading, setLoading] = useState(true)
     const [hasDriver, setHasDriver] = useState(false)

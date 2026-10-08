@@ -37,7 +37,6 @@ import AnimatedBackground from '@/components/AnimatedBackground'
 import { createSquareImage } from '@/lib/image'
 import { checkSlugAvailability, getSlugSuggestions, sanitizeSlug } from '@/lib/slugUtils'
 import { categorias } from '@/lib/categorias'
-import { StoreAccessGate } from '@/components/StoreAccessGate'
 
 // Filtra as categorias para remover "Social"
 const CATEGORIAS_LOJAS = categorias.filter(cat => cat.slug !== 'social')
@@ -1255,17 +1254,16 @@ export default function CreateStoreAndRegisterProfile({
                 </form>
             )}
 
-            {/* ACCESS STEP - libera a loja (pix ou código) antes de criar de verdade */}
+            {/* ACCESS STEP - confirma a criação da loja logo depois de criar a conta */}
             {step === 'access' && (
                 <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-orange-200/50 p-6 space-y-5 shadow-sm">
                     <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-gray-500">
                         <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
-                        Conta criada! Falta liberar a loja "{storeName}"
+                        Conta criada! Falta confirmar a loja "{storeName}"
                     </div>
-                    <StoreAccessGate userId={createdUserId}>
                         <div className="space-y-4">
                             <div className="p-3 bg-orange-50 border border-orange-200 rounded-xl text-sm text-gray-700">
-                                Acesso liberado! Agora é só confirmar a criação da loja <strong>{storeName}</strong>.
+                                Agora é só confirmar a criação da loja <strong>{storeName}</strong>.
                             </div>
                             <button
                                 type="button"
@@ -1283,7 +1281,6 @@ export default function CreateStoreAndRegisterProfile({
                                 )}
                             </button>
                         </div>
-                    </StoreAccessGate>
                 </div>
             )}
 

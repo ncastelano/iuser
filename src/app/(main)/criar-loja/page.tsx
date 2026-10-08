@@ -35,7 +35,6 @@ import { useProfile } from "@/app/contexts/ProfileContext";
 import Header from '@/components/Header';
 import { categorias } from "@/lib/categorias";
 import { checkSlugAvailability, getSlugSuggestions, sanitizeSlug } from "@/lib/slugUtils";
-import { StoreAccessGate } from "@/components/StoreAccessGate";
 
 // Filtra as categorias para remover "Social"
 const CATEGORIAS_LOJAS = categorias.filter(cat => cat.slug !== 'social');
@@ -163,8 +162,7 @@ export default function CriarLoja() {
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
-  // O mapa fica dentro do StoreAccessGate (que monta depois de carregar), então
-  // o container só existe mais tarde: guardamos em state pra o efeito reagir.
+  // O container do mapa só existe depois de montar: guardamos em state pra o efeito reagir.
   const [mapEl, setMapEl] = useState<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<any>(null);
   const movableMarkerRef = useRef<any>(null);
@@ -700,7 +698,6 @@ export default function CriarLoja() {
         />
 
         <div className="w-full px-4 md:px-6 py-6">
-          <StoreAccessGate userId={userId}>
           <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-orange-200/50 p-6 space-y-6 shadow-sm">
             {/* LOGO */}
             <div className="space-y-3">
@@ -1154,7 +1151,6 @@ export default function CriarLoja() {
               </span>
             </div>
           </div>
-          </StoreAccessGate>
         </div>
 
         <div style={{ position: 'fixed', bottom: 32, right: 24, display: 'flex', gap: 12, zIndex: 998 }}>
