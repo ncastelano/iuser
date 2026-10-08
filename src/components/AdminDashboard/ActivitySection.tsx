@@ -6,7 +6,9 @@ import { toast } from 'sonner'
 import { Spinner } from '@/components/Spinner'
 import { hexToRgb } from '@/lib/color'
 import { callAdminApi } from '@/lib/callAdminApi'
-import { Eye, Calendar, TrendingUp, Users, UserCheck, UserX, BarChart3 } from 'lucide-react'
+import { Eye, Calendar, TrendingUp, Users, UserCheck, UserX, BarChart3, Search, X } from 'lucide-react'
+import { createPortal } from 'react-dom'
+import { useRouter } from 'next/navigation'
 import { format, formatDistanceToNow } from 'date-fns'
 import { ptBR as ptBRLocale } from 'date-fns/locale'
 import type { ThemeColors } from '@/app/contexts/theme'
@@ -51,6 +53,173 @@ interface ActivitySummary {
     daily: { date: string; count: number }[]
     visitors: ActivityVisitor[]
     visitorsTotal: number
+}
+
+interface WindowVisitor {
+    key: string
+    userId: string | null
+    anonymousId: string
+    profile: { name: string | null; profileSlug: string | null; avatarUrl: string | null } | null
+    visits: number
+    lastSeen: string
+}
+
+type WindowId = 'online' | '24h' | '7d' | '30d'
+const WINDOW_TITLES: Record<WindowId, string> = {
+    online: 'Online agora',
+    '24h': 'Visitantes das últimas 24 horas',
+    '7d': 'Visitantes dos últimos 7 dias',
+    '30d': 'Visitantes dos últimos 30 dias',
+}
+
+// Lista completa de quem entrou numa janela de tempo, com busca; clicar numa pessoa cadastrada abre o perfil dela.
+function VisitorsDialog({ windowId, colors, onClose }: { windowId: WindowId; colors: ThemeColors; onClose: () => void }) {
+    const router = useRouter()
+    const [visitors, setVisitors] = useState<WindowVisitor[] | null>(null)
+    const [query, setQuery] = useState('')
+    const [filter, setFilter] = useState<'todos' | 'cadastrados' | 'anonimos'>('todos')
+    const [limit, setLimit] = useState(80)
+
+    useEffect(() => {
+        let cancelled = false
+        callAdminApi<{ visitors: WindowVisitor[] }>('/api/admin/activity/visitors', { window: windowId })
+            .then((res) => { if (!cancelled) setVisitors(res.visitors) })
+            .catch((err) => { toast.error(err.message || 'Erro ao carregar visitantes'); if (!cancelled) setVisitors([]) })
+        return () => { cancelled = true }
+    }, [windowId])
+
+    useEffect(() => {
+        const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+        window.addEventListener('keydown', onKey)
+        return () => window.removeEventListener('keydown', onKey)
+    }, [onClose])
+
+    const nameOf = (v: WindowVisitor) => v.userId
+        ? v.profile?.name?.trim() || (v.profile?.profileSlug ? `@${v.profile.profileSlug}` : 'Usuário')
+        : `Visitante anônimo #${v.anonymousId.slice(0, 5)}`
+
+    const all = visitors || []
+    const registered = all.filter((v) => v.userId)
+    const anonymous = all.filter((v) => !v.userId)
+    const q = query.trim().toLowerCase().replace(/^@/, '')
+    const pool = filter === 'cadastrados' ? registered : filter === 'anonimos' ? anonymous : [...registered, ...anonymous] // cadastrados primeiro
+    const list = q
+        ? pool.filter((v) => `${nameOf(v)} ${v.profile?.profileSlug || ''}`.toLowerCase().includes(q))
+        : pool
+    const shown = list.slice(0, limit)
+
+    const chip = (id: 'todos' | 'cadastrados' | 'anonimos', label: string, count: number) => (
+        <button
+            key={id}
+            onClick={() => { setFilter(id); setLimit(80) }}
+            className="text-xs font-black px-3 py-1.5 rounded-full"
+            style={{ background: filter === id ? colors.accent : `${colors.border}55`, color: filter === id ? colors.accentText : colors.textSecondary }}
+        >
+            {label} <span style={{ opacity: 0.8 }}>{count}</span>
+        </button>
+    )
+
+    return createPortal(
+        <div onClick={onClose} role="dialog" aria-modal="true" className="fixed inset-0 z-[10000] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.55)' }}>
+            <div
+                onClick={(e) => e.stopPropagation()}
+                className="w-full max-w-lg rounded-3xl flex flex-col overflow-hidden"
+                style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow, maxHeight: '88vh' }}
+            >
+                <div className="p-5 pb-3 space-y-3">
+                    <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                            <h3 className="text-lg font-black leading-tight" style={{ color: colors.textPrimary }}>{WINDOW_TITLES[windowId]}</h3>
+                            <p className="text-xs" style={{ color: colors.textSecondary }}>
+                                {visitors === null ? 'Carregando...' : `${all.length} ${all.length === 1 ? 'pessoa' : 'pessoas'} · ${registered.length} cadastradas · ${anonymous.length} anônimas`}
+                            </p>
+                        </div>
+                        <button onClick={onClose} aria-label="Fechar" className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: `${colors.border}66`, color: colors.textSecondary }}>
+                            <X size={16} />
+                        </button>
+                    </div>
+
+                    <div className="relative">
+                        <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color: colors.textSecondary }} />
+                        <input
+                            type="text"
+                            value={query}
+                            onChange={(e) => { setQuery(e.target.value); setLimit(80) }}
+                            placeholder="Buscar por nome ou @"
+                            autoFocus
+                            className="w-full pl-9 pr-3 py-2.5 rounded-xl text-sm outline-none"
+                            style={{ background: `${colors.border}25`, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                        />
+                    </div>
+
+                    <div className="flex gap-2 flex-wrap">
+                        {chip('todos', 'Todos', all.length)}
+                        {chip('cadastrados', 'Cadastrados', registered.length)}
+                        {chip('anonimos', 'Anônimos', anonymous.length)}
+                    </div>
+                </div>
+
+                <div className="overflow-y-auto px-3 pb-4 flex-1">
+                    {visitors === null ? (
+                        <div className="flex justify-center py-10"><Spinner size={24} color={colors.accent} /></div>
+                    ) : shown.length === 0 ? (
+                        <p className="text-sm text-center py-10" style={{ color: colors.textSecondary }}>
+                            {all.length === 0 ? 'Ninguém nessa janela.' : 'Ninguém encontrado com essa busca.'}
+                        </p>
+                    ) : (
+                        <div className="space-y-1">
+                            {shown.map((v) => {
+                                const clickable = !!v.profile?.profileSlug
+                                const name = nameOf(v)
+                                const row = (
+                                    <>
+                                        <PlanAvatarRing userId={v.userId}>
+                                            {v.profile?.avatarUrl ? (
+                                                <img src={v.profile.avatarUrl} alt="" className="w-11 h-11 rounded-full object-cover flex-shrink-0" />
+                                            ) : (
+                                                <span className="w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-black text-white" style={{ background: v.userId ? GRADIENT : '#64748b' }}>
+                                                    {v.userId ? name.replace('@', '').charAt(0).toUpperCase() : '?'}
+                                                </span>
+                                            )}
+                                        </PlanAvatarRing>
+                                        <div className="min-w-0 flex-1 text-left">
+                                            <p className="text-sm font-black truncate" style={{ color: colors.textPrimary }}>{name}</p>
+                                            <p className="text-[11px] truncate" style={{ color: colors.textSecondary }}>
+                                                {v.profile?.profileSlug ? `@${v.profile.profileSlug} · ` : ''}
+                                                {v.visits} {v.visits === 1 ? 'visita' : 'visitas'} · {formatDistanceToNow(new Date(v.lastSeen), { addSuffix: true, locale: ptBRLocale })}
+                                            </p>
+                                        </div>
+                                        {clickable && <span className="text-[11px] font-black flex-shrink-0" style={{ color: colors.accent }}>Ver perfil</span>}
+                                    </>
+                                )
+                                return clickable ? (
+                                    <button
+                                        key={v.key}
+                                        onClick={() => { onClose(); router.push(`/${v.profile!.profileSlug}`) }}
+                                        className="w-full flex items-center gap-3 p-2.5 rounded-2xl transition-colors hover:bg-black/5"
+                                    >
+                                        {row}
+                                    </button>
+                                ) : (
+                                    <div key={v.key} className="w-full flex items-center gap-3 p-2.5 rounded-2xl opacity-80">{row}</div>
+                                )
+                            })}
+                            {list.length > shown.length && (
+                                <button
+                                    onClick={() => setLimit((n) => n + 80)}
+                                    className="w-full mt-2 py-2.5 rounded-xl text-sm font-bold"
+                                    style={{ border: `1px dashed ${colors.border}`, color: colors.accent }}
+                                >
+                                    Mostrar mais ({list.length - shown.length})
+                                </button>
+                            )}
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>,
+        document.body,
+    )
 }
 
 // Rota → o que a pessoa fez, em português (o que não conhece mostra o endereço mesmo)
@@ -116,6 +285,7 @@ export default function ActivitySection({ cardStyle, colors }: ActivitySectionPr
     const [summary, setSummary] = useState<ActivitySummary | null>(null)
     const [loading, setLoading] = useState(true)
     const [expanded, setExpanded] = useState<Set<string>>(new Set())
+    const [openWindow, setOpenWindow] = useState<WindowId | null>(null)
 
     const load = useCallback(async () => {
         setLoading(true)
@@ -148,14 +318,20 @@ export default function ActivitySection({ cardStyle, colors }: ActivitySectionPr
     const maxDaily = Math.max(...summary.daily.map((d) => d.count), 1)
     const maxPath = Math.max(...summary.topPaths.map((p) => p.count), 1)
 
-    const pillCard = (icon: React.ReactNode, label: string, value: number, color: string) => (
-        <div className="p-3 rounded-full border" style={{ borderColor: colors.border, background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)` }}>
+    const pillCard = (icon: React.ReactNode, label: string, value: number, color: string, windowId: WindowId) => (
+        <button
+            type="button"
+            onClick={() => setOpenWindow(windowId)}
+            title="Ver todos"
+            className="p-3 rounded-full border text-left transition-transform hover:scale-[1.03] active:scale-95 cursor-pointer"
+            style={{ borderColor: colors.border, background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)` }}
+        >
             <div className="flex items-center gap-2 text-xs" style={{ color: colors.textSecondary }}>
                 {icon}
                 <span>{label}</span>
             </div>
             <p className="text-2xl font-black" style={{ color }}>{value}</p>
-        </div>
+        </button>
     )
 
     return (
@@ -183,10 +359,10 @@ export default function ActivitySection({ cardStyle, colors }: ActivitySectionPr
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    {pillCard(<Eye size={14} />, 'Online', summary.onlineNow, colors.textPrimary)}
-                    {pillCard(<Calendar size={14} />, 'Últimas 24h', summary.last24hUnique, colors.textPrimary)}
-                    {pillCard(<TrendingUp size={14} />, '7 dias', summary.last7dUnique, colors.textPrimary)}
-                    {pillCard(<Users size={14} />, '30 dias', summary.last30dUnique, colors.textPrimary)}
+                    {pillCard(<Eye size={14} />, 'Online', summary.onlineNow, colors.textPrimary, 'online')}
+                    {pillCard(<Calendar size={14} />, 'Últimas 24h', summary.last24hUnique, colors.textPrimary, '24h')}
+                    {pillCard(<TrendingUp size={14} />, '7 dias', summary.last7dUnique, colors.textPrimary, '7d')}
+                    {pillCard(<Users size={14} />, '30 dias', summary.last30dUnique, colors.textPrimary, '30d')}
                 </div>
 
                 <div className="space-y-2">
@@ -380,6 +556,7 @@ export default function ActivitySection({ cardStyle, colors }: ActivitySectionPr
                     </div>
                 )}
             </div>
+            {openWindow && <VisitorsDialog windowId={openWindow} colors={colors} onClose={() => setOpenWindow(null)} />}
         </div>
     )
 }
