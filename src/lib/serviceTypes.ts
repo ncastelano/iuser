@@ -1,8 +1,9 @@
 // src/lib/serviceTypes.ts
+import { createElement, type CSSProperties } from 'react'
 import {
     PaintRoller, Wrench, Leaf, Zap, Sparkles, Hammer, Briefcase, Brain, PawPrint, Smile, Scissors, HandHeart, GraduationCap, Dumbbell,
-    Camera, Car, Truck, Utensils, Cake, Music, Palette, Laptop, Smartphone, Heart, Baby, Dog, Bike, House, Sofa, Shirt, BookOpen,
-    Languages, Flower2, Bug, Wind, Droplets, KeyRound, Shield, Package, Mic, Video, Plug, Fan,
+    Camera, Car, Truck, Utensils, Cake, Music, Palette, Laptop, Smartphone, Heart, Flame, Dog, Bike, House, Sofa, Shirt, BookOpen,
+    Languages, Flower2, Bug, Droplets, KeyRound, Shield, Package, Mic, Video, Plug, Fan,
     type LucideIcon,
 } from 'lucide-react'
 
@@ -27,6 +28,18 @@ export const SERVICE_TYPES: { id: ServiceType; label: string; icon: LucideIcon }
     { id: 'outro', label: 'Outro', icon: Briefcase },
 ]
 
+/** Ícone "+18" (o lucide não tem): círculo com o texto, no mesmo contrato dos ícones do lucide (size, color, className...).
+ *  Este arquivo é .ts (sem JSX), por isso createElement. */
+function Plus18Svg({ size = 24, color = 'currentColor', className, style, strokeWidth = 2 }: { size?: number | string; color?: string; className?: string; style?: CSSProperties; strokeWidth?: number }) {
+    return createElement(
+        'svg',
+        { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: color, strokeWidth, className, style, 'aria-hidden': true },
+        createElement('circle', { cx: 12, cy: 12, r: 10 }),
+        createElement('text', { x: 12, y: 16, textAnchor: 'middle', fontSize: 11.5, fontWeight: 900, fill: color, stroke: 'none', fontFamily: 'system-ui, sans-serif' }, '+18'),
+    )
+}
+const Plus18Icon = Plus18Svg as unknown as LucideIcon
+
 /** Ícones que a pessoa pode escolher ao criar um tipo "Outro" (guardamos só a chave em service_requests.custom_icon) */
 export const SERVICE_ICON_OPTIONS: { key: string; label: string; icon: LucideIcon }[] = [
     { key: 'briefcase', label: 'Trabalho', icon: Briefcase },
@@ -39,7 +52,7 @@ export const SERVICE_ICON_OPTIONS: { key: string; label: string; icon: LucideIco
     { key: 'smartphone', label: 'Celular', icon: Smartphone },
     { key: 'plug', label: 'Instalação', icon: Plug },
     { key: 'fan', label: 'Ar-condicionado', icon: Fan },
-    { key: 'wind', label: 'Ventilação', icon: Wind },
+    { key: 'adult', label: '+18', icon: Plus18Icon },
     { key: 'droplets', label: 'Água', icon: Droplets },
     { key: 'key', label: 'Chaveiro', icon: KeyRound },
     { key: 'shield', label: 'Segurança', icon: Shield },
@@ -57,7 +70,7 @@ export const SERVICE_ICON_OPTIONS: { key: string; label: string; icon: LucideIco
     { key: 'cake', label: 'Festa', icon: Cake },
     { key: 'shirt', label: 'Roupas', icon: Shirt },
     { key: 'scissors', label: 'Beleza', icon: Scissors },
-    { key: 'baby', label: 'Crianças', icon: Baby },
+    { key: 'flame', label: 'Fogo', icon: Flame },
     { key: 'dog', label: 'Pets', icon: Dog },
     { key: 'heart', label: 'Cuidados', icon: Heart },
     { key: 'book', label: 'Aulas', icon: BookOpen },

@@ -22,6 +22,8 @@ import { HOME_GRADIENT, HomeSectionHeader } from './HomeSectionKit'
 import { ViewServicesButton } from './ViewServicesButton'
 import { useMyServiceApplications } from '@/hooks/useMyServiceApplications'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
+import SeenBox from '@/components/SeenBox'
+import { trackServiceRequestView } from '@/lib/trackServiceRequestView'
 
 // Em vitrine pública, só rua/bairro — o número fica pra quem for atender.
 function publicPlace(address: string): string {
@@ -95,8 +97,11 @@ export default function NeedAService({ dragHandle, limit = 8 }: { dragHandle?: R
                     const mine = item.requester_id === userId
                     const who = mine ? 'Você' : item.requester?.name?.split(' ')[0] || (item.requester?.profileSlug ? `@${item.requester.profileSlug}` : 'Alguém')
                     return (
-                        <div
+                        <SeenBox
                             key={item.id}
+                            // Só passar por cima (ou ficar visível) já conta como visto: aparece em "Visitantes dos serviços" do pedido
+                            onSeen={() => trackServiceRequestView(item.id)}
+                            seenKey={`request:${item.id}`}
                             className="flex-shrink-0 w-64 rounded-2xl p-3.5 flex flex-col gap-2"
                             style={{
                                 background: colors.surface,
@@ -191,7 +196,7 @@ export default function NeedAService({ dragHandle, limit = 8 }: { dragHandle?: R
                                     Quero fazer esse serviço
                                 </button>
                             )}
-                        </div>
+                        </SeenBox>
                     )
                 })}
             </div>
