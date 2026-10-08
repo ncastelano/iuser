@@ -226,38 +226,18 @@ function ConviteContent() {
                 return
             }
 
-            // Usar a função do Supabase
-            console.log('📡 Chamando RPC link_user_to_network...')
-
-            const { data, error } = await supabase.rpc('link_user_to_network', {
+            // O vínculo é feito por uma função do banco (só a própria conta, só se ainda não foi convidada,
+            // sem ciclo) — um UPDATE direto em profiles.upline_id é barrado pelo banco.
+            const { error } = await supabase.rpc('link_user_to_network', {
                 p_user_id: currentUser.id,
-                p_upline_id: inviter.id
+                p_upline_id: inviter.id,
             })
 
             if (error) {
                 console.error('❌ Erro ao vincular via RPC:', error)
-
-                // Fallback: update direto
-                console.log('🔄 Tentando fallback com update direto...')
-
-                const { error: updateError } = await supabase
-                    .from('profiles')
-                    .update({
-                        upline_id: inviter.id,
-                        updated_at: new Date().toISOString()
-                    })
-                    .eq('id', currentUser.id)
-
-                if (updateError) {
-                    console.error('❌ Erro ao vincular (fallback):', updateError)
-                    toast.error('Não foi possível entrar na rede: ' + updateError.message)
-                    setActionLoading(false)
-                    return
-                }
-
-                console.log('✅ Vinculado via fallback!')
-            } else {
-                console.log('✅ Vinculado via RPC!', data)
+                toast.error(error.message || 'Não foi possível aceitar o convite.')
+                setActionLoading(false)
+                return
             }
 
             toast.success(`🎉 Bem-vindo! Você agora faz parte da rede de ${inviter.name}!`)
