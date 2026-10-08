@@ -46,6 +46,38 @@ const parseUnit = (category: string | null | undefined) => {
 
 const formatServicePrice = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
+// Intercala por quem oferece: uma "rodada" pega o melhor serviço de cada loja/pessoa, depois o segundo de cada uma...
+// Assim os serviços da mesma loja não aparecem lado a lado (só sobram juntos quando é a única opção restante).
+function spreadByProvider<T extends { providerSlug: string; providerName: string; providerId?: string | null }>(sorted: T[]): T[] {
+    const groups = new Map<string, T[]>()
+    for (const item of sorted) {
+        const key = item.providerId || item.providerSlug || item.providerName
+        const list = groups.get(key)
+        if (list) list.push(item)
+        else groups.set(key, [item])
+    }
+    // as listas já vêm da mais vista pra menos; os grupos ficam na ordem do melhor serviço de cada um
+    const queues = Array.from(groups.values())
+    const result: T[] = []
+    let last: string | null = null
+    while (queues.some((q) => q.length)) {
+        let progressed = false
+        for (const q of queues) {
+            if (!q.length) continue
+            const key = q[0].providerId || q[0].providerSlug || q[0].providerName
+            // não repete o mesmo logo em seguida se existir outra opção nesta rodada
+            if (key === last && queues.some((o) => o.length && (o[0].providerId || o[0].providerSlug || o[0].providerName) !== key)) continue
+            result.push(q.shift()!)
+            last = key
+            progressed = true
+        }
+        if (!progressed) { // só sobrou o mesmo provider
+            for (const q of queues) while (q.length) result.push(q.shift()!)
+        }
+    }
+    return result
+}
+
 function useFeaturedServices() {
     const [services, setServices] = useState<ServiceCard[]>([])
     const [loading, setLoading] = useState(true)
@@ -140,7 +172,7 @@ function useFeaturedServices() {
                         }
                     })
 
-                setServices([...fromProfiles, ...fromStores].sort((a, b) => b.viewCount - a.viewCount))
+                setServices(spreadByProvider([...fromProfiles, ...fromStores].sort((a, b) => b.viewCount - a.viewCount)))
             } finally {
                 setLoading(false)
             }
