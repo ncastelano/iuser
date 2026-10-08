@@ -11,7 +11,7 @@ import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { supabase } from '@/lib/supabase/client'
 import { getAvatarUrl } from '@/lib/avatar'
-import { getServiceIcon, getServiceLabel } from '@/lib/serviceTypes'
+import { getServiceIcon, getServiceLabel, getRequestTitle } from '@/lib/serviceTypes'
 import { askedAgo, SERVICE_REQUESTS_CHANGED } from '@/lib/serviceBoard'
 import { HomeSubheading } from '@/app/(main)/inicio/sections/HomeSubheading'
 import ServiceRequestDetailsDialog from '@/components/ServiceRequestDetailsDialog'
@@ -35,6 +35,8 @@ interface OpenRequest {
     id: string
     serviceType: string
     serviceLabel: string
+    /** O que a pessoa escreveu (título do card) */
+    title: string
     locationAddress: string
     createdAt: string
     viewCount: number
@@ -65,7 +67,7 @@ export default function MyOpenServiceRequests({ limit = 5, title, onCountChange 
 
         const { data: myRequests } = await supabase
             .from('service_requests')
-            .select('id, service_type, custom_service, location_address, created_at, view_count, photo_urls')
+            .select('id, service_type, custom_service, description, location_address, created_at, view_count, photo_urls')
             .eq('requester_id', userId)
             .eq('status', 'pending')
             .order('created_at', { ascending: false })
@@ -93,6 +95,7 @@ export default function MyOpenServiceRequests({ limit = 5, title, onCountChange 
             id: r.id,
             serviceType: r.service_type,
             serviceLabel: getServiceLabel(r.service_type, r.custom_service),
+            title: getRequestTitle(r.description, r.service_type, r.custom_service),
             locationAddress: r.location_address,
             createdAt: r.created_at,
             viewCount: r.view_count || 0,
@@ -143,7 +146,7 @@ export default function MyOpenServiceRequests({ limit = 5, title, onCountChange 
                                 {r.photoUrl ? (
                                     <>
                                         <img src={r.photoUrl} alt="" aria-hidden className="absolute inset-0 w-full h-full object-cover scale-125 blur-xl opacity-60" loading="lazy" />
-                                        <img src={r.photoUrl} alt={r.serviceLabel} className="relative w-full h-full object-contain" loading="lazy" />
+                                        <img src={r.photoUrl} alt={r.title} className="relative w-full h-full object-contain" loading="lazy" />
                                     </>
                                 ) : (
                                     <div className="w-full h-full flex items-center justify-center">
@@ -157,10 +160,13 @@ export default function MyOpenServiceRequests({ limit = 5, title, onCountChange 
                             </div>
 
                             <div className="p-3.5 flex flex-col gap-2">
-                                <p className="flex items-center gap-1.5 text-sm font-black" style={{ color: colors.textPrimary }}>
-                                    <Icon size={14} style={{ color: colors.accent }} />
-                                    {r.serviceLabel}
+                                <p className="text-sm font-black leading-snug" title={r.title} style={{ color: colors.textPrimary, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                                    {r.title}
                                 </p>
+                                <span className="self-start flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: `${colors.accent}15`, color: colors.accent }}>
+                                    <Icon size={11} />
+                                    {r.serviceLabel}
+                                </span>
                                 <div className="flex items-center justify-between gap-2 text-[11px]" style={{ color: colors.textSecondary }}>
                                     <span className="flex items-center gap-1 min-w-0">
                                         <MapPin size={11} className="flex-shrink-0" />

@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { getAuthedUser } from '@/lib/adminAuth'
 import { sendPushToUser } from '@/lib/serverPush'
-import { getServiceLabel } from '@/lib/serviceTypes'
+import { getRequestTitle } from '@/lib/serviceTypes'
 
 // Avisa (push) quem pediu o serviço que alguém acabou de se inscrever.
 // Quem se candidata vem do token; a candidatura precisa existir de verdade.
@@ -26,7 +26,7 @@ export async function POST(req: Request) {
 
     const { data: request } = await supabaseAdmin
         .from('service_requests')
-        .select('requester_id, service_type, custom_service')
+        .select('requester_id, service_type, custom_service, description')
         .eq('id', serviceRequestId)
         .maybeSingle()
     if (!request || request.requester_id === user.id) return NextResponse.json({ success: true, skipped: true })
@@ -37,11 +37,11 @@ export async function POST(req: Request) {
         .eq('id', user.id)
         .maybeSingle()
     const who = actor?.name || (actor?.profileSlug ? `@${actor.profileSlug}` : 'Alguém')
-    const serviceLabel = getServiceLabel(request.service_type, request.custom_service)
+    const requestTitle = getRequestTitle(request.description, request.service_type, request.custom_service, 60)
 
     await sendPushToUser(request.requester_id, {
         title: 'Nova inscrição!',
-        body: `${who} quer atender seu pedido de ${serviceLabel}`,
+        body: `${who} quer atender seu pedido: “${requestTitle}”`,
         url: '/solicitar-servico',
         tag: `service-application-${serviceRequestId}`,
     })

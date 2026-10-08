@@ -11,7 +11,7 @@ import { X, MapPin, Building2, Pencil, Eye, Check, Users, Clock, Trash2 } from '
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
-import { getServiceIcon, getServiceLabel } from '@/lib/serviceTypes'
+import { getServiceIcon, getServiceLabel, getRequestTitle, SERVICE_TYPES } from '@/lib/serviceTypes'
 import { getAvatarUrl } from '@/lib/avatar'
 import { askedAgo, notifyServiceRequestsChanged } from '@/lib/serviceBoard'
 import { Spinner } from '@/components/Spinner'
@@ -33,6 +33,7 @@ interface DialogRequest {
     id: string
     serviceType: string
     serviceLabel: string
+    customService: string | null
     locationAddress: string
     description: string
     photoUrls: string[]
@@ -77,6 +78,7 @@ export default function ServiceRequestDetailsDialog({ requestId, onClose }: Prop
             id: r.id,
             serviceType: r.service_type,
             serviceLabel: getServiceLabel(r.service_type, r.custom_service),
+            customService: r.custom_service || null,
             locationAddress: r.location_address,
             description: r.description || '',
             photoUrls: r.photo_urls || [],
@@ -130,7 +132,7 @@ export default function ServiceRequestDetailsDialog({ requestId, onClose }: Prop
         )
     }
 
-    return <DetailsBody request={request} setRequest={setRequest} decidingId={decidingId} onDecide={decide} onClose={onClose} colors={colors} />
+    return <DetailsBody key={request.id} request={request} setRequest={setRequest} decidingId={decidingId} onDecide={decide} onClose={onClose} colors={colors} />
 }
 
 function DetailsBody({ request, setRequest, decidingId, onDecide, onClose, colors }: {
@@ -143,9 +145,13 @@ function DetailsBody({ request, setRequest, decidingId, onDecide, onClose, color
 }) {
     const whenAsked = `você ${askedAgo(request.createdAt)}`
     const Icon = getServiceIcon(request.serviceType)
+    // Título = o que a pessoa escreveu; o tipo (jardineiro, veterinário...) vira uma etiqueta e pode ser trocado em Editar
+    const title = getRequestTitle(request.description, request.serviceType, request.customService, 90)
 
     const [editing, setEditing] = useState(false)
     const [description, setDescription] = useState(request.description)
+    const [serviceType, setServiceType] = useState(request.serviceType)
+    const [customService, setCustomService] = useState(request.customService || '')
     const [needsAccess, setNeedsAccess] = useState(request.needsAccess)
     const [accessNotes, setAccessNotes] = useState(request.accessNotes || '')
     const [saving, setSaving] = useState(false)
@@ -179,9 +185,15 @@ function DetailsBody({ request, setRequest, decidingId, onDecide, onClose, color
             toast.error('Descreva o que você precisa')
             return
         }
+        if (serviceType === 'outro' && !customService.trim()) {
+            toast.error('Diga que tipo de profissional você procura')
+            return
+        }
         setSaving(true)
         try {
             const patch = {
+                service_type: serviceType,
+                custom_service: serviceType === 'outro' ? customService.trim() : null,
                 description: description.trim(),
                 location_needs_access: needsAccess,
                 location_access_notes: needsAccess ? (accessNotes.trim() || null) : null,
@@ -194,7 +206,15 @@ function DetailsBody({ request, setRequest, decidingId, onDecide, onClose, color
                 return
             }
             toast.success('Pedido atualizado')
-            setRequest((prev) => prev && ({ ...prev, description: patch.description, needsAccess, accessNotes: patch.location_access_notes }))
+            setRequest((prev) => prev && ({
+                ...prev,
+                description: patch.description,
+                serviceType: patch.service_type,
+                customService: patch.custom_service,
+                serviceLabel: getServiceLabel(patch.service_type, patch.custom_service),
+                needsAccess,
+                accessNotes: patch.location_access_notes,
+            }))
             notifyServiceRequestsChanged()
             setEditing(false)
         } catch (err: any) {
@@ -224,7 +244,10 @@ function DetailsBody({ request, setRequest, decidingId, onDecide, onClose, color
                         <Icon size={22} />
                     </div>
                     <div className="min-w-0 flex-1">
-                        <h3 className="text-lg font-black leading-tight" style={{ color: colors.textPrimary }}>Pedido de {request.serviceLabel.toLowerCase()}</h3>
+                        <h3 className="text-lg font-black leading-tight" style={{ color: colors.textPrimary }}>{title}</h3>
+                        <span className="inline-flex items-center gap-1 mt-1 text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ background: `${colors.accent}15`, color: colors.accent }}>
+                            <Icon size={11} /> {request.serviceLabel}
+                        </span>
                         <p className="text-xs flex items-center gap-1 mt-0.5" style={{ color: colors.textSecondary }}>
                             <Clock size={11} /> {whenAsked}
                             <span className="mx-1">·</span>
@@ -256,6 +279,37 @@ function DetailsBody({ request, setRequest, decidingId, onDecide, onClose, color
 
                         {editing ? (
                             <>
+                                <p className="text-[11px] font-black uppercase tracking-widest mb-2" style={{ color: colors.textSecondary }}>Tipo de profissional</p>
+                                <div className="flex flex-wrap gap-1.5 mb-3">
+                                    {SERVICE_TYPES.map((t) => {
+                                        const active = serviceType === t.id
+                                        const TIcon = t.icon
+                                        return (
+                                            <button
+                                                key={t.id}
+                                                type="button"
+                                                onClick={() => setServiceType(t.id)}
+                                                className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-black"
+                                                style={active ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                                            >
+                                                <TIcon size={12} />
+                                                {t.label}
+                                            </button>
+                                        )
+                                    })}
+                                </div>
+                                {serviceType === 'outro' && (
+                                    <input
+                                        type="text"
+                                        value={customService}
+                                        onChange={(e) => setCustomService(e.target.value)}
+                                        placeholder="Que tipo de profissional? Ex: tosador, fotógrafo..."
+                                        maxLength={60}
+                                        className="w-full mb-3 px-3 py-2 rounded-lg text-sm focus:outline-none"
+                                        style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                                    />
+                                )}
+                                <p className="text-[11px] font-black uppercase tracking-widest mb-2" style={{ color: colors.textSecondary }}>O que você precisa</p>
                                 <textarea
                                     value={description}
                                     onChange={(e) => setDescription(e.target.value)}
@@ -296,6 +350,8 @@ function DetailsBody({ request, setRequest, decidingId, onDecide, onClose, color
                                         onClick={() => {
                                             setEditing(false)
                                             setDescription(request.description)
+                                            setServiceType(request.serviceType)
+                                            setCustomService(request.customService || '')
                                             setNeedsAccess(request.needsAccess)
                                             setAccessNotes(request.accessNotes || '')
                                         }}

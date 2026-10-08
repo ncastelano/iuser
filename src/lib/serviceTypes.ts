@@ -30,3 +30,10 @@ export function getServiceLabel(type: string, customService?: string | null): st
     if (type === 'outro') return customService || 'Outro'
     return SERVICE_TYPES.find((t) => t.id === type)?.label || type
 }
+
+/** Título de um pedido: o que a PESSOA escreveu (1ª linha, cortada), não o tipo. Sem descrição, cai no tipo. */
+export function getRequestTitle(description: string | null | undefined, type: string, customService?: string | null, max = 80): string {
+    const first = (description || '').split('\n').map((l) => l.trim()).find(Boolean) || ''
+    if (!first) return getServiceLabel(type, customService)
+    return first.length > max ? `${first.slice(0, max - 1).trimEnd()}…` : first
+}
