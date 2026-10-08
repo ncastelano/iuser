@@ -70,9 +70,8 @@ function ProfileName({ slug }: { slug: string }) {
    Avatar adaptável
    =================================================== */
 function AppointmentAvatar({ userId, ...props }: Parameters<typeof AppointmentAvatarBase>[0] & { userId?: string | null }) {
-    const radius = (props.size ?? 72) > 56 ? '18px' : '16px'
     return (
-        <PlanAvatarRing userId={userId} radius={radius}>
+        <PlanAvatarRing userId={userId}>
             <AppointmentAvatarBase {...props} />
         </PlanAvatarRing>
     )
@@ -110,7 +109,7 @@ function AppointmentAvatarBase({
                     position: 'relative',
                     width: size,
                     height: size,
-                    borderRadius: size > 56 ? 18 : 16,
+                    borderRadius: '50%',
                     overflow: 'hidden',
                     flexShrink: 0,
                     boxShadow: colors.shadow,
@@ -126,7 +125,7 @@ function AppointmentAvatarBase({
             style={{
                 width: size,
                 height: size,
-                borderRadius: size > 56 ? 18 : 16,
+                borderRadius: '50%',
                 background: gradient,
                 display: 'flex',
                 alignItems: 'center',
