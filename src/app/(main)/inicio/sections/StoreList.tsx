@@ -136,6 +136,8 @@ function StoreStatus({ businessHours }: { businessHours: BusinessHours | null | 
 }
 
 // ========== COMPONENTE CARD ==========
+// Mesmo idioma dos outros cards da home (cantos grandes, capa, texto legível): o logo da loja aparece INTEIRO num
+// círculo sobre uma cópia desfocada dele mesmo (nada de logo cortado), e o texto fala como gente.
 function StoreCard({
     store,
     onClick,
@@ -146,208 +148,136 @@ function StoreCard({
     colors: any
 }) {
     const isOpen = isStoreOpenNow(store.business_hours)
-    const addressShort = store.address ? store.address.split(',')[0]?.trim() || store.address : 'Endereço não informado'
+    const addressShort = store.address ? store.address.split(',')[0]?.trim() || store.address : ''
 
-    const hasProducts = store.top_products && store.top_products.length > 0
-    const hasReviews = store.recent_reviews && store.recent_reviews.length > 0
-    const hasRating = store.ratings_count && store.ratings_count > 0
-    const hasAddress = store.address && store.address.trim().length > 0
-
-    const CARD_HEIGHT = 'h-[420px]'
-    const IMAGE_HEIGHT = 'h-48'
-    const CONTENT_HEIGHT = 'min-h-[180px]'
-
-    const isProductPublication = (product: any) => {
-        return product.listing_type === 'publication'
-    }
+    const products = (store.top_products || []).slice(0, 2)
+    const review = store.recent_reviews?.[0]
+    const hasRating = !!store.ratings_count && store.ratings_count > 0
+    const views = store.view_count || 0
 
     const categoryInfo = resolveCategoria(store.category)
     const categoryColor = categoryInfo?.color || '#f97316'
-    const categoryName = categoryInfo?.nome || store.category || 'Categoria'
+    const categoryName = categoryInfo?.nome || store.category || null
 
     return (
         <div
             onClick={onClick}
-            className={`group w-full ${CARD_HEIGHT} rounded-2xl overflow-hidden border transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 cursor-pointer flex flex-col`}
-            style={{
-                background: colors.surface,
-                borderColor: colors.border,
-            }}
+            className="group w-full h-full rounded-3xl overflow-hidden border transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 cursor-pointer flex flex-col"
+            style={{ background: colors.surface, borderColor: colors.border, boxShadow: colors.shadow }}
         >
-            <div
-                className={`relative w-full ${IMAGE_HEIGHT} overflow-hidden flex-shrink-0`}
-                style={{ background: GRADIENT }}
-            >
-                {store.logo_url ? (
-                    <img
-                        src={store.logo_url}
-                        alt={store.name}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                        loading="lazy"
-                    />
-                ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-black/10">
-                        <Store className="w-16 h-16 opacity-50" style={{ color: '#ffffff' }} />
-                    </div>
+            {/* Capa: cópia desfocada do logo + o logo inteiro num círculo */}
+            <div className="relative w-full h-40 overflow-hidden flex-shrink-0" style={{ background: GRADIENT }}>
+                {store.logo_url && (
+                    <img src={store.logo_url} alt="" aria-hidden className="absolute inset-0 w-full h-full object-cover scale-150 blur-2xl opacity-70" loading="lazy" />
                 )}
+                <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.35) 100%)' }} />
 
-                <div
-                    className="absolute top-3 right-3 px-3 py-1.5 rounded-full text-[10px] font-black uppercase shadow-lg flex items-center gap-1.5"
-                    style={{
-                        background: isOpen ? 'rgba(16,185,129,0.9)' : 'rgba(239,68,68,0.9)',
-                        color: '#fff',
-                    }}
-                >
+                <div className="relative w-full h-full flex items-center justify-center pb-2">
                     <div
-                        className={`w-1.5 h-1.5 rounded-full animate-pulse ${isOpen ? 'bg-white' : 'bg-white/60'}`}
-                    />
-                    {isOpen ? 'Aberto' : 'Fechado'}
+                        className="w-24 h-24 rounded-full overflow-hidden flex items-center justify-center group-hover:scale-105 transition-transform duration-500"
+                        style={{ background: '#fff', border: '4px solid rgba(255,255,255,0.95)', boxShadow: '0 8px 24px rgba(0,0,0,0.35)' }}
+                    >
+                        {store.logo_url ? (
+                            <img src={store.logo_url} alt={store.name} className="w-full h-full object-cover" loading="lazy" />
+                        ) : (
+                            <Store className="w-10 h-10" style={{ color: '#f97316' }} />
+                        )}
+                    </div>
                 </div>
 
-                {store.view_count && store.view_count > 0 && (
-                    <div className="absolute bottom-3 left-3 px-2 py-1 rounded-full text-[9px] font-bold shadow-md flex items-center gap-1"
-                        style={{
-                            background: 'rgba(0,0,0,0.5)',
-                            color: '#fff',
-                        }}
-                    >
+                <span
+                    className="absolute top-3 right-3 px-3 py-1.5 rounded-full text-[11px] font-black flex items-center gap-1.5 backdrop-blur-sm"
+                    style={{ background: isOpen ? 'rgba(16,185,129,0.92)' : 'rgba(239,68,68,0.92)', color: '#fff', boxShadow: '0 2px 10px rgba(0,0,0,0.25)' }}
+                >
+                    <span className={`w-1.5 h-1.5 rounded-full ${isOpen ? 'bg-white animate-pulse' : 'bg-white/70'}`} />
+                    {isOpen ? 'Aberto agora' : 'Fechado agora'}
+                </span>
+
+                {views > 0 && (
+                    <span className="absolute bottom-3 left-3 flex items-center gap-1 text-[11px] font-bold text-white px-2.5 py-1 rounded-full" style={{ background: 'rgba(0,0,0,0.45)' }} title={`${views} ${views === 1 ? 'pessoa visitou' : 'pessoas visitaram'} esta loja`}>
                         <Eye className="w-3 h-3" />
-                        {store.view_count}
-                    </div>
+                        {views}
+                    </span>
                 )}
 
-                {store.category && (
-                    <div className="absolute bottom-3 right-3">
-                        <span
-                            className="px-2.5 py-1 rounded-full text-[8px] font-black uppercase tracking-wider backdrop-blur-sm"
-                            style={{
-                                background: `${categoryColor}dd`,
-                                color: '#fff',
-                                boxShadow: `0 2px 8px ${categoryColor}40`,
-                            }}
-                        >
-                            {categoryName}
-                        </span>
-                    </div>
+                {categoryName && (
+                    <span
+                        className="absolute bottom-3 right-3 max-w-[60%] truncate px-2.5 py-1 rounded-full text-[10px] font-black tracking-wide text-white"
+                        style={{ background: `${categoryColor}ee`, boxShadow: `0 2px 8px ${categoryColor}55` }}
+                    >
+                        {categoryName}
+                    </span>
                 )}
             </div>
 
-            <div className={`p-4 space-y-2 flex-1 flex flex-col ${CONTENT_HEIGHT} overflow-hidden`}>
-                <div className="flex items-start justify-between gap-2 flex-shrink-0">
-                    <div className="flex-1 min-w-0">
-                        <h3 className="text-sm font-bold truncate" style={{ color: colors.textPrimary }}>
-                            {store.name}
-                        </h3>
-                        {hasAddress && (
-                            <div className="flex items-center gap-1 mt-0.5 text-[10px]" style={{ color: colors.textPrimary }}>
-                                <MapPin className="w-3 h-3 flex-shrink-0" />
-                                <span className="truncate">{addressShort}</span>
-                            </div>
-                        )}
-                    </div>
-                    <ChevronRight className="w-4 h-4 flex-shrink-0 opacity-40 group-hover:opacity-100 transition-opacity" style={{ color: colors.textPrimary }} />
+            <div className="p-4 flex flex-col gap-3 flex-1">
+                <div>
+                    <h3 className="text-base font-black leading-tight truncate" style={{ color: colors.textPrimary }}>{store.name}</h3>
+                    {addressShort && (
+                        <p className="flex items-center gap-1 mt-1 text-xs" style={{ color: colors.textSecondary }}>
+                            <MapPin className="w-3 h-3 flex-shrink-0" />
+                            <span className="truncate">{addressShort}</span>
+                        </p>
+                    )}
                 </div>
 
-                <div className="flex-shrink-0">
+                {/* Nota e horário, em frase */}
+                <div className="flex flex-col gap-1">
                     {hasRating ? (
-                        <div className="flex items-center gap-2">
-                            <div className="flex items-center gap-1">
-                                <RatingStars value={store.ratings_avg || 0} size={12} />
-                                <span className="text-xs font-bold" style={{ color: colors.textPrimary }}>
-                                    {store.ratings_avg?.toFixed(1)}
-                                </span>
-                            </div>
-                            <span className="text-[9px] opacity-60" style={{ color: colors.textPrimary }}>
-                                ({store.ratings_count})
-                            </span>
+                        <div className="flex items-center gap-2 text-xs" style={{ color: colors.textSecondary }}>
+                            <RatingStars value={store.ratings_avg || 0} size={13} />
+                            <span><b style={{ color: colors.textPrimary }}>{store.ratings_avg?.toFixed(1)}</b> · {store.ratings_count} {store.ratings_count === 1 ? 'avaliação' : 'avaliações'}</span>
                         </div>
                     ) : (
-                        <div className="flex items-center gap-1">
-                            <Star className="w-3 h-3 opacity-30" style={{ color: colors.textPrimary }} />
-                            <span className="text-[9px] opacity-60" style={{ color: colors.textPrimary }}>
-                                Sem avaliações
-                            </span>
-                        </div>
+                        <p className="text-xs" style={{ color: colors.textSecondary }}>Ainda sem avaliações</p>
                     )}
+                    <div className="text-[11px]"><StoreStatus businessHours={store.business_hours} /></div>
                 </div>
 
-                <div className="flex-shrink-0">
-                    <StoreStatus businessHours={store.business_hours} />
-                </div>
-
-                <div className="flex-1 min-h-0">
-                    {hasProducts && (
-                        <div className="pt-2 border-t" style={{ borderColor: colors.border }}>
-                            <p className="text-[9px] font-black uppercase tracking-wider mb-1.5 opacity-60" style={{ color: colors.textPrimary }}>
-                                <TrendingUp className="inline w-3 h-3 mr-1" style={{ color: '#f97316' }} />
-                                Destaques
-                            </p>
-                            <div className="flex gap-1.5">
-                                {store.top_products!.slice(0, 2).map((product) => {
-                                    const isPublication = isProductPublication(product)
-                                    return (
-                                        <div
-                                            key={product.id}
-                                            className="flex-1 flex items-center gap-1.5 px-2 py-1 rounded-lg"
-                                            style={{
-                                                background: 'rgba(255,255,255,0.05)',
-                                                border: `1px solid ${colors.border}`,
-                                            }}
-                                        >
-                                            {product.image_url ? (
-                                                <img
-                                                    src={product.image_url}
-                                                    alt=""
-                                                    className="w-5 h-5 rounded object-cover flex-shrink-0"
-                                                />
-                                            ) : (
-                                                <ShoppingCart className="w-3 h-3 flex-shrink-0 opacity-40" style={{ color: colors.textPrimary }} />
-                                            )}
-                                            <span className="text-[9px] font-medium truncate flex-1" style={{ color: colors.textPrimary }}>
-                                                {product.name}
-                                            </span>
-                                            {!isPublication ? (
-                                                <span className="text-[8px] font-bold flex-shrink-0" style={{ color: '#f97316' }}>
-                                                    R$ {product.price.toFixed(2)}
-                                                </span>
-                                            ) : (
-                                                <span className="text-[8px] font-bold flex-shrink-0 flex items-center gap-0.5" style={{ color: '#8b5cf6' }}>
-                                                    <Megaphone className="w-2.5 h-2.5" />
-                                                    <span>PUB</span>
-                                                </span>
-                                            )}
-                                        </div>
-                                    )
-                                })}
-                            </div>
-                        </div>
-                    )}
-                </div>
-
-                <div className="flex-shrink-0 min-h-[40px]">
-                    {hasReviews && (
-                        <div className="pt-2 border-t" style={{ borderColor: colors.border }}>
-                            {store.recent_reviews!.slice(0, 1).map((review) => (
-                                <div key={review.id} className="flex items-start gap-1.5">
-                                    <Star className="w-3 h-3 flex-shrink-0 mt-0.5" style={{ color: '#f59e0b' }} />
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-1.5">
-                                            <span className="text-[8px] font-bold" style={{ color: colors.textPrimary }}>
-                                                {review.profile_name}
-                                            </span>
-                                            <RatingStars value={review.rating} size={7} />
-                                        </div>
-                                        {review.comment && (
-                                            <p className="text-[9px] truncate opacity-70" style={{ color: colors.textPrimary }}>
-                                                "{review.comment}"
-                                            </p>
-                                        )}
-                                    </div>
+                {/* Destaques */}
+                {products.length > 0 && (
+                    <div className="pt-3 border-t flex flex-col gap-2" style={{ borderColor: colors.border }}>
+                        <p className="text-[11px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>Em destaque</p>
+                        {products.map((product) => {
+                            const isPublication = product.listing_type === 'publication'
+                            return (
+                                <div key={product.id} className="flex items-center gap-2.5">
+                                    <span className="w-10 h-10 rounded-xl overflow-hidden flex-shrink-0 flex items-center justify-center" style={{ background: `${colors.border}40` }}>
+                                        {product.image_url
+                                            ? <img src={product.image_url} alt="" className="w-full h-full object-cover" loading="lazy" />
+                                            : <ShoppingCart className="w-4 h-4 opacity-40" style={{ color: colors.textPrimary }} />}
+                                    </span>
+                                    <span className="text-xs font-bold flex-1 min-w-0 truncate" style={{ color: colors.textPrimary }}>{product.name}</span>
+                                    {isPublication ? (
+                                        <span className="text-[10px] font-black px-2 py-0.5 rounded-full flex-shrink-0" style={{ background: '#8b5cf618', color: '#8b5cf6' }}>Publicação</span>
+                                    ) : (
+                                        <span className="text-xs font-black flex-shrink-0" style={{ color: '#f97316' }}>{product.price.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                                    )}
                                 </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
+                            )
+                        })}
+                    </div>
+                )}
+
+                {/* O que dizem */}
+                {review && (
+                    <div className="rounded-2xl px-3 py-2" style={{ background: `${colors.border}25` }}>
+                        <p className="text-xs italic line-clamp-2" style={{ color: colors.textPrimary }}>
+                            {review.comment ? `“${review.comment}”` : 'Avaliou esta loja'}
+                        </p>
+                        <p className="flex items-center gap-1.5 mt-1 text-[11px]" style={{ color: colors.textSecondary }}>
+                            <RatingStars value={review.rating} size={10} />
+                            {review.profile_name || 'Cliente'}
+                        </p>
+                    </div>
+                )}
+
+                <span
+                    className="mt-auto w-full text-center py-2.5 rounded-full font-black text-sm text-white transition-transform group-hover:scale-[1.02]"
+                    style={{ background: GRADIENT, boxShadow: '0 4px 12px #f9731640' }}
+                >
+                    Visitar loja
+                </span>
             </div>
         </div>
     )
@@ -355,58 +285,20 @@ function StoreCard({
 
 // ========== SKELETON CARD ==========
 function StoreCardSkeleton({ colors }: { colors: any }) {
+    const bar = (w: string, h = 12) => <div className="rounded-full" style={{ width: w, height: h, background: `${colors.border}40` }} />
     return (
-        <div className="w-full h-[420px] rounded-2xl overflow-hidden border flex flex-col"
-            style={{
-                borderColor: colors.border,
-                background: colors.surface,
-            }}
-        >
-            <div className="relative w-full h-48 overflow-hidden flex-shrink-0" style={{ background: `${colors.border}50` }}>
-                <div className="w-full h-full" style={{ background: `${colors.border}30` }} />
+        <div className="w-full rounded-3xl overflow-hidden border flex flex-col animate-pulse" style={{ borderColor: colors.border, background: colors.surface }}>
+            <div className="w-full h-40 flex items-center justify-center" style={{ background: `${colors.border}35` }}>
+                <div className="w-24 h-24 rounded-full" style={{ background: `${colors.border}50` }} />
             </div>
-
-            <div className="p-4 space-y-3 flex-1 flex flex-col min-h-[180px] overflow-hidden">
-                <div className="flex items-start justify-between flex-shrink-0">
-                    <div className="flex-1">
-                        <div className="h-5 rounded w-3/4" style={{ background: `${colors.border}40` }} />
-                        <div className="h-3 rounded w-1/2 mt-1.5" style={{ background: `${colors.border}30` }} />
-                    </div>
-                    <div className="w-4 h-4 rounded" style={{ background: `${colors.border}30` }} />
+            <div className="p-4 flex flex-col gap-3">
+                <div className="flex flex-col gap-2">{bar('70%', 18)}{bar('45%')}</div>
+                <div className="flex flex-col gap-2">{bar('60%')}{bar('50%')}</div>
+                <div className="pt-3 border-t flex flex-col gap-2" style={{ borderColor: colors.border }}>
+                    <div className="flex items-center gap-2.5"><div className="w-10 h-10 rounded-xl" style={{ background: `${colors.border}35` }} />{bar('55%')}</div>
+                    <div className="flex items-center gap-2.5"><div className="w-10 h-10 rounded-xl" style={{ background: `${colors.border}35` }} />{bar('45%')}</div>
                 </div>
-
-                <div className="flex items-center gap-2 flex-shrink-0">
-                    <div className="flex items-center gap-1">
-                        <div className="h-3 rounded w-16" style={{ background: `${colors.border}30` }} />
-                        <div className="h-2 rounded w-6" style={{ background: `${colors.border}25` }} />
-                    </div>
-                </div>
-
-                <div className="flex items-center gap-1.5 flex-shrink-0">
-                    <div className="w-3 h-3 rounded-full" style={{ background: `${colors.border}30` }} />
-                    <div className="h-3 rounded w-20" style={{ background: `${colors.border}30` }} />
-                </div>
-
-                <div className="flex-1 min-h-0 pt-2 border-t" style={{ borderColor: colors.border }}>
-                    <div className="h-3 rounded w-16 mb-1.5" style={{ background: `${colors.border}30` }} />
-                    <div className="flex gap-1.5">
-                        <div className="flex-1 h-8 rounded-lg" style={{ background: `${colors.border}25` }} />
-                        <div className="flex-1 h-8 rounded-lg" style={{ background: `${colors.border}25` }} />
-                    </div>
-                </div>
-
-                <div className="flex-shrink-0 min-h-[40px] pt-2 border-t" style={{ borderColor: colors.border }}>
-                    <div className="flex items-start gap-1.5">
-                        <div className="w-3 h-3 rounded-full mt-0.5" style={{ background: `${colors.border}30` }} />
-                        <div className="flex-1">
-                            <div className="flex items-center gap-1.5">
-                                <div className="h-2 rounded w-12" style={{ background: `${colors.border}30` }} />
-                                <div className="h-2 rounded w-10" style={{ background: `${colors.border}25` }} />
-                            </div>
-                            <div className="h-2 rounded w-3/4 mt-1" style={{ background: `${colors.border}25` }} />
-                        </div>
-                    </div>
-                </div>
+                <div className="rounded-full" style={{ height: 40, background: `${colors.border}35` }} />
             </div>
         </div>
     )
@@ -814,12 +706,12 @@ export function StoreList({
             />
 
             {/* Grid com altura fixa */}
-            <div className="relative" style={{ minHeight: '420px' }}>
+            <div className="relative">
                 <div
-                    className={`grid ${gridCols} gap-4 transition-all duration-500 ease-in-out`}
+                    className={`grid ${gridCols} gap-4 items-stretch transition-all duration-500 ease-in-out`}
                 >
                     {currentItems.map((store, index) => (
-                        <div key={`${store.id}-${index}`} className="animate-fadeIn">
+                        <div key={`${store.id}-${index}`} className="animate-fadeIn h-full">
                             <StoreCard
                                 store={store}
                                 colors={colors}
