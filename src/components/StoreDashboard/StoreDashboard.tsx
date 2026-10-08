@@ -788,7 +788,7 @@ export default function StoreDashboard({
             </div>
 
             {/* ===== Agendamentos ===== */}
-            <AtalhoCompromissosDaLoja profileSlug={profileSlug} />
+            <AtalhoCompromissosDaLoja profileSlug={profileSlug} storeId={store.id} storeSlug={store.storeSlug} />
 
             {/* ===== Publicações ===== */}
             <Publication storeId={store.id} />

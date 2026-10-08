@@ -6,7 +6,8 @@ import Link from 'next/link'
 import { Plus, Check, X, Calendar, User, Lock, Earth, Eye, EyeOff, Clock, ChevronDown, ChevronUp } from 'lucide-react'
 import { usePersistedExpanded } from '@/hooks/usePersistedExpanded'
 import { useAppointments, useDeleteAppointment } from '@/app/(main)/compromissos/dadosDoCompromisso'
-import { avatarOwnerIdFromUrl } from '@/lib/avatar'
+import { useProfilesById } from '@/hooks/useProfilesById'
+import ShareAppointmentButton from '@/components/ShareAppointmentButton'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
@@ -220,6 +221,15 @@ export default function AtalhoCompromissosPessoal({
         onHasItemsChange?.(personalAppointments.length > 0)
     }, [personalAppointments, onHasItemsChange])
 
+    // Foto/nome ATUAIS de quem está do outro lado (a cópia salva no agendamento fica velha ou é de outra pessoa)
+    const people = useProfilesById(personalAppointments.flatMap((a) => [a.owner_id, a.provider_profile_id]))
+    const agendaHref = profileSlug ? `/compromissos/${profileSlug}` : '/compromissos'
+    const counterpartId = (a: any): string | null => {
+        if (a.owner_id && a.owner_id !== userId) return a.owner_id
+        if (a.provider_profile_id && a.provider_profile_id !== userId) return a.provider_profile_id
+        return null
+    }
+
     useEffect(() => {
         if (!onLatestUpdate || personalAppointments.length === 0) return
         const latest = personalAppointments.reduce((max, a) => {
@@ -276,22 +286,14 @@ export default function AtalhoCompromissosPessoal({
     }, [deleteAppointment, refetch])
 
     const getAvatarUrl = (appointment: any) => {
-        if (appointment.direction === 'incoming') {
-            return appointment.customer_avatar_url || null
-        } else if (appointment.direction === 'outgoing') {
-            return appointment.customer_avatar_url || null
-        } else {
-            return userAvatarUrl || null
-        }
+        const id = counterpartId(appointment)
+        return id ? people.get(id)?.avatarUrl || null : userAvatarUrl || null
     }
 
     const getProfileSlugFromAppointment = (appointment: any): string | null => {
-        if (appointment.direction === 'incoming') {
-            return appointment.owner_slug || null
-        } else if (appointment.direction === 'outgoing') {
-            return appointment.customer_slug || null
-        }
-        return null
+        const id = counterpartId(appointment)
+        if (!id) return null
+        return people.get(id)?.profileSlug || (appointment.owner_id === id ? appointment.owner_slug : null) || null
     }
 
     const title = profileSlug ? `Agenda de @${profileSlug}` : 'Agenda Pessoal'
@@ -409,7 +411,7 @@ export default function AtalhoCompromissosPessoal({
 
                             {sorted.length > 0 && (
                                 <Link
-                                    href="/compromissos"
+                                    href={agendaHref}
                                     style={{
                                         ...pillButtonStyle,
                                         border: `1px solid ${borderColor}`,
@@ -611,7 +613,7 @@ export default function AtalhoCompromissosPessoal({
 
                                             {profileSlugTarget ? (
                                                 <Link href={`/${profileSlugTarget}`} onClick={(e) => e.stopPropagation()} className="flex-shrink-0">
-                                                    <PlanAvatarRing userId={appointment.direction === 'incoming' || appointment.direction === 'outgoing' ? avatarOwnerIdFromUrl(appointment.customer_avatar_url) : userId}>
+                                                    <PlanAvatarRing userId={counterpartId(appointment) ?? userId}>
                                                     {avatarUrl ? (
                                                         <img src={avatarUrl} alt="" className="w-11 h-11 rounded-full object-cover" />
                                                     ) : (
@@ -629,7 +631,7 @@ export default function AtalhoCompromissosPessoal({
                                                 </Link>
                                             ) : (
                                                 <div className="flex-shrink-0">
-                                                    <PlanAvatarRing userId={appointment.direction === 'incoming' || appointment.direction === 'outgoing' ? avatarOwnerIdFromUrl(appointment.customer_avatar_url) : userId}>
+                                                    <PlanAvatarRing userId={counterpartId(appointment) ?? userId}>
                                                     {avatarUrl ? (
                                                         <img src={avatarUrl} alt="" className="w-11 h-11 rounded-full object-cover" />
                                                     ) : (
@@ -648,7 +650,7 @@ export default function AtalhoCompromissosPessoal({
                                             )}
 
                                             <Link
-                                                href="/compromissos"
+                                                href={agendaHref}
                                                 className="flex-1 min-w-0 flex flex-col"
                                                 style={{ textDecoration: 'none', color: 'inherit' }}
                                             >
@@ -681,19 +683,14 @@ export default function AtalhoCompromissosPessoal({
                                                 </div>
 
                                                 <div className="flex items-center gap-2 mt-1 flex-wrap">
-                                                    {appointment.direction === 'incoming' ? (
-                                                        <p className="text-xs flex items-center gap-1" style={{ color: textSecondary }}>
-                                                            <User size={10} /> @{appointment.owner_slug}
-                                                        </p>
-                                                    ) : appointment.direction === 'outgoing' ? (
-                                                        <p className="text-xs flex items-center gap-1" style={{ color: textSecondary }}>
-                                                            <User size={10} /> @{appointment.customer_slug}
-                                                        </p>
-                                                    ) : (
-                                                        <p className="text-xs flex items-center gap-1" style={{ color: textSecondary }}>
-                                                            <User size={10} /> Pessoal
-                                                        </p>
-                                                    )}
+                                                    <p className="text-xs flex items-center gap-1" style={{ color: textSecondary }}>
+                                                        <User size={10} /> {(() => {
+                                                            const id = counterpartId(appointment)
+                                                            if (!id) return 'Pessoal'
+                                                            const info = people.get(id)
+                                                            return info?.name || (appointment.owner_id === id ? `@${appointment.owner_slug}` : 'Convidado')
+                                                        })()}
+                                                    </p>
                                                     {appointment.is_public !== undefined && (
                                                         <VisibilityBadge isPublic={appointment.is_public} textColor={textSecondary} />
                                                     )}
@@ -705,6 +702,13 @@ export default function AtalhoCompromissosPessoal({
                                                         {formatTime(appointment.time)}
                                                     </span>
                                                     <div className="flex items-center gap-1">
+                                                        <ShareAppointmentButton
+                                                            appointmentId={appointment.id}
+                                                            isPublic={appointment.is_public}
+                                                            title={appointment.service_name}
+                                                            dateLabel={`${appointment.date.split('-').reverse().join('/')} às ${formatTime(appointment.time)}`}
+                                                            size={22}
+                                                        />
                                                         {isIncomingPending ? (
                                                             <>
                                                                 <button

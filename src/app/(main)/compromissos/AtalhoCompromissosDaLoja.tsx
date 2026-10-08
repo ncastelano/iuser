@@ -6,7 +6,8 @@ import Link from 'next/link'
 import { Plus, X, Earth, Lock, User, Store, Check, Eye, EyeOff, Clock, Calendar, ChevronDown, ChevronUp } from 'lucide-react'
 import { usePersistedExpanded } from '@/hooks/usePersistedExpanded'
 import { useAppointments, useDeleteAppointment } from '@/app/(main)/compromissos/dadosDoCompromisso'
-import { avatarOwnerIdFromUrl } from '@/lib/avatar'
+import { useProfilesById } from '@/hooks/useProfilesById'
+import ShareAppointmentButton from '@/components/ShareAppointmentButton'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
@@ -90,12 +91,17 @@ function StatusBadge({ status }: { status: string }) {
 interface AtalhoCompromissosDaLojaProps {
     dragHandle?: ReactNode
     profileSlug?: string | null
+    /** Qual loja é esta agenda: sem isso, misturaria os agendamentos de todas as lojas da pessoa */
+    storeId?: string | null
+    storeSlug?: string | null
     onHasItemsChange?: (hasItems: boolean) => void
 }
 
 export default function AtalhoCompromissosDaLoja({
     dragHandle,
     profileSlug,
+    storeId,
+    storeSlug,
     onHasItemsChange,
 }: AtalhoCompromissosDaLojaProps) {
     const { colors } = useTheme()
@@ -112,9 +118,13 @@ export default function AtalhoCompromissosDaLoja({
         return appointments.filter(
             (a) =>
                 (a.owner_id === userId || a.provider_profile_id === userId) &&
-                a.store_id
+                (storeId ? a.store_id === storeId : !!a.store_id)
         )
-    }, [appointments, userId])
+    }, [appointments, userId, storeId])
+
+    // Foto/nome ATUAIS dos clientes (a cópia salva no agendamento fica velha)
+    const people = useProfilesById(storeAppointments.map((a) => a.customer_id))
+    const agendaHref = storeSlug ? `/compromissos/${storeSlug}` : '/compromissos'
 
     useEffect(() => {
         onHasItemsChange?.(storeAppointments.length > 0)
@@ -284,7 +294,7 @@ export default function AtalhoCompromissosDaLoja({
 
                             {sorted.length > 0 && (
                                 <Link
-                                    href="/compromissos"
+                                    href={agendaHref}
                                     style={{
                                         ...pillButtonStyle,
                                         border: `1px solid ${borderColor}`,
@@ -393,8 +403,9 @@ export default function AtalhoCompromissosDaLoja({
                                         day: '2-digit', month: 'short'
                                     })
 
-                                    const avatarUrl = appointment.customer_avatar_url || null
-                                    const customerName = appointment.customer_slug || 'Cliente'
+                                    const person = people.get(appointment.customer_id)
+                                    const avatarUrl = person?.avatarUrl || null
+                                    const customerName = person?.name || (appointment.customer_slug ? `@${appointment.customer_slug}` : 'Cliente')
                                     const serviceName = appointment.service_name
                                     const customerSlug = appointment.customer_slug || null
                                     const duration = appointment.duration_minutes
@@ -433,7 +444,7 @@ export default function AtalhoCompromissosDaLoja({
                                             {/* Avatar do cliente - arredondado */}
                                             {customerSlug ? (
                                                 <Link href={`/${customerSlug}`} onClick={(e) => e.stopPropagation()} className="flex-shrink-0">
-                                                    <PlanAvatarRing userId={avatarOwnerIdFromUrl(appointment.customer_avatar_url)}>
+                                                    <PlanAvatarRing userId={appointment.customer_id}>
                                                     {avatarUrl ? (
                                                         <img src={avatarUrl} alt="" className="w-11 h-11 rounded-full object-cover" />
                                                     ) : (
@@ -451,7 +462,7 @@ export default function AtalhoCompromissosDaLoja({
                                                 </Link>
                                             ) : (
                                                 <div className="flex-shrink-0">
-                                                    <PlanAvatarRing userId={avatarOwnerIdFromUrl(appointment.customer_avatar_url)}>
+                                                    <PlanAvatarRing userId={appointment.customer_id}>
                                                     {avatarUrl ? (
                                                         <img src={avatarUrl} alt="" className="w-11 h-11 rounded-full object-cover" />
                                                     ) : (
@@ -470,7 +481,7 @@ export default function AtalhoCompromissosDaLoja({
                                             )}
 
                                             <Link
-                                                href="/compromissos"
+                                                href={agendaHref}
                                                 className="flex-1 min-w-0 flex flex-col"
                                                 style={{ textDecoration: 'none', color: 'inherit' }}
                                             >
@@ -504,7 +515,7 @@ export default function AtalhoCompromissosDaLoja({
 
                                                 <div className="flex items-center gap-2 mt-1 flex-wrap">
                                                     <p className="text-xs flex items-center gap-1" style={{ color: textSecondary }}>
-                                                        <User size={10} /> @{customerName}
+                                                        <User size={10} /> {customerName}
                                                     </p>
                                                     {appointment.is_public !== undefined && (
                                                         <VisibilityBadge isPublic={appointment.is_public} textColor={textSecondary} />
@@ -517,6 +528,13 @@ export default function AtalhoCompromissosDaLoja({
                                                         {formatTime(appointment.time)}
                                                     </span>
                                                     <div className="flex items-center gap-1">
+                                                        <ShareAppointmentButton
+                                                            appointmentId={appointment.id}
+                                                            isPublic={appointment.is_public}
+                                                            title={appointment.service_name}
+                                                            dateLabel={`${appointment.date.split('-').reverse().join('/')} às ${formatTime(appointment.time)}`}
+                                                            size={22}
+                                                        />
                                                         {isPending ? (
                                                             <>
                                                                 <button
@@ -586,7 +604,7 @@ export default function AtalhoCompromissosDaLoja({
 
                             {sorted.length > 0 && (
                                 <Link
-                                    href="/compromissos"
+                                    href={agendaHref}
                                     style={{
                                         ...pillButtonStyle,
                                         border: `1px solid ${borderColor}`,
