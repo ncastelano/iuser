@@ -27,6 +27,7 @@ A comissão que quem indica ganha vem da **graduação** (Inicial/Bronze/Prata/O
 - Dinheiro em **centavos** e percentual em **pontos-base** (50% = 5000): sem ponto flutuante (`src/lib/graduation.ts`, `commission_cents` no banco).
 - Base de cálculo: Pré-pago = a mensalidade realmente paga (R$ 100); Pós-pago = a quitação por Pix (hoje R$ 50) — sempre o valor **realmente pago**, nunca o preço da tabela.
 - O estado de cada pessoa fica em `user_network_state` (cliente só lê a própria linha), não em `profiles` (legível por todos). Escritas só por funções `admin_*` via `/api/admin/graduation` (`requireSuperAdmin`).
+- Bordas de avatar por nível: `avatar_borders.required_level_id` (migration `20261031000000`) — `claim_avatar_border` só libera se o nível EFETIVO da pessoa for ≥ ao exigido; há uma borda por nível (Bronze→Diamante), editáveis em Admin → Bordas. A regra mora no banco, o diálogo Bordas só mostra o motivo.
 - Testes: `npm run test:graduation` (conta em centavos) e `supabase/tests/graduation_scenarios.sql` (33 cenários, rode dentro de `begin; ... rollback;`).
 
 ## Telemetria própria de Egress/Realtime — não mexer sem saber

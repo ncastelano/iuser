@@ -30,6 +30,7 @@ export async function POST(req: Request) {
         available_until: b.available_until || null,
         requires_prepaid: !!b.requires_prepaid,
         for_hierarchy: !!b.for_hierarchy,
+        required_level_id: b.required_level_id || null,
         sort_order: Number.isFinite(Number(b.sort_order)) ? Math.round(Number(b.sort_order)) : 0,
         updated_at: new Date().toISOString(),
     }

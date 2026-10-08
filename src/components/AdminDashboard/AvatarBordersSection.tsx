@@ -26,6 +26,8 @@ interface Border {
     available_until: string | null
     requires_prepaid: boolean
     for_hierarchy: boolean
+    // Nível mínimo da graduação pra resgatar (null = sem exigência)
+    required_level_id: string | null
     sort_order: number
     owners?: number
     using?: number
@@ -39,7 +41,7 @@ const MODE_LABEL: Record<Border['grant_mode'], string> = {
 
 const NEW_BORDER: Border = {
     slug: '', name: '', description: '', colors: ['#f97316', '#dc2626'], is_active: true, grant_mode: 'claim',
-    available_from: null, available_until: null, requires_prepaid: false, for_hierarchy: false, sort_order: 0,
+    available_from: null, available_until: null, requires_prepaid: false, for_hierarchy: false, required_level_id: null, sort_order: 0,
 }
 
 // ISO ⇄ <input type="datetime-local"> (horário local)
@@ -54,6 +56,7 @@ const fromLocalInput = (v: string) => (v ? new Date(v).toISOString() : null)
 export default function AvatarBordersSection({ cardStyle, colors }: { cardStyle: React.CSSProperties; colors: ThemeColors }) {
     const [loading, setLoading] = useState(true)
     const [borders, setBorders] = useState<Border[]>([])
+    const [levels, setLevels] = useState<{ id: string; name: string; level_order: number }[]>([])
     const [editing, setEditing] = useState<Border | null>(null)
     const [saving, setSaving] = useState(false)
     const [grantProfile, setGrantProfile] = useState('')
@@ -62,8 +65,9 @@ export default function AvatarBordersSection({ cardStyle, colors }: { cardStyle:
     const load = useCallback(async () => {
         setLoading(true)
         try {
-            const res = await callAdminApi<{ borders: Border[] }>('/api/admin/avatar-borders/list')
+            const res = await callAdminApi<{ borders: Border[]; levels: { id: string; name: string; level_order: number }[] }>('/api/admin/avatar-borders/list')
             setBorders(res.borders)
+            setLevels(res.levels || [])
         } catch (err: any) {
             toast.error(err.message || 'Erro ao carregar as bordas')
         }
@@ -152,6 +156,7 @@ export default function AvatarBordersSection({ cardStyle, colors }: { cardStyle:
                                 {b.available_until && ` · resgate até ${new Date(b.available_until).toLocaleDateString('pt-BR')}`}
                                 {b.for_hierarchy && ' · toda a hierarquia'}
                                 {b.requires_prepaid && ' · exige Pré-pago'}
+                                {b.required_level_id && ` · a partir do nível ${levels.find((l) => l.id === b.required_level_id)?.name || '?'}`}
                             </p>
                         </div>
                         <label className="flex items-center gap-2 text-xs font-bold flex-shrink-0 cursor-pointer" style={{ color: colors.textPrimary }}>
@@ -205,6 +210,13 @@ export default function AvatarBordersSection({ cardStyle, colors }: { cardStyle:
                         {label('Como é conquistada')}
                         <select value={editing.grant_mode} onChange={(e) => setEditing({ ...editing, grant_mode: e.target.value as Border['grant_mode'] })} style={input}>
                             {(Object.keys(MODE_LABEL) as Border['grant_mode'][]).map((m) => <option key={m} value={m}>{MODE_LABEL[m]}</option>)}
+                        </select>
+                    </div>
+                    <div className="flex flex-col gap-0.5">
+                        {label('Nível mínimo da graduação pra resgatar')}
+                        <select value={editing.required_level_id || ''} onChange={(e) => setEditing({ ...editing, required_level_id: e.target.value || null })} style={input}>
+                            <option value="">Sem exigência de nível</option>
+                            {levels.map((l) => <option key={l.id} value={l.id}>A partir do nível {l.name}</option>)}
                         </select>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

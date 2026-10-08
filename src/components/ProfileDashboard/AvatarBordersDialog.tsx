@@ -27,6 +27,7 @@ interface BorderRow {
     available_from: string | null
     available_until: string | null
     requires_prepaid: boolean
+    required_level_id: string | null
 }
 
 const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
@@ -46,16 +47,23 @@ export default function AvatarBordersDialog({ profileId, avatarUrl, name, onClos
     const [owned, setOwned] = useState<Set<string>>(new Set())
     const [equipped, setEquipped] = useState<string | null>(null)
     const [hasPrepaid, setHasPrepaid] = useState(false)
+    // Graduação: ordem do meu nível (efetivo) e a ordem/nome de cada nível, pra saber quais bordas já liberei
+    const [myLevelOrder, setMyLevelOrder] = useState(0)
+    const [levelsById, setLevelsById] = useState<Record<string, { name: string; order: number }>>({})
     const [busy, setBusy] = useState<string | null>(null)
 
     const load = useCallback(async () => {
         const nowIso = new Date().toISOString()
-        const [{ data: all }, { data: mine }, { data: prof }, { data: subs }] = await Promise.all([
-            supabase.from('avatar_borders').select('id, slug, name, description, colors, grant_mode, available_from, available_until, requires_prepaid').eq('is_active', true).order('sort_order'),
+        const [{ data: all }, { data: mine }, { data: prof }, { data: subs }, { data: grad }, { data: lvls }] = await Promise.all([
+            supabase.from('avatar_borders').select('id, slug, name, description, colors, grant_mode, available_from, available_until, requires_prepaid, required_level_id').eq('is_active', true).order('sort_order'),
             supabase.from('user_avatar_borders').select('border_id').eq('profile_id', profileId),
             supabase.from('profiles').select('avatar_border_id').eq('id', profileId).maybeSingle(),
             supabase.from('subscriptions').select('current_period_end, plans!inner(code)').eq('user_id', profileId).eq('status', 'active').eq('plans.code', 'pre_pago').gt('current_period_end', nowIso),
+            supabase.rpc('get_my_graduation'),
+            supabase.from('network_levels').select('id, name, level_order'),
         ])
+        setMyLevelOrder(Number((grad as any)?.level?.level_order ?? 0))
+        setLevelsById(Object.fromEntries(((lvls as any[]) || []).map((l) => [l.id, { name: l.name, order: l.level_order }])))
         setBorders((all as BorderRow[]) || [])
         setOwned(new Set((mine || []).map((r: any) => r.border_id)))
         setEquipped(prof?.avatar_border_id || null)
@@ -95,6 +103,8 @@ export default function AvatarBordersDialog({ profileId, avatarUrl, name, onClos
         if (b.available_from && now < new Date(b.available_from).getTime()) return { can: false, reason: `Abre em ${fmtDate(b.available_from)}` }
         if (b.available_until && now > new Date(b.available_until).getTime()) return { can: false, reason: `Prazo encerrado em ${fmtDate(b.available_until)}` }
         if (b.requires_prepaid && !hasPrepaid) return { can: false, reason: 'Pra quem usa o plano Pré-pago' }
+        const req = b.required_level_id ? levelsById[b.required_level_id] : null
+        if (req && myLevelOrder < req.order) return { can: false, reason: `Chegue ao nível ${req.name} da graduação pra resgatar` }
         return { can: true }
     }
 

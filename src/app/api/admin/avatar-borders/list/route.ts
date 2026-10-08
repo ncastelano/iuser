@@ -19,5 +19,6 @@ export async function POST(req: Request) {
         return [b.id, { owners: owners || 0, using: using || 0 }] as const
     }))
     const byId = Object.fromEntries(counts)
-    return NextResponse.json({ borders: (borders || []).map((b) => ({ ...b, owners: byId[b.id]?.owners || 0, using: byId[b.id]?.using || 0 })) })
+    const { data: levels } = await supabaseAdmin.from('network_levels').select('id, name, level_order').order('level_order')
+    return NextResponse.json({ borders: (borders || []).map((b) => ({ ...b, owners: byId[b.id]?.owners || 0, using: byId[b.id]?.using || 0 })), levels: levels || [] })
 }
