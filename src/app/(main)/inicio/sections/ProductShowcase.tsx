@@ -6,13 +6,13 @@ import {
     Star,
     Package,
     Eye,
-    ArrowRight,
 } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import { useRouter } from 'next/navigation'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
 import { supabase } from '@/lib/supabase/client'
 import { HomeSectionHeader } from './HomeSectionKit'
+import { ViewServicesButton } from './ViewServicesButton'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -287,11 +287,13 @@ const formatPrice = (price: number | null) => {
 // ========== SKELETON CARD ==========
 function ProductSkeleton({ colors }: { colors: any }) {
     return (
-        <div className="w-36 flex-shrink-0">
-            <div className="w-36 h-36 rounded-2xl mb-2 animate-pulse" style={{ background: `${colors.border}40` }} />
-            <div className="h-3 rounded w-28 mb-1.5 animate-pulse" style={{ background: `${colors.border}30` }} />
-            <div className="h-2.5 rounded w-20 mb-1.5 animate-pulse" style={{ background: `${colors.border}25` }} />
-            <div className="h-3.5 rounded w-16 animate-pulse" style={{ background: `${colors.border}30` }} />
+        <div className="w-48 flex-shrink-0 rounded-3xl overflow-hidden border animate-pulse" style={{ borderColor: colors.border, background: colors.surface }}>
+            <div className="w-full h-40" style={{ background: `${colors.border}40` }} />
+            <div className="p-3.5 flex flex-col gap-2">
+                <div className="h-3.5 rounded-full w-4/5" style={{ background: `${colors.border}40` }} />
+                <div className="h-3 rounded-full w-1/2" style={{ background: `${colors.border}30` }} />
+                <div className="h-4 rounded-full w-1/3" style={{ background: `${colors.border}40` }} />
+            </div>
         </div>
     )
 }
@@ -352,72 +354,59 @@ export default function ProductShowcase({ dragHandle }: ProductShowcaseProps) {
                 title="Produtos em destaque"
                 subtitle={`${products.length} ${products.length === 1 ? 'produto' : 'produtos'}`}
                 dragHandle={dragHandle}
-                action={(
-                    <button
-                        onClick={() => { startNavProgress(); router.push('/lojas') }}
-                        className="flex items-center gap-2 px-5 py-2 rounded-full text-xs font-bold transition-all hover:scale-105 active:scale-95 hover:shadow-lg whitespace-nowrap flex-shrink-0"
-                        style={{
-                            background: GRADIENT,
-                            color: '#ffffff',
-                            boxShadow: `0 2px 8px rgba(249, 115, 22, 0.3)`,
-                        }}
-                    >
-                        <span>Ver todas</span>
-                        <ArrowRight className="w-3.5 h-3.5" />
-                    </button>
-                )}
+                action={<ViewServicesButton label="ver lojas" onClick={() => { startNavProgress(); router.push('/lojas') }} />}
             />
 
-            <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4" style={{ scrollbarWidth: 'none' }}>
+            <div className="flex gap-3 overflow-x-auto pb-3 -mx-4 px-4 items-stretch" style={{ scrollbarWidth: 'none' }}>
                 {products.map((product) => {
-                    const hasProductImage = !!product.imageUrl
-                    const hasStoreLogo = !!product.storeLogoUrl
+                    const cover = product.imageUrl || product.storeLogoUrl
+                    const price = formatPrice(product.price)
 
                     return (
                         <div
                             key={product.id}
                             onClick={() => { startNavProgress(); router.push(getProductUrl(product)) }}
-                            className="w-36 flex-shrink-0 cursor-pointer group"
+                            className="w-48 flex-shrink-0 rounded-3xl overflow-hidden border cursor-pointer group flex flex-col transition-all duration-300 hover:shadow-2xl hover:-translate-y-1"
+                            style={{ background: colors.surface, borderColor: colors.border, boxShadow: colors.shadow }}
                         >
-                            <div
-                                className="relative w-36 h-36 rounded-2xl mb-2 overflow-hidden"
-                                style={{ background: hasProductImage ? colors.surface : GRADIENT, border: `1px solid ${colors.border}` }}
-                            >
-                                {hasProductImage ? (
-                                    <img
-                                        src={product.imageUrl!}
-                                        alt={product.name}
-                                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                                    />
-                                ) : hasStoreLogo ? (
-                                    <img
-                                        src={product.storeLogoUrl!}
-                                        alt={product.storeName}
-                                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                                    />
+                            {/* Foto inteira sobre uma cópia desfocada dela mesma, igual aos outros cards da home */}
+                            <div className="relative w-full h-40 overflow-hidden flex-shrink-0" style={{ background: GRADIENT }}>
+                                {cover ? (
+                                    <>
+                                        <img src={cover} alt="" aria-hidden className="absolute inset-0 w-full h-full object-cover scale-125 blur-xl opacity-70" loading="lazy" />
+                                        <img src={cover} alt={product.name} className="relative w-full h-full object-contain transition-transform duration-500 group-hover:scale-105" loading="lazy" />
+                                    </>
                                 ) : (
                                     <div className="w-full h-full flex items-center justify-center">
-                                        <Package size={28} color="#fff" opacity={0.7} />
+                                        <Package size={32} color="#fff" opacity={0.8} />
                                     </div>
                                 )}
                                 {product.viewCount > 0 && (
-                                    <div className="absolute top-1.5 right-1.5 z-10 flex items-center gap-0.5 text-[9px] font-bold text-white bg-black/50 px-1.5 py-0.5 rounded-full">
-                                        <Eye size={10} />
+                                    <span className="absolute bottom-2.5 left-2.5 flex items-center gap-1 text-[11px] font-bold text-white px-2.5 py-1 rounded-full" style={{ background: 'rgba(0,0,0,0.45)' }}>
+                                        <Eye size={12} />
                                         {product.viewCount}
-                                    </div>
+                                    </span>
                                 )}
                                 {product.rating > 0 && (
-                                    <div className="absolute top-1.5 left-1.5 z-10 flex items-center gap-0.5 text-[9px] font-bold text-white bg-black/50 px-1.5 py-0.5 rounded-full">
-                                        <Star size={9} className="fill-yellow-400 text-yellow-400" />
+                                    <span className="absolute top-2.5 right-2.5 flex items-center gap-1 text-[11px] font-black text-white px-2.5 py-1 rounded-full backdrop-blur-sm" style={{ background: 'rgba(0,0,0,0.45)' }}>
+                                        <Star size={11} className="fill-yellow-400 text-yellow-400" />
                                         {product.rating.toFixed(1)}
-                                    </div>
+                                    </span>
                                 )}
                             </div>
-                            <p className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>{product.name}</p>
-                            <p className="text-[10px] opacity-50 truncate mb-1" style={{ color: colors.textPrimary }}>{product.storeName}</p>
-                            {formatPrice(product.price) && (
-                                <p className="text-sm font-black" style={{ color: colors.accent }}>{formatPrice(product.price)}</p>
-                            )}
+
+                            <div className="p-3.5 flex flex-col gap-2 flex-1">
+                                <p className="text-sm font-black leading-snug line-clamp-2" style={{ color: colors.textPrimary }}>{product.name}</p>
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                    {product.storeLogoUrl && (
+                                        <img src={product.storeLogoUrl} alt="" className="w-5 h-5 rounded-full object-cover flex-shrink-0" loading="lazy" />
+                                    )}
+                                    <span className="text-xs truncate" style={{ color: colors.textSecondary }}>{product.storeName}</span>
+                                </div>
+                                {price && (
+                                    <p className="mt-auto pt-1 text-base font-black" style={{ color: '#f97316' }}>{price}</p>
+                                )}
+                            </div>
                         </div>
                     )
                 })}

@@ -245,7 +245,7 @@ export default function FeaturedPublications({
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     {Array.from({ length: 4 }).map((_, i) => (
-                        <div key={i} className="rounded-2xl overflow-hidden animate-pulse" style={{ background: `${colors.border}30` }}>
+                        <div key={i} className="rounded-3xl overflow-hidden animate-pulse" style={{ background: `${colors.border}30` }}>
                             <div className="w-full aspect-square" style={{ background: `${colors.border}40` }} />
                             <div className="p-3 h-10" />
                         </div>
@@ -277,40 +277,43 @@ export default function FeaturedPublications({
                     <div
                         key={pub.id}
                         onClick={() => handlePublicationClick(pub)}
-                        className={`rounded-2xl overflow-hidden cursor-pointer group ${index >= 4 ? 'hidden lg:block' : ''}`}
-                        style={{ background: colors.surface, border: `1px solid ${colors.border}` }}
+                        className={`rounded-3xl overflow-hidden cursor-pointer group border flex flex-col transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 ${index >= 4 ? 'hidden lg:flex' : ''}`}
+                        style={{ background: colors.surface, borderColor: colors.border, boxShadow: colors.shadow }}
                     >
-                        <div className="w-full aspect-square relative overflow-hidden">
+                        <div className="w-full aspect-square relative overflow-hidden" style={{ background: GRADIENT }}>
                             {pub.imageUrl ? (
-                                <img
-                                    src={pub.imageUrl}
-                                    alt={pub.title || pub.ownerName}
-                                    loading="lazy"
-                                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                                />
+                                <>
+                                    <img src={pub.imageUrl} alt="" aria-hidden className="absolute inset-0 w-full h-full object-cover scale-125 blur-xl opacity-70" loading="lazy" />
+                                    <img
+                                        src={pub.imageUrl}
+                                        alt={pub.title || pub.ownerName}
+                                        loading="lazy"
+                                        className="relative w-full h-full object-contain transition-transform duration-500 group-hover:scale-105"
+                                    />
+                                </>
                             ) : (
-                                <div className="w-full h-full flex items-center justify-center" style={{ background: GRADIENT }}>
-                                    <Store size={26} color="#fff" opacity={0.6} />
+                                <div className="w-full h-full flex items-center justify-center">
+                                    <Store size={30} color="#fff" opacity={0.7} />
                                 </div>
                             )}
                         </div>
-                        <div className="p-2.5 flex items-center gap-2 min-w-0">
-                            <PlanAvatarRing userId={pub.ownerType === 'profile' ? pub.ownerId : undefined}>
-                                <div className="w-6 h-6 rounded-full overflow-hidden flex-shrink-0">
-                                    {pub.ownerImageUrl ? (
-                                        <img src={pub.ownerImageUrl} alt="" className="w-full h-full object-cover" />
-                                    ) : (
-                                        <div className="w-full h-full flex items-center justify-center text-white font-bold text-[10px]" style={{ background: GRADIENT }}>
-                                            {pub.ownerName?.charAt(0).toUpperCase() || '?'}
-                                        </div>
-                                    )}
-                                </div>
-                            </PlanAvatarRing>
-                            <div className="min-w-0">
-                                <p className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>{pub.ownerName}</p>
-                                {pub.title && (
-                                    <p className="text-[10px] opacity-50 truncate" style={{ color: colors.textPrimary }}>{pub.title}</p>
-                                )}
+                        <div className="p-3 flex flex-col gap-2 min-w-0">
+                            {pub.title && (
+                                <p className="text-sm font-black leading-snug line-clamp-2" style={{ color: colors.textPrimary }}>{pub.title}</p>
+                            )}
+                            <div className="flex items-center gap-2 min-w-0">
+                                <PlanAvatarRing userId={pub.ownerType === 'profile' ? pub.ownerId : undefined}>
+                                    <div className="w-6 h-6 rounded-full overflow-hidden flex-shrink-0">
+                                        {pub.ownerImageUrl ? (
+                                            <img src={pub.ownerImageUrl} alt="" className="w-full h-full object-cover" />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center text-white font-bold text-[10px]" style={{ background: GRADIENT }}>
+                                                {pub.ownerName?.charAt(0).toUpperCase() || '?'}
+                                            </div>
+                                        )}
+                                    </div>
+                                </PlanAvatarRing>
+                                <p className="text-xs truncate" style={{ color: colors.textSecondary }}>{pub.ownerName}</p>
                             </div>
                         </div>
                     </div>

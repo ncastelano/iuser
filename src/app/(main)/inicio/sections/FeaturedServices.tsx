@@ -238,7 +238,7 @@ export default function FeaturedServices({ dragHandle, title = 'Serviços em des
                 </div>
                 <div className={`grid ${gridCols} gap-4`}>
                     {Array.from({ length: Math.min(itemsPerView, 6) }).map((_, i) => (
-                        <div key={i} className="aspect-[3/4] rounded-xl animate-pulse" style={{ background: `${colors.border}40` }} />
+                        <div key={i} className="h-64 rounded-3xl animate-pulse" style={{ background: `${colors.border}40` }} />
                     ))}
                 </div>
             </div>
@@ -270,54 +270,46 @@ export default function FeaturedServices({ dragHandle, title = 'Serviços em des
                         <div
                             key={`${service.id}-${idx}`}
                             onClick={() => handleServiceClick(service)}
-                            className="group relative rounded-xl overflow-hidden border shadow-sm transition-all duration-300 hover:shadow-xl hover:-translate-y-1 cursor-pointer"
-                            style={{ borderColor: colors.border, background: colors.surface, aspectRatio: '3/4' }}
+                            className="group rounded-3xl overflow-hidden border transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 cursor-pointer flex flex-col"
+                            style={{ borderColor: colors.border, background: colors.surface, boxShadow: colors.shadow }}
                         >
-                            {service.imageUrl ? (
-                                <>
-                                    <img
-                                        src={service.imageUrl}
-                                        alt={service.title}
-                                        className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                                        loading="lazy"
-                                    />
-                                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent pointer-events-none" />
-                                </>
-                            ) : (
-                                <div className="absolute inset-0 flex items-center justify-center" style={{ background: GRADIENT, opacity: 0.3 }}>
-                                    <Wrench className="w-12 h-12 opacity-30" style={{ color: colors.textPrimary }} />
-                                </div>
-                            )}
-
-                            <div className="absolute top-2 left-2 z-10">
-                                <PlanAvatarRing userId={service.providerId}>
-                                <div className="w-8 h-8 rounded-full border-2 border-white/40 overflow-hidden bg-black/50 shadow-lg">
-                                    {service.providerImageUrl ? (
-                                        <img src={service.providerImageUrl} alt="" className="w-full h-full object-cover" />
-                                    ) : (
-                                        <div className="w-full h-full flex items-center justify-center text-white font-bold text-xs" style={{ background: GRADIENT }}>
-                                            {service.providerName.charAt(0).toUpperCase()}
-                                        </div>
-                                    )}
-                                </div>
-                                </PlanAvatarRing>
+                            <div className="relative w-full h-36 overflow-hidden flex-shrink-0" style={{ background: GRADIENT }}>
+                                {service.imageUrl ? (
+                                    <>
+                                        <img src={service.imageUrl} alt="" aria-hidden className="absolute inset-0 w-full h-full object-cover scale-125 blur-xl opacity-70" loading="lazy" />
+                                        <img src={service.imageUrl} alt={service.title} className="relative w-full h-full object-contain transition-transform duration-500 group-hover:scale-105" loading="lazy" />
+                                    </>
+                                ) : (
+                                    <div className="w-full h-full flex items-center justify-center">
+                                        <Wrench className="w-10 h-10 text-white opacity-70" />
+                                    </div>
+                                )}
                             </div>
 
-                            <div className="absolute bottom-0 left-0 right-0 p-3 z-10">
+                            <div className="p-3.5 flex flex-col gap-2 flex-1">
+                                <h3 className="text-sm font-black leading-snug line-clamp-2" style={{ color: colors.textPrimary }}>
+                                    {service.title}
+                                </h3>
                                 {service.serviceType && (
-                                    <span className="text-[9px] font-black uppercase tracking-wider text-orange-300 drop-shadow">
+                                    <span className="self-start text-[11px] font-bold px-2.5 py-0.5 rounded-full" style={{ background: '#f9731618', color: '#ea580c' }}>
                                         {getServiceLabel(service.serviceType)}
                                     </span>
                                 )}
-                                <h3 className="text-white font-semibold text-sm leading-tight line-clamp-2 drop-shadow-lg">
-                                    {service.title}
-                                </h3>
+                                <div className="flex items-center gap-2 min-w-0 mt-auto pt-1">
+                                    <PlanAvatarRing userId={service.providerId}>
+                                        <div className="w-6 h-6 rounded-full overflow-hidden flex-shrink-0">
+                                            {service.providerImageUrl ? (
+                                                <img src={service.providerImageUrl} alt="" className="w-full h-full object-cover" />
+                                            ) : (
+                                                <div className="w-full h-full flex items-center justify-center text-white font-bold text-[10px]" style={{ background: GRADIENT }}>
+                                                    {service.providerName.charAt(0).toUpperCase()}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </PlanAvatarRing>
+                                    <span className="text-xs truncate" style={{ color: colors.textSecondary }}>{service.providerName}</span>
+                                </div>
                             </div>
-
-                            <div
-                                className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none rounded-xl"
-                                style={{ boxShadow: `inset 0 0 40px ${colors.accent}30`, border: `2px solid ${colors.accent}40` }}
-                            />
                         </div>
                     ))}
                 </div>
