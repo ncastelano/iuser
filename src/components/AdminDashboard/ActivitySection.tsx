@@ -23,7 +23,13 @@ interface ActivityVisitor {
     key: string
     userId: string | null
     anonymousId: string
-    profile: { name: string | null; profileSlug: string | null; avatarUrl: string | null } | null
+    profile: {
+        name: string | null
+        profileSlug: string | null
+        avatarUrl: string | null
+        createdAt: string | null
+        invitedBy: { name: string | null; profileSlug: string | null } | null
+    } | null
     visits: number
     lastSeen: string
     firstSeen: string
@@ -47,15 +53,15 @@ interface ActivitySummary {
     visitorsTotal: number
 }
 
-// Rota → o que a pessoa estava fazendo, em português (o que não conhece mostra o endereço mesmo)
+// Rota → o que a pessoa fez, em português (o que não conhece mostra o endereço mesmo)
 const ROOT_LABELS: Record<string, string> = {
-    '': 'Home', inicio: 'Home', carrinho: 'Carrinho', compromissos: 'Agenda', compromisso: 'Viu um compromisso', planos: 'Planos',
-    radar: 'Radar', social: 'Social', publicacoes: 'Publicações', comunidade: 'Comunidade', convite: 'Convite',
-    cadastrar: 'Cadastro', login: 'Login', 'criar-loja': 'Criando loja', 'criar-loja-com-cadastro': 'Criando loja e conta',
-    'pedir-motorista': 'Pedindo motorista', 'aceitar-corridas': 'Aceitando corridas', 'minhas-corridas': 'Minhas corridas',
-    'acompanhar-corrida': 'Acompanhando corrida', 'painel-motorista': 'Painel do motorista', 'painel-prestador': 'Painel do prestador',
-    'solicitar-servico': 'Pedindo serviço', 'procurar-servico': 'Procurando serviço', pedidos: 'Pedidos',
-    'lojas-em-destaque': 'Lojas em destaque', lojas: 'Lojas', administrador: 'Administração',
+    '': 'Abriu a home', inicio: 'Abriu a home', carrinho: 'Abriu o carrinho', compromissos: 'Abriu a agenda', compromisso: 'Viu um compromisso',
+    planos: 'Viu os planos', radar: 'Abriu o radar', social: 'Abriu o social', publicacoes: 'Viu as publicações', comunidade: 'Abriu a comunidade',
+    convite: 'Abriu um convite', cadastrar: 'Abriu o cadastro', login: 'Abriu o login', 'criar-loja': 'Estava criando uma loja',
+    'criar-loja-com-cadastro': 'Estava criando uma loja e a conta', 'pedir-motorista': 'Pediu um motorista', 'aceitar-corridas': 'Viu corridas pra aceitar',
+    'minhas-corridas': 'Viu as suas corridas', 'acompanhar-corrida': 'Acompanhou uma corrida', 'painel-motorista': 'Abriu o painel do motorista',
+    'painel-prestador': 'Abriu o painel do prestador', 'solicitar-servico': 'Pediu um serviço', 'procurar-servico': 'Procurou um serviço',
+    pedidos: 'Viu os pedidos', 'lojas-em-destaque': 'Viu as lojas em destaque', lojas: 'Viu as lojas', administrador: 'Abriu a administração',
 }
 function describePath(path: string): { label: string; detail: string | null } {
     const clean = path.split('?')[0].replace(/\/+$/, '')
@@ -67,7 +73,39 @@ function describePath(path: string): { label: string; detail: string | null } {
     }
     if (segs.length === 1) return { label: 'Viu um perfil ou loja', detail: `/${first}` }
     if (segs.length >= 2) return { label: 'Viu um produto, serviço ou publicação', detail: clean }
-    return { label: clean || 'Home', detail: null }
+    return { label: clean || 'Abriu a home', detail: null }
+}
+
+/** "hoje às 10:22", "ontem às 21:05", "05/10 às 14:00" */
+function humanWhen(iso: string): string {
+    const d = new Date(iso)
+    const today = new Date(); today.setHours(0, 0, 0, 0)
+    const day = new Date(d); day.setHours(0, 0, 0, 0)
+    const diff = Math.round((today.getTime() - day.getTime()) / 86400000)
+    const hm = format(d, 'HH:mm')
+    if (diff === 0) return `hoje às ${hm}`
+    if (diff === 1) return `ontem às ${hm}`
+    return `${format(d, 'dd/MM')} às ${hm}`
+}
+
+/** De onde a pessoa chegou, em frase: link de convite, Google, Instagram... */
+function humanReferrer(referrer: string | null): string | null {
+    if (!referrer) return null
+    try {
+        const u = new URL(referrer)
+        const host = u.hostname.replace(/^www\./, '')
+        const ref = u.searchParams.get('ref')
+        if (host.includes('iuser.com.br') || host === 'localhost') {
+            if (ref) return `pelo link de convite de @${ref.replace(/^@/, '')}`
+            if (u.pathname === '/' ) return 'de dentro do iUser (home)'
+            return `de dentro do iUser (${u.pathname})`
+        }
+        const known: [string, string][] = [['google.', 'do Google'], ['instagram.', 'do Instagram'], ['facebook.', 'do Facebook'], ['wa.me', 'do WhatsApp'], ['whatsapp.', 'do WhatsApp'], ['t.co', 'do X'], ['x.com', 'do X'], ['twitter.', 'do X'], ['t.me', 'do Telegram']]
+        const hit = known.find(([k]) => host.includes(k))
+        return hit ? hit[1] : `de ${host}`
+    } catch {
+        return referrer
+    }
 }
 
 // Aba "Atividade" do admin geral: todo mundo que passa pelo iUser, logado
@@ -248,6 +286,17 @@ export default function ActivitySection({ cardStyle, colors }: ActivitySectionPr
                                                 >
                                                     {isAnonymous ? 'Anônimo' : 'Cadastrado'}
                                                 </span>
+                                                {!isAnonymous && v.profile && (
+                                                    v.profile.invitedBy ? (
+                                                        <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold flex-shrink-0" style={{ background: '#f9731620', color: '#f97316' }}>
+                                                            Convidado por @{v.profile.invitedBy.profileSlug || v.profile.invitedBy.name}
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold flex-shrink-0" style={{ background: `${colors.border}40`, color: colors.textSecondary }}>
+                                                            Sem convite
+                                                        </span>
+                                                    )
+                                                )}
                                                 {v.online && (
                                                     <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold flex items-center gap-1 flex-shrink-0" style={{ background: '#22c55e20', color: '#22c55e' }}>
                                                         <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" /> Online
@@ -260,36 +309,71 @@ export default function ActivitySection({ cardStyle, colors }: ActivitySectionPr
                                         </div>
                                     </div>
 
-                                    <div className="space-y-1.5 pl-1" style={{ borderLeft: `2px solid ${colors.border}`, marginLeft: 6 }}>
-                                        {steps.map((st, i) => {
-                                            const d = describePath(st.path)
-                                            return (
-                                                <div key={`${st.at}-${i}`} className="flex items-baseline justify-between gap-2 pl-3">
-                                                    <div className="min-w-0">
-                                                        <span className="text-xs font-bold" style={{ color: colors.textPrimary }}>{d.label}</span>
-                                                        {st.count > 1 && <span className="text-[10px] font-black ml-1" style={{ color: '#f97316' }}>×{st.count}</span>}
-                                                        {d.detail && <span className="text-[10px] font-mono ml-1.5 truncate" style={{ color: colors.textSecondary }}>{d.detail}</span>}
-                                                    </div>
-                                                    <span className="text-[10px] flex-shrink-0" style={{ color: colors.textSecondary }}>{format(new Date(st.at), 'dd/MM HH:mm')}</span>
-                                                </div>
-                                            )
-                                        })}
-                                        {v.steps.length > 4 && (
-                                            <button
-                                                onClick={() => setExpanded((prev) => { const n = new Set(prev); if (n.has(v.key)) n.delete(v.key); else n.add(v.key); return n })}
-                                                className="pl-3 text-[11px] font-bold"
-                                                style={{ color: colors.accent }}
-                                            >
-                                                {open ? 'Mostrar menos' : `+ ${v.steps.length - 4} ações anteriores`}
-                                            </button>
-                                        )}
-                                    </div>
+                                    {(() => {
+                                        // Linha do tempo: o que fez + "criou a conta" no lugar certo (se já aparece no histórico mostrado)
+                                        type Item = { at: string; kind: 'step' | 'created'; path?: string; count?: number }
+                                        const created = v.profile?.createdAt || null
+                                        const oldestShown = v.steps.length ? v.steps[v.steps.length - 1].at : null
+                                        const createdInline = !!created && (v.steps.length < 8 || (!!oldestShown && created >= oldestShown))
+                                        const items: Item[] = v.steps.map((st) => ({ at: st.at, kind: 'step' as const, path: st.path, count: st.count }))
+                                        if (created && createdInline) items.push({ at: created, kind: 'created' })
+                                        items.sort((x, y) => y.at.localeCompare(x.at))
+                                        const shown = open ? items : items.slice(0, 4)
+                                        const inviter = v.profile?.invitedBy
+                                        return (
+                                            <div className="space-y-1.5 pl-1" style={{ borderLeft: `2px solid ${colors.border}`, marginLeft: 6 }}>
+                                                {shown.map((it, i) => {
+                                                    if (it.kind === 'created') {
+                                                        return (
+                                                            <div key={`c-${i}`} className="pl-3">
+                                                                <div className="flex items-baseline justify-between gap-2">
+                                                                    <span className="text-xs font-black" style={{ color: '#10b981' }}>Criou a conta</span>
+                                                                    <span className="text-[10px] flex-shrink-0" style={{ color: colors.textSecondary }}>{humanWhen(it.at)}</span>
+                                                                </div>
+                                                                <p className="text-[11px]" style={{ color: colors.textSecondary }}>
+                                                                    {inviter
+                                                                        ? <>Entrou pelo convite de <b>{inviter.name || `@${inviter.profileSlug}`}</b>{inviter.profileSlug ? ` (@${inviter.profileSlug})` : ''} e já ficou ligado a essa pessoa.</>
+                                                                        : 'Entrou sem convite de ninguém.'}
+                                                                </p>
+                                                            </div>
+                                                        )
+                                                    }
+                                                    const d = describePath(it.path || '')
+                                                    return (
+                                                        <div key={`${it.at}-${i}`} className="flex items-baseline justify-between gap-2 pl-3">
+                                                            <div className="min-w-0">
+                                                                <span className="text-xs font-bold" style={{ color: colors.textPrimary }}>{d.label}</span>
+                                                                {(it.count || 1) > 1 && <span className="text-[10px] font-black ml-1" style={{ color: '#f97316' }}>{it.count} vezes</span>}
+                                                                {d.detail && <span className="text-[10px] font-mono ml-1.5 truncate" style={{ color: colors.textSecondary }}>{d.detail}</span>}
+                                                            </div>
+                                                            <span className="text-[10px] flex-shrink-0" style={{ color: colors.textSecondary }}>{humanWhen(it.at)}</span>
+                                                        </div>
+                                                    )
+                                                })}
+                                                {items.length > 4 && (
+                                                    <button
+                                                        onClick={() => setExpanded((prev) => { const n = new Set(prev); if (n.has(v.key)) n.delete(v.key); else n.add(v.key); return n })}
+                                                        className="pl-3 text-[11px] font-bold"
+                                                        style={{ color: colors.accent }}
+                                                    >
+                                                        {open ? 'Mostrar menos' : `+ ${items.length - 4} ações anteriores`}
+                                                    </button>
+                                                )}
+                                                {created && !createdInline && (
+                                                    <p className="pl-3 text-[11px]" style={{ color: colors.textSecondary }}>
+                                                        Criou a conta {humanWhen(created)}{inviter ? ` · convidado por @${inviter.profileSlug || inviter.name}` : ' · sem convite'}
+                                                    </p>
+                                                )}
+                                            </div>
+                                        )
+                                    })()}
 
-                                    {(v.referrer || v.visits > 1) && (
-                                        <p className="text-[10px] opacity-70 truncate" style={{ color: colors.textSecondary }}>
-                                            {v.referrer ? `Origem: ${v.referrer} · ` : ''}Primeira visita em {format(new Date(v.firstSeen), 'dd/MM HH:mm')}
-                                        </p>
-                                    )}
+                                    <p className="text-[10px] opacity-70" style={{ color: colors.textSecondary }}>
+                                        {(() => {
+                                            const from = humanReferrer(v.referrer)
+                                            return `${from ? `Chegou ${from} · ` : ''}primeira visita ${humanWhen(v.firstSeen)}`
+                                        })()}
+                                    </p>
                                 </div>
                             )
                         })}

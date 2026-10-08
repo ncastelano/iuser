@@ -72,18 +72,34 @@ export async function POST(req: Request) {
     const visitorEntries = Array.from(byVisitor.entries()).slice(0, 40) // já ordenado pela visita mais recente
 
     const userIds = [...new Set(visitorEntries.map(([, v]) => v[0].user_id).filter(Boolean))] as string[]
-    let profilesById = new Map<string, { name: string | null; profileSlug: string | null; avatarUrl: string | null }>()
+    type VisitorProfile = {
+        name: string | null
+        profileSlug: string | null
+        avatarUrl: string | null
+        createdAt: string | null
+        invitedBy: { name: string | null; profileSlug: string | null } | null
+    }
+    let profilesById = new Map<string, VisitorProfile>()
     if (userIds.length > 0) {
         const { data: profiles } = await supabaseAdmin
             .from('profiles')
-            .select('id, name, profileSlug, avatar_url')
+            .select('id, name, profileSlug, avatar_url, created_at, upline_id')
             .in('id', userIds)
+        // Quem convidou cada pessoa (profiles.upline_id)
+        const uplineIds = [...new Set((profiles || []).map((p) => p.upline_id).filter(Boolean))] as string[]
+        const uplinesById = new Map<string, { name: string | null; profileSlug: string | null }>()
+        if (uplineIds.length > 0) {
+            const { data: uplines } = await supabaseAdmin.from('profiles').select('id, name, profileSlug').in('id', uplineIds)
+            ;(uplines || []).forEach((u) => uplinesById.set(u.id, { name: u.name, profileSlug: u.profileSlug }))
+        }
         profilesById = new Map((profiles || []).map((p) => [p.id, {
             name: p.name,
             profileSlug: p.profileSlug,
             avatarUrl: p.avatar_url
                 ? (p.avatar_url.startsWith('http') ? p.avatar_url : supabaseAdmin.storage.from('avatars').getPublicUrl(p.avatar_url).data.publicUrl)
                 : null,
+            createdAt: p.created_at ?? null,
+            invitedBy: p.upline_id ? uplinesById.get(p.upline_id) || null : null,
         }]))
     }
 
