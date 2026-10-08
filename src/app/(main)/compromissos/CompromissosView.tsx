@@ -44,6 +44,7 @@ import { useProfile } from '@/app/contexts/ProfileContext'
 import Header from '@/components/Header' // ajuste o caminho conforme necessário
 import PlanAvatarRing from '@/components/PlanAvatarRing'
 import { useProfilesById } from '@/hooks/useProfilesById'
+import ShareAppointmentButton from '@/components/ShareAppointmentButton'
 
 type BgMode = 'animated' | 'black' | 'custom'
 
@@ -565,6 +566,17 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
         if (success) refetch()
     }, [deleteAppointment, refetch])
 
+    // Compartilhar este agendamento: público = qualquer um abre o link; privado = só quem participa (logado)
+    const shareBtn = (a: Appointment, size = 30) => (
+        <ShareAppointmentButton
+            appointmentId={a.id}
+            isPublic={a.is_public}
+            title={a.service_name}
+            dateLabel={`${a.date.split('-').reverse().join('/')} às ${formatTime(a.time)}`}
+            size={size}
+        />
+    )
+
     // Só quem é o cliente ou o dono do compromisso pode excluir (é a regra do banco); aí o botão aparece.
     const canDelete = (a: Appointment) => !!userId && (a.customer_id === userId || a.owner_id === userId)
     const trashBtn = (a: Appointment, size = 30) => canDelete(a) ? (
@@ -858,6 +870,7 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
                                                     <button onClick={() => aceitarCompromisso(convite.id)} style={{ flex: 1, background: '#10b981', color: '#fff', border: 'none', borderRadius: 14, padding: '10px 14px', fontWeight: 700, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 14 }}><Check size={16} /> Aceitar</button>
                                                     <button onClick={() => recusarCompromisso(convite.id)} style={{ flex: 1, background: '#ef4444', color: '#fff', border: 'none', borderRadius: 14, padding: '10px 14px', fontWeight: 700, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 14 }}><X size={16} /> Recusar</button>
                                                     <button onClick={(e) => { e.stopPropagation(); openDetailModal(convite) }} style={{ background: 'rgba(255,255,255,0.1)', color: colors.textPrimary, border: 'none', borderRadius: 14, padding: '10px 14px', fontWeight: 700, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 14 }}><Eye size={16} /> Detalhes</button>
+                                                    {shareBtn(convite, 40)}
                                                 </div>
                                             </div>
                                         )
@@ -925,7 +938,7 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
                                                         <div style={{ textAlign: 'right' }}>
                                                             <p style={{ fontWeight: 700, fontSize: 18, color: isFirst ? colors.accent : colors.textPrimary }}>{formatTime(comp.time)}</p>
                                                             <p style={{ fontSize: 12, color: colors.textSecondary }}>{displayDate}</p>
-                                                            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 6 }}>{trashBtn(comp, 28)}</div>
+                                                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, marginTop: 6 }}>{shareBtn(comp, 28)}{trashBtn(comp, 28)}</div>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -1050,7 +1063,7 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
                                                         <div style={{ display: 'flex', gap: 12, marginTop: 8, alignItems: 'center', color: colors.textSecondary }}>
                                                             <Clock3 size={14} />
                                                             <span>{evento.date.split('-').reverse().join('/')} • {formatTime(evento.time)}</span>
-                                                            <span style={{ marginLeft: 'auto' }}>{trashBtn(evento, 28)}</span>
+                                                            <span style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>{shareBtn(evento, 28)}{trashBtn(evento, 28)}</span>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -1091,6 +1104,7 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
                                                     {evento.status === 'pending' && <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#facc15', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Clock3 size={16} color="#000" /></div>}
                                                     <button onClick={(e) => { e.stopPropagation(); handleDelete(evento.id) }} style={{ width: 32, height: 32, borderRadius: '50%', background: '#ef4444', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><Trash2 size={16} color="#fff" /></button>
                                                     <button onClick={(e) => { e.stopPropagation(); openDetailModal(evento) }} style={{ width: 32, height: 32, borderRadius: '50%', background: colors.accent, border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><Edit3 size={16} color={colors.accentText} /></button>
+                                                    {shareBtn(evento, 32)}
                                                 </div>
                                             </div>
                                         </div>
@@ -1126,6 +1140,7 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
                                                 <button onClick={() => aceitarCompromisso(agendamento.id)} style={{ flex: 1, background: '#10b981', color: '#fff', border: 'none', borderRadius: 14, padding: '10px 14px', fontWeight: 700, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 14 }}><Check size={16} /> Aceitar</button>
                                                 <button onClick={() => recusarCompromisso(agendamento.id)} style={{ flex: 1, background: '#ef4444', color: '#fff', border: 'none', borderRadius: 14, padding: '10px 14px', fontWeight: 700, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 14 }}><X size={16} /> Recusar</button>
                                                 <button onClick={() => openDetailModal(agendamento)} style={{ background: 'rgba(255,255,255,0.1)', color: colors.textPrimary, border: 'none', borderRadius: 14, padding: '10px 14px', fontWeight: 700, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 14 }}><Eye size={16} /> Detalhes</button>
+                                                {shareBtn(agendamento, 40)}
                                             </div>
                                         </div>
                                     ))
@@ -1167,7 +1182,7 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
                                                 </div>
                                                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
                                                     <span style={{ background: 'rgba(16,185,129,0.2)', color: '#10b981', padding: '4px 12px', borderRadius: 12, fontWeight: 700, fontSize: 12 }}>{isPersonInvite(item, avatarType) ? 'Aceito' : 'Confirmado'}</span>
-                                                    {trashBtn(item)}
+                                                    <div style={{ display: 'flex', gap: 6 }}>{shareBtn(item)}{trashBtn(item)}</div>
                                                 </div>
                                             </div>
                                         )
@@ -1237,7 +1252,7 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
                                                 </div>
                                             </div>
                                             <span style={{ background: 'rgba(16,185,129,0.2)', color: '#10b981', padding: '4px 12px', borderRadius: 12, fontWeight: 700, fontSize: 12 }}>Confirmado</span>
-                                            {trashBtn(item)}
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>{shareBtn(item)}{trashBtn(item)}</div>
                                         </div>
                                     )
                                 })}
@@ -1299,6 +1314,18 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
                                             ))}
                                         </div>
                                     )}
+                                </div>
+                                <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 20, marginBottom: 20 }}>
+                                    <ShareAppointmentButton
+                                        appointmentId={selectedAppointment.id}
+                                        isPublic={selectedAppointment.is_public}
+                                        title={selectedAppointment.service_name}
+                                        dateLabel={`${selectedAppointment.date.split('-').reverse().join('/')} às ${formatTime(selectedAppointment.time)}`}
+                                        variant="pill"
+                                    />
+                                    <p style={{ color: '#94a3b8', fontSize: 12, marginTop: 8 }}>
+                                        {selectedAppointment.is_public ? 'Público: qualquer pessoa com o link consegue ver.' : 'Privado: só quem participa consegue abrir o link (e precisa entrar na conta).'}
+                                    </p>
                                 </div>
                                 {canDelete(selectedAppointment) && (
                                     <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 20, marginBottom: 20 }}>
