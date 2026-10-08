@@ -30,6 +30,7 @@ import { formatDistanceToNow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { toast } from 'sonner'
 import { getWhatsAppLink } from '@/lib/whatsapp'
+import PlanAvatarRing from '@/components/PlanAvatarRing'
 
 // ===== TIPOS =====
 interface PublicationWithStore {
@@ -525,6 +526,7 @@ export default function PublicationClientPage() {
                         boxShadow: isBeingReplied ? '0 0 0 2px rgba(249, 115, 22, 0.2)' : 'none',
                         transition: 'all 0.2s ease',
                     }}>
+                        <PlanAvatarRing userId={comment.profile_id}>
                         <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0" style={{ background: 'rgba(255,255,255,0.1)' }}>
                             {comment.profiles?.avatar_url ? (
                                 <img src={getAvatarUrl(supabase, comment.profiles.avatar_url) || ''} alt="" className="w-full h-full object-cover" />
@@ -534,6 +536,7 @@ export default function PublicationClientPage() {
                                 </div>
                             )}
                         </div>
+                        </PlanAvatarRing>
 
                         <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between flex-wrap gap-1">
@@ -899,6 +902,7 @@ export default function PublicationClientPage() {
                                     onClick={goToOwner}
                                     className="flex items-center gap-2.5 min-w-0 flex-1 text-left transition hover:opacity-90"
                                 >
+                                    <PlanAvatarRing userId={ownerDisplay.type === 'profile' ? publication.profile?.id : null}>
                                     <div
                                         className="w-10 h-10 rounded-full overflow-hidden border flex-shrink-0 flex items-center justify-center"
                                         style={{ borderColor: colors.border, background: `${colors.accentLight}25` }}
@@ -909,6 +913,7 @@ export default function PublicationClientPage() {
                                             <OwnerIcon size={16} style={{ color: colors.accent }} />
                                         )}
                                     </div>
+                                    </PlanAvatarRing>
                                     <div className="min-w-0 flex-1">
                                         <p className="text-sm font-bold truncate" style={{ color: colors.textPrimary }}>
                                             {ownerDisplay.name}

@@ -18,6 +18,7 @@ import EditProductDialog from '@/components/EditProductDialog'
 import { Spinner } from '@/components/Spinner'
 import { formatDistanceToNow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import PlanAvatarRing from '@/components/PlanAvatarRing'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -203,6 +204,7 @@ export function ServiceClientPage({ ownerSlug, colors, initialService }: Service
                     className="rounded-2xl p-3 flex items-center gap-3 text-left transition hover:scale-[1.01]"
                     style={card}
                 >
+                    <PlanAvatarRing userId={service.owner_id}>
                     {provider?.avatarUrl ? (
                         <img src={provider.avatarUrl} className="w-12 h-12 rounded-full object-cover flex-shrink-0" alt="" />
                     ) : (
@@ -210,6 +212,7 @@ export function ServiceClientPage({ ownerSlug, colors, initialService }: Service
                             {loadingProvider ? '' : providerName.replace('@', '').charAt(0).toUpperCase()}
                         </span>
                     )}
+                    </PlanAvatarRing>
                     <div className="min-w-0 flex-1">
                         <p className="text-[10px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>Quem oferece</p>
                         <p className="text-sm font-black truncate" style={{ color: colors.textPrimary }}>{providerName}</p>

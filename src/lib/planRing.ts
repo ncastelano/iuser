@@ -9,6 +9,7 @@ import { supabase } from '@/lib/supabase/client'
 
 const cache = new Map<string, string[] | null>()
 const pending = new Set<string>()
+const attempts = new Map<string, number>()
 const listeners = new Set<() => void>()
 let timer: ReturnType<typeof setTimeout> | null = null
 
@@ -25,8 +26,16 @@ async function flush() {
         const byId = new Map<string, string[]>((data as { profile_id: string; colors: string[] }[] || []).map((r) => [r.profile_id, r.colors]))
         ids.forEach((id) => cache.set(id, byId.get(id) || null))
     } catch {
-        // Função ainda não existe no banco (migration não rodou) ou falha de rede: sem borda, sem erro.
-        ids.forEach((id) => cache.set(id, null))
+        // Falha de rede/token: tenta de novo algumas vezes antes de desistir (sem borda, sem erro) — uma
+        // falha passageira não pode esconder a borda dos outros até a pessoa recarregar a página.
+        ids.forEach((id) => {
+            const n = (attempts.get(id) || 0) + 1
+            attempts.set(id, n)
+            if (n >= 3) cache.set(id, null)
+            else pending.add(id)
+        })
+        if (pending.size > 0 && !timer) timer = setTimeout(flush, 1500)
+        return
     }
     listeners.forEach((l) => l())
     if (pending.size > 0) schedule()

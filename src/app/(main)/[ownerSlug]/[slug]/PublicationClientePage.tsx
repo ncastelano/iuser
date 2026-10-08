@@ -28,6 +28,7 @@ import { formatDistanceToNow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { toast } from 'sonner'
 import { getWhatsAppLink } from '@/lib/whatsapp'
+import PlanAvatarRing from '@/components/PlanAvatarRing'
 
 // ===== TIPOS =====
 interface PublicationWithOwner {
@@ -494,6 +495,7 @@ export function PublicationClientPage({
                         boxShadow: isBeingReplied ? '0 0 0 2px rgba(249, 115, 22, 0.2)' : 'none',
                         transition: 'all 0.2s ease',
                     }}>
+                        <PlanAvatarRing userId={comment.profile_id}>
                         <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0" style={{ background: 'rgba(255,255,255,0.1)' }}>
                             {comment.profiles?.avatar_url ? (
                                 <img src={getAvatarUrl(supabase, comment.profiles.avatar_url) || ''} alt="" className="w-full h-full object-cover" />
@@ -503,6 +505,7 @@ export function PublicationClientPage({
                                 </div>
                             )}
                         </div>
+                        </PlanAvatarRing>
 
                         <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between flex-wrap gap-1">

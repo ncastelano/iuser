@@ -240,6 +240,7 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
                     return {
                         ride: r as unknown as OfferRide,
                         requester: {
+                            id: r.requester_id,
                             name: p?.name || null,
                             slug: p?.profileSlug || null,
                             avatarUrl: getAvatarUrl(supabase, p?.avatar_url),

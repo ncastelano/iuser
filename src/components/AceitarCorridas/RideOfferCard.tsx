@@ -14,6 +14,7 @@ import { shortAddress } from '@/lib/serviceBoard'
 import { humanizeRideSpecs, type HumanSpecKind, type RideSpecFields } from '@/lib/rideSpecs'
 import { VEHICLE_TYPE_LABELS, type VehicleType } from '@/lib/rideVehicle'
 import { computeHourlyEarnings } from '@/lib/driverPricing'
+import PlanAvatarRing from '@/components/PlanAvatarRing'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 export const TO_PICKUP_COLOR = '#3b82f6'
@@ -55,6 +56,7 @@ export type OfferRide = RideSpecFields & {
 }
 
 export interface OfferRequester {
+    id?: string | null
     name: string | null
     slug: string | null
     avatarUrl: string | undefined
@@ -142,6 +144,7 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
         <div className="flex flex-col gap-2">
             {/* Quem pediu e quando */}
             <div className="flex items-center gap-2">
+                <PlanAvatarRing userId={requester.id}>
                 {requester.avatarUrl ? (
                     <img src={requester.avatarUrl} className="w-8 h-8 rounded-full object-cover flex-shrink-0" alt="" />
                 ) : (
@@ -149,6 +152,7 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
                         {name.charAt(0).toUpperCase()}
                     </span>
                 )}
+                </PlanAvatarRing>
                 <div className="min-w-0 flex-1">
                     <p className="text-[13px] font-black truncate leading-tight" style={{ color: colors.textPrimary }}>{name}</p>
                     <p className="flex items-center gap-1 text-[11px] leading-tight" style={{ color: colors.textSecondary }}>

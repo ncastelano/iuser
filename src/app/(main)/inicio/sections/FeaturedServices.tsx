@@ -16,6 +16,7 @@ import { getAvatarUrl } from '@/lib/avatar'
 import { getServiceLabel } from '@/lib/serviceTypes'
 import { HomeSectionHeader } from './HomeSectionKit'
 import { ViewServicesButton } from './ViewServicesButton'
+import PlanAvatarRing from '@/components/PlanAvatarRing'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -28,6 +29,7 @@ interface ServiceCard {
     providerName: string
     providerSlug: string
     providerImageUrl: string | undefined
+    providerId?: string | null
 }
 
 function useFeaturedServices() {
@@ -91,6 +93,7 @@ function useFeaturedServices() {
                         serviceType: row.service_type,
                         providerName: p?.name || 'Prestador',
                         providerSlug: p?.profileSlug || '',
+                        providerId: row.owner_id,
                         providerImageUrl: getAvatarUrl(supabase, p?.avatar_url),
                         viewCount: row.view_count || 0,
                     }
@@ -287,6 +290,7 @@ export default function FeaturedServices({ dragHandle, title = 'Serviços em des
                             )}
 
                             <div className="absolute top-2 left-2 z-10">
+                                <PlanAvatarRing userId={service.providerId}>
                                 <div className="w-8 h-8 rounded-full border-2 border-white/40 overflow-hidden bg-black/50 shadow-lg">
                                     {service.providerImageUrl ? (
                                         <img src={service.providerImageUrl} alt="" className="w-full h-full object-cover" />
@@ -296,6 +300,7 @@ export default function FeaturedServices({ dragHandle, title = 'Serviços em des
                                         </div>
                                     )}
                                 </div>
+                                </PlanAvatarRing>
                             </div>
 
                             <div className="absolute bottom-0 left-0 right-0 p-3 z-10">

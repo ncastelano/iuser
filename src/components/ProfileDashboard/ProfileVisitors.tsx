@@ -23,6 +23,7 @@ import { format, formatDistanceToNow, subDays, startOfDay, eachDayOfInterval } f
 import { ptBR as ptBRLocale } from 'date-fns/locale'
 import { useRouter } from 'next/navigation'
 import { usePersistedExpanded } from '@/hooks/usePersistedExpanded'
+import PlanAvatarRing from '@/components/PlanAvatarRing'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -444,6 +445,7 @@ export default function ProfileVisitors({ profileId, onLatestUpdate }: ProfileVi
                                     className={`flex items-center gap-3 p-3 rounded-2xl border transition-all hover:shadow-md ${!isAnonymous && profile?.profileSlug ? 'cursor-pointer hover:scale-[1.02]' : ''}`}
                                     style={{ background: cardStyle.background, borderColor: colors.border }}
                                 >
+                                    <PlanAvatarRing userId={isAnonymous ? null : profile?.id}>
                                     <div
                                         className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
                                         style={{
@@ -464,6 +466,7 @@ export default function ProfileVisitors({ profileId, onLatestUpdate }: ProfileVi
                                             </span>
                                         )}
                                     </div>
+                                    </PlanAvatarRing>
 
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2">

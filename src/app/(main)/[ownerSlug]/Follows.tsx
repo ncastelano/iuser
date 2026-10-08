@@ -8,6 +8,7 @@ import { X, Users, UserCheck, UserPlus, Search, User, ArrowLeft } from 'lucide-r
 import { Spinner } from '@/components/Spinner'
 import { getAvatarUrl } from '@/lib/avatar'
 import { toast } from 'sonner'
+import PlanAvatarRing from '@/components/PlanAvatarRing'
 
 interface FollowsProps {
     profileId: string
@@ -407,6 +408,7 @@ export function Follows({
                                     >
                                         {/* Avatar */}
                                         <div className="flex-shrink-0">
+                                            <PlanAvatarRing userId={user.id}>
                                             <div
                                                 className="w-12 h-12 rounded-full p-[2px]"
                                                 style={{ background: GRADIENT }}
@@ -425,6 +427,7 @@ export function Follows({
                                                     )}
                                                 </div>
                                             </div>
+                                            </PlanAvatarRing>
                                         </div>
 
                                         {/* Info */}

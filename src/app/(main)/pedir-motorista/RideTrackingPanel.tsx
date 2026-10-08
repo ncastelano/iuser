@@ -18,6 +18,7 @@ import { notifyRideStatus } from '@/lib/notifyRideStatus'
 import { playNotificationSound } from '@/lib/rideAlertSound'
 import { handleShareLink } from '@/lib/share'
 import { speak } from '@/lib/voiceNavigation'
+import PlanAvatarRing from '@/components/PlanAvatarRing'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 const TRIP_ROUTE_COLOR = '#ef4444'
@@ -777,6 +778,7 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
             {ride.status === 'accepted' && driver && (
                 <div className="flex flex-col gap-2 px-3 py-2.5 rounded-xl" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
                     <div className="flex items-center gap-2">
+                        <PlanAvatarRing userId={ride.driver_id}>
                         {driver.avatarUrl ? (
                             <img src={driver.avatarUrl} className="w-9 h-9 rounded-lg object-cover flex-shrink-0" alt="" />
                         ) : (
@@ -784,6 +786,7 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
                                 <Car size={16} />
                             </div>
                         )}
+                        </PlanAvatarRing>
                         {driver.carPhotoUrl ? (
                             <img src={driver.carPhotoUrl} className="w-9 h-9 rounded-lg object-cover flex-shrink-0" alt="" title={[driver.carModel, driver.carColor].filter(Boolean).join(' · ')} />
                         ) : (
@@ -887,6 +890,7 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
 
                                 return (
                                 <div key={c.applicationId} className="flex flex-col items-center text-center gap-1.5 rounded-2xl px-2.5 py-3 min-w-0" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
+                                    <PlanAvatarRing userId={c.applicantId}>
                                     {c.avatarUrl ? (
                                         <img src={c.avatarUrl} className="w-11 h-11 rounded-full object-cover" style={{ border: `2px solid ${color}` }} alt="" />
                                     ) : (
@@ -894,6 +898,7 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
                                             <MapPin size={16} color="#fff" />
                                         </span>
                                     )}
+                                    </PlanAvatarRing>
 
                                     <div className="w-full min-w-0">
                                         <span className="text-[11px] font-bold block truncate" style={{ color: colors.textPrimary }}>

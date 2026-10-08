@@ -52,6 +52,7 @@ import RideMapDialog from '@/app/(main)/aceitar-corridas/RideMapDialog'
 import { RideOfferCard } from './RideOfferCard'
 import { VehicleRequiredDialog } from '@/components/VehicleRequiredDialog'
 import { submitRideApplication } from '@/lib/rideApplication'
+import PlanAvatarRing from '@/components/PlanAvatarRing'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 const REFRESH_INTERVAL_MS = 15000
@@ -255,6 +256,7 @@ interface AcceptedRideDetail {
     driver_arrived_at: string | null
     ride_started_at: string | null
     requesterName: string | null
+    requesterId: string | null
     requesterSlug: string | null
     requesterAvatarUrl: string | undefined
     requesterRating: ProfileRideRating
@@ -792,6 +794,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                 driver_arrived_at: acceptedRow.driver_arrived_at,
                 ride_started_at: acceptedRow.ride_started_at,
                 requesterName: reqProfile?.name || null,
+                requesterId: acceptedRow.requester_id,
                 requesterSlug: reqProfile?.profileSlug || null,
                 requesterAvatarUrl: getAvatarUrl(supabase, reqProfile?.avatar_url),
                 requesterRating: requesterRatings.get(acceptedRow.requester_id) || { avg: 0, count: 0 },
@@ -1440,7 +1443,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                                     >
                                         <RideOfferCard
                                             ride={ride}
-                                            requester={{ name: ride.requesterName, slug: ride.requesterSlug, avatarUrl: ride.requesterAvatarUrl, rating: ride.requesterRating }}
+                                            requester={{ id: ride.requester_id, name: ride.requesterName, slug: ride.requesterSlug, avatarUrl: ride.requesterAvatarUrl, rating: ride.requesterRating }}
                                             storeName={ride.storeName}
                                             platformPrice={ride.platformPrice + (pickup.state === 'ready' ? pickup.amount : 0)}
                                             pickup={pickup}
@@ -1496,7 +1499,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                                     >
                                         <RideOfferCard
                                             ride={ride}
-                                            requester={{ name: ride.requesterName, slug: ride.requesterSlug, avatarUrl: ride.requesterAvatarUrl, rating: ride.requesterRating }}
+                                            requester={{ id: ride.requester_id, name: ride.requesterName, slug: ride.requesterSlug, avatarUrl: ride.requesterAvatarUrl, rating: ride.requesterRating }}
                                             storeName={null}
                                             toPickup={{ km: info?.toPickupKm ?? null, min: info?.toPickupMin ?? null, hasGps: driverCoords != null }}
                                             trip={{ km: info?.tripKm ?? ride.distance_km, min: info?.tripMin ?? ride.duration_min }}
@@ -1570,6 +1573,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                             </div>
 
                             <div className="flex items-center gap-2 mb-2">
+                                <PlanAvatarRing userId={acceptedRide.requesterId}>
                                 {acceptedRide.requesterAvatarUrl ? (
                                     <img src={acceptedRide.requesterAvatarUrl} className="w-8 h-8 rounded-full object-cover flex-shrink-0" alt="" />
                                 ) : (
@@ -1577,6 +1581,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                                         {(acceptedRide.requesterName || acceptedRide.requesterSlug || '?').charAt(0).toUpperCase()}
                                     </span>
                                 )}
+                                </PlanAvatarRing>
                                 <div className="min-w-0">
                                     <p className="text-xs font-black truncate" style={{ color: colors.textPrimary }}>
                                         {acceptedRide.requesterName || (acceptedRide.requesterSlug ? `@${acceptedRide.requesterSlug}` : 'Passageiro')}

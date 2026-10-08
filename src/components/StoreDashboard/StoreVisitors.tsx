@@ -22,6 +22,7 @@ import {
 } from 'lucide-react'
 import { format, formatDistanceToNow, subDays, startOfDay, eachDayOfInterval } from 'date-fns'
 import { ptBR as ptBRLocale } from 'date-fns/locale'
+import PlanAvatarRing from '@/components/PlanAvatarRing'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -427,6 +428,7 @@ export default function StoreVisitors({ storeId }: StoreVisitorsProps) {
                                         borderColor: colors.border,
                                     }}
                                 >
+                                    <PlanAvatarRing userId={isAnonymous ? null : profile?.id}>
                                     <div
                                         className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
                                         style={{
@@ -447,6 +449,7 @@ export default function StoreVisitors({ storeId }: StoreVisitorsProps) {
                                             </span>
                                         )}
                                     </div>
+                                    </PlanAvatarRing>
 
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2">

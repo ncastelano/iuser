@@ -336,6 +336,7 @@ function AceitarCorridasMapaContent() {
             setOffer({
                 ride: r,
                 requester: {
+                    id: r.requester_id,
                     name: profile?.name || null,
                     slug: profile?.profileSlug || null,
                     avatarUrl: getAvatarUrl(supabase, profile?.avatar_url),

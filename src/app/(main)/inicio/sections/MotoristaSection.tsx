@@ -13,6 +13,7 @@ import { fetchRoute } from '@/lib/mapboxRoute'
 import { buildRideSpecRows } from '@/lib/rideSpecs'
 import RideChat from '@/components/RideChat'
 import { ViewServicesButton } from './ViewServicesButton'
+import PlanAvatarRing from '@/components/PlanAvatarRing'
 
 interface RecentRideTrip {
     originAddress: string
@@ -443,6 +444,7 @@ export default function MotoristaSection({ dragHandle, onBreveStatusChange, onUr
 
                         {activeOrder.status === 'accepted' && driverInfo && (
                             <div className="flex items-center gap-2 p-2 rounded-lg mb-2" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
+                                <PlanAvatarRing userId={activeOrder.driver_id}>
                                 {driverInfo.avatarUrl ? (
                                     <img src={driverInfo.avatarUrl} className="w-8 h-8 rounded-full object-cover flex-shrink-0" alt="" />
                                 ) : (
@@ -450,6 +452,7 @@ export default function MotoristaSection({ dragHandle, onBreveStatusChange, onUr
                                         {(driverInfo.name || driverInfo.profileSlug || '?').charAt(0).toUpperCase()}
                                     </span>
                                 )}
+                                </PlanAvatarRing>
                                 <div className="min-w-0 flex-1">
                                     <p className="text-[11px] font-black truncate" style={{ color: colors.textPrimary }}>
                                         {driverInfo.name || (driverInfo.profileSlug ? `@${driverInfo.profileSlug}` : 'Motorista')}

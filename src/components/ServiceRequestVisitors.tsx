@@ -15,6 +15,7 @@ import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { getAvatarUrl } from '@/lib/avatar'
 import { Spinner } from '@/components/Spinner'
+import PlanAvatarRing from '@/components/PlanAvatarRing'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -181,6 +182,7 @@ export default function ServiceRequestVisitors({ requestId }: { requestId: strin
                                 className={`flex items-center gap-3 p-2.5 rounded-xl border ${clickable ? 'cursor-pointer' : ''}`}
                                 style={{ borderColor: colors.border, background: `${colors.border}15` }}
                             >
+                                <PlanAvatarRing userId={v.viewer_id}>
                                 <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden" style={{ background: anonymous ? '#ef444430' : '#f9731630' }}>
                                     {anonymous ? (
                                         <User size={16} style={{ color: '#ef4444' }} />
@@ -190,6 +192,7 @@ export default function ServiceRequestVisitors({ requestId }: { requestId: strin
                                         <span className="font-bold text-sm" style={{ color: '#f97316' }}>{viewer?.name?.charAt(0) || '?'}</span>
                                     )}
                                 </div>
+                                </PlanAvatarRing>
                                 <div className="min-w-0 flex-1">
                                     <div className="flex items-center gap-2">
                                         <span className="font-bold text-sm truncate" style={{ color: colors.textPrimary }}>

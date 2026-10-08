@@ -7,6 +7,7 @@ import { useProfile } from '@/app/contexts/ProfileContext'
 import { Send, MessageCircle } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import { getAvatarUrl } from '@/lib/avatar'
+import PlanAvatarRing from '@/components/PlanAvatarRing'
 
 // Passageiro: laranja -> vermelho (mesmo gradiente do resto do app).
 // Motorista: verde escuro -> verde claro. Os dois com texto branco, sempre —
@@ -193,7 +194,7 @@ export default function RideChat({ rideId, quickReplies }: RideChatProps) {
 
                         return (
                             <div key={m.id} className={`flex items-end gap-1.5 ${mine ? 'justify-end' : 'justify-start'}`}>
-                                {!mine && avatar}
+                                {!mine && <PlanAvatarRing userId={m.sender_id}>{avatar}</PlanAvatarRing>}
                                 <div className={`flex flex-col ${mine ? 'items-end' : 'items-start'}`}>
                                     <div
                                         className="max-w-[200px] px-3 py-1.5 rounded-2xl text-xs break-words"
@@ -205,7 +206,7 @@ export default function RideChat({ rideId, quickReplies }: RideChatProps) {
                                         {timeAgo(m.created_at)}
                                     </span>
                                 </div>
-                                {mine && avatar}
+                                {mine && <PlanAvatarRing userId={m.sender_id}>{avatar}</PlanAvatarRing>}
                             </div>
                         )
                     })

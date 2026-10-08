@@ -23,6 +23,7 @@ import {
     LogIn,
     MessageCircle,
 } from 'lucide-react'
+import PlanAvatarRing from '@/components/PlanAvatarRing'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -295,6 +296,7 @@ export default function CommunityRoomClient() {
                             const senderAvatar = message.profiles?.avatar_url ? getAvatarUrl(supabase, message.profiles.avatar_url) : null
                             return (
                                 <div key={message.id} className={`flex gap-2 ${isMine ? 'flex-row-reverse' : ''}`}>
+                                    <PlanAvatarRing userId={message.profile_id}>
                                     <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0" style={{ background: `${colors.border}60` }}>
                                         {senderAvatar ? (
                                             <img src={senderAvatar} alt="" className="w-full h-full object-cover" />
@@ -304,6 +306,7 @@ export default function CommunityRoomClient() {
                                             </div>
                                         )}
                                     </div>
+                                    </PlanAvatarRing>
                                     <div className={`max-w-[75%] ${isMine ? 'items-end' : 'items-start'} flex flex-col`}>
                                         <div className="flex items-center gap-2">
                                             <span className="text-xs font-bold" style={{ color: colors.textPrimary }}>

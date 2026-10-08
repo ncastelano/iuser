@@ -43,6 +43,7 @@ import AddToCartModal from '@/components/AddToCartModal'
 import FallbackImage from '@/components/FallbackImage'
 import EditProductDialog from '@/components/EditProductDialog'
 import { useProfile } from '@/app/contexts/ProfileContext'
+import PlanAvatarRing from '@/components/PlanAvatarRing'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -149,7 +150,7 @@ export function ProductClientPage({
         comment: string | null
         is_anonymous: boolean
         created_at: string
-        profiles: { name: string | null; avatar_url: string | null } | null
+        profiles: { id?: string; name: string | null; avatar_url: string | null } | null
     }[]>([])
     const [showReviews, setShowReviews] = useState(false)
 
@@ -249,7 +250,7 @@ export function ProductClientPage({
 
         supabase
             .from('product_reviews')
-            .select('id, rating, comment, is_anonymous, created_at, profiles(name, avatar_url)')
+            .select('id, rating, comment, is_anonymous, created_at, profiles(id, name, avatar_url)')
             .eq('product_id', productId)
             .order('created_at', { ascending: false })
             .then(({ data }) => {
@@ -1188,6 +1189,7 @@ export function ProductClientPage({
                                                         className="flex gap-2 p-2.5 rounded-xl"
                                                         style={{ background: `${colors.surface}66` }}
                                                     >
+                                                        <PlanAvatarRing userId={r.is_anonymous ? null : r.profiles?.id}>
                                                         <div className="w-7 h-7 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center" style={{ background: colors.border }}>
                                                             {reviewerAvatar ? (
                                                                 <img src={reviewerAvatar} alt="" className="w-full h-full object-cover" />
@@ -1197,6 +1199,7 @@ export function ProductClientPage({
                                                                 </span>
                                                             )}
                                                         </div>
+                                                        </PlanAvatarRing>
                                                         <div className="flex-1 min-w-0">
                                                             <div className="flex items-center justify-between gap-2">
                                                                 <p className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>
