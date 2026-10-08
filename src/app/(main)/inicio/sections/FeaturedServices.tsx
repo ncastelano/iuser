@@ -354,9 +354,10 @@ export default function FeaturedServices({ dragHandle, title = 'Serviços em des
                                     </div>
 
                                     <span
-                                        className="w-full text-center py-2.5 rounded-full font-black text-sm transition-transform group-hover:scale-[1.02]"
-                                        style={{ background: 'transparent', color: colors.accent, border: `2px solid ${colors.accent}` }}
+                                        className="w-full flex items-center justify-center gap-2 py-3 rounded-full font-black text-sm text-white transition-transform group-hover:scale-[1.02]"
+                                        style={{ background: GRADIENT, boxShadow: '0 4px 12px #f9731640' }}
                                     >
+                                        <Wrench size={15} />
                                         Ver serviço
                                     </span>
                                 </div>
@@ -372,11 +373,11 @@ export default function FeaturedServices({ dragHandle, title = 'Serviços em des
                         <div className={`flex items-center justify-center gap-3 ${leftAction ? 'ml-auto' : ''}`}>
                             <button
                                 onClick={goToPrev}
-                                className="w-7 h-7 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95"
+                                className="w-9 h-9 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95 shadow-md"
                                 style={{ background: GRADIENT, color: '#ffffff' }}
                                 aria-label="Anterior"
                             >
-                                <ChevronLeft size={14} />
+                                <ChevronLeft size={18} />
                             </button>
     
                             <div className={`items-center gap-1.5 ${leftAction ? 'hidden sm:flex' : 'flex'}`}>
@@ -402,11 +403,11 @@ export default function FeaturedServices({ dragHandle, title = 'Serviços em des
     
                             <button
                                 onClick={goToNext}
-                                className="w-7 h-7 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95"
+                                className="w-9 h-9 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95 shadow-md"
                                 style={{ background: GRADIENT, color: '#ffffff' }}
                                 aria-label="Próximo"
                             >
-                                <ChevronRight size={14} />
+                                <ChevronRight size={18} />
                             </button>
                         </div>
                     )}

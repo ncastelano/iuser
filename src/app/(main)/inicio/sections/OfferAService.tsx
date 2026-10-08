@@ -2,15 +2,15 @@
 //
 // Seção da home "Quem já oferece serviço": vitrine dos serviços que
 // profissionais e lojas já publicaram, sem card em volta (tudo flutuante), 
-// "Publicar serviço" (esquerda) e "ver serviços" com o total (direita) logo abaixo da frase do título.
+// "ver serviços" (com o total) no cabeçalho e o botão "Publicar o seu" embaixo, igual ao "Quem procura serviço".
 'use client'
 
 import { ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
-import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
-import { ViewServicesButton } from './ViewServicesButton'
+import { Plus } from 'lucide-react'
+import { HOME_GRADIENT } from './HomeSectionKit'
 import FeaturedServices from './FeaturedServices'
 
 interface OfferAServiceProps {
@@ -18,7 +18,6 @@ interface OfferAServiceProps {
 }
 
 export default function OfferAService({ dragHandle }: OfferAServiceProps) {
-    const { colors } = useTheme()
     const router = useRouter()
     const startNavProgress = useNavProgressStore((s) => s.start)
     const { profileSlug } = useProfile()
@@ -37,19 +36,18 @@ export default function OfferAService({ dragHandle }: OfferAServiceProps) {
                 subtitle="Profissionais e lojas prontos para te atender"
                 hideIcon
                 dragHandle={dragHandle}
-                actions={(count) => (
-                    <div className="flex gap-2">
-                        <button
-                            onClick={goPublish}
-                            className="flex-1 flex items-center justify-center gap-2 py-2 rounded-full font-black text-xs transition-all hover:scale-[1.02] active:scale-95"
-                            style={{ background: 'transparent', color: colors.accent, border: `2px solid ${colors.accent}` }}
-                        >
-                            Publicar serviço
-                        </button>
-                        <ViewServicesButton onClick={() => { startNavProgress(); router.push('/solicitar-servico') }} count={count} />
-                    </div>
-                )}
+                onViewAll={() => { startNavProgress(); router.push('/solicitar-servico') }}
             />
+
+            {/* Mesmo botão padrão (laranja → vermelho) do "Peça o seu", fora do carrossel pra ficar sempre à mão */}
+            <button
+                onClick={goPublish}
+                className="mt-3 w-full flex items-center justify-center gap-2 py-3 rounded-full font-black text-sm transition-all hover:scale-[1.02] active:scale-95"
+                style={{ background: HOME_GRADIENT, color: '#fff', boxShadow: '0 4px 12px #f9731640' }}
+            >
+                <Plus size={16} />
+                Tem um serviço? Publique o seu
+            </button>
         </section>
     )
 }
