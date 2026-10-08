@@ -539,20 +539,26 @@ export function ProductClientPage({
                 style={{ background: GRADIENT }}
                 aria-expanded={showStoreCart}
             >
-                {/* Carrinho de verdade: ícone grande com a quantidade em cima */}
-                <div className="relative flex-shrink-0">
-                    <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.35)' }}>
-                        <ShoppingCart size={28} color="#ffffff" strokeWidth={2.25} />
-                    </div>
-                    <span
-                        className="absolute -top-2 -right-2 min-w-[24px] h-6 px-1.5 rounded-full flex items-center justify-center text-xs font-black"
-                        style={{ background: '#ffffff', color: '#dc2626', boxShadow: '0 2px 8px rgba(0,0,0,0.3)' }}
-                    >
-                        {storeCartCount}
-                    </span>
+                {/* Fotos dos produtos no carrinho (até 3, uma sobre a outra) */}
+                <div className="relative flex-shrink-0" style={{ width: 56 + Math.min(storeCartItems.length - 1, 2) * 34, height: 56 }}>
+                    {storeCartItems.slice(0, 3).map((item, i) => (
+                        <div
+                            key={`${item.product.id}-${i}`}
+                            className="absolute top-0 w-14 h-14 rounded-2xl overflow-hidden"
+                            style={{ left: i * 34, zIndex: 3 - i, border: '3px solid #ffffff', background: '#ffffff', boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }}
+                        >
+                            <FallbackImage
+                                srcs={[item.product.image_url, finalStoreImage]}
+                                alt={item.product.name}
+                                name={item.product.name}
+                                className="w-full h-full object-cover"
+                                initialClassName="text-lg"
+                            />
+                        </div>
+                    ))}
                 </div>
                 <div className="flex-1 min-w-0">
-                    <p className="text-[11px] font-black uppercase tracking-wider text-white/80">Seu carrinho</p>
+                    <p className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-white/80"><ShoppingCart size={12} strokeWidth={3} />Seu carrinho · {storeCartCount} {storeCartCount === 1 ? 'item' : 'itens'}</p>
                     <p className="text-sm font-bold text-white truncate">{storeDisplay.name}</p>
                     <p className="text-xl font-black text-white leading-tight">{formattedStoreCartTotal}</p>
                 </div>
