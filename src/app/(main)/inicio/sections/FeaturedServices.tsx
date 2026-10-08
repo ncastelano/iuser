@@ -302,7 +302,7 @@ export default function FeaturedServices({ dragHandle, title = 'Serviços em des
                                 <h3 className="text-white font-black text-base leading-tight line-clamp-3" style={{ textShadow: '0 2px 8px rgba(0,0,0,0.6)' }}>
                                     {service.title}
                                 </h3>
-                                <div className="flex items-center gap-2 min-w-0 self-start max-w-full rounded-full pl-1 pr-3 py-1 backdrop-blur-md" style={{ background: 'rgba(255,255,255,0.18)', border: '1px solid rgba(255,255,255,0.25)' }}>
+                                <div className="flex items-center gap-2 min-w-0 max-w-full">
                                     <PlanAvatarRing userId={service.providerId}>
                                         <div className="w-6 h-6 rounded-full overflow-hidden flex-shrink-0">
                                             {service.providerImageUrl ? (
@@ -314,7 +314,7 @@ export default function FeaturedServices({ dragHandle, title = 'Serviços em des
                                             )}
                                         </div>
                                     </PlanAvatarRing>
-                                    <span className="text-xs font-bold text-white truncate">{service.providerName}</span>
+                                    <span className="text-xs font-bold text-white truncate" style={{ textShadow: '0 2px 8px rgba(0,0,0,0.6)' }}>{service.providerName}</span>
                                 </div>
                             </div>
                         </div>
