@@ -7,28 +7,11 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
-import { hexToRgb } from '@/lib/color'
-import {
-    Users,
-    Link as LinkIcon,
-    ArrowRight,
-    CheckCircle2,
-    Crown,
-    AlertTriangle,
-    Home,
-    Send,
-    Copy,
-    Check,
-    UserPlus,
-    Store,
-    Zap,
-    Sparkles,
-    Compass,
-    Star,
-    Shield,
-    Rocket,
-    TrendingUp,
-} from 'lucide-react'
+import Header from '@/components/Header'
+import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
+import { PlanRingFrame, useAvatarBorder } from '@/components/PlanAvatarRing'
+import ShareLinkDialog from '@/components/ShareLinkDialog'
+import { HomeGlassCard, HOME_GRADIENT } from '@/app/(main)/inicio/sections/HomeSectionKit'
 import { Spinner } from '@/components/Spinner'
 import { toast } from 'sonner'
 import { normalizeReferralSlug } from '@/lib/referralCapture'
@@ -38,9 +21,8 @@ function ConviteContent() {
     const searchParams = useSearchParams()
     const { colors } = useTheme()
     const { userId, loading: profileLoading } = useProfile()
+    const [shareOpen, setShareOpen] = useState(false)
     const profileSlug = normalizeReferralSlug(searchParams.get('ref'))
-
-    const surfaceRgb = hexToRgb(colors.surface)
 
     const [loading, setLoading] = useState(true)
     const [actionLoading, setActionLoading] = useState(false)
@@ -254,10 +236,12 @@ function ConviteContent() {
         }
     }
 
+    const inviteLink = inviter ? `${typeof window !== 'undefined' ? window.location.origin : ''}/convite?ref=${inviter.profileSlug}` : ''
+    const inviteText = inviter ? `@${inviter.profileSlug} te chama pro iUser — compre, venda, preste serviço ou dirija, tudo numa plataforma só, sem taxa escondida.\n\nEntre pelo meu link e comece agora:` : ''
+
     const handleCopyLink = async () => {
         try {
-            const link = window.location.href
-            await navigator.clipboard.writeText(link)
+            await navigator.clipboard.writeText(inviteLink)
             setCopied(true)
             toast.success('Link copiado!')
             setTimeout(() => setCopied(false), 3000)
@@ -266,531 +250,228 @@ function ConviteContent() {
         }
     }
 
+    // ===== Visual igual ao da home: fundo animado, Header "iUser" e cartões de vidro =====
+    const GRADIENT = HOME_GRADIENT
+    const glass: React.CSSProperties = { border: '1px solid rgba(249,115,22,0.35)', boxShadow: '0 8px 32px rgba(249,115,22,0.16)' }
+    const primaryBtn = 'w-full py-3.5 px-5 rounded-full text-sm font-black text-white transition-transform active:scale-95 hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2'
+    const primaryStyle: React.CSSProperties = { background: GRADIENT, boxShadow: '0 4px 14px #f9731660' }
+    const ghostBtn = 'w-full py-3 px-5 rounded-full text-sm font-bold transition-transform active:scale-95 hover:scale-[1.02] flex items-center justify-center gap-2'
+    const ghostStyle: React.CSSProperties = { background: 'transparent', border: `1px solid ${borderColor}`, color: textPrimary }
+
+    const shell = (children: React.ReactNode) => (
+        <ConviteShell>{children}</ConviteShell>
+    )
+
     // Carregando
     if (loading) {
-        return (
-            <div
-                className="relative flex flex-col min-h-screen pb-32"
-                style={{ background: colors.background }}
-            >
-                <div className="relative z-10 flex-1 flex items-center justify-center px-4">
-                    <div className="text-center">
-                        <Spinner size={48} color={accentColor} className="mx-auto mb-4" />
-                        <p className="text-sm" style={{ color: textSecondary }}>
-                            Carregando convite...
-                        </p>
-                    </div>
-                </div>
+        return shell(
+            <div className="flex flex-col items-center gap-3 py-16">
+                <Spinner size={40} color={accentColor} />
+                <p className="text-sm" style={{ color: textSecondary }}>Carregando convite...</p>
             </div>
         )
     }
 
     // Sem profileSlug na URL
     if (!profileSlug) {
-        return (
-            <div
-                className="relative flex flex-col min-h-screen pb-32"
-                style={{ background: colors.background }}
-            >
-                <div className="relative z-10 flex-1 flex items-center justify-center px-4 py-8">
-                    <div
-                        className="w-full max-w-md rounded-3xl p-8 text-center"
-                        style={{
-                            background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
-                            backdropFilter: 'blur(12px)',
-                            WebkitBackdropFilter: 'blur(12px)',
-                            border: `1px solid ${borderColor}`,
-                            boxShadow: colors.shadow,
-                        }}
-                    >
-                        {/* Logo com animação */}
-                        <div className="relative z-10 flex justify-center mb-6">
-                            <div
-                                className="absolute w-20 h-20 rounded-full blur-xl opacity-50 animate-[pulse_2s_ease-in-out_infinite]"
-                                style={{
-                                    background: 'linear-gradient(135deg, #f97316, #dc2626)',
-                                }}
-                            />
-                            <div
-                                className="w-20 h-20 rounded-full flex items-center justify-center relative ring-2 ring-white/80 ring-offset-2 ring-offset-transparent"
-                                style={{
-                                    background: 'linear-gradient(135deg, #f97316, #dc2626)',
-                                    boxShadow: '0 0 30px #f9731666, 0 0 60px #dc262633',
-                                }}
-                            >
-                                <img
-                                    src="/logotransparente.png"
-                                    alt="iUser"
-                                    className="h-10 w-10 object-contain rounded-full drop-shadow-lg relative z-20"
-                                />
-                            </div>
-                        </div>
-
-                        <h1 className="text-2xl font-black mb-3" style={{ color: textPrimary }}>
-                            Link de Convite
-                        </h1>
-                        <p className="text-sm mb-8" style={{ color: textSecondary }}>
-                            Para aceitar um convite, você precisa de um link válido com o nome de quem te convidou.
-                        </p>
-                        <div
-                            className="rounded-2xl p-4 mb-6 text-left"
-                            style={{
-                                background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
-                                border: `1px solid ${borderColor}`,
-                            }}
-                        >
-                            <p className="text-xs mb-1" style={{ color: textSecondary }}>Exemplo:</p>
-                            <code className="text-sm font-mono" style={{ color: accentColor }}>
-                                iuser.com.br/convite?ref=joaosilva
-                            </code>
-                        </div>
-
-                        {/* Card "Conhecer o iUser" */}
-                        <div
-                            className="rounded-2xl p-6 mb-6 text-left transition-all hover:scale-[1.02] cursor-pointer"
-                            style={{
-                                background: `linear-gradient(135deg, ${accentColor}15, ${accentColor}05)`,
-                                border: `1px solid ${accentColor}30`,
-                            }}
-                            onClick={() => router.push('/')}
-                        >
-                            <div className="flex items-start gap-4">
-                                <div
-                                    className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
-                                    style={{
-                                        background: 'linear-gradient(135deg, #f97316, #dc2626)',
-                                        color: colors.accentText,
-                                    }}
-                                >
-                                    <img
-                                        src="/logotransparente.png"
-                                        alt="iUser"
-                                        className="h-8 w-8 object-contain rounded-full drop-shadow-lg relative z-20"
-                                    />
-                                </div>
-                                <div className="flex-1">
-                                    <h4 className="font-bold" style={{ color: textPrimary }}>
-                                        Conhecer o iUser
-                                    </h4>
-                                    <p className="text-xs mt-1" style={{ color: textSecondary }}>
-                                        Descubra como o que outras pessoas tem a oferecer
-                                    </p>
-                                    <div className="flex items-center gap-3 mt-2">
-                                        <span className="text-[10px] flex items-center gap-1" style={{ color: accentColor }}>
-                                            <Rocket className="w-3 h-3" />
-                                            Taxa 0%!
-                                        </span>
-                                        <span className="text-[10px] flex items-center gap-1" style={{ color: accentColor }}>
-                                            <Star className="w-3 h-3" />
-                                            +1000 lojas
-                                        </span>
-                                    </div>
-                                </div>
-                                <ArrowRight className="w-4 h-4 flex-shrink-0 mt-1" style={{ color: accentColor }} />
-                            </div>
-                        </div>
-
-                        <button
-                            onClick={() => router.push('/')}
-                            className="w-full py-3.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all hover:scale-[1.02]"
-                            style={{
-                                background: 'linear-gradient(135deg, #f97316, #dc2626)',
-                                color: colors.accentText,
-                                boxShadow: `0 4px 14px ${accentColor}40`,
-                            }}
-                        >
-                            <img
-                                src="/logotransparente.png"
-                                alt="iUser"
-                                className="h-5 w-5 object-contain rounded-full drop-shadow-lg relative z-20"
-                            />
-                            Explorar iUser
-                        </button>
+        return shell(
+            <>
+                <HomeGlassCard className="p-6 text-center" style={glass}>
+                    <h1 className="text-2xl font-black" style={{ color: textPrimary }}>Link de convite</h1>
+                    <p className="text-sm mt-2" style={{ color: textSecondary }}>
+                        Para aceitar um convite, você precisa de um link válido com o nome de quem te convidou.
+                    </p>
+                    <div className="rounded-2xl p-4 mt-5 text-left" style={{ background: `${accentColor}10`, border: `1px solid ${accentColor}30` }}>
+                        <p className="text-xs mb-1" style={{ color: textSecondary }}>Exemplo:</p>
+                        <code className="text-sm font-mono break-all" style={{ color: accentColor }}>iuser.com.br/convite?ref=joaosilva</code>
                     </div>
-                </div>
-            </div>
+                </HomeGlassCard>
+                <button onClick={() => router.push('/')} className={primaryBtn} style={primaryStyle}>Explorar iUser</button>
+            </>
         )
     }
 
     // Convite inválido
     if (error || !inviter) {
-        return (
-            <div
-                className="relative flex flex-col min-h-screen pb-32"
-                style={{ background: colors.background }}
-            >
-                <div className="relative z-10 flex-1 flex items-center justify-center px-4 py-8">
-                    <div
-                        className="w-full max-w-md rounded-3xl p-8 text-center"
-                        style={{
-                            background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
-                            backdropFilter: 'blur(12px)',
-                            WebkitBackdropFilter: 'blur(12px)',
-                            border: `1px solid ${borderColor}`,
-                            boxShadow: colors.shadow,
-                        }}
-                    >
-                        {/* Logo com animação */}
-                        <div className="relative z-10 flex justify-center mb-6">
-                            <div
-                                className="absolute w-20 h-20 rounded-full blur-xl opacity-50 animate-[pulse_2s_ease-in-out_infinite]"
-                                style={{
-                                    background: 'linear-gradient(135deg, #f97316, #dc2626)',
-                                }}
-                            />
-                            <div
-                                className="w-20 h-20 rounded-full flex items-center justify-center relative ring-2 ring-white/80 ring-offset-2 ring-offset-transparent"
-                                style={{
-                                    background: 'linear-gradient(135deg, #f97316, #dc2626)',
-                                    boxShadow: '0 0 30px #f9731666, 0 0 60px #dc262633',
-                                }}
-                            >
-                                <img
-                                    src="/logotransparente.png"
-                                    alt="iUser"
-                                    className="h-10 w-10 object-contain rounded-full drop-shadow-lg relative z-20"
-                                />
-                            </div>
-                        </div>
-
-                        <AlertTriangle className="w-16 h-16 mx-auto mb-4" style={{ color: '#ef4444' }} />
-                        <h1 className="text-2xl font-black mb-2" style={{ color: textPrimary }}>
-                            Convite Inválido
-                        </h1>
-                        <p className="text-sm mb-8" style={{ color: textSecondary }}>
-                            Este link de convite não existe ou expirou.
-                        </p>
-
-                        <button
-                            onClick={() => router.push('/')}
-                            className="w-full py-3.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all hover:scale-[1.02]"
-                            style={{
-                                background: 'linear-gradient(135deg, #f97316, #dc2626)',
-                                color: colors.accentText,
-                                boxShadow: `0 4px 14px ${accentColor}40`,
-                            }}
-                        >
-                            <Compass className="w-4 h-4" />
-                            Explorar iUser
-                        </button>
-                    </div>
-                </div>
-            </div>
+        return shell(
+            <>
+                <HomeGlassCard className="p-6 text-center" style={glass}>
+                    <h1 className="text-2xl font-black" style={{ color: textPrimary }}>Convite inválido</h1>
+                    <p className="text-sm mt-2" style={{ color: textSecondary }}>Este link de convite não existe ou expirou.</p>
+                </HomeGlassCard>
+                <button onClick={() => router.push('/')} className={primaryBtn} style={primaryStyle}>Explorar iUser</button>
+            </>
         )
     }
 
     const isSameUser = currentUser?.id === inviter.id
-
-    return (
-        <div
-            className="relative flex flex-col min-h-screen pb-32"
-            style={{ background: colors.background }}
+    const chip = (text: string) => (
+        <span
+            key={text}
+            className="text-[11px] font-bold px-3 py-1.5 rounded-full text-center"
+            style={{ background: 'rgba(249,115,22,0.12)', border: '1px solid rgba(249,115,22,0.35)', color: accentColor }}
         >
-            <div className="relative z-10 flex-1 flex items-center justify-center px-4 py-8">
-                <div className="w-full max-w-md">
-                    <div
-                        className="rounded-3xl p-8 flex flex-col gap-6"
-                        style={{
-                            background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
-                            backdropFilter: 'blur(12px)',
-                            WebkitBackdropFilter: 'blur(12px)',
-                            border: `1px solid ${borderColor}`,
-                            boxShadow: colors.shadow,
-                        }}
+            {text}
+        </span>
+    )
+
+    return shell(
+        <>
+            {/* Quem convidou */}
+            <HomeGlassCard className="p-6 flex flex-col items-center text-center gap-4" style={glass}>
+                <InviterAvatar id={inviter.id} url={inviter.avatar_url} name={inviter.name} />
+                <div>
+                    <h1 className="text-2xl font-black leading-tight" style={{ color: textPrimary }}>{inviter.name}</h1>
+                    <p
+                        className="text-sm font-black mt-1"
+                        style={{ background: GRADIENT, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }}
                     >
-                        {/* Foto de quem convidou, no lugar da logo genérica */}
-                        <div className="relative z-10 flex justify-center">
-                            <div
-                                className="absolute w-24 h-24 rounded-full blur-xl opacity-50 animate-[pulse_2s_ease-in-out_infinite]"
-                                style={{
-                                    background: 'linear-gradient(135deg, #f97316, #dc2626)',
-                                }}
-                            />
-                            <div
-                                className="w-24 h-24 rounded-full flex items-center justify-center relative ring-2 ring-white/80 ring-offset-2 ring-offset-transparent overflow-hidden"
-                                style={{
-                                    background: 'linear-gradient(135deg, #f97316, #dc2626)',
-                                    boxShadow: '0 0 30px #f9731666, 0 0 60px #dc262633',
-                                }}
-                            >
-                                {inviter.avatar_url ? (
-                                    <img
-                                        src={inviter.avatar_url}
-                                        alt={inviter.name}
-                                        className="w-full h-full object-cover relative z-20"
-                                    />
-                                ) : (
-                                    <span className="text-3xl font-black text-white relative z-20">
-                                        {inviter.name?.charAt(0) || '?'}
-                                    </span>
-                                )}
-                            </div>
-                        </div>
-
-                        <div className="text-center">
-                            <h1 className="text-2xl font-black" style={{ color: textPrimary }}>
-                                {inviter.name}
-                            </h1>
-                            <p className="text-sm font-bold" style={{ color: accentColor }}>
-                                @{inviter.profileSlug} te chamou para o iUser
-                            </p>
-
-                            {/* Feature badges */}
-                            <div className="flex items-center justify-center gap-2 mt-4 flex-wrap">
-                                <div
-                                    className="flex items-center gap-1.5 text-[10px] font-bold px-3 py-1 rounded-full"
-                                    style={{
-                                        background: `${accentColor}20`,
-                                        color: accentColor,
-                                    }}
-                                >
-                                    <Store className="w-3 h-3" />
-                                    <span>Sua loja</span>
-                                </div>
-                                <div
-                                    className="flex items-center gap-1.5 text-[10px] font-bold px-3 py-1 rounded-full"
-                                    style={{
-                                        background: `${accentColor}15`,
-                                        color: accentColor,
-                                    }}
-                                >
-                                    <Zap className="w-3 h-3" />
-                                    <span>Venda em tempo real</span>
-                                </div>
-                                <div
-                                    className="flex items-center gap-1.5 text-[10px] font-bold px-3 py-1 rounded-full"
-                                    style={{
-                                        background: `${accentColor}10`,
-                                        color: accentColor,
-                                    }}
-                                >
-                                    <Sparkles className="w-3 h-3" />
-                                    <span>Taxa 0% no Pré-pago ou pague só pelo que usar no Pós-pago</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Chamada de impacto, reforçando quem está convidando */}
-                        <div
-                            className="rounded-2xl p-4 text-center flex items-center justify-center gap-2"
-                            style={{
-                                background: `${accentColor}12`,
-                                border: `1px solid ${accentColor}30`,
-                            }}
-                        >
-                            <Crown className="w-4 h-4 flex-shrink-0" style={{ color: accentColor }} />
-                            <p className="text-xs font-bold" style={{ color: textPrimary }}>
-                                Convite exclusivo — entre e faça parte da rede de {inviter.name}
-                            </p>
-                        </div>
-
-                        {/* CASO 1: NÃO LOGADO */}
-                        {!currentUser && (
-                            <button
-                                onClick={handleJoinNotLogged}
-                                disabled={actionLoading}
-                                className="w-full py-3.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed"
-                                style={{
-                                    background: 'linear-gradient(135deg, #f97316, #dc2626)',
-                                    color: colors.accentText,
-                                    boxShadow: `0 4px 14px ${accentColor}40`,
-                                }}
-                            >
-                                {actionLoading ? (
-                                    <>
-                                        <Spinner size={16} />
-                                        Processando...
-                                    </>
-                                ) : (
-                                    <>
-                                        <UserPlus className="w-4 h-4" />
-                                        Criar Conta e Entrar
-                                        <ArrowRight className="w-4 h-4" />
-                                    </>
-                                )}
-                            </button>
-                        )}
-                        {!currentUser && (
-                            <button
-                                onClick={() => router.push(`/login?redirect=${encodeURIComponent(`/convite?ref=${profileSlug}`)}`)}
-                                className="w-full py-3 rounded-xl font-bold text-sm transition-all hover:scale-[1.02]"
-                                style={{ background: 'transparent', border: `1px solid ${borderColor}`, color: textSecondary }}
-                            >
-                                Já tenho conta · Entrar
-                            </button>
-                        )}
-
-                        {/* CASO 2: LOGADO COMO O PRÓPRIO DONO */}
-                        {isSameUser && (
-                            <div
-                                className="rounded-2xl p-6 text-center"
-                                style={{
-                                    background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
-                                    border: `1px solid ${borderColor}`,
-                                }}
-                            >
-                                <CheckCircle2 className="w-12 h-12 mx-auto mb-3" style={{ color: accentColor }} />
-                                <h3 className="font-bold" style={{ color: textPrimary }}>
-                                    Este é o seu link de convite!
-                                </h3>
-                                <p className="text-sm mt-1 mb-4" style={{ color: textSecondary }}>
-                                    Copie esta URL e envie para novos parceiros.
-                                </p>
-                                <button
-                                    onClick={handleCopyLink}
-                                    className="w-full py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all hover:scale-[1.02]"
-                                    style={{
-                                        background: `${accentColor}20`,
-                                        border: `1px solid ${accentColor}`,
-                                        color: accentColor,
-                                    }}
-                                >
-                                    {copied ? (
-                                        <>
-                                            <Check className="w-4 h-4" style={{ color: '#10b981' }} />
-                                            <span style={{ color: '#10b981' }}>Copiado!</span>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <Copy className="w-4 h-4" />
-                                            Copiar Link
-                                        </>
-                                    )}
-                                </button>
-                            </div>
-                        )}
-
-                        {/* CASO 3: LOGADO MAS CONTA DIFERENTE */}
-                        {currentUser && !isSameUser && (
-                            <div className="space-y-4">
-                                {currentUser.upline_id ? (
-                                    <div
-                                        className="rounded-2xl p-6 text-center"
-                                        style={{
-                                            background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
-                                            border: `1px solid ${borderColor}`,
-                                        }}
-                                    >
-                                        <Users className="w-12 h-12 mx-auto mb-3" style={{ color: textSecondary }} />
-                                        <h3 className="font-bold" style={{ color: textPrimary }}>
-                                            Você já tem uma rede
-                                        </h3>
-                                        <p className="text-sm mt-1 mb-4" style={{ color: textSecondary }}>
-                                            {currentUpline
-                                                ? <>Sua conta já foi convidada por <b>{currentUpline.name || `@${currentUpline.profileSlug}`}</b>, então não aceita outro convite.</>
-                                                : 'Sua conta atual já está conectada a um líder, então não aceita outro convite.'}
-                                            {' '}Quem entra pelo link de convite já se cadastra ligado a quem convidou.
-                                        </p>
-                                        <button
-                                            onClick={() => router.push('/')}
-                                            className="w-full py-3 rounded-xl font-bold text-sm transition-all hover:scale-[1.02]"
-                                            style={{
-                                                background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
-                                                border: `1px solid ${borderColor}`,
-                                                color: textSecondary,
-                                            }}
-                                        >
-                                            voltar ao início
-                                        </button>
-                                    </div>
-                                ) : (
-                                    <button
-                                        onClick={handleBindNetwork}
-                                        disabled={actionLoading}
-                                        className="w-full py-3.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed"
-                                        style={{
-                                            background: 'linear-gradient(135deg, #f97316, #dc2626)',
-                                            color: colors.accentText,
-                                            boxShadow: `0 4px 14px ${accentColor}40`,
-                                        }}
-                                    >
-                                        {actionLoading ? (
-                                            <>
-                                                <Spinner size={16} />
-                                                Conectando...
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Users className="w-4 h-4" />
-                                                Vincular minha conta
-                                            </>
-                                        )}
-                                    </button>
-                                )}
-                            </div>
-                        )}
-
-                        {/* Card "Conhecer o iUser" */}
-                        <div
-                            className="rounded-2xl p-4 text-left transition-all hover:scale-[1.02] cursor-pointer"
-                            style={{
-                                background: `linear-gradient(135deg, ${accentColor}10, ${accentColor}05)`,
-                                border: `1px solid ${accentColor}20`,
-                            }}
-                            onClick={() => router.push('/')}
-                        >
-                            <div className="flex items-center gap-3">
-                                <div
-                                    className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                                    style={{
-                                        background: 'linear-gradient(135deg, #f97316, #dc2626)',
-                                        color: colors.accentText,
-                                    }}
-                                >
-                                    <img
-                                        src="/logotransparente.png"
-                                        alt="iUser"
-                                        className="h-6 w-6 object-contain rounded-full drop-shadow-lg relative z-20"
-                                    />
-                                </div>
-                                <div className="flex-1">
-                                    <h4 className="font-bold text-sm" style={{ color: textPrimary }}>
-                                        Conhecer o iUser
-                                    </h4>
-                                    <p className="text-[10px]" style={{ color: textSecondary }}>
-                                        Descubra como o que outras pessoas tem a oferecer
-                                    </p>
-                                </div>
-                                <ArrowRight className="w-4 h-4 flex-shrink-0" style={{ color: accentColor }} />
-                            </div>
-                        </div>
-
-                        {/* Rodapé */}
-                        <div className="text-center">
-                            <p className="text-[10px]" style={{ color: textSecondary }}>
-                                Ao entrar, você concorda com os{' '}
-                                <a href="/termos" className="font-bold hover:underline" style={{ color: accentColor }}>
-                                    Termos de Uso
-                                </a>
-                            </p>
-                        </div>
-                    </div>
+                        @{inviter.profileSlug} te chamou para o iUser
+                    </p>
                 </div>
+                <div className="flex items-center justify-center gap-2 flex-wrap">
+                    {chip('Sua loja')}
+                    {chip('Venda em tempo real')}
+                    {chip('Taxa 0% no Pré-pago ou pague só pelo que usar no Pós-pago')}
+                </div>
+            </HomeGlassCard>
+
+            {/* O que fazer com o convite */}
+            <HomeGlassCard className="p-6 flex flex-col gap-3" style={glass}>
+                <div className="text-center mb-1">
+                    <h2 className="text-lg font-black" style={{ color: textPrimary }}>Convite exclusivo</h2>
+                    <p className="text-xs mt-0.5" style={{ color: textSecondary }}>Entre e faça parte da rede de {inviter.name}</p>
+                </div>
+
+                {/* NÃO LOGADO */}
+                {!currentUser && (
+                    <>
+                        <button onClick={handleJoinNotLogged} disabled={actionLoading} className={primaryBtn} style={primaryStyle}>
+                            {actionLoading ? <><Spinner size={16} /> Processando...</> : 'Criar conta e entrar'}
+                        </button>
+                        <button
+                            onClick={() => router.push(`/login?redirect=${encodeURIComponent(`/convite?ref=${profileSlug}`)}`)}
+                            className={ghostBtn}
+                            style={ghostStyle}
+                        >
+                            Já tenho conta · Entrar
+                        </button>
+                    </>
+                )}
+
+                {/* LOGADO COMO O PRÓPRIO DONO DO LINK */}
+                {isSameUser && (
+                    <>
+                        <p className="text-sm text-center font-bold" style={{ color: textPrimary }}>Este é o seu link de convite!</p>
+                        <p className="text-xs text-center -mt-1" style={{ color: textSecondary }}>Envie para novos parceiros.</p>
+                        <button onClick={() => setShareOpen(true)} className={primaryBtn} style={primaryStyle}>Compartilhar convite</button>
+                        <button onClick={handleCopyLink} className={ghostBtn} style={ghostStyle}>
+                            {copied ? <span style={{ color: '#10b981' }}>Copiado!</span> : 'Copiar link'}
+                        </button>
+                    </>
+                )}
+
+                {/* LOGADO EM OUTRA CONTA */}
+                {currentUser && !isSameUser && (
+                    currentUser.upline_id ? (
+                        <>
+                            <p className="text-sm text-center font-bold" style={{ color: textPrimary }}>Você já tem uma rede</p>
+                            <p className="text-xs text-center" style={{ color: textSecondary }}>
+                                {currentUpline
+                                    ? <>Sua conta já foi convidada por <b>{currentUpline.name || `@${currentUpline.profileSlug}`}</b>, então não aceita outro convite.</>
+                                    : 'Sua conta atual já está conectada a um líder, então não aceita outro convite.'}
+                                {' '}Quem entra pelo link de convite já se cadastra ligado a quem convidou.
+                            </p>
+                            <button onClick={() => router.push('/')} className={ghostBtn} style={ghostStyle}>Voltar ao início</button>
+                        </>
+                    ) : (
+                        <button onClick={handleBindNetwork} disabled={actionLoading} className={primaryBtn} style={primaryStyle}>
+                            {actionLoading ? <><Spinner size={16} /> Conectando...</> : 'Vincular minha conta'}
+                        </button>
+                    )
+                )}
+            </HomeGlassCard>
+
+            {/* Conhecer o iUser */}
+            <button onClick={() => router.push('/')} className="text-left active:scale-[0.99] transition-transform">
+                <HomeGlassCard className="p-4 flex items-center gap-3" style={glass}>
+                    <span className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, boxShadow: '0 4px 12px #f9731650' }}>
+                        <img src="/logotransparente.png" alt="" className="h-7 w-7 object-contain rounded-full" />
+                    </span>
+                    <span className="flex-1 min-w-0">
+                        <span className="block text-sm font-black" style={{ color: textPrimary }}>Conhecer o iUser</span>
+                        <span className="block text-xs" style={{ color: textSecondary }}>Descubra o que as outras pessoas têm a oferecer</span>
+                    </span>
+                    <span className="text-xs font-black" style={{ color: accentColor }}>Entrar</span>
+                </HomeGlassCard>
+            </button>
+
+            <p className="text-center text-[11px]" style={{ color: textSecondary }}>
+                Ao entrar, você concorda com os{' '}
+                <a href="/termos" className="font-bold hover:underline" style={{ color: accentColor }}>Termos de Uso</a>
+            </p>
+
+            <ShareLinkDialog open={shareOpen} onClose={() => setShareOpen(false)} url={inviteLink} title="Convidar para o iUser" text={inviteText} />
+        </>
+    )
+}
+
+/** Foto de quem convidou, sempre com borda: a que a pessoa usa (girando) ou, sem nenhuma, o degradê laranja→vermelho */
+function InviterAvatar({ id, url, name }: { id: string; url?: string | null; name?: string | null }) {
+    const border = useAvatarBorder(id)
+    const photo = url ? (
+        <img src={url} alt={name || ''} className="w-24 h-24 rounded-full object-cover block" />
+    ) : (
+        <span className="w-24 h-24 rounded-full flex items-center justify-center text-3xl font-black text-white" style={{ background: HOME_GRADIENT }}>
+            {name?.charAt(0) || '?'}
+        </span>
+    )
+    return (
+        <div className="relative flex items-center justify-center" style={{ filter: 'drop-shadow(0 0 22px rgba(249,115,22,0.45))' }}>
+            {border ? (
+                <PlanRingFrame colors={border} width={4}>{photo}</PlanRingFrame>
+            ) : (
+                <span className="rounded-full p-1 block" style={{ background: HOME_GRADIENT }}>
+                    <span className="block rounded-full p-0.5 bg-white/90">{photo}</span>
+                </span>
+            )}
+        </div>
+    )
+}
+
+/** Casco da página igual ao da home: fundo animado + Header "iUser" com "Olá, @..." + coluna central */
+function ConviteShell({ children }: { children: React.ReactNode }) {
+    const router = useRouter()
+    const { colors } = useTheme()
+    const { bgMode, customBgUrl, avatarUrl, profileSlug, loading } = useProfile()
+    return (
+        <div className="relative min-h-dvh" style={{ background: colors.background }}>
+            <div className="fixed inset-0 z-0">
+                <AnimatedBackgroundiUser bgMode={bgMode} customBgUrl={customBgUrl} />
             </div>
+            <main className="relative z-10 min-h-dvh pb-28">
+                <Header
+                    title="iUser"
+                    showBack={false}
+                    greeting={`Olá, ${loading ? '...' : profileSlug ? `@${profileSlug}` : 'Visitante'}`}
+                    avatarUrl={avatarUrl}
+                    loading={loading}
+                    showSearch={false}
+                    profileSlug={profileSlug}
+                    onHomeClick={() => router.push('/')}
+                />
+                <div className="px-4 pt-5 flex justify-center">
+                    <div className="w-full max-w-md flex flex-col gap-4">{children}</div>
+                </div>
+            </main>
         </div>
     )
 }
 
 // Página principal com Suspense
 export default function ConviteClientPage() {
-    const { colors } = useTheme()
-
     return (
-        <Suspense fallback={
-            <div
-                className="relative flex flex-col min-h-screen pb-32"
-                style={{ background: colors.background }}
-            >
-                <div className="relative z-10 flex-1 flex items-center justify-center px-4">
-                    <div className="text-center">
-                        <Spinner size={48} color={colors.accent} className="mx-auto mb-4" />
-                        <p className="text-sm" style={{ color: colors.textSecondary }}>
-                            Carregando convite...
-                        </p>
-                    </div>
-                </div>
-            </div>
-        }>
+        <Suspense fallback={<ConviteShell><div className="flex justify-center py-16"><Spinner size={40} /></div></ConviteShell>}>
             <ConviteContent />
         </Suspense>
     )
