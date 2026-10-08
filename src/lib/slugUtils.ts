@@ -29,6 +29,8 @@ export const RESERVED_SLUGS = new Set([
     'radar',
     'convite',
     'compromissos',
+    'compromisso',
+    'agendar',
     'dashboard',
     'configuracoes',
     'settings',

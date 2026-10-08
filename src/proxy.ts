@@ -54,6 +54,8 @@ const IGNORED_PREFIXES = [
     '/s/', // encurtador de links (iuser.com.br/s/<code>) — não é slug de perfil/loja
     '/entregador/', // link do entregador (iuser.com.br/entregador/<token>) — não é slug de perfil/loja
     '/acompanhar-corrida/', // link de acompanhar corrida (iuser.com.br/acompanhar-corrida/<id>) — não é slug de perfil/loja
+    '/compromissos/', // agenda de um perfil/loja (iuser.com.br/compromissos/<slug>) — o 1º segmento não é slug de perfil/loja
+    '/compromisso/', // link de um agendamento compartilhado (iuser.com.br/compromisso/<id>)
 ]
 
 // ===== EXTENSÕES IGNORADAS =====
