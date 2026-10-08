@@ -46,28 +46,21 @@ export default function AvatarBordersDialog({ profileId, avatarUrl, name, onClos
     const [borders, setBorders] = useState<BorderRow[]>([])
     const [owned, setOwned] = useState<Set<string>>(new Set())
     const [equipped, setEquipped] = useState<string | null>(null)
-    const [hasPrepaid, setHasPrepaid] = useState(false)
-    // Graduação: ordem do meu nível (efetivo) e a ordem/nome de cada nível, pra saber quais bordas já liberei
-    const [myLevelOrder, setMyLevelOrder] = useState(0)
-    const [levelsById, setLevelsById] = useState<Record<string, { name: string; order: number }>>({})
+    // Motivo de não poder resgatar cada borda (null = pode). Quem decide é o banco — a mesma regra do resgate.
+    const [blockReasons, setBlockReasons] = useState<Record<string, string | null>>({})
     const [busy, setBusy] = useState<string | null>(null)
 
     const load = useCallback(async () => {
-        const nowIso = new Date().toISOString()
-        const [{ data: all }, { data: mine }, { data: prof }, { data: subs }, { data: grad }, { data: lvls }] = await Promise.all([
+        const [{ data: all }, { data: mine }, { data: prof }, { data: status }] = await Promise.all([
             supabase.from('avatar_borders').select('id, slug, name, description, colors, grant_mode, available_from, available_until, requires_prepaid, required_level_id').eq('is_active', true).order('sort_order'),
             supabase.from('user_avatar_borders').select('border_id').eq('profile_id', profileId),
             supabase.from('profiles').select('avatar_border_id').eq('id', profileId).maybeSingle(),
-            supabase.from('subscriptions').select('current_period_end, plans!inner(code)').eq('user_id', profileId).eq('status', 'active').eq('plans.code', 'pre_pago').gt('current_period_end', nowIso),
-            supabase.rpc('get_my_graduation'),
-            supabase.from('network_levels').select('id, name, level_order'),
+            supabase.rpc('get_my_border_claim_status'),
         ])
-        setMyLevelOrder(Number((grad as any)?.level?.level_order ?? 0))
-        setLevelsById(Object.fromEntries(((lvls as any[]) || []).map((l) => [l.id, { name: l.name, order: l.level_order }])))
+        setBlockReasons(Object.fromEntries(((status as any[]) || []).map((r) => [r.border_id, r.block_reason])))
         setBorders((all as BorderRow[]) || [])
         setOwned(new Set((mine || []).map((r: any) => r.border_id)))
         setEquipped(prof?.avatar_border_id || null)
-        setHasPrepaid((subs || []).length > 0)
         setLoading(false)
     }, [profileId])
 
@@ -97,15 +90,11 @@ export default function AvatarBordersDialog({ profileId, avatarUrl, name, onClos
         await afterChange()
     }
 
-    const now = Date.now()
     const claimState = (b: BorderRow): { can: boolean; reason?: string } => {
-        if (b.grant_mode === 'admin_only') return { can: false, reason: 'Só o administrador concede' }
-        if (b.available_from && now < new Date(b.available_from).getTime()) return { can: false, reason: `Abre em ${fmtDate(b.available_from)}` }
-        if (b.available_until && now > new Date(b.available_until).getTime()) return { can: false, reason: `Prazo encerrado em ${fmtDate(b.available_until)}` }
-        if (b.requires_prepaid && !hasPrepaid) return { can: false, reason: 'Pra quem usa o plano Pré-pago' }
-        const req = b.required_level_id ? levelsById[b.required_level_id] : null
-        if (req && myLevelOrder < req.order) return { can: false, reason: `Chegue ao nível ${req.name} da graduação pra resgatar` }
-        return { can: true }
+        const reason = blockReasons[b.id]
+        // Sem resposta do banco ainda: não oferece resgate (só aparece liberado quando o banco diz que pode)
+        if (reason === undefined) return { can: false }
+        return reason ? { can: false, reason } : { can: true }
     }
 
     const avatar = (
