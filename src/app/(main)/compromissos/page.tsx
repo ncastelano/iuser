@@ -574,6 +574,19 @@ export default function CompromissosPage() {
         if (success) refetch()
     }, [deleteAppointment, refetch])
 
+    // Só quem é o cliente ou o dono do compromisso pode excluir (é a regra do banco); aí o botão aparece.
+    const canDelete = (a: Appointment) => !!userId && (a.customer_id === userId || a.owner_id === userId)
+    const trashBtn = (a: Appointment, size = 30) => canDelete(a) ? (
+        <button
+            title="Excluir compromisso"
+            aria-label="Excluir compromisso"
+            onClick={(e) => { e.stopPropagation(); handleDelete(a.id) }}
+            style={{ width: size, height: size, borderRadius: '50%', background: 'rgba(239,68,68,0.15)', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
+        >
+            <Trash2 size={Math.round(size * 0.5)} color="#ef4444" />
+        </button>
+    ) : null
+
     const openDetailModal = async (appointment: Appointment) => {
         setSelectedAppointment(appointment)
         setAllowGuestInvites(false)
@@ -866,6 +879,7 @@ export default function CompromissosPage() {
                                                         <div style={{ textAlign: 'right' }}>
                                                             <p style={{ fontWeight: 700, fontSize: 18, color: isFirst ? colors.accent : colors.textPrimary }}>{formatTime(comp.time)}</p>
                                                             <p style={{ fontSize: 12, color: colors.textSecondary }}>{displayDate}</p>
+                                                            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 6 }}>{trashBtn(comp, 28)}</div>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -990,6 +1004,7 @@ export default function CompromissosPage() {
                                                         <div style={{ display: 'flex', gap: 12, marginTop: 8, alignItems: 'center', color: colors.textSecondary }}>
                                                             <Clock3 size={14} />
                                                             <span>{evento.date.split('-').reverse().join('/')} • {formatTime(evento.time)}</span>
+                                                            <span style={{ marginLeft: 'auto' }}>{trashBtn(evento, 28)}</span>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -1104,7 +1119,10 @@ export default function CompromissosPage() {
                                                     </div>
                                                     {!isPersonInvite(item, avatarType) && <ParticipantsMini participants={itemParticipants} />}
                                                 </div>
-                                                <span style={{ background: 'rgba(16,185,129,0.2)', color: '#10b981', padding: '4px 12px', borderRadius: 12, fontWeight: 700, fontSize: 12 }}>{isPersonInvite(item, avatarType) ? 'Aceito' : 'Confirmado'}</span>
+                                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+                                                    <span style={{ background: 'rgba(16,185,129,0.2)', color: '#10b981', padding: '4px 12px', borderRadius: 12, fontWeight: 700, fontSize: 12 }}>{isPersonInvite(item, avatarType) ? 'Aceito' : 'Confirmado'}</span>
+                                                    {trashBtn(item)}
+                                                </div>
                                             </div>
                                         )
                                     })}
@@ -1173,6 +1191,7 @@ export default function CompromissosPage() {
                                                 </div>
                                             </div>
                                             <span style={{ background: 'rgba(16,185,129,0.2)', color: '#10b981', padding: '4px 12px', borderRadius: 12, fontWeight: 700, fontSize: 12 }}>Confirmado</span>
+                                            {trashBtn(item)}
                                         </div>
                                     )
                                 })}
@@ -1235,6 +1254,19 @@ export default function CompromissosPage() {
                                         </div>
                                     )}
                                 </div>
+                                {canDelete(selectedAppointment) && (
+                                    <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 20, marginBottom: 20 }}>
+                                        <button
+                                            onClick={async () => {
+                                                if (!confirm('Deseja realmente excluir este compromisso?')) return
+                                                if (await deleteAppointment(selectedAppointment.id)) { setDetailModalOpen(false); refetch() }
+                                            }}
+                                            style={{ width: '100%', background: 'rgba(239,68,68,0.15)', color: '#f87171', border: '1px solid rgba(239,68,68,0.4)', borderRadius: 14, padding: '12px 16px', fontWeight: 700, fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                                        >
+                                            <Trash2 size={16} /> Excluir este compromisso
+                                        </button>
+                                    </div>
+                                )}
                                 <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 20 }}>
                                     <h4 style={{ fontWeight: 700, fontSize: 16, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8, color: '#a78bfa' }}><UserPlus size={18} /> Convidar mais pessoas</h4>
                                     <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>

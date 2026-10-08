@@ -108,15 +108,20 @@ export function useDeleteAppointment() {
     const deleteAppointment = useCallback(async (appointmentId: string) => {
         setLoading(true)
         try {
-            const { error } = await supabase
+            // .select() devolve as linhas apagadas: com RLS, apagar algo que não é seu NÃO dá erro, só apaga 0 linhas
+            const { data, error } = await supabase
                 .from('appointments')
                 .delete()
                 .eq('id', appointmentId)
+                .select('id')
 
             if (error) throw error
+            if (!data || data.length === 0) throw new Error('Você não tem permissão para excluir este compromisso')
+            toast.success('Compromisso excluído')
             return true
         } catch (err: any) {
             console.error('Erro ao deletar:', err.message)
+            toast.error(`Não foi possível excluir: ${err.message}`)
             return false
         } finally {
             setLoading(false)
