@@ -460,7 +460,7 @@ function ConviteShell({ children }: { children: React.ReactNode }) {
                     profileSlug={profileSlug}
                     onHomeClick={() => router.push('/')}
                 />
-                <div className="px-4 pt-5 flex justify-center">
+                <div className="px-4 pt-6 flex justify-center">
                     <div className="w-full max-w-md flex flex-col gap-4">{children}</div>
                 </div>
             </main>
