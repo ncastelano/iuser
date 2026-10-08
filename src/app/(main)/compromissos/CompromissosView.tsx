@@ -25,6 +25,7 @@ import {
     Bell,
     UserCheck,
     ListChecks,
+    CalendarClock,
     LayoutGrid,
     User,
     Lock,
@@ -252,7 +253,6 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
     const [allowGuestInvites, setAllowGuestInvites] = useState(false)
     const [participants, setParticipants] = useState<any[]>([])
 
-    const [showAllAcceptedModal, setShowAllAcceptedModal] = useState(false)
     const [acceptedSearch, setAcceptedSearch] = useState('')
 
     const [userAvatarUrl, setUserAvatarUrl] = useState<string | null>(null)
@@ -266,6 +266,12 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
 
     const [showSettingsModal, setShowSettingsModal] = useState(false)
     const [horariosKey, setHorariosKey] = useState(0)
+
+    // Cada aba do cabeçalho é uma SEÇÃO desta agenda (convites/pendentes, próximos, hoje, aceitos/confirmados, horários)
+    type SectionId = 'convites' | 'pendentes' | 'proximos' | 'hoje' | 'aceitos' | 'horarios'
+    const [section, setSection] = useState<SectionId | null>(null)
+    const [acceptedFilter, setAcceptedFilter] = useState<'todos' | 'proximos' | 'passados'>('todos')
+    const [pastLimit, setPastLimit] = useState(6)
 
 
     // Estados do fundo dinâmico
@@ -446,22 +452,7 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
         })
     }, [filteredAppointments, calendarYear, calendarMonth])
 
-    const maxAceitosVisiveis = 10
     const listaAceitos = activeTab === 'pessoal' ? aceitos : confirmadosLoja
-    const aceitosExibidos = listaAceitos.slice(0, maxAceitosVisiveis)
-    const hasMoreAceitos = listaAceitos.length > maxAceitosVisiveis
-
-    const filteredAceitos = useMemo(() => {
-        if (!acceptedSearch.trim()) return listaAceitos
-        const q = acceptedSearch.toLowerCase()
-        return listaAceitos.filter(
-            (a: Appointment) =>
-                a.service_name.toLowerCase().includes(q) ||
-                (a.store_name || '').toLowerCase().includes(q) ||
-                a.owner_slug.toLowerCase().includes(q)
-        )
-    }, [listaAceitos, acceptedSearch])
-
 
     const aceitarCompromisso = useCallback(async (appointmentId: string) => {
         const success = await updateStatus(appointmentId, 'confirmed')
@@ -648,36 +639,52 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
         return data?.publicUrl || null
     }
 
-    // Construir abas para o Header (Pessoal e lojas)
-    const tabs = useMemo(() => {
-        const personalTab = {
-            id: 'pessoal',
-            label: 'Pessoal',
-            icon: User as any,
-            imageUrl: userAvatarUrl ? getPublicUrl(userAvatarUrl, 'avatars') : null,
-        }
-        const storeTabs = myStores.map((store) => ({
-            id: store.id,
-            label: store.name,
-            icon: Store as any,
-            imageUrl: store.logo_url ? getPublicUrl(store.logo_url, 'store-logos') : null,
-        }))
-        return [personalTab, ...storeTabs]
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [userAvatarUrl, myStores, userId])
-
     const hasProfileBookings = appointments.some((a) => isProfileBooking(a))
     const showProfileAgendaToggle = profileAgendaOn || hasProfileBookings
 
-    // Cada aba do cabeçalho é uma URL: perfil → /compromissos/<slug do perfil>, loja → /compromissos/<slug da loja>
-    const goToTab = (tabId: string) => {
-        if (tabId === 'pessoal') {
-            if (userProfileSlug) router.push(`/compromissos/${userProfileSlug}`)
+    const isClientSide = activeTab !== 'pessoal' // loja ou "quem agendou comigo": pendentes/confirmados
+    const activeStore = activeTab !== 'pessoal' && activeTab !== 'agenda-perfil' ? myStores.find((st) => st.id === activeTab) : null
+    const todayStr = formatDate(new Date())
+    const isSelectedToday = selectedDateStr === todayStr
+
+    // A URL guarda a aba de perfil (?aba=clientes) e a seção (?secao=aceitos)
+    const agendaUrl = (opts: { aba?: string | null; secao?: string | null }) => {
+        const q = new URLSearchParams()
+        if (opts.aba) q.set('aba', opts.aba)
+        if (opts.secao) q.set('secao', opts.secao)
+        const qs = q.toString()
+        return `/compromissos/${agendaSlug}${qs ? `?${qs}` : ''}`
+    }
+    const selectSection = (id: SectionId) => {
+        setSection(id)
+        router.replace(agendaUrl({ aba: activeTab === 'agenda-perfil' ? 'clientes' : null, secao: id }), { scroll: false })
+    }
+
+    // 'convites' (pessoal) e 'pendentes' (loja/clientes) são a mesma aba de "o que espera sua resposta"
+    const effectiveSection: SectionId | null = section === 'convites' && isClientSide ? 'pendentes' : section === 'pendentes' && !isClientSide ? 'convites' : section
+
+    // Abre direto na seção do link (?secao=) ou, se não tiver, em Convites/Pendentes quando há algo esperando resposta
+    useEffect(() => {
+        if (section !== null || loading || !profileLoaded || !storesLoaded || agendaMissing) return
+        const fromUrl = new URLSearchParams(window.location.search).get('secao')
+        if (fromUrl && ['convites', 'pendentes', 'proximos', 'hoje', 'aceitos', 'horarios'].includes(fromUrl)) {
+            setSection(fromUrl as SectionId)
             return
         }
-        const store = myStores.find((st) => st.id === tabId)
-        if (store?.storeSlug) router.push(`/compromissos/${store.storeSlug}`)
-    }
+        const waiting = activeTab === 'pessoal' ? convitesRecebidos.length : pendentesLoja.length
+        setSection(waiting > 0 ? (activeTab === 'pessoal' ? 'convites' : 'pendentes') : 'proximos')
+    }, [section, loading, profileLoaded, storesLoaded, agendaMissing, activeTab, convitesRecebidos.length, pendentesLoja.length])
+
+    const sectionTabs: { id: SectionId; label: string; icon: any; count: number; attention?: boolean }[] = [
+        isClientSide
+            ? { id: 'pendentes', label: 'Pendentes', icon: Bell, count: pendentesLoja.length, attention: true }
+            : { id: 'convites', label: 'Convites', icon: Bell, count: convitesRecebidos.length, attention: true },
+        { id: 'proximos', label: 'Próximos', icon: ListChecks, count: proximosCompromissos.length },
+        { id: 'hoje', label: 'Hoje', icon: Clock3, count: filteredAppointments.filter((a) => a.date === todayStr).length },
+        { id: 'aceitos', label: isClientSide ? 'Confirmados' : 'Aceitos', icon: UserCheck, count: listaAceitos.length },
+        { id: 'horarios', label: 'Horários', icon: CalendarClock, count: 0 },
+    ]
+
 
     // Quem aparece no card: nas agendas de loja e de clientes, o CLIENTE; em "Meus compromissos", a outra pessoa
     // (quem me convidou / quem eu convidei) — ou nenhuma, se for compromisso só meu ou numa loja (aí vai o logo).
@@ -770,16 +777,19 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
             ) : (
                 <div className="relative z-10">
                     <Header
-                        title="Compromissos"
+                        title={activeStore ? `Compromissos · ${activeStore.name}` : 'Compromissos'}
                         showBack={true}
                         onBack={() => router.back()}
-                        greeting="Sua agenda"
+                        greeting={`Olá, ${userProfileSlug ? `@${userProfileSlug}` : '...'}`}
                         avatarUrl={userAvatarUrl ? getPublicUrl(userAvatarUrl, 'avatars') : null}
                         loading={false}
-                        tabs={tabs.map(tab => ({
-                            ...tab,
-                            onClick: () => goToTab(tab.id),
-                            isActive: tab.id === 'pessoal' ? (activeTab === 'pessoal' || activeTab === 'agenda-perfil') : activeTab === tab.id,
+                        tabs={sectionTabs.map((t) => ({
+                            id: t.id,
+                            label: t.label,
+                            icon: t.icon,
+                            onClick: () => selectSection(t.id),
+                            isActive: effectiveSection === t.id,
+                            badge: t.count > 0 ? { count: t.count, color: t.attention ? '#f97316' : '#64748b' } : null,
                         }))}
                         showSearch={false}
                         onHomeClick={() => router.push('/')}
@@ -797,7 +807,7 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
                                         key={opt.id}
                                         onClick={() => {
                                             setActiveTab(opt.id)
-                                            router.replace(opt.id === 'agenda-perfil' ? `/compromissos/${agendaSlug}?aba=clientes` : `/compromissos/${agendaSlug}`, { scroll: false })
+                                            router.replace(agendaUrl({ aba: opt.id === 'agenda-perfil' ? 'clientes' : null, secao: section }), { scroll: false })
                                         }}
                                         style={{
                                             flex: 1, border: 'none', borderRadius: 14, padding: '10px 12px', cursor: 'pointer', fontWeight: 800, fontSize: 14,
@@ -812,7 +822,7 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
                         )}
 
                         {/* HORÁRIOS E DISPONIBILIDADE desta agenda (perfil ou loja) */}
-                        {userId && (() => {
+                        {effectiveSection === 'horarios' && userId && (() => {
                             const store = activeTab !== 'pessoal' && activeTab !== 'agenda-perfil' ? myStores.find((st) => st.id === activeTab) : null
                             if (activeTab !== 'pessoal' && activeTab !== 'agenda-perfil' && !store) return null
                             return (
@@ -825,8 +835,8 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
                             )
                         })()}
 
-                        {/* CONVITES (apenas na aba Pessoal) */}
-                        {activeTab === 'pessoal' && (
+                        {/* CONVITES (apenas na agenda do perfil) */}
+                        {activeTab === 'pessoal' && effectiveSection === 'convites' && (
                             <section>
                                 <h2 style={{ fontWeight: 800, fontSize: 22, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8, color: colors.textPrimary }}>
                                     <Bell size={22} color={colors.accent} /> Convites
@@ -845,6 +855,7 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
                         )}
 
                         {/* PRÓXIMOS COMPROMISSOS */}
+                        {effectiveSection === 'proximos' && (
                         <section>
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
                                 <h2 style={{ fontWeight: 800, fontSize: 22, color: colors.textPrimary, display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -872,8 +883,11 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
                                 </div>
                             )}
                         </section>
+                        )}
 
-                        {/* CALENDÁRIO */}
+                        {/* HOJE: faixa da semana, calendário e a agenda do dia */}
+                        {effectiveSection === 'hoje' && (
+                        <>
                         <section>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                                 <h2 style={{ fontWeight: 700, fontSize: 20, display: 'flex', alignItems: 'center', gap: 6, color: colors.textPrimary }}>
@@ -906,7 +920,7 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
                                             cursor: 'pointer', position: 'relative', transition: 'all 0.2s',
                                             backdropFilter: 'blur(10px)',
                                         }}>
-                                            <p style={{ fontSize: 12, fontWeight: 600 }}>{item.dia}</p>
+                                            <p style={{ fontSize: 12, fontWeight: 600 }}>{formatDate(item.date) === todayStr ? 'HOJE' : item.dia}</p>
                                             <h3 style={{ fontSize: 22, fontWeight: 800 }}>{item.numero}</h3>
                                             {item.count > 0 && <div style={{ position: 'absolute', top: 6, right: 6, background: colors.accent, color: colors.accentText, width: 20, height: 20, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, boxShadow: `0 2px 6px ${colors.accent}80` }}>{item.count}</div>}
                                         </button>
@@ -978,19 +992,21 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
                         {/* AGENDA DO DIA */}
                         <section>
                             <h2 style={{ fontWeight: 800, fontSize: 22, marginBottom: 12, color: colors.textPrimary, display: 'flex', alignItems: 'center', gap: 6 }}>
-                                <Clock3 size={22} color={colors.accent} /> Agenda • {selectedDate.toLocaleDateString('pt-BR')}
+                                <Clock3 size={22} color={colors.accent} /> {isSelectedToday ? 'Hoje' : selectedDate.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' })}{isSelectedToday ? ` • ${selectedDate.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' })}` : ''}
                             </h2>
                             {eventosDoDia.length === 0 ? (
-                                <div style={{ ...cardStyle, padding: 24, textAlign: 'center', color: colors.textSecondary }}>Nenhum agendamento para este dia.</div>
+                                <div style={{ ...cardStyle, padding: 24, textAlign: 'center', color: colors.textSecondary }}>{isSelectedToday ? 'Nada marcado para hoje.' : 'Nenhum agendamento para este dia.'}</div>
                             ) : (
                                 <div style={AGENDA_GRID}>
                                     {eventosDoDia.map((evento) => renderCard(evento))}
                                 </div>
                             )}
                         </section>
+                        </>
+                        )}
 
                         {/* PENDENTES DA LOJA */}
-                        {activeTab !== 'pessoal' && (
+                        {isClientSide && effectiveSection === 'pendentes' && (
                             <section>
                                 <h2 style={{ fontWeight: 800, fontSize: 22, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8, color: colors.textPrimary }}>
                                     <Bell size={22} color="#f97316" /> Pendentes
@@ -1005,22 +1021,122 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
                             </section>
                         )}
 
-                        {/* ACEITOS / CONFIRMADOS */}
-                        <section>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                                <h2 style={{ fontWeight: 800, fontSize: 22, display: 'flex', alignItems: 'center', gap: 8, color: colors.textPrimary }}>
-                                    <UserCheck size={22} color={colors.accent} /> {activeTab === 'pessoal' ? 'Aceitos' : 'Confirmados'}
-                                </h2>
-                                {hasMoreAceitos && <button onClick={() => setShowAllAcceptedModal(true)} style={{ border: 'none', background: 'transparent', color: colors.accent, cursor: 'pointer', fontWeight: 700, fontSize: 14 }}>Ver todos ({listaAceitos.length})</button>}
-                            </div>
-                            {listaAceitos.length === 0 ? (
-                                <div style={{ ...cardStyle, padding: 20, color: colors.textSecondary }}>{activeTab === 'pessoal' ? 'Nenhum convite aceito.' : 'Nenhum agendamento confirmado.'}</div>
-                            ) : (
-                                <div style={AGENDA_GRID}>
-                                    {aceitosExibidos.map((item) => renderCard(item))}
-                                </div>
-                            )}
-                        </section>
+                        {/* ACEITOS / CONFIRMADOS: busca, filtro e grupos por período */}
+                        {effectiveSection === 'aceitos' && (() => {
+                            const now = Date.now()
+                            const whenOf = (a: Appointment) => new Date(`${a.date}T${a.time}`).getTime()
+                            const isPastA = (a: Appointment) => whenOf(a) < now
+                            const q = acceptedSearch.trim().toLowerCase()
+                            const matches = (a: Appointment) =>
+                                !q || [a.service_name, a.store_name, personName(a), a.customer_slug, a.owner_slug].some((v) => (v || '').toLowerCase().includes(q))
+                            const found = listaAceitos.filter(matches)
+                            const upcoming = found.filter((a) => !isPastA(a)).sort((x, y) => whenOf(x) - whenOf(y))
+                            const past = found.filter(isPastA).sort((x, y) => whenOf(y) - whenOf(x))
+                            const totalUpcoming = listaAceitos.filter((a) => !isPastA(a)).length
+                            const totalPast = listaAceitos.length - totalUpcoming
+
+                            const today0 = new Date(); today0.setHours(0, 0, 0, 0)
+                            const groupLabel = (a: Appointment) => {
+                                const d = Math.round((parseDate(a.date).getTime() - today0.getTime()) / 86400000)
+                                if (d <= 0) return 'Hoje'
+                                if (d === 1) return 'Amanhã'
+                                if (d <= 7) return 'Esta semana'
+                                const dt = parseDate(a.date)
+                                return dt.getMonth() === today0.getMonth() && dt.getFullYear() === today0.getFullYear() ? 'Este mês' : 'Mais para frente'
+                            }
+                            const ORDER = ['Hoje', 'Amanhã', 'Esta semana', 'Este mês', 'Mais para frente']
+                            const groups = ORDER
+                                .map((label) => ({ label, items: upcoming.filter((a) => groupLabel(a) === label) }))
+                                .filter((g) => g.items.length > 0)
+                            const showUpcoming = acceptedFilter !== 'passados'
+                            const showPast = acceptedFilter !== 'proximos'
+                            const pastShown = past.slice(0, pastLimit)
+                            const nothing = (showUpcoming ? upcoming.length : 0) + (showPast ? past.length : 0) === 0
+
+                            const chip = (id: 'todos' | 'proximos' | 'passados', label: string, count: number) => (
+                                <button
+                                    key={id}
+                                    onClick={() => setAcceptedFilter(id)}
+                                    style={{
+                                        border: 'none', cursor: 'pointer', borderRadius: 999, padding: '6px 12px', fontSize: 13, fontWeight: 800,
+                                        background: acceptedFilter === id ? colors.accent : `${colors.border}55`,
+                                        color: acceptedFilter === id ? colors.accentText : colors.textSecondary,
+                                    }}
+                                >
+                                    {label} <span style={{ opacity: 0.8 }}>{count}</span>
+                                </button>
+                            )
+                            const groupTitle = (label: string, count: number) => (
+                                <h3 style={{ fontWeight: 800, fontSize: 14, color: colors.textSecondary, margin: '4px 0 8px', textTransform: 'uppercase', letterSpacing: 0.6 }}>
+                                    {label} <span style={{ opacity: 0.7 }}>· {count}</span>
+                                </h3>
+                            )
+
+                            return (
+                                <section style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                                    <div>
+                                        <h2 style={{ fontWeight: 800, fontSize: 22, display: 'flex', alignItems: 'center', gap: 8, color: colors.textPrimary }}>
+                                            <UserCheck size={22} color={colors.accent} /> {isClientSide ? 'Confirmados' : 'Aceitos'}
+                                        </h2>
+                                        <p style={{ fontSize: 13, color: colors.textSecondary, marginTop: 2 }}>
+                                            {isClientSide ? 'Agendamentos que você confirmou' : 'Convites que você aceitou'} · {listaAceitos.length} no total
+                                        </p>
+                                    </div>
+
+                                    {listaAceitos.length === 0 ? (
+                                        <div style={{ ...cardStyle, padding: 24, textAlign: 'center', color: colors.textSecondary }}>
+                                            {isClientSide ? 'Nenhum agendamento confirmado ainda.' : 'Nenhum convite aceito ainda.'}
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <div style={{ position: 'relative' }}>
+                                                <Search size={16} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: colors.textSecondary }} />
+                                                <input
+                                                    type="text"
+                                                    value={acceptedSearch}
+                                                    onChange={(e) => setAcceptedSearch(e.target.value)}
+                                                    placeholder={isClientSide ? 'Buscar por cliente ou serviço' : 'Buscar por pessoa ou assunto'}
+                                                    style={{ width: '100%', padding: '11px 14px 11px 38px', borderRadius: 14, border: `1px solid ${colors.border}`, background: colors.surface, color: colors.textPrimary, fontSize: 14, outline: 'none' }}
+                                                />
+                                            </div>
+
+                                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                                                {chip('todos', 'Todos', listaAceitos.length)}
+                                                {chip('proximos', 'Próximos', totalUpcoming)}
+                                                {chip('passados', 'Passados', totalPast)}
+                                            </div>
+
+                                            {nothing ? (
+                                                <div style={{ ...cardStyle, padding: 20, textAlign: 'center', color: colors.textSecondary }}>Nada encontrado.</div>
+                                            ) : (
+                                                <>
+                                                    {showUpcoming && groups.map((g) => (
+                                                        <div key={g.label}>
+                                                            {groupTitle(g.label, g.items.length)}
+                                                            <div style={AGENDA_GRID}>{g.items.map((a) => renderCard(a))}</div>
+                                                        </div>
+                                                    ))}
+                                                    {showPast && past.length > 0 && (
+                                                        <div>
+                                                            {groupTitle('Passados', past.length)}
+                                                            <div style={AGENDA_GRID}>{pastShown.map((a) => renderCard(a))}</div>
+                                                            {past.length > pastShown.length && (
+                                                                <button
+                                                                    onClick={() => setPastLimit((n) => n + 12)}
+                                                                    style={{ marginTop: 10, width: '100%', border: `1px dashed ${colors.border}`, background: 'transparent', color: colors.accent, borderRadius: 14, padding: '10px 14px', fontWeight: 800, cursor: 'pointer' }}
+                                                                >
+                                                                    Mostrar mais ({past.length - pastShown.length})
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </>
+                                            )}
+                                        </>
+                                    )}
+                                </section>
+                            )
+                        })()}
                     </div>
 
                     {/* MODAL DE PENDENTES (convites enviados) */}
@@ -1049,25 +1165,6 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
                                         </div>
                                     )
                                 })}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* MODAL DE TODOS OS ACEITOS */}
-                    {showAllAcceptedModal && (
-                        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-                            <div style={{ width: '100%', maxWidth: 500, background: '#1e1e2e', borderRadius: 28, padding: 24, maxHeight: '85vh', overflowY: 'auto', color: '#fff', border: '1px solid rgba(255,255,255,0.1)', backdropFilter: 'blur(20px)' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-                                    <h2 style={{ fontSize: 22, fontWeight: 800 }}>Todos os {activeTab === 'pessoal' ? 'Aceitos' : 'Confirmados'} ({listaAceitos.length})</h2>
-                                    <button onClick={() => { setShowAllAcceptedModal(false); setAcceptedSearch('') }} style={{ border: 'none', background: 'rgba(255,255,255,0.1)', width: 38, height: 38, borderRadius: '50%', cursor: 'pointer', color: '#fff' }}>✕</button>
-                                </div>
-                                <div style={{ marginBottom: 16 }}>
-                                    <div style={{ position: 'relative' }}>
-                                        <Search size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
-                                        <input type="text" value={acceptedSearch} onChange={(e) => setAcceptedSearch(e.target.value)} placeholder="Buscar por nome ou compromisso..." style={{ width: '100%', padding: '12px 16px 12px 40px', borderRadius: 14, border: '1px solid rgba(255,255,255,0.2)', fontSize: 14, outline: 'none', background: 'rgba(255,255,255,0.1)', color: '#fff' }} />
-                                    </div>
-                                </div>
-                                {filteredAceitos.length === 0 ? <p style={{ color: '#94a3b8', textAlign: 'center' }}>Nenhum encontrado.</p> : <div style={AGENDA_GRID_SINGLE}>{filteredAceitos.map((item) => renderCard(item, { dark: true }))}</div>}
                             </div>
                         </div>
                     )}
