@@ -7,7 +7,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback, useMemo, ReactNode } from 'react'
-import { ChevronLeft, ChevronRight, Wrench } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Wrench, ArrowUpRight } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import { useRouter } from 'next/navigation'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
@@ -30,7 +30,19 @@ interface ServiceCard {
     providerSlug: string
     providerImageUrl: string | undefined
     providerId?: string | null
+    // null/0 = a combinar. unit: 'hora', 'dia'... quando a categoria do serviço é 'por hora', 'por dia'...
+    price: number | null
+    unit: string | null
+    // Especialidade/categoria da loja (ex.: Psicoterapia), quando não há um tipo de serviço
+    category: string | null
 }
+
+const parseUnit = (category: string | null | undefined) => {
+    const m = (category || '').trim().toLowerCase().match(/^por\s+(.+)$/)
+    return m ? m[1] : null
+}
+
+const formatServicePrice = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
 function useFeaturedServices() {
     const [services, setServices] = useState<ServiceCard[]>([])
@@ -46,14 +58,14 @@ function useFeaturedServices() {
                 const [{ data: profileRows }, { data: storeRows }] = await Promise.all([
                     supabase
                         .from('products')
-                        .select('id, name, slug, image_url, service_type, owner_id, view_count')
+                        .select('id, name, slug, image_url, service_type, owner_id, view_count, price, category')
                         .eq('listing_type', 'service_offer')
                         .eq('is_active', true)
                         .order('created_at', { ascending: false })
                         .limit(30),
                     supabase
                         .from('products')
-                        .select('id, name, slug, image_url, store_id, view_count')
+                        .select('id, name, slug, image_url, store_id, view_count, price, category')
                         .eq('type', 'service')
                         .eq('listing_type', 'sale')
                         .eq('is_active', true)
@@ -95,6 +107,9 @@ function useFeaturedServices() {
                         providerSlug: p?.profileSlug || '',
                         providerId: row.owner_id,
                         providerImageUrl: getAvatarUrl(supabase, p?.avatar_url),
+                        price: row.price != null ? Number(row.price) : null,
+                        unit: parseUnit(row.category),
+                        category: parseUnit(row.category) ? null : (row.category || null),
                         viewCount: row.view_count || 0,
                     }
                 })
@@ -114,6 +129,9 @@ function useFeaturedServices() {
                             providerName: s.name || 'Loja',
                             providerSlug: s.storeSlug || '',
                             providerImageUrl: s.logo_url ? supabase.storage.from('store-logos').getPublicUrl(s.logo_url).data.publicUrl : undefined,
+                            price: row.price != null ? Number(row.price) : null,
+                            unit: parseUnit(row.category),
+                            category: parseUnit(row.category) ? null : (row.category || null),
                             viewCount: row.view_count || 0,
                         }
                     })
@@ -271,7 +289,7 @@ export default function FeaturedServices({ dragHandle, title = 'Serviços em des
                             key={`${service.id}-${idx}`}
                             onClick={() => handleServiceClick(service)}
                             className="group relative rounded-3xl overflow-hidden border transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 cursor-pointer"
-                            style={{ borderColor: colors.border, background: GRADIENT, boxShadow: colors.shadow, aspectRatio: '3/4' }}
+                            style={{ borderColor: colors.border, background: GRADIENT, boxShadow: colors.shadow, aspectRatio: '3/4.3' }}
                         >
                             {/* A foto é o próprio card; as informações ficam na frente dela */}
                             {service.imageUrl ? (
@@ -287,22 +305,42 @@ export default function FeaturedServices({ dragHandle, title = 'Serviços em des
                                     <Wrench className="w-14 h-14 text-white opacity-40" />
                                 </div>
                             )}
-                            <div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.25) 0%, rgba(0,0,0,0) 30%, rgba(0,0,0,0.35) 58%, rgba(0,0,0,0.88) 100%)' }} />
+                            <div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.25) 0%, rgba(0,0,0,0) 30%, rgba(0,0,0,0.45) 50%, rgba(0,0,0,0.92) 100%)' }} />
 
-                            {service.serviceType && (
+                            {(service.serviceType || service.category) && (
                                 <span
                                     className="absolute top-3 left-3 z-10 max-w-[80%] truncate text-[11px] font-black px-3 py-1 rounded-full text-white backdrop-blur-md"
                                     style={{ background: 'rgba(249,115,22,0.85)', boxShadow: '0 2px 10px rgba(0,0,0,0.3)' }}
                                 >
-                                    {getServiceLabel(service.serviceType)}
+                                    {service.serviceType ? getServiceLabel(service.serviceType) : service.category}
                                 </span>
                             )}
 
-                            <div className="absolute bottom-0 left-0 right-0 p-3.5 z-10 flex flex-col gap-2.5">
-                                <h3 className="text-white font-black text-base leading-tight line-clamp-3" style={{ textShadow: '0 2px 8px rgba(0,0,0,0.6)' }}>
+                            <div className="absolute bottom-0 left-0 right-0 p-3.5 z-10 flex flex-col gap-2">
+                                <h3 className="text-white font-black text-base leading-tight line-clamp-2" style={{ textShadow: '0 2px 8px rgba(0,0,0,0.6)' }}>
                                     {service.title}
                                 </h3>
-                                <div className="flex items-center gap-2 min-w-0 max-w-full">
+
+                                {/* Valor, bem à vista, como numa vitrine de serviços */}
+                                <div className="flex items-end justify-between gap-2">
+                                    <div className="min-w-0">
+                                        <p className="text-[10px] font-black uppercase tracking-wider text-white/75 leading-none">
+                                            {service.price && service.unit ? `Por ${service.unit}` : 'Valor'}
+                                        </p>
+                                        {service.price ? (
+                                            <p className="text-white font-black leading-tight" style={{ textShadow: '0 2px 8px rgba(0,0,0,0.6)' }}>
+                                                <span className="text-lg">{formatServicePrice(service.price)}</span>
+                                            </p>
+                                        ) : (
+                                            <p className="text-white font-black text-lg leading-tight" style={{ textShadow: '0 2px 8px rgba(0,0,0,0.6)' }}>A combinar</p>
+                                        )}
+                                    </div>
+                                    <span className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-110" style={{ background: GRADIENT, boxShadow: '0 4px 12px rgba(0,0,0,0.35)' }}>
+                                        <ArrowUpRight size={18} color="#fff" strokeWidth={2.5} />
+                                    </span>
+                                </div>
+
+                                <div className="flex items-center gap-2 min-w-0 max-w-full pt-2 border-t border-white/25">
                                     <PlanAvatarRing userId={service.providerId}>
                                         <div className="w-6 h-6 rounded-full overflow-hidden flex-shrink-0">
                                             {service.providerImageUrl ? (
