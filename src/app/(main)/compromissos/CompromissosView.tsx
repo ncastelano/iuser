@@ -38,6 +38,7 @@ import {
 } from './dadosDoCompromisso'
 import { supabase } from '@/lib/supabase/client'
 import HorarioEDisponibilidade from './HorarioEDisponibilidade'
+import AgendaHorarios from './AgendaHorarios'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
@@ -275,6 +276,7 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
     const [profileAgendaOn, setProfileAgendaOn] = useState(false)
 
     const [showSettingsModal, setShowSettingsModal] = useState(false)
+    const [horariosKey, setHorariosKey] = useState(0)
 
     const [participantsMap, setParticipantsMap] = useState<Record<string, any[]>>({})
     const fetchedIdsRef = useRef<Set<string>>(new Set())
@@ -841,6 +843,20 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
                             </div>
                         )}
 
+                        {/* HORÁRIOS E DISPONIBILIDADE desta agenda (perfil ou loja) */}
+                        {userId && (() => {
+                            const store = activeTab !== 'pessoal' && activeTab !== 'agenda-perfil' ? myStores.find((st) => st.id === activeTab) : null
+                            if (activeTab !== 'pessoal' && activeTab !== 'agenda-perfil' && !store) return null
+                            return (
+                                <AgendaHorarios
+                                    scope={store ? { kind: 'store', id: store.id, name: store.name } : { kind: 'profile', id: userId }}
+                                    colors={colors}
+                                    refreshKey={horariosKey}
+                                    onEdit={() => setShowSettingsModal(true)}
+                                />
+                            )
+                        })()}
+
                         {/* CONVITES (apenas na aba Pessoal) */}
                         {activeTab === 'pessoal' && (
                             <section>
@@ -1378,44 +1394,8 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
                             onClose={() => setShowSettingsModal(false)}
                             userId={userId}
                             activeTab={activeTab === 'agenda-perfil' ? 'pessoal' : activeTab}
-                            onSaved={() => refetch()}
+                            onSaved={() => { refetch(); setHorariosKey((k) => k + 1) }}
                         />
-                    )}
-
-                    {/* BOTÃO FLUTUANTE: HORÁRIOS */}
-                    {userId && (
-                        <button
-                            onClick={() => setShowSettingsModal(true)}
-                            style={{
-                                position: 'fixed',
-                                bottom: 32,
-                                left: 24,
-                                background: colors.background,
-                                color: colors.accent,
-                                border: `2px solid ${colors.accent}`,
-                                borderRadius: 32,
-                                padding: '12px 20px',
-                                fontWeight: 700,
-                                fontSize: 15,
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 8,
-                                boxShadow: `0 8px 24px ${colors.accent}40`,
-                                cursor: 'pointer',
-                                zIndex: 998,
-                                transition: 'all 0.2s',
-                            }}
-                            onMouseEnter={(e) => {
-                                e.currentTarget.style.background = colors.accent
-                                e.currentTarget.style.color = colors.accentText
-                            }}
-                            onMouseLeave={(e) => {
-                                e.currentTarget.style.background = colors.background
-                                e.currentTarget.style.color = colors.accent
-                            }}
-                        >
-                            <Settings size={18} /> Horários
-                        </button>
                     )}
 
                     {/* Botões flutuantes: Agendar + Home */}
@@ -1457,42 +1437,6 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
                             <Home size={24} />
                         </button>
                     </div>
-
-                    {/* Botão flutuante: Horários (mantido separado à esquerda) */}
-                    {userId && (
-                        <button
-                            onClick={() => setShowSettingsModal(true)}
-                            style={{
-                                position: 'fixed',
-                                bottom: 32,
-                                left: 24,
-                                background: colors.background,
-                                color: colors.accent,
-                                border: `2px solid ${colors.accent}`,
-                                borderRadius: 32,
-                                padding: '12px 20px',
-                                fontWeight: 700,
-                                fontSize: 15,
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 8,
-                                boxShadow: `0 8px 24px ${colors.accent}40`,
-                                cursor: 'pointer',
-                                zIndex: 998,
-                                transition: 'all 0.2s',
-                            }}
-                            onMouseEnter={(e) => {
-                                e.currentTarget.style.background = colors.accent
-                                e.currentTarget.style.color = colors.accentText
-                            }}
-                            onMouseLeave={(e) => {
-                                e.currentTarget.style.background = colors.background
-                                e.currentTarget.style.color = colors.accent
-                            }}
-                        >
-                            <Settings size={18} /> Horários
-                        </button>
-                    )}
                 </div>
             )}
         </main>
