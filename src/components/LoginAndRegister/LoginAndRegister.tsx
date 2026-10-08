@@ -1,6 +1,7 @@
 // src/components/LoginAndRegister.tsx
 'use client'
 
+import { normalizeReferralSlug } from '@/lib/referralCapture'
 import { useState, useEffect, Suspense, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
@@ -166,12 +167,12 @@ function LoginAndRegisterContent({ onLoginSuccess }: LoginAndRegisterProps) {
             let referralSlug = null
             const refParam = searchParams.get('ref')
             if (refParam) {
-                referralSlug = refParam
+                referralSlug = normalizeReferralSlug(refParam)
             } else {
                 try {
                     const res = await fetch('/api/get-referral-cookie')
                     const data = await res.json()
-                    referralSlug = data.referralSlug || null
+                    referralSlug = normalizeReferralSlug(data.referralSlug)
                 } catch (error) {
                     console.error('Erro ao ler cookie:', error)
                 }

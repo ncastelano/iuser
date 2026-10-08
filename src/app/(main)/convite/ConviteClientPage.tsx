@@ -31,13 +31,14 @@ import {
 } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import { toast } from 'sonner'
+import { normalizeReferralSlug } from '@/lib/referralCapture'
 
 function ConviteContent() {
     const router = useRouter()
     const searchParams = useSearchParams()
     const { colors } = useTheme()
     const { userId, loading: profileLoading } = useProfile()
-    const profileSlug = searchParams.get('ref')
+    const profileSlug = normalizeReferralSlug(searchParams.get('ref'))
 
     const surfaceRgb = hexToRgb(colors.surface)
 
@@ -45,6 +46,8 @@ function ConviteContent() {
     const [actionLoading, setActionLoading] = useState(false)
     const [inviter, setInviter] = useState<any>(null)
     const [currentUser, setCurrentUser] = useState<any>(null)
+    // Quem já convidou a conta logada (pra explicar por que ela não aceita outro convite)
+    const [currentUpline, setCurrentUpline] = useState<{ name: string | null; profileSlug: string | null } | null>(null)
     const [copied, setCopied] = useState(false)
     const [error, setError] = useState<string | null>(null)
 
@@ -94,6 +97,16 @@ function ConviteContent() {
                 console.log('✅ Convidante encontrado:', inviterData.name, inviterData.id)
                 setInviter(inviterData)
 
+                // Abrir o link de convite já guarda quem convidou (7 dias): se a pessoa se cadastrar depois,
+                // por qualquer tela (não só pelo botão desta página), ela entra como convidada.
+                if (!userId) {
+                    fetch('/api/set-referral-cookie', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ referralSlug: inviterData.profileSlug, force: true }),
+                    }).catch(() => {})
+                }
+
                 // Verificar se o usuário está logado
                 if (userId) {
                     console.log('👤 Usuário logado:', userId)
@@ -111,6 +124,14 @@ function ConviteContent() {
                     if (currentProfile) {
                         console.log('✅ Perfil do usuário encontrado:', currentProfile.name)
                         setCurrentUser(currentProfile)
+                        if (currentProfile.upline_id) {
+                            const { data: up } = await supabase
+                                .from('profiles')
+                                .select('name, "profileSlug"')
+                                .eq('id', currentProfile.upline_id)
+                                .maybeSingle()
+                            setCurrentUpline(up || null)
+                        }
                     } else {
                         console.warn('⚠️ Perfil do usuário não encontrado para o ID:', userId)
                         setCurrentUser(null)
@@ -609,6 +630,15 @@ function ConviteContent() {
                                 )}
                             </button>
                         )}
+                        {!currentUser && (
+                            <button
+                                onClick={() => router.push(`/login?redirect=${encodeURIComponent(`/convite?ref=${profileSlug}`)}`)}
+                                className="w-full py-3 rounded-xl font-bold text-sm transition-all hover:scale-[1.02]"
+                                style={{ background: 'transparent', border: `1px solid ${borderColor}`, color: textSecondary }}
+                            >
+                                Já tenho conta · Entrar
+                            </button>
+                        )}
 
                         {/* CASO 2: LOGADO COMO O PRÓPRIO DONO */}
                         {isSameUser && (
@@ -666,8 +696,10 @@ function ConviteContent() {
                                             Você já tem uma rede
                                         </h3>
                                         <p className="text-sm mt-1 mb-4" style={{ color: textSecondary }}>
-                                            Sua conta atual já está conectada a um líder.
-                                            Apenas contas isoladas podem aceitar convites.
+                                            {currentUpline
+                                                ? <>Sua conta já foi convidada por <b>{currentUpline.name || `@${currentUpline.profileSlug}`}</b>, então não aceita outro convite.</>
+                                                : 'Sua conta atual já está conectada a um líder, então não aceita outro convite.'}
+                                            {' '}Quem entra pelo link de convite já se cadastra ligado a quem convidou.
                                         </p>
                                         <button
                                             onClick={() => router.push('/')}

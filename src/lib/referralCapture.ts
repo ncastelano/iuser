@@ -1,5 +1,12 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 
+/** Slug de quem convidou, como vem de um link: sem espaços, sem @, minúsculo, sem pontuação colada no fim
+ *  (aplicativos de mensagem às vezes grudam "." ou ")" no final do link) — senão a busca por profileSlug não acha. */
+export function normalizeReferralSlug(raw: string | null | undefined): string | null {
+    const slug = (raw || '').trim().replace(/^@+/, '').replace(/[.,;:!?)\]}>"']+$/, '').toLowerCase()
+    return slug || null
+}
+
 // Qualquer link de loja, perfil, produto/serviço ou publicação que alguém
 // compartilha funciona como convite: se quem abre o link ainda não é
 // usuário do iUser e se cadastra, vira indicado de quem é dono da página

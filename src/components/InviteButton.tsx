@@ -4,7 +4,8 @@
 import { useEffect, useState } from 'react'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { supabase } from '@/lib/supabase/client'
-import { handleShareLink } from '@/lib/share'
+import { toast } from 'sonner'
+import ShareLinkDialog, { copyText } from '@/components/ShareLinkDialog'
 import { UserPlus } from 'lucide-react'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -21,6 +22,7 @@ interface InviteButtonProps {
 export default function InviteButton({ className = '', label = 'Convidar para o iUser', showCount = false }: InviteButtonProps) {
     const { profileSlug, userId } = useProfile()
     const [invitedCount, setInvitedCount] = useState<number | null>(null)
+    const [dialogOpen, setDialogOpen] = useState(false)
 
     useEffect(() => {
         if (!showCount || !userId) return
@@ -31,16 +33,18 @@ export default function InviteButton({ className = '', label = 'Convidar para o 
 
     if (!profileSlug) return null
 
-    const invite = () => {
-        const link = `${window.location.origin}/convite?ref=${profileSlug}`
-        handleShareLink({
-            title: 'Convite para o iUser',
-            text: `@${profileSlug} te chama pro iUser — compre, venda, preste serviço ou dirija, tudo numa plataforma só, sem taxa escondida.\n\nEntre pelo meu link e comece agora:`,
-            url: link,
-        })
+    const inviteUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/convite?ref=${profileSlug}`
+    const inviteText = `@${profileSlug} te chama pro iUser — compre, venda, preste serviço ou dirija, tudo numa plataforma só, sem taxa escondida.\n\nEntre pelo meu link e comece agora:`
+
+    // Clicar copia o link na hora e abre a janela pra mandar pelo WhatsApp, Facebook, Instagram ou X
+    const invite = async () => {
+        const ok = await copyText(inviteUrl)
+        if (ok) toast.success('Link de convite copiado!')
+        setDialogOpen(true)
     }
 
     return (
+        <>
         <button
             onClick={invite}
             className={`w-full flex items-center justify-center gap-2 py-3 px-4 rounded-full text-sm font-black text-white transition-transform active:scale-95 hover:scale-[1.02] ${className}`}
@@ -56,5 +60,13 @@ export default function InviteButton({ className = '', label = 'Convidar para o 
                 )}
             </span>
         </button>
+            <ShareLinkDialog
+                open={dialogOpen}
+                onClose={() => setDialogOpen(false)}
+                url={inviteUrl}
+                title="Convidar para o iUser"
+                text={inviteText}
+            />
+        </>
     )
 }

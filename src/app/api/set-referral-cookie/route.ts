@@ -1,9 +1,12 @@
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
+import { normalizeReferralSlug } from '@/lib/referralCapture'
 
 export async function POST(request: Request) {
     try {
-        const { referralSlug, force } = await request.json()
+        const body = await request.json()
+        const { force } = body
+        const referralSlug = normalizeReferralSlug(body.referralSlug)
 
         if (!referralSlug) {
             return NextResponse.json(
