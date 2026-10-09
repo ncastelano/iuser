@@ -124,3 +124,31 @@ export async function getCityFromCoords(lat: number, lng: number): Promise<strin
         return null
     }
 }
+
+export interface PlaceInfo { city: string | null; state: string | null; country: string | null }
+
+/**
+ * Cidade, estado e país de uma coordenada (uma consulta só: o resultado "place" do Mapbox traz região e país no context).
+ */
+export async function getPlaceFromCoords(lat: number, lng: number): Promise<PlaceInfo | null> {
+    const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
+    if (!token) return null
+
+    try {
+        const res = await fetch(
+            `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${token}&language=pt&types=place`
+        )
+        const data = await res.json()
+        const feature = data.features?.[0]
+        if (!feature) return null
+        const ctx: { id: string; text: string }[] = feature.context || []
+        return {
+            city: feature.text || null,
+            state: ctx.find((c) => c.id.startsWith('region'))?.text || null,
+            country: ctx.find((c) => c.id.startsWith('country'))?.text || null,
+        }
+    } catch (error) {
+        console.error('[Geo] Erro ao resolver o lugar:', error)
+        return null
+    }
+}

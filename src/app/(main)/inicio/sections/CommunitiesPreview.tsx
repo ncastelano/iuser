@@ -9,13 +9,14 @@ import { MessageCircle, MapPin, Users, Plus } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
-import { getCityFromCoords } from '@/lib/geo'
+import { useUserPlace } from '@/hooks/useUserPlace'
 import { getAvatarUrl } from '@/lib/avatar'
 import { HomeSectionHeader, HOME_GRADIENT } from './HomeSectionKit'
 import { ViewServicesButton } from './ViewServicesButton'
 
 interface PreviewMessage { id: string; content: string; created_at: string; name: string; avatar: string | null }
 interface CommunityPreview {
+    scope: 'city' | 'state' | 'country'
     id: string
     slug: string
     name: string
@@ -39,38 +40,20 @@ function timeAgo(iso: string) {
     return `${Math.floor(h / 24)} d`
 }
 
-function useCityName(origin: { lat: number; lng: number } | null) {
-    const [city, setCity] = useState<string | null>(null)
-    useEffect(() => {
-        if (!origin) { setCity(null); return }
-        const key = `iuser_city_${origin.lat.toFixed(2)}_${origin.lng.toFixed(2)}`
-        try {
-            const cached = localStorage.getItem(key)
-            if (cached) { setCity(cached); return }
-        } catch { /* ok */ }
-        let cancelled = false
-        getCityFromCoords(origin.lat, origin.lng).then((name) => {
-            if (cancelled || !name) return
-            setCity(name)
-            try { localStorage.setItem(key, name) } catch { /* ok */ }
-        })
-        return () => { cancelled = true }
-    }, [origin?.lat, origin?.lng])
-    return city
-}
-
 export default function CommunitiesPreview({ origin, dragHandle }: { origin: { lat: number; lng: number } | null; dragHandle?: ReactNode }) {
     const router = useRouter()
     const { colors } = useTheme()
     const startNavProgress = useNavProgressStore((s) => s.start)
-    const city = useCityName(origin)
+    const { place } = useUserPlace(origin)
+    const city = place?.city ?? null
+    const state = place?.state ?? null
 
     const [items, setItems] = useState<CommunityPreview[] | null>(null)
 
     useEffect(() => {
         let cancelled = false
         const load = async () => {
-            const { data: comms } = await supabase.from('communities').select('id, slug, name, city')
+            const { data: comms } = await supabase.from('communities').select('id, slug, name, city, scope')
             if (!comms?.length) { if (!cancelled) setItems([]); return }
             const ids = comms.map((c) => c.id)
             const [{ data: members }, { data: msgs }] = await Promise.all([
@@ -86,7 +69,7 @@ export default function CommunitiesPreview({ origin, dragHandle }: { origin: { l
             const built: CommunityPreview[] = comms.map((c) => {
                 const mine = (msgs || []).filter((m) => m.community_id === c.id).slice(0, 2).reverse()
                 return {
-                    id: c.id, slug: c.slug, name: c.name, city: c.city,
+                    id: c.id, slug: c.slug, name: c.name, city: c.city, scope: (c.scope || 'city') as CommunityPreview['scope'],
                     members: (members || []).filter((m) => m.community_id === c.id).length,
                     messages: mine.map((m) => {
                         const a: any = authorMap.get(m.profile_id)
@@ -108,13 +91,19 @@ export default function CommunitiesPreview({ origin, dragHandle }: { origin: { l
 
     if (items === null) return null
 
-    // A da cidade da pessoa primeiro; depois as mais ativas (até 3 no total)
-    const mineIdx = city ? items.findIndex((c) => norm(c.city) === norm(city) || norm(c.name) === norm(city)) : -1
+    // Cidade da pessoa, depois o estado dela e o Brasil; sobrando lugar, as mais ativas (até 3 no total)
+    const same = (a: string | null, b: string) => !!a && norm(a) === norm(b)
+    const mineIdx = items.findIndex((c) => c.scope === 'city' && same(city, c.city))
+    const stateIdx = items.findIndex((c) => c.scope === 'state' && same(state, c.city))
+    const countryIdx = items.findIndex((c) => c.scope === 'country')
+    const picked = [mineIdx, stateIdx, countryIdx].filter((i) => i >= 0)
     const rest = items
-        .filter((_, i) => i !== mineIdx)
+        .filter((_, i) => !picked.includes(i))
         .sort((a, b) => (b.lastAt - a.lastAt) || (b.members - a.members))
     const shown = [
         ...(mineIdx >= 0 ? [{ ...items[mineIdx], isMine: true }] : []),
+        ...(stateIdx >= 0 ? [items[stateIdx]] : []),
+        ...(countryIdx >= 0 ? [items[countryIdx]] : []),
         ...rest,
     ].slice(0, 3)
 
@@ -127,7 +116,7 @@ export default function CommunitiesPreview({ origin, dragHandle }: { origin: { l
         <section>
             <HomeSectionHeader
                 title="Comunidades"
-                subtitle={city ? `Converse com quem é de ${city} e de outras cidades` : 'Salas de conversa por cidade'}
+                subtitle={city ? `Converse com quem é de ${city}, do estado e do Brasil` : 'Salas de conversa por cidade, estado e país'}
                 dragHandle={dragHandle}
                 action={<ViewServicesButton label="ver comunidades" count={items.length} onClick={() => go('/comunidade')} />}
             />
@@ -148,7 +137,7 @@ export default function CommunitiesPreview({ origin, dragHandle }: { origin: { l
                                 <p className="text-base font-black leading-tight truncate" style={{ color: colors.textPrimary }}>{c.name}</p>
                                 <p className="flex items-center gap-1 text-[11px]" style={{ color: colors.textSecondary }}>
                                     <MapPin size={11} className="flex-shrink-0" />
-                                    <span className="truncate">{c.city}</span>
+                                    <span className="truncate">{c.scope === 'country' ? 'Todo o país' : c.scope === 'state' ? 'Estado' : c.city}</span>
                                     <span>·</span>
                                     <Users size={11} className="flex-shrink-0" />
                                     {c.members}

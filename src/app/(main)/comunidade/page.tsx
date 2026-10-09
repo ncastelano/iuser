@@ -9,7 +9,8 @@ import { useProfile } from '@/app/contexts/ProfileContext'
 import { useTheme } from '@/app/contexts/theme'
 import Header from '@/components/Header'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
-import { getCityFromCoords } from '@/lib/geo'
+import { useUserPlace } from '@/hooks/useUserPlace'
+import { getAvatarUrl } from '@/lib/avatar'
 import CreateCommunityModal, { generateUniqueCommunitySlug } from './CreateCommunityModal'
 import LocationPicker from '@/components/LocationPicker'
 import { hexToRgb } from '@/lib/color'
@@ -26,13 +27,17 @@ import { Spinner } from '@/components/Spinner'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
+interface CommunityMessagePreview { id: string; content: string; created_at: string; name: string; avatar: string | null }
+
 interface CommunityCard {
     id: string
     slug: string
     name: string
     city: string
+    scope: 'city' | 'state' | 'country'
     description: string | null
     memberCount: number
+    recent: CommunityMessagePreview[]
 }
 
 export default function ComunidadePage() {
@@ -57,8 +62,9 @@ export default function ComunidadePage() {
     } | null>(null)
     const [showLocationDialog, setShowLocationDialog] = useState(false)
     const [isSavingLocation, setIsSavingLocation] = useState(false)
-    const [userCity, setUserCity] = useState<string | null>(null)
-    const [resolvingCity, setResolvingCity] = useState(false)
+    const { place, resolving: resolvingCity } = useUserPlace(savedLocation)
+    const userCity = place?.city ?? null
+    const userState = place?.state ?? null
 
     // ===== USUÁRIO + LOCALIZAÇÃO SALVA NO PERFIL =====
     const fetchProfileLocation = useCallback(async (uid: string) => {
@@ -118,26 +124,6 @@ export default function ComunidadePage() {
         }
     }, [userId])
 
-    // ===== CIDADE A PARTIR DA LOCALIZAÇÃO SALVA (reverse geocoding) =====
-    useEffect(() => {
-        if (!savedLocation) {
-            setUserCity(null)
-            return
-        }
-
-        let cancelled = false
-        setResolvingCity(true)
-        getCityFromCoords(savedLocation.lat, savedLocation.lng)
-            .then((city) => {
-                if (!cancelled) setUserCity(city)
-            })
-            .finally(() => {
-                if (!cancelled) setResolvingCity(false)
-            })
-
-        return () => { cancelled = true }
-    }, [savedLocation?.lat, savedLocation?.lng])
-
     const handleLocationSave = async (location: {
         lat: number
         lng: number
@@ -189,20 +175,40 @@ export default function ComunidadePage() {
         try {
             const { data, error } = await supabase
                 .from('communities')
-                .select('id, slug, name, city, description')
+                .select('id, slug, name, city, description, scope')
                 .order('created_at', { ascending: false })
 
             if (error) throw error
 
-            const withCounts = await Promise.all(
+            // Contagem de membros e as últimas 10 mensagens de cada comunidade
+            const base = await Promise.all(
                 (data || []).map(async (c) => {
-                    const { count } = await supabase
-                        .from('community_members')
-                        .select('*', { count: 'exact', head: true })
-                        .eq('community_id', c.id)
-                    return { ...c, memberCount: count || 0 }
+                    const [{ count }, { data: msgs }] = await Promise.all([
+                        supabase.from('community_members').select('*', { count: 'exact', head: true }).eq('community_id', c.id),
+                        supabase.from('community_messages').select('id, profile_id, content, created_at').eq('community_id', c.id).order('created_at', { ascending: false }).limit(10),
+                    ])
+                    return { c, count: count || 0, msgs: (msgs || []).slice().reverse() }
                 })
             )
+            const authorIds = [...new Set(base.flatMap((b) => b.msgs.map((m) => m.profile_id)))]
+            const { data: authors } = authorIds.length
+                ? await supabase.from('profiles').select('id, name, profileSlug, avatar_url').in('id', authorIds)
+                : { data: [] as any[] }
+            const authorMap = new Map((authors || []).map((a: any) => [a.id, a]))
+
+            const withCounts: CommunityCard[] = base.map(({ c, count, msgs }) => ({
+                ...c,
+                scope: (c.scope || 'city') as CommunityCard['scope'],
+                memberCount: count,
+                recent: msgs.map((m) => {
+                    const a: any = authorMap.get(m.profile_id)
+                    return {
+                        id: m.id, content: m.content, created_at: m.created_at,
+                        name: a?.name?.split(' ')[0] || (a?.profileSlug ? `@${a.profileSlug}` : 'Alguém'),
+                        avatar: getAvatarUrl(supabase, a?.avatar_url) || null,
+                    }
+                }),
+            }))
 
             setCommunities(withCounts)
             return withCounts
@@ -219,66 +225,50 @@ export default function ComunidadePage() {
         loadCommunities()
     }, [loadCommunities])
 
-    // ===== GARANTIR O CHAT DA CIDADE (auto-cria se ainda não existir) =====
-    // Reativo à localização salva: assim que a cidade da pessoa é conhecida,
-    // a comunidade daquela cidade aparece - criando-a automaticamente na
-    // primeira vez que alguém de lá abre a página, sem precisar que ninguém
-    // clique em "Criar Comunidade" manualmente.
+    // ===== GARANTIR O CHAT DA CIDADE E DO ESTADO (auto-cria se ainda não existir) =====
+    // Reativo à localização salva: assim que a cidade/estado da pessoa é conhecido, a comunidade daquele lugar
+    // aparece - criando-a automaticamente na primeira vez que alguém de lá abre a página, sem precisar que
+    // ninguém clique em "Criar Comunidade" manualmente. (O Brasil já nasce pronto, pela migration.)
     useEffect(() => {
-        if (!userId || !userCity) return
-
+        if (!userId || loadingData) return
         let cancelled = false
 
-        const ensureCityCommunity = async () => {
-            const cityLower = userCity.toLowerCase()
-            const alreadyHasOne = communities.some((c) => c.city.toLowerCase() === cityLower)
-            if (alreadyHasOne) return
+        const ensure = async (name: string, scope: 'city' | 'state', description: string) => {
+            const lower = name.toLowerCase()
+            if (communities.some((c) => c.scope === scope && c.city.toLowerCase() === lower)) return false
+            const { data: existing } = await supabase
+                .from('communities').select('id').eq('scope', scope).ilike('city', name).limit(1).maybeSingle()
+            if (existing || cancelled) return false
 
-            try {
-                const { data: existing } = await supabase
-                    .from('communities')
-                    .select('id')
-                    .ilike('city', userCity)
-                    .order('created_at', { ascending: true })
-                    .limit(1)
-                    .maybeSingle()
-
-                if (existing || cancelled) return
-
-                const slug = await generateUniqueCommunitySlug(userCity)
-                const { data: created, error: createError } = await supabase
-                    .from('communities')
-                    .insert({
-                        slug,
-                        name: userCity,
-                        city: userCity,
-                        description: `Chat da cidade de ${userCity}. Converse com quem está por perto!`,
-                        creator_id: userId,
-                    })
-                    .select('id')
-                    .single()
-
-                if (createError) {
-                    // Corrida com outra aba/usuário criando ao mesmo tempo - ignora,
-                    // o próximo loadCommunities já traz a que foi criada.
-                    console.warn('[Comunidade] Não foi possível criar o chat da cidade:', createError.message)
-                } else if (created) {
-                    await supabase.from('community_members').insert({
-                        community_id: created.id,
-                        profile_id: userId,
-                    })
-                }
-
-                if (!cancelled) await loadCommunities()
-            } catch (err) {
-                console.error('[Comunidade] Erro ao garantir o chat da cidade:', err)
+            const slug = await generateUniqueCommunitySlug(name)
+            const { data: created, error: createError } = await supabase
+                .from('communities')
+                .insert({ slug, name, city: name, description, creator_id: userId, scope })
+                .select('id')
+                .single()
+            if (createError) {
+                // Corrida com outra aba/usuário criando ao mesmo tempo - ignora, o próximo load traz a que foi criada.
+                console.warn('[Comunidade] Não foi possível criar o chat:', createError.message)
+                return false
             }
+            if (created) await supabase.from('community_members').insert({ community_id: created.id, profile_id: userId })
+            return true
         }
 
-        ensureCityCommunity()
+        const run = async () => {
+            try {
+                let changed = false
+                if (userCity) changed = (await ensure(userCity, 'city', `Chat da cidade de ${userCity}. Converse com quem está por perto!`)) || changed
+                if (userState) changed = (await ensure(userState, 'state', `Chat de ${userState}. Converse com o estado todo!`)) || changed
+                if (changed && !cancelled) await loadCommunities()
+            } catch (err) {
+                console.error('[Comunidade] Erro ao garantir os chats:', err)
+            }
+        }
+        run()
 
         return () => { cancelled = true }
-    }, [userId, userCity, communities, loadCommunities])
+    }, [userId, userCity, userState, communities, loadingData, loadCommunities])
 
     // ===== FILTRO + ORDENAÇÃO (cidade do usuário primeiro) =====
     const filteredCommunities = useMemo(() => {
@@ -292,13 +282,14 @@ export default function ComunidadePage() {
             )
             : communities
 
-        if (!userCity) return base
-
-        const cityLower = userCity.toLowerCase()
-        const mine = base.filter((c) => c.city.toLowerCase() === cityLower)
-        const others = base.filter((c) => c.city.toLowerCase() !== cityLower)
-        return [...mine, ...others]
-    }, [communities, searchQuery, userCity])
+        // Cidade da pessoa, depois o estado, depois o Brasil, depois as outras
+        const same = (a: string | null, b: string) => !!a && a.toLowerCase() === b.toLowerCase()
+        const rank = (c: CommunityCard) =>
+            c.scope === 'city' && same(userCity, c.city) ? 0
+                : c.scope === 'state' && same(userState, c.city) ? 1
+                    : c.scope === 'country' ? 2 : 3
+        return base.map((c, i) => ({ c, i })).sort((x, y) => (rank(x.c) - rank(y.c)) || (x.i - y.i)).map((x) => x.c)
+    }, [communities, searchQuery, userCity, userState])
 
     // ===== ESTILOS =====
     const surfaceRgb = hexToRgb(colors.surface)
@@ -360,7 +351,7 @@ export default function ComunidadePage() {
                                 <p className="text-xs font-bold" style={{ color: colors.textSecondary }}>Detectando sua cidade...</p>
                             ) : userCity ? (
                                 <p className="text-xs font-bold" style={{ color: colors.textPrimary }}>
-                                    Mostrando primeiro o chat de <span style={{ color: colors.accent }}>{userCity}</span>
+                                    Mostrando primeiro o chat de <span style={{ color: colors.accent }}>{[userCity, userState].filter(Boolean).join(', ')}</span> e do Brasil
                                 </p>
                             ) : (
                                 <p className="text-xs font-bold" style={{ color: colors.textSecondary }}>
@@ -443,7 +434,7 @@ export default function ComunidadePage() {
                                                     {community.name}
                                                 </h3>
                                                 <p className="text-xs flex items-center gap-1 mt-0.5" style={{ color: colors.accent }}>
-                                                    <MapPin size={12} /> {community.city}
+                                                    <MapPin size={12} /> {community.scope === 'country' ? 'Todo o país' : community.scope === 'state' ? 'Estado' : community.city}
                                                 </p>
                                                 {community.description && (
                                                     <p className="text-xs line-clamp-2 mt-1" style={{ color: colors.textSecondary }}>
@@ -456,6 +447,36 @@ export default function ComunidadePage() {
                                             </div>
                                             <ChevronRight size={18} style={{ color: colors.textSecondary }} />
                                         </div>
+
+                                        {/* Últimas conversas (até 10) */}
+                                        {community.recent.length > 0 && (
+                                            <div className="mt-3 pt-3 border-t flex flex-col gap-2" style={{ borderColor: colors.border }}>
+                                                <p className="text-[10px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>
+                                                    Últimas conversas
+                                                </p>
+                                                {community.recent.map((m) => (
+                                                    <div key={m.id} className="flex items-start gap-2">
+                                                        {m.avatar ? (
+                                                            <img src={m.avatar} alt="" className="w-6 h-6 rounded-full object-cover flex-shrink-0" loading="lazy" />
+                                                        ) : (
+                                                            <span className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[10px] font-black flex-shrink-0" style={{ background: GRADIENT }}>
+                                                                {m.name.charAt(0).toUpperCase()}
+                                                            </span>
+                                                        )}
+                                                        <div className="min-w-0 rounded-2xl rounded-tl-md px-3 py-1.5" style={{ background: `${colors.border}30` }}>
+                                                            <p className="text-[11px] font-black" style={{ color: colors.textPrimary }}>
+                                                                {m.name}{' '}
+                                                                <span className="font-medium" style={{ color: colors.textSecondary }}>
+                                                                    · {new Date(m.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}{' '}
+                                                                    {new Date(m.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                                                </span>
+                                                            </p>
+                                                            <p className="text-xs line-clamp-2 break-words" style={{ color: colors.textPrimary }}>{m.content}</p>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
                                     </div>
                                 </Link>
                             ))}
