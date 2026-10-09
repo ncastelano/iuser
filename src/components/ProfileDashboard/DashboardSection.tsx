@@ -17,11 +17,13 @@ interface DashboardSectionProps {
     subtitle?: string
     /** Resumo mostrado ao lado da seta só enquanto a seção está fechada */
     collapsedSummary?: ReactNode
+    /** Conteúdo mostrado logo abaixo do cabeçalho enquanto a seção está fechada (ex: as últimas 5 notificações) */
+    collapsedContent?: ReactNode
     defaultExpanded?: boolean
     children: ReactNode
 }
 
-export default function DashboardSection({ storageKey, title, subtitle, collapsedSummary, defaultExpanded = false, children }: DashboardSectionProps) {
+export default function DashboardSection({ storageKey, title, subtitle, collapsedSummary, collapsedContent, defaultExpanded = false, children }: DashboardSectionProps) {
     const { colors } = useTheme()
     const surfaceRgb = hexToRgb(colors.surface)
     const [expanded, setExpanded] = usePersistedExpanded(storageKey, defaultExpanded)
@@ -53,6 +55,12 @@ export default function DashboardSection({ storageKey, title, subtitle, collapse
                     ? <ChevronUp size={18} style={{ color: colors.textSecondary }} className="flex-shrink-0" />
                     : <ChevronDown size={18} style={{ color: colors.textSecondary }} className="flex-shrink-0" />}
             </button>
+
+            {!expanded && collapsedContent && (
+                <div className="px-4 pb-4 pt-3 flex flex-col gap-2 border-t" style={{ borderColor: colors.border }}>
+                    {collapsedContent}
+                </div>
+            )}
 
             {expanded && (
                 <div className="px-4 pb-4 pt-4 flex flex-col gap-4 border-t" style={{ borderColor: colors.border }}>
