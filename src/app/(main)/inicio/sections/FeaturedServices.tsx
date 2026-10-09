@@ -220,7 +220,8 @@ export default function FeaturedServices({ dragHandle, title = 'Serviços em des
     // Direção da última troca (pro cartão entrar deslizando do lado certo) e o começo do toque
     const [dir, setDir] = useState<1 | -1>(1)
     const touchRef = useRef<{ x: number; y: number } | null>(null)
-    const wheelRef = useRef(0)
+    // Touchpad manda dezenas de eventos por passada (com inércia): uma passada = uma troca só
+    const wheelRef = useRef({ sum: 0, last: 0, locked: false })
 
     const displayServices = useMemo(() => (
         maxItems && services.length > maxItems ? services.slice(0, maxItems) : services
@@ -308,8 +309,14 @@ export default function FeaturedServices({ dragHandle, title = 'Serviços em des
                 }}
                 onWheel={(e) => {
                     if (pages <= 1 || Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return
-                    wheelRef.current += e.deltaX
-                    if (Math.abs(wheelRef.current) > 70) { go(wheelRef.current > 0 ? 1 : -1); wheelRef.current = 0 }
+                    const w = wheelRef.current
+                    const now = Date.now()
+                    // Silêncio de 200 ms = a passada (e a inércia dela) acabou: libera a próxima
+                    if (now - w.last > 200) { w.locked = false; w.sum = 0 }
+                    w.last = now
+                    if (w.locked) return
+                    w.sum += e.deltaX
+                    if (Math.abs(w.sum) > 60) { go(w.sum > 0 ? 1 : -1); w.locked = true; w.sum = 0 }
                 }}
             >
                 <div key={page} className={`grid grid-cols-1 md:grid-cols-3 ${dir > 0 ? 'services-in-next' : 'services-in-prev'}`} style={{ touchAction: 'pan-y' }}>
