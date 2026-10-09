@@ -19,6 +19,7 @@ import Header, { type Tab } from '@/components/Header'
 import LocationPicker from '@/components/LocationPicker'
 import { haversineKm } from '@/lib/mapboxRoute'
 import { parseCoords } from '@/lib/geoParse'
+import { getProfilesHiddenFromMap } from '@/lib/mapPrivacy'
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
 
@@ -399,7 +400,10 @@ export default function MapPage() {
     useEffect(() => {
         const load = async () => {
             const { data: storesData } = await supabase.from('stores').select('*')
-            const { data: productsData } = await supabase.from('products').select('*')
+            const { data: productsRaw } = await supabase.from('products').select('*')
+            // Perfis que desligaram "Aparecer no mapa" (ou "Mostrar no meu perfil") não entram com os seus serviços
+            const hiddenOwners = await getProfilesHiddenFromMap((productsRaw || []).filter((p: any) => !p.store_id).map((p: any) => p.owner_id))
+            const productsData = (productsRaw || []).filter((p: any) => p.store_id || !p.owner_id || !hiddenOwners.has(p.owner_id))
             const { data: profilesList } = await supabase.from('profiles').select('id, profileSlug')
 
             const mappedStores = (storesData || []).map(s => ({

@@ -11,6 +11,7 @@ import { supabase } from '@/lib/supabase/client'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import ChatContactButton from '@/components/ChatContactButton'
 import { useLastSeen } from '@/hooks/useLastSeen'
+import { useLiveLocation } from '@/hooks/useLiveLocation'
 import { lastSeenLabel } from '@/lib/lastSeen'
 import { hexToRgb } from '@/lib/color'
 import { pickImageFile, isNativePlatform } from '@/lib/nativeCamera'
@@ -248,6 +249,7 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
     const [showAgendaDialog, setShowAgendaDialog] = useState(false)
     const [agendaSaving, setAgendaSaving] = useState(false)
     const [chatSaving, setChatSaving] = useState(false)
+    const liveLoc = useLiveLocation(owner?.id)
     const ownerSeen = lastSeenLabel(useLastSeen(useMemo(() => (owner?.id ? [owner.id] : []), [owner?.id]))[owner?.id || ''])
     const [showScheduleModal, setShowScheduleModal] = useState(false)
     const [followersCount, setFollowersCount] = useState(0)
@@ -363,7 +365,7 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                 view_count: profile.view_count || 0,
                 ratings_avg: avg,
                 ratings_count: count,
-                show_location: profile.show_location || false,
+                show_location: profile.show_location !== false,
                 location: profile.location,
                 allow_scheduling: profile.allow_scheduling === true,
                 chat_enabled: profile.chat_enabled === true,
@@ -1484,7 +1486,7 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                 </div>
 
                 <div className="mt-4 space-y-3">
-                    {owner.address && (
+                    {owner.address && (owner.show_location !== false || isOwner) && (
                         <button
                             onClick={() => {
                                 const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(owner.address!)}`
@@ -1643,6 +1645,32 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                             profileSlug={owner.slug}
                             onClose={() => setShowScheduleModal(false)}
                         />
+                    )}
+
+                    {liveLoc && owner.show_location !== false && process.env.NEXT_PUBLIC_MAPBOX_TOKEN && (
+                        <a
+                            href={`https://www.google.com/maps/search/?api=1&query=${liveLoc.lat},${liveLoc.lng}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="block rounded-xl overflow-hidden transition-all hover:scale-[1.01]"
+                            style={{ background: glassBg, border: `1px solid ${colors.border}` }}
+                        >
+                            <img
+                                src={`https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/pin-l+f97316(${liveLoc.lng},${liveLoc.lat})/${liveLoc.lng},${liveLoc.lat},14,0/600x220@2x?access_token=${process.env.NEXT_PUBLIC_MAPBOX_TOKEN}`}
+                                alt="Localização em tempo real"
+                                className="w-full h-36 object-cover"
+                                loading="lazy"
+                            />
+                            <div className="flex items-center gap-2 p-3">
+                                <span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse flex-shrink-0" />
+                                <div className="min-w-0">
+                                    <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>Localização em tempo real</p>
+                                    <p className="text-xs" style={{ color: colors.textSecondary }}>
+                                        Posição aproximada · atualizada {new Date(liveLoc.updated_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                    </p>
+                                </div>
+                            </div>
+                        </a>
                     )}
 
                     {owner.chat_enabled && owner.id !== currentUserId && (

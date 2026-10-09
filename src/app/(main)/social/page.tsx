@@ -52,6 +52,8 @@ interface ProfileWithDetails {
     // Pontuação (Melhores perfis = quem tem mais pontos primeiro)
     points?: number
     chat_enabled?: boolean
+    show_location?: boolean | null
+    show_in_social?: boolean | null
 }
 
 interface RecentProfile {
@@ -82,7 +84,9 @@ const PROFILE_COLUMNS = `
     category,
     view_count,
     created_at,
-    chat_enabled
+    chat_enabled,
+    show_location,
+    show_in_social
 `
 
 export default function SocialList() {

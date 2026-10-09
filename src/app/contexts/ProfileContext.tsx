@@ -167,6 +167,27 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
         }
     }, [userId])
 
+    // Localização em tempo real (se a pessoa ligou em Informações do Perfil): manda a posição a cada 5 min com o app à vista
+    useEffect(() => {
+        if (!userId) return
+        let live = false
+        const send = () => {
+            if (!live || document.visibilityState !== 'visible' || !navigator.geolocation) return
+            navigator.geolocation.getCurrentPosition(
+                (pos) => { supabase.rpc('update_live_location', { p_lat: pos.coords.latitude, p_lng: pos.coords.longitude }).then(() => {}, () => {}) },
+                () => {},
+                { timeout: 10000, maximumAge: 120000 }
+            )
+        }
+        const onToggle = (e: Event) => { live = !!(e as CustomEvent<boolean>).detail; send() }
+        supabase.from('profiles').select('live_location').eq('id', userId).maybeSingle()
+            .then(({ data }) => { live = !!data?.live_location; send() }, () => {})
+        const timer = setInterval(send, 300000)
+        document.addEventListener('visibilitychange', send)
+        window.addEventListener('iuser:live-location', onToggle)
+        return () => { clearInterval(timer); document.removeEventListener('visibilitychange', send); window.removeEventListener('iuser:live-location', onToggle) }
+    }, [userId])
+
     const refreshProfile = useCallback(async () => {
         const { data: { session } } = await supabase.auth.getSession()
         if (session?.user) {

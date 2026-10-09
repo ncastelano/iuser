@@ -24,7 +24,7 @@ const OPTIONS: { value: Visibility; title: string; text: string }[] = [
 
 export default function LastSeenSettings({ userId }: { userId: string }) {
     const { colors } = useTheme()
-    const [value, setValue] = useState<Visibility>('following')
+    const [value, setValue] = useState<Visibility>('none')
     const [saving, setSaving] = useState(false)
     const [mode, setMode] = useState<Mode>('auto')
 

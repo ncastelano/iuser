@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { supabase } from '@/lib/supabase/client'
+import { getProfilesHiddenFromMap } from '@/lib/mapPrivacy'
 import { getCurrentPosition as getNativeCurrentPosition } from '@/lib/nativeGeolocation'
 import { useTheme, ThemeColors } from '@/app/contexts/theme'
 import { toast } from 'sonner'
@@ -328,7 +329,10 @@ export default function PedirServicoPage() {
             ])
             if (cancelled) return
 
-            const ownerIds = Array.from(new Set((profileRows || []).map((row) => row.owner_id).filter(Boolean)))
+            // Perfis que não querem aparecer no mapa não entram
+            const hiddenOwners = await getProfilesHiddenFromMap((profileRows || []).map((row) => row.owner_id))
+            const visibleProfileRows = (profileRows || []).filter((row) => !hiddenOwners.has(row.owner_id))
+            const ownerIds = Array.from(new Set(visibleProfileRows.map((row) => row.owner_id).filter(Boolean)))
             let profilesById = new Map<string, { name: string | null; profileSlug: string | null; avatar_url: string | null }>()
             if (ownerIds.length > 0) {
                 const { data: profiles } = await supabase
@@ -349,7 +353,7 @@ export default function PedirServicoPage() {
             }
             if (cancelled) return
 
-            const fromProfiles: PublishedService[] = (profileRows || []).map((row) => {
+            const fromProfiles: PublishedService[] = visibleProfileRows.map((row) => {
                 const p = profilesById.get(row.owner_id)
                 return {
                     id: row.id,

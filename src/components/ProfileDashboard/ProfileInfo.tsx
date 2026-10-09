@@ -13,6 +13,7 @@ import { handleShareLink } from '@/lib/share'
 import InviteButton from '@/components/InviteButton'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
 import AvatarBordersDialog from './AvatarBordersDialog'
+import ProfileLocationSettings from './ProfileLocationSettings'
 import { usePersistedExpanded } from '@/hooks/usePersistedExpanded'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
@@ -396,6 +397,9 @@ export function ProfileInfo({ profile, onProfileUpdate }: ProfileInfoProps) {
                     </>
                 )}
             </div>
+
+            {/* ===== Localização e o que aparece dela (perfil, mapa, Social, tempo real) ===== */}
+            {isExpanded && <ProfileLocationSettings profileId={profile.id} />}
 
             {/* ===== Botões "Ver meu Perfil" / "Compartilhar Link" — mesmo design da loja ===== */}
             <div className="flex gap-2 flex-wrap">

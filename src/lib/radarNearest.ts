@@ -6,6 +6,7 @@
 import { supabase } from '@/lib/supabase/client'
 import { parseCoords } from '@/lib/geoParse'
 import { haversineKm } from '@/lib/mapboxRoute'
+import { getProfilesHiddenFromMap } from '@/lib/mapPrivacy'
 
 export type NearestKind = 'loja' | 'produto' | 'servico'
 
@@ -40,6 +41,10 @@ export async function fetchNearest(origin: { lat: number; lng: number } | null, 
             .in('listing_type', ['sale', 'service_offer']),
     ])
 
+    // Perfis que não querem aparecer no mapa não entram com os serviços dele
+    const hiddenOwners = await getProfilesHiddenFromMap((products || []).filter((p: any) => !p.store_id).map((p: any) => p.owner_id))
+    const visibleProducts = (products || []).filter((p: any) => p.store_id || !p.owner_id || !hiddenOwners.has(p.owner_id))
+
     const storeById = new Map((stores || []).map((s: any) => [s.id, s]))
     // Com local: distância até o item (e ignora o que não tem coordenada). Sem local: não
     // precisa de coordenada nenhuma, a ordem é por visualizações.
@@ -65,7 +70,7 @@ export async function fetchNearest(origin: { lat: number; lng: number } | null, 
         || (Number.isFinite(p.lat) && Number.isFinite(p.lng) ? [p.lng, p.lat] as [number, number] : null)
         || parseCoords(storeById.get(p.store_id)?.location)
 
-    const ownerIds = Array.from(new Set((products || []).filter((p: any) => p.listing_type === 'service_offer' && p.owner_id).map((p: any) => p.owner_id)))
+    const ownerIds = Array.from(new Set(visibleProducts.filter((p: any) => p.listing_type === 'service_offer' && p.owner_id).map((p: any) => p.owner_id)))
     const { data: owners } = ownerIds.length
         ? await supabase.from('profiles').select('id, profileSlug, name').in('id', ownerIds)
         : { data: [] as any[] }
@@ -73,7 +78,7 @@ export async function fetchNearest(origin: { lat: number; lng: number } | null, 
 
     const nearestProducts: NearestItem[] = []
     const nearestServices: NearestItem[] = []
-    for (const p of (products || []) as any[]) {
+    for (const p of visibleProducts as any[]) {
         const d = km(coordsOf(p))
         if (d === undefined) continue
         const store = storeById.get(p.store_id)
