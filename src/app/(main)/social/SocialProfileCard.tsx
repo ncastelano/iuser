@@ -47,6 +47,7 @@ interface Props {
     isMe: boolean
     userId: string | null
     following: boolean
+    followers?: number
     onFollowChange: (profileId: string, following: boolean) => void
     seenAt?: PresenceInfo | null
     colors: any
@@ -54,7 +55,7 @@ interface Props {
     onOpen: () => void
 }
 
-export default function SocialProfileCard({ profile, store, rank, isMe, userId, following, onFollowChange, seenAt, colors, cardBg, onOpen }: Props) {
+export default function SocialProfileCard({ profile, store, rank, isMe, userId, following, followers = 0, onFollowChange, seenAt, colors, cardBg, onOpen }: Props) {
     const router = useRouter()
     const [followBusy, setFollowBusy] = useState(false)
     const [chatBusy, setChatBusy] = useState(false)
@@ -93,7 +94,7 @@ export default function SocialProfileCard({ profile, store, rank, isMe, userId, 
             style={{ background: cardBg, backdropFilter: 'blur(12px)', borderColor: colors.border, boxShadow: colors.shadow }}
         >
             {/* Foto com borda e, do lado, nome e @; a bolinha no canto da foto mostra online (verde) ou visto (cinza) */}
-            <div className="flex items-center gap-3 w-full">
+            <div className="flex items-center justify-center gap-3 w-full">
                 <div className="relative flex-shrink-0">
                     <PlanAvatarRing userId={profile.id} width={3}>
                         <div className="w-16 h-16 rounded-full overflow-hidden" style={{ background: colors.surface }}>
@@ -114,14 +115,14 @@ export default function SocialProfileCard({ profile, store, rank, isMe, userId, 
                         />
                     )}
                 </div>
-                <div className="min-w-0 flex-1 text-left">
+                <div className="min-w-0 text-left">
                     <h3 className="text-base font-black leading-tight truncate" style={{ color: colors.textPrimary }}>{profile.name || 'Usuário'}</h3>
                     <p className="text-sm font-bold truncate" style={{ color: colors.accent }}>@{profile.profileSlug}</p>
                 </div>
             </div>
 
             {/* Colocação e pontuação, um do lado do outro */}
-            {(rank !== undefined || (profile.points ?? 0) > 0) && (
+            {(rank !== undefined || (profile.points ?? 0) > 0 || followers > 0) && (
                 <div className="flex items-center justify-center gap-2 flex-wrap">
                     {rank !== undefined && (
                         <span className="px-2.5 py-0.5 rounded-full text-xs font-black" style={rankStyle(rank)} title={`${rank + 1}º lugar em Melhores perfis`}>
@@ -131,6 +132,11 @@ export default function SocialProfileCard({ profile, store, rank, isMe, userId, 
                     {(profile.points ?? 0) > 0 && (
                         <span className="px-2.5 py-0.5 rounded-full text-xs font-black" style={{ background: '#f9731620', color: '#ea580c' }} title="Pontuação do perfil">
                             ⭐ {profile.points} pts
+                        </span>
+                    )}
+                    {followers > 0 && (
+                        <span className="px-2.5 py-0.5 rounded-full text-xs font-black" style={{ background: `${colors.border}55`, color: colors.textPrimary }} title="Seguidores">
+                            👥 {followers} {followers === 1 ? 'seguidor' : 'seguidores'}
                         </span>
                     )}
                 </div>

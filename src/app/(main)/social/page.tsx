@@ -106,6 +106,7 @@ export default function SocialList() {
     // Visto por último: só vem de quem deixou visível pra mim
     const [storesByOwner, setStoresByOwner] = useState<Record<string, SocialCardStore>>({})
     const [followingIds, setFollowingIds] = useState<Set<string>>(new Set())
+    const [followerCounts, setFollowerCounts] = useState<Record<string, number>>({})
     // Colocação de cada perfil em Melhores perfis (1º, 2º...) — aparece como #N em qualquer aba
     const [rankById, setRankById] = useState<Record<string, number>>({})
     const lastSeen = useLastSeen(useMemo(() => profiles.map((p) => p.id), [profiles]))
@@ -261,6 +262,9 @@ export default function SocialList() {
     useEffect(() => {
         const ids = profiles.map((p) => p.id)
         if (ids.length === 0) return
+        supabase.rpc('get_follower_counts', { p_ids: ids }).then(({ data }) => {
+            setFollowerCounts(Object.fromEntries(((data as { profile_id: string; followers: number }[]) || []).map((r) => [r.profile_id, Number(r.followers)])))
+        })
         supabase.from('stores').select('owner_id, name, storeSlug, logo_url').in('owner_id', ids).eq('is_active', true).then(({ data }) => {
             const map: Record<string, SocialCardStore> = {}
             ;(data || []).forEach((s: any) => {
@@ -540,11 +544,15 @@ export default function SocialList() {
                                             isMe={profile.id === userId}
                                             userId={userId || null}
                                             following={followingIds.has(profile.id)}
-                                            onFollowChange={(id, nowFollowing) => setFollowingIds((prev) => {
-                                                const next = new Set(prev)
-                                                if (nowFollowing) next.add(id); else next.delete(id)
-                                                return next
-                                            })}
+                                            followers={followerCounts[profile.id] ?? 0}
+                                            onFollowChange={(id, nowFollowing) => {
+                                                setFollowingIds((prev) => {
+                                                    const next = new Set(prev)
+                                                    if (nowFollowing) next.add(id); else next.delete(id)
+                                                    return next
+                                                })
+                                                setFollowerCounts((prev) => ({ ...prev, [id]: Math.max(0, (prev[id] ?? 0) + (nowFollowing ? 1 : -1)) }))
+                                            }}
                                             seenAt={lastSeen[profile.id]}
                                             colors={colors}
                                             cardBg={cardBg}
