@@ -758,7 +758,7 @@ function HomePageContent() {
                     loading={loading}
                     tabs={tabs}
                     showSearch={shouldShowSearch}
-                    searchPlaceholder="Procurar, espetinho, cabeleireiro..."
+                    searchPlaceholder="Procurar..."
                     searchValue={searchQuery}
                     searchRef={searchInputRef}
                     onSearch={(query) => {

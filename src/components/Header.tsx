@@ -65,7 +65,7 @@ export default function Header({
     loading = false,
     tabs,
     showSearch = false,
-    searchPlaceholder = 'Procurar, espetinho, cabeleireiro...',
+    searchPlaceholder = 'Procurar...',
     onSearch,
     searchValue = '',
     searchRef: externalSearchRef,
@@ -524,7 +524,7 @@ export default function Header({
                     )}
                 </div>
 
-                {/* ButtonSearch com brilho sempre ativo */}
+                {/* ButtonSearch */}
                 {showSearch && (
                     <div
                         className="w-full flex items-center"
@@ -553,8 +553,7 @@ export default function Header({
                                 WebkitBackdropFilter: 'blur(16px) saturate(180%)',
                                 border: `1.5px solid ${isExpanded ? '#f97316' : colors.border}`,
                                 transition: 'border-color 0.3s ease-in-out',
-                                boxShadow: `0 0 0 1px #f97316, 0 0 5px #f9731640, 0 0 10px #fb923c30, 0 0 15px #f59e0b20`,
-                                animation: 'pulseGlow 2s ease-in-out infinite',
+                                boxShadow: isExpanded ? `0 0 0 1px #f97316, 0 0 8px #f9731640` : colors.shadow,
                             }}
                             onClick={() => {
                                 if (inputRef.current) {
