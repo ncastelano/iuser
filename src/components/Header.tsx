@@ -652,7 +652,7 @@ export default function Header({
                         {pathname !== '/conversas' && (
                             <button
                                 onClick={() => router.push('/conversas')}
-                                className="relative flex items-center justify-center rounded-full flex-shrink-0 hover:scale-105 active:scale-95"
+                                className={`relative flex items-center justify-center rounded-full flex-shrink-0 hover:scale-105 active:scale-95 ${chatUnread > 0 && !isExpanded ? 'chat-unread-pulse' : ''}`}
                                 style={{
                                     background: 'linear-gradient(135deg, #f97316, #dc2626)',
                                     color: '#ffffff',
@@ -758,6 +758,13 @@ export default function Header({
                     input[type="search"] {
                         -webkit-appearance: none;
                     }
+                    /* Mensagem não lida: o ícone do chat e o selo verde crescem e diminuem juntos pra chamar atenção */
+                    @keyframes chatUnreadPulse {
+                        0%, 100% { transform: scale(1); }
+                        50% { transform: scale(1.18); }
+                    }
+                    .chat-unread-pulse { animation: chatUnreadPulse 1.3s ease-in-out infinite; }
+                    @media (prefers-reduced-motion: reduce) { .chat-unread-pulse { animation: none; } }
                     @keyframes pulseGlow {
                         0%, 100% {
                             box-shadow: 0 0 0 1px #f97316, 0 0 5px #f9731640, 0 0 10px #fb923c20;
