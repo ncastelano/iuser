@@ -6,8 +6,10 @@
 // (que é a busca de trabalho pro prestador, não a vitrine pro cliente).
 'use client'
 
-import { useState, useEffect, useMemo, useRef, ReactNode } from 'react'
+import { useState, useEffect, useMemo, ReactNode } from 'react'
 import SeenBox from '@/components/SeenBox'
+import { usePagedRotation } from '@/hooks/usePagedRotation'
+import { PageDots, PAGE_SLIDE_CSS } from '@/components/PageDots'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { Wrench } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
@@ -213,31 +215,14 @@ export default function FeaturedServices({ dragHandle, title = 'Serviços em des
     const { services, loading } = useFeaturedServices()
     const { userId } = useProfile()
 
-    // 3 por vez; passa de 3 em 3 sem repetir até mostrar todos (e recomeça). Pausa com o mouse em cima.
-    const PAGE = 3
-    const [page, setPage] = useState(0)
-    const [paused, setPaused] = useState(false)
-    // Direção da última troca (pro cartão entrar deslizando do lado certo) e o começo do toque
-    const [dir, setDir] = useState<1 | -1>(1)
-    const touchRef = useRef<{ x: number; y: number } | null>(null)
-    // Touchpad manda dezenas de eventos por passada (com inércia): uma passada = uma troca só
-    const wheelRef = useRef({ sum: 0, last: 0, locked: false })
-
     const displayServices = useMemo(() => (
         maxItems && services.length > maxItems ? services.slice(0, maxItems) : services
     ), [services, maxItems])
 
-    const pages = Math.max(1, Math.ceil(displayServices.length / PAGE))
-    useEffect(() => {
-        if (pages <= 1 || paused) return
-        // Depende de `page`: trocar na mão (deslizar ou pontinho) reinicia a contagem dos 7 s
-        const timer = setTimeout(() => { setDir(1); setPage((p) => (p + 1) % pages) }, 7000)
-        return () => clearTimeout(timer)
-    }, [pages, paused, page])
-
-    const go = (delta: 1 | -1) => { setDir(delta); setPage((p) => (p + delta + pages) % pages) }
-    const goTo = (i: number) => { setDir(i >= page ? 1 : -1); setPage(i) }
-    const visible = displayServices.slice(page * PAGE, page * PAGE + PAGE)
+    // 3 por vez; passa de 3 em 3 sem repetir até mostrar todos; deslizar/pontinhos também trocam
+    const PAGE = 3
+    const { page, dir, pages, goTo, handlers, visibleRange } = usePagedRotation(displayServices.length, PAGE)
+    const visible = displayServices.slice(visibleRange[0], visibleRange[1])
 
     // Passar o mouse por cima conta como visualização do serviço (uma vez por sessão; o dono olhando o dele não conta)
     const countHover = (service: ServiceCard) => {
@@ -294,32 +279,9 @@ export default function FeaturedServices({ dragHandle, title = 'Serviços em des
                     border: `1px solid ${colors.border}`,
                     boxShadow: '0 14px 40px rgba(0,0,0,0.12)',
                 }}
-                onMouseEnter={() => setPaused(true)}
-                onMouseLeave={() => setPaused(false)}
-                // Deslizar pro lado troca de página na hora (dedo no celular; dois dedos no touchpad)
-                onTouchStart={(e) => { touchRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }; setPaused(true) }}
-                onTouchEnd={(e) => {
-                    const start = touchRef.current
-                    touchRef.current = null
-                    setPaused(false)
-                    if (!start || pages <= 1) return
-                    const dx = e.changedTouches[0].clientX - start.x
-                    const dy = e.changedTouches[0].clientY - start.y
-                    if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy) * 1.3) go(dx < 0 ? 1 : -1)
-                }}
-                onWheel={(e) => {
-                    if (pages <= 1 || Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return
-                    const w = wheelRef.current
-                    const now = Date.now()
-                    // Silêncio de 50 ms = a passada (e a inércia dela) acabou: libera a próxima
-                    if (now - w.last > 50) { w.locked = false; w.sum = 0 }
-                    w.last = now
-                    if (w.locked) return
-                    w.sum += e.deltaX
-                    if (Math.abs(w.sum) > 60) { go(w.sum > 0 ? 1 : -1); w.locked = true; w.sum = 0 }
-                }}
+                {...handlers}
             >
-                <div key={page} className={`grid grid-cols-1 md:grid-cols-3 ${dir > 0 ? 'services-in-next' : 'services-in-prev'}`} style={{ touchAction: 'pan-y' }}>
+                <div key={page} className={`grid grid-cols-1 md:grid-cols-3 ${dir > 0 ? 'page-in-next' : 'page-in-prev'}`} style={{ touchAction: 'pan-y' }}>
                     {visible.map((service, i) => (
                         <SeenBox
                             key={service.id}
@@ -349,20 +311,8 @@ export default function FeaturedServices({ dragHandle, title = 'Serviços em des
                 </div>
             </div>
 
-            {pages > 1 && (
-                <div className="flex items-center justify-center gap-1.5 mt-3">
-                    {Array.from({ length: pages }).map((_, i) => (
-                        <button
-                            key={i}
-                            onClick={() => goTo(i)}
-                            aria-label={`Ver serviços ${i * PAGE + 1} a ${Math.min((i + 1) * PAGE, displayServices.length)}`}
-                            className="rounded-full transition-all duration-300"
-                            style={{ width: i === page ? 20 : 8, height: 8, background: i === page ? '#f97316' : colors.border }}
-                        />
-                    ))}
-                </div>
-            )}
-            <style>{`@keyframes servicesInNext { from { opacity: 0; transform: translateX(28px) } to { opacity: 1; transform: none } } @keyframes servicesInPrev { from { opacity: 0; transform: translateX(-28px) } to { opacity: 1; transform: none } } .services-in-next { animation: servicesInNext .35s ease-out } .services-in-prev { animation: servicesInPrev .35s ease-out }`}</style>
+            <PageDots pages={pages} page={page} onGo={goTo} label="Ver serviços, página" />
+            <style>{PAGE_SLIDE_CSS}</style>
 
             {leftAction && <div className="flex mt-1">{leftAction}</div>}
         </div>

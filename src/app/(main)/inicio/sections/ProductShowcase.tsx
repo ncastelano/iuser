@@ -14,6 +14,10 @@ import { supabase } from '@/lib/supabase/client'
 import { HomeSectionHeader } from './HomeSectionKit'
 import { ViewServicesButton } from './ViewServicesButton'
 import ListingRowCard from '@/components/ListingRowCard'
+import SeenBox from '@/components/SeenBox'
+import { usePagedRotation } from '@/hooks/usePagedRotation'
+import { PageDots, PAGE_SLIDE_CSS } from '@/components/PageDots'
+import { useProfile } from '@/app/contexts/ProfileContext'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -36,6 +40,8 @@ export interface ProductCard {
     storeLogoUrl: string | null
     profileSlug?: string | null
     isProfileProduct: boolean
+    // Dono (perfil) de quem vende: borda do plano no avatar e não contar a própria visualização
+    sellerId?: string | null
 }
 
 // ---------- Props ----------
@@ -249,6 +255,7 @@ export async function loadProductCards(): Promise<ProductCard[]> {
             storeAddress,
             storeLogoUrl,
             profileSlug: profileSlug ?? null,
+            sellerId: (store as any)?.owner_id ?? prod.owner_id ?? null,
             isProfileProduct: isProfileProduct || (!prod.store_id && !!prod.owner_id),
         }
     })
@@ -315,6 +322,17 @@ export default function ProductShowcase({ dragHandle }: ProductShowcaseProps) {
     const { colors } = useTheme()
 
     const { products, loading } = useProductShowcase()
+    const { userId } = useProfile()
+
+    // 3 por vez, alternando sozinho (e com o dedo/touchpad), igual a "Quem já oferece serviço"
+    const { page, dir, pages, goTo, handlers, visibleRange } = usePagedRotation(products.length, 3)
+    const visible = products.slice(visibleRange[0], visibleRange[1])
+
+    // Passar o mouse por cima conta como visualização (uma vez por sessão; o dono olhando o dele não conta)
+    const countHover = (product: ProductCard) => {
+        if (product.sellerId && product.sellerId === userId) return
+        supabase.rpc('increment_product_view_count', { p_product_id: product.id }).then(() => {}, () => {})
+    }
 
     // Pre-carrega a rota dos produtos visíveis, pra abrir na hora ao clicar.
     useEffect(() => {
@@ -330,8 +348,8 @@ export default function ProductShowcase({ dragHandle }: ProductShowcaseProps) {
                     {dragHandle}
                     <div className="h-6 rounded w-48 animate-pulse" style={{ background: `${colors.border}60` }} />
                 </div>
-                <div className="grid grid-rows-2 grid-flow-col auto-cols-[minmax(280px,86%)] sm:auto-cols-[330px] gap-3 overflow-hidden">
-                    {Array.from({ length: 4 }).map((_, i) => (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 overflow-hidden">
+                    {Array.from({ length: 3 }).map((_, i) => (
                         <ProductSkeleton key={`skeleton-${i}`} colors={colors} />
                     ))}
                 </div>
@@ -350,27 +368,35 @@ export default function ProductShowcase({ dragHandle }: ProductShowcaseProps) {
                 action={<ViewServicesButton label="ver produtos" count={products.length} onClick={() => { startNavProgress(); router.push('/produtos') }} />}
             />
 
-            {/* Duas fileiras de cartões em linha, rolando de lado (foto de um lado, texto do outro) */}
-            <div
-                className="grid grid-rows-2 grid-flow-col auto-cols-[minmax(280px,86%)] sm:auto-cols-[330px] gap-3 overflow-x-auto snap-x snap-mandatory scroll-px-4 pb-3 -mx-4 px-4"
-                style={{ scrollbarWidth: 'none' }}
-            >
-                {products.map((product) => (
-                    <ListingRowCard
-                        key={product.id}
-                        title={product.name}
-                        description={product.description}
-                        imageUrl={product.imageUrl || product.storeLogoUrl}
-                        fallbackIcon={<Package size={30} />}
-                        priceLabel={formatPrice(product.price)}
-                        sellerName={product.storeName}
-                        sellerImageUrl={product.storeLogoUrl}
-                        rating={product.rating}
-                        views={product.viewCount}
-                        onClick={() => { startNavProgress(); router.push(getProductUrl(product)) }}
-                    />
-                ))}
+            {/* 3 cartões por vez; passa de 3 em 3 sem repetir até mostrar todos (deslizar ou pontinhos também trocam) */}
+            <div {...handlers}>
+                <div key={page} className={`grid grid-cols-1 md:grid-cols-3 gap-3 ${dir > 0 ? 'page-in-next' : 'page-in-prev'}`} style={{ touchAction: 'pan-y' }}>
+                    {visible.map((product) => (
+                        <SeenBox
+                            key={product.id}
+                            onSeen={() => countHover(product)}
+                            seenKey={`product:${product.id}`}
+                            dwellMs={2_000_000_000}
+                        >
+                            <ListingRowCard
+                                title={product.name}
+                                description={product.description}
+                                imageUrl={product.imageUrl || product.storeLogoUrl}
+                                fallbackIcon={<Package size={30} />}
+                                priceLabel={formatPrice(product.price)}
+                                sellerName={product.storeName}
+                                sellerImageUrl={product.storeLogoUrl}
+                                sellerId={product.sellerId}
+                                rating={product.rating}
+                                views={product.viewCount}
+                                onClick={() => { startNavProgress(); router.push(getProductUrl(product)) }}
+                            />
+                        </SeenBox>
+                    ))}
+                </div>
             </div>
+            <PageDots pages={pages} page={page} onGo={goTo} label="Ver produtos, página" />
+            <style>{PAGE_SLIDE_CSS}</style>
         </div>
     )
 }
