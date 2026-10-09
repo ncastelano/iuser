@@ -7,6 +7,8 @@
 'use client'
 
 import { useState, useEffect, useMemo, ReactNode } from 'react'
+import SeenBox from '@/components/SeenBox'
+import { useProfile } from '@/app/contexts/ProfileContext'
 import { Wrench } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import { useRouter } from 'next/navigation'
@@ -209,10 +211,30 @@ export default function FeaturedServices({ dragHandle, title = 'Serviços em des
     const { colors } = useTheme()
 
     const { services, loading } = useFeaturedServices()
+    const { userId } = useProfile()
+
+    // 3 por vez; passa de 3 em 3 sem repetir até mostrar todos (e recomeça). Pausa com o mouse em cima.
+    const PAGE = 3
+    const [page, setPage] = useState(0)
+    const [paused, setPaused] = useState(false)
 
     const displayServices = useMemo(() => (
         maxItems && services.length > maxItems ? services.slice(0, maxItems) : services
     ), [services, maxItems])
+
+    const pages = Math.max(1, Math.ceil(displayServices.length / PAGE))
+    useEffect(() => {
+        if (pages <= 1 || paused) return
+        const timer = setInterval(() => setPage((p) => (p + 1) % pages), 7000)
+        return () => clearInterval(timer)
+    }, [pages, paused])
+    const visible = displayServices.slice(page * PAGE, page * PAGE + PAGE)
+
+    // Passar o mouse por cima conta como visualização do serviço (uma vez por sessão; o dono olhando o dele não conta)
+    const countHover = (service: ServiceCard) => {
+        if (service.providerId && service.providerId === userId) return
+        supabase.rpc('increment_product_view_count', { p_product_id: service.id }).then(() => {}, () => {})
+    }
 
     const handleServiceClick = (service: ServiceCard) => {
         startNavProgress()
@@ -255,7 +277,7 @@ export default function FeaturedServices({ dragHandle, title = 'Serviços em des
 
             {actions && <div className="-mt-1 mb-4">{actions(services.length)}</div>}
 
-            {/* Um cartão só, flutuando, com a lista dentro (em vez de vários cartõezinhos) */}
+            {/* Um cartão só, flutuando, com 3 serviços por vez */}
             <div
                 className="rounded-3xl px-2 py-1"
                 style={{
@@ -263,12 +285,17 @@ export default function FeaturedServices({ dragHandle, title = 'Serviços em des
                     border: `1px solid ${colors.border}`,
                     boxShadow: '0 14px 40px rgba(0,0,0,0.12)',
                 }}
+                onMouseEnter={() => setPaused(true)}
+                onMouseLeave={() => setPaused(false)}
             >
-                <div className="grid grid-cols-1 md:grid-cols-2 md:gap-x-2">
-                    {displayServices.slice(0, 6).map((service, i, arr) => (
-                        <div
+                <div key={page} className="grid grid-cols-1 md:grid-cols-3 services-page-in">
+                    {visible.map((service, i) => (
+                        <SeenBox
                             key={service.id}
-                            className={i === arr.length - 1 ? '' : (i === arr.length - 2 && arr.length % 2 === 0) ? 'border-b md:border-b-0' : 'border-b'}
+                            onSeen={() => countHover(service)}
+                            seenKey={`product:${service.id}`}
+                            dwellMs={2_000_000_000}
+                            className={`${i < visible.length - 1 ? 'border-b md:border-b-0 md:border-r' : ''}`}
                             style={{ borderColor: `${colors.border}80` }}
                         >
                             <ListingRowCard
@@ -286,10 +313,25 @@ export default function FeaturedServices({ dragHandle, title = 'Serviços em des
                                 tag={service.serviceType ? getServiceLabel(service.serviceType) : service.category}
                                 onClick={() => handleServiceClick(service)}
                             />
-                        </div>
+                        </SeenBox>
                     ))}
                 </div>
             </div>
+
+            {pages > 1 && (
+                <div className="flex items-center justify-center gap-1.5 mt-3">
+                    {Array.from({ length: pages }).map((_, i) => (
+                        <button
+                            key={i}
+                            onClick={() => setPage(i)}
+                            aria-label={`Ver serviços ${i * PAGE + 1} a ${Math.min((i + 1) * PAGE, displayServices.length)}`}
+                            className="rounded-full transition-all duration-300"
+                            style={{ width: i === page ? 20 : 8, height: 8, background: i === page ? '#f97316' : colors.border }}
+                        />
+                    ))}
+                </div>
+            )}
+            <style>{`@keyframes servicesPageIn { from { opacity: 0; transform: translateY(8px) } to { opacity: 1; transform: none } } .services-page-in { animation: servicesPageIn .45s ease-out }`}</style>
 
             {leftAction && <div className="flex mt-1">{leftAction}</div>}
         </div>

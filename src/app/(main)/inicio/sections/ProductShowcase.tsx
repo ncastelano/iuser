@@ -19,7 +19,7 @@ import ListingRowCard from '@/components/ListingRowCard'
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
 // ---------- Tipos ----------
-interface ProductCard {
+export interface ProductCard {
     id: string
     name: string
     slug: string
@@ -109,6 +109,152 @@ function shuffleNoAdjacentStore(products: ProductCard[]): ProductCard[] {
     return result
 }
 
+// Todos os produtos (do banco) já com loja/perfil, avaliação e imagem — usado pela home e por /produtos
+export async function loadProductCards(): Promise<ProductCard[]> {
+    const { data: storesList, error: storesErr } = await supabase
+        .from('stores')
+        .select('id, name, storeSlug, address, logo_url, owner_id')
+
+    if (storesErr) {
+        console.error('[ProductShowcase] Erro ao buscar lojas:', storesErr)
+        return []
+    }
+
+    const storeMap = new Map(storesList?.map(s => [s.id, s]) || [])
+
+    const { data: productsList, error: prodErr } = await supabase
+        .from('products')
+        .select('*')
+        .eq('listing_type', 'sale')
+        .order('view_count', { ascending: false })
+
+    if (prodErr) {
+        console.error('[ProductShowcase] Erro ao buscar produtos:', prodErr)
+        return []
+    }
+
+    if (!productsList || productsList.length === 0) {
+        return []
+    }
+
+    const storeOwnerIds = [...new Set(storesList?.map(s => s.owner_id) || [])]
+    const productOwnerIds = productsList
+        .filter(p => p.owner_id)
+        .map(p => p.owner_id)
+
+    const uniqueProfileIds = [...new Set([...storeOwnerIds, ...productOwnerIds])]
+
+    const { data: allProfiles, error: profileErr } = await supabase
+        .from('profiles')
+        .select('id, name, profileSlug, avatar_url')
+        .in('id', uniqueProfileIds)
+
+    if (profileErr) {
+        console.error('[ProductShowcase] Erro ao buscar perfis:', profileErr)
+    }
+
+    const profileMap = new Map(allProfiles?.map(p => [p.id, p]) || [])
+
+    const { data: reviewsList } = await supabase
+        .from('product_reviews')
+        .select('product_id, rating')
+
+    const ratingMap = new Map<string, { sum: number; count: number }>()
+    reviewsList?.forEach(r => {
+        if (!ratingMap.has(r.product_id)) ratingMap.set(r.product_id, { sum: 0, count: 0 })
+        const cur = ratingMap.get(r.product_id)!
+        cur.sum += r.rating
+        cur.count += 1
+    })
+
+    const cards: ProductCard[] = productsList.map(prod => {
+        const isProfileProduct = !prod.store_id && !!prod.owner_id
+        const store = storeMap.get(prod.store_id)
+
+        let storeName = 'Loja desconhecida'
+        let storeSlug = '#'
+        let storeAddress: string | null = null
+        let storeLogoUrl: string | null = null
+        let profileSlug: string | null = null
+
+        const profile = profileMap.get(prod.owner_id)
+
+        if (profile) {
+            profileSlug = profile.profileSlug || null
+        }
+
+        if (prod.owner_image_url) {
+            storeLogoUrl = prod.owner_image_url
+        }
+
+        if (isProfileProduct) {
+            if (profile) {
+                storeName = profile.name || 'Perfil sem nome'
+                storeSlug = profile.profileSlug || '#'
+                storeAddress = null
+
+                if (!storeLogoUrl && profile.avatar_url) {
+                    storeLogoUrl = getAvatarUrl(profile.avatar_url)
+                }
+            }
+        } else if (store) {
+            storeName = store.name
+            storeSlug = store.storeSlug
+            storeAddress = store.address ?? null
+
+            if (!storeLogoUrl && store.logo_url) {
+                storeLogoUrl = supabase.storage.from('store-logos').getPublicUrl(store.logo_url).data.publicUrl
+            }
+
+            if (!storeLogoUrl && profile && profile.avatar_url) {
+                storeLogoUrl = getAvatarUrl(profile.avatar_url)
+            }
+        } else {
+            if (profile) {
+                storeName = profile.name || 'Perfil sem nome'
+                storeSlug = profile.profileSlug || '#'
+                storeAddress = null
+
+                if (!storeLogoUrl && profile.avatar_url) {
+                    storeLogoUrl = getAvatarUrl(profile.avatar_url)
+                }
+            }
+        }
+
+        if (!storeLogoUrl && profile && profile.avatar_url) {
+            storeLogoUrl = getAvatarUrl(profile.avatar_url)
+        }
+
+        const imageUrl = prod.image_url
+            ? supabase.storage.from('product-images').getPublicUrl(prod.image_url).data.publicUrl
+            : null
+
+        const ratingData = ratingMap.get(prod.id)
+        const avg = ratingData ? ratingData.sum / ratingData.count : 0
+        const count = ratingData ? ratingData.count : 0
+
+        return {
+            id: prod.id,
+            name: prod.name,
+            slug: prod.slug,
+            imageUrl,
+            price: prod.price ?? null,
+            description: prod.description,
+            durationMinutes: prod.duration_minutes ?? null,
+            viewCount: prod.view_count ?? 0,
+            rating: Number(avg.toFixed(1)),
+            reviewCount: count,
+            storeName,
+            storeSlug,
+            storeAddress,
+            storeLogoUrl,
+            profileSlug: profileSlug ?? null,
+            isProfileProduct: isProfileProduct || (!prod.store_id && !!prod.owner_id),
+        }
+    })
+    return cards
+}
+
 // ---------- Hook de dados ----------
 function useProductShowcase() {
     const [products, setProducts] = useState<ProductCard[]>([])
@@ -119,152 +265,7 @@ function useProductShowcase() {
             setLoading(true)
 
             try {
-                const { data: storesList, error: storesErr } = await supabase
-                    .from('stores')
-                    .select('id, name, storeSlug, address, logo_url, owner_id')
-
-                if (storesErr) {
-                    console.error('[ProductShowcase] Erro ao buscar lojas:', storesErr)
-                    setLoading(false)
-                    return
-                }
-
-                const storeMap = new Map(storesList?.map(s => [s.id, s]) || [])
-
-                const { data: productsList, error: prodErr } = await supabase
-                    .from('products')
-                    .select('*')
-                    .eq('listing_type', 'sale')
-                    .order('view_count', { ascending: false })
-
-                if (prodErr) {
-                    console.error('[ProductShowcase] Erro ao buscar produtos:', prodErr)
-                    setLoading(false)
-                    return
-                }
-
-                if (!productsList || productsList.length === 0) {
-                    setProducts([])
-                    setLoading(false)
-                    return
-                }
-
-                const storeOwnerIds = [...new Set(storesList?.map(s => s.owner_id) || [])]
-                const productOwnerIds = productsList
-                    .filter(p => p.owner_id)
-                    .map(p => p.owner_id)
-
-                const uniqueProfileIds = [...new Set([...storeOwnerIds, ...productOwnerIds])]
-
-                const { data: allProfiles, error: profileErr } = await supabase
-                    .from('profiles')
-                    .select('id, name, profileSlug, avatar_url')
-                    .in('id', uniqueProfileIds)
-
-                if (profileErr) {
-                    console.error('[ProductShowcase] Erro ao buscar perfis:', profileErr)
-                }
-
-                const profileMap = new Map(allProfiles?.map(p => [p.id, p]) || [])
-
-                const { data: reviewsList } = await supabase
-                    .from('product_reviews')
-                    .select('product_id, rating')
-
-                const ratingMap = new Map<string, { sum: number; count: number }>()
-                reviewsList?.forEach(r => {
-                    if (!ratingMap.has(r.product_id)) ratingMap.set(r.product_id, { sum: 0, count: 0 })
-                    const cur = ratingMap.get(r.product_id)!
-                    cur.sum += r.rating
-                    cur.count += 1
-                })
-
-                const cards: ProductCard[] = productsList.map(prod => {
-                    const isProfileProduct = !prod.store_id && !!prod.owner_id
-                    const store = storeMap.get(prod.store_id)
-
-                    let storeName = 'Loja desconhecida'
-                    let storeSlug = '#'
-                    let storeAddress: string | null = null
-                    let storeLogoUrl: string | null = null
-                    let profileSlug: string | null = null
-
-                    const profile = profileMap.get(prod.owner_id)
-
-                    if (profile) {
-                        profileSlug = profile.profileSlug || null
-                    }
-
-                    if (prod.owner_image_url) {
-                        storeLogoUrl = prod.owner_image_url
-                    }
-
-                    if (isProfileProduct) {
-                        if (profile) {
-                            storeName = profile.name || 'Perfil sem nome'
-                            storeSlug = profile.profileSlug || '#'
-                            storeAddress = null
-
-                            if (!storeLogoUrl && profile.avatar_url) {
-                                storeLogoUrl = getAvatarUrl(profile.avatar_url)
-                            }
-                        }
-                    } else if (store) {
-                        storeName = store.name
-                        storeSlug = store.storeSlug
-                        storeAddress = store.address ?? null
-
-                        if (!storeLogoUrl && store.logo_url) {
-                            storeLogoUrl = supabase.storage.from('store-logos').getPublicUrl(store.logo_url).data.publicUrl
-                        }
-
-                        if (!storeLogoUrl && profile && profile.avatar_url) {
-                            storeLogoUrl = getAvatarUrl(profile.avatar_url)
-                        }
-                    } else {
-                        if (profile) {
-                            storeName = profile.name || 'Perfil sem nome'
-                            storeSlug = profile.profileSlug || '#'
-                            storeAddress = null
-
-                            if (!storeLogoUrl && profile.avatar_url) {
-                                storeLogoUrl = getAvatarUrl(profile.avatar_url)
-                            }
-                        }
-                    }
-
-                    if (!storeLogoUrl && profile && profile.avatar_url) {
-                        storeLogoUrl = getAvatarUrl(profile.avatar_url)
-                    }
-
-                    const imageUrl = prod.image_url
-                        ? supabase.storage.from('product-images').getPublicUrl(prod.image_url).data.publicUrl
-                        : null
-
-                    const ratingData = ratingMap.get(prod.id)
-                    const avg = ratingData ? ratingData.sum / ratingData.count : 0
-                    const count = ratingData ? ratingData.count : 0
-
-                    return {
-                        id: prod.id,
-                        name: prod.name,
-                        slug: prod.slug,
-                        imageUrl,
-                        price: prod.price ?? null,
-                        description: prod.description,
-                        durationMinutes: prod.duration_minutes ?? null,
-                        viewCount: prod.view_count ?? 0,
-                        rating: Number(avg.toFixed(1)),
-                        reviewCount: count,
-                        storeName,
-                        storeSlug,
-                        storeAddress,
-                        storeLogoUrl,
-                        profileSlug: profileSlug ?? null,
-                        isProfileProduct: isProfileProduct || (!prod.store_id && !!prod.owner_id),
-                    }
-                })
-
+                const cards = await loadProductCards()
                 setProducts(shuffleNoAdjacentStore(cards))
             } catch (error) {
                 console.error('[ProductShowcase] Erro geral:', error)
@@ -346,7 +347,7 @@ export default function ProductShowcase({ dragHandle }: ProductShowcaseProps) {
                 title="Produtos em destaque"
                 subtitle={`${products.length} ${products.length === 1 ? 'produto' : 'produtos'}`}
                 dragHandle={dragHandle}
-                action={<ViewServicesButton label="ver lojas" onClick={() => { startNavProgress(); router.push('/lojas') }} />}
+                action={<ViewServicesButton label="ver produtos" count={products.length} onClick={() => { startNavProgress(); router.push('/produtos') }} />}
             />
 
             {/* Duas fileiras de cartões em linha, rolando de lado (foto de um lado, texto do outro) */}
