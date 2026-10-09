@@ -14,6 +14,8 @@ import {
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { getAvatarUrl } from '@/lib/avatar'
+import { formatDistanceToNow } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
 import { Spinner } from '@/components/Spinner'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
@@ -72,8 +74,9 @@ function dayLabel(iso: string) {
     return txt.charAt(0).toUpperCase() + txt.slice(1)
 }
 
+// "há 5 minutos", "há 2 horas", "há 3 dias"
 function timeLabel(iso: string) {
-    return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+    return formatDistanceToNow(new Date(iso), { locale: ptBR, addSuffix: true }).replace('cerca de ', '').replace('em ', 'há ')
 }
 
 export default function ProfileNotification({ userId }: { userId: string }) {
@@ -217,14 +220,11 @@ export default function ProfileNotification({ userId }: { userId: string }) {
                 <>
                     <p className="text-[11px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>Últimas notificações</p>
                     {preview.map((n) => renderRow(n))}
-                    {items.length > PREVIEW_COUNT && (
-                        <p className="text-[11px] text-center" style={{ color: colors.textSecondary }}>Abra o cartão para ver as outras {items.length - PREVIEW_COUNT}</p>
-                    )}
                 </>
             ) : undefined}
             collapsedSummary={unread > 0
                 ? <span><b style={{ color: '#16a34a' }}>{unread}</b> {unread === 1 ? 'novidade' : 'novidades'} no seu perfil</span>
-                : <span>Nada novo por enquanto</span>}
+                : undefined}
         >
             <div className="flex items-center justify-between gap-2 flex-wrap">
                 <div className="flex gap-1.5 overflow-x-auto pb-1">
