@@ -29,6 +29,8 @@ import { useProfile } from '@/app/contexts/ProfileContext'
 import { useTheme } from '@/app/contexts/theme'
 import Header from '@/components/Header'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
+import { useLastSeen } from '@/hooks/useLastSeen'
+import { lastSeenLabel } from '@/lib/lastSeen'
 
 interface ProfileWithDetails {
     id: string
@@ -95,6 +97,8 @@ export default function SocialList() {
     const [isSearchFocused, setIsSearchFocused] = useState(false)
     const [recentProfiles, setRecentProfiles] = useState<RecentProfile[]>([])
     const searchInputRef = useRef<HTMLInputElement>(null)
+    // Visto por último: só vem de quem deixou visível pra mim
+    const lastSeen = useLastSeen(useMemo(() => profiles.map((p) => p.id), [profiles]))
 
     // ===== RECENT PROFILES (últimos perfis visitados) =====
     const loadRecentProfiles = useCallback(() => {
@@ -650,6 +654,17 @@ export default function SocialList() {
                                                                         </span>
                                                                     </div>
                                                                 )}
+
+                                                            {(() => {
+                                                                const seen = lastSeenLabel(lastSeen[profile.id])
+                                                                if (!seen) return null
+                                                                return (
+                                                                    <div className="flex items-center gap-1.5">
+                                                                        <span className={`w-2 h-2 rounded-full ${seen.online ? 'animate-pulse' : ''}`} style={{ background: seen.online ? '#22c55e' : colors.textSecondary, opacity: seen.online ? 1 : 0.5 }} />
+                                                                        <span className="text-xs font-bold" style={{ color: seen.online ? '#16a34a' : colors.textSecondary }}>{seen.text}</span>
+                                                                    </div>
+                                                                )
+                                                            })()}
 
                                                             {profile.created_at && (
                                                                 <div className="flex items-center gap-1">

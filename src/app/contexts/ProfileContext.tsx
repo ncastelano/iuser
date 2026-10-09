@@ -135,6 +135,17 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
         }
     }, [fetchProfile, setTheme, setFontSize])
 
+    // Avisa o banco que a pessoa está online (abrir o app, voltar pra aba e a cada 2 min com a aba visível).
+    // Quem pode ver isso é escolha de cada um (Visto por último, no perfil).
+    useEffect(() => {
+        if (!userId) return
+        const ping = () => { if (document.visibilityState === 'visible') supabase.rpc('touch_last_seen').then(() => {}, () => {}) }
+        ping()
+        const timer = setInterval(ping, 120000)
+        document.addEventListener('visibilitychange', ping)
+        return () => { clearInterval(timer); document.removeEventListener('visibilitychange', ping) }
+    }, [userId])
+
     const refreshProfile = useCallback(async () => {
         const { data: { session } } = await supabase.auth.getSession()
         if (session?.user) {

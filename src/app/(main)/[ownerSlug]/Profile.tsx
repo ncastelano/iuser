@@ -10,6 +10,8 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import ChatContactButton from '@/components/ChatContactButton'
+import { useLastSeen } from '@/hooks/useLastSeen'
+import { lastSeenLabel } from '@/lib/lastSeen'
 import { hexToRgb } from '@/lib/color'
 import { pickImageFile, isNativePlatform } from '@/lib/nativeCamera'
 import { formatBrazilianPhone, cleanPhoneNumber } from '@/lib/phone'
@@ -246,6 +248,7 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
     const [showAgendaDialog, setShowAgendaDialog] = useState(false)
     const [agendaSaving, setAgendaSaving] = useState(false)
     const [chatSaving, setChatSaving] = useState(false)
+    const ownerSeen = lastSeenLabel(useLastSeen(useMemo(() => (owner?.id ? [owner.id] : []), [owner?.id]))[owner?.id || ''])
     const [showScheduleModal, setShowScheduleModal] = useState(false)
     const [followersCount, setFollowersCount] = useState(0)
     const [followingCount, setFollowingCount] = useState(0)
@@ -1454,6 +1457,12 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                     </h1>
                     {ownerLevel && (
                         <div className="mt-1.5 flex justify-center"><LevelBadge level={ownerLevel} size="sm" /></div>
+                    )}
+                    {ownerSeen && (
+                        <p className="mt-1.5 flex items-center justify-center gap-1.5 text-xs font-bold" style={{ color: ownerSeen.online ? '#16a34a' : colors.textSecondary }}>
+                            <span className={`w-2 h-2 rounded-full ${ownerSeen.online ? 'animate-pulse' : ''}`} style={{ background: ownerSeen.online ? '#22c55e' : colors.textSecondary, opacity: ownerSeen.online ? 1 : 0.5 }} />
+                            {ownerSeen.text}
+                        </p>
                     )}
 
                     {owner.description && (

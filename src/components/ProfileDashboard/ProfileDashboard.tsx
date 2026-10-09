@@ -49,6 +49,7 @@ import PublicationProfile from './ProfilePublication'
 import ProfileServiceListing from './ProfileServiceListing'
 import Commission from './Commission'
 import MyPoints from './MyPoints'
+import LastSeenSettings from './LastSeenSettings'
 import MyTasks from './MyTasks'
 import DeleteConfirmDialog from '@/components/DeleteConfirmDialog'
 import { callAdminApi } from '@/lib/callAdminApi'
@@ -1725,6 +1726,8 @@ export default function ProfileDashboard({
                             </div>
                         )}
                 </DashboardSection>
+
+                {profile?.id && <LastSeenSettings userId={profile.id} />}
 
                 <DashboardSection storageKey="config-chat" title="Conversas" subtitle={`Receba mensagens pelo iUser · ${profile?.chat_enabled ? 'Ligado' : 'Desligado'}`}>
                     <div className="flex items-center justify-between gap-3">
