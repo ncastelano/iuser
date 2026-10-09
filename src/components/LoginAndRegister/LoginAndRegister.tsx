@@ -32,9 +32,11 @@ import { isCpfCnpjTaken, CPF_CNPJ_TAKEN_MESSAGE } from '@/lib/checkCpfCnpjAvaila
 
 interface LoginAndRegisterProps {
     onLoginSuccess?: () => void
+    // Abre direto na tela de cadastro (ex.: "Ser motorista")
+    initialMode?: 'login' | 'register'
 }
 
-function LoginAndRegisterContent({ onLoginSuccess }: LoginAndRegisterProps) {
+function LoginAndRegisterContent({ onLoginSuccess, initialMode = 'login' }: LoginAndRegisterProps) {
     const router = useRouter()
     const searchParams = useSearchParams()
     const { colors } = useTheme()
@@ -73,7 +75,7 @@ function LoginAndRegisterContent({ onLoginSuccess }: LoginAndRegisterProps) {
     const profileSlugRef = useRef<string>('')
 
     // Estado para controlar qual tela mostrar
-    const [isLogin, setIsLogin] = useState(true)
+    const [isLogin, setIsLogin] = useState(initialMode !== 'register')
     const [showRecoverPassword, setShowRecoverPassword] = useState(false)
 
     const accentColor = colors.accent
@@ -893,7 +895,7 @@ function LoginAndRegisterContent({ onLoginSuccess }: LoginAndRegisterProps) {
     )
 }
 
-export default function LoginAndRegister({ onLoginSuccess }: LoginAndRegisterProps) {
+export default function LoginAndRegister({ onLoginSuccess, initialMode }: LoginAndRegisterProps) {
     return (
         <Suspense fallback={
             <div
@@ -903,7 +905,7 @@ export default function LoginAndRegister({ onLoginSuccess }: LoginAndRegisterPro
                 <div className="w-8 h-8 border-2 border-orange-200 border-t-orange-500 rounded-full animate-spin" />
             </div>
         }>
-            <LoginAndRegisterContent onLoginSuccess={onLoginSuccess} />
+            <LoginAndRegisterContent onLoginSuccess={onLoginSuccess} initialMode={initialMode} />
         </Suspense>
     )
 }

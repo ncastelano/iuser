@@ -4,7 +4,7 @@
 import { useState, useEffect, useMemo, useRef, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
-import { User, Store, Home, MapPin, LayoutDashboard, X } from 'lucide-react'
+import { User, Store, Home, MapPin, LayoutDashboard, X, Car } from 'lucide-react'
 
 import CategoriasSection from './inicio/sections/CanIhelp'
 import RadarSection from './inicio/sections/RadarSection'
@@ -677,7 +677,21 @@ function HomePageContent() {
                 ? () => { startNavProgress(); router.push('/criar-loja') }
                 : handleCreateStoreClick,
             isActive: !isLoggedIn && showCreateStore,
+            glow: !isLoggedIn,
         })
+
+        // Visitante: "Ser motorista" leva pro painel do motorista já na tela de cadastro.
+        if (!isLoggedIn) {
+            allTabs.push({
+                id: 'ser-motorista',
+                label: 'Ser motorista',
+                icon: Car,
+                imageUrl: null,
+                onClick: () => { startNavProgress(); router.push('/painel-motorista') },
+                isActive: false,
+                glow: true,
+            })
+        }
 
         // Veículos (um por tipo cadastrado) + "Cadastrar veículo" enquanto faltar algum tipo.
         if (isLoggedIn) {

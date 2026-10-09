@@ -28,6 +28,8 @@ export interface Tab {
         color?: string
     } | null
     statusColor?: string
+    // Borda laranja brilhante igual à da barra de busca (chamadas à ação do visitante)
+    glow?: boolean
 }
 
 interface HeaderProps {
@@ -421,7 +423,11 @@ export default function Header({
                                             color: textColor,
                                             overflow: 'visible',
                                             scrollSnapAlign: 'start',
-                                            border: `1.5px solid ${borderColor}`,
+                                            border: `1.5px solid ${tab.glow && !isActive ? '#f97316' : borderColor}`,
+                                            ...(tab.glow && !isActive ? {
+                                                boxShadow: `0 0 0 1px #f97316, 0 0 5px #f9731640, 0 0 10px #fb923c30, 0 0 15px #f59e0b20`,
+                                                animation: 'pulseGlow 2s ease-in-out infinite',
+                                            } : {}),
                                             ...(isActive && !tab.statusColor ? {
                                                 boxShadow: `0 2px 8px #f9731640`,
                                                 fontWeight: 'bold',

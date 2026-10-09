@@ -778,7 +778,7 @@ function PainelMotoristaContent() {
                     )}
 
                     {!loading && showLogin && (
-                        <LoginAndRegister onLoginSuccess={handleLoginSuccess} />
+                        <LoginAndRegister onLoginSuccess={handleLoginSuccess} initialMode="register" />
                     )}
 
                     {!loading && !showLogin && !showActivationWizard && (activeTab === 'solicitacoes' || activeTab === 'candidaturas' || activeTab === 'aceita') && (
