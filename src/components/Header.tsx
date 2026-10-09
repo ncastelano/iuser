@@ -11,9 +11,9 @@ import { useChatUnread } from '@/hooks/useChatUnread'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import PlanAvatarRing, { PlanRingFrame } from '@/components/PlanAvatarRing'
 
-// Cores da borda do nível Diamante (mesmas de avatar_borders 'nivel-diamante')
-const DIAMOND_COLORS = ['#67e8f9', '#a5b4fc', '#f0abfc', '#67e8f9']
-const DIAMOND_STOPS = [...DIAMOND_COLORS, DIAMOND_COLORS[0]].map((c, i) => `${c} ${Math.round((i / DIAMOND_COLORS.length) * 360)}deg`).join(', ')
+// Cores da borda giratória das chamadas do visitante (laranja → amarelo → vermelho)
+const GLOW_COLORS = ['#f97316', '#facc15', '#ef4444', '#f97316']
+const GLOW_STOPS = [...GLOW_COLORS, GLOW_COLORS[0]].map((c, i) => `${c} ${Math.round((i / GLOW_COLORS.length) * 360)}deg`).join(', ')
 
 export interface Tab {
     id: string
@@ -499,17 +499,17 @@ export default function Header({
                                     </button>
                                 )
 
-                                // Chamada à ação do visitante: borda giratória igual à do avatar Diamante, com um halo esfumaçado atrás
+                                // Chamada à ação do visitante: borda giratória laranja/amarelo/vermelho, com um halo esfumaçado atrás
                                 if (tab.glow && !isActive) {
                                     return (
-                                        <PlanRingFrame key={tab.id} colors={DIAMOND_COLORS} radius="9999px" width={2} className="flex-shrink-0">
+                                        <PlanRingFrame key={tab.id} colors={GLOW_COLORS} radius="9999px" width={2} className="flex-shrink-0 mx-1.5">
                                             <span
                                                 aria-hidden
                                                 className="plan-ring-inset pointer-events-none absolute"
                                                 style={{
                                                     inset: -3,
                                                     borderRadius: 9999,
-                                                    background: `conic-gradient(from var(--plan-ring-angle), ${DIAMOND_STOPS})`,
+                                                    background: `conic-gradient(from var(--plan-ring-angle), ${GLOW_STOPS})`,
                                                     filter: 'blur(7px)',
                                                     opacity: 0.6,
                                                 }}
