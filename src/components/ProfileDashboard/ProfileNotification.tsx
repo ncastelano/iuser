@@ -175,8 +175,8 @@ export default function ProfileNotification({ userId }: { userId: string }) {
             <button
                 key={n.id}
                 onClick={() => open(n)}
-                className={`w-full flex items-start gap-3 p-3 rounded-2xl text-left transition-colors ${clickable ? 'hover:bg-black/5' : 'cursor-default'}`}
-                style={{ border: `1px solid ${n.read_at ? colors.border : '#22c55e66'}`, background: n.read_at ? 'transparent' : '#22c55e0d' }}
+                className={`w-full flex items-start gap-3 px-2 py-1.5 rounded-xl text-left transition-colors ${clickable ? 'hover:bg-black/5' : 'cursor-default'}`}
+                style={{ background: n.read_at ? 'transparent' : '#22c55e14' }}
             >
                 <span className="relative flex-shrink-0">
                     {n.actor_id ? (
@@ -259,9 +259,9 @@ export default function ProfileNotification({ userId }: { userId: string }) {
                     </p>
                 </div>
             ) : (
-                <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-3">
                     {groups.map((g) => (
-                        <div key={g.label} className="flex flex-col gap-2">
+                        <div key={g.label} className="flex flex-col gap-0.5">
                             <p className="text-[11px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>{g.label}</p>
                             {g.rows.map((n) => renderRow(n))}
                         </div>
