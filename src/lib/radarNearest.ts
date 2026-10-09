@@ -8,7 +8,7 @@ import { parseCoords } from '@/lib/geoParse'
 import { haversineKm } from '@/lib/mapboxRoute'
 import { getProfilesHiddenFromMap } from '@/lib/mapPrivacy'
 
-export type NearestKind = 'loja' | 'produto' | 'servico'
+export type NearestKind = 'loja' | 'produto' | 'servico' | 'pessoa'
 
 export interface NearestItem {
     kind: NearestKind
@@ -20,6 +20,8 @@ export interface NearestItem {
     // null quando não há local de referência (aí a lista é a dos mais vistos)
     distanceKm: number | null
     viewCount: number
+    // Pontuação (só pessoas): sem local de referência, a lista é por pontos
+    points?: number
     href: string
 }
 
@@ -97,9 +99,24 @@ export async function fetchNearest(origin: { lat: number; lng: number } | null, 
         }
     }
 
+    // --- pessoas que escolheram aparecer no mapa (já vem filtrado pelo banco: perfil + "Aparecer no mapa") ---
+    const { data: peopleRows } = await supabase.rpc('get_people_on_map', { p_limit: 200 })
+    const nearestPeople: NearestItem[] = []
+    for (const p of (peopleRows || []) as any[]) {
+        if (!p.profile_slug || (userId && p.id === userId)) continue
+        const d = km(Number.isFinite(p.lat) && Number.isFinite(p.lng) ? [p.lng, p.lat] as [number, number] : null)
+        if (d === undefined) continue
+        const avatar = p.avatar_url ? (String(p.avatar_url).startsWith('http') ? p.avatar_url : supabase.storage.from('avatars').getPublicUrl(p.avatar_url).data.publicUrl) : null
+        nearestPeople.push({ kind: 'pessoa', id: p.id, name: p.name || `@${p.profile_slug}`, subtitle: `@${p.profile_slug}`, imageUrl: avatar, price: null, distanceKm: d, viewCount: 0, points: Number(p.points) || 0, href: `/${p.profile_slug}` })
+    }
+
     // Com local: os 3 mais perto. Sem local: os 3 mais vistos.
     const top3 = (list: NearestItem[]) => list
         .sort((a, b) => (from ? (a.distanceKm as number) - (b.distanceKm as number) : b.viewCount - a.viewCount))
         .slice(0, 3)
-    return { loja: top3(nearestStores), produto: top3(nearestProducts), servico: top3(nearestServices) }
+    // Pessoas sem local de referência: as de mais pontos
+    const top3People = nearestPeople
+        .sort((a, b) => (from ? (a.distanceKm as number) - (b.distanceKm as number) : (b.points || 0) - (a.points || 0)))
+        .slice(0, 3)
+    return { loja: top3(nearestStores), produto: top3(nearestProducts), servico: top3(nearestServices), pessoa: top3People }
 }

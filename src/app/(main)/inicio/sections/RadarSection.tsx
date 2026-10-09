@@ -3,7 +3,7 @@
 
 import { ReactNode, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Radar as Navigation, Store, ShoppingBag, Wrench, MapPin, Eye } from 'lucide-react'
+import { Radar as Navigation, Store, ShoppingBag, Wrench, MapPin, Eye, Users } from 'lucide-react'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
 import { fetchNearest, formatDistance, type NearestItem, type NearestKind } from '@/lib/radarNearest'
 
@@ -23,7 +23,10 @@ const KIND_META: Record<NearestKind, { label: string; icon: typeof Store }> = {
     loja: { label: 'Loja', icon: Store },
     produto: { label: 'Produto', icon: ShoppingBag },
     servico: { label: 'Serviço', icon: Wrench },
+    pessoa: { label: 'Pessoa', icon: Users },
 }
+
+const KINDS: NearestKind[] = ['loja', 'produto', 'servico', 'pessoa']
 
 // Banner de destaque pro Radar — antes só existia como botão flutuante
 // (continua existindo, não mexi nele); isso aqui é o mesmo atalho com mais
@@ -34,7 +37,7 @@ export default function RadarSection({ dragHandle, origin, userId, onDefineLocat
     const [nearest, setNearest] = useState<Record<NearestKind, NearestItem[]> | null>(null)
     // Qual dos (até) 3 de cada tipo está na tela; troca sozinho a cada 5 segundos
     const [tick, setTick] = useState(0)
-    // Quantos de cada tipo cabem na tela: 1 no celular (3 cards), 2 no tablet (6) e 3 no desktop (9)
+    // Quantos de cada tipo cabem na tela: 1 no celular (4 cards: loja, produto, serviço e pessoa), 2 no tablet (8) e 3 no desktop (12)
     const [perKind, setPerKind] = useState(1)
     useEffect(() => {
         const update = () => setPerKind(window.innerWidth >= 1280 ? 3 : window.innerWidth >= 640 ? 2 : 1)
@@ -51,13 +54,13 @@ export default function RadarSection({ dragHandle, origin, userId, onDefineLocat
         setNearest(null)
         fetchNearest(lat != null && lng != null ? { lat, lng } : null, userId)
             .then((res) => { if (!cancelled) setNearest(res) })
-            .catch(() => { if (!cancelled) setNearest({ loja: [], produto: [], servico: [] }) })
+            .catch(() => { if (!cancelled) setNearest({ loja: [], produto: [], servico: [], pessoa: [] }) })
         return () => { cancelled = true }
     }, [lat, lng, userId])
 
     useEffect(() => {
         if (!nearest) return
-        const rotates = (['loja', 'produto', 'servico'] as NearestKind[]).some((k) => nearest[k].length > perKind)
+        const rotates = KINDS.some((k) => nearest[k].length > perKind)
         if (!rotates) return
         const timer = setInterval(() => setTick((t) => t + 1), 5000)
         return () => clearInterval(timer)
@@ -65,7 +68,7 @@ export default function RadarSection({ dragHandle, origin, userId, onDefineLocat
 
     // Até `perKind` cards de cada tipo (loja, produto, serviço); se tem mais do que cabe, a janela gira a cada 5 s
     const cards = nearest
-        ? (['loja', 'produto', 'servico'] as NearestKind[]).flatMap((k) => {
+        ? KINDS.flatMap((k) => {
             const list = nearest[k]
             const n = Math.min(perKind, list.length)
             return Array.from({ length: n }, (_, i) => list[(tick + i) % list.length])
@@ -136,10 +139,10 @@ export default function RadarSection({ dragHandle, origin, userId, onDefineLocat
                     </p>
                 </div>
 
-                {/* Os 3 mais perto de você: uma loja, um produto e um serviço */}
+                {/* Os mais perto de você: uma loja, um produto, um serviço e uma pessoa */}
                 <div className="relative z-10 mt-5">
-                    {nearest == null ? (                        <div className="grid grid-cols-3 sm:grid-cols-6 min-[1280px]:grid-cols-9 gap-2">
-                            {Array.from({ length: perKind * 3 }).map((_, i) => <div key={i} className="aspect-square rounded-2xl animate-pulse" style={{ background: 'rgba(255,255,255,0.08)' }} />)}
+                    {nearest == null ? (                        <div className="grid grid-cols-4 sm:grid-cols-8 min-[1280px]:grid-cols-12 gap-2">
+                            {Array.from({ length: perKind * 4 }).map((_, i) => <div key={i} className="aspect-square rounded-2xl animate-pulse" style={{ background: 'rgba(255,255,255,0.08)' }} />)}
                         </div>
                     ) : (
                         <>
@@ -147,7 +150,7 @@ export default function RadarSection({ dragHandle, origin, userId, onDefineLocat
                                 {origin ? 'Mais perto de você' : 'Mais vistos'}
                                 {!origin && <span className="normal-case font-semibold tracking-normal text-white/40"> · defina seu local no topo pra ver os mais próximos</span>}
                             </p>
-                            <div className="grid grid-cols-3 sm:grid-cols-6 min-[1280px]:grid-cols-9 gap-2">
+                            <div className="grid grid-cols-4 sm:grid-cols-8 min-[1280px]:grid-cols-12 gap-2">
                                 {cards.map((item) => {
                                     const { label, icon: KindIcon } = KIND_META[item.kind]
                                     return (
@@ -190,6 +193,8 @@ export default function RadarSection({ dragHandle, origin, userId, onDefineLocat
                                                             <MapPin size={10} className="text-white/70" />
                                                             <span className="text-[10px] font-semibold text-white/70">{formatDistance(item.distanceKm)}</span>
                                                         </>
+                                                    ) : item.kind === 'pessoa' ? (
+                                                        <span className="text-[10px] font-semibold text-white/70">⭐ {item.points || 0} pts</span>
                                                     ) : (
                                                         <>
                                                             <Eye size={10} className="text-white/70" />
