@@ -227,7 +227,10 @@ export default function RadarSection({ dragHandle, origin, userId, onDefineLocat
 
                 {/* Abrir radar, embaixo do "mais perto de você" */}
                 <div className="relative z-10 mt-4 flex items-center justify-between gap-3">
-                    <p className="text-sm font-semibold text-white/80 leading-snug min-w-0">Tudo o que está por perto, direto no mapa.</p>
+                    <div className="min-w-0">
+                        <p className="text-sm font-black text-white leading-snug">Ver o que tem ao seu redor!</p>
+                        <p className="text-xs text-white/60 leading-snug mt-0.5">O mapa com lojas, serviços, produtos e até pessoas...</p>
+                    </div>
                     <button
                         onClick={(e) => { e.stopPropagation(); goRadar() }}
                         className="flex-shrink-0 flex items-center gap-1.5 px-5 py-2.5 rounded-full font-bold text-sm text-white transition-all hover:scale-105 active:scale-95"
