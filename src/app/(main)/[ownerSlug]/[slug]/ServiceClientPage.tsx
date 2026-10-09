@@ -166,6 +166,18 @@ export function ServiceClientPage({ ownerSlug, colors, initialService }: Service
                     >
                         <Share2 size={18} />
                     </button>
+                    {isOwner && (
+                        <button
+                            onClick={() => setShowEdit(true)}
+                            aria-label="Editar serviço"
+                            title="Editar serviço"
+                            className="h-10 px-4 rounded-full flex items-center gap-1.5 flex-shrink-0 text-sm font-black text-white transition hover:scale-105 active:scale-95"
+                            style={{ background: GRADIENT }}
+                        >
+                            <Pencil size={15} />
+                            Editar
+                        </button>
+                    )}
                 </div>
             </div>
 
