@@ -13,6 +13,7 @@ import { useNavProgressStore } from '@/store/useNavProgressStore'
 import { supabase } from '@/lib/supabase/client'
 import { HomeSectionHeader } from './HomeSectionKit'
 import { ViewServicesButton } from './ViewServicesButton'
+import ListingRowCard from '@/components/ListingRowCard'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -286,16 +287,7 @@ const formatPrice = (price: number | null) => {
 
 // ========== SKELETON CARD ==========
 function ProductSkeleton({ colors }: { colors: any }) {
-    return (
-        <div className="w-48 flex-shrink-0 rounded-3xl overflow-hidden border animate-pulse" style={{ borderColor: colors.border, background: colors.surface }}>
-            <div className="w-full h-40" style={{ background: `${colors.border}40` }} />
-            <div className="p-3.5 flex flex-col gap-2">
-                <div className="h-3.5 rounded-full w-4/5" style={{ background: `${colors.border}40` }} />
-                <div className="h-3 rounded-full w-1/2" style={{ background: `${colors.border}30` }} />
-                <div className="h-4 rounded-full w-1/3" style={{ background: `${colors.border}40` }} />
-            </div>
-        </div>
-    )
+    return <div className="h-[130px] rounded-3xl animate-pulse" style={{ background: `${colors.border}40` }} />
 }
 
 // ---------- Componente ----------
@@ -337,7 +329,7 @@ export default function ProductShowcase({ dragHandle }: ProductShowcaseProps) {
                     {dragHandle}
                     <div className="h-6 rounded w-48 animate-pulse" style={{ background: `${colors.border}60` }} />
                 </div>
-                <div className="flex gap-3 overflow-hidden">
+                <div className="grid grid-rows-2 grid-flow-col auto-cols-[minmax(280px,86%)] sm:auto-cols-[330px] gap-3 overflow-hidden">
                     {Array.from({ length: 4 }).map((_, i) => (
                         <ProductSkeleton key={`skeleton-${i}`} colors={colors} />
                     ))}
@@ -357,59 +349,26 @@ export default function ProductShowcase({ dragHandle }: ProductShowcaseProps) {
                 action={<ViewServicesButton label="ver lojas" onClick={() => { startNavProgress(); router.push('/lojas') }} />}
             />
 
-            <div className="flex gap-3 overflow-x-auto pb-3 -mx-4 px-4 items-stretch" style={{ scrollbarWidth: 'none' }}>
-                {products.map((product) => {
-                    const cover = product.imageUrl || product.storeLogoUrl
-                    const price = formatPrice(product.price)
-
-                    return (
-                        <div
-                            key={product.id}
-                            onClick={() => { startNavProgress(); router.push(getProductUrl(product)) }}
-                            className="w-48 flex-shrink-0 rounded-3xl overflow-hidden border cursor-pointer group flex flex-col transition-all duration-300 hover:shadow-2xl hover:-translate-y-1"
-                            style={{ background: colors.surface, borderColor: colors.border, boxShadow: colors.shadow }}
-                        >
-                            {/* Foto inteira sobre uma cópia desfocada dela mesma, igual aos outros cards da home */}
-                            <div className="relative w-full h-40 overflow-hidden flex-shrink-0" style={{ background: GRADIENT }}>
-                                {cover ? (
-                                    <>
-                                        <img src={cover} alt="" aria-hidden className="absolute inset-0 w-full h-full object-cover scale-125 blur-xl opacity-70" loading="lazy" />
-                                        <img src={cover} alt={product.name} className="relative w-full h-full object-contain transition-transform duration-500 group-hover:scale-105" loading="lazy" />
-                                    </>
-                                ) : (
-                                    <div className="w-full h-full flex items-center justify-center">
-                                        <Package size={32} color="#fff" opacity={0.8} />
-                                    </div>
-                                )}
-                                {product.viewCount > 0 && (
-                                    <span className="absolute bottom-2.5 left-2.5 flex items-center gap-1 text-[11px] font-bold text-white px-2.5 py-1 rounded-full" style={{ background: 'rgba(0,0,0,0.45)' }}>
-                                        <Eye size={12} />
-                                        {product.viewCount}
-                                    </span>
-                                )}
-                                {product.rating > 0 && (
-                                    <span className="absolute top-2.5 right-2.5 flex items-center gap-1 text-[11px] font-black text-white px-2.5 py-1 rounded-full backdrop-blur-sm" style={{ background: 'rgba(0,0,0,0.45)' }}>
-                                        <Star size={11} className="fill-yellow-400 text-yellow-400" />
-                                        {product.rating.toFixed(1)}
-                                    </span>
-                                )}
-                            </div>
-
-                            <div className="p-3.5 flex flex-col gap-2 flex-1">
-                                <p className="text-sm font-black leading-snug line-clamp-2" style={{ color: colors.textPrimary }}>{product.name}</p>
-                                <div className="flex items-center gap-1.5 min-w-0">
-                                    {product.storeLogoUrl && (
-                                        <img src={product.storeLogoUrl} alt="" className="w-5 h-5 rounded-full object-cover flex-shrink-0" loading="lazy" />
-                                    )}
-                                    <span className="text-xs truncate" style={{ color: colors.textSecondary }}>{product.storeName}</span>
-                                </div>
-                                {price && (
-                                    <p className="mt-auto pt-1 text-base font-black" style={{ color: '#f97316' }}>{price}</p>
-                                )}
-                            </div>
-                        </div>
-                    )
-                })}
+            {/* Duas fileiras de cartões em linha, rolando de lado (foto de um lado, texto do outro) */}
+            <div
+                className="grid grid-rows-2 grid-flow-col auto-cols-[minmax(280px,86%)] sm:auto-cols-[330px] gap-3 overflow-x-auto snap-x snap-mandatory scroll-px-4 pb-3 -mx-4 px-4"
+                style={{ scrollbarWidth: 'none' }}
+            >
+                {products.map((product) => (
+                    <ListingRowCard
+                        key={product.id}
+                        title={product.name}
+                        description={product.description}
+                        imageUrl={product.imageUrl || product.storeLogoUrl}
+                        fallbackIcon={<Package size={30} />}
+                        priceLabel={formatPrice(product.price)}
+                        sellerName={product.storeName}
+                        sellerImageUrl={product.storeLogoUrl}
+                        rating={product.rating}
+                        views={product.viewCount}
+                        onClick={() => { startNavProgress(); router.push(getProductUrl(product)) }}
+                    />
+                ))}
             </div>
         </div>
     )

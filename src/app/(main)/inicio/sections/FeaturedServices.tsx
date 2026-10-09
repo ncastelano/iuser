@@ -6,8 +6,8 @@
 // (que é a busca de trabalho pro prestador, não a vitrine pro cliente).
 'use client'
 
-import { useState, useEffect, useRef, useCallback, useMemo, ReactNode } from 'react'
-import { ChevronLeft, ChevronRight, Wrench, Eye } from 'lucide-react'
+import { useState, useEffect, useMemo, ReactNode } from 'react'
+import { Wrench } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import { useRouter } from 'next/navigation'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
@@ -16,7 +16,7 @@ import { getAvatarUrl } from '@/lib/avatar'
 import { getServiceLabel } from '@/lib/serviceTypes'
 import { HomeSectionHeader } from './HomeSectionKit'
 import { ViewServicesButton } from './ViewServicesButton'
-import PlanAvatarRing from '@/components/PlanAvatarRing'
+import ListingRowCard from '@/components/ListingRowCard'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -24,6 +24,7 @@ interface ServiceCard {
     id: string
     imageUrl: string | null
     title: string
+    description: string | null
     slug: string | null
     serviceType: string | null
     providerName: string
@@ -92,14 +93,14 @@ function useFeaturedServices() {
                 const [{ data: profileRows }, { data: storeRows }] = await Promise.all([
                     supabase
                         .from('products')
-                        .select('id, name, slug, image_url, service_type, owner_id, view_count, price, category, created_at')
+                        .select('id, name, slug, description, image_url, service_type, owner_id, view_count, price, category, created_at')
                         .eq('listing_type', 'service_offer')
                         .eq('is_active', true)
                         .order('created_at', { ascending: false })
                         .limit(30),
                     supabase
                         .from('products')
-                        .select('id, name, slug, image_url, store_id, view_count, price, category, created_at')
+                        .select('id, name, slug, description, image_url, store_id, view_count, price, category, created_at')
                         .eq('type', 'service')
                         .eq('listing_type', 'sale')
                         .eq('is_active', true)
@@ -135,6 +136,7 @@ function useFeaturedServices() {
                             ? supabase.storage.from('product-images').getPublicUrl(row.image_url).data.publicUrl
                             : null,
                         title: row.name,
+                        description: row.description || null,
                         slug: row.slug || null,
                         serviceType: row.service_type,
                         providerName: p?.name || 'Prestador',
@@ -159,6 +161,7 @@ function useFeaturedServices() {
                                 ? supabase.storage.from('product-images').getPublicUrl(row.image_url).data.publicUrl
                                 : null,
                             title: row.name,
+                            description: row.description || null,
                             slug: row.slug || null,
                             serviceType: null,
                             providerName: s.name || 'Loja',
@@ -183,26 +186,6 @@ function useFeaturedServices() {
     return { services, loading }
 }
 
-function useBreakpoint() {
-    const [itemsPerView, setItemsPerView] = useState(4)
-
-    useEffect(() => {
-        const update = () => {
-            const width = window.innerWidth
-            if (width >= 1280) setItemsPerView(6)
-            else if (width >= 1024) setItemsPerView(5)
-            else if (width >= 768) setItemsPerView(4)
-            else if (width >= 500) setItemsPerView(3)
-            else setItemsPerView(2)
-        }
-        update()
-        window.addEventListener('resize', update)
-        return () => window.removeEventListener('resize', update)
-    }, [])
-
-    return itemsPerView
-}
-
 interface FeaturedServicesProps {
     dragHandle?: ReactNode
     title?: string
@@ -224,54 +207,12 @@ export default function FeaturedServices({ dragHandle, title = 'Serviços em des
     const router = useRouter()
     const startNavProgress = useNavProgressStore((s) => s.start)
     const { colors } = useTheme()
-    const autoPlayRef = useRef<NodeJS.Timeout | null>(null)
 
     const { services, loading } = useFeaturedServices()
-    const itemsPerView = useBreakpoint()
 
     const displayServices = useMemo(() => (
         maxItems && services.length > maxItems ? services.slice(0, maxItems) : services
     ), [services, maxItems])
-
-    const [currentIndex, setCurrentIndex] = useState(0)
-    const [isHovered, setIsHovered] = useState(false)
-
-    const totalPages = Math.max(1, Math.ceil(displayServices.length / itemsPerView))
-
-    useEffect(() => {
-        if (isHovered || totalPages <= 1 || displayServices.length === 0) {
-            if (autoPlayRef.current) { clearInterval(autoPlayRef.current); autoPlayRef.current = null }
-            return
-        }
-        autoPlayRef.current = setInterval(() => {
-            setCurrentIndex(prev => (prev + 1) % totalPages)
-        }, 5000)
-        return () => {
-            if (autoPlayRef.current) { clearInterval(autoPlayRef.current); autoPlayRef.current = null }
-        }
-    }, [isHovered, totalPages, displayServices.length])
-
-    useEffect(() => { setCurrentIndex(0) }, [itemsPerView])
-
-    const goToNext = useCallback(() => setCurrentIndex(prev => (prev + 1) % totalPages), [totalPages])
-    const goToPrev = useCallback(() => setCurrentIndex(prev => (prev - 1 + totalPages) % totalPages), [totalPages])
-    const goToPage = useCallback((page: number) => setCurrentIndex(page), [])
-
-    const currentItems = useMemo(() => {
-        if (displayServices.length === 0) return []
-        const start = currentIndex * itemsPerView
-        const items: ServiceCard[] = []
-        for (let i = 0; i < itemsPerView; i++) {
-            items.push(displayServices[(start + i) % displayServices.length])
-        }
-        return items
-    }, [displayServices, currentIndex, itemsPerView])
-
-    const gridCols = itemsPerView >= 6 ? 'grid-cols-6'
-        : itemsPerView >= 5 ? 'grid-cols-5'
-            : itemsPerView >= 4 ? 'grid-cols-4'
-                : itemsPerView >= 3 ? 'grid-cols-3'
-                    : 'grid-cols-2'
 
     const handleServiceClick = (service: ServiceCard) => {
         startNavProgress()
@@ -290,9 +231,9 @@ export default function FeaturedServices({ dragHandle, title = 'Serviços em des
                         <div className="h-6 rounded w-40 animate-pulse" style={{ background: `${colors.border}60` }} />
                     </div>
                 </div>
-                <div className={`grid ${gridCols} gap-4`}>
-                    {Array.from({ length: Math.min(itemsPerView, 6) }).map((_, i) => (
-                        <div key={i} className="h-72 rounded-3xl animate-pulse" style={{ background: `${colors.border}40` }} />
+                <div className="grid grid-rows-2 grid-flow-col auto-cols-[minmax(280px,86%)] sm:auto-cols-[330px] gap-3 overflow-hidden">
+                    {Array.from({ length: 4 }).map((_, i) => (
+                        <div key={i} className="h-[130px] rounded-3xl animate-pulse" style={{ background: `${colors.border}40` }} />
                     ))}
                 </div>
             </div>
@@ -303,11 +244,7 @@ export default function FeaturedServices({ dragHandle, title = 'Serviços em des
     if (!services.length) return actions ? <div>{actions(0)}</div> : leftAction ? <div className="flex">{leftAction}</div> : null
 
     return (
-        <div
-            className={`relative w-full ${className}`}
-            onMouseEnter={() => setIsHovered(true)}
-            onMouseLeave={() => setIsHovered(false)}
-        >
+        <div className={`relative w-full ${className}`}>
             <HomeSectionHeader
                 icon={hideIcon ? undefined : Wrench}
                 title={title}
@@ -318,131 +255,31 @@ export default function FeaturedServices({ dragHandle, title = 'Serviços em des
 
             {actions && <div className="-mt-1 mb-4">{actions(services.length)}</div>}
 
-            <div className="relative">
-                <div className={`grid ${gridCols} gap-4 transition-all duration-500`}>
-                    {currentItems.map((service, idx) => {
-                        const label = service.serviceType ? getServiceLabel(service.serviceType) : service.category
-                        return (
-                            <div
-                                key={`${service.id}-${idx}`}
-                                onClick={() => handleServiceClick(service)}
-                                className="group rounded-3xl overflow-hidden flex flex-col cursor-pointer transition-all duration-300 hover:shadow-2xl hover:-translate-y-1"
-                                style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
-                            >
-                                {/* Capa: a foto do serviço inteira sobre uma cópia desfocada dela; sem foto, o ícone */}
-                                <div className="relative h-36 w-full overflow-hidden flex-shrink-0" style={{ background: service.imageUrl ? '#0b1220' : GRADIENT }}>
-                                    {service.imageUrl ? (
-                                        <>
-                                            <img src={service.imageUrl} alt="" aria-hidden className="absolute inset-0 w-full h-full object-cover scale-125 blur-xl opacity-60" loading="lazy" />
-                                            <img src={service.imageUrl} alt={service.title} className="relative w-full h-full object-contain transition-transform duration-500 group-hover:scale-105" loading="lazy" />
-                                        </>
-                                    ) : (
-                                        <div className="w-full h-full flex items-center justify-center">
-                                            <Wrench size={40} color="rgba(255,255,255,0.85)" />
-                                        </div>
-                                    )}
-                                    {service.viewCount > 0 && (
-                                        <span className="absolute right-2.5 top-2.5 flex items-center gap-1 text-[10px] font-bold text-white px-2 py-1 rounded-full" style={{ background: 'rgba(0,0,0,0.5)' }}>
-                                            <Eye size={11} />
-                                            {service.viewCount}
-                                        </span>
-                                    )}
-                                </div>
-
-                                <div className="p-3.5 flex flex-col gap-2 flex-1">
-                                    <p className="text-sm font-black leading-snug line-clamp-2" style={{ color: colors.textPrimary }}>{service.title}</p>
-
-                                    {label && (
-                                        <span className="self-start max-w-full truncate text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: `${colors.accent}15`, color: colors.accent }}>
-                                            {label}
-                                        </span>
-                                    )}
-
-                                    {/* Só mostra o valor quando o serviço tem um */}
-                                    {service.price ? (
-                                        <p className="font-black leading-tight" style={{ color: '#f97316' }}>
-                                            <span className="text-lg">{formatServicePrice(service.price)}</span>
-                                            {service.unit && <span className="text-[11px] font-bold" style={{ color: colors.textSecondary }}> por {service.unit}</span>}
-                                        </p>
-                                    ) : null}
-
-                                    <div className="flex items-center gap-2 min-w-0 mt-auto pt-1">
-                                        <PlanAvatarRing userId={service.providerId}>
-                                            <div className="w-6 h-6 rounded-full overflow-hidden flex-shrink-0">
-                                                {service.providerImageUrl ? (
-                                                    <img src={service.providerImageUrl} alt="" className="w-full h-full object-cover" />
-                                                ) : (
-                                                    <div className="w-full h-full flex items-center justify-center text-white font-bold text-[10px]" style={{ background: GRADIENT }}>
-                                                        {service.providerName.charAt(0).toUpperCase()}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </PlanAvatarRing>
-                                        <span className="text-xs font-bold truncate flex-1" style={{ color: colors.textPrimary }}>{service.providerName}</span>
-                                    </div>
-
-                                    <span
-                                        className="w-full flex items-center justify-center gap-2 py-3 rounded-full font-black text-sm text-white transition-transform group-hover:scale-[1.02]"
-                                        style={{ background: GRADIENT, boxShadow: '0 4px 12px #f9731640' }}
-                                    >
-                                        <Wrench size={15} />
-                                        Ver serviço
-                                    </span>
-                                </div>
-                            </div>
-                        )
-                    })}
-                </div>
-
-                {(leftAction || totalPages > 1) && (
-                    <div className={`flex items-center gap-3 mt-4 ${leftAction ? 'justify-between' : 'justify-center'}`}>
-                        {leftAction}
-                {totalPages > 1 && (
-                        <div className={`flex items-center justify-center gap-3 ${leftAction ? 'ml-auto' : ''}`}>
-                            <button
-                                onClick={goToPrev}
-                                className="w-9 h-9 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95 shadow-md"
-                                style={{ background: GRADIENT, color: '#ffffff' }}
-                                aria-label="Anterior"
-                            >
-                                <ChevronLeft size={18} />
-                            </button>
-    
-                            <div className={`items-center gap-1.5 ${leftAction ? 'hidden sm:flex' : 'flex'}`}>
-                                {Array.from({ length: totalPages }).map((_, idx) => (
-                                    <button
-                                        key={idx}
-                                        onClick={() => goToPage(idx)}
-                                        className="rounded-full transition-all duration-300"
-                                        style={{
-                                            width: idx === currentIndex ? '1.2rem' : '0.5rem',
-                                            height: '0.5rem',
-                                            background: idx === currentIndex ? '#f97316' : colors.border,
-                                            boxShadow: idx === currentIndex ? `0 0 8px #f9731650` : 'none',
-                                        }}
-                                        aria-label={`Ir para página ${idx + 1}`}
-                                    />
-                                ))}
-                            </div>
-    
-                            <span className="text-xs font-medium px-2" style={{ color: colors.textPrimary }}>
-                                {currentIndex + 1}/{totalPages}
-                            </span>
-    
-                            <button
-                                onClick={goToNext}
-                                className="w-9 h-9 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95 shadow-md"
-                                style={{ background: GRADIENT, color: '#ffffff' }}
-                                aria-label="Próximo"
-                            >
-                                <ChevronRight size={18} />
-                            </button>
-                        </div>
-                    )}
-                        </div>
-                )}
+            {/* Duas fileiras de cartões em linha, rolando de lado: parece uma lista de coisas, não uma parede de cartões */}
+            <div
+                className="grid grid-rows-2 grid-flow-col auto-cols-[minmax(280px,86%)] sm:auto-cols-[330px] gap-3 overflow-x-auto snap-x snap-mandatory scroll-px-4 pb-3 -mx-4 px-4"
+                style={{ scrollbarWidth: 'none' }}
+            >
+                {displayServices.map((service) => (
+                    <ListingRowCard
+                        key={service.id}
+                        title={service.title}
+                        description={service.description}
+                        imageUrl={service.imageUrl}
+                        fallbackIcon={<Wrench size={30} />}
+                        priceLabel={service.price ? formatServicePrice(service.price) : null}
+                        priceNote={service.price && service.unit ? `por ${service.unit}` : null}
+                        sellerName={service.providerName}
+                        sellerImageUrl={service.providerImageUrl}
+                        sellerId={service.providerId}
+                        views={service.viewCount}
+                        tag={service.serviceType ? getServiceLabel(service.serviceType) : service.category}
+                        onClick={() => handleServiceClick(service)}
+                    />
+                ))}
             </div>
 
+            {leftAction && <div className="flex mt-1">{leftAction}</div>}
         </div>
     )
 }
