@@ -33,6 +33,7 @@ import { isProfileOpenNow } from '@/lib/profileHours'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
 import ProductShowcase from './inicio/sections/ProductShowcase'
 import FeaturedPublications from './inicio/sections/FeaturePublications'
+import AddMenuFab from '@/components/AddMenuFab'
 import CommunitiesPreview from './inicio/sections/CommunitiesPreview'
 import FeaturedProfiles from './inicio/sections/FeaturedProfiles'
 import LocationPicker from '@/components/LocationPicker'
@@ -824,7 +825,7 @@ function HomePageContent() {
 
                 {/* ===== BOTÃO FLUTUANTE - VOLTAR ===== */}
                 <div style={{ position: 'fixed', bottom: 32, right: 24, zIndex: 40 }}>
-                    <div className="flex flex-col-reverse sm:flex-row items-end gap-3">
+                    <div className="flex flex-col-reverse sm:flex-row-reverse items-end gap-3">
                         {showFab && (
                             <button
                                 onClick={showHomeSections}
@@ -843,6 +844,8 @@ function HomePageContent() {
                                 <Home size={24} />
                             </button>
                         )}
+                        {/* No painel do perfil: "Adicionar" (publicação ou serviço) leva até o componente com um bot e abre o formulário */}
+                        {showProfile && <AddMenuFab />}
                     </div>
                 </div>
 

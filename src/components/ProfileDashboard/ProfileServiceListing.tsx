@@ -8,6 +8,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { usePersistedExpanded } from '@/hooks/usePersistedExpanded'
+import { ADD_OPEN_EVENT } from '@/lib/addBot'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
@@ -91,6 +92,17 @@ export default function ProfileServiceListing({ profileId, profileSlug, linkToPr
     const [isExpanded, setIsExpanded] = usePersistedExpanded('profileServiceListing', true)
     const [isCreating, setIsCreating] = useState(false)
     const [listings, setListings] = useState<ServiceListing[]>([])
+
+    // "Adicionar → Serviço": o bot chega e o componente abre com o formulário
+    useEffect(() => {
+        const onAdd = (e: Event) => {
+            const d = (e as CustomEvent<string>).detail
+            if (d === 'service:expand') setIsExpanded(true)
+            if (d === 'service') { setIsExpanded(true); setIsCreating(true) }
+        }
+        window.addEventListener(ADD_OPEN_EVENT, onAdd)
+        return () => window.removeEventListener(ADD_OPEN_EVENT, onAdd)
+    }, [setIsExpanded])
     // Editar abre o diálogo aqui mesmo, igual aos serviços das lojas
     const [editingServiceId, setEditingServiceId] = useState<string | null>(null)
     const [loading, setLoading] = useState(false)
@@ -284,6 +296,7 @@ export default function ProfileServiceListing({ profileId, profileSlug, linkToPr
     return (
         <div className="mb-6 mt-4">
             <div
+                data-add-target="service"
                 className={`rounded-2xl relative flex flex-col ${isExpanded ? 'p-6 pt-7 gap-5' : 'p-4'}`}
                 style={{
                     background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,

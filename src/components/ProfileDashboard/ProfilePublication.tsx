@@ -3,6 +3,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { usePersistedExpanded } from '@/hooks/usePersistedExpanded'
+import { ADD_OPEN_EVENT } from '@/lib/addBot'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
@@ -75,6 +76,17 @@ export default function ProfilePublication({ profileId, profileSlug, isOwner = t
     const [isExpanded, setIsExpanded] = usePersistedExpanded('profilePublication', true)
     const [isCreating, setIsCreating] = useState(false)
     const [publications, setPublications] = useState<Publication[]>([])
+
+    // "Adicionar → Publicação": o bot chega e o componente abre com o formulário (primeiro só expande, depois mostra o formulário)
+    useEffect(() => {
+        const onAdd = (e: Event) => {
+            const d = (e as CustomEvent<string>).detail
+            if (d === 'publication:expand') setIsExpanded(true)
+            if (d === 'publication') { setIsExpanded(true); setIsCreating(true) }
+        }
+        window.addEventListener(ADD_OPEN_EVENT, onAdd)
+        return () => window.removeEventListener(ADD_OPEN_EVENT, onAdd)
+    }, [setIsExpanded])
     const [loading, setLoading] = useState(false)
 
     const [name, setName] = useState('')
@@ -531,6 +543,7 @@ export default function ProfilePublication({ profileId, profileSlug, isOwner = t
     return (
         <div className="mb-6 mt-4">
             <div
+                data-add-target="publication"
                 className={`rounded-2xl relative flex flex-col ${isExpanded ? 'p-6 pt-7 gap-5' : 'p-4'}`}
                 style={{
                     background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
@@ -718,13 +731,6 @@ export default function ProfilePublication({ profileId, profileSlug, isOwner = t
                                         }}
                                     />
                                 </div>
-
-                                {profileWhatsapp && (
-                                    <div className="flex items-center gap-2 text-xs text-green-700 bg-green-50/50 px-3 py-2 rounded-full">
-                                        <MessageCircle size={14} />
-                                        <span>Contato para interessados: <strong>{profileWhatsapp}</strong></span>
-                                    </div>
-                                )}
 
                                 <div className="flex gap-2 pt-2">
                                     <button

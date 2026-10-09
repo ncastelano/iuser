@@ -1,14 +1,13 @@
-// "Ver meu Perfil", "Compartilhar Link" e "Convidar para o iUser" — ficam logo abaixo do plano, em cima de "Conta".
+// "Ver meu Perfil" e "Convidar para o iUser" — ficam no topo do painel, em cima de "Informações do Perfil" (junto de "Conta").
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { Copy, User } from 'lucide-react'
-import { handleShareLink } from '@/lib/share'
+import { User } from 'lucide-react'
 import InviteButton from '@/components/InviteButton'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
-export default function ProfileLinkButtons({ profileSlug, name }: { profileSlug: string; name?: string | null }) {
+export default function ProfileLinkButtons({ profileSlug }: { profileSlug: string }) {
     const router = useRouter()
     const base = {
         padding: '0.75rem 1.25rem',
@@ -32,18 +31,6 @@ export default function ProfileLinkButtons({ profileSlug, name }: { profileSlug:
             <button onClick={() => router.push(`/${profileSlug}`)} style={base} className="hover:scale-105 transition-transform">
                 <User size={18} />
                 Ver meu Perfil
-            </button>
-            <button
-                onClick={() => handleShareLink({
-                    title: name ? `${name} | iUser` : 'iUser',
-                    text: `Confira o perfil de ${name || `@${profileSlug}`} no iUser!`,
-                    url: `${window.location.origin}/${profileSlug}`,
-                })}
-                style={base}
-                className="hover:scale-105 transition-transform"
-            >
-                <Copy size={18} />
-                Compartilhar Link
             </button>
             <InviteButton className="!w-auto flex-1 min-w-[160px]" />
         </div>

@@ -1380,6 +1380,51 @@ export default function ProfileDashboard({
 
     return (
         <div className="w-full px-4 md:px-6 pb-28">
+            {/* ===== ATALHOS DO PERFIL + CONTA — bem em cima, antes de Informações do Perfil ===== */}
+            <div className="mt-3 mb-6 flex flex-col gap-4">
+                <ProfileLinkButtons profileSlug={profile.profileSlug || profileSlug || ''} />
+                <DashboardSection storageKey="config-conta" title="Conta" subtitle="Sair ou excluir sua conta">
+                        <button
+                            onClick={handleCfgLogout}
+                            style={{
+                                ...pillButtonFullStyle,
+                                background: GRADIENT,
+                                color: '#ffffff',
+                                boxShadow: `0 4px 14px #f9731660`,
+                                width: '100%',
+                            }}
+                            className="hover:scale-105 transition-transform active:scale-95"
+                        >
+                            <LogOut className="w-5 h-5" />
+                            Sair da Conta
+                        </button>
+
+                        <button
+                            onClick={() => setShowDeleteAccount(true)}
+                            style={{
+                                ...pillButtonFullStyle,
+                                background: 'transparent',
+                                color: '#ef4444',
+                                border: '1px solid #ef444460',
+                                width: '100%',
+                            }}
+                            className="hover:scale-105 transition-transform active:scale-95"
+                        >
+                            Excluir conta
+                        </button>
+
+                        {showDeleteAccount && (
+                            <DeleteConfirmDialog
+                                title="Excluir conta"
+                                description="Isso apaga sua conta, suas lojas, pedidos e tudo o que está ligado a você, e cancela suas assinaturas. Não dá pra desfazer."
+                                confirmLabel="Excluir conta"
+                                onConfirm={handleDeleteAccount}
+                                onClose={() => setShowDeleteAccount(false)}
+                            />
+                        )}
+                </DashboardSection>
+            </div>
+
             {/* ===== Informações do Perfil — mesmo design de "Informações da Loja" ===== */}
             <div className="mb-6">
                 <ProfileInfo
@@ -1892,50 +1937,10 @@ export default function ProfileDashboard({
                             )}
                         </button>
 
-                {/* Meu plano e os atalhos do perfil: sempre logo acima de "Conta" */}
+                {/* Meu plano */}
                 <PlanPromotions profileId={profile.id} />
-                <ProfileLinkButtons profileSlug={profile.profileSlug || profileSlug || ''} name={profile.name} />
 
-                <DashboardSection storageKey="config-conta" title="Conta" subtitle="Sair ou excluir sua conta">
-                        <button
-                            onClick={handleCfgLogout}
-                            style={{
-                                ...pillButtonFullStyle,
-                                background: GRADIENT,
-                                color: '#ffffff',
-                                boxShadow: `0 4px 14px #f9731660`,
-                                width: '100%',
-                            }}
-                            className="hover:scale-105 transition-transform active:scale-95"
-                        >
-                            <LogOut className="w-5 h-5" />
-                            Sair da Conta
-                        </button>
 
-                        <button
-                            onClick={() => setShowDeleteAccount(true)}
-                            style={{
-                                ...pillButtonFullStyle,
-                                background: 'transparent',
-                                color: '#ef4444',
-                                border: '1px solid #ef444460',
-                                width: '100%',
-                            }}
-                            className="hover:scale-105 transition-transform active:scale-95"
-                        >
-                            Excluir conta
-                        </button>
-
-                        {showDeleteAccount && (
-                            <DeleteConfirmDialog
-                                title="Excluir conta"
-                                description="Isso apaga sua conta, suas lojas, pedidos e tudo o que está ligado a você, e cancela suas assinaturas. Não dá pra desfazer."
-                                confirmLabel="Excluir conta"
-                                onConfirm={handleDeleteAccount}
-                                onClose={() => setShowDeleteAccount(false)}
-                            />
-                        )}
-                </DashboardSection>
             </div>
         </div>
     )
