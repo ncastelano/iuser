@@ -601,8 +601,10 @@ export default function StoreDashboard({
                         lng: store.store_lng ?? null,
                         whatsapp: store.whatsapp ?? null,
                         showWhatsapp: store.show_whatsapp ?? true,
+                        chatEnabled: store.chat_enabled === true,
                     }}
                     onShowWhatsappChange={(show) => setStore((prev: any) => ({ ...prev, show_whatsapp: show }))}
+                    onChatEnabledChange={(enabled) => setStore((prev: any) => ({ ...prev, chat_enabled: enabled }))}
                     onLocationSaved={(loc) => setStore((prev: any) => ({
                         ...prev,
                         address: loc.address,

@@ -9,6 +9,7 @@ import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { useProfile } from '@/app/contexts/ProfileContext'
+import ChatContactButton from '@/components/ChatContactButton'
 import { hexToRgb } from '@/lib/color'
 import { pickImageFile, isNativePlatform } from '@/lib/nativeCamera'
 import { formatBrazilianPhone, cleanPhoneNumber } from '@/lib/phone'
@@ -80,6 +81,7 @@ interface OwnerData {
     show_location?: boolean
     location?: any
     allow_scheduling?: boolean
+    chat_enabled?: boolean
 }
 
 type RatingRow = {
@@ -360,6 +362,7 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                 show_location: profile.show_location || false,
                 location: profile.location,
                 allow_scheduling: profile.allow_scheduling === true,
+                chat_enabled: profile.chat_enabled === true,
             }
 
             setOwner(ownerData)
@@ -1594,6 +1597,10 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                             profileSlug={owner.slug}
                             onClose={() => setShowScheduleModal(false)}
                         />
+                    )}
+
+                    {owner.chat_enabled && owner.id !== currentUserId && (
+                        <ChatContactButton profileId={owner.id} colors={colors} background={glassBg} />
                     )}
 
                     {whatsappLink && (

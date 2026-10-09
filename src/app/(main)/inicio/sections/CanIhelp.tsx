@@ -76,6 +76,9 @@ interface FeaturedAction {
     onClick: () => void
 }
 
+// As comunidades têm a própria seção na home (abaixo das publicações): saem do grid de categorias
+const GRID_CATEGORIAS = categorias.filter((c) => c.slug !== 'comunidades')
+
 export default function CanIhelp({ dragHandle }: CanIhelpProps) {
     const { colors } = useTheme()
     const router = useRouter()
@@ -104,11 +107,11 @@ export default function CanIhelp({ dragHandle }: CanIhelpProps) {
 
     // Ordem inicial = ordem padrão (evita divergência de hidratação); depois
     // do mount, reordena da categoria mais clicada pra menos clicada.
-    const [orderedCategorias, setOrderedCategorias] = useState<Categoria[]>(categorias)
+    const [orderedCategorias, setOrderedCategorias] = useState<Categoria[]>(GRID_CATEGORIAS)
 
     useEffect(() => {
         const counts = getClickCounts()
-        const sorted = [...categorias].sort(
+        const sorted = [...GRID_CATEGORIAS].sort(
             (a, b) => (counts[b.slug] || 0) - (counts[a.slug] || 0)
         )
         setOrderedCategorias(sorted)

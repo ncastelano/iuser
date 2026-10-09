@@ -41,11 +41,13 @@ export interface StoreLocationInfo {
     lng: number | null
     whatsapp: string | null
     showWhatsapp?: boolean
+    chatEnabled?: boolean
 }
 
 interface StoreDescriptionProps {
     location?: StoreLocationInfo
     onShowWhatsappChange?: (show: boolean) => void
+    onChatEnabledChange?: (enabled: boolean) => void
     onLocationSaved?: (loc: { address: string; addressNumber: string; addressComplement: string; lat: number; lng: number }) => void
     name: string
     storeSlug: string
@@ -70,6 +72,7 @@ export function StoreDescription({
     location,
     onLocationSaved,
     onShowWhatsappChange,
+    onChatEnabledChange,
     name,
     storeSlug,
     description,
@@ -108,6 +111,21 @@ export function StoreDescription({
         }
         onShowWhatsappChange?.(next)
         toast.success(next ? 'WhatsApp visível na página da loja' : 'WhatsApp escondido da página da loja')
+    }
+
+    const [savingChat, setSavingChat] = useState(false)
+    const toggleChat = async () => {
+        if (!location) return
+        const next = !location.chatEnabled
+        setSavingChat(true)
+        const { error } = await supabase.from('stores').update({ chat_enabled: next }).eq('id', location.storeId)
+        setSavingChat(false)
+        if (error) {
+            toast.error('Erro ao salvar: ' + error.message)
+            return
+        }
+        onChatEnabledChange?.(next)
+        toast.success(next ? 'Chat ligado: aparece o botão Conversar na página da loja' : 'Chat desligado')
     }
 
     // Grava a localização escolhida na própria loja (endereço, número,
@@ -480,6 +498,24 @@ export function StoreDescription({
                                                 : 'Sem localização no mapa: defina pra clientes e motoristas encontrarem a loja.'}
                                         </p>
                                     </div>
+                                </div>
+                                <div className="flex items-center justify-between gap-3 p-3 rounded-2xl" style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`, border: `1px solid ${colors.border}` }}>
+                                    <div className="min-w-0">
+                                        <p className="text-xs font-bold" style={{ color: colors.textPrimary }}>Receber conversas pelo iUser</p>
+                                        <p className="text-[11px]" style={{ color: colors.textSecondary }}>
+                                            {location.chatEnabled
+                                                ? 'Os clientes veem o botão Conversar na página da loja. As conversas ficam em Conversas, na aba da loja.'
+                                                : 'Ligue para os clientes poderem te chamar por mensagem.'}
+                                        </p>
+                                    </div>
+                                    <button
+                                        onClick={toggleChat}
+                                        disabled={savingChat}
+                                        aria-label="Receber conversas pelo iUser"
+                                        className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 disabled:opacity-60 ${location.chatEnabled ? 'bg-orange-500' : 'bg-gray-400'}`}
+                                    >
+                                        <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm transition-all ${location.chatEnabled ? 'right-1' : 'left-1'}`} />
+                                    </button>
                                 </div>
                                 {location.whatsapp && (
                                     <div className="flex items-center justify-between gap-3 p-3 rounded-2xl" style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`, border: `1px solid ${colors.border}` }}>

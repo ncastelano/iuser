@@ -1724,6 +1724,32 @@ export default function ProfileDashboard({
                         )}
                 </DashboardSection>
 
+                <DashboardSection storageKey="config-chat" title="Conversas" subtitle={`Receba mensagens pelo iUser · ${profile?.chat_enabled ? 'Ligado' : 'Desligado'}`}>
+                    <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                            <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>Receber conversas pelo iUser</p>
+                            <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>
+                                {profile?.chat_enabled
+                                    ? 'Seu perfil mostra o botão Conversar. As conversas ficam em Conversas, no ícone ao lado do carrinho.'
+                                    : 'Ligue para as pessoas poderem te chamar por mensagem pelo seu perfil.'}
+                            </p>
+                        </div>
+                        <button
+                            onClick={async () => {
+                                const next = !profile?.chat_enabled
+                                const { error } = await supabase.from('profiles').update({ chat_enabled: next }).eq('id', profile.id)
+                                if (error) { toast.error('Erro ao salvar: ' + error.message); return }
+                                setProfile((prev: any) => ({ ...prev, chat_enabled: next }))
+                                toast.success(next ? 'Chat ligado: seu perfil agora mostra o botão Conversar' : 'Chat desligado')
+                            }}
+                            aria-label="Receber conversas pelo iUser"
+                            className={`relative w-12 h-6 rounded-full transition-all flex-shrink-0 ${profile?.chat_enabled ? 'bg-orange-500' : 'bg-gray-600'}`}
+                        >
+                            <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-all ${profile?.chat_enabled ? 'right-0.5' : 'left-0.5'}`} />
+                        </button>
+                    </div>
+                </DashboardSection>
+
                 <DashboardSection storageKey="config-whatsapp" title="WhatsApp" subtitle={`Receba notificações em tempo real · ${cfgUseWhatsapp ? 'Ativo' : 'Inativo'}`}>
                     <div className="flex items-center justify-between gap-3">
                         <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>Receber notificações no WhatsApp</p>

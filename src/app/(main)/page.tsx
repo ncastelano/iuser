@@ -33,6 +33,7 @@ import { isProfileOpenNow } from '@/lib/profileHours'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
 import ProductShowcase from './inicio/sections/ProductShowcase'
 import FeaturedPublications from './inicio/sections/FeaturePublications'
+import CommunitiesPreview from './inicio/sections/CommunitiesPreview'
 import FeaturedProfiles from './inicio/sections/FeaturedProfiles'
 import LocationPicker from '@/components/LocationPicker'
 import StoreList from './inicio/sections/StoreList'
@@ -53,6 +54,7 @@ const DEFAULT_SECTIONS = [
     'canalMotorista',
     'productShowcase',
     'publicationShowcase',
+    'communities',
     'profileShowcase',
     'motorista',
     'careerPlans',
@@ -172,6 +174,11 @@ function HomePageContent() {
                     let filtered = unique
                         .filter(s => s !== 'categorias' && s !== 'servicoShowcase')
                         .flatMap(s => s === 'servico' ? ['meusPedidos', 'servicosOferecidos', 'servicosProcurados'] : [s])
+                    // Seção nova que ainda não estava na ordem salva: entra logo abaixo das publicações (não lá no fim)
+                    if (!filtered.includes('communities')) {
+                        const at = filtered.indexOf('publicationShowcase')
+                        filtered = at >= 0 ? [...filtered.slice(0, at + 1), 'communities', ...filtered.slice(at + 1)] : filtered
+                    }
                     const missing = DEFAULT_SECTIONS.filter(s => !filtered.includes(s))
                     const final = hasCategorias ? ['categorias', ...filtered, ...missing] : [...filtered, ...missing]
                     setSections(final)
@@ -499,6 +506,8 @@ function HomePageContent() {
                 return <ProductShowcase />
             case 'publicationShowcase':
                 return <FeaturedPublications maxItems={6} />
+            case 'communities':
+                return <CommunitiesPreview origin={savedLocation ? { lat: savedLocation.lat, lng: savedLocation.lng } : null} />
             case 'profileShowcase':
                 return <FeaturedProfiles />
             case 'motorista':

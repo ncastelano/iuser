@@ -9,6 +9,7 @@ import { useTheme } from '@/app/contexts/theme'
 import { Spinner } from '@/components/Spinner'
 import CreatePublicationDialog from '@/components/CreatePublicationDialog'
 import { useProfile } from '@/app/contexts/ProfileContext'
+import ChatContactButton from '@/components/ChatContactButton'
 import { hexToRgb } from '@/lib/color'
 import {
     AlertTriangle,
@@ -76,6 +77,7 @@ interface OwnerData {
     ratings_avg?: number
     ratings_count?: number
     allow_scheduling?: boolean
+    chat_enabled?: boolean
     location?: any
 }
 
@@ -491,6 +493,7 @@ export function Store({
                 ratings_avg: avg,
                 ratings_count: count,
                 allow_scheduling: store.allow_scheduling || false,
+                chat_enabled: store.chat_enabled === true,
                 location: store.location,
             }
 
@@ -1037,6 +1040,10 @@ export function Store({
                             </p>
                         </div>
                     </button>
+                )}
+
+                {owner.chat_enabled && !isOwner && (
+                    <ChatContactButton storeId={owner.id} colors={colors} background={glassBg} />
                 )}
 
                 {whatsappLink && (
