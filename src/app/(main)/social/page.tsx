@@ -301,6 +301,14 @@ export default function SocialList() {
         return `${Math.floor(diffDays / 365)} anos atrás`
     }
 
+    // Data de criação da conta (não é o último acesso): deixa claro que é quando a pessoa ENTROU
+    const joinedLabel = (dateString?: string | null) => {
+        const t = formatDate(dateString)
+        if (t === 'Hoje') return 'Entrou hoje'
+        if (t === 'Ontem') return 'Entrou ontem'
+        return `Entrou ${t.replace(' atrás', '').replace(/^(\d)/, 'há $1')}`
+    }
+
     return (
         <div className="relative min-h-dvh" style={{ background: colors.background }}>
             <div className="fixed inset-0 z-0">
@@ -647,7 +655,7 @@ export default function SocialList() {
                                                                 <div className="flex items-center gap-1">
                                                                     <Clock size={14} style={{ color: colors.textSecondary }} />
                                                                     <span className="text-xs" style={{ color: colors.textSecondary }}>
-                                                                        {formatDate(profile.created_at)}
+                                                                        {joinedLabel(profile.created_at)}
                                                                     </span>
                                                                 </div>
                                                             )}
