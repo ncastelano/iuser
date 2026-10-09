@@ -23,7 +23,7 @@ import { getProfilesHiddenFromMap } from '@/lib/mapPrivacy'
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
 
-type Mode = 'lojas' | 'servicos' | 'produtos'
+type Mode = 'lojas' | 'servicos' | 'produtos' | 'pessoas'
 
 // Coordenadas de um item de loja/produto/serviço: primeiro tenta o campo
 // geográfico `location`, depois `lat`/`lng` soltos (é o que fica preenchido
@@ -34,7 +34,7 @@ type Mode = 'lojas' | 'servicos' | 'produtos'
 // loja dona do item. (Number.isFinite, não isFinite: isFinite(null) é true e gerava
 // [null, null], que quebrava o mapa com "Cannot read properties of null (toFixed)".)
 function resolveItemCoords(item: any, mode: Mode, stores: any[]): [number, number] | null {
-    if (mode === 'lojas') return parseCoords(item.location)
+    if (mode === 'lojas' || mode === 'pessoas') return parseCoords(item.location)
     const ownCoords = parseCoords(item.location)
         || (Number.isFinite(item.lat) && Number.isFinite(item.lng) ? [item.lng, item.lat] as [number, number] : null)
     if (ownCoords) return ownCoords
@@ -135,6 +135,8 @@ export default function MapPage() {
     const clusterMarkersRef = useRef<mapboxgl.Marker[]>([])
 
     const [mode, setMode] = useState<Mode>('lojas')
+    // Pessoas que escolheram aparecer no mapa (filtro "Pessoas"), já no mesmo formato dos itens de loja
+    const [people, setPeople] = useState<any[]>([])
     const [metrics, setMetrics] = useState<RadarMetrics | null>(null)
     const [rankKey, setRankKey] = useState<RankKey>('views_desc')
     const [showRankMenu, setShowRankMenu] = useState(false)
@@ -425,6 +427,18 @@ export default function MapPage() {
             setStores(mappedStores)
             setProducts(mappedProducts)
 
+            const { data: peopleData } = await supabase.rpc('get_people_on_map', { p_limit: 200 })
+            setPeople((peopleData || []).map((p: any) => ({
+                id: p.id,
+                name: p.name || `@${p.profile_slug}`,
+                profileSlug: p.profile_slug,
+                logo_url: p.avatar_url ? (p.avatar_url.startsWith('http') ? p.avatar_url : supabase.storage.from('avatars').getPublicUrl(p.avatar_url).data.publicUrl) : null,
+                location: { type: 'Point', coordinates: [p.lng, p.lat] },
+                is_live: p.is_live,
+                points: p.points,
+                isPerson: true,
+            })))
+
             const { data: metricsData } = await supabase.rpc('get_radar_metrics')
             if (metricsData) setMetrics(metricsData as RadarMetrics)
             console.log('[MapPage] 📦 Dados carregados:', { stores: mappedStores.length, products: mappedProducts.length })
@@ -446,6 +460,8 @@ export default function MapPage() {
             items = products.filter(p => p.type === 'service')
         } else if (mode === 'produtos') {
             items = products.filter(p => p.type === 'physical')
+        } else if (mode === 'pessoas') {
+            items = people
         }
 
         const q = search.toLowerCase()
@@ -454,7 +470,7 @@ export default function MapPage() {
         const result = sortByRank(matched, rankKey, mode === 'lojas', metrics)
         setFiltered(result)
         console.log('[MapPage] 🎯 Filtrados:', { mode, count: result.length, search: q })
-    }, [search, mode, stores, products, overrideList, rankKey, metrics])
+    }, [search, mode, stores, products, people, overrideList, rankKey, metrics])
 
     // Buscar detalhes extras da loja selecionada (seguidores, whatsapp, instagram,
     // se já sigo, produtos mais vistos, comentários)
@@ -665,7 +681,7 @@ export default function MapPage() {
                 let lng = coords[0]
                 let lat = coords[1]
 
-                const imageUrl = mode === 'lojas' ? item.logo_url : item.image_url
+                const imageUrl = item.logo_url || item.image_url
 
                 const el = document.createElement('div')
                 el.style.zIndex = (100 - index).toString()
@@ -1040,7 +1056,7 @@ export default function MapPage() {
         return distance < 1 ? `${Math.round(distance * 1000)}m` : `${distance.toFixed(1)}km`
     }
 
-    const distanceValue = selectedItem ? calcDistanceKm((mode === 'lojas' ? selectedItem : selectedStore)?.location) : null
+    const distanceValue = selectedItem ? calcDistanceKm((mode === 'lojas' || mode === 'pessoas' ? selectedItem : selectedStore)?.location) : null
     const distanceFormatted = formatDistance(distanceValue)
 
     const toggleMapStyle = () => {
@@ -1099,6 +1115,7 @@ export default function MapPage() {
         { id: 'lojas', label: 'Lojas', icon: Store, onClick: () => selectMode('lojas'), isActive: mode === 'lojas' },
         { id: 'servicos', label: 'Serviços', icon: Briefcase, onClick: () => selectMode('servicos'), isActive: mode === 'servicos' },
         { id: 'produtos', label: 'Produtos', icon: ShoppingCart, onClick: () => selectMode('produtos'), isActive: mode === 'produtos' },
+        { id: 'pessoas', label: 'Pessoas', icon: Users, onClick: () => selectMode('pessoas'), isActive: mode === 'pessoas' },
     ]
 
     return (
@@ -1208,7 +1225,7 @@ export default function MapPage() {
                     loading={profileLoading}
                     tabs={radarTabs}
                     showSearch={true}
-                    searchPlaceholder={mode === 'lojas' ? 'Procurar lojas' : mode === 'servicos' ? 'Procurar serviços' : 'Procurar produtos'}
+                    searchPlaceholder={mode === 'lojas' ? 'Procurar lojas' : mode === 'servicos' ? 'Procurar serviços' : mode === 'pessoas' ? 'Procurar pessoas' : 'Procurar produtos'}
                     searchValue={search}
                     onSearch={(q) => { setSearch(q); setOverrideList(null) }}
                     locationElement={
@@ -1293,8 +1310,8 @@ export default function MapPage() {
                                 className="w-full p-3 flex items-center gap-3 border-b border-gray-100 hover:bg-orange-50 transition-all"
                             >
                                 <div className="w-10 h-10 rounded-xl overflow-hidden bg-gray-100 flex-shrink-0">
-                                    {(mode === 'lojas' ? item.logo_url : item.image_url) ? (
-                                        <img src={mode === 'lojas' ? item.logo_url : item.image_url} className="w-full h-full object-cover" alt="" />
+                                    {(item.logo_url || item.image_url) ? (
+                                        <img src={item.logo_url || item.image_url} className="w-full h-full object-cover" alt="" />
                                     ) : (
                                         <div className="w-full h-full flex items-center justify-center text-lg font-bold text-gray-400">
                                             {item.name?.charAt(0)}
@@ -1321,7 +1338,7 @@ export default function MapPage() {
                         {filtered.map((item, idx) => {
                             const rank = idx < 3 ? idx + 1 : 0
                             const size = rank ? 62 : 52
-                            const img = mode === 'lojas' ? item.logo_url : item.image_url
+                            const img = item.logo_url || item.image_url
                             return (
                                 <button
                                     key={item.id}
@@ -1415,7 +1432,7 @@ export default function MapPage() {
                 borda + seta na direção + distância. Clique = voar até lá. */}
             {edgeIndicators.map(ind => {
                 const col = RANK_COLORS[ind.rank]
-                const img = mode === 'lojas' ? ind.item.logo_url : ind.item.image_url
+                const img = ind.item.logo_url || ind.item.image_url
                 return (
                     <button
                         key={ind.id}
@@ -1478,8 +1495,8 @@ export default function MapPage() {
                                             }}
                                         >
                                             <div className="w-full h-full rounded-2xl overflow-hidden bg-white flex items-center justify-center">
-                                                {(mode === 'lojas' ? selectedItem.logo_url : selectedItem.image_url) ? (
-                                                    <img src={mode === 'lojas' ? selectedItem.logo_url : selectedItem.image_url} className="w-full h-full object-cover" alt="" />
+                                                {(selectedItem.logo_url || selectedItem.image_url) ? (
+                                                    <img src={selectedItem.logo_url || selectedItem.image_url} className="w-full h-full object-cover" alt="" />
                                                 ) : (
                                                     <span className="text-2xl font-black italic text-orange-300">?</span>
                                                 )}
@@ -1488,6 +1505,13 @@ export default function MapPage() {
                                     </div>
                                     <div className="flex-1 min-w-0 space-y-1">
                                         <h3 className="text-lg font-black text-gray-900 truncate">{selectedItem.name}</h3>
+                                        {mode === 'pessoas' && (
+                                            <p className="text-xs font-bold text-orange-500 truncate">
+                                                @{selectedItem.profileSlug}
+                                                {selectedItem.points > 0 && <span className="text-gray-500"> · ⭐ {selectedItem.points} pts</span>}
+                                                {selectedItem.is_live && <span className="text-green-600"> · em tempo real</span>}
+                                            </p>
+                                        )}
                                         {mode === 'lojas' && selectedStoreStatusText && (
                                             <span className={`flex items-center gap-1 font-bold text-xs w-fit ${selectedItem.is_open ? 'text-green-600' : 'text-red-600'}`}>
                                                 <Clock className="w-3.5 h-3.5" />
@@ -1709,7 +1733,8 @@ export default function MapPage() {
                         <div className="p-4 pt-0 flex-shrink-0">
                             <button
                                 onClick={() => {
-                                    if (mode === 'lojas') router.push(`/${selectedItem.storeSlug}`)
+                                    if (mode === 'pessoas') router.push(`/${selectedItem.profileSlug}`)
+                                    else if (mode === 'lojas') router.push(`/${selectedItem.storeSlug}`)
                                     else {
                                         const store = stores.find(s => s.id === selectedItem.store_id)
                                         if (store) router.push(`/${store.storeSlug}/${selectedItem.slug || selectedItem.id}`)
@@ -1717,7 +1742,7 @@ export default function MapPage() {
                                 }}
                                 className="w-full py-3.5 rounded-full bg-gradient-to-r from-orange-500 to-red-500 text-white font-black uppercase text-xs tracking-wider shadow-lg transition-all hover:shadow-xl hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-1.5"
                             >
-                                Visitar Loja
+                                {mode === 'pessoas' ? 'Ver perfil' : 'Visitar Loja'}
                                 <ChevronRight className="w-4 h-4" />
                             </button>
                         </div>
@@ -1730,7 +1755,7 @@ export default function MapPage() {
                 <div className="bg-white/95 backdrop-blur-xl rounded-2xl px-4 py-2 shadow-2xl flex items-center gap-2 border border-orange-200">
                     <Flame className="w-4 h-4 text-orange-500" />
                     <span className="text-xs font-black text-gray-700">
-                        {filtered.length} {mode === 'lojas' ? 'Lojas' : mode === 'servicos' ? 'Serviços' : 'Produtos'}
+                        {filtered.length} {mode === 'lojas' ? 'Lojas' : mode === 'servicos' ? 'Serviços' : mode === 'pessoas' ? 'Pessoas' : 'Produtos'}
                     </span>
                 </div>
             </div>

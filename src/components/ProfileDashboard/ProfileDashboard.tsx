@@ -51,6 +51,8 @@ import Commission from './Commission'
 import MyPoints from './MyPoints'
 import LastSeenSettings from './LastSeenSettings'
 import ProfileNotification from './ProfileNotification'
+import ProfileLocationSettings from './ProfileLocationSettings'
+import ProfileLinkButtons from './ProfileLinkButtons'
 import MyTasks from './MyTasks'
 import DeleteConfirmDialog from '@/components/DeleteConfirmDialog'
 import { callAdminApi } from '@/lib/callAdminApi'
@@ -1378,9 +1380,6 @@ export default function ProfileDashboard({
 
     return (
         <div className="w-full px-4 md:px-6 pb-28">
-            {/* ===== PROMOÇÕES E PLANOS — bem em cima: o brinde do Pré-pago + os planos ativos ===== */}
-            <PlanPromotions profileId={profile.id} className="mt-3 mb-6" />
-
             {/* ===== Informações do Perfil — mesmo design de "Informações da Loja" ===== */}
             <div className="mb-6">
                 <ProfileInfo
@@ -1733,6 +1732,7 @@ export default function ProfileDashboard({
                         )}
                 </DashboardSection>
 
+                {profile?.id && <ProfileLocationSettings profileId={profile.id} />}
                 {profile?.id && <LastSeenSettings userId={profile.id} />}
 
                 <DashboardSection storageKey="config-chat" title="Conversas" subtitle={`Receba mensagens pelo iUser · ${profile?.chat_enabled ? 'Ligado' : 'Desligado'}`}>
@@ -1891,6 +1891,10 @@ export default function ProfileDashboard({
                                 </>
                             )}
                         </button>
+
+                {/* Meu plano e os atalhos do perfil: sempre logo acima de "Conta" */}
+                <PlanPromotions profileId={profile.id} />
+                <ProfileLinkButtons profileSlug={profile.profileSlug || profileSlug || ''} name={profile.name} />
 
                 <DashboardSection storageKey="config-conta" title="Conta" subtitle="Sair ou excluir sua conta">
                         <button

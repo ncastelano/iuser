@@ -13,7 +13,6 @@ import { handleShareLink } from '@/lib/share'
 import InviteButton from '@/components/InviteButton'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
 import AvatarBordersDialog from './AvatarBordersDialog'
-import ProfileLocationSettings from './ProfileLocationSettings'
 import { usePersistedExpanded } from '@/hooks/usePersistedExpanded'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
@@ -396,30 +395,6 @@ export function ProfileInfo({ profile, onProfileUpdate }: ProfileInfoProps) {
                         </div>
                     </>
                 )}
-            </div>
-
-            {/* ===== Localização e o que aparece dela (perfil, mapa, Social, tempo real) ===== */}
-            {isExpanded && <ProfileLocationSettings profileId={profile.id} />}
-
-            {/* ===== Botões "Ver meu Perfil" / "Compartilhar Link" — mesmo design da loja ===== */}
-            <div className="flex gap-2 flex-wrap">
-                <button
-                    onClick={goToPublicProfile}
-                    style={{ ...pillButtonFullStyle, background: GRADIENT, color: '#ffffff', boxShadow: '0 4px 12px #f9731640' }}
-                    className="hover:scale-105 transition-transform"
-                >
-                    <User size={18} />
-                    Ver meu Perfil
-                </button>
-                <button
-                    onClick={shareProfileLink}
-                    style={{ ...pillButtonFullStyle, background: GRADIENT, color: '#ffffff', boxShadow: '0 4px 12px #f9731640' }}
-                    className="hover:scale-105 transition-transform"
-                >
-                    <Copy size={18} />
-                    Compartilhar Link
-                </button>
-                <InviteButton className="!w-auto flex-1 min-w-[160px]" />
             </div>
 
             {showBorders && (

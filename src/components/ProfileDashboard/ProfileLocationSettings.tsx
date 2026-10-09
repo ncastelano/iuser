@@ -8,6 +8,7 @@ import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import LocationPicker from '@/components/LocationPicker'
+import DashboardSection from './DashboardSection'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -112,12 +113,13 @@ export default function ProfileLocationSettings({ profileId }: { profileId: stri
         ? [row.address.split(',').slice(0, 2).join(','), row.address_number].filter(Boolean).join(', ')
         : null
 
-    return (
-        <div className="flex flex-col gap-3">
-            <div>
-                <p className="text-xs font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>Localização</p>
-            </div>
+    const summary = !row ? '' : [
+        addressLine || 'Sem localização definida',
+        master ? `perfil sim · mapa ${flag('show_on_map', true) ? 'sim' : 'não'} · Social ${flag('show_in_social', true) ? 'sim' : 'não'}` : 'oculta',
+    ].join(' · ')
 
+    return (
+        <DashboardSection storageKey="config-localizacao" title="Configurações de localização" subtitle="Onde você está e quem pode ver" collapsedSummary={summary}>
             <div className="flex items-center gap-3 p-3 rounded-2xl" style={{ border: `1px solid ${colors.border}` }}>
                 <span className="w-10 h-10 rounded-full flex items-center justify-center text-white flex-shrink-0" style={{ background: GRADIENT }}><MapPin size={18} /></span>
                 <div className="min-w-0 flex-1">
@@ -170,6 +172,6 @@ export default function ProfileLocationSettings({ profileId }: { profileId: stri
                     onClear={row?.address ? clearLocation : undefined}
                 />
             )}
-        </div>
+        </DashboardSection>
     )
 }
