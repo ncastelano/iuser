@@ -102,6 +102,8 @@ export default function SocialList() {
     // Visto por último: só vem de quem deixou visível pra mim
     const [storesByOwner, setStoresByOwner] = useState<Record<string, SocialCardStore>>({})
     const [followingIds, setFollowingIds] = useState<Set<string>>(new Set())
+    // Colocação de cada perfil em Melhores perfis (1º, 2º...) — aparece como #N em qualquer aba
+    const [rankById, setRankById] = useState<Record<string, number>>({})
     const lastSeen = useLastSeen(useMemo(() => profiles.map((p) => p.id), [profiles]))
 
     // ===== RECENT PROFILES (últimos perfis visitados) =====
@@ -244,6 +246,12 @@ export default function SocialList() {
     useEffect(() => {
         loadProfiles()
     }, [loadProfiles])
+
+    useEffect(() => {
+        supabase.rpc('get_best_profiles', { p_limit: 200 }).then(({ data }) => {
+            setRankById(Object.fromEntries(((data as { id: string }[]) || []).map((r, i) => [r.id, i])))
+        })
+    }, [])
 
     // Loja de cada pessoa (se tiver) e quem eu já sigo, pros botões do cartão
     useEffect(() => {
@@ -519,12 +527,12 @@ export default function SocialList() {
                                 </div>
                             ) : (
                                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-stretch">
-                                    {filteredProfiles.map((profile, index) => (
+                                    {filteredProfiles.map((profile) => (
                                         <SocialProfileCard
                                             key={profile.id}
                                             profile={profile}
                                             store={storesByOwner[profile.id] || null}
-                                            rank={tab === 'melhores' && !searchQuery.trim() ? index : undefined}
+                                            rank={rankById[profile.id]}
                                             isMe={profile.id === userId}
                                             userId={userId || null}
                                             following={followingIds.has(profile.id)}

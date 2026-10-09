@@ -12,7 +12,6 @@ import { Spinner } from '@/components/Spinner'
 import { lastSeenLabel, type PresenceInfo } from '@/lib/lastSeen'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
-const MEDALS = ['🥇', '🥈', '🥉']
 
 export interface SocialCardProfile {
     id: string
@@ -79,60 +78,59 @@ export default function SocialProfileCard({ profile, store, rank, isMe, userId, 
     return (
         <div
             onClick={onOpen}
-            className="group relative rounded-3xl p-4 border cursor-pointer flex flex-col gap-3 transition-all duration-300 hover:shadow-2xl hover:-translate-y-1"
+            className="group relative rounded-3xl p-4 border cursor-pointer flex flex-col items-center text-center gap-3 transition-all duration-300 hover:shadow-2xl hover:-translate-y-1"
             style={{ background: cardBg, backdropFilter: 'blur(12px)', borderColor: colors.border, boxShadow: colors.shadow }}
         >
-            {rank !== undefined && rank < 3 && (
-                <span className="absolute top-3 right-3 text-3xl leading-none drop-shadow" title={`${rank + 1}º lugar`}>{MEDALS[rank]}</span>
-            )}
-
-            <div className="flex items-start gap-3">
-                {/* Foto do perfil; se tiver loja, a foto da loja fica pendurada no canto */}
-                <div className="relative flex-shrink-0">
-                    <PlanAvatarRing userId={profile.id} width={3}>
-                        <div className="w-16 h-16 rounded-full overflow-hidden" style={{ background: colors.surface }}>
-                            {profile.avatar_url ? (
-                                <img src={profile.avatar_url} alt={profile.name} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" loading="lazy" />
-                            ) : (
-                                <span className="w-full h-full flex items-center justify-center text-2xl font-black" style={{ color: colors.textSecondary }}>
-                                    {profile.name?.charAt(0).toUpperCase() || '?'}
-                                </span>
-                            )}
-                        </div>
-                    </PlanAvatarRing>
-                    {store && (
-                        <span
-                            className="absolute -bottom-1 -right-2 w-8 h-8 rounded-full overflow-hidden flex items-center justify-center"
-                            style={{ border: `2px solid ${colors.surface}`, background: GRADIENT, boxShadow: '0 2px 8px rgba(0,0,0,0.25)' }}
-                            title={`Loja ${store.name}`}
-                        >
-                            {store.logoUrl ? <img src={store.logoUrl} alt="" className="w-full h-full object-cover" loading="lazy" /> : <StoreIcon size={14} color="#fff" />}
-                        </span>
-                    )}
-                </div>
-
-                <div className="min-w-0 flex-1">
-                    <h3 className="text-base font-black leading-tight truncate" style={{ color: colors.textPrimary }}>{profile.name || 'Usuário'}</h3>
-                    <p className="text-sm font-bold truncate" style={{ color: colors.accent }}>@{profile.profileSlug}</p>
-                    <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                        {(profile.points ?? 0) > 0 && (
-                            <span className="px-2 py-0.5 rounded-full text-[11px] font-black" style={{ background: '#f9731620', color: '#ea580c' }} title="Pontuação do perfil">
-                                ⭐ {profile.points} pts
-                            </span>
-                        )}
-                        {seen && (
-                            <span className="flex items-center gap-1 text-[11px] font-bold" style={{ color: seen.online ? '#16a34a' : colors.textSecondary }}>
-                                <span className={`w-2 h-2 rounded-full ${seen.online ? 'animate-pulse' : ''}`} style={{ background: seen.online ? '#22c55e' : colors.textSecondary, opacity: seen.online ? 1 : 0.5 }} />
-                                {seen.text}
+            {/* Foto com borda; a bolinha pequena no canto mostra se a pessoa está online (verde) ou só foi vista (cinza) */}
+            <div className="relative">
+                <PlanAvatarRing userId={profile.id} width={3}>
+                    <div className="w-20 h-20 rounded-full overflow-hidden" style={{ background: colors.surface }}>
+                        {profile.avatar_url ? (
+                            <img src={profile.avatar_url} alt={profile.name} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" loading="lazy" />
+                        ) : (
+                            <span className="w-full h-full flex items-center justify-center text-3xl font-black" style={{ color: colors.textSecondary }}>
+                                {profile.name?.charAt(0).toUpperCase() || '?'}
                             </span>
                         )}
                     </div>
-                </div>
+                </PlanAvatarRing>
+                {seen && (
+                    <span
+                        className={`absolute bottom-1 right-1 w-3.5 h-3.5 rounded-full ${seen.online ? 'animate-pulse' : ''}`}
+                        style={{ background: seen.online ? '#22c55e' : '#94a3b8', border: `2px solid ${colors.surface}` }}
+                        title={seen.text}
+                    />
+                )}
             </div>
 
-            {about && <p className="text-xs leading-snug line-clamp-2" style={{ color: colors.textSecondary }}>{about}</p>}
+            <div className="min-w-0 max-w-full">
+                <h3 className="text-base font-black leading-tight truncate" style={{ color: colors.textPrimary }}>{profile.name || 'Usuário'}</h3>
+                <p className="text-sm font-bold truncate" style={{ color: colors.accent }}>@{profile.profileSlug}</p>
+            </div>
 
-            <div className="flex items-center gap-2 flex-wrap text-[11px]" style={{ color: colors.textSecondary }}>
+            {/* Colocação e pontuação, um do lado do outro */}
+            {(rank !== undefined || (profile.points ?? 0) > 0) && (
+                <div className="flex items-center justify-center gap-2 flex-wrap">
+                    {rank !== undefined && (
+                        <span className="px-2.5 py-0.5 rounded-full text-xs font-black text-white" style={{ background: GRADIENT }} title={`${rank + 1}º lugar em Melhores perfis`}>
+                            #{rank + 1}
+                        </span>
+                    )}
+                    {(profile.points ?? 0) > 0 && (
+                        <span className="px-2.5 py-0.5 rounded-full text-xs font-black" style={{ background: '#f9731620', color: '#ea580c' }} title="Pontuação do perfil">
+                            ⭐ {profile.points} pts
+                        </span>
+                    )}
+                </div>
+            )}
+
+            {seen && (
+                <p className="text-[11px] font-bold -mt-1" style={{ color: seen.online ? '#16a34a' : colors.textSecondary }}>{seen.text}</p>
+            )}
+
+            {about && <p className="text-xs leading-snug line-clamp-2 max-w-full" style={{ color: colors.textSecondary }}>{about}</p>}
+
+            <div className="flex items-center justify-center gap-2 flex-wrap text-[11px]" style={{ color: colors.textSecondary }}>
                 {profile.address && (
                     <span className="flex items-center gap-1 min-w-0 max-w-full">
                         <MapPin size={12} className="flex-shrink-0" />
@@ -153,7 +151,7 @@ export default function SocialProfileCard({ profile, store, rank, isMe, userId, 
             {store && (
                 <button
                     onClick={(e) => { e.stopPropagation(); router.push(`/${store.storeSlug}`) }}
-                    className="flex items-center gap-2 px-2.5 py-1.5 rounded-2xl text-left transition-colors hover:bg-black/5"
+                    className="flex items-center justify-center gap-2 px-3 py-1.5 rounded-2xl max-w-full transition-colors hover:bg-black/5"
                     style={{ border: `1px solid ${colors.border}` }}
                 >
                     <span className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT }}>
@@ -164,7 +162,7 @@ export default function SocialProfileCard({ profile, store, rank, isMe, userId, 
             )}
 
             {!isMe && (
-                <div className="flex items-center gap-2 mt-auto pt-1">
+                <div className="flex items-center gap-2 mt-auto pt-1 w-full">
                     <button
                         onClick={toggleFollow}
                         disabled={followBusy}
