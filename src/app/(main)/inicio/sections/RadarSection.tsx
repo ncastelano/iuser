@@ -146,10 +146,23 @@ export default function RadarSection({ dragHandle, origin, userId, onDefineLocat
                         </div>
                     ) : (
                         <>
-                            <p className="text-[10px] font-black uppercase tracking-wider text-white/50 mb-4">
-                                {origin ? 'Mais perto de você' : 'Mais vistos'}
-                                {!origin && <span className="normal-case font-semibold tracking-normal text-white/40"> · defina seu local no topo pra ver os mais próximos</span>}
-                            </p>
+                            <div className="flex items-center flex-wrap gap-x-2 gap-y-2 mb-4">
+                                <p className="text-[10px] font-black uppercase tracking-wider text-white/50">
+                                    {origin ? 'Mais perto de você' : 'Mais vistos'}
+                                    {!origin && <span className="normal-case font-semibold tracking-normal text-white/40"> · defina seu local no topo pra ver os mais próximos</span>}
+                                </p>
+                                {/* Só enquanto não há local definido; com local, o Radar já mostra o que está perto */}
+                                {onDefineLocation && !origin && (
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); onDefineLocation() }}
+                                        className="flex items-center gap-1 px-3 py-1.5 rounded-full font-bold text-xs text-white transition-all hover:scale-105 active:scale-95"
+                                        style={{ background: GRADIENT, boxShadow: '0 4px 14px #f9731650' }}
+                                    >
+                                        <MapPin size={12} />
+                                        Definir local
+                                    </button>
+                                )}
+                            </div>
                             <div className="grid grid-cols-2 sm:grid-cols-4 min-[1280px]:grid-cols-6 gap-3">
                                 {cards.map((item) => {
                                     const { label, icon: KindIcon } = KIND_META[item.kind]
@@ -215,19 +228,8 @@ export default function RadarSection({ dragHandle, origin, userId, onDefineLocat
                     )}
                 </div>
 
-                {/* Definir local (esquerda) e Abrir radar (direita), embaixo do "mais perto de você" */}
+                {/* Abrir radar, embaixo do "mais perto de você" */}
                 <div className="relative z-10 mt-4 flex justify-end gap-2">
-                    {/* Só aparece enquanto não há local definido; com local, o Radar já mostra o que está perto */}
-                    {onDefineLocation && !origin && (
-                        <button
-                            onClick={(e) => { e.stopPropagation(); onDefineLocation() }}
-                            className="flex items-center gap-1.5 px-4 py-2.5 rounded-full font-bold text-sm text-white transition-all hover:scale-105 active:scale-95"
-                            style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.3)' }}
-                        >
-                            <MapPin size={14} />
-                            Definir local
-                        </button>
-                    )}
                     <button
                         onClick={(e) => { e.stopPropagation(); goRadar() }}
                         className="flex items-center gap-1.5 px-5 py-2.5 rounded-full font-bold text-sm text-white transition-all hover:scale-105 active:scale-95"
