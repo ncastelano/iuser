@@ -47,6 +47,10 @@ interface ProfileWithDetails {
     category?: string | null
     view_count?: number | null
     created_at?: string | null
+    // Hierarquia e pontos (Melhores perfis = nível de hierarquia, depois pontos)
+    status_level?: number
+    status_name?: string
+    points?: number
 }
 
 interface RecentProfile {
@@ -166,6 +170,9 @@ export default function SocialList() {
 
         try {
             let query = supabase.from('profiles').select(PROFILE_COLUMNS).eq('is_active', true)
+            // Na aba Melhores a ordem vem do banco (hierarquia → pontos → visitas); o resto ordena aqui
+            let rankedIds: string[] | null = null
+            const info = new Map<string, { status_level: number; status_name: string; points: number }>()
 
             if (tab === 'sigo' || tab === 'seguem') {
                 // Sem conta não há ninguém pra listar
@@ -180,11 +187,16 @@ export default function SocialList() {
             } else if (tab === 'novos') {
                 query = query.order('created_at', { ascending: false })
             } else {
-                // Melhores: mais vistos e melhor avaliados
-                query = query.order('view_count', { ascending: false }).order('ratings_avg', { ascending: false })
+                // Melhores: nível de hierarquia primeiro, depois a pontuação
+                const { data: ranked, error: rankError } = await supabase.rpc('get_best_profiles', { p_limit: 100 })
+                if (rankError) throw rankError
+                rankedIds = ((ranked || []) as { id: string }[]).map((r) => r.id)
+                ;(ranked || []).forEach((r: any) => info.set(r.id, { status_level: r.status_level, status_name: r.status_name, points: r.points }))
+                if (rankedIds.length === 0) { setProfiles([]); setLoadingData(false); return }
+                query = query.in('id', rankedIds)
             }
 
-            const { data, error } = await query.limit(100)
+            const { data, error } = rankedIds ? await query : await query.limit(100)
 
             if (error) {
                 console.error('Erro ao buscar perfis:', error)
@@ -195,13 +207,25 @@ export default function SocialList() {
             }
 
             if (data) {
-                const mapped = data.map((p: any) => ({
+                // As outras abas também mostram nível e pontos nos cartões
+                if (!rankedIds && data.length > 0) {
+                    const { data: extra } = await supabase.rpc('get_profiles_ranking_info', { p_ids: data.map((p: any) => p.id) })
+                    ;(extra || []).forEach((r: any) => info.set(r.id, { status_level: r.status_level, status_name: r.status_name, points: r.points }))
+                }
+                let mapped = data.map((p: any) => ({
                     ...p,
                     avatar_url: getAvatarUrl(supabase, p.avatar_url),
                     ratings_avg: p.ratings_avg ?? null,
                     ratings_count: p.ratings_count ?? null,
                     view_count: p.view_count ?? null,
+                    status_level: info.get(p.id)?.status_level ?? 0,
+                    status_name: info.get(p.id)?.status_name ?? 'Usuário',
+                    points: info.get(p.id)?.points ?? 0,
                 }))
+                if (rankedIds) {
+                    const order = new Map(rankedIds.map((id, i) => [id, i]))
+                    mapped = mapped.sort((a: any, b: any) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0))
+                }
                 setProfiles(mapped)
             }
         } catch (err) {
@@ -562,6 +586,23 @@ export default function SocialList() {
                                                             </div>
 
                                                             <div className="flex flex-col items-end gap-1 shrink-0">
+                                                                {(profile.status_level ?? 0) > 0 && (
+                                                                    <span
+                                                                        className="px-2 py-0.5 rounded-full text-[10px] font-black text-white"
+                                                                        style={{ background: GRADIENT }}
+                                                                    >
+                                                                        {profile.status_name}
+                                                                    </span>
+                                                                )}
+                                                                {(profile.points ?? 0) > 0 && (
+                                                                    <span
+                                                                        className="px-2 py-0.5 rounded-full text-[10px] font-black"
+                                                                        style={{ background: '#f9731620', color: '#ea580c' }}
+                                                                        title="Pontuação do perfil"
+                                                                    >
+                                                                        ⭐ {profile.points} pts
+                                                                    </span>
+                                                                )}
                                                                 {profile.is_seller && (
                                                                     <span
                                                                         className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider"

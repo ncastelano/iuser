@@ -30,6 +30,12 @@ A comissão que quem indica ganha vem da **graduação** (Inicial/Bronze/Prata/O
 - Bordas de avatar por nível: `avatar_borders.required_level_id` (migration `20261031000000`) — `claim_avatar_border` só libera se o nível EFETIVO da pessoa for ≥ ao exigido; há uma borda por nível (Bronze→Diamante), editáveis em Admin → Bordas. A regra mora no banco, o diálogo Bordas só mostra o motivo.
 - Testes: `npm run test:graduation` (conta em centavos) e `supabase/tests/graduation_scenarios.sql` (33 cenários, rode dentro de `begin; ... rollback;`).
 
+## Pontuação dos perfis: pesos no banco, ações por gatilho
+
+Cada ação que pontua tem uma linha em `point_rules` (pontos, limite por dia, ligada/desligada) editada em `/administrador` → **Pontuação**. Os pontos vão pro livro-caixa `profile_points_events` (o peso fica **congelado** na linha; 1 vez por `ref`) e somam em `profile_points`. Quem dá os pontos são **gatilhos do banco** (`supabase/migrations/20261037000000_profile_points.sql`: convite via `profiles.upline_id`, `follows`, `products` — publicação e serviço) chamando `_award_points`; **não conte pontos em TS/React**. Pra pontuar uma ação nova: crie a regra em `point_rules` e um gatilho que chame `_award_points(perfil, 'acao', ref)`.
+
+"Melhores perfis" (`/social`) = `get_best_profiles`: nível de hierarquia (`user_statuses.level`) → pontos → visitas. Os pontos **não** promovem ninguém de nível automaticamente (a hierarquia continua sendo concedida pelo admin).
+
 ## Telemetria própria de Egress/Realtime — não mexer sem saber
 
 O Supabase não expõe Egress nem Realtime Messages por nenhuma API pública documentada (confirmado testando ao vivo os endpoints da Management API — ver commit `b1b81d8`). Por isso o iUser mede isso sozinho:
