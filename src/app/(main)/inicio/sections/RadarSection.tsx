@@ -130,9 +130,6 @@ export default function RadarSection({ dragHandle, origin, userId, onDefineLocat
                 `}</style>
 
                 <div className="relative z-10 max-w-[75%] sm:max-w-[65%]">
-                    <div className="flex items-center gap-2 mb-2">
-                        <span className="text-[10px] font-black uppercase tracking-wider text-white/60">iUser</span>
-                    </div>
                     <h3 className="text-xl font-black text-white mb-1.5">Radar</h3>
                     <p className="text-sm text-white/70">
                         Veja quem e o que tem perto de você agora — lojas, pessoas e ofertas em tempo real.
@@ -229,10 +226,11 @@ export default function RadarSection({ dragHandle, origin, userId, onDefineLocat
                 </div>
 
                 {/* Abrir radar, embaixo do "mais perto de você" */}
-                <div className="relative z-10 mt-4 flex justify-end gap-2">
+                <div className="relative z-10 mt-4 flex items-center justify-between gap-3">
+                    <p className="text-sm font-semibold text-white/80 leading-snug min-w-0">Tudo o que está por perto, direto no mapa.</p>
                     <button
                         onClick={(e) => { e.stopPropagation(); goRadar() }}
-                        className="flex items-center gap-1.5 px-5 py-2.5 rounded-full font-bold text-sm text-white transition-all hover:scale-105 active:scale-95"
+                        className="flex-shrink-0 flex items-center gap-1.5 px-5 py-2.5 rounded-full font-bold text-sm text-white transition-all hover:scale-105 active:scale-95"
                         style={{ background: GRADIENT, boxShadow: '0 4px 14px #f9731650' }}
                     >
                         <Navigation size={14} />
