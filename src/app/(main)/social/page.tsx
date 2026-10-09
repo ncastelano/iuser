@@ -586,7 +586,8 @@ export default function SocialList() {
                                                             </div>
 
                                                             <div className="flex flex-col items-end gap-1 shrink-0">
-                                                                {(profile.status_level ?? 0) > 0 && (
+                                                                {/* O Administrador não leva selo de hierarquia (os outros níveis, sim) */}
+                                                                {(profile.status_level ?? 0) > 0 && profile.status_name !== 'Administrador' && (
                                                                     <span
                                                                         className="px-2 py-0.5 rounded-full text-[10px] font-black text-white"
                                                                         style={{ background: GRADIENT }}
