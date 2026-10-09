@@ -14,7 +14,7 @@ import { useProfile } from '@/app/contexts/ProfileContext'
 import { useTheme } from '@/app/contexts/theme'
 import Header from '@/components/Header'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
-import PlanAvatarRing from '@/components/PlanAvatarRing'
+import PlanAvatarRing, { PlanRingInset } from '@/components/PlanAvatarRing'
 import { Spinner } from '@/components/Spinner'
 import { getAvatarUrl } from '@/lib/avatar'
 
@@ -233,13 +233,13 @@ function Thread({ conversation, userId, onBack, onRead, colors }: {
 
 function Avatar({ url, name, isStore, userId, size }: { url: string | null; name: string | null; isStore: boolean; userId?: string; size: number }) {
     const inner = url ? (
-        <img src={url} alt="" className="rounded-full object-cover" style={{ width: size, height: size }} />
+        <img src={url} alt="" className="object-cover" style={{ width: size, height: size }} />
     ) : (
-        <span className="rounded-full flex items-center justify-center text-white font-black" style={{ width: size, height: size, background: GRADIENT }}>
+        <span className="flex items-center justify-center text-white font-black" style={{ width: size, height: size, background: GRADIENT }}>
             {isStore ? <StoreIcon size={size * 0.45} /> : (name || '?').charAt(0).toUpperCase() || <User size={size * 0.45} />}
         </span>
     )
-    return <span className="flex-shrink-0">{userId ? <PlanAvatarRing userId={userId}>{inner}</PlanAvatarRing> : inner}</span>
+    return <span className="flex-shrink-0">{userId ? <PlanAvatarRing userId={userId} radius="0px">{inner}</PlanAvatarRing> : inner}</span>
 }
 
 // ====================== PÁGINA ======================
@@ -363,23 +363,22 @@ function ConversasInner() {
                             <Link href="/login?redirect=/conversas" className="px-6 py-3 rounded-full text-sm font-black text-white" style={{ background: GRADIENT }}>Entrar</Link>
                         </div>
                     ) : (
-                        <div className="rounded-3xl overflow-hidden grid md:grid-cols-[340px_1fr] md:h-[calc(100dvh-260px)]"
-                            style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow, minHeight: 420 }}>
-                            {/* Lista */}
-                            <div className={`${active ? 'hidden md:flex' : 'flex'} flex-col min-h-0 md:border-r`} style={{ borderColor: colors.border }}>
-                                <div className="px-4 py-3 border-b flex-shrink-0" style={{ borderColor: colors.border }}>
-                                    <p className="text-sm font-black" style={{ color: colors.textPrimary }}>
+                        <div className="grid md:grid-cols-[360px_1fr] gap-4 md:h-[calc(100dvh-260px)]">
+                            {/* Lista: o título sozinho em cima e os cartões (quadrados) embaixo */}
+                            <div className={`${active ? 'hidden md:flex' : 'flex'} flex-col min-h-0`}>
+                                <div className="pb-3 flex-shrink-0">
+                                    <p className="text-lg font-black" style={{ color: colors.textPrimary }}>
                                         {activeStore ? `Conversas de ${activeStore.name}` : 'Minhas conversas'}
                                     </p>
-                                    <p className="text-[11px]" style={{ color: colors.textSecondary }}>
+                                    <p className="text-xs" style={{ color: colors.textSecondary }}>
                                         {activeStore ? 'Só as conversas desta loja' : 'Pessoas que falaram com você e conversas que você começou'}
                                     </p>
                                 </div>
-                                <div className="flex-1 min-h-0 overflow-y-auto">
+                                <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-3">
                                     {rows === null ? (
                                         <div className="flex justify-center py-10"><Spinner size={22} color={colors.accent} /></div>
                                     ) : rows.length === 0 ? (
-                                        <div className="p-8 text-center flex flex-col items-center gap-2">
+                                        <div className="p-8 text-center flex flex-col items-center gap-2" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
                                             <span className="w-14 h-14 rounded-full flex items-center justify-center text-white" style={{ background: GRADIENT }}><MessageCircle size={26} /></span>
                                             <p className="text-sm font-black" style={{ color: colors.textPrimary }}>Nenhuma conversa ainda</p>
                                             <p className="text-xs" style={{ color: colors.textSecondary }}>
@@ -388,36 +387,57 @@ function ConversasInner() {
                                                     : 'Ative o chat no seu perfil para receber conversas, ou toque em "Conversar" no perfil ou loja de alguém.'}
                                             </p>
                                         </div>
-                                    ) : rows.map((r) => (
-                                        <button
-                                            key={r.id}
-                                            onClick={() => setParams({ c: r.id })}
-                                            className="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-black/5"
-                                            style={{ background: r.id === activeId ? `${colors.accent}12` : 'transparent', borderBottom: `1px solid ${colors.border}` }}
-                                        >
-                                            <Avatar url={otherAvatarUrl(r)} name={r.other_name} isStore={r.other_is_store} userId={r.other_is_store ? undefined : r.other_id} size={46} />
-                                            <div className="min-w-0 flex-1">
-                                                <div className="flex items-baseline justify-between gap-2">
-                                                    <p className="text-sm font-black truncate" style={{ color: colors.textPrimary }}>{r.other_name || 'Conversa'}</p>
-                                                    <span className="text-[11px] flex-shrink-0" style={{ color: r.unread > 0 ? '#16a34a' : colors.textSecondary }}>{timeLabel(r.last_message_at)}</span>
-                                                </div>
-                                                <div className="flex items-center justify-between gap-2">
-                                                    <p className="text-xs truncate" style={{ color: r.unread > 0 ? colors.textPrimary : colors.textSecondary, fontWeight: r.unread > 0 ? 700 : 400 }}>
-                                                        {r.last_message ? `${r.last_sender_id === userId ? 'Você: ' : ''}${r.last_message}` : 'Conversa iniciada'}
-                                                    </p>
-                                                    {r.unread > 0 && (
-                                                        <span className="min-w-5 h-5 px-1.5 rounded-full text-white text-[11px] font-black flex items-center justify-center flex-shrink-0" style={{ background: '#16a34a' }}>{r.unread}</span>
+                                    ) : rows.map((r) => {
+                                        const unread = r.unread > 0
+                                        const img = otherAvatarUrl(r)
+                                        // Não lida: o cartão inteiro fica verde e o texto, branco
+                                        const fg = unread ? '#ffffff' : colors.textPrimary
+                                        const fg2 = unread ? 'rgba(255,255,255,0.85)' : colors.textSecondary
+                                        return (
+                                            <button
+                                                key={r.id}
+                                                onClick={() => setParams({ c: r.id })}
+                                                className="w-full flex items-stretch text-left overflow-hidden transition-transform hover:-translate-y-0.5"
+                                                style={{
+                                                    background: unread ? '#16a34a' : colors.surface,
+                                                    border: `1px solid ${unread ? '#15803d' : r.id === activeId ? colors.accent : colors.border}`,
+                                                    boxShadow: unread ? '0 6px 18px #16a34a55' : colors.shadow,
+                                                }}
+                                            >
+                                                {/* A imagem ocupa o quadrado todo, do lado esquerdo */}
+                                                <span className="relative w-24 h-24 flex-shrink-0 overflow-hidden flex items-center justify-center text-white text-3xl font-black" style={{ background: GRADIENT }}>
+                                                    {img ? (
+                                                        <img src={img} alt="" className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
+                                                    ) : r.other_is_store ? (
+                                                        <StoreIcon size={32} />
+                                                    ) : (
+                                                        (r.other_name || '?').charAt(0).toUpperCase()
                                                     )}
-                                                </div>
-                                                {r.role === 'customer' && <p className="text-[10px] mt-0.5" style={{ color: colors.textSecondary }}>Você começou esta conversa</p>}
-                                            </div>
-                                        </button>
-                                    ))}
+                                                    {!r.other_is_store && <PlanRingInset userId={r.other_id} width={3} radius="0px" />}
+                                                </span>
+                                                <span className="min-w-0 flex-1 px-3 py-2.5 flex flex-col justify-center gap-0.5">
+                                                    <span className="flex items-baseline justify-between gap-2">
+                                                        <span className="text-sm font-black truncate" style={{ color: fg }}>{r.other_name || 'Conversa'}</span>
+                                                        <span className="text-[11px] flex-shrink-0" style={{ color: fg2 }}>{timeLabel(r.last_message_at)}</span>
+                                                    </span>
+                                                    <span className="flex items-center justify-between gap-2">
+                                                        <span className="text-xs line-clamp-2" style={{ color: fg2, fontWeight: unread ? 700 : 400 }}>
+                                                            {r.last_message ? `${r.last_sender_id === userId ? 'Você: ' : ''}${r.last_message}` : 'Conversa iniciada'}
+                                                        </span>
+                                                        {unread && (
+                                                            <span className="min-w-5 h-5 px-1.5 rounded-full text-[11px] font-black flex items-center justify-center flex-shrink-0" style={{ background: '#ffffff', color: '#16a34a' }}>{r.unread}</span>
+                                                        )}
+                                                    </span>
+                                                    {r.role === 'customer' && <span className="text-[10px]" style={{ color: fg2 }}>Você começou esta conversa</span>}
+                                                </span>
+                                            </button>
+                                        )
+                                    })}
                                 </div>
                             </div>
 
                             {/* Conversa aberta */}
-                            <div className={`${active ? 'flex' : 'hidden md:flex'} flex-col min-h-0`} style={{ height: active ? 'calc(100dvh - 250px)' : undefined, minHeight: 360 }}>
+                            <div className={`${active ? 'flex' : 'hidden md:flex'} flex-col min-h-0 overflow-hidden`} style={{ height: active ? 'calc(100dvh - 250px)' : undefined, minHeight: 360, background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}>
                                 {active && userId ? (
                                     <Thread key={active.id} conversation={active} userId={userId} colors={colors}
                                         onBack={() => setParams({ c: null })}
