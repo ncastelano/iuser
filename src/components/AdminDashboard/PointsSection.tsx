@@ -1,7 +1,7 @@
 // src/components/AdminDashboard/PointsSection.tsx
 //
 // Admin → Pontuação: quanto vale cada ação (convidar, seguir, publicar um serviço...), o limite por dia e o ranking de pontos.
-// Os pontos definem a ordem de "Melhores perfis" (mais pontos primeiro; hierarquia só desempata). Mudar um peso vale daqui pra frente.
+// Os pontos definem a ordem de "Melhores perfis" (mais pontos primeiro). A hierarquia não entra. Mudar um peso vale daqui pra frente.
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
@@ -50,7 +50,7 @@ export default function PointsSection({ cardStyle, colors }: { cardStyle: React.
             <div style={cardStyle} className="space-y-1">
                 <p className="text-sm font-black" style={{ color: colors.textPrimary }}>Pontuação dos perfis</p>
                 <p className="text-xs" style={{ color: colors.textSecondary }}>
-                    Cada ação vale uma quantidade de pontos. Em "Melhores perfis" a ordem é sempre de quem tem mais pontos para quem tem menos (o nível de hierarquia só desempata).
+                    Cada ação vale uma quantidade de pontos. Em "Melhores perfis" a ordem é sempre de quem tem mais pontos para quem tem menos (empate: visitas e avaliação). A hierarquia não entra nessa conta.
                     Mudar um valor vale a partir de agora — o que já foi ganho fica com o valor da época. O limite por dia evita ganhar ponto em série.
                 </p>
             </div>

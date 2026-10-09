@@ -34,7 +34,7 @@ A comissão que quem indica ganha vem da **graduação** (Inicial/Bronze/Prata/O
 
 Cada ação que pontua tem uma linha em `point_rules` (pontos, limite por dia, ligada/desligada) editada em `/administrador` → **Pontuação**. Os pontos vão pro livro-caixa `profile_points_events` (o peso fica **congelado** na linha; 1 vez por `ref`) e somam em `profile_points`. Quem dá os pontos são **gatilhos do banco** (`supabase/migrations/20261037000000_profile_points.sql`: convite via `profiles.upline_id`, `follows`, `products` — publicação e serviço) chamando `_award_points`; **não conte pontos em TS/React**. Pra pontuar uma ação nova: crie a regra em `point_rules` e um gatilho que chame `_award_points(perfil, 'acao', ref)`.
 
-"Melhores perfis" (`/social`) = `get_best_profiles`: **pontos (do maior pro menor)** → nível de hierarquia (`user_statuses.level`, só desempata) → visitas. Os pontos **não** promovem ninguém de nível automaticamente (a hierarquia continua sendo concedida pelo admin).
+"Melhores perfis" (`/social`) = `get_best_profiles`: **só pontos (do maior pro menor)**, empate por visitas e avaliação. A hierarquia (`user_statuses`) **não** entra no ranking e os pontos **não** promovem ninguém de nível: a hierarquia continua sendo concedida só pelo admin.
 
 ## Telemetria própria de Egress/Realtime — não mexer sem saber
 

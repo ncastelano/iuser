@@ -47,9 +47,7 @@ interface ProfileWithDetails {
     category?: string | null
     view_count?: number | null
     created_at?: string | null
-    // Hierarquia e pontos (Melhores perfis = nível de hierarquia, depois pontos)
-    status_level?: number
-    status_name?: string
+    // Pontuação (Melhores perfis = quem tem mais pontos primeiro)
     points?: number
 }
 
@@ -170,9 +168,9 @@ export default function SocialList() {
 
         try {
             let query = supabase.from('profiles').select(PROFILE_COLUMNS).eq('is_active', true)
-            // Na aba Melhores a ordem vem do banco (hierarquia → pontos → visitas); o resto ordena aqui
+            // Na aba Melhores a ordem vem do banco (mais pontos primeiro); o resto ordena aqui
             let rankedIds: string[] | null = null
-            const info = new Map<string, { status_level: number; status_name: string; points: number }>()
+            const info = new Map<string, { points: number }>()
 
             if (tab === 'sigo' || tab === 'seguem') {
                 // Sem conta não há ninguém pra listar
@@ -187,11 +185,11 @@ export default function SocialList() {
             } else if (tab === 'novos') {
                 query = query.order('created_at', { ascending: false })
             } else {
-                // Melhores: nível de hierarquia primeiro, depois a pontuação
+                // Melhores: quem tem mais pontos primeiro
                 const { data: ranked, error: rankError } = await supabase.rpc('get_best_profiles', { p_limit: 100 })
                 if (rankError) throw rankError
                 rankedIds = ((ranked || []) as { id: string }[]).map((r) => r.id)
-                ;(ranked || []).forEach((r: any) => info.set(r.id, { status_level: r.status_level, status_name: r.status_name, points: r.points }))
+                ;(ranked || []).forEach((r: any) => info.set(r.id, { points: r.points }))
                 if (rankedIds.length === 0) { setProfiles([]); setLoadingData(false); return }
                 query = query.in('id', rankedIds)
             }
@@ -207,10 +205,10 @@ export default function SocialList() {
             }
 
             if (data) {
-                // As outras abas também mostram nível e pontos nos cartões
+                // As outras abas também mostram os pontos nos cartões
                 if (!rankedIds && data.length > 0) {
                     const { data: extra } = await supabase.rpc('get_profiles_ranking_info', { p_ids: data.map((p: any) => p.id) })
-                    ;(extra || []).forEach((r: any) => info.set(r.id, { status_level: r.status_level, status_name: r.status_name, points: r.points }))
+                    ;(extra || []).forEach((r: any) => info.set(r.id, { points: r.points }))
                 }
                 let mapped = data.map((p: any) => ({
                     ...p,
@@ -218,8 +216,6 @@ export default function SocialList() {
                     ratings_avg: p.ratings_avg ?? null,
                     ratings_count: p.ratings_count ?? null,
                     view_count: p.view_count ?? null,
-                    status_level: info.get(p.id)?.status_level ?? 0,
-                    status_name: info.get(p.id)?.status_name ?? 'Usuário',
                     points: info.get(p.id)?.points ?? 0,
                 }))
                 if (rankedIds) {
@@ -586,15 +582,6 @@ export default function SocialList() {
                                                             </div>
 
                                                             <div className="flex flex-col items-end gap-1 shrink-0">
-                                                                {/* O Administrador não leva selo de hierarquia (os outros níveis, sim) */}
-                                                                {(profile.status_level ?? 0) > 0 && profile.status_name !== 'Administrador' && (
-                                                                    <span
-                                                                        className="px-2 py-0.5 rounded-full text-[10px] font-black text-white"
-                                                                        style={{ background: GRADIENT }}
-                                                                    >
-                                                                        {profile.status_name}
-                                                                    </span>
-                                                                )}
                                                                 {(profile.points ?? 0) > 0 && (
                                                                     <span
                                                                         className="px-2 py-0.5 rounded-full text-[10px] font-black"
