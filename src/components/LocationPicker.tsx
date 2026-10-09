@@ -217,6 +217,28 @@ export default function LocationPicker({ initialLocation, onSave, onClose, allow
         )
     }, [])
 
+    // "Procurar para mim": acha a posição do aparelho e já mostra no mapa, com o pino nela (a pessoa só confere e segue)
+    const locateMe = useCallback(() => {
+        setMethod('map')
+        setError('')
+        setResolvingMapEntry(true)
+        getNativeCurrentPosition(
+            (pos) => {
+                setSelectedPosition({ lat: pos.coords.latitude, lng: pos.coords.longitude })
+                setResolvingMapEntry(false)
+                setStep('address')
+            },
+            () => {
+                // Sem achar a posição, não abre o mapa num ponto qualquer: volta pras opções com o aviso
+                setResolvingMapEntry(false)
+                setMethod(null)
+                setStep('choose')
+                setError('Não consegui achar sua localização. Libere o acesso ao local no aparelho, ou escolha escrever o endereço / marcar no mapa.')
+            },
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        )
+    }, [])
+
     // Recusou: abre o mapa onde já estaria (localização salva ou ponto padrão)
     const skipCurrentPositionForMap = useCallback(() => {
         setAskLocationForMap(false)
@@ -864,7 +886,7 @@ export default function LocationPicker({ initialLocation, onSave, onClose, allow
                                             : (savedAddress ? 'Quer atualizar sua localização?' : 'Você ainda não tem uma localização definida. Como quer defini-la?')}
                                     </p>
 
-                                    <div className="grid grid-cols-2 gap-3">
+                                    <div className="grid grid-cols-3 gap-2">
                                         <button
                                             onClick={() => chooseMethod('search')}
                                             className="flex flex-col items-center gap-1.5 p-3 rounded-2xl border-2 text-center transition hover:scale-[1.02] active:scale-95"
@@ -887,7 +909,19 @@ export default function LocationPicker({ initialLocation, onSave, onClose, allow
                                             <span className="text-xs font-bold" style={{ color: colors.textPrimary }}>Marcar no mapa</span>
                                             <span className="text-[9px]" style={{ color: colors.textSecondary, opacity: 0.8 }}>Toque ou arraste o pino</span>
                                         </button>
+                                        <button
+                                            onClick={locateMe}
+                                            className="flex flex-col items-center gap-1.5 p-3 rounded-2xl border-2 text-center transition hover:scale-[1.02] active:scale-95"
+                                            style={{ borderColor: '#f97316', background: 'transparent' }}
+                                        >
+                                            <div className="w-10 h-10 rounded-full flex items-center justify-center text-white" style={{ background: 'linear-gradient(135deg, #f97316, #dc2626)' }}>
+                                                <Navigation size={18} />
+                                            </div>
+                                            <span className="text-xs font-bold" style={{ color: colors.textPrimary }}>Procurar para mim</span>
+                                            <span className="text-[9px]" style={{ color: colors.textSecondary, opacity: 0.8 }}>Achar onde estou</span>
+                                        </button>
                                     </div>
+                                    {error && <p className="text-xs font-semibold mt-3" style={{ color: '#ef4444' }}>{error}</p>}
                                 </>
                             )}
                         </>
