@@ -92,6 +92,7 @@ export function StoreCard({
     const review = store.recent_reviews?.[0]
     const hasRating = !!store.ratings_count && store.ratings_count > 0
     const views = store.view_count || 0
+    const hasLogo = !!store.logo_url
 
     const categoryInfo = resolveCategoria(store.category)
     const categoryColor = categoryInfo?.color || '#f97316'
@@ -103,11 +104,10 @@ export function StoreCard({
             className="group w-full h-full rounded-3xl overflow-hidden border transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 cursor-pointer flex flex-col"
             style={{ background: colors.surface, borderColor: colors.border, boxShadow: colors.shadow }}
         >
-            {/* Capa: cópia desfocada do logo + o logo inteiro num círculo */}
+            {/* Capa: cópia desfocada do logo + o logo inteiro num círculo (só quando a loja tem foto) */}
+            {hasLogo && (
             <div className="relative w-full h-40 overflow-hidden flex-shrink-0" style={{ background: GRADIENT }}>
-                {store.logo_url && (
-                    <img src={store.logo_url} alt="" aria-hidden className="absolute inset-0 w-full h-full object-cover scale-150 blur-2xl opacity-70" loading="lazy" />
-                )}
+                <img src={store.logo_url!} alt="" aria-hidden className="absolute inset-0 w-full h-full object-cover scale-150 blur-2xl opacity-70" loading="lazy" />
                 <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.35) 100%)' }} />
 
                 <div className="relative w-full h-full flex items-center justify-center pb-2">
@@ -115,11 +115,7 @@ export function StoreCard({
                         className="w-24 h-24 rounded-full overflow-hidden flex items-center justify-center group-hover:scale-105 transition-transform duration-500"
                         style={{ background: '#fff', border: '4px solid rgba(255,255,255,0.95)', boxShadow: '0 8px 24px rgba(0,0,0,0.35)' }}
                     >
-                        {store.logo_url ? (
-                            <img src={store.logo_url} alt={store.name} className="w-full h-full object-cover" loading="lazy" />
-                        ) : (
-                            <Store className="w-10 h-10" style={{ color: '#f97316' }} />
-                        )}
+                        <img src={store.logo_url!} alt={store.name} className="w-full h-full object-cover" loading="lazy" />
                     </div>
                 </div>
 
@@ -147,6 +143,7 @@ export function StoreCard({
                     </span>
                 )}
             </div>
+            )}
 
             <div className="p-4 flex flex-col gap-3 flex-1">
                 <div>
@@ -157,6 +154,22 @@ export function StoreCard({
                             <span className="truncate">{addressShort}</span>
                         </p>
                     )}
+                    {/* Sem foto não tem capa: categoria e visitas vêm aqui, em fichas pequenas */}
+                    {!hasLogo && (categoryName || views > 0) && (
+                        <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                            {categoryName && (
+                                <span className="max-w-full truncate px-2.5 py-1 rounded-full text-[10px] font-black tracking-wide text-white" style={{ background: `${categoryColor}ee` }}>
+                                    {categoryName}
+                                </span>
+                            )}
+                            {views > 0 && (
+                                <span className="flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full" style={{ background: `${colors.border}40`, color: colors.textSecondary }} title={`${views} ${views === 1 ? 'pessoa visitou' : 'pessoas visitaram'} esta loja`}>
+                                    <Eye className="w-3 h-3" />
+                                    {views}
+                                </span>
+                            )}
+                        </div>
+                    )}
                 </div>
 
                 {/* Nota e horário, em frase */}
@@ -166,10 +179,19 @@ export function StoreCard({
                             <RatingStars value={store.ratings_avg || 0} size={13} />
                             <span><b style={{ color: colors.textPrimary }}>{store.ratings_avg?.toFixed(1)}</b> · {store.ratings_count} {store.ratings_count === 1 ? 'avaliação' : 'avaliações'}</span>
                         </div>
+                    ) : null}
+                    {/* Sem foto o selo Aberto/Fechado agora não tem capa pra ficar: ele ocupa o lugar do texto de horário */}
+                    {hasLogo ? (
+                        <div className="text-[11px]"><StoreStatus businessHours={store.business_hours} /></div>
                     ) : (
-                        <p className="text-xs" style={{ color: colors.textSecondary }}>Ainda sem avaliações</p>
+                        <span
+                            className="self-start px-3 py-1.5 rounded-full text-[11px] font-black flex items-center gap-1.5"
+                            style={{ background: isOpen ? 'rgba(16,185,129,0.92)' : 'rgba(239,68,68,0.92)', color: '#fff' }}
+                        >
+                            <span className={`w-1.5 h-1.5 rounded-full ${isOpen ? 'bg-white animate-pulse' : 'bg-white/70'}`} />
+                            {isOpen ? 'Aberto agora' : 'Fechado agora'}
+                        </span>
                     )}
-                    <div className="text-[11px]"><StoreStatus businessHours={store.business_hours} /></div>
                 </div>
 
                 {/* Destaques */}

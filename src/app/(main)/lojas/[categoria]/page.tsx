@@ -505,10 +505,10 @@ export default function ListaCategoriaPage() {
                                                 {myStoreInCategory && (
                                                     <button
                                                         onClick={() => setIsCreatingPublication(true)}
-                                                        className="flex flex-col items-center gap-1 flex-shrink-0 w-16"
+                                                        className="flex flex-col items-center gap-1 flex-shrink-0 w-20"
                                                     >
                                                         <div
-                                                            className="w-16 h-16 rounded-full border-2 border-dashed flex items-center justify-center transition-all hover:scale-105"
+                                                            className="w-20 aspect-[3/5] rounded-2xl border-2 border-dashed flex items-center justify-center transition-all hover:scale-105"
                                                             style={{ borderColor: colors.border }}
                                                         >
                                                             <PlusCircle size={20} style={{ color: '#f97316' }} />
@@ -523,10 +523,10 @@ export default function ListaCategoriaPage() {
                                                     <button
                                                         key={pub.id}
                                                         onClick={() => router.push(`/${pub.storeSlug}/${pub.slug || pub.id}`)}
-                                                        className="flex flex-col items-center gap-1 flex-shrink-0 w-16"
+                                                        className="flex flex-col items-center gap-1 flex-shrink-0 w-20"
                                                     >
-                                                        <div className="w-16 h-16 rounded-full p-[2px]" style={{ background: GRADIENT }}>
-                                                            <div className="w-full h-full rounded-full overflow-hidden bg-white flex items-center justify-center">
+                                                        <div className="w-20 aspect-[3/5] rounded-2xl p-[2px]" style={{ background: GRADIENT }}>
+                                                            <div className="w-full h-full rounded-[14px] overflow-hidden bg-white flex items-center justify-center">
                                                                 {pub.image_url ? (
                                                                     <img src={pub.image_url} className="w-full h-full object-cover" alt={pub.name} />
                                                                 ) : (
