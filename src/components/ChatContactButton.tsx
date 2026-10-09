@@ -22,9 +22,11 @@ interface Props {
     background?: string
     /** 'pill': botão redondo cheio (mesmo desenho do botão de WhatsApp da página do serviço) */
     variant?: 'card' | 'pill'
+    /** Texto do botão no formato 'pill' */
+    label?: string
 }
 
-export default function ChatContactButton({ profileId, storeId, colors, background = 'rgba(255, 255, 255, 0.08)', variant = 'card' }: Props) {
+export default function ChatContactButton({ profileId, storeId, colors, background = 'rgba(255, 255, 255, 0.08)', variant = 'card', label = 'Conversar pelo iUser' }: Props) {
     const router = useRouter()
     const pathname = usePathname()
     const { userId } = useProfile()
@@ -48,7 +50,7 @@ export default function ChatContactButton({ profileId, storeId, colors, backgrou
                 style={{ background: GRADIENT }}
             >
                 {loading ? <Spinner size={16} color="#fff" /> : <MessageCircle size={18} />}
-                Conversar pelo iUser
+                {label}
             </button>
         )
     }
