@@ -12,6 +12,7 @@ const supabaseAdmin = createClient(
 const IGNORED_ROUTES = [
     '/',
     '/carrinho',
+    '/conversas',
     '/criar-loja',
     '/criar-loja-com-cadastro',
     '/login',

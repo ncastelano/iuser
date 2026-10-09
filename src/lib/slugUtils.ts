@@ -24,6 +24,7 @@ export const RESERVED_SLUGS = new Set([
     '500',
     'lojas-em-destaque',
     'lojas',
+    'conversas',
     'produtos',
     'publicacoes',
     'radar',

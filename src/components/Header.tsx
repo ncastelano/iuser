@@ -2,11 +2,12 @@
 'use client'
 
 import { usePathname, useRouter } from 'next/navigation'
-import { ArrowLeft, Search, ShoppingCart, X, type LucideIcon } from 'lucide-react'
+import { ArrowLeft, MessageCircle, Search, ShoppingCart, X, type LucideIcon } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { hexToRgb } from '@/lib/color'
 import { useCartStore } from '@/store/useCartStore'
+import { useChatUnread } from '@/hooks/useChatUnread'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
 
@@ -72,6 +73,7 @@ export default function Header({
     const pathname = usePathname()
     const { colors } = useTheme()
     const { userId: myUserId } = useProfile()
+    const chatUnread = useChatUnread(myUserId)
 
     const cartItemsByStore = useCartStore((state) => state.itemsByStore)
     const cartCount = useMemo(
@@ -618,6 +620,36 @@ export default function Header({
                                 </button>
                             )}
                         </div>
+
+                        {myUserId && pathname !== '/conversas' && (
+                            <button
+                                onClick={() => router.push('/conversas')}
+                                className="relative flex items-center justify-center rounded-full flex-shrink-0 hover:scale-105 active:scale-95"
+                                style={{
+                                    background: 'linear-gradient(135deg, #f97316, #dc2626)',
+                                    color: '#ffffff',
+                                    width: isExpanded ? 0 : 48,
+                                    height: 48,
+                                    opacity: isExpanded ? 0 : 1,
+                                    pointerEvents: isExpanded ? 'none' : 'auto',
+                                    transition: 'width 0.3s ease-in-out, opacity 0.2s ease-in-out, transform 0.2s ease-in-out',
+                                }}
+                                aria-label="Ver conversas"
+                                title="Conversas"
+                            >
+                                <div className="absolute inset-0 flex items-center justify-center rounded-full overflow-hidden">
+                                    <MessageCircle size={20} strokeWidth={2} />
+                                </div>
+                                {chatUnread > 0 && (
+                                    <span
+                                        className="absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full text-white text-[9px] flex items-center justify-center font-black leading-none"
+                                        style={{ background: '#16a34a', border: '2px solid #ffffff' }}
+                                    >
+                                        {chatUnread > 99 ? '99+' : chatUnread}
+                                    </span>
+                                )}
+                            </button>
+                        )}
 
                         {pathname !== '/carrinho' && pathname !== '/radar' && (
                             <button
