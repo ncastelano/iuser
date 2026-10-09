@@ -37,7 +37,7 @@ export default function RadarSection({ dragHandle, origin, userId, onDefineLocat
     const [nearest, setNearest] = useState<Record<NearestKind, NearestItem[]> | null>(null)
     // Qual dos (até) 3 de cada tipo está na tela; troca sozinho a cada 5 segundos
     const [tick, setTick] = useState(0)
-    // Quantos de cada tipo cabem na tela: 1 no celular (4 cards: loja, produto, serviço e pessoa), 2 no tablet (8) e 3 no desktop (12)
+    // Quantos de cada tipo cabem na tela: 1 no celular (grade 2×2: loja e produto em cima, serviço e pessoa embaixo), 2 no tablet (8) e 3 no desktop (12)
     const [perKind, setPerKind] = useState(1)
     useEffect(() => {
         const update = () => setPerKind(window.innerWidth >= 1280 ? 3 : window.innerWidth >= 640 ? 2 : 1)
@@ -141,7 +141,7 @@ export default function RadarSection({ dragHandle, origin, userId, onDefineLocat
 
                 {/* Os mais perto de você: uma loja, um produto, um serviço e uma pessoa */}
                 <div className="relative z-10 mt-5">
-                    {nearest == null ? (                        <div className="grid grid-cols-4 sm:grid-cols-8 min-[1280px]:grid-cols-12 gap-2">
+                    {nearest == null ? (                        <div className="grid grid-cols-2 sm:grid-cols-4 min-[1280px]:grid-cols-6 gap-3">
                             {Array.from({ length: perKind * 4 }).map((_, i) => <div key={i} className="aspect-square rounded-2xl animate-pulse" style={{ background: 'rgba(255,255,255,0.08)' }} />)}
                         </div>
                     ) : (
@@ -150,7 +150,7 @@ export default function RadarSection({ dragHandle, origin, userId, onDefineLocat
                                 {origin ? 'Mais perto de você' : 'Mais vistos'}
                                 {!origin && <span className="normal-case font-semibold tracking-normal text-white/40"> · defina seu local no topo pra ver os mais próximos</span>}
                             </p>
-                            <div className="grid grid-cols-4 sm:grid-cols-8 min-[1280px]:grid-cols-12 gap-2">
+                            <div className="grid grid-cols-2 sm:grid-cols-4 min-[1280px]:grid-cols-6 gap-3">
                                 {cards.map((item) => {
                                     const { label, icon: KindIcon } = KIND_META[item.kind]
                                     return (
