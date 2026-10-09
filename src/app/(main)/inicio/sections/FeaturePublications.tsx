@@ -11,6 +11,9 @@ import { useNavProgressStore } from '@/store/useNavProgressStore'
 import { supabase } from '@/lib/supabase/client'
 import { getAvatarUrl } from '@/lib/avatar'
 import { HomeSectionHeader } from './HomeSectionKit'
+import { usePagedRotation } from '@/hooks/usePagedRotation'
+import { useResponsivePageSize } from '@/hooks/useResponsivePageSize'
+import { PageDots, PAGE_SLIDE_CSS } from '@/components/PageDots'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -220,6 +223,9 @@ export default function FeaturedPublications({
     }, [publications, maxItems])
 
     const hasPublications = displayPublications.length > 0
+    const pageSize = useResponsivePageSize({ base: 2, md: 4, lg: 6 })
+    const { page, dir, pages, goTo, handlers, visibleRange } = usePagedRotation(displayPublications.length, pageSize)
+    const visiblePublications = displayPublications.slice(visibleRange[0], visibleRange[1])
 
     const handlePublicationClick = (pub: PublicationCard) => {
         if (onPublicationClick) {
@@ -272,12 +278,14 @@ export default function FeaturedPublications({
                 ) : <span />}
             />
 
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
-                {displayPublications.map((pub, index) => (
+            {/* Passa de página em página sozinho (2 / 4 / 6 por vez), deslizando ou pelos pontinhos */}
+            <div {...handlers}>
+            <div key={page} className={`grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 ${dir > 0 ? 'page-in-next' : 'page-in-prev'}`} style={{ touchAction: 'pan-y' }}>
+                {visiblePublications.map((pub) => (
                     <div
                         key={pub.id}
                         onClick={() => handlePublicationClick(pub)}
-                        className={`rounded-3xl overflow-hidden cursor-pointer group border flex flex-col transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 ${index >= 4 ? 'hidden lg:flex' : ''}`}
+                        className={`rounded-3xl overflow-hidden cursor-pointer group border flex flex-col transition-all duration-300 hover:shadow-2xl hover:-translate-y-1`}
                         style={{ background: colors.surface, borderColor: colors.border, boxShadow: colors.shadow }}
                     >
                         <div className="w-full aspect-square relative overflow-hidden" style={{ background: GRADIENT }}>
@@ -319,6 +327,9 @@ export default function FeaturedPublications({
                     </div>
                 ))}
             </div>
+            </div>
+            <PageDots pages={pages} page={page} onGo={goTo} label="Ver publicações, página" />
+            <style>{PAGE_SLIDE_CSS}</style>
         </div>
     )
 }

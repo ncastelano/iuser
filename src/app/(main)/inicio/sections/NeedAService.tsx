@@ -25,6 +25,9 @@ import PlanAvatarRing from '@/components/PlanAvatarRing'
 import SeenBox from '@/components/SeenBox'
 import { trackServiceRequestView } from '@/lib/trackServiceRequestView'
 import { getRequestTitle } from '@/lib/serviceTypes'
+import { usePagedRotation } from '@/hooks/usePagedRotation'
+import { useResponsivePageSize } from '@/hooks/useResponsivePageSize'
+import { PageDots, PAGE_SLIDE_CSS } from '@/components/PageDots'
 
 // Em vitrine pública, só rua/bairro — o número fica pra quem for atender.
 function publicPlace(address: string): string {
@@ -44,6 +47,8 @@ export default function NeedAService({ dragHandle, limit = 8 }: { dragHandle?: R
     const [confirmDelete, setConfirmDelete] = useState(false)
     const [deleting, setDeleting] = useState(false)
     const [detailsId, setDetailsId] = useState<string | null>(null)
+    const pageSize = useResponsivePageSize({ base: 2, md: 3 })
+    const { page, dir, pages, goTo, handlers, visibleRange } = usePagedRotation(items?.length ?? 0, pageSize)
 
     const load = useCallback(() => {
         fetchOpenBoardItems(limit).then(setItems)
@@ -90,6 +95,7 @@ export default function NeedAService({ dragHandle, limit = 8 }: { dragHandle?: R
     }
 
     if (items === null) return null
+    const visibleItems = items.slice(visibleRange[0], visibleRange[1])
 
     return (
         <section data-home-anchor="need-a-service">
@@ -100,8 +106,10 @@ export default function NeedAService({ dragHandle, limit = 8 }: { dragHandle?: R
                 action={<ViewServicesButton onClick={() => goFromHome('/procurar-servico')} count={totalCount} />}
             />
 
-            <div className="flex gap-3 overflow-x-auto pb-1">
-                {items.map((item) => {
+            {/* Versão vertical do cartão em linha: 2 por vez no celular, 3 em tela maior; alterna sozinho, deslizando ou pelos pontinhos */}
+            <div {...handlers}>
+            <div key={page} className={`grid grid-cols-2 md:grid-cols-3 gap-3 items-stretch ${dir > 0 ? 'page-in-next' : 'page-in-prev'}`} style={{ touchAction: 'pan-y' }}>
+                {visibleItems.map((item) => {
                     const Icon = getItemIcon(item)
                     const mine = item.requester_id === userId
                     const photo = item.photo_urls?.[0] || null
@@ -115,7 +123,7 @@ export default function NeedAService({ dragHandle, limit = 8 }: { dragHandle?: R
                             seenKey={`request:${item.id}`}
                             // Pedido de outra pessoa: tocar no card leva até ele na lista de serviços (o dono usa o menu ⋯)
                             onClick={!mine ? () => goFromHome(`/procurar-servico?ver=${item.id}`) : undefined}
-                            className={`flex-shrink-0 w-64 rounded-3xl overflow-hidden flex flex-col ${!mine ? 'cursor-pointer' : ''}`}
+                            className={`w-full h-full rounded-3xl overflow-hidden flex flex-col ${!mine ? 'cursor-pointer' : ''}`}
                             style={{
                                 background: colors.surface,
                                 border: `1px solid ${mine ? colors.accent : colors.border}`,
@@ -216,6 +224,9 @@ export default function NeedAService({ dragHandle, limit = 8 }: { dragHandle?: R
                     )
                 })}
             </div>
+            </div>
+            <PageDots pages={pages} page={page} onGo={goTo} label="Ver pedidos, página" />
+            <style>{PAGE_SLIDE_CSS}</style>
 
             {menuItem && createPortal(
                 <div className="fixed inset-0 z-[1000] flex items-end sm:items-center justify-center sm:p-4" style={{ background: 'rgba(0,0,0,0.55)' }} onClick={closeMenu}>

@@ -271,28 +271,17 @@ export default function FeaturedServices({ dragHandle, title = 'Serviços em des
 
             {actions && <div className="-mt-1 mb-4">{actions(services.length)}</div>}
 
-            {/* Um cartão só, flutuando, com 3 serviços por vez */}
-            <div
-                className="rounded-3xl px-2 py-1"
-                style={{
-                    background: colors.surface,
-                    border: `1px solid ${colors.border}`,
-                    boxShadow: '0 14px 40px rgba(0,0,0,0.12)',
-                }}
-                {...handlers}
-            >
-                <div key={page} className={`grid grid-cols-1 md:grid-cols-3 ${dir > 0 ? 'page-in-next' : 'page-in-prev'}`} style={{ touchAction: 'pan-y' }}>
-                    {visible.map((service, i) => (
+            {/* 3 cartões por vez; passa de 3 em 3 sem repetir até mostrar todos (deslizar ou pontinhos também trocam) */}
+            <div {...handlers}>
+                <div key={page} className={`grid grid-cols-1 md:grid-cols-3 gap-3 ${dir > 0 ? 'page-in-next' : 'page-in-prev'}`} style={{ touchAction: 'pan-y' }}>
+                    {visible.map((service) => (
                         <SeenBox
                             key={service.id}
                             onSeen={() => countHover(service)}
                             seenKey={`product:${service.id}`}
                             dwellMs={2_000_000_000}
-                            className={`${i < visible.length - 1 ? 'border-b md:border-b-0 md:border-r' : ''}`}
-                            style={{ borderColor: `${colors.border}80` }}
                         >
                             <ListingRowCard
-                                flat
                                 title={service.title}
                                 description={service.description}
                                 imageUrl={service.imageUrl}
@@ -310,7 +299,6 @@ export default function FeaturedServices({ dragHandle, title = 'Serviços em des
                     ))}
                 </div>
             </div>
-
             <PageDots pages={pages} page={page} onGo={goTo} label="Ver serviços, página" />
             <style>{PAGE_SLIDE_CSS}</style>
 
