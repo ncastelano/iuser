@@ -311,8 +311,8 @@ export default function FeaturedServices({ dragHandle, title = 'Serviços em des
                     if (pages <= 1 || Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return
                     const w = wheelRef.current
                     const now = Date.now()
-                    // Silêncio de 200 ms = a passada (e a inércia dela) acabou: libera a próxima
-                    if (now - w.last > 200) { w.locked = false; w.sum = 0 }
+                    // Silêncio de 50 ms = a passada (e a inércia dela) acabou: libera a próxima
+                    if (now - w.last > 50) { w.locked = false; w.sum = 0 }
                     w.last = now
                     if (w.locked) return
                     w.sum += e.deltaX
