@@ -245,6 +245,7 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
     const [isOwner, setIsOwner] = useState(false)
     const [showAgendaDialog, setShowAgendaDialog] = useState(false)
     const [agendaSaving, setAgendaSaving] = useState(false)
+    const [chatSaving, setChatSaving] = useState(false)
     const [showScheduleModal, setShowScheduleModal] = useState(false)
     const [followersCount, setFollowersCount] = useState(0)
     const [followingCount, setFollowingCount] = useState(0)
@@ -677,6 +678,17 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
         setOwner(prev => prev ? { ...prev, allow_scheduling: enable } : prev)
         setShowAgendaDialog(false)
         toast.success(enable ? 'Agenda ativada!' : 'Agenda desativada')
+    }
+
+    // Liga/desliga o chat: com ele ligado, o perfil mostra o botão "Conversar" (igual ao do WhatsApp)
+    const handleToggleChat = async (enable: boolean) => {
+        if (!owner) return
+        setChatSaving(true)
+        const { error } = await supabase.from('profiles').update({ chat_enabled: enable }).eq('id', owner.id)
+        setChatSaving(false)
+        if (error) { toast.error(error.message); return }
+        setOwner(prev => prev ? { ...prev, chat_enabled: enable } : prev)
+        toast.success(enable ? 'Chat ativado! Seu perfil agora mostra o botão Conversar' : 'Chat desativado')
     }
 
     const handleFollowToggle = async () => {
@@ -1484,6 +1496,31 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
 
                     {isOwner && (
                         <>
+                            <button
+                                onClick={() => handleToggleChat(!owner.chat_enabled)}
+                                disabled={chatSaving}
+                                className="w-full flex items-center gap-3 p-3 rounded-xl text-left transition-all hover:scale-[1.01] disabled:opacity-70"
+                                style={{ background: glassBg, border: `1px ${owner.chat_enabled ? 'solid' : 'dashed'} ${owner.chat_enabled ? colors.border : '#f97316'}` }}
+                            >
+                                <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: owner.chat_enabled ? 'rgba(249,115,22,0.15)' : GRADIENT, color: owner.chat_enabled ? '#f97316' : '#fff' }}>
+                                    <MessageCircle size={18} />
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                    <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>{owner.chat_enabled ? 'Chat ativo' : 'Ativar chat'}</p>
+                                    <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>
+                                        {owner.chat_enabled ? 'Seu perfil mostra o botão Conversar. Toque para desativar' : 'Deixe as pessoas te chamarem por mensagem pelo seu perfil'}
+                                    </p>
+                                </div>
+                            </button>
+                            {owner.chat_enabled && (
+                                <button
+                                    onClick={() => router.push('/conversas')}
+                                    className="w-full text-xs font-bold underline text-center"
+                                    style={{ color: '#f97316' }}
+                                >
+                                    Ver minhas conversas
+                                </button>
+                            )}
                             <button
                                 onClick={() => setShowAgendaDialog(true)}
                                 className="w-full flex items-center gap-3 p-3 rounded-xl text-left transition-all hover:scale-[1.01]"
