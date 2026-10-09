@@ -19,11 +19,12 @@ interface RadarSectionProps {
     onDefineLocation?: () => void
 }
 
-const KIND_META: Record<NearestKind, { label: string; icon: typeof Store }> = {
-    loja: { label: 'Loja', icon: Store },
-    produto: { label: 'Produto', icon: ShoppingBag },
-    servico: { label: 'Serviço', icon: Wrench },
-    pessoa: { label: 'Pessoa', icon: Users },
+// Cada tipo tem a sua cor no selo (o selo de preço continua laranja)
+const KIND_META: Record<NearestKind, { label: string; icon: typeof Store; color: string }> = {
+    loja: { label: 'Loja', icon: Store, color: '#2563eb' },
+    produto: { label: 'Produto', icon: ShoppingBag, color: '#059669' },
+    servico: { label: 'Serviço', icon: Wrench, color: '#7c3aed' },
+    pessoa: { label: 'Pessoa', icon: Users, color: '#db2777' },
 }
 
 const KINDS: NearestKind[] = ['loja', 'produto', 'servico', 'pessoa']
@@ -162,14 +163,14 @@ export default function RadarSection({ dragHandle, origin, userId, onDefineLocat
                             </div>
                             <div className="grid grid-cols-2 sm:grid-cols-4 min-[1280px]:grid-cols-6 gap-3">
                                 {cards.map((item) => {
-                                    const { label, icon: KindIcon } = KIND_META[item.kind]
+                                    const { label, icon: KindIcon, color: kindColor } = KIND_META[item.kind]
                                     return (
                                         // Wrapper sem overflow cortado: o selo do tipo fica pendurado na borda de cima do card
                                         // (lado direito), como o selo do "Seu plano", em vez de dentro da imagem em cima do preço.
                                         <div key={`${item.kind}-${item.id}`} className="relative radar-card-in">
                                         <span
                                             className="absolute -top-2.5 right-2 z-10 flex items-center gap-1 text-[9px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full text-white whitespace-nowrap pointer-events-none"
-                                            style={{ background: '#111827', border: '1px solid #ffffff' }}
+                                            style={{ background: kindColor, border: '1px solid #ffffff' }}
                                         >
                                             <KindIcon size={10} color="#ffffff" />
                                             {label}
@@ -192,7 +193,7 @@ export default function RadarSection({ dragHandle, origin, userId, onDefineLocat
                                             <div className="absolute bottom-0 left-0 right-0 p-2 pointer-events-none">
                                                 <h4 className="text-[11px] font-bold text-white leading-tight line-clamp-2">{item.name}</h4>
                                                 {item.subtitle && <p className="text-[9px] text-white/60 truncate">{item.subtitle}</p>}
-                                                {item.kind === 'produto' && item.price != null && (
+                                                {(item.kind === 'produto' || item.kind === 'servico') && item.price != null && item.price > 0 && (
                                                     <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded-md text-[10px] font-black text-white" style={{ background: 'rgba(249,115,22,0.85)' }}>
                                                         R$ {item.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                                     </span>

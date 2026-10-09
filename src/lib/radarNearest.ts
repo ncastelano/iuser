@@ -90,7 +90,7 @@ export async function fetchNearest(origin: { lat: number; lng: number } | null, 
         if (!baseSlug || !p.slug) continue
         const isService = p.listing_type === 'service_offer' || p.type === 'service'
         if (isService) {
-            nearestServices.push({ kind: 'servico', id: p.id, name: p.name, subtitle: store?.name || owner?.name || null, imageUrl: productImage(p.image_url), price: null, distanceKm: d, viewCount: Number(p.view_count) || 0, href: `/${baseSlug}/${p.slug}` })
+            nearestServices.push({ kind: 'servico', id: p.id, name: p.name, subtitle: store?.name || owner?.name || null, imageUrl: productImage(p.image_url), price: p.price != null && Number(p.price) > 0 ? Number(p.price) : null, distanceKm: d, viewCount: Number(p.view_count) || 0, href: `/${baseSlug}/${p.slug}` })
         } else if (p.listing_type === 'sale' && p.type === 'physical') {
             nearestProducts.push({
                 kind: 'produto', id: p.id, name: p.name, subtitle: store?.name || null,
