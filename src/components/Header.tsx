@@ -9,7 +9,11 @@ import { hexToRgb } from '@/lib/color'
 import { useCartStore } from '@/store/useCartStore'
 import { useChatUnread } from '@/hooks/useChatUnread'
 import { useProfile } from '@/app/contexts/ProfileContext'
-import PlanAvatarRing from '@/components/PlanAvatarRing'
+import PlanAvatarRing, { PlanRingFrame } from '@/components/PlanAvatarRing'
+
+// Cores da borda do nível Diamante (mesmas de avatar_borders 'nivel-diamante')
+const DIAMOND_COLORS = ['#67e8f9', '#a5b4fc', '#f0abfc', '#67e8f9']
+const DIAMOND_STOPS = [...DIAMOND_COLORS, DIAMOND_COLORS[0]].map((c, i) => `${c} ${Math.round((i / DIAMOND_COLORS.length) * 360)}deg`).join(', ')
 
 export interface Tab {
     id: string
@@ -410,7 +414,7 @@ export default function Header({
                                 const borderColor = getTabBorder(tab)
                                 const isActive = tab.isActive
 
-                                return (
+                                const button = (
                                     <button
                                         key={tab.id}
                                         data-tab-id={tab.id}
@@ -418,16 +422,12 @@ export default function Header({
                                         disabled={loading}
                                         className="relative flex items-center pl-0 pr-3 py-0.5 rounded-full text-xs sm:text-sm font-semibold transition-all duration-200 whitespace-nowrap disabled:opacity-50 flex-shrink-0"
                                         style={{
-                                            background: backgroundColor,
+                                            background: tab.glow && !isActive ? colors.surface : backgroundColor,
                                             backdropFilter: 'blur(10px)',
                                             color: textColor,
                                             overflow: 'visible',
                                             scrollSnapAlign: 'start',
-                                            border: `1.5px solid ${tab.glow && !isActive ? '#f97316' : borderColor}`,
-                                            ...(tab.glow && !isActive ? {
-                                                boxShadow: `0 0 0 1px #f97316, 0 0 5px #f9731640, 0 0 10px #fb923c30, 0 0 15px #f59e0b20`,
-                                                animation: 'pulseGlow 2s ease-in-out infinite',
-                                            } : {}),
+                                            border: `1.5px solid ${tab.glow && !isActive ? 'transparent' : borderColor}`,
                                             ...(isActive && !tab.statusColor ? {
                                                 boxShadow: `0 2px 8px #f9731640`,
                                                 fontWeight: 'bold',
@@ -498,6 +498,27 @@ export default function Header({
                                         )}
                                     </button>
                                 )
+
+                                // Chamada à ação do visitante: borda giratória igual à do avatar Diamante, com um halo esfumaçado atrás
+                                if (tab.glow && !isActive) {
+                                    return (
+                                        <PlanRingFrame key={tab.id} colors={DIAMOND_COLORS} radius="9999px" width={2} className="flex-shrink-0">
+                                            <span
+                                                aria-hidden
+                                                className="plan-ring-inset pointer-events-none absolute"
+                                                style={{
+                                                    inset: -3,
+                                                    borderRadius: 9999,
+                                                    background: `conic-gradient(from var(--plan-ring-angle), ${DIAMOND_STOPS})`,
+                                                    filter: 'blur(7px)',
+                                                    opacity: 0.6,
+                                                }}
+                                            />
+                                            {button}
+                                        </PlanRingFrame>
+                                    )
+                                }
+                                return button
                             })}
                         </div>
                     )}
