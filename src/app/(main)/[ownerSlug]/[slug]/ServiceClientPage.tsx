@@ -182,67 +182,65 @@ export function ServiceClientPage({ ownerSlug, colors, initialService }: Service
             </div>
 
             <div className="max-w-3xl mx-auto px-4 pt-4 flex flex-col gap-4">
-                {/* Capa: a imagem inteira, sem cortar (fundo é uma cópia desfocada dela) */}
-                <div className="relative w-full rounded-3xl overflow-hidden" style={{ background: GRADIENT }}>
-                    {imageUrl ? (
-                        <>
-                            <img src={imageUrl} alt="" aria-hidden className="absolute inset-0 w-full h-full object-cover scale-125 blur-2xl opacity-70" />
-                            <img src={imageUrl} alt={service.name} className="relative w-full h-auto max-h-[70vh] object-contain" />
-                        </>
-                    ) : (
-                        <div className="w-full h-[200px] flex items-center justify-center" style={{ opacity: 0.6 }}>
-                            <Icon size={72} color="#fff" />
-                        </div>
-                    )}
-                    <span
-                        className="absolute left-3 top-3 flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-wide text-white"
-                        style={{ background: GRADIENT }}
-                    >
-                        <Icon size={12} />
-                        {typeLabel}
-                    </span>
-                    {/* Contato sobre o rodapé da imagem: WhatsApp e iUser (conforme o que o dono ligou em Editar) */}
-                    {(whatsappLink || (service.show_chat && service.owner_id)) && (
-                        <div className="absolute inset-x-0 bottom-0 flex flex-col gap-2 px-3 pb-3 pt-10" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.65), transparent)' }}>
-                            {/* Só o dono vê esta frase: pra ele os botões são uma prévia, sem clicar */}
-                            {isOwner && (
-                                <p className="text-[11px] font-bold uppercase tracking-wide" style={{ color: 'rgba(255,255,255,0.85)' }}>
-                                    Assim as pessoas entram em contato com você
-                                </p>
-                            )}
-                            <div className="flex gap-2">
-                                {whatsappLink && (
-                                    isOwner ? (
-                                        <div
-                                            aria-disabled
-                                            className="flex-1 py-3.5 rounded-full font-black text-sm flex items-center justify-center gap-2 text-white select-none"
-                                            style={{ background: 'linear-gradient(135deg, #075e54, #25D366)', opacity: 0.85 }}
-                                        >
-                                            <MessageCircle size={18} />
-                                            WhatsApp
-                                        </div>
-                                    ) : (
-                                        <a
-                                            href={whatsappLink}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="flex-1 py-3.5 rounded-full font-black text-sm flex items-center justify-center gap-2 text-white transition hover:scale-[1.02] active:scale-95"
-                                            style={{ background: 'linear-gradient(135deg, #075e54, #25D366)' }}
-                                        >
-                                            <MessageCircle size={18} />
-                                            WhatsApp
-                                        </a>
-                                    )
-                                )}
-                                {service.show_chat && service.owner_id && (
-                                    <div className={`flex-1 ${isOwner ? 'pointer-events-none select-none opacity-85' : ''}`}>
-                                        <ChatContactButton profileId={service.owner_id} colors={colors} variant="pill" label="iUser" />
-                                    </div>
-                                )}
+                {/* Capa: a imagem inteira, sem cortar (fundo é uma cópia desfocada dela); os botões de contato ficam metade na imagem, metade pra fora */}
+                {(() => {
+                    const hasContact = !!whatsappLink || !!(service.show_chat && service.owner_id)
+                    return (
+                <div className={`relative w-full ${hasContact ? 'mb-7' : ''}`}>
+                    <div className="relative w-full rounded-3xl overflow-hidden" style={{ background: GRADIENT }}>
+                        {imageUrl ? (
+                            <>
+                                <img src={imageUrl} alt="" aria-hidden className="absolute inset-0 w-full h-full object-cover scale-125 blur-2xl opacity-70" />
+                                <img src={imageUrl} alt={service.name} className="relative w-full h-auto max-h-[70vh] object-contain" />
+                            </>
+                        ) : (
+                            <div className="w-full h-[200px] flex items-center justify-center" style={{ opacity: 0.6 }}>
+                                <Icon size={72} color="#fff" />
                             </div>
+                        )}
+                        <span
+                            className="absolute left-3 top-3 flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-wide text-white"
+                            style={{ background: GRADIENT }}
+                        >
+                            <Icon size={12} />
+                            {typeLabel}
+                        </span>
+                    </div>
+                    {hasContact && (
+                        <div className="absolute inset-x-4 bottom-0 translate-y-1/2 flex gap-2">
+                            {whatsappLink && (
+                                isOwner ? (
+                                    <div
+                                        aria-disabled
+                                        className="flex-1 py-3.5 rounded-full font-black text-sm flex items-center justify-center gap-2 text-white select-none"
+                                        style={{ background: 'linear-gradient(135deg, #075e54, #25D366)', boxShadow: '0 6px 16px rgba(0,0,0,0.3)' }}
+                                    >
+                                        <MessageCircle size={18} />
+                                        WhatsApp
+                                    </div>
+                                ) : (
+                                    <a
+                                        href={whatsappLink}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex-1 py-3.5 rounded-full font-black text-sm flex items-center justify-center gap-2 text-white transition hover:scale-[1.02] active:scale-95"
+                                        style={{ background: 'linear-gradient(135deg, #075e54, #25D366)', boxShadow: '0 6px 16px rgba(0,0,0,0.3)' }}
+                                    >
+                                        <MessageCircle size={18} />
+                                        WhatsApp
+                                    </a>
+                                )
+                            )}
+                            {service.show_chat && service.owner_id && (
+                                <div className={`flex-1 rounded-full ${isOwner ? 'pointer-events-none select-none' : ''}`} style={{ boxShadow: '0 6px 16px rgba(0,0,0,0.3)' }}>
+                                    <ChatContactButton profileId={service.owner_id} colors={colors} variant="pill" label="iUser" />
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>
+                    )
+                })()}
 
                 {/* Título + números */}
                 <div>
