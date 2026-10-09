@@ -1652,34 +1652,6 @@ export default function ProfileDashboard({
                 </div>
             )}
 
-            {/* ===== Ações rápidas ===== */}
-            <div className="grid grid-cols-2 gap-2 mt-4">
-                <button
-                    onClick={goToPublicProfile}
-                    style={{
-                        ...pillButtonFullStyle,
-                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
-                        border: `1px solid ${colors.border}`,
-                        color: colors.textPrimary,
-                    }}
-                    className="hover:opacity-70 transition-opacity"
-                >
-                    <User size={16} /> Ver Perfil
-                </button>
-                <button
-                    onClick={() => cfgSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-                    style={{
-                        ...pillButtonFullStyle,
-                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
-                        border: `1px solid ${colors.border}`,
-                        color: colors.textPrimary,
-                    }}
-                    className="hover:opacity-70 transition-opacity"
-                >
-                    <Settings size={16} /> Config
-                </button>
-            </div>
-
             {/* ===== CONFIGURAÇÕES: cada função com a sua própria seção que abre e fecha (tema, plano de fundo, whatsapp, fonte, conta) ===== */}
             <div ref={cfgSectionRef} className="mb-6 mt-4 space-y-4">
                 <DashboardSection storageKey="config-tema" title="Tema do iUser" subtitle="Escolha o tema que combina com você">
