@@ -508,7 +508,7 @@ export default function ListaCategoriaPage() {
                                                         className="flex flex-col items-center gap-1 flex-shrink-0 w-20"
                                                     >
                                                         <div
-                                                            className="w-20 aspect-[3/5] rounded-2xl border-2 border-dashed flex items-center justify-center transition-all hover:scale-105"
+                                                            className="w-20 h-[134px] rounded-2xl border-2 border-dashed flex items-center justify-center transition-all hover:scale-105"
                                                             style={{ borderColor: colors.border }}
                                                         >
                                                             <PlusCircle size={20} style={{ color: '#f97316' }} />
@@ -525,10 +525,10 @@ export default function ListaCategoriaPage() {
                                                         onClick={() => router.push(`/${pub.storeSlug}/${pub.slug || pub.id}`)}
                                                         className="flex flex-col items-center gap-1 flex-shrink-0 w-20"
                                                     >
-                                                        <div className="w-20 aspect-[3/5] rounded-2xl p-[2px]" style={{ background: GRADIENT }}>
-                                                            <div className="w-full h-full rounded-[14px] overflow-hidden bg-white flex items-center justify-center">
+                                                        <div className="w-20 h-[134px] rounded-2xl p-[2px] flex-shrink-0" style={{ background: GRADIENT }}>
+                                                            <div className="relative w-full h-full rounded-[14px] overflow-hidden bg-white flex items-center justify-center">
                                                                 {pub.image_url ? (
-                                                                    <img src={pub.image_url} className="w-full h-full object-cover" alt={pub.name} />
+                                                                    <img src={pub.image_url} className="absolute inset-0 w-full h-full object-cover" alt={pub.name} />
                                                                 ) : (
                                                                     <Megaphone size={20} style={{ color: '#f97316' }} />
                                                                 )}
