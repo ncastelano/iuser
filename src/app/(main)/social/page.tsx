@@ -18,6 +18,10 @@ import {
     Clock as ClockIcon,
     X,
     Search,
+    Trophy,
+    Heart,
+    Users,
+    Sparkles,
 } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import Link from 'next/link'
@@ -54,12 +58,35 @@ interface RecentProfile {
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
+type SocialTab = 'melhores' | 'sigo' | 'seguem' | 'novos'
+
+const PROFILE_COLUMNS = `
+    id,
+    name,
+    avatar_url,
+    "profileSlug",
+    description,
+    bio,
+    address,
+    whatsapp,
+    instagram,
+    ratings_avg,
+    ratings_count,
+    is_seller,
+    is_active,
+    category,
+    view_count,
+    created_at
+`
+
 export default function SocialList() {
     const router = useRouter()
-    const { avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
+    const { userId, avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
     const { colors } = useTheme()
 
     const [searchQuery, setSearchQuery] = useState('')
+    // Os melhores perfis da plataforma sempre vêm primeiro: já é a aba que abre
+    const [tab, setTab] = useState<SocialTab>('melhores')
     const [profiles, setProfiles] = useState<ProfileWithDetails[]>([])
     const [loadingData, setLoadingData] = useState(false)
     const [error, setError] = useState<string | null>(null)
@@ -132,36 +159,32 @@ export default function SocialList() {
         loadRecentProfiles()
     }, [loadRecentProfiles])
 
-    // ===== LOAD PROFILES =====
+    // ===== LOAD PROFILES (por aba) =====
     const loadProfiles = useCallback(async () => {
         setLoadingData(true)
         setError(null)
 
         try {
-            const { data, error } = await supabase
-                .from('profiles')
-                .select(`
-                    id,
-                    name,
-                    avatar_url,
-                    "profileSlug",
-                    description,
-                    bio,
-                    address,
-                    whatsapp,
-                    instagram,
-                    ratings_avg,
-                    ratings_count,
-                    is_seller,
-                    is_active,
-                    category,
-                    view_count,
-                    created_at
-                `)
-                .eq('is_active', true)
-                .order('view_count', { ascending: false })
-                .order('ratings_avg', { ascending: false })
-                .limit(100)
+            let query = supabase.from('profiles').select(PROFILE_COLUMNS).eq('is_active', true)
+
+            if (tab === 'sigo' || tab === 'seguem') {
+                // Sem conta não há ninguém pra listar
+                if (!userId) { setProfiles([]); setLoadingData(false); return }
+                const { data: rel, error: relError } = tab === 'sigo'
+                    ? await supabase.from('follows').select('following_id').eq('follower_id', userId).order('created_at', { ascending: false }).limit(200)
+                    : await supabase.from('follows').select('follower_id').eq('following_id', userId).order('created_at', { ascending: false }).limit(200)
+                if (relError) throw relError
+                const ids = (rel || []).map((r: any) => (tab === 'sigo' ? r.following_id : r.follower_id))
+                if (ids.length === 0) { setProfiles([]); setLoadingData(false); return }
+                query = query.in('id', ids)
+            } else if (tab === 'novos') {
+                query = query.order('created_at', { ascending: false })
+            } else {
+                // Melhores: mais vistos e melhor avaliados
+                query = query.order('view_count', { ascending: false }).order('ratings_avg', { ascending: false })
+            }
+
+            const { data, error } = await query.limit(100)
 
             if (error) {
                 console.error('Erro ao buscar perfis:', error)
@@ -188,7 +211,7 @@ export default function SocialList() {
         }
 
         setLoadingData(false)
-    }, [])
+    }, [tab, userId])
 
     useEffect(() => {
         loadProfiles()
@@ -207,6 +230,19 @@ export default function SocialList() {
                 p.category?.toLowerCase().includes(q)
         )
     }, [profiles, searchQuery])
+
+    const tabs = useMemo(() => ([
+        { id: 'melhores', label: 'Melhores perfis', icon: Trophy, onClick: () => setTab('melhores'), isActive: tab === 'melhores' },
+        { id: 'sigo', label: 'Quem eu sigo', icon: Heart, onClick: () => setTab('sigo'), isActive: tab === 'sigo' },
+        { id: 'seguem', label: 'Quem me segue', icon: Users, onClick: () => setTab('seguem'), isActive: tab === 'seguem' },
+        { id: 'novos', label: 'Entraram por último', icon: Sparkles, onClick: () => setTab('novos'), isActive: tab === 'novos' },
+    ]), [tab])
+
+    const emptyText = searchQuery
+        ? 'Nenhum perfil encontrado para esta busca.'
+        : tab === 'sigo' ? (userId ? 'Você ainda não segue ninguém. Siga perfis para ver aqui.' : 'Entre na sua conta para ver quem você segue.')
+            : tab === 'seguem' ? (userId ? 'Ninguém te segue ainda.' : 'Entre na sua conta para ver quem te segue.')
+                : 'Nenhum perfil disponível.'
 
     // ===== HANDLERS =====
     const handleSearchFocus = useCallback(() => {
@@ -259,6 +295,7 @@ export default function SocialList() {
                     greeting={`Olá, ${profileLoading ? '...' : profileSlug ? `@${profileSlug}` : 'Visitante'}`}
                     avatarUrl={avatarUrl}
                     loading={profileLoading}
+                    tabs={tabs}
                     showSearch={true}
                     searchPlaceholder="Buscar nome ou @iusername"
                     onSearch={setSearchQuery}
@@ -415,7 +452,7 @@ export default function SocialList() {
                                 >
                                     <User className="w-8 h-8 opacity-40" style={{ color: colors.textSecondary }} />
                                     <p className="text-sm font-medium" style={{ color: colors.textSecondary }}>
-                                        {searchQuery ? 'Nenhum perfil encontrado para esta busca.' : 'Nenhum perfil disponível.'}
+                                        {emptyText}
                                     </p>
                                     {!searchQuery && (
                                         <p className="text-xs opacity-60" style={{ color: colors.textSecondary }}>
