@@ -215,7 +215,6 @@ export default function ProfileNotification({ userId }: { userId: string }) {
         <DashboardSection
             storageKey="notificacoes-perfil"
             title="Notificações do perfil"
-            subtitle="Tudo o que acontece com o seu perfil"
             collapsedContent={items !== null && preview.length > 0 ? (
                 <>
                     <p className="text-[11px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>Últimas notificações</p>

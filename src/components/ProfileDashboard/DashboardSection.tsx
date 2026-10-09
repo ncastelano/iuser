@@ -57,7 +57,7 @@ export default function DashboardSection({ storageKey, title, subtitle, collapse
             </button>
 
             {!expanded && collapsedContent && (
-                <div className="px-4 pb-4 pt-3 flex flex-col gap-0.5 border-t" style={{ borderColor: colors.border }}>
+                <div className="px-4 pb-4 pt-1 flex flex-col gap-0.5">
                     {collapsedContent}
                 </div>
             )}

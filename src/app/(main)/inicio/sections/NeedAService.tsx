@@ -80,6 +80,11 @@ export default function NeedAService({ dragHandle, limit = 8 }: { dragHandle?: R
     }
 
     const go = (path: string) => { startNavProgress(); router.push(path) }
+    // Guarda onde a pessoa estava na home: ao voltar, a tela desliza de volta pra esse ponto
+    const goFromHome = (path: string) => {
+        try { sessionStorage.setItem('iuser_home_scroll', String(window.scrollY)) } catch { /* sem sessionStorage, volta pro topo */ }
+        go(path)
+    }
 
     if (items === null) return null
 
@@ -105,7 +110,9 @@ export default function NeedAService({ dragHandle, limit = 8 }: { dragHandle?: R
                             // Só passar por cima (ou ficar visível) já conta como visto: aparece em "Visitantes dos serviços" do pedido
                             onSeen={() => trackServiceRequestView(item.id)}
                             seenKey={`request:${item.id}`}
-                            className="flex-shrink-0 w-64 rounded-3xl overflow-hidden flex flex-col"
+                            // Pedido de outra pessoa: tocar no card leva até ele na lista de serviços (o dono usa o menu ⋯)
+                            onClick={!mine ? () => goFromHome(`/procurar-servico?ver=${item.id}`) : undefined}
+                            className={`flex-shrink-0 w-64 rounded-3xl overflow-hidden flex flex-col ${!mine ? 'cursor-pointer' : ''}`}
                             style={{
                                 background: colors.surface,
                                 border: `1px solid ${mine ? colors.accent : colors.border}`,
@@ -182,7 +189,7 @@ export default function NeedAService({ dragHandle, limit = 8 }: { dragHandle?: R
 
                             {!mine && applied?.has(item.id) && applied.get(item.id) !== 'rejected' && (
                                 <button
-                                    onClick={() => go(`/procurar-servico?pedido=${item.id}`)}
+                                    onClick={(e) => { e.stopPropagation(); goFromHome(`/procurar-servico?pedido=${item.id}`) }}
                                     className="mt-auto w-full flex items-center justify-center gap-2 py-3 rounded-full font-black text-sm"
                                     style={{ background: '#22c55e18', color: '#16a34a', border: '1px solid #22c55e55' }}
                                 >
@@ -193,7 +200,7 @@ export default function NeedAService({ dragHandle, limit = 8 }: { dragHandle?: R
 
                             {!mine && !(applied?.has(item.id) && applied.get(item.id) !== 'rejected') && (
                                 <button
-                                    onClick={() => go(`/procurar-servico?pedido=${item.id}`)}
+                                    onClick={(e) => { e.stopPropagation(); goFromHome(`/procurar-servico?pedido=${item.id}`) }}
                                     className="mt-auto w-full flex items-center justify-center gap-2 py-3 rounded-full font-black text-sm transition-all hover:scale-[1.02] active:scale-95"
                                     style={{ background: HOME_GRADIENT, color: '#fff', boxShadow: '0 4px 12px #f9731640' }}
                                 >

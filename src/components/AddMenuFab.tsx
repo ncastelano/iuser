@@ -36,7 +36,7 @@ export default function AddMenuFab() {
         <div ref={rootRef} className="relative flex-shrink-0">
             {open && (
                 <div
-                    className="absolute bottom-full right-0 mb-3 w-64 rounded-3xl p-2 flex flex-col gap-1"
+                    className="absolute bottom-full left-0 mb-3 w-64 rounded-3xl p-2 flex flex-col gap-1"
                     style={{ background: '#ffffff', border: '1px solid #f9731640', boxShadow: '0 12px 36px rgba(0,0,0,0.25)', animation: 'addMenuIn .18s ease-out' }}
                 >
                     {options.map((o) => {

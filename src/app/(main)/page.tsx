@@ -161,6 +161,24 @@ function HomePageContent() {
     const pendingInvitesCount = useMerchantStore(s => s.pendingInvitesCount)
     const [profileOpenNow, setProfileOpenNow] = useState(false)
 
+    // ---------- VOLTAR AO PONTO DA PÁGINA (movimento suave) ----------
+    // Quem saiu da home por um card (ex: pedido de serviço) volta e a tela desliza até onde estava, em vez de pular.
+    useEffect(() => {
+        let saved: string | null = null
+        try { saved = sessionStorage.getItem('iuser_home_scroll') } catch { /* ok */ }
+        if (!saved) return
+        try { sessionStorage.removeItem('iuser_home_scroll') } catch { /* ok */ }
+        const target = Number(saved)
+        if (!Number.isFinite(target) || target < 50) return
+        const prev = window.history.scrollRestoration
+        window.history.scrollRestoration = 'manual'
+        const glide = () => window.scrollTo({ top: target, behavior: 'smooth' })
+        // A home monta por partes (a altura cresce): tenta de novo quando mais conteúdo já carregou
+        const t1 = setTimeout(glide, 500)
+        const t2 = setTimeout(() => { if (Math.abs(window.scrollY - target) > 60) glide() }, 1600)
+        return () => { clearTimeout(t1); clearTimeout(t2); window.history.scrollRestoration = prev }
+    }, [])
+
     // ---------- CARREGAR ORDEM DAS SEÇÕES ----------
     useEffect(() => {
         const saved = localStorage.getItem(ORDER_STORAGE_KEY)
@@ -825,7 +843,7 @@ function HomePageContent() {
 
                 {/* ===== BOTÃO FLUTUANTE - VOLTAR ===== */}
                 <div style={{ position: 'fixed', bottom: 32, right: 24, zIndex: 40 }}>
-                    <div className="flex flex-col-reverse sm:flex-row-reverse items-end gap-3">
+                    <div className="flex flex-col-reverse sm:flex-row items-end gap-3">
                         {showFab && (
                             <button
                                 onClick={showHomeSections}
@@ -844,10 +862,15 @@ function HomePageContent() {
                                 <Home size={24} />
                             </button>
                         )}
-                        {/* No painel do perfil: "Adicionar" (publicação ou serviço) leva até o componente com um bot e abre o formulário */}
-                        {showProfile && <AddMenuFab />}
                     </div>
                 </div>
+
+                {/* No painel do perfil: "Adicionar" (publicação ou serviço) fica na mesma linha do botão da home, no canto esquerdo */}
+                {showProfile && (
+                    <div style={{ position: 'fixed', bottom: 32, left: 24, zIndex: 40 }}>
+                        <AddMenuFab />
+                    </div>
+                )}
 
                 {/* ===== LOCATION PICKER - APENAS QUANDO NÃO ESTÁ EM TELA DE LOGIN/REGISTRO ===== */}
                 {!isLoginScreen && showLocationDialog && (

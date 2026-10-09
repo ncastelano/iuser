@@ -50,6 +50,9 @@ function SerParceiroContent() {
     // se inscreve sozinho 1s depois.
     const focusId = searchParams.get('pedido')
     const focusHandledRef = useRef(false)
+    // Vem de tocar no card do pedido na home: só desliza até ele (sem se inscrever)
+    const viewId = searchParams.get('ver')
+    const viewHandledRef = useRef(false)
     // Abas, no mesmo molde de /aceitar-corridas: Serviços disponíveis | Me inscrevi
     const [activeTab, setActiveTab] = useState<'disponiveis' | 'inscrevi'>(searchParams.get('aba') === 'inscrevi' ? 'inscrevi' : 'disponiveis')
     const { items: myApplications } = useMyServiceApplications()
@@ -174,6 +177,17 @@ function SerParceiroContent() {
             setDeletingKey(null)
         }
     }
+
+    // ===== VER O PEDIDO (?ver=<id>): movimento suave até o card, sem inscrição =====
+    useEffect(() => {
+        if (!viewId || viewHandledRef.current || loading) return
+        const el = document.getElementById(`job-card-${viewId}`)
+        if (!el) { if (jobs.length > 0) viewHandledRef.current = true; return }
+        viewHandledRef.current = true
+        // O cartão acabou de entrar na tela: começa do topo e desliza até ele
+        window.scrollTo({ top: 0 })
+        setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'center' }), 250)
+    }, [viewId, loading, jobs])
 
     // ===== FOCO + INSCRIÇÃO AUTOMÁTICA (?pedido=<id>) =====
     useEffect(() => {
