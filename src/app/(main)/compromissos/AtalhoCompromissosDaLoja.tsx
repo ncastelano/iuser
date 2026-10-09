@@ -222,7 +222,7 @@ export default function AtalhoCompromissosDaLoja({
     return (
         <div className="mt-6 mb-6">
             <div
-                className={`rounded-2xl w-full flex flex-col ${isExpanded ? 'p-6 pt-7 gap-5' : 'p-4'}`}
+                className={`rounded-3xl w-full flex flex-col ${isExpanded ? 'p-4 gap-4' : 'p-4'}`}
                 style={{
                     background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
                     backdropFilter: 'blur(12px)',
@@ -249,6 +249,7 @@ export default function AtalhoCompromissosDaLoja({
                             <h2 className={`${isExpanded ? 'text-lg' : 'text-sm'} font-black`} style={{ color: textPrimary }}>
                                 Agenda da Loja
                             </h2>
+                            {!isExpanded && (
                             <div className="flex items-center gap-3 text-xs mt-0.5" style={{ color: textSecondary }}>
                                 <span>
                                     <span className="font-bold" style={{ color: '#f97316' }}>{pendingCount}</span> pendente{pendingCount !== 1 ? 's' : ''}
@@ -258,6 +259,7 @@ export default function AtalhoCompromissosDaLoja({
                                     <span className="font-bold" style={{ color: '#10b981' }}>{confirmedCount}</span> confirmado{confirmedCount !== 1 ? 's' : ''}
                                 </span>
                             </div>
+                            )}
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -276,34 +278,42 @@ export default function AtalhoCompromissosDaLoja({
 
                 {isExpanded && (
                     <>
-                        {/* Botões de ação - PILL */}
-                        <div className="flex flex-wrap items-center justify-end gap-2">
+                        {/* Resumo em números */}
+                        <div className="grid grid-cols-3 gap-2.5">
+                            {[
+                                { label: 'Pendentes', value: pendingCount, color: '#f97316' },
+                                { label: 'Confirmados', value: confirmedCount, color: '#10b981' },
+                                { label: 'Total', value: storeAppointments.length, color: textPrimary },
+                            ].map((stat) => (
+                                <div
+                                    key={stat.label}
+                                    className="rounded-2xl py-3 px-2 text-center"
+                                    style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.5)`, border: `1px solid ${borderColor}` }}
+                                >
+                                    <p className="text-2xl font-black leading-none" style={{ color: stat.color }}>{stat.value}</p>
+                                    <p className="text-[11px] font-bold mt-1.5" style={{ color: textSecondary }}>{stat.label}</p>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Ações */}
+                        <div className="flex items-center gap-2.5">
                             <Link
                                 href="/compromissos/agendar"
-                                style={{
-                                    ...pillButtonStyle,
-                                    background: GRADIENT,
-                                    color: '#ffffff',
-                                    boxShadow: `0 4px 12px #f9731640`,
-                                }}
-                                className="hover:scale-105 transition-transform"
+                                className="flex-1 flex items-center justify-center gap-2 py-3 rounded-full font-black text-sm text-white transition-all hover:scale-[1.02] active:scale-95"
+                                style={{ background: GRADIENT, boxShadow: '0 4px 12px #f9731640', textDecoration: 'none' }}
                             >
-                                <Plus size={14} />
-                                Criar
+                                <Plus size={16} />
+                                Novo compromisso
                             </Link>
 
                             {sorted.length > 0 && (
                                 <Link
                                     href={agendaHref}
-                                    style={{
-                                        ...pillButtonStyle,
-                                        border: `1px solid ${borderColor}`,
-                                        color: textSecondary,
-                                        background: 'transparent',
-                                    }}
-                                    className="hover:bg-white/5 transition-colors"
+                                    className="flex items-center justify-center gap-2 px-5 py-3 rounded-full font-black text-sm transition-all hover:scale-[1.02] active:scale-95"
+                                    style={{ border: `2px solid ${colors.accent}`, color: colors.accent, background: 'transparent', textDecoration: 'none' }}
                                 >
-                                    <Calendar size={14} />
+                                    <Calendar size={16} />
                                     Ver agenda
                                 </Link>
                             )}
@@ -313,42 +323,16 @@ export default function AtalhoCompromissosDaLoja({
                         {sorted.length === 0 && !hasHiddenPending ? (
                             /* Estado vazio */
                             <div
-                                className="rounded-2xl p-6 text-center flex flex-col items-center gap-3"
-                                style={{
-                                    background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
-                                    border: `1px dashed ${borderColor}`,
-                                }}
+                                className="rounded-3xl p-5 flex items-center gap-4"
+                                style={{ background: 'linear-gradient(135deg, #f9731614, #dc262610)', border: '1px dashed #f9731666' }}
                             >
-                                <div
-                                    className="w-16 h-16 rounded-full flex items-center justify-center flex-shrink-0"
-                                    style={{
-                                        background: GRADIENT,
-                                        color: '#ffffff',
-                                    }}
-                                >
-                                    <Store size={32} />
+                                <div className="w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#ffffff', boxShadow: '0 4px 12px #f9731640' }}>
+                                    <Store size={26} />
                                 </div>
-                                <div>
-                                    <h3 className="text-lg font-black" style={{ color: textPrimary }}>
-                                        Sem compromissos na sua loja
-                                    </h3>
-                                    <p className="text-sm mt-1" style={{ color: textSecondary }}>
-                                        Divulgue sua loja para as pessoas agendarem um horário.
-                                    </p>
+                                <div className="min-w-0">
+                                    <h3 className="text-base font-black" style={{ color: textPrimary }}>Sem compromissos na sua loja</h3>
+                                    <p className="text-sm mt-0.5" style={{ color: textSecondary }}>Divulgue sua loja para as pessoas agendarem um horário.</p>
                                 </div>
-                                <Link
-                                    href="/compromissos/agendar"
-                                    style={{
-                                        ...pillButtonFullStyle,
-                                        background: GRADIENT,
-                                        color: '#ffffff',
-                                        boxShadow: `0 4px 14px #f9731660`,
-                                    }}
-                                    className="hover:scale-105 transition-transform"
-                                >
-                                    <Plus size={16} />
-                                    Novo compromisso
-                                </Link>
                             </div>
                         ) : sorted.length === 0 && hasHiddenPending ? (
                             /* Pendentes ocultos */

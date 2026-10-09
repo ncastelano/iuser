@@ -117,15 +117,9 @@ export function GraduationOverview({ data }: { data: MyGraduationData }) {
     return (
         <div className="flex flex-col gap-5">
             <div style={card} className="p-4 flex flex-col gap-4">
-                <div className="flex items-center justify-between gap-3 flex-wrap">
-                    <div>
-                        <h3 className="text-sm font-black" style={{ color: colors.textPrimary }}>Minha graduação</h3>
-                        <p className="text-[11px]" style={{ color: colors.textSecondary }}>
-                            {data.has_custom ? 'Você tem uma comissão personalizada — a graduação continua a mesma' : 'A graduação define quanto você ganha por cada indicado'}
-                        </p>
-                    </div>
-                    <LevelBadge level={level} size="lg" />
-                </div>
+                <p className="text-xs" style={{ color: colors.textSecondary }}>
+                    {data.has_custom ? 'Você tem uma comissão personalizada — a graduação continua a mesma' : 'A graduação define quanto você ganha por cada indicado'}
+                </p>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {planColumn('Pré-pago', 'prepaid', data.standard_prepaid_bp, data.custom_prepaid_bp, data.effective_prepaid.commission_rate_bp, data.prepaid_price_cents)}
