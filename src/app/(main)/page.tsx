@@ -52,9 +52,9 @@ const DEFAULT_SECTIONS = [
     'categorias',
     'meusPedidos',
     'servicosOferecidos',
+    'radar',
     'servicosProcurados',
     'storeList',
-    'radar',
     'canalMotorista',
     'productShowcase',
     'publicationShowcase',
@@ -66,6 +66,7 @@ const DEFAULT_SECTIONS = [
 ]
 
 const ORDER_STORAGE_KEY = 'homepage_sections_order'
+const RADAR_MOVED_KEY = 'homepage_radar_between_services_v1'
 // Visitante (sem conta) também pode definir um local: fica só neste aparelho e serve apenas
 // pra calcular o que está perto (Radar). Quem tem conta salva o local no perfil.
 const DEVICE_LOCATION_KEY = 'iuser_device_location'
@@ -234,7 +235,17 @@ function HomePageContent() {
                         filtered = at >= 0 ? [...filtered.slice(0, at + 1), 'communities', ...filtered.slice(at + 1)] : filtered
                     }
                     const missing = DEFAULT_SECTIONS.filter(s => !filtered.includes(s))
-                    const final = hasCategorias ? ['categorias', ...filtered, ...missing] : [...filtered, ...missing]
+                    let final = hasCategorias ? ['categorias', ...filtered, ...missing] : [...filtered, ...missing]
+                    // Uma vez só: o Radar passa pro meio de "Quem já oferece" e "Quem procura" (e a ordem salva é regravada)
+                    if (!localStorage.getItem(RADAR_MOVED_KEY)) {
+                        const without = final.filter(s => s !== 'radar')
+                        const at = without.indexOf('servicosProcurados')
+                        if (at >= 0) {
+                            final = [...without.slice(0, at), 'radar', ...without.slice(at)]
+                            localStorage.setItem(ORDER_STORAGE_KEY, JSON.stringify(final))
+                        }
+                        localStorage.setItem(RADAR_MOVED_KEY, '1')
+                    }
                     setSections(final)
                 }
             } catch {
