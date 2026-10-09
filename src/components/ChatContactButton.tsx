@@ -20,9 +20,11 @@ interface Props {
     storeId?: string
     colors: any
     background?: string
+    /** 'pill': botão redondo cheio (mesmo desenho do botão de WhatsApp da página do serviço) */
+    variant?: 'card' | 'pill'
 }
 
-export default function ChatContactButton({ profileId, storeId, colors, background = 'rgba(255, 255, 255, 0.08)' }: Props) {
+export default function ChatContactButton({ profileId, storeId, colors, background = 'rgba(255, 255, 255, 0.08)', variant = 'card' }: Props) {
     const router = useRouter()
     const pathname = usePathname()
     const { userId } = useProfile()
@@ -35,6 +37,20 @@ export default function ChatContactButton({ profileId, storeId, colors, backgrou
         setLoading(false)
         if (error || !data) { toast.error(error?.message || 'Não foi possível abrir a conversa'); return }
         router.push(`/conversas?c=${data}`)
+    }
+
+    if (variant === 'pill') {
+        return (
+            <button
+                onClick={open}
+                disabled={loading}
+                className="w-full py-3.5 rounded-full font-black text-sm flex items-center justify-center gap-2 text-white transition hover:scale-[1.02] active:scale-95 disabled:opacity-70"
+                style={{ background: GRADIENT }}
+            >
+                {loading ? <Spinner size={16} color="#fff" /> : <MessageCircle size={18} />}
+                Conversar pelo iUser
+            </button>
+        )
     }
 
     return (

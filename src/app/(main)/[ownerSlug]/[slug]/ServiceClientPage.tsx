@@ -271,20 +271,39 @@ export function ServiceClientPage({ ownerSlug, colors, initialService }: Service
 
                 {/* Ações */}
                 <div className="flex flex-col gap-2">
-                    {whatsappLink && !isOwner && (
-                        <a
-                            href={whatsappLink}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="w-full py-3.5 rounded-full font-black text-sm flex items-center justify-center gap-2 text-white transition hover:scale-[1.02] active:scale-95"
-                            style={{ background: 'linear-gradient(135deg, #075e54, #25D366)' }}
-                        >
-                            <MessageCircle size={18} />
-                            Chamar no WhatsApp
-                        </a>
+                    {/* Dono: vê os mesmos botões que os clientes veem (só prévia, sem clicar), pra conferir o que escolheu em "Editar" */}
+                    {isOwner && (whatsappLink || (service.show_chat && service.owner_id)) && (
+                        <p className="text-[11px] font-bold uppercase tracking-wide" style={{ color: colors.textSecondary }}>
+                            Assim as pessoas entram em contato com você
+                        </p>
                     )}
-                    {service.show_chat && service.owner_id && !isOwner && (
-                        <ChatContactButton profileId={service.owner_id} colors={colors} background={colors.surface} />
+                    {whatsappLink && (
+                        isOwner ? (
+                            <div
+                                aria-disabled
+                                className="w-full py-3.5 rounded-full font-black text-sm flex items-center justify-center gap-2 text-white select-none"
+                                style={{ background: 'linear-gradient(135deg, #075e54, #25D366)', opacity: 0.85 }}
+                            >
+                                <MessageCircle size={18} />
+                                Chamar no WhatsApp
+                            </div>
+                        ) : (
+                            <a
+                                href={whatsappLink}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="w-full py-3.5 rounded-full font-black text-sm flex items-center justify-center gap-2 text-white transition hover:scale-[1.02] active:scale-95"
+                                style={{ background: 'linear-gradient(135deg, #075e54, #25D366)' }}
+                            >
+                                <MessageCircle size={18} />
+                                Chamar no WhatsApp
+                            </a>
+                        )
+                    )}
+                    {service.show_chat && service.owner_id && (
+                        <div className={isOwner ? 'pointer-events-none select-none' : ''} style={isOwner ? { opacity: 0.85 } : undefined}>
+                            <ChatContactButton profileId={service.owner_id} colors={colors} variant="pill" />
+                        </div>
                     )}
                     {isOwner && (
                         <button
