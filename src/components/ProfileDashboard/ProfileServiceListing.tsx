@@ -9,6 +9,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { usePersistedExpanded } from '@/hooks/usePersistedExpanded'
 import { ADD_OPEN_EVENT } from '@/lib/addBot'
+import ServiceContactOptions from '@/components/ServiceContactOptions'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
@@ -110,6 +111,7 @@ export default function ProfileServiceListing({ profileId, profileSlug, linkToPr
     const [name, setName] = useState('')
     const [description, setDescription] = useState('')
     const [serviceType, setServiceType] = useState<ServiceType | ''>('')
+    const [contact, setContact] = useState({ showWhatsapp: true, showChat: false })
     const [imageFile, setImageFile] = useState<File | null>(null)
     const [preview, setPreview] = useState<string | null>(null)
     const [saving, setSaving] = useState(false)
@@ -192,6 +194,7 @@ export default function ProfileServiceListing({ profileId, profileSlug, linkToPr
         setName('')
         setDescription('')
         setServiceType('')
+        setContact({ showWhatsapp: true, showChat: false })
         setImageFile(null)
         setPreview(null)
         setAddress('')
@@ -237,6 +240,8 @@ export default function ProfileServiceListing({ profileId, profileSlug, linkToPr
                 lng: coords?.lng ?? null,
                 owner_id: profileId,
                 store_id: null,
+                show_whatsapp: contact.showWhatsapp,
+                show_chat: contact.showChat,
             })
 
             if (insertError) throw insertError
@@ -548,6 +553,8 @@ export default function ProfileServiceListing({ profileId, profileSlug, linkToPr
                                         </p>
                                     )}
                                 </div>
+
+                                <ServiceContactOptions ownerId={profileId} colors={colors} showWhatsapp={contact.showWhatsapp} showChat={contact.showChat} onChange={setContact} />
 
                                 <div className="flex gap-2 pt-2">
                                     <button

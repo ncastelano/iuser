@@ -12,6 +12,7 @@ import CategorySuggestions from '@/components/StoreDashboard/CategorySuggestions
 import ProductAddonsManager from '@/components/StoreDashboard/ProductAddonsManager'
 import LocationPicker from '@/components/LocationPicker'
 import { generateUniqueGlobalSlug } from '@/lib/slugUtils'
+import ServiceContactOptions from '@/components/ServiceContactOptions'
 
 interface EditProductDialogProps {
     productId: string
@@ -74,6 +75,8 @@ export default function EditProductDialog({ productId, colors, onClose, onSaved,
     const [address, setAddress] = useState<string | null>(null)
     const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null)
     const [showLocationPicker, setShowLocationPicker] = useState(false)
+    // Como falar com quem oferece o serviço (WhatsApp do perfil e/ou conversa do iUser)
+    const [contact, setContact] = useState({ showWhatsapp: true, showChat: false })
 
     useEffect(() => {
         if (!product) return
@@ -89,6 +92,7 @@ export default function EditProductDialog({ productId, colors, onClose, onSaved,
         setStockQuantity(product.stock_quantity?.toString() || '')
         setIsActive(product.is_active !== false)
         setHasAddons(product.has_addons === true)
+        setContact({ showWhatsapp: product.show_whatsapp !== false, showChat: product.show_chat === true })
         setAddress(product.address || null)
         setCoords(product.lat != null && product.lng != null ? { lat: product.lat, lng: product.lng } : null)
     }, [product])
@@ -151,6 +155,8 @@ export default function EditProductDialog({ productId, colors, onClose, onSaved,
             }
 
             if (isServiceOffer) {
+                updateData.show_whatsapp = contact.showWhatsapp
+                updateData.show_chat = contact.showChat
                 updateData.address = address
                 updateData.lat = coords?.lat ?? null
                 updateData.lng = coords?.lng ?? null
@@ -395,6 +401,17 @@ export default function EditProductDialog({ productId, colors, onClose, onSaved,
                                             </span>
                                         </button>
                                     </div>
+                                )}
+
+                                {/* Como falar com quem oferece o serviço (só serviço avulso de perfil) */}
+                                {isServiceOffer && product?.owner_id && (
+                                    <ServiceContactOptions
+                                        ownerId={product.owner_id}
+                                        colors={colors}
+                                        showWhatsapp={contact.showWhatsapp}
+                                        showChat={contact.showChat}
+                                        onChange={setContact}
+                                    />
                                 )}
 
                                 {/* Ativo */}

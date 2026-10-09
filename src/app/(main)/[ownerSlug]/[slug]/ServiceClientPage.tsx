@@ -19,6 +19,7 @@ import { Spinner } from '@/components/Spinner'
 import { formatDistanceToNow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
+import ChatContactButton from '@/components/ChatContactButton'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -35,6 +36,9 @@ interface ServiceData {
     address: string | null
     lat: number | null
     lng: number | null
+    // Como falar com quem oferece (escolha do serviço)
+    show_whatsapp?: boolean | null
+    show_chat?: boolean | null
 }
 
 interface Provider {
@@ -42,6 +46,8 @@ interface Provider {
     profileSlug: string
     avatarUrl: string | undefined
     whatsapp: string | null
+    id?: string
+    chat_enabled?: boolean
 }
 
 interface OtherService {
@@ -123,7 +129,7 @@ export function ServiceClientPage({ ownerSlug, colors, initialService }: Service
     const views = service.view_count || 0
 
     const pageUrl = typeof window !== 'undefined' ? window.location.href : ''
-    const whatsappLink = provider?.whatsapp
+    const whatsappLink = provider?.whatsapp && service.show_whatsapp !== false
         ? getWhatsAppLink(
             provider.whatsapp,
             encodeURIComponent(`Olá! Vi seu serviço "${service.name}" no iUser e gostaria de mais informações.\n${pageUrl}`)
@@ -264,6 +270,9 @@ export function ServiceClientPage({ ownerSlug, colors, initialService }: Service
                             <MessageCircle size={18} />
                             Chamar no WhatsApp
                         </a>
+                    )}
+                    {service.show_chat && service.owner_id && !isOwner && (
+                        <ChatContactButton profileId={service.owner_id} colors={colors} background={colors.surface} />
                     )}
                     {isOwner && (
                         <button
