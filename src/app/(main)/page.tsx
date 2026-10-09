@@ -45,6 +45,9 @@ import CareerPlans from './inicio/sections/CareerPlans'
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
 // ===== TODAS AS SEÇÕES DISPONÍVEIS (INCLUINDO AS "EM BREVE") =====
+// Pra onde a home deve deslizar ao voltar de outra tela (guardado fora do componente: sobrevive a uma montagem dupla)
+const pendingHomeReturn: { value: { saved: string | null; anchor: string | null } | null } = { value: null }
+
 const DEFAULT_SECTIONS = [
     'categorias',
     'meusPedidos',
@@ -162,21 +165,53 @@ function HomePageContent() {
     const [profileOpenNow, setProfileOpenNow] = useState(false)
 
     // ---------- VOLTAR AO PONTO DA PÁGINA (movimento suave) ----------
-    // Quem saiu da home por um card (ex: pedido de serviço) volta e a tela desliza até onde estava, em vez de pular.
+    // Quem saiu da home por um componente (ex: Quem procura serviço → /procurar-servico) volta e a tela desliza até ELE
+    // (ou, sem componente marcado, até onde estava), em vez de pular.
     useEffect(() => {
-        let saved: string | null = null
-        try { saved = sessionStorage.getItem('iuser_home_scroll') } catch { /* ok */ }
-        if (!saved) return
-        try { sessionStorage.removeItem('iuser_home_scroll') } catch { /* ok */ }
-        const target = Number(saved)
-        if (!Number.isFinite(target) || target < 50) return
+        // Lê uma vez e guarda fora do componente: a home pode montar duas vezes seguidas (dev/Suspense) e o segundo
+        // efeito não pode achar a chave já apagada
+        if (!pendingHomeReturn.value) {
+            try {
+                const sv = sessionStorage.getItem('iuser_home_scroll')
+                const an = sessionStorage.getItem('iuser_home_anchor')
+                sessionStorage.removeItem('iuser_home_scroll')
+                sessionStorage.removeItem('iuser_home_anchor')
+                if (sv || an) pendingHomeReturn.value = { saved: sv, anchor: an }
+            } catch { /* ok */ }
+        }
+        if (!pendingHomeReturn.value) return
+        const { saved, anchor } = pendingHomeReturn.value
+        const savedY = Number(saved)
         const prev = window.history.scrollRestoration
         window.history.scrollRestoration = 'manual'
-        const glide = () => window.scrollTo({ top: target, behavior: 'smooth' })
-        // A home monta por partes (a altura cresce): tenta de novo quando mais conteúdo já carregou
-        const t1 = setTimeout(glide, 500)
-        const t2 = setTimeout(() => { if (Math.abs(window.scrollY - target) > 60) glide() }, 1600)
-        return () => { clearTimeout(t1); clearTimeout(t2); window.history.scrollRestoration = prev }
+        const targetY = (): number | null => {
+            const el = anchor ? document.querySelector<HTMLElement>(`[data-home-anchor="${anchor}"]`) : null
+            if (el) return Math.max(0, el.getBoundingClientRect().top + window.scrollY - 150)
+            // Sem componente marcado: só vale quando a página já cresceu o bastante pra chegar lá
+            if (!anchor && Number.isFinite(savedY) && savedY >= 50 && document.documentElement.scrollHeight >= savedY + window.innerHeight * 0.6) return savedY
+            return null
+        }
+        // A home monta por partes (a altura cresce): espera o componente (ou a altura) existir e então desliza uma vez;
+        // depois confere de novo, caso algo acima tenha mudado a posição
+        let glided = false
+        let recheck: ReturnType<typeof setTimeout> | null = null
+        const started = Date.now()
+        const poll = setInterval(() => {
+            const y = targetY()
+            if (y != null) {
+                clearInterval(poll)
+                glided = true
+                window.scrollTo({ top: y, behavior: 'smooth' })
+                recheck = setTimeout(() => {
+                    const y2 = targetY()
+                    if (y2 != null && Math.abs(window.scrollY - y2) > 80) window.scrollTo({ top: y2, behavior: 'smooth' })
+                    pendingHomeReturn.value = null
+                }, 1400)
+            } else if (Date.now() - started > 8000) {
+                clearInterval(poll)
+            }
+        }, 250)
+        return () => { clearInterval(poll); if (recheck) clearTimeout(recheck); window.history.scrollRestoration = prev; void glided }
     }, [])
 
     // ---------- CARREGAR ORDEM DAS SEÇÕES ----------

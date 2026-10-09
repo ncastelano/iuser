@@ -3,6 +3,7 @@
 
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { getRequestTitle } from '@/lib/serviceTypes'
 import { supabase } from '@/lib/supabase/client'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { useTheme } from '@/app/contexts/theme'
@@ -12,7 +13,6 @@ import LoginAndRegister from '@/components/LoginAndRegister/LoginAndRegister'
 import { toast } from 'sonner'
 import { Briefcase, MapPin, Plus, Building2, Eye, Trash2, Pencil, X, ClipboardCheck, CheckCircle2, Clock, HeartCrack } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
-import { useActivePlans } from '@/hooks/useActivePlans'
 import DriverDebtBanner from '@/components/DriverDebtBanner'
 import { notifyServiceApplication } from '@/lib/notifyRideStatus'
 import { trackServiceRequestView } from '@/lib/trackServiceRequestView'
@@ -66,7 +66,6 @@ function SerParceiroContent() {
     const [savingEdit, setSavingEdit] = useState(false)
     const { userId, avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
     const { colors } = useTheme()
-    const { loading: plansLoading, hasProvider } = useActivePlans(userId)
 
     const [loading, setLoading] = useState(true)
     const [showLogin, setShowLogin] = useState(false)
@@ -133,14 +132,7 @@ function SerParceiroContent() {
             return
         }
 
-        // A lista é aberta a todos; só se inscrever exige o plano Prestador (ou Combo)
-        if (!plansLoading && !hasProvider) {
-            toast.error('Assine o plano Prestador ou o Combo pra se inscrever.', {
-                action: { label: 'Ver planos', onClick: () => router.push('/planos?plan=prestador') },
-            })
-            return
-        }
-
+        // Qualquer pessoa logada pode se inscrever (o login só é pedido aqui, ao tocar em Inscrever-se)
         const key = itemKey(item)
         setApplyingKey(key)
         try {
@@ -152,8 +144,8 @@ function SerParceiroContent() {
             notifyServiceRequestsChanged()
             setActiveTab('inscrevi')
         } catch (err: any) {
-            if ((err.code === '42501' || err.code === 'PGRST301') && !hasProvider) {
-                toast.error('Assine o plano Prestador ou o Combo pra se inscrever.')
+            if (err.code === '42501' || err.code === 'PGRST301') {
+                toast.error('Não foi possível se inscrever agora. Se você tem uma dívida do Pós-pago, quite para continuar.')
             } else {
                 toast.error('Erro ao se inscrever: ' + (err.message || 'tente novamente'))
             }
@@ -191,13 +183,12 @@ function SerParceiroContent() {
 
     // ===== FOCO + INSCRIÇÃO AUTOMÁTICA (?pedido=<id>) =====
     useEffect(() => {
-        if (!focusId || focusHandledRef.current || loading || profileLoading || plansLoading) return
+        if (!focusId || focusHandledRef.current || loading || profileLoading) return
         if (!userId) {
-            // Inscrever-se exige conta: pede login e, ao entrar, o efeito roda de novo.
-            if (!showLogin) {
-                toast.info('Entre na sua conta para se inscrever nesse serviço.')
-                setShowLogin(true)
-            }
+            // Visitante: só leva até o pedido. O login aparece quando tocar em Inscrever-se.
+            focusHandledRef.current = true
+            window.scrollTo({ top: 0 })
+            setTimeout(() => document.getElementById(`job-card-${focusId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 250)
             return
         }
         const job = jobs.find((j) => j.id === focusId)
@@ -222,13 +213,6 @@ function SerParceiroContent() {
             }, 200)
             return
         }
-        if (!hasProvider) {
-            // Vê o pedido, mas pra se inscrever precisa do plano
-            toast.info('Assine o plano Prestador ou o Combo pra se inscrever nesse serviço.', {
-                action: { label: 'Ver planos', onClick: () => router.push('/planos?plan=prestador') },
-            })
-            return
-        }
         setAutoApplyingId(job.id)
         // Sem cleanup de propósito: o efeito já foi "consumido" (focusHandledRef),
         // então se as dependências mudarem no meio do segundo a inscrição
@@ -238,7 +222,7 @@ function SerParceiroContent() {
             setAutoApplyingId(null)
         }, 1000)
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [focusId, loading, profileLoading, plansLoading, hasProvider, userId, jobs])
+    }, [focusId, loading, profileLoading, userId, jobs])
 
     const openEdit = (item: BoardItem) => {
         setEditingJob(item)
@@ -359,33 +343,9 @@ function SerParceiroContent() {
                         <LoginAndRegister onLoginSuccess={handleLoginSuccess} />
                     )}
 
-                    {/* A lista de pedidos é aberta a todos; o plano só vale pra se inscrever */}
-                    {!loading && !showLogin && !plansLoading && !hasProvider && (
-                        <div
-                            className="rounded-2xl p-3.5 mb-3 flex items-center gap-3"
-                            style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
-                        >
-                            <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#fff' }}>
-                                <Briefcase size={18} />
-                            </div>
-                            <p className="flex-1 min-w-0 text-xs" style={{ color: colors.textSecondary }}>
-                                {userId
-                                    ? <>Você pode ver todos os pedidos. Pra se inscrever, assine o plano <strong style={{ color: colors.textPrimary }}>Prestador</strong> ou o <strong style={{ color: colors.textPrimary }}>Combo</strong>.</>
-                                    : <>Você pode ver todos os pedidos. Pra se inscrever, entre na sua conta e assine o plano <strong style={{ color: colors.textPrimary }}>Prestador</strong>.</>}
-                            </p>
-                            <button
-                                onClick={() => (userId ? router.push('/planos?plan=prestador') : setShowLogin(true))}
-                                className="px-3.5 py-2 rounded-full font-black text-[11px] flex-shrink-0"
-                                style={{ background: GRADIENT, color: '#fff' }}
-                            >
-                                {userId ? 'Ver planos' : 'Entrar'}
-                            </button>
-                        </div>
-                    )}
-
                     {!loading && !showLogin && (
                     <>
-                    {hasProvider && <DriverDebtBanner userId={userId} />}
+                    {userId && <DriverDebtBanner userId={userId} />}
                     {activeTab === 'disponiveis' && availableJobs.length === 0 && (
                         <div
                             className="rounded-2xl p-6 text-center"
@@ -417,128 +377,126 @@ function SerParceiroContent() {
                                 const key = itemKey(job)
                                 const applied = appliedKeys.has(key)
                                 const isMine = job.requester_id === userId
+                                const title = getRequestTitle(job.description, job.service_type, job.custom_service)
+                                const photo = job.photo_urls[0] || null
+                                const requesterName = job.requester?.name || (job.requester?.profileSlug ? `@${job.requester.profileSlug}` : 'Alguém')
                                 return (
                                     <div
                                         key={key}
                                         id={`job-card-${job.id}`}
-                                        className="rounded-2xl p-4 scroll-mt-32"
+                                        className="rounded-3xl p-3 scroll-mt-32 flex gap-3"
                                         style={{
                                             background: colors.surface,
                                             border: `1px solid ${focusId === job.id ? colors.accent : colors.border}`,
                                             boxShadow: focusId === job.id ? `0 0 0 3px ${colors.accent}40` : colors.shadow,
                                         }}
                                     >
-                                        {/* Quem está pedindo */}
-                                        <div className="flex items-center gap-2 mb-3">
-                                            <PlanAvatarRing userId={job.requester_id}>
-                                                {job.requester?.avatarUrl ? (
-                                                    <img src={job.requester.avatarUrl} className="w-7 h-7 rounded-full object-cover flex-shrink-0" alt="" />
-                                                ) : (
-                                                    <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-black" style={{ background: GRADIENT, color: '#fff' }}>
-                                                        {(job.requester?.name || '?').charAt(0).toUpperCase()}
-                                                    </div>
-                                                )}
-                                            </PlanAvatarRing>
-                                            <span className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>
-                                                {job.requester?.name || (job.requester?.profileSlug ? `@${job.requester.profileSlug}` : 'Alguém')}
-                                            </span>
-                                            <span className="flex items-center gap-2 flex-shrink-0 ml-auto">
-                                                <span className="flex items-center gap-1 text-[10px]" style={{ color: colors.textSecondary }}>
-                                                    <Eye size={11} />
-                                                    {job.view_count}
-                                                </span>
-                                                <span className="text-[10px]" style={{ color: colors.textSecondary }}>{relativeTime(job.created_at)}</span>
-                                            </span>
-                                        </div>
-
-                                        <div className="flex items-start gap-3">
-                                            <div
-                                                className="w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0"
-                                                style={{ background: GRADIENT, color: '#fff' }}
-                                            >
-                                                <Icon size={20} />
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <span className="text-sm font-black" style={{ color: colors.textPrimary }}>{label}</span>
-                                                <span className="flex items-center gap-1 text-xs mt-0.5" style={{ color: colors.textSecondary }}>
-                                                    <MapPin size={11} className="flex-shrink-0" />
-                                                    {getItemAddress(job)}
-                                                </span>
-                                                {job.location_needs_access && (
-                                                    <span className="flex items-center gap-1 text-xs mt-0.5" style={{ color: colors.textSecondary }}>
-                                                        <Building2 size={11} className="flex-shrink-0" />
-                                                        Condomínio fechado{job.location_access_notes ? ` — ${job.location_access_notes}` : ''}
-                                                    </span>
-                                                )}
-                                                {detail && (
-                                                    <p className="text-xs mt-1.5" style={{ color: colors.textSecondary }}>{detail}</p>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        {job.photo_urls.length > 0 && (
-                                            <div className="flex gap-2 overflow-x-auto mt-3 pb-0.5">
-                                                {job.photo_urls.map((url) => (
-                                                    <img key={url} src={url} className="w-16 h-16 rounded-xl object-cover flex-shrink-0" style={{ border: `1px solid ${colors.border}` }} alt="" />
-                                                ))}
-                                            </div>
-                                        )}
-
-                                        {isMine ? (
-                                            <div className="flex items-center gap-2 mt-3">
-                                                <div
-                                                    className="flex-1 py-2.5 rounded-full text-xs font-black uppercase tracking-wider text-center"
-                                                    style={{ background: `${colors.accent}15`, color: colors.accent, border: `1px solid ${colors.border}` }}
-                                                >
-                                                    Seu pedido
+                                        {/* Foto do pedido em destaque, à esquerda (sem foto: o ícone do tipo) */}
+                                        <div
+                                            className="relative w-28 sm:w-32 flex-shrink-0 rounded-2xl overflow-hidden self-stretch min-h-[132px]"
+                                            style={{ background: photo ? '#0b1220' : GRADIENT, boxShadow: '0 8px 18px rgba(0,0,0,0.18)' }}
+                                        >
+                                            {photo ? (
+                                                <img src={photo} alt={title} className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
+                                            ) : (
+                                                <div className="absolute inset-0 flex items-center justify-center">
+                                                    <Icon size={38} color="rgba(255,255,255,0.9)" />
                                                 </div>
-                                                <button
-                                                    onClick={() => openEdit(job)}
-                                                    aria-label="Editar pedido"
-                                                    className="h-9 px-3 rounded-full flex items-center justify-center gap-1.5 flex-shrink-0 text-[11px] font-black uppercase"
-                                                    style={{ background: `${colors.accent}15`, color: colors.accent }}
-                                                >
-                                                    <Pencil size={13} />
-                                                    Editar
-                                                </button>
-                                                <button
-                                                    onClick={() => handleDelete(job)}
-                                                    disabled={deletingKey === key}
-                                                    aria-label="Excluir pedido"
-                                                    className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 disabled:opacity-50"
-                                                    style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444' }}
-                                                >
-                                                    {deletingKey === key ? <Spinner size={14} /> : <Trash2 size={14} />}
-                                                </button>
+                                            )}
+                                            {job.photo_urls.length > 1 && (
+                                                <span className="absolute bottom-1.5 right-1.5 text-[10px] font-black text-white px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(0,0,0,0.6)' }}>
+                                                    +{job.photo_urls.length - 1}
+                                                </span>
+                                            )}
+                                        </div>
+
+                                        {/* Tudo do lado direito: quem pede, o TÍTULO, onde, e o botão */}
+                                        <div className="flex-1 min-w-0 flex flex-col gap-1.5">
+                                            <div className="flex items-center gap-1.5 min-w-0">
+                                                <PlanAvatarRing userId={job.requester_id}>
+                                                    {job.requester?.avatarUrl ? (
+                                                        <img src={job.requester.avatarUrl} className="w-5 h-5 rounded-full object-cover flex-shrink-0" alt="" />
+                                                    ) : (
+                                                        <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 text-[9px] font-black" style={{ background: GRADIENT, color: '#fff' }}>
+                                                            {requesterName.charAt(0).toUpperCase()}
+                                                        </div>
+                                                    )}
+                                                </PlanAvatarRing>
+                                                <span className="text-[11px] font-bold truncate" style={{ color: colors.textSecondary }}>{requesterName}</span>
+                                                <span className="flex items-center gap-1.5 flex-shrink-0 ml-auto text-[10px]" style={{ color: colors.textSecondary }}>
+                                                    <Eye size={10} />{job.view_count}
+                                                    <span>· {relativeTime(job.created_at)}</span>
+                                                </span>
                                             </div>
-                                        ) : (
-                                            <button
-                                                onClick={() => handleApply(job)}
-                                                disabled={applied || applyingKey === key || autoApplyingId === job.id}
-                                                className="w-full mt-3 py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all disabled:opacity-70 flex items-center justify-center gap-2"
-                                                style={
-                                                    applied
-                                                        ? { background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }
-                                                        : { background: GRADIENT, color: '#fff' }
-                                                }
-                                            >
-                                                {autoApplyingId === job.id && !applied ? (
-                                                    <>
+
+                                            <p className="text-base font-black leading-snug" style={{ color: colors.textPrimary, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                                                {title}
+                                            </p>
+
+                                            <div className="flex items-center gap-1.5 flex-wrap text-[11px]" style={{ color: colors.textSecondary }}>
+                                                <span className="flex items-center gap-1 min-w-0">
+                                                    <MapPin size={11} className="flex-shrink-0" />
+                                                    <span className="truncate">{getItemAddress(job)}</span>
+                                                </span>
+                                                <span className="px-1.5 py-px rounded-full font-bold flex-shrink-0" style={{ background: '#f9731618', color: '#ea580c' }}>{label}</span>
+                                            </div>
+                                            {job.location_needs_access && (
+                                                <span className="flex items-center gap-1 text-[11px]" style={{ color: colors.textSecondary }}>
+                                                    <Building2 size={11} className="flex-shrink-0" />
+                                                    Condomínio fechado{job.location_access_notes ? ` — ${job.location_access_notes}` : ''}
+                                                </span>
+                                            )}
+
+                                            {isMine ? (
+                                                <div className="flex items-center gap-2 mt-auto pt-1">
+                                                    <div
+                                                        className="flex-1 py-2 rounded-full text-[11px] font-black uppercase tracking-wider text-center"
+                                                        style={{ background: `${colors.accent}15`, color: colors.accent }}
+                                                    >
+                                                        Seu pedido
+                                                    </div>
+                                                    <button
+                                                        onClick={() => openEdit(job)}
+                                                        aria-label="Editar pedido"
+                                                        className="h-8 px-3 rounded-full flex items-center justify-center gap-1 flex-shrink-0 text-[11px] font-black uppercase"
+                                                        style={{ background: `${colors.accent}15`, color: colors.accent }}
+                                                    >
+                                                        <Pencil size={12} />
+                                                        Editar
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDelete(job)}
+                                                        disabled={deletingKey === key}
+                                                        aria-label="Excluir pedido"
+                                                        className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 disabled:opacity-50"
+                                                        style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444' }}
+                                                    >
+                                                        {deletingKey === key ? <Spinner size={14} /> : <Trash2 size={13} />}
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <button
+                                                    onClick={() => handleApply(job)}
+                                                    disabled={applied || applyingKey === key || autoApplyingId === job.id}
+                                                    className="mt-auto w-full py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all disabled:opacity-70 flex items-center justify-center gap-2"
+                                                    style={
+                                                        applied
+                                                            ? { background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }
+                                                            : { background: GRADIENT, color: '#fff', boxShadow: '0 4px 12px #f9731640' }
+                                                    }
+                                                >
+                                                    {autoApplyingId === job.id && !applied ? (
+                                                        <><Spinner size={14} />Inscrevendo você...</>
+                                                    ) : applyingKey === key ? (
                                                         <Spinner size={14} />
-                                                        Inscrevendo você...
-                                                    </>
-                                                ) : applyingKey === key ? (
-                                                    <Spinner size={14} />
-                                                ) : applied ? (
-                                                    'Inscrição enviada'
-                                                ) : (
-                                                    <>
-                                                        <Briefcase size={14} />
-                                                        Inscrever-se
-                                                    </>
-                                                )}
-                                            </button>
-                                        )}
+                                                    ) : applied ? (
+                                                        'Inscrição enviada'
+                                                    ) : (
+                                                        <><Briefcase size={14} />Inscrever-se</>
+                                                    )}
+                                                </button>
+                                            )}
+                                        </div>
                                     </div>
                                 )
                             })}

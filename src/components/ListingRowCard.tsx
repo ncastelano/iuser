@@ -22,20 +22,24 @@ export interface ListingRowCardProps {
     rating?: number | null
     views?: number | null
     tag?: string | null                 // etiqueta curta (tipo/categoria)
+    /** Sem moldura própria: a linha vive dentro de um cartão maior (lista flutuante) */
+    flat?: boolean
     onClick: () => void
 }
 
 const clean = (t?: string | null) => (t || '').replace(/\s*\n+\s*/g, ' · ').trim()
 
-export default function ListingRowCard({ title, description, imageUrl, fallbackIcon, priceLabel, priceNote, sellerName, sellerImageUrl, sellerId, rating, views, tag, onClick }: ListingRowCardProps) {
+export default function ListingRowCard({ title, description, imageUrl, fallbackIcon, priceLabel, priceNote, sellerName, sellerImageUrl, sellerId, rating, views, tag, flat = false, onClick }: ListingRowCardProps) {
     const { colors } = useTheme()
     const desc = clean(description)
 
     return (
         <div
             onClick={onClick}
-            className="group snap-start rounded-3xl border p-3 flex items-stretch gap-3 cursor-pointer transition-all duration-300 hover:shadow-xl hover:-translate-y-0.5"
-            style={{ background: colors.surface, borderColor: colors.border, boxShadow: colors.shadow }}
+            className={flat
+                ? 'group snap-start rounded-2xl px-2 py-3 flex items-stretch gap-3 cursor-pointer transition-colors duration-200 hover:bg-black/5'
+                : 'group snap-start rounded-3xl border p-3 flex items-stretch gap-3 cursor-pointer transition-all duration-300 hover:shadow-xl hover:-translate-y-0.5'}
+            style={flat ? undefined : { background: colors.surface, borderColor: colors.border, boxShadow: colors.shadow }}
         >
             <div className="flex-1 min-w-0 flex flex-col gap-1">
                 {/* Quem vende */}

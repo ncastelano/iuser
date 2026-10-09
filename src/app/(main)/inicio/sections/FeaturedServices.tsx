@@ -255,28 +255,40 @@ export default function FeaturedServices({ dragHandle, title = 'Serviços em des
 
             {actions && <div className="-mt-1 mb-4">{actions(services.length)}</div>}
 
-            {/* Duas fileiras de cartões em linha, rolando de lado: parece uma lista de coisas, não uma parede de cartões */}
+            {/* Um cartão só, flutuando, com a lista dentro (em vez de vários cartõezinhos) */}
             <div
-                className="grid grid-rows-2 grid-flow-col auto-cols-[minmax(280px,86%)] sm:auto-cols-[330px] gap-3 overflow-x-auto snap-x snap-mandatory scroll-px-4 pb-3 -mx-4 px-4"
-                style={{ scrollbarWidth: 'none' }}
+                className="rounded-3xl px-2 py-1"
+                style={{
+                    background: colors.surface,
+                    border: `1px solid ${colors.border}`,
+                    boxShadow: '0 14px 40px rgba(0,0,0,0.12)',
+                }}
             >
-                {displayServices.map((service) => (
-                    <ListingRowCard
-                        key={service.id}
-                        title={service.title}
-                        description={service.description}
-                        imageUrl={service.imageUrl}
-                        fallbackIcon={<Wrench size={30} />}
-                        priceLabel={service.price ? formatServicePrice(service.price) : null}
-                        priceNote={service.price && service.unit ? `por ${service.unit}` : null}
-                        sellerName={service.providerName}
-                        sellerImageUrl={service.providerImageUrl}
-                        sellerId={service.providerId}
-                        views={service.viewCount}
-                        tag={service.serviceType ? getServiceLabel(service.serviceType) : service.category}
-                        onClick={() => handleServiceClick(service)}
-                    />
-                ))}
+                <div className="grid grid-cols-1 md:grid-cols-2 md:gap-x-2">
+                    {displayServices.slice(0, 6).map((service, i, arr) => (
+                        <div
+                            key={service.id}
+                            className={i === arr.length - 1 ? '' : (i === arr.length - 2 && arr.length % 2 === 0) ? 'border-b md:border-b-0' : 'border-b'}
+                            style={{ borderColor: `${colors.border}80` }}
+                        >
+                            <ListingRowCard
+                                flat
+                                title={service.title}
+                                description={service.description}
+                                imageUrl={service.imageUrl}
+                                fallbackIcon={<Wrench size={30} />}
+                                priceLabel={service.price ? formatServicePrice(service.price) : null}
+                                priceNote={service.price && service.unit ? `por ${service.unit}` : null}
+                                sellerName={service.providerName}
+                                sellerImageUrl={service.providerImageUrl}
+                                sellerId={service.providerId}
+                                views={service.viewCount}
+                                tag={service.serviceType ? getServiceLabel(service.serviceType) : service.category}
+                                onClick={() => handleServiceClick(service)}
+                            />
+                        </div>
+                    ))}
+                </div>
             </div>
 
             {leftAction && <div className="flex mt-1">{leftAction}</div>}

@@ -82,19 +82,22 @@ export default function NeedAService({ dragHandle, limit = 8 }: { dragHandle?: R
     const go = (path: string) => { startNavProgress(); router.push(path) }
     // Guarda onde a pessoa estava na home: ao voltar, a tela desliza de volta pra esse ponto
     const goFromHome = (path: string) => {
-        try { sessionStorage.setItem('iuser_home_scroll', String(window.scrollY)) } catch { /* sem sessionStorage, volta pro topo */ }
+        try {
+            sessionStorage.setItem('iuser_home_scroll', String(window.scrollY))
+            sessionStorage.setItem('iuser_home_anchor', 'need-a-service')
+        } catch { /* sem sessionStorage, volta pro topo */ }
         go(path)
     }
 
     if (items === null) return null
 
     return (
-        <section>
+        <section data-home-anchor="need-a-service">
             <HomeSectionHeader
                 dragHandle={dragHandle}
                 title="Quem procura serviço"
                 subtitle={items.length > 0 ? 'Pessoas precisando de um profissional agora' : 'Ninguém pediu ainda — seja o primeiro'}
-                action={<ViewServicesButton onClick={() => go('/procurar-servico')} count={totalCount} />}
+                action={<ViewServicesButton onClick={() => goFromHome('/procurar-servico')} count={totalCount} />}
             />
 
             <div className="flex gap-3 overflow-x-auto pb-1">
