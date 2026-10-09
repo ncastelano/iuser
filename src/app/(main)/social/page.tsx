@@ -30,7 +30,7 @@ import { useTheme } from '@/app/contexts/theme'
 import Header from '@/components/Header'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { useLastSeen } from '@/hooks/useLastSeen'
-import { lastSeenLabel } from '@/lib/lastSeen'
+import SocialProfileCard, { type SocialCardStore } from './SocialProfileCard'
 
 interface ProfileWithDetails {
     id: string
@@ -51,6 +51,7 @@ interface ProfileWithDetails {
     created_at?: string | null
     // Pontuação (Melhores perfis = quem tem mais pontos primeiro)
     points?: number
+    chat_enabled?: boolean
 }
 
 interface RecentProfile {
@@ -80,7 +81,8 @@ const PROFILE_COLUMNS = `
     is_active,
     category,
     view_count,
-    created_at
+    created_at,
+    chat_enabled
 `
 
 export default function SocialList() {
@@ -98,6 +100,8 @@ export default function SocialList() {
     const [recentProfiles, setRecentProfiles] = useState<RecentProfile[]>([])
     const searchInputRef = useRef<HTMLInputElement>(null)
     // Visto por último: só vem de quem deixou visível pra mim
+    const [storesByOwner, setStoresByOwner] = useState<Record<string, SocialCardStore>>({})
+    const [followingIds, setFollowingIds] = useState<Set<string>>(new Set())
     const lastSeen = useLastSeen(useMemo(() => profiles.map((p) => p.id), [profiles]))
 
     // ===== RECENT PROFILES (últimos perfis visitados) =====
@@ -240,6 +244,27 @@ export default function SocialList() {
     useEffect(() => {
         loadProfiles()
     }, [loadProfiles])
+
+    // Loja de cada pessoa (se tiver) e quem eu já sigo, pros botões do cartão
+    useEffect(() => {
+        const ids = profiles.map((p) => p.id)
+        if (ids.length === 0) return
+        supabase.from('stores').select('owner_id, name, storeSlug, logo_url').in('owner_id', ids).eq('is_active', true).then(({ data }) => {
+            const map: Record<string, SocialCardStore> = {}
+            ;(data || []).forEach((s: any) => {
+                if (map[s.owner_id]) return
+                map[s.owner_id] = { name: s.name, storeSlug: s.storeSlug, logoUrl: s.logo_url ? supabase.storage.from('store-logos').getPublicUrl(s.logo_url).data.publicUrl : null }
+            })
+            setStoresByOwner(map)
+        })
+        if (userId) {
+            supabase.from('follows').select('following_id').eq('follower_id', userId).in('following_id', ids).then(({ data }) => {
+                setFollowingIds(new Set((data || []).map((f: any) => f.following_id)))
+            })
+        } else {
+            setFollowingIds(new Set())
+        }
+    }, [profiles, userId])
 
     const filteredProfiles = useMemo(() => {
         if (!searchQuery.trim()) return profiles
@@ -493,210 +518,29 @@ export default function SocialList() {
                                     )}
                                 </div>
                             ) : (
-                                <div className="space-y-4">
-                                    {filteredProfiles.map((profile) => (
-                                        <Link
+                                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-stretch">
+                                    {filteredProfiles.map((profile, index) => (
+                                        <SocialProfileCard
                                             key={profile.id}
-                                            href={`/${profile.profileSlug}`}
-                                            className="block group"
-                                            onClick={() => {
-                                                saveRecentProfile({
-                                                    id: profile.id,
-                                                    name: profile.name,
-                                                    profileSlug: profile.profileSlug,
-                                                    avatar_url: profile.avatar_url,
-                                                })
+                                            profile={profile}
+                                            store={storesByOwner[profile.id] || null}
+                                            rank={tab === 'melhores' && !searchQuery.trim() ? index : undefined}
+                                            isMe={profile.id === userId}
+                                            userId={userId || null}
+                                            following={followingIds.has(profile.id)}
+                                            onFollowChange={(id, nowFollowing) => setFollowingIds((prev) => {
+                                                const next = new Set(prev)
+                                                if (nowFollowing) next.add(id); else next.delete(id)
+                                                return next
+                                            })}
+                                            seenAt={lastSeen[profile.id]}
+                                            colors={colors}
+                                            cardBg={cardBg}
+                                            onOpen={() => {
+                                                saveRecentProfile({ id: profile.id, name: profile.name, profileSlug: profile.profileSlug, avatar_url: profile.avatar_url })
+                                                router.push(`/${profile.profileSlug}`)
                                             }}
-                                        >
-                                            <div
-                                                className="rounded-2xl p-4 border transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5"
-                                                style={{
-                                                    background: cardBg,
-                                                    backdropFilter: 'blur(12px)',
-                                                    borderColor: colors.border,
-                                                    boxShadow: colors.shadow,
-                                                }}
-                                            >
-                                                <div className="flex gap-4">
-                                                    <PlanAvatarRing userId={profile.id} width={3}>
-                                                        <div
-                                                            className="w-20 h-20 rounded-full overflow-hidden shrink-0"
-                                                            style={{
-                                                                background: `${colors.surface}44`,
-                                                            }}
-                                                        >
-                                                            <div
-                                                                className="w-full h-full rounded-full overflow-hidden"
-                                                                style={{
-                                                                    background: colors.surface,
-                                                                }}
-                                                            >
-                                                                {profile.avatar_url && profile.avatar_url.trim() !== '' ? (
-                                                                    <img
-                                                                        src={profile.avatar_url}
-                                                                        alt={profile.name || 'Perfil'}
-                                                                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                                                                        onError={(e) => {
-                                                                            const target = e.target as HTMLImageElement
-                                                                            target.style.display = 'none'
-                                                                            const parent = target.parentElement
-                                                                            if (parent) {
-                                                                                const fallback = document.createElement('div')
-                                                                                fallback.className = 'w-full h-full flex items-center justify-center text-3xl font-black'
-                                                                                fallback.style.color = colors.textSecondary
-                                                                                fallback.textContent = profile.name?.charAt(0).toUpperCase() || '?'
-                                                                                parent.appendChild(fallback)
-                                                                            }
-                                                                        }}
-                                                                    />
-                                                                ) : (
-                                                                    <div
-                                                                        className="w-full h-full flex items-center justify-center text-3xl font-black"
-                                                                        style={{ color: colors.textSecondary }}
-                                                                    >
-                                                                        {profile.name?.charAt(0).toUpperCase() || '?'}
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                    </PlanAvatarRing>
-
-                                                    <div className="flex-1 min-w-0">
-                                                        <div className="flex items-start justify-between gap-2">
-                                                            <div className="flex-1 min-w-0">
-                                                                <h3
-                                                                    className="text-lg font-black truncate"
-                                                                    style={{ color: colors.textPrimary }}
-                                                                >
-                                                                    {profile.name || 'Usuário'}
-                                                                </h3>
-                                                                <p className="text-sm" style={{ color: colors.accent }}>
-                                                                    @{profile.profileSlug}
-                                                                </p>
-
-                                                                {(profile.bio || profile.description) && (
-                                                                    <p
-                                                                        className="text-xs line-clamp-2 mt-1"
-                                                                        style={{ color: colors.textSecondary }}
-                                                                    >
-                                                                        {profile.bio || profile.description}
-                                                                    </p>
-                                                                )}
-
-                                                                {profile.address && (
-                                                                    <div className="flex items-center gap-1 mt-1">
-                                                                        <MapPin className="w-3 h-3 opacity-50" style={{ color: colors.textSecondary }} />
-                                                                        <span className="text-xs truncate" style={{ color: colors.textSecondary }}>
-                                                                            {profile.address.split(',')[0]?.trim() || profile.address}
-                                                                        </span>
-                                                                    </div>
-                                                                )}
-                                                            </div>
-
-                                                            <div className="flex flex-col items-end gap-1 shrink-0">
-                                                                {(profile.points ?? 0) > 0 && (
-                                                                    <span
-                                                                        className="px-2 py-0.5 rounded-full text-[10px] font-black"
-                                                                        style={{ background: '#f9731620', color: '#ea580c' }}
-                                                                        title="Pontuação do perfil"
-                                                                    >
-                                                                        ⭐ {profile.points} pts
-                                                                    </span>
-                                                                )}
-                                                                {profile.is_seller && (
-                                                                    <span
-                                                                        className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider"
-                                                                        style={{
-                                                                            background: `${colors.accent}20`,
-                                                                            color: colors.accent
-                                                                        }}
-                                                                    >
-                                                                        <Store className="w-3 h-3 inline mr-0.5" />
-                                                                        Vendedor
-                                                                    </span>
-                                                                )}
-                                                                {profile.category && (
-                                                                    <span
-                                                                        className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider"
-                                                                        style={{
-                                                                            background: `#f9731620`,
-                                                                            color: '#f97316'
-                                                                        }}
-                                                                    >
-                                                                        {profile.category}
-                                                                    </span>
-                                                                )}
-                                                            </div>
-                                                        </div>
-
-                                                        <div className="flex items-center gap-4 mt-3 flex-wrap">
-                                                            {profile.ratings_avg !== null &&
-                                                                profile.ratings_avg !== undefined &&
-                                                                profile.ratings_avg > 0 && (
-                                                                    <div className="flex items-center gap-1">
-                                                                        <Star size={14} className="text-yellow-400 fill-yellow-400" />
-                                                                        <span className="text-sm font-bold" style={{ color: colors.textPrimary }}>
-                                                                            {Number(profile.ratings_avg).toFixed(1)}
-                                                                        </span>
-                                                                        <span className="text-xs" style={{ color: colors.textSecondary }}>
-                                                                            ({profile.ratings_count || 0})
-                                                                        </span>
-                                                                    </div>
-                                                                )}
-
-                                                            {profile.view_count !== null &&
-                                                                profile.view_count !== undefined &&
-                                                                profile.view_count > 0 && (
-                                                                    <div className="flex items-center gap-1">
-                                                                        <User size={14} style={{ color: colors.textSecondary }} />
-                                                                        <span className="text-xs" style={{ color: colors.textSecondary }}>
-                                                                            {profile.view_count} visualizações
-                                                                        </span>
-                                                                    </div>
-                                                                )}
-
-                                                            {(() => {
-                                                                const seen = lastSeenLabel(lastSeen[profile.id])
-                                                                if (!seen) return null
-                                                                return (
-                                                                    <div className="flex items-center gap-1.5">
-                                                                        <span className={`w-2 h-2 rounded-full ${seen.online ? 'animate-pulse' : ''}`} style={{ background: seen.online ? '#22c55e' : colors.textSecondary, opacity: seen.online ? 1 : 0.5 }} />
-                                                                        <span className="text-xs font-bold" style={{ color: seen.online ? '#16a34a' : colors.textSecondary }}>{seen.text}</span>
-                                                                    </div>
-                                                                )
-                                                            })()}
-
-                                                            {profile.created_at && (
-                                                                <div className="flex items-center gap-1">
-                                                                    <Clock size={14} style={{ color: colors.textSecondary }} />
-                                                                    <span className="text-xs" style={{ color: colors.textSecondary }}>
-                                                                        {joinedLabel(profile.created_at)}
-                                                                    </span>
-                                                                </div>
-                                                            )}
-                                                        </div>
-
-                                                        <div className="flex items-center gap-2 mt-2 flex-wrap">
-                                                            {profile.whatsapp && (
-                                                                <span className="text-[10px] font-bold text-green-600">
-                                                                    📱 WhatsApp
-                                                                </span>
-                                                            )}
-                                                            {profile.instagram && (
-                                                                <span className="text-[10px] font-bold text-pink-600">
-                                                                    📸 Instagram
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                    </div>
-
-                                                    <ChevronRight
-                                                        className="w-5 h-5 self-center group-hover:text-orange-400 transition-colors"
-                                                        style={{ color: colors.textSecondary }}
-                                                    />
-                                                </div>
-                                            </div>
-                                        </Link>
+                                        />
                                     ))}
                                 </div>
                             )}

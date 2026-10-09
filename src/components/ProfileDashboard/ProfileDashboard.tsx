@@ -50,6 +50,7 @@ import ProfileServiceListing from './ProfileServiceListing'
 import Commission from './Commission'
 import MyPoints from './MyPoints'
 import LastSeenSettings from './LastSeenSettings'
+import ProfileNotification from './ProfileNotification'
 import MyTasks from './MyTasks'
 import DeleteConfirmDialog from '@/components/DeleteConfirmDialog'
 import { callAdminApi } from '@/lib/callAdminApi'
@@ -1392,6 +1393,11 @@ export default function ProfileDashboard({
                     }}
                     onProfileUpdate={(updates) => setProfile((prev: any) => ({ ...prev, ...updates }))}
                 />
+            </div>
+
+            {/* ===== NOTIFICAÇÕES DO PERFIL — tudo o que acontece com o perfil ===== */}
+            <div className="mb-6">
+                <ProfileNotification userId={profile.id} />
             </div>
 
             {/* ===== TAREFAS — só aparece pra quem é funcionário vinculado a alguma loja ===== */}

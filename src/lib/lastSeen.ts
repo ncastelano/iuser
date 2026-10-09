@@ -1,10 +1,13 @@
-// Texto do "visto por último" — usado nos cartões do /social e na página do perfil.
-// Só existe quando a pessoa deixou esse horário visível pra quem está olhando (o banco decide).
-export function lastSeenLabel(iso: string | null | undefined): { text: string; online: boolean } | null {
-    if (!iso) return null
-    const d = new Date(iso)
-    const diffMin = (Date.now() - d.getTime()) / 60000
-    if (diffMin < 5) return { text: 'Online agora', online: true }
+// Texto do "visto por último" / status — usado nos cartões do /social e na página do perfil.
+// Só existe quando a pessoa deixou isso visível pra quem está olhando (o banco decide).
+export interface PresenceInfo { at: string | null; online: boolean; offline: boolean }
+
+export function lastSeenLabel(info: PresenceInfo | null | undefined): { text: string; online: boolean } | null {
+    if (!info) return null
+    if (info.online) return { text: 'Online agora', online: true }
+    if (info.offline) return { text: 'Offline', online: false }       // a pessoa escolheu aparecer offline
+    if (!info.at) return null
+    const d = new Date(info.at)
     const now = new Date()
     const startOfDay = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime()
     const days = Math.round((startOfDay(now) - startOfDay(d)) / 86400000)

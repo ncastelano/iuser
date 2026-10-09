@@ -337,13 +337,23 @@ export default function CommunityRoomClient() {
                 {/* Composer */}
                 <div className="px-4 md:px-6 pb-24 pt-2 sticky bottom-0" style={{ background: `${colors.background}dd`, backdropFilter: 'blur(8px)' }}>
                     {!currentUserId ? (
-                        <div className="rounded-xl p-3 text-center" style={{ background: colors.surface, border: `1px dashed ${colors.border}` }}>
+                        /* Visitante lê a conversa à vontade; na hora de escrever é que pede o login (e volta pra cá) */
+                        <div className="flex gap-2">
+                            <input
+                                type="text"
+                                readOnly
+                                onFocus={() => router.push(`/login?redirect=${encodeURIComponent(window.location.pathname)}`)}
+                                onClick={() => router.push(`/login?redirect=${encodeURIComponent(window.location.pathname)}`)}
+                                placeholder="Entre para escrever uma mensagem..."
+                                className="flex-1 rounded-xl py-2.5 px-4 text-sm focus:outline-none cursor-pointer"
+                                style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                            />
                             <button
-                                onClick={() => router.push('/login')}
-                                className="text-sm font-bold hover:underline inline-flex items-center gap-1"
-                                style={{ color: colors.accent }}
+                                onClick={() => router.push(`/login?redirect=${encodeURIComponent(window.location.pathname)}`)}
+                                className="px-4 py-2.5 rounded-xl transition-all hover:scale-105 flex items-center justify-center gap-1.5 text-sm font-black"
+                                style={{ background: GRADIENT, color: '#fff' }}
                             >
-                                <LogIn size={16} /> Faça login para conversar
+                                <LogIn size={16} /> Entrar
                             </button>
                         </div>
                     ) : !isMember ? (

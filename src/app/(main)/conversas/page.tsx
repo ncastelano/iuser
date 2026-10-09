@@ -326,7 +326,11 @@ function ConversasInner() {
                     {!profileLoading && !userId ? (
                         <div className="rounded-3xl p-8 text-center flex flex-col items-center gap-3" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
                             <MessageCircle size={36} style={{ color: colors.accent }} />
-                            <p className="text-base font-black" style={{ color: colors.textPrimary }}>Entre na sua conta para ver suas conversas</p>
+                            <p className="text-base font-black" style={{ color: colors.textPrimary }}>Entre na sua conta para conversar</p>
+                            <p className="text-xs max-w-xs" style={{ color: colors.textSecondary }}>
+                                Aqui ficam as conversas com pessoas e lojas. Você pode ver as comunidades sem conta, mas para escrever é preciso entrar.
+                            </p>
+                            <Link href="/comunidade" className="text-xs font-black underline" style={{ color: colors.accent }}>Ver as comunidades</Link>
                             <Link href="/login?redirect=/conversas" className="px-6 py-3 rounded-full text-sm font-black text-white" style={{ background: GRADIENT }}>Entrar</Link>
                         </div>
                     ) : (

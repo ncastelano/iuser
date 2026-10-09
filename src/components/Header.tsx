@@ -621,7 +621,8 @@ export default function Header({
                             )}
                         </div>
 
-                        {myUserId && pathname !== '/conversas' && (
+                        {/* Visitante também vê o ícone: ler é livre, e na hora de escrever pede o login */}
+                        {pathname !== '/conversas' && (
                             <button
                                 onClick={() => router.push('/conversas')}
                                 className="relative flex items-center justify-center rounded-full flex-shrink-0 hover:scale-105 active:scale-95"

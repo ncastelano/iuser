@@ -139,11 +139,32 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
     // Quem pode ver isso é escolha de cada um (Visto por último, no perfil).
     useEffect(() => {
         if (!userId) return
-        const ping = () => { if (document.visibilityState === 'visible') supabase.rpc('touch_last_seen').then(() => {}, () => {}) }
-        ping()
-        const timer = setInterval(ping, 120000)
-        document.addEventListener('visibilitychange', ping)
-        return () => { clearInterval(timer); document.removeEventListener('visibilitychange', ping) }
+        // Status escolhido: 'auto' (online só com o app à vista), 'online' (mantém online em segundo plano) ou 'offline'
+        let mode: 'auto' | 'online' | 'offline' = 'auto'
+        const send = (online: boolean) => { supabase.rpc('touch_last_seen', { p_online: online }).then(() => {}, () => {}) }
+        const ping = () => {
+            if (mode === 'offline') return
+            if (document.visibilityState === 'visible' || mode === 'online') send(true)
+        }
+        const onVisibility = () => {
+            if (document.visibilityState === 'visible') ping()
+            else if (mode === 'auto') send(false)          // saiu da aba: já fica offline
+        }
+        const onLeave = () => { if (mode === 'auto') send(false) }
+        const onMode = (e: Event) => { mode = (e as CustomEvent<'auto' | 'online' | 'offline'>).detail; ping() }
+
+        supabase.from('profile_presence').select('mode').eq('profile_id', userId).maybeSingle()
+            .then(({ data }) => { if (data?.mode) mode = data.mode as typeof mode; ping() }, () => ping())
+        const timer = setInterval(ping, 60000)
+        document.addEventListener('visibilitychange', onVisibility)
+        window.addEventListener('pagehide', onLeave)
+        window.addEventListener('iuser:presence-mode', onMode)
+        return () => {
+            clearInterval(timer)
+            document.removeEventListener('visibilitychange', onVisibility)
+            window.removeEventListener('pagehide', onLeave)
+            window.removeEventListener('iuser:presence-mode', onMode)
+        }
     }, [userId])
 
     const refreshProfile = useCallback(async () => {

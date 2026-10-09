@@ -8,6 +8,13 @@ import { useTheme } from '@/app/contexts/theme'
 import DashboardSection from './DashboardSection'
 
 type Visibility = 'all' | 'following' | 'none'
+type Mode = 'auto' | 'online' | 'offline'
+
+const MODES: { value: Mode; title: string; text: string }[] = [
+    { value: 'auto', title: 'Automático', text: 'Fica online quando você entra no app e offline quando sai.' },
+    { value: 'online', title: 'Sempre online', text: 'Aparece online mesmo com o app em segundo plano.' },
+    { value: 'offline', title: 'Offline', text: 'Aparece offline mesmo com o app aberto (ninguém vê que você esteve online).' },
+]
 
 const OPTIONS: { value: Visibility; title: string; text: string }[] = [
     { value: 'all', title: 'Todo mundo', text: 'Qualquer pessoa vê "Online agora" ou "Visto hoje às 14:30" no seu perfil e no Social.' },
@@ -19,10 +26,11 @@ export default function LastSeenSettings({ userId }: { userId: string }) {
     const { colors } = useTheme()
     const [value, setValue] = useState<Visibility>('following')
     const [saving, setSaving] = useState(false)
+    const [mode, setMode] = useState<Mode>('auto')
 
     useEffect(() => {
-        supabase.from('profile_presence').select('visibility').eq('profile_id', userId).maybeSingle()
-            .then(({ data }) => { if (data?.visibility) setValue(data.visibility as Visibility) })
+        supabase.from('profile_presence').select('visibility, mode').eq('profile_id', userId).maybeSingle()
+            .then(({ data }) => { if (data?.visibility) setValue(data.visibility as Visibility); if (data?.mode) setMode(data.mode as Mode) })
     }, [userId])
 
     const choose = async (next: Visibility) => {
@@ -36,9 +44,43 @@ export default function LastSeenSettings({ userId }: { userId: string }) {
         toast.success('Preferência salva')
     }
 
+    const chooseMode = async (next: Mode) => {
+        if (next === mode || saving) return
+        const prev = mode
+        setMode(next)
+        setSaving(true)
+        const { error } = await supabase.rpc('set_presence_mode', { p_mode: next })
+        setSaving(false)
+        if (error) { setMode(prev); toast.error(error.message); return }
+        window.dispatchEvent(new CustomEvent('iuser:presence-mode', { detail: next }))
+        toast.success(next === 'offline' ? 'Você aparece offline' : next === 'online' ? 'Você fica sempre online' : 'Status automático')
+    }
+
     const label = OPTIONS.find((o) => o.value === value)?.title
     return (
-        <DashboardSection storageKey="config-last-seen" title="Visto por último" subtitle={`Quem vê quando você esteve online · ${label}`}>
+        <DashboardSection storageKey="config-last-seen" title="Status e visto por último" subtitle={`${MODES.find((m) => m.value === mode)?.title} · quem vê: ${label}`}>
+            <p className="text-xs font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>Meu status</p>
+            <div className="grid grid-cols-3 gap-2">
+                {MODES.map((m) => {
+                    const active = m.value === mode
+                    return (
+                        <button
+                            key={m.value}
+                            onClick={() => chooseMode(m.value)}
+                            disabled={saving}
+                            title={m.text}
+                            className="flex flex-col items-center gap-1 py-3 px-2 rounded-2xl text-center transition-all disabled:opacity-70"
+                            style={{ border: `2px solid ${active ? '#f97316' : colors.border}`, background: active ? '#f9731612' : 'transparent' }}
+                        >
+                            <span className="w-3 h-3 rounded-full" style={{ background: m.value === 'offline' ? '#94a3b8' : '#22c55e' }} />
+                            <span className="text-xs font-black" style={{ color: colors.textPrimary }}>{m.title}</span>
+                        </button>
+                    )
+                })}
+            </div>
+            <p className="text-xs" style={{ color: colors.textSecondary }}>{MODES.find((m) => m.value === mode)?.text}</p>
+
+            <p className="text-xs font-black uppercase tracking-wider mt-2" style={{ color: colors.textSecondary }}>Quem vê o meu status</p>
             <div className="flex flex-col gap-2">
                 {OPTIONS.map((o) => {
                     const active = o.value === value

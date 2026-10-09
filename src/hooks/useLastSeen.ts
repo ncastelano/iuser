@@ -3,9 +3,10 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase/client'
+import type { PresenceInfo } from '@/lib/lastSeen'
 
 export function useLastSeen(ids: string[]) {
-    const [map, setMap] = useState<Record<string, string>>({})
+    const [map, setMap] = useState<Record<string, PresenceInfo>>({})
     const key = ids.join(',')
 
     useEffect(() => {
@@ -13,7 +14,7 @@ export function useLastSeen(ids: string[]) {
         let cancelled = false
         supabase.rpc('get_last_seen_for', { p_ids: ids.slice(0, 200) }).then(({ data }) => {
             if (cancelled) return
-            setMap(Object.fromEntries(((data as { profile_id: string; last_seen_at: string }[]) || []).map((r) => [r.profile_id, r.last_seen_at])))
+            setMap(Object.fromEntries(((data as { profile_id: string; last_seen_at: string | null; online: boolean; appears_offline: boolean }[]) || []).map((r) => [r.profile_id, { at: r.last_seen_at, online: r.online, offline: r.appears_offline }])))
         })
         return () => { cancelled = true }
         // eslint-disable-next-line react-hooks/exhaustive-deps

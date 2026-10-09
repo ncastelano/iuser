@@ -29,6 +29,12 @@ export async function captureReferral(
         }
         if (!profileSlug) return
 
+        // Avisa o dono do link que alguém entrou (notificação do perfil). Uma por visitante por página por dia.
+        try {
+            const anon = localStorage.getItem('iuser_anon_id')
+            await supabase.rpc('track_link_visit', { p_slug: profileSlug, p_path: window.location.pathname, p_anon: anon })
+        } catch { /* sem notificação, sem problema */ }
+
         await fetch('/api/set-referral-cookie', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
