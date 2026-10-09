@@ -233,7 +233,7 @@ export function ServiceClientPage({ ownerSlug, colors, initialService }: Service
                             )}
                             {service.show_chat && service.owner_id && (
                                 <div className={`flex-1 rounded-full ${isOwner ? 'pointer-events-none select-none' : ''}`} style={{ boxShadow: '0 6px 16px rgba(0,0,0,0.3)' }}>
-                                    <ChatContactButton profileId={service.owner_id} colors={colors} variant="pill" label="iUser" />
+                                    <ChatContactButton profileId={service.owner_id} productId={service.id} colors={colors} variant="pill" label="iUser" />
                                 </div>
                             )}
                         </div>

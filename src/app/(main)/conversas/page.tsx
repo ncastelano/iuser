@@ -37,7 +37,9 @@ interface ConversationRow {
 
 interface MyStore { id: string; name: string; storeSlug: string; logoUrl: string | null }
 
-interface Message { id: string; conversation_id: string; sender_id: string; content: string; created_at: string }
+interface Message { id: string; conversation_id: string; sender_id: string; content: string; created_at: string; ref_product_id?: string | null }
+
+interface ProductRef { id: string; name: string; slug: string | null; image_url: string | null; owner_slug: string | null }
 
 function timeLabel(iso: string | null) {
     if (!iso) return ''
@@ -66,6 +68,8 @@ function Thread({ conversation, userId, onBack, onRead, colors }: {
     colors: any
 }) {
     const [messages, setMessages] = useState<Message[]>([])
+    // Postagens (serviços) citadas nas mensagens: viram um cartão que abre a página do serviço
+    const [refs, setRefs] = useState<Record<string, ProductRef>>({})
     const [loading, setLoading] = useState(true)
     const [text, setText] = useState('')
     const [sending, setSending] = useState(false)
@@ -81,12 +85,17 @@ function Thread({ conversation, userId, onBack, onRead, colors }: {
         onReadRef.current()
     }, [convId])
 
+    const loadRefs = useCallback(async () => {
+        const { data } = await supabase.rpc('get_conversation_refs', { p_conv: convId })
+        setRefs(Object.fromEntries(((data as ProductRef[]) || []).map((r) => [r.id, r])))
+    }, [convId])
+
     useEffect(() => {
         let cancelled = false
         setLoading(true)
         supabase
             .from('direct_messages')
-            .select('id, conversation_id, sender_id, content, created_at')
+            .select('id, conversation_id, sender_id, content, created_at, ref_product_id')
             .eq('conversation_id', convId)
             .order('created_at', { ascending: true })
             .limit(300)
@@ -95,6 +104,7 @@ function Thread({ conversation, userId, onBack, onRead, colors }: {
                 setMessages((data as Message[]) || [])
                 setLoading(false)
                 markRead()
+                loadRefs()
             })
 
         const channel = supabase
@@ -102,11 +112,12 @@ function Thread({ conversation, userId, onBack, onRead, colors }: {
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'direct_messages', filter: `conversation_id=eq.${convId}` }, (payload) => {
                 const m = payload.new as Message
                 setMessages((prev) => (prev.some((x) => x.id === m.id) ? prev : [...prev, m]))
+                if (m.ref_product_id) loadRefs()
                 if (m.sender_id !== userId) markRead()
             })
             .subscribe()
         return () => { cancelled = true; supabase.removeChannel(channel) }
-    }, [convId, userId, markRead])
+    }, [convId, userId, markRead, loadRefs])
 
     useEffect(() => { endRef.current?.scrollIntoView({ block: 'end' }) }, [messages])
 
@@ -166,6 +177,24 @@ function Thread({ conversation, userId, onBack, onRead, colors }: {
                             )}
                             <div className={`max-w-[80%] px-3.5 py-2 rounded-2xl text-sm break-words whitespace-pre-wrap ${mine ? 'self-end rounded-br-md text-white' : 'self-start rounded-bl-md'}`}
                                 style={mine ? { background: GRADIENT } : { background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}>
+                                {m.ref_product_id && refs[m.ref_product_id] && (() => {
+                                    const r = refs[m.ref_product_id!]
+                                    const img = r.image_url ? (r.image_url.startsWith('http') ? r.image_url : supabase.storage.from('product-images').getPublicUrl(r.image_url).data.publicUrl) : null
+                                    const href = r.owner_slug ? `/${r.owner_slug}/${r.slug || r.id}` : null
+                                    const card = (
+                                        <span className="flex items-center gap-2.5 mb-2 p-1.5 rounded-xl" style={{ background: mine ? 'rgba(255,255,255,0.18)' : `${colors.border}40` }}>
+                                            <span className="w-14 h-14 rounded-lg overflow-hidden flex-shrink-0 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.15)' }}>
+                                                {img ? <img src={img} alt="" className="w-full h-full object-cover" /> : <MessageCircle size={18} />}
+                                            </span>
+                                            <span className="min-w-0 flex-1">
+                                                <span className="block text-[10px] font-black uppercase tracking-wide opacity-75">Serviço</span>
+                                                <span className="block text-sm font-black leading-tight line-clamp-2">{r.name}</span>
+                                                {href && <span className="block text-[11px] underline opacity-80 mt-0.5">Ver postagem</span>}
+                                            </span>
+                                        </span>
+                                    )
+                                    return href ? <Link href={href} className="block">{card}</Link> : card
+                                })()}
                                 {m.content}
                                 <span className="block text-[10px] mt-0.5 text-right" style={{ opacity: 0.7 }}>
                                     {new Date(m.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}

@@ -22,11 +22,13 @@ interface Props {
     background?: string
     /** 'pill': botão redondo cheio (mesmo desenho do botão de WhatsApp da página do serviço) */
     variant?: 'card' | 'pill'
+    /** Serviço/postagem de onde a pessoa veio: já manda uma mensagem com ela no chat de quem oferece */
+    productId?: string
     /** Texto do botão no formato 'pill' */
     label?: string
 }
 
-export default function ChatContactButton({ profileId, storeId, colors, background = 'rgba(255, 255, 255, 0.08)', variant = 'card', label = 'Conversar pelo iUser' }: Props) {
+export default function ChatContactButton({ profileId, storeId, colors, background = 'rgba(255, 255, 255, 0.08)', variant = 'card', productId, label = 'Conversar pelo iUser' }: Props) {
     const router = useRouter()
     const pathname = usePathname()
     const { userId } = useProfile()
@@ -35,7 +37,9 @@ export default function ChatContactButton({ profileId, storeId, colors, backgrou
     const open = async () => {
         if (!userId) { router.push(`/login?redirect=${encodeURIComponent(pathname)}`); return }
         setLoading(true)
-        const { data, error } = await supabase.rpc('start_conversation', { p_owner_profile: profileId ?? null, p_store: storeId ?? null })
+        const { data, error } = productId
+            ? await supabase.rpc('start_conversation_about_product', { p_product: productId })
+            : await supabase.rpc('start_conversation', { p_owner_profile: profileId ?? null, p_store: storeId ?? null })
         setLoading(false)
         if (error || !data) { toast.error(error?.message || 'Não foi possível abrir a conversa'); return }
         router.push(`/conversas?c=${data}`)
