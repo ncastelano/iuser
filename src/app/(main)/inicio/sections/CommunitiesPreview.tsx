@@ -13,6 +13,7 @@ import { useUserPlace } from '@/hooks/useUserPlace'
 import { getAvatarUrl } from '@/lib/avatar'
 import { HomeSectionHeader, HOME_GRADIENT } from './HomeSectionKit'
 import { ViewServicesButton } from './ViewServicesButton'
+import { fetchCommunitiesActivity, type CommunityActivity } from '@/lib/communityActivity'
 
 interface PreviewMessage { id: string; content: string; created_at: string; name: string; avatar: string | null }
 interface CommunityPreview {
@@ -25,6 +26,8 @@ interface CommunityPreview {
     messages: PreviewMessage[]
     lastAt: number
     isMine: boolean
+    activity: CommunityActivity | null
+    imageUrl: string | null
 }
 
 const norm = (s: string | null | undefined) =>
@@ -53,9 +56,10 @@ export default function CommunitiesPreview({ origin, dragHandle }: { origin: { l
     useEffect(() => {
         let cancelled = false
         const load = async () => {
-            const { data: comms } = await supabase.from('communities').select('id, slug, name, city, scope').eq('is_listed', true).eq('requires_password', false)
+            const { data: comms } = await supabase.from('communities').select('id, slug, name, city, scope, image_url').eq('is_listed', true).eq('requires_password', false)
             if (!comms?.length) { if (!cancelled) setItems([]); return }
             const ids = comms.map((c) => c.id)
+            const activityById = await fetchCommunitiesActivity(ids)
             const [{ data: members }, { data: msgs }] = await Promise.all([
                 supabase.from('community_members').select('community_id').in('community_id', ids),
                 supabase.from('community_messages').select('id, community_id, profile_id, content, created_at').in('community_id', ids).order('created_at', { ascending: false }).limit(60),
@@ -81,6 +85,8 @@ export default function CommunitiesPreview({ origin, dragHandle }: { origin: { l
                     }),
                     lastAt: (msgs || []).find((m) => m.community_id === c.id) ? new Date((msgs || []).find((m) => m.community_id === c.id)!.created_at).getTime() : 0,
                     isMine: false,
+                    activity: activityById[c.id] || null,
+                    imageUrl: (c as any).image_url || null,
                 }
             })
             if (!cancelled) setItems(built)
@@ -97,15 +103,21 @@ export default function CommunitiesPreview({ origin, dragHandle }: { origin: { l
     const stateIdx = items.findIndex((c) => c.scope === 'state' && same(state, c.city))
     const countryIdx = items.findIndex((c) => c.scope === 'country')
     const picked = [mineIdx, stateIdx, countryIdx].filter((i) => i >= 0)
-    const rest = items
-        .filter((_, i) => !picked.includes(i))
-        .sort((a, b) => (b.lastAt - a.lastAt) || (b.members - a.members))
-    const shown = [
+    const rest = items.filter((_, i) => !picked.includes(i))
+    // Quem teve novidade (mensagem nova ou votação de foto) fica na frente; sem novidade, vale a ordem por lugar
+    const activityOf = (c: CommunityPreview) => Math.max(c.activity?.activityAt || 0, c.lastAt)
+    const placeRank = (c: CommunityPreview) => (c.scope === 'city' && same(city, c.city) ? 0 : c.scope === 'state' && same(state, c.city) ? 1 : c.scope === 'country' ? 2 : 3)
+    const base = [
         ...(mineIdx >= 0 ? [{ ...items[mineIdx], isMine: true }] : []),
         ...(stateIdx >= 0 ? [items[stateIdx]] : []),
         ...(countryIdx >= 0 ? [items[countryIdx]] : []),
         ...rest,
-    ].slice(0, 3)
+    ]
+    const shown = base
+        .map((c, i) => ({ c, i }))
+        .sort((x, y) => (activityOf(y.c) - activityOf(x.c)) || (placeRank(x.c) - placeRank(y.c)) || (y.c.members - x.c.members) || (x.i - y.i))
+        .map((x) => x.c)
+        .slice(0, 4)
 
     const go = (path: string) => { startNavProgress(); router.push(path) }
 
@@ -130,8 +142,8 @@ export default function CommunitiesPreview({ origin, dragHandle }: { origin: { l
                         style={{ background: colors.surface, borderColor: c.isMine ? colors.accent : colors.border, boxShadow: colors.shadow }}
                     >
                         <div className="px-4 pt-4 pb-3 flex items-center gap-3" style={{ background: 'linear-gradient(135deg, #f9731618, #dc262610)' }}>
-                            <span className="w-11 h-11 rounded-2xl flex items-center justify-center text-white flex-shrink-0" style={{ background: HOME_GRADIENT, boxShadow: '0 4px 12px #f9731640' }}>
-                                <MessageCircle size={20} />
+                            <span className="w-11 h-11 rounded-2xl overflow-hidden flex items-center justify-center text-white flex-shrink-0" style={{ background: HOME_GRADIENT, boxShadow: '0 4px 12px #f9731640' }}>
+                                {c.imageUrl ? <img src={c.imageUrl} alt="" className="w-full h-full object-cover" loading="lazy" /> : <MessageCircle size={20} />}
                             </span>
                             <div className="min-w-0 flex-1">
                                 <p className="text-base font-black leading-tight truncate" style={{ color: colors.textPrimary }}>{c.name}</p>
@@ -147,6 +159,22 @@ export default function CommunitiesPreview({ origin, dragHandle }: { origin: { l
                                 <span className="text-[10px] font-black px-2 py-1 rounded-full text-white flex-shrink-0" style={{ background: HOME_GRADIENT }}>Sua cidade</span>
                             )}
                         </div>
+
+                        {/* Evento: votação da foto da comunidade acontecendo */}
+                        {c.activity?.photoVoteActive && (
+                            <div className="mx-4 mt-3 flex items-center gap-2.5 rounded-2xl px-3 py-2" style={{ background: '#f9731614', border: '1px solid #f9731660' }}>
+                                <span className="flex -space-x-2 flex-shrink-0">
+                                    {c.activity.photoThumbs.map((u, i) => (
+                                        <img key={u + i} src={u} alt="" className="w-8 h-8 rounded-lg object-cover border-2" style={{ borderColor: colors.surface }} loading="lazy" />
+                                    ))}
+                                </span>
+                                <span className="min-w-0 flex-1">
+                                    <span className="block text-[11px] font-black leading-tight" style={{ color: colors.textPrimary }}>Votação da foto acontecendo</span>
+                                    <span className="block text-[10px]" style={{ color: colors.textSecondary }}>{c.activity.photoCandidates} {c.activity.photoCandidates === 1 ? 'foto' : 'fotos'} hoje</span>
+                                </span>
+                                <span className="w-2 h-2 rounded-full flex-shrink-0 animate-pulse" style={{ background: '#f97316' }} />
+                            </div>
+                        )}
 
                         {/* Prévia do chat */}
                         <div className="px-4 py-3 flex flex-col gap-2.5 flex-1 min-h-[120px]">

@@ -28,6 +28,7 @@ import {
 } from 'lucide-react'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
 import CommunityPhotoCampaign from '@/components/communities/CommunityPhotoCampaign'
+import { fetchCommunitiesActivity, type CommunityActivity } from '@/lib/communityActivity'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -77,6 +78,7 @@ export default function CommunityRoomClient() {
     const [showCampaign, setShowCampaign] = useState(false)
     const [password, setPassword] = useState('')
     const photoInputRef = useRef<HTMLInputElement>(null)
+    const [activity, setActivity] = useState<CommunityActivity | null>(null)
 
     const loadRoom = useCallback(async () => {
         if (!communitySlug) return
@@ -136,6 +138,14 @@ export default function CommunityRoomClient() {
     useEffect(() => {
         loadRoom()
     }, [loadRoom])
+
+    // Tem votação de foto acontecendo? (aparece pra todo mundo, inclusive visitante)
+    useEffect(() => {
+        if (!community?.id || community.kind !== 'place') return
+        let cancelled = false
+        fetchCommunitiesActivity([community.id]).then((r) => { if (!cancelled) setActivity(r[community.id] || null) })
+        return () => { cancelled = true }
+    }, [community?.id, community?.kind, showCampaign])
 
     useEffect(() => {
         bottomRef.current?.scrollIntoView({ block: 'end' })
@@ -368,6 +378,28 @@ export default function CommunityRoomClient() {
                             </>
                         )}
                     </div>
+
+                    {/* Evento: votação da foto da comunidade acontecendo (visível pra todos) */}
+                    {community.kind === 'place' && activity?.photoVoteActive && !showCampaign && (
+                        <button
+                            onClick={() => setShowCampaign(true)}
+                            className="mt-3 w-full flex items-center gap-3 rounded-2xl px-3 py-2.5 border text-left transition hover:scale-[1.01]"
+                            style={{ background: '#f9731612', borderColor: '#f97316' }}
+                        >
+                            <span className="flex -space-x-2 flex-shrink-0">
+                                {activity.photoThumbs.map((u, i) => (
+                                    <img key={u + i} src={u} alt="" className="w-9 h-9 rounded-lg object-cover border-2" style={{ borderColor: colors.surface }} />
+                                ))}
+                            </span>
+                            <span className="min-w-0 flex-1">
+                                <span className="block text-sm font-black" style={{ color: colors.textPrimary }}>Votação da foto da comunidade acontecendo</span>
+                                <span className="block text-[11px]" style={{ color: colors.textSecondary }}>
+                                    {activity.photoCandidates} {activity.photoCandidates === 1 ? 'foto' : 'fotos'} concorrendo hoje · toque pra ver
+                                </span>
+                            </span>
+                            <span className="w-2.5 h-2.5 rounded-full flex-shrink-0 animate-pulse" style={{ background: '#f97316' }} />
+                        </button>
+                    )}
 
                     {/* Comunidade com senha: só entra quem sabe a senha (e só membro lê as mensagens) */}
                     {community.requires_password && !isMember && (

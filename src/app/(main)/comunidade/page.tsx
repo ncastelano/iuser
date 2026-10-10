@@ -11,6 +11,7 @@ import Header from '@/components/Header'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { useUserPlace } from '@/hooks/useUserPlace'
 import { getAvatarUrl } from '@/lib/avatar'
+import { fetchCommunitiesActivity, type CommunityActivity } from '@/lib/communityActivity'
 import CreateCommunityModal, { generateUniqueCommunitySlug } from './CreateCommunityModal'
 import LocationPicker from '@/components/LocationPicker'
 import { hexToRgb } from '@/lib/color'
@@ -41,6 +42,7 @@ interface CommunityCard {
     requires_password: boolean
     memberCount: number
     recent: CommunityMessagePreview[]
+    activity: CommunityActivity | null
 }
 
 export default function ComunidadePage() {
@@ -201,6 +203,7 @@ export default function ComunidadePage() {
                     return { c, count: count || 0, msgs: (msgs || []).slice().reverse() }
                 })
             )
+            const activityById = await fetchCommunitiesActivity(visible.map((c: any) => c.id))
             const authorIds = [...new Set(base.flatMap((b) => b.msgs.map((m) => m.profile_id)))]
             const { data: authors } = authorIds.length
                 ? await supabase.from('profiles').select('id, name, profileSlug, avatar_url').in('id', authorIds)
@@ -211,6 +214,7 @@ export default function ComunidadePage() {
                 ...c,
                 scope: (c.scope || 'city') as CommunityCard['scope'],
                 memberCount: count,
+                activity: activityById[c.id] || null,
                 recent: msgs.map((m) => {
                     const a: any = authorMap.get(m.profile_id)
                     return {
@@ -302,7 +306,9 @@ export default function ComunidadePage() {
             c.scope === 'city' && same(userCity, c.city) ? 0
                 : c.scope === 'state' && same(userState, c.city) ? 1
                     : c.scope === 'country' ? 2 : 3
-        return base.map((c, i) => ({ c, i })).sort((x, y) => (rank(x.c) - rank(y.c)) || (x.i - y.i)).map((x) => x.c)
+        // Quem teve novidade (mensagem nova ou votação de foto) vai pra frente; depois, a ordem por lugar
+        const act = (c: CommunityCard) => c.activity?.activityAt || 0
+        return base.map((c, i) => ({ c, i })).sort((x, y) => (act(y.c) - act(x.c)) || (rank(x.c) - rank(y.c)) || (x.i - y.i)).map((x) => x.c)
     }, [communities, searchQuery, userCity, userState])
 
     // ===== ESTILOS =====
@@ -464,6 +470,24 @@ export default function ComunidadePage() {
                                             </div>
                                             <ChevronRight size={18} style={{ color: colors.textSecondary }} />
                                         </div>
+
+                                        {/* Evento: votação da foto da comunidade acontecendo */}
+                                        {community.activity?.photoVoteActive && (
+                                            <div className="mt-3 flex items-center gap-2.5 rounded-2xl px-3 py-2" style={{ background: '#f9731614', border: '1px solid #f9731660' }}>
+                                                <span className="flex -space-x-2 flex-shrink-0">
+                                                    {community.activity.photoThumbs.map((u, i) => (
+                                                        <img key={u + i} src={u} alt="" className="w-8 h-8 rounded-lg object-cover border-2" style={{ borderColor: colors.surface }} loading="lazy" />
+                                                    ))}
+                                                </span>
+                                                <span className="min-w-0 flex-1">
+                                                    <span className="block text-xs font-black" style={{ color: colors.textPrimary }}>Votação da foto da comunidade acontecendo</span>
+                                                    <span className="block text-[10px]" style={{ color: colors.textSecondary }}>
+                                                        {community.activity.photoCandidates} {community.activity.photoCandidates === 1 ? 'foto' : 'fotos'} concorrendo hoje
+                                                    </span>
+                                                </span>
+                                                <span className="w-2 h-2 rounded-full flex-shrink-0 animate-pulse" style={{ background: '#f97316' }} />
+                                            </div>
+                                        )}
 
                                         {/* Últimas conversas (até 10) */}
                                         {community.recent.length > 0 && (
