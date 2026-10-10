@@ -9,7 +9,10 @@
 // A moldura fica por fora do avatar (não muda o tamanho dele). Sem o plano, devolve o filho sem nada em volta.
 'use client'
 
-import { ReactNode, useEffect, useState } from 'react'
+import { ReactNode, useCallback, useEffect, useState } from 'react'
+import { usePathname, useRouter } from 'next/navigation'
+import { supabase } from '@/lib/supabase/client'
+import { useProfile } from '@/app/contexts/ProfileContext'
 import { borderGradient, requestAvatarBorder, subscribePlanRing } from '@/lib/planRing'
 
 interface PlanAvatarRingProps {
@@ -20,6 +23,8 @@ interface PlanAvatarRingProps {
     /** Raio do avatar: 'full' (redondo, padrão) ou um valor CSS, ex: '16px' */
     radius?: 'full' | string
     className?: string
+    /** Clicar no avatar com borda leva ao perfil da pessoa (padrão: sim; a própria pessoa não é levada) */
+    linkToProfile?: boolean
 }
 
 /** As cores da borda que essa pessoa está usando (null = nenhuma). */
@@ -41,13 +46,17 @@ export function usePlanRing(userId?: string | null): boolean {
 /** A borda em si (sem consultar ninguém) — o que o PlanAvatarRing desenha quando a pessoa usa uma borda.
  *  Redonda ('full'): gira o anel. Com cantos arredondados (quadrado/retângulo): o anel NÃO pode girar o próprio
  *  retângulo (viraria um quadrado rodando), então o que gira é o ângulo do gradiente, com o anel parado. */
-export function PlanRingFrame({ children, width = 2, radius = 'full', className = '', colors }: Omit<PlanAvatarRingProps, 'userId'> & { colors?: string[] }) {
+export function PlanRingFrame({ children, width = 2, radius = 'full', className = '', colors, onClick }: Omit<PlanAvatarRingProps, 'userId' | 'linkToProfile'> & { colors?: string[]; onClick?: (e: React.MouseEvent) => void }) {
     const round = radius === 'full'
     const r = round ? '9999px' : radius
     const list = colors && colors.length >= 2 ? colors : ['#4ade80', '#86efac', '#fde047', '#38bdf8', '#3b82f6', '#22c55e']
     const stops = [...list, list[0]].map((c, i) => `${c} ${Math.round((i / list.length) * 360)}deg`).join(', ')
     return (
-        <span className={`relative inline-flex flex-shrink-0 ${className}`} style={{ borderRadius: r, width: 'fit-content', height: 'fit-content' }}>
+        <span
+            className={`relative inline-flex flex-shrink-0 ${onClick ? 'cursor-pointer' : ''} ${className}`}
+            style={{ borderRadius: r, width: 'fit-content', height: 'fit-content' }}
+            onClick={onClick}
+        >
             <span
                 aria-hidden
                 className={`${round ? 'plan-ring-spin' : 'plan-ring-inset'} pointer-events-none absolute`}
@@ -106,8 +115,29 @@ export function PlanRingInset({ userId, width = 3, radius = '12px' }: { userId?:
     )
 }
 
-export default function PlanAvatarRing({ userId, children, width = 2, radius = 'full', className = '' }: PlanAvatarRingProps) {
+// slug de cada pessoa, buscado só na hora do clique (uma vez)
+const slugCache = new Map<string, string | null>()
+
+export default function PlanAvatarRing({ userId, children, width = 2, radius = 'full', className = '', linkToProfile = true }: PlanAvatarRingProps) {
     const colors = useAvatarBorder(userId)
+    const router = useRouter()
+    const pathname = usePathname()
+    const { userId: viewerId } = useProfile()
+
+    // Onde tem borda personalizada, o avatar é um atalho pro perfil da pessoa
+    const go = useCallback(async (e: React.MouseEvent) => {
+        if (!userId) return
+        e.stopPropagation()
+        let slug = slugCache.get(userId)
+        if (slug === undefined) {
+            const { data } = await supabase.from('profiles').select('profileSlug:"profileSlug"').eq('id', userId).maybeSingle()
+            slug = (data as { profileSlug?: string } | null)?.profileSlug || null
+            slugCache.set(userId, slug)
+        }
+        if (slug && pathname !== `/${slug}`) router.push(`/${slug}`)
+    }, [userId, router, pathname])
+
     if (!colors) return <>{children}</>
-    return <PlanRingFrame colors={colors} width={width} radius={radius} className={className}>{children}</PlanRingFrame>
+    const linkable = linkToProfile && !!userId && userId !== viewerId
+    return <PlanRingFrame colors={colors} width={width} radius={radius} className={className} onClick={linkable ? go : undefined}>{children}</PlanRingFrame>
 }

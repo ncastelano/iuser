@@ -19,6 +19,7 @@ import { ptBR } from 'date-fns/locale'
 import { Spinner } from '@/components/Spinner'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
+import { useProfile } from '@/app/contexts/ProfileContext'
 import DashboardSection from './DashboardSection'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -82,6 +83,7 @@ function timeLabel(iso: string) {
 export default function ProfileNotification({ userId }: { userId: string }) {
     const { colors } = useTheme()
     const router = useRouter()
+    const { profileSlug: mySlug } = useProfile()
     const [items, setItems] = useState<Notif[] | null>(null)
     const [filter, setFilter] = useState<Filter>('all')
     const [page, setPage] = useState(0)
@@ -139,6 +141,8 @@ export default function ProfileNotification({ userId }: { userId: string }) {
             return `/${n.meta.owner_slug}/${n.meta.slug}`
         }
         if (n.kind === 'link_visit' && n.meta?.path) return n.meta.path
+        // Comentário (ou resposta/curtida de comentário) no MEU perfil: abre o meu perfil nos comentários, não o de quem comentou
+        if (['profile_comment', 'comment_reply', 'comment_like'].includes(n.kind) && mySlug) return `/${mySlug}?aba=comentarios`
         if (n.actor_slug) return `/${n.actor_slug}`
         return null
     }

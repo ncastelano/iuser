@@ -488,6 +488,13 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
         }
     }, [ownerSlug, currentUserId])
 
+    // Link de notificação de comentário: /seu-perfil?aba=comentarios abre direto na aba de comentários
+    useEffect(() => {
+        try {
+            if (new URLSearchParams(window.location.search).get('aba') === 'comentarios') setActiveTab('profile_comments')
+        } catch { /* sem window */ }
+    }, [ownerSlug])
+
     // ========== VISITA NO PERFIL ==========
     // Abrir o perfil (link direto, card do /social, busca, últimos acessados...) conta como visita — uma vez por abertura,
     // e só depois de saber quem está vendo (o banco ignora a mesma sessão repetida em 60 s e a própria pessoa não conta).
@@ -1165,14 +1172,18 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                         boxShadow: isBeingReplied ? '0 0 0 2px rgba(249, 115, 22, 0.2)' : 'none',
                         transition: 'all 0.2s ease',
                     }}>
-                        <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0" style={{ background: 'rgba(255,255,255,0.1)' }}>
-                            {comment.profiles?.avatar_url ? (
-                                <img src={getAvatarUrl(supabase, comment.profiles.avatar_url) || ''} alt="" className="w-full h-full object-cover" />
-                            ) : (
-                                <div className="w-full h-full flex items-center justify-center">
-                                    <User size={14} style={{ color: colors.textSecondary }} />
+                        <div className="flex-shrink-0 self-start">
+                            <PlanAvatarRing userId={comment.profiles?.id}>
+                                <div className="w-8 h-8 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.1)' }}>
+                                    {comment.profiles?.avatar_url ? (
+                                        <img src={getAvatarUrl(supabase, comment.profiles.avatar_url) || ''} alt="" className="w-full h-full object-cover" />
+                                    ) : (
+                                        <div className="w-full h-full flex items-center justify-center">
+                                            <User size={14} style={{ color: colors.textSecondary }} />
+                                        </div>
+                                    )}
                                 </div>
-                            )}
+                            </PlanAvatarRing>
                         </div>
 
                         <div className="flex-1 min-w-0">
