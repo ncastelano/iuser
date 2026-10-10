@@ -72,7 +72,7 @@ export default function ServiceRequestViewDialog({ item, isMine, applied, onAppl
                 style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: '0 20px 60px rgba(0,0,0,0.4)' }}
             >
                 {/* Foto grande, inteira */}
-                <div className="relative w-full" style={{ background: GRADIENT }}>
+                <div className="relative w-full overflow-hidden" style={{ background: GRADIENT }}>
                     {photo ? (
                         <>
                             <img src={photo} alt="" aria-hidden className="absolute inset-0 w-full h-full object-cover scale-125 blur-2xl opacity-70" />

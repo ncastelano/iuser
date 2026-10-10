@@ -1,6 +1,7 @@
 // app/(main)/comunidade/[communitySlug]/CommunityRoomClient.tsx
 'use client'
 
+import DeleteCommentButton from '@/components/DeleteCommentButton'
 import { profileLabel } from '@/lib/profileDisplay'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useState, useCallback, useRef } from 'react'
@@ -154,6 +155,14 @@ export default function CommunityRoomClient() {
         } finally {
             setJoining(false)
         }
+    }
+
+    // Apagar a própria mensagem (o banco só deixa apagar as suas)
+    const deleteMessage = async (messageId: string) => {
+        const { error } = await supabase.from('community_messages').delete().eq('id', messageId)
+        if (error) { toast.error('Não foi possível excluir: ' + error.message); return }
+        setMessages((prev) => prev.filter((m) => m.id !== messageId))
+        toast.success('Mensagem excluída')
     }
 
     const handleSend = async () => {
@@ -316,6 +325,7 @@ export default function CommunityRoomClient() {
                                             <span className="text-[10px]" style={{ color: colors.textSecondary }}>
                                                 {formatDistanceToNow(new Date(message.created_at), { addSuffix: true, locale: ptBR })}
                                             </span>
+                                            {isMine && <DeleteCommentButton colors={colors} onConfirm={() => deleteMessage(message.id)} />}
                                         </div>
                                         <div
                                             className="rounded-2xl px-3 py-2 mt-1 text-sm"

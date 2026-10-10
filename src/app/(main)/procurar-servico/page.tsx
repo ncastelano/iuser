@@ -17,6 +17,7 @@ import DriverDebtBanner from '@/components/DriverDebtBanner'
 import { notifyServiceApplication } from '@/lib/notifyRideStatus'
 import { trackServiceRequestView } from '@/lib/trackServiceRequestView'
 import ServiceRequestViewDialog from '@/components/ServiceRequestViewDialog'
+import ServiceRequestDetailsDialog from '@/components/ServiceRequestDetailsDialog'
 import { getServiceIcon } from '@/lib/serviceTypes'
 import { useMyServiceApplications } from '@/hooks/useMyServiceApplications'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
@@ -62,7 +63,7 @@ function SerParceiroContent() {
     const [cancelingId, setCancelingId] = useState<string | null>(null)
     const [confirmCancelId, setConfirmCancelId] = useState<string | null>(null)
     const [autoApplyingId, setAutoApplyingId] = useState<string | null>(null)
-    const [editingJob, setEditingJob] = useState<BoardItem | null>(null)
+    const [detailsId, setDetailsId] = useState<string | null>(null)
     const [editDescription, setEditDescription] = useState('')
     const [editNeedsAccess, setEditNeedsAccess] = useState(false)
     const [editAccessNotes, setEditAccessNotes] = useState('')
@@ -229,42 +230,8 @@ function SerParceiroContent() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [focusId, loading, profileLoading, userId, jobs])
 
-    const openEdit = (item: BoardItem) => {
-        setEditingJob(item)
-        setEditDescription(item.description || '')
-        setEditNeedsAccess(item.location_needs_access)
-        setEditAccessNotes(item.location_access_notes || '')
-    }
-
-    const handleSaveEdit = async () => {
-        if (!editingJob) return
-        if (!editDescription.trim()) {
-            toast.error('Descreva o que você precisa')
-            return
-        }
-        setSavingEdit(true)
-        try {
-            const patch = {
-                description: editDescription.trim(),
-                location_needs_access: editNeedsAccess,
-                location_access_notes: editNeedsAccess ? (editAccessNotes.trim() || null) : null,
-            }
-            // .select() pra perceber quando o RLS bloqueia (0 linhas, sem erro).
-            const { data, error } = await supabase.from('service_requests').update(patch).eq('id', editingJob.id).select('id')
-            if (error) throw error
-            if (!data || data.length === 0) {
-                toast.error('Não foi possível salvar: sem permissão para editar esse pedido.')
-                return
-            }
-            setJobs((prev) => prev.map((j) => (j.id === editingJob.id ? { ...j, ...patch } : j)))
-            toast.success('Pedido atualizado')
-            setEditingJob(null)
-        } catch (err: any) {
-            toast.error('Erro ao salvar: ' + (err.message || 'tente novamente'))
-        } finally {
-            setSavingEdit(false)
-        }
-    }
+    // Editar um pedido meu abre o mesmo componente de "Seus pedidos em aberto" (editar, candidatos, visitantes...)
+    const openEdit = (item: BoardItem) => setDetailsId(item.id)
 
     // Quem já se inscreveu sai da lista e passa pra aba "Me inscrevi"
     const availableJobs = useMemo(() => jobs.filter((j) => !appliedKeys.has(itemKey(j))), [jobs, appliedKeys])
@@ -609,79 +576,15 @@ function SerParceiroContent() {
                 </section>
 
                 {/* ===== EDITAR O PRÓPRIO PEDIDO ===== */}
-                {editingJob && (
-                    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)' }}>
-                        <div className="w-full max-w-sm rounded-2xl p-5" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
-                            <div className="flex items-center justify-between mb-3">
-                                <h3 className="text-base font-black" style={{ color: colors.textPrimary }}>
-                                    Editar pedido de {getItemLabel(editingJob).toLowerCase()}
-                                </h3>
-                                <button onClick={() => setEditingJob(null)} aria-label="Fechar" style={{ color: colors.textSecondary }}>
-                                    <X size={18} />
-                                </button>
-                            </div>
-
-                            <label className="text-xs font-bold block mb-1.5" style={{ color: colors.textSecondary }}>O que você precisa</label>
-                            <textarea
-                                value={editDescription}
-                                onChange={(e) => setEditDescription(e.target.value)}
-                                rows={4}
-                                className="w-full px-3 py-2.5 rounded-xl text-sm focus:outline-none resize-none"
-                                style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
-                            />
-
-                            <div className="flex items-center justify-between gap-2 mt-3">
-                                <span className="flex items-center gap-1.5 text-xs font-bold" style={{ color: colors.textPrimary }}>
-                                    <Building2 size={13} style={{ color: '#ef4444' }} />
-                                    É um condomínio fechado?
-                                </span>
-                                <div className="flex items-center gap-1.5">
-                                    {[true, false].map((v) => (
-                                        <button
-                                            key={String(v)}
-                                            onClick={() => setEditNeedsAccess(v)}
-                                            className="px-3 py-1 rounded-full text-[11px] font-black"
-                                            style={editNeedsAccess === v ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
-                                        >
-                                            {v ? 'SIM' : 'NÃO'}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                            {editNeedsAccess && (
-                                <input
-                                    type="text"
-                                    value={editAccessNotes}
-                                    onChange={(e) => setEditAccessNotes(e.target.value)}
-                                    placeholder="Número da rua, apartamento ou quadra..."
-                                    className="w-full mt-2 px-3 py-2 rounded-lg text-sm focus:outline-none"
-                                    style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
-                                />
-                            )}
-
-                            <div className="flex gap-2 mt-4">
-                                <button
-                                    onClick={() => setEditingJob(null)}
-                                    className="px-5 py-3 rounded-xl font-black uppercase text-xs tracking-wider"
-                                    style={{ background: `${colors.border}30`, color: colors.textPrimary, border: `1px solid ${colors.border}` }}
-                                >
-                                    Cancelar
-                                </button>
-                                <button
-                                    onClick={handleSaveEdit}
-                                    disabled={savingEdit}
-                                    className="flex-1 py-3 rounded-xl font-black uppercase text-xs tracking-wider disabled:opacity-60 flex items-center justify-center gap-2"
-                                    style={{ background: GRADIENT, color: '#fff' }}
-                                >
-                                    {savingEdit && <Spinner size={14} />}
-                                    Salvar
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                )}
             </main>
         
+            {detailsId && (
+                <ServiceRequestDetailsDialog
+                    requestId={detailsId}
+                    onClose={() => { setDetailsId(null); load() }}
+                />
+            )}
+
             {viewJob && (
                 <ServiceRequestViewDialog
                     item={viewJob}
