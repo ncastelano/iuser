@@ -1,12 +1,17 @@
 // src/components/LastSearched.tsx
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { Clock, X, History, User, Store, Package, Search, Car } from 'lucide-react'
+import { Clock, X, History, User, Store, Package, Search, Car, MapPin, Flag, ChevronRight } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
-import { trackProfileVisit } from '@/lib/trackProfileVisit'
+import SocialProfileCard from '@/app/(main)/social/SocialProfileCard'
+import { StoreCard, type StoreCardData } from '@/components/StoreCard'
+import ListingRowCard from '@/components/ListingRowCard'
+import { useProfileCardData } from '@/hooks/useProfileCardData'
+import { fetchStoreCards } from '@/lib/storeCards'
+import { supabase } from '@/lib/supabase/client'
 
 // ---------- Tipos e funções do histórico ----------
 export interface RecentClickItem {
@@ -67,6 +72,30 @@ export default function LastSearched({ onItemClick, onClearResults }: LastSearch
     useEffect(() => {
         setItems(getRecentClicks())
     }, [])
+
+    // Cada tipo tem o seu cartão: perfil = o do /social, loja = o cartão de loja, produto = linha de vitrine, corrida = horizontal
+    const profileIds = useMemo(() => items.filter((i) => i.type === 'profile').map((i) => i.id), [items])
+    const storeIds = useMemo(() => items.filter((i) => i.type === 'store').map((i) => i.id), [items])
+    const rideIds = useMemo(() => items.filter((i) => i.type === 'ride').map((i) => i.id), [items])
+    const profileData = useProfileCardData(profileIds, viewerId)
+    const [storeCards, setStoreCards] = useState<Record<string, StoreCardData>>({})
+    const [rideStatus, setRideStatus] = useState<Record<string, string>>({})
+
+    useEffect(() => {
+        if (storeIds.length === 0) { setStoreCards({}); return }
+        let cancelled = false
+        fetchStoreCards(storeIds).then((r) => { if (!cancelled) setStoreCards(r) })
+        return () => { cancelled = true }
+    }, [storeIds])
+
+    useEffect(() => {
+        if (rideIds.length === 0) { setRideStatus({}); return }
+        let cancelled = false
+        supabase.from('ride_requests').select('id, status').in('id', rideIds).then(({ data }) => {
+            if (!cancelled) setRideStatus(Object.fromEntries(((data as { id: string; status: string }[]) || []).map((r) => [r.id, r.status])))
+        })
+        return () => { cancelled = true }
+    }, [rideIds])
 
     // Efeito de entrada cascata
     useEffect(() => {
@@ -280,147 +309,107 @@ export default function LastSearched({ onItemClick, onClearResults }: LastSearch
                             />
                         </div>
 
-                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-stretch">
                             {groupedItems[groupLabel].map((item, index) => {
-                                const TypeIcon = getTypeIcon(item.type)
-                                const typeColor = getTypeColor(item.type)
                                 const key = `${item.type}-${item.id}`
                                 const isVisible = visibleItems.has(key)
+                                const open = () => handleItemClick(item)
+                                const price = item.price != null && item.price > 0 ? `R$ ${item.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : null
+                                const rideState = rideStatus[item.id]
+                                const rideParts = (item.name || '').split('→').map((t) => t.trim())
+                                const rideStatusLabel = rideState === 'pending' ? 'Procurando motorista' : rideState === 'accepted' ? 'Em andamento' : rideState === 'completed' || rideState === 'finished' ? 'Finalizada' : rideState === 'cancelled' || rideState === 'canceled' ? 'Cancelada' : null
+
+                                let card: React.ReactNode = null
+                                if (item.type === 'profile') {
+                                    const profile = profileData.profiles[item.id]
+                                    card = profile ? (
+                                        <SocialProfileCard
+                                            profile={profile}
+                                            store={profileData.storesByOwner[item.id] || null}
+                                            isMe={item.id === viewerId}
+                                            userId={viewerId || null}
+                                            following={profileData.followingIds.has(item.id)}
+                                            followers={profileData.followerCounts[item.id] ?? 0}
+                                            onFollowChange={profileData.onFollowChange}
+                                            seenAt={profileData.lastSeen[item.id]}
+                                            colors={colors}
+                                            cardBg={`${colors.surface}`}
+                                            onOpen={open}
+                                        />
+                                    ) : null
+                                } else if (item.type === 'store') {
+                                    const store = storeCards[item.id]
+                                    card = store ? <StoreCard store={store} colors={colors} onClick={open} /> : null
+                                } else if (item.type === 'product') {
+                                    card = (
+                                        <ListingRowCard
+                                            title={item.name || 'Produto'}
+                                            imageUrl={item.imageUrl}
+                                            fallbackIcon={<Package size={30} />}
+                                            priceLabel={price}
+                                            sellerName={item.storeName || 'Loja'}
+                                            sellerImageUrl={item.storeImage}
+                                            tag="Produto"
+                                            onClick={open}
+                                        />
+                                    )
+                                } else if (item.type === 'ride') {
+                                    // Corrida pedida: cartão horizontal com o trajeto e a situação
+                                    card = (
+                                        <div
+                                            onClick={open}
+                                            className="w-full flex items-stretch rounded-3xl overflow-hidden border cursor-pointer transition-all hover:shadow-xl hover:-translate-y-0.5"
+                                            style={{ background: colors.surface, borderColor: colors.border, boxShadow: colors.shadow }}
+                                        >
+                                            <span className="w-20 flex-shrink-0 flex items-center justify-center text-white" style={{ background: GRADIENT }}>
+                                                <Car size={30} strokeWidth={1.8} />
+                                            </span>
+                                            <div className="flex-1 min-w-0 px-3 py-3 flex flex-col gap-1.5 justify-center">
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <span className="text-[11px] font-black uppercase tracking-wider" style={{ color: '#dc2626' }}>Corrida</span>
+                                                    {rideStatusLabel && (
+                                                        <span className="text-[10px] font-black px-2 py-0.5 rounded-full" style={{ background: '#f9731620', color: '#ea580c' }}>{rideStatusLabel}</span>
+                                                    )}
+                                                    <span className="text-[10px] ml-auto" style={{ color: colors.textSecondary }}>{formatTime(item.timestamp)}</span>
+                                                </div>
+                                                <p className="flex items-start gap-1.5 text-xs font-semibold leading-snug" style={{ color: colors.textPrimary }}>
+                                                    <MapPin size={13} className="flex-shrink-0 mt-0.5" style={{ color: '#16a34a' }} />
+                                                    <span className="line-clamp-2">{rideParts[0] || 'Origem'}</span>
+                                                </p>
+                                                {rideParts[1] && (
+                                                    <p className="flex items-start gap-1.5 text-xs font-semibold leading-snug" style={{ color: colors.textPrimary }}>
+                                                        <Flag size={13} className="flex-shrink-0 mt-0.5" style={{ color: '#dc2626' }} />
+                                                        <span className="line-clamp-2">{rideParts[1]}</span>
+                                                    </p>
+                                                )}
+                                            </div>
+                                            <ChevronRight size={18} className="self-center mr-2 flex-shrink-0 opacity-50" style={{ color: colors.textPrimary }} />
+                                        </div>
+                                    )
+                                }
+                                if (!card) return null
 
                                 return (
                                     <div
                                         key={key}
-                                        onClick={() => handleItemClick(item)}
-                                        // Passar o mouse por cima de um perfil conta como visita nele
-                                        onMouseEnter={item.type === 'profile' ? () => { trackProfileVisit(item.id, viewerId) } : undefined}
-                                        className="group relative block overflow-hidden rounded-xl aspect-square cursor-pointer transition-all duration-500 ease-out"
+                                        className="relative transition-all duration-500 ease-out"
                                         style={{
                                             opacity: isVisible ? 1 : 0,
-                                            transform: isVisible ? 'translateY(0) scale(1)' : 'translateY(20px) scale(0.95)',
-                                            transitionDelay: `${index * 50}ms`,
-                                            willChange: 'transform, opacity',
+                                            transform: isVisible ? 'translateY(0)' : 'translateY(16px)',
+                                            transitionDelay: `${Math.min(index, 8) * 50}ms`,
                                         }}
                                     >
-                                        {/* Imagem de fundo */}
-                                        <div className="w-full h-full relative">
-                                            {item.imageUrl ? (
-                                                <img
-                                                    src={item.imageUrl}
-                                                    alt={item.name || 'Item'}
-                                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                                                />
-                                            ) : (
-                                                <div className="w-full h-full flex flex-col items-center justify-center gap-1" style={{ background: GRADIENT }}>
-                                                    {item.type === 'product' && item.price != null ? (
-                                                        <>
-                                                            <span className="text-[9px] font-bold text-white/60 uppercase tracking-wider">R$</span>
-                                                            <span className="text-xl font-black text-white leading-none">
-                                                                {item.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                                            </span>
-                                                        </>
-                                                    ) : item.type === 'ride' ? (
-                                                        <Car size={36} className="text-white/80" strokeWidth={1.5} />
-                                                    ) : (
-                                                        <span className="text-4xl font-black text-white/70">
-                                                            {getDisplayText(item)}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        {/* Overlay gradiente */}
-                                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent pointer-events-none" />
-
-                                        {/* Loja (avatar + nome) no canto superior esquerdo */}
-                                        {item.type === 'product' && (item.storeName || item.storeImage) && (
-                                            <div className="absolute top-2 left-2 flex items-center gap-1 max-w-[70%] pointer-events-none">
-                                                <div
-                                                    className="w-5 h-5 rounded-md overflow-hidden flex-shrink-0 shadow-md"
-                                                    style={{
-                                                        border: '1.5px solid rgba(255,255,255,0.35)',
-                                                        background: 'rgba(0,0,0,0.4)'
-                                                    }}
-                                                >
-                                                    {item.storeImage ? (
-                                                        <img
-                                                            src={item.storeImage}
-                                                            alt={item.storeName || 'Loja'}
-                                                            className="w-full h-full object-cover"
-                                                        />
-                                                    ) : (
-                                                        <div className="w-full h-full flex items-center justify-center">
-                                                            <Store size={10} className="text-white/70" />
-                                                        </div>
-                                                    )}
-                                                </div>
-                                                {item.storeName && (
-                                                    <span
-                                                        className="text-[8px] font-semibold text-white/80 truncate"
-                                                        style={{ textShadow: '0 1px 3px rgba(0,0,0,0.8)' }}
-                                                    >
-                                                        {item.storeName}
-                                                    </span>
-                                                )}
-                                            </div>
-                                        )}
-
-                                        {/* Badge do tipo no canto superior direito - empurrado pra baixo do
-                                            botão de remover, que agora fica sempre visível ali em cima. */}
-                                        <div
-                                            className="absolute top-9 right-2 px-2 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-wider pointer-events-none flex items-center gap-1"
-                                            style={{
-                                                background: `${typeColor}dd`,
-                                                color: '#ffffff',
-                                                backdropFilter: 'blur(4px)',
-                                                border: '1px solid rgba(255,255,255,0.2)'
-                                            }}
-                                        >
-                                            <TypeIcon size={10} />
-                                            {getTypeLabel(item.type)}
-                                        </div>
-
-                                        {/* Botão de remover - sempre visível (não só no hover, que nem
-                                            existe no toque em celular) pra poder apagar só esse item. */}
+                                        {card}
+                                        {/* Remover só esse item do histórico */}
                                         <button
-                                            onClick={(e) => {
-                                                e.stopPropagation()
-                                                removeItem(item, e)
-                                            }}
-                                            className="absolute top-2 right-2 w-6 h-6 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95 pointer-events-auto"
+                                            onClick={(e) => { e.stopPropagation(); removeItem(item, e) }}
+                                            className={`absolute z-20 w-7 h-7 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95 ${item.type === 'store' ? 'top-2 left-2' : item.type === 'ride' ? 'bottom-2 right-2' : 'top-2 right-2'}`}
                                             style={{ background: '#ef4444', color: '#ffffff', boxShadow: '0 2px 6px rgba(0,0,0,0.4)' }}
                                             title="Remover"
+                                            aria-label="Remover do histórico"
                                         >
-                                            <X size={13} />
+                                            <X size={14} />
                                         </button>
-
-                                        {/* Informações na parte inferior */}
-                                        <div className="absolute bottom-0 left-0 right-0 p-2.5 pointer-events-none">
-                                            <h4 className="text-sm font-bold truncate text-white">
-                                                {getDisplayName(item)}
-                                            </h4>
-                                            <div className="flex flex-col gap-0.5 mt-0.5">
-                                                {item.type === 'product' && item.price != null && (
-                                                    <div
-                                                        className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md self-start"
-                                                        style={{
-                                                            background: 'rgba(249,115,22,0.85)',
-                                                            backdropFilter: 'blur(4px)'
-                                                        }}
-                                                    >
-                                                        <span className="text-[11px] font-black text-white">
-                                                            R$ {item.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                                        </span>
-                                                    </div>
-                                                )}
-                                                <div className="flex items-center gap-1.5">
-                                                    <Clock size={10} className="text-white/60" />
-                                                    <span className="text-[10px] text-white/60">
-                                                        {formatTime(item.timestamp)}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </div>
                                     </div>
                                 )
                             })}

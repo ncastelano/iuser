@@ -2,7 +2,7 @@
 'use client'
 
 import { PlanRingInset } from '@/components/PlanAvatarRing'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
@@ -11,7 +11,10 @@ import { Spinner } from '@/components/Spinner'
 import { useTheme } from '@/app/contexts/theme'
 import { addRecentClick } from '@/components/LastSearched'
 import { useProfile } from '@/app/contexts/ProfileContext'
-import { trackProfileVisit } from '@/lib/trackProfileVisit'
+import SocialProfileCard from '@/app/(main)/social/SocialProfileCard'
+import { StoreCard, type StoreCardData } from '@/components/StoreCard'
+import { useProfileCardData } from '@/hooks/useProfileCardData'
+import { fetchStoreCards } from '@/lib/storeCards'
 import { getAvatarUrl } from '@/lib/avatar'
 import { hexToRgb } from '@/lib/color'
 
@@ -66,8 +69,21 @@ export default function SearchResultsSection({ searchQuery, onSearchSelect }: Se
     const [storesByCategory, setStoresByCategory] = useState<Record<string, StoreWithProducts[]>>({})
     const [hasSearched, setHasSearched] = useState(false)
     const [displayQuery, setDisplayQuery] = useState('')
+    // Cada tipo de resultado tem o seu cartão: perfil = o mesmo do /social, loja = o cartão de loja do app
+    const profileIds = useMemo(() => profiles.map((p) => p.id), [profiles])
+    const cardData = useProfileCardData(profileIds, viewerId)
+    const [storeTops, setStoreTops] = useState<Record<string, StoreCardData>>({})
 
     const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+    // Destaques de cada loja achada (usados quando nenhum produto dela bateu com a busca)
+    useEffect(() => {
+        const ids = storesWithProducts.map((x) => x.store.id)
+        if (ids.length === 0) { setStoreTops({}); return }
+        let cancelled = false
+        fetchStoreCards(ids).then((r) => { if (!cancelled) setStoreTops(r) })
+        return () => { cancelled = true }
+    }, [storesWithProducts])
     const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
     useEffect(() => {
@@ -159,7 +175,7 @@ export default function SearchResultsSection({ searchQuery, onSearchSelect }: Se
                 if (allStoreIds.length > 0) {
                     const { data: allStoresData } = await supabase
                         .from('stores')
-                        .select('id, name, "storeSlug", description, logo_url, ratings_avg, ratings_count, prep_time_min, prep_time_max, category')
+                        .select('id, name, "storeSlug", description, address, logo_url, ratings_avg, ratings_count, prep_time_min, prep_time_max, category, owner_id, business_hours, view_count')
                         .in('id', allStoreIds)
 
                     if (allStoresData) {
@@ -335,48 +351,27 @@ export default function SearchResultsSection({ searchQuery, onSearchSelect }: Se
                                     ({profiles.length})
                                 </span>
                             </div>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                                {profiles.map((profile) => (
-                                    <div
-                                        key={profile.id}
-                                        onClick={(e) => handleProfileClick(profile, e)}
-                                        onMouseEnter={() => { trackProfileVisit(profile.id, viewerId) }}
-                                        className="group relative block overflow-hidden rounded-xl aspect-square cursor-pointer"
-                                    >
-                                        <PlanRingInset userId={profile.id} />
-                                        <div className="w-full h-full relative">
-                                            {profile.avatar_url && profile.avatar_url.trim() !== '' ? (
-                                                <img
-                                                    src={profile.avatar_url}
-                                                    alt={profile.name || 'Perfil'}
-                                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                                                />
-                                            ) : (
-                                                <div className="w-full h-full flex items-center justify-center" style={{ background: GRADIENT }}>
-                                                    <span className="text-4xl font-black text-white/70">
-                                                        {profile.name?.charAt(0).toUpperCase() || '?'}
-                                                    </span>
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        <div className="absolute inset-0 bg-gradient-to-l from-black/70 via-black/40 to-transparent pointer-events-none" />
-
-                                        <div className="absolute bottom-2 right-2 left-2 text-right pointer-events-none">
-                                            <h3 className="text-sm font-bold text-white truncate">
-                                                {profile.name || 'Usuário'}
-                                            </h3>
-                                            <p className="text-[10px] text-white/80">
-                                                @{profile.profileSlug}
-                                            </p>
-                                            {profile.is_seller && (
-                                                <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded-full text-[8px] font-bold uppercase bg-orange-500/80 text-white">
-                                                    Vendedor
-                                                </span>
-                                            )}
-                                        </div>
-                                    </div>
-                                ))}
+                            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-stretch">
+                                {profiles.map((p) => {
+                                    const profile = cardData.profiles[p.id]
+                                    if (!profile) return null
+                                    return (
+                                        <SocialProfileCard
+                                            key={p.id}
+                                            profile={profile}
+                                            store={cardData.storesByOwner[p.id] || null}
+                                            isMe={p.id === viewerId}
+                                            userId={viewerId || null}
+                                            following={cardData.followingIds.has(p.id)}
+                                            followers={cardData.followerCounts[p.id] ?? 0}
+                                            onFollowChange={cardData.onFollowChange}
+                                            seenAt={cardData.lastSeen[p.id]}
+                                            colors={colors}
+                                            cardBg={cardBg}
+                                            onOpen={() => handleProfileClick(p, { preventDefault() {}, stopPropagation() {} } as unknown as React.MouseEvent)}
+                                        />
+                                    )
+                                })}
                             </div>
                         </div>
                     )}
@@ -397,112 +392,26 @@ export default function SearchResultsSection({ searchQuery, onSearchSelect }: Se
                                         ({storesList.length})
                                     </span>
                                 </div>
-                                <div className="space-y-3">
+                                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-stretch">
                                     {storesList.map(({ store, products }) => {
-                                        const storeUrl = `/${store.storeSlug}`
-                                        const hasProducts = products.length > 0
-                                        const productCount = products.length
-
+                                        const matched = products.slice(0, 2).map((p: any) => ({
+                                            id: p.id,
+                                            name: p.name,
+                                            image_url: p.image_url,
+                                            price: Number(p.price) || 0,
+                                            listing_type: p.listing_type || 'sale',
+                                        }))
+                                        const card: StoreCardData = {
+                                            ...store,
+                                            top_products: matched.length > 0 ? matched : (storeTops[store.id]?.top_products || []),
+                                        }
                                         return (
-                                            <div
+                                            <StoreCard
                                                 key={store.id}
-                                                className="rounded-xl border overflow-hidden transition-all hover:shadow-md"
-                                                style={{
-                                                    background: cardBg,
-                                                    backdropFilter: 'blur(12px)',
-                                                    borderColor: colors.border,
-                                                    boxShadow: colors.shadow
-                                                }}
-                                            >
-                                                {/* PRODUTOS EM CARDS HORIZONTAIS - TOPO */}
-                                                {hasProducts && (
-                                                    <div className="p-3 pb-2">
-                                                        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-                                                            {products.map((product) => (
-                                                                <div
-                                                                    key={product.id}
-                                                                    onClick={(e) => handleProductClick(product, store.storeSlug, e)}
-                                                                    className="group/product flex-shrink-0 w-28 sm:w-32 cursor-pointer"
-                                                                >
-                                                                    <div className="rounded-lg border overflow-hidden transition-all hover:shadow-lg hover:scale-105" style={{ borderColor: colors.border, background: `rgba(255,255,255,0.03)` }}>
-                                                                        <div className="w-full aspect-square overflow-hidden" style={{ background: colors.accentLight }}>
-                                                                            {product.image_url ? (
-                                                                                <img
-                                                                                    src={product.image_url}
-                                                                                    alt={product.name}
-                                                                                    className="w-full h-full object-cover group-hover/product:scale-110 transition-transform duration-300"
-                                                                                />
-                                                                            ) : (
-                                                                                <div className="w-full h-full flex items-center justify-center" style={{ background: GRADIENT }}>
-                                                                                    <Package size={20} className="text-white/50" />
-                                                                                </div>
-                                                                            )}
-                                                                        </div>
-                                                                        <div className="p-1.5">
-                                                                            <p className="text-[10px] font-bold truncate" style={{ color: colors.textPrimary }}>
-                                                                                {product.name}
-                                                                            </p>
-                                                                            <p className="text-[9px] font-bold" style={{ color: '#f97316' }}>
-                                                                                R$ {(product.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                                                            </p>
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                )}
-
-                                                {/* INFORMAÇÕES DA LOJA - PARTE INFERIOR */}
-                                                <div
-                                                    className="border-t flex items-center gap-3 p-2.5 hover:bg-white/5 transition-colors cursor-pointer"
-                                                    style={{ borderColor: colors.border }}
-                                                    onClick={(e) => handleStoreClick(store, e)}
-                                                >
-                                                    {/* Logo da loja - mini */}
-                                                    <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0" style={{ background: colors.accentLight }}>
-                                                        {store.logo_url ? (
-                                                            <img src={store.logo_url} alt={store.name} className="w-full h-full object-cover" />
-                                                        ) : (
-                                                            <div className="w-full h-full flex items-center justify-center" style={{ background: GRADIENT }}>
-                                                                <span className="text-sm font-black text-white/70">
-                                                                    {store.name?.charAt(0) || '?'}
-                                                                </span>
-                                                            </div>
-                                                        )}
-                                                    </div>
-
-                                                    {/* Informações da loja */}
-                                                    <div className="flex-1 min-w-0">
-                                                        <div className="flex items-center gap-2">
-                                                            <h3 className="text-sm font-bold truncate" style={{ color: colors.textPrimary }}>
-                                                                {store.name}
-                                                            </h3>
-                                                            {hasProducts && (
-                                                                <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ background: '#f9731620', color: '#f97316' }}>
-                                                                    {productCount}
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                        <div className="flex items-center gap-3 mt-0.5">
-                                                            <div className="flex items-center gap-0.5">
-                                                                <Star size={10} className="text-yellow-400 fill-yellow-400" />
-                                                                <span className="text-[10px] font-bold" style={{ color: colors.textPrimary }}>
-                                                                    {store.ratings_avg?.toFixed(1) || '0.0'}
-                                                                </span>
-                                                            </div>
-                                                            <div className="flex items-center gap-0.5">
-                                                                <Clock size={10} style={{ color: colors.accent }} />
-                                                                <span className="text-[9px] font-bold" style={{ color: colors.textPrimary }}>
-                                                                    {formatPrepTime(store)}
-                                                                </span>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-
-                                                    <ChevronRight size={16} className="flex-shrink-0 opacity-50" style={{ color: colors.textPrimary }} />
-                                                </div>
-                                            </div>
+                                                store={card}
+                                                colors={colors}
+                                                onClick={() => handleStoreClick(store, { preventDefault() {}, stopPropagation() {} } as unknown as React.MouseEvent)}
+                                            />
                                         )
                                     })}
                                 </div>
