@@ -11,10 +11,8 @@ import { Spinner } from '@/components/Spinner'
 import { useTheme } from '@/app/contexts/theme'
 import { addRecentClick } from '@/components/LastSearched'
 import { useProfile } from '@/app/contexts/ProfileContext'
-import SocialProfileCard from '@/app/(main)/social/SocialProfileCard'
-import { StoreCard, type StoreCardData } from '@/components/StoreCard'
-import { useProfileCardData } from '@/hooks/useProfileCardData'
-import { fetchStoreCards } from '@/lib/storeCards'
+import MiniEntityCard from '@/components/MiniEntityCard'
+import { trackProfileVisit } from '@/lib/trackProfileVisit'
 import { getAvatarUrl } from '@/lib/avatar'
 import { hexToRgb } from '@/lib/color'
 
@@ -69,22 +67,8 @@ export default function SearchResultsSection({ searchQuery, onSearchSelect }: Se
     const [storesByCategory, setStoresByCategory] = useState<Record<string, StoreWithProducts[]>>({})
     const [hasSearched, setHasSearched] = useState(false)
     const [displayQuery, setDisplayQuery] = useState('')
-    // Cada tipo de resultado tem o seu cartão: perfil = o mesmo do /social, loja = o cartão de loja do app
-    const profileIds = useMemo(() => profiles.map((p) => p.id), [profiles])
-    const cardData = useProfileCardData(profileIds, viewerId)
-    const [storeTops, setStoreTops] = useState<Record<string, StoreCardData>>({})
 
     const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-    // Destaques de cada loja achada (usados quando nenhum produto dela bateu com a busca)
-    useEffect(() => {
-        const ids = storesWithProducts.map((x) => x.store.id)
-        if (ids.length === 0) { setStoreTops({}); return }
-        let cancelled = false
-        fetchStoreCards(ids).then((r) => { if (!cancelled) setStoreTops(r) })
-        return () => { cancelled = true }
-    }, [storesWithProducts])
-    const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
     useEffect(() => {
         const trimmed = searchQuery.trim()
@@ -351,27 +335,20 @@ export default function SearchResultsSection({ searchQuery, onSearchSelect }: Se
                                     ({profiles.length})
                                 </span>
                             </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-stretch">
-                                {profiles.map((p) => {
-                                    const profile = cardData.profiles[p.id]
-                                    if (!profile) return null
-                                    return (
-                                        <SocialProfileCard
-                                            key={p.id}
-                                            profile={profile}
-                                            store={cardData.storesByOwner[p.id] || null}
-                                            isMe={p.id === viewerId}
-                                            userId={viewerId || null}
-                                            following={cardData.followingIds.has(p.id)}
-                                            followers={cardData.followerCounts[p.id] ?? 0}
-                                            onFollowChange={cardData.onFollowChange}
-                                            seenAt={cardData.lastSeen[p.id]}
-                                            colors={colors}
-                                            cardBg={cardBg}
-                                            onOpen={() => handleProfileClick(p, { preventDefault() {}, stopPropagation() {} } as unknown as React.MouseEvent)}
-                                        />
-                                    )
-                                })}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                                {profiles.map((p) => (
+                                    <MiniEntityCard
+                                        key={p.id}
+                                        kind="profile"
+                                        name={p.name || 'Usuário'}
+                                        slug={p.profileSlug}
+                                        imageUrl={p.avatar_url && p.avatar_url.trim() !== '' ? p.avatar_url : null}
+                                        profileId={p.id}
+                                        colors={colors}
+                                        onClick={() => handleProfileClick(p, { preventDefault() {}, stopPropagation() {} } as unknown as React.MouseEvent)}
+                                        onHover={() => { trackProfileVisit(p.id, viewerId) }}
+                                    />
+                                ))}
                             </div>
                         </div>
                     )}
@@ -392,28 +369,18 @@ export default function SearchResultsSection({ searchQuery, onSearchSelect }: Se
                                         ({storesList.length})
                                     </span>
                                 </div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-stretch">
-                                    {storesList.map(({ store, products }) => {
-                                        const matched = products.slice(0, 2).map((p: any) => ({
-                                            id: p.id,
-                                            name: p.name,
-                                            image_url: p.image_url,
-                                            price: Number(p.price) || 0,
-                                            listing_type: p.listing_type || 'sale',
-                                        }))
-                                        const card: StoreCardData = {
-                                            ...store,
-                                            top_products: matched.length > 0 ? matched : (storeTops[store.id]?.top_products || []),
-                                        }
-                                        return (
-                                            <StoreCard
-                                                key={store.id}
-                                                store={card}
-                                                colors={colors}
-                                                onClick={() => handleStoreClick(store, { preventDefault() {}, stopPropagation() {} } as unknown as React.MouseEvent)}
-                                            />
-                                        )
-                                    })}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                                    {storesList.map(({ store }) => (
+                                        <MiniEntityCard
+                                            key={store.id}
+                                            kind="store"
+                                            name={store.name}
+                                            slug={store.storeSlug}
+                                            imageUrl={store.logo_url}
+                                            colors={colors}
+                                            onClick={() => handleStoreClick(store, { preventDefault() {}, stopPropagation() {} } as unknown as React.MouseEvent)}
+                                        />
+                                    ))}
                                 </div>
                             </div>
                         )

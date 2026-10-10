@@ -6,11 +6,9 @@ import { useRouter } from 'next/navigation'
 import { Clock, X, History, User, Store, Package, Search, Car, MapPin, Flag, ChevronRight } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
-import SocialProfileCard from '@/app/(main)/social/SocialProfileCard'
-import { StoreCard, type StoreCardData } from '@/components/StoreCard'
+import MiniEntityCard from '@/components/MiniEntityCard'
+import { trackProfileVisit } from '@/lib/trackProfileVisit'
 import ListingRowCard from '@/components/ListingRowCard'
-import { useProfileCardData } from '@/hooks/useProfileCardData'
-import { fetchStoreCards } from '@/lib/storeCards'
 import { supabase } from '@/lib/supabase/client'
 
 // ---------- Tipos e funções do histórico ----------
@@ -73,20 +71,9 @@ export default function LastSearched({ onItemClick, onClearResults }: LastSearch
         setItems(getRecentClicks())
     }, [])
 
-    // Cada tipo tem o seu cartão: perfil = o do /social, loja = o cartão de loja, produto = linha de vitrine, corrida = horizontal
-    const profileIds = useMemo(() => items.filter((i) => i.type === 'profile').map((i) => i.id), [items])
-    const storeIds = useMemo(() => items.filter((i) => i.type === 'store').map((i) => i.id), [items])
+    // Cada tipo tem o seu cartão: perfil e loja = cartão pequeno, produto = linha de vitrine, corrida = horizontal
     const rideIds = useMemo(() => items.filter((i) => i.type === 'ride').map((i) => i.id), [items])
-    const profileData = useProfileCardData(profileIds, viewerId)
-    const [storeCards, setStoreCards] = useState<Record<string, StoreCardData>>({})
     const [rideStatus, setRideStatus] = useState<Record<string, string>>({})
-
-    useEffect(() => {
-        if (storeIds.length === 0) { setStoreCards({}); return }
-        let cancelled = false
-        fetchStoreCards(storeIds).then((r) => { if (!cancelled) setStoreCards(r) })
-        return () => { cancelled = true }
-    }, [storeIds])
 
     useEffect(() => {
         if (rideIds.length === 0) { setRideStatus({}); return }
@@ -320,26 +307,21 @@ export default function LastSearched({ onItemClick, onClearResults }: LastSearch
                                 const rideStatusLabel = rideState === 'pending' ? 'Procurando motorista' : rideState === 'accepted' ? 'Em andamento' : rideState === 'completed' || rideState === 'finished' ? 'Finalizada' : rideState === 'cancelled' || rideState === 'canceled' ? 'Cancelada' : null
 
                                 let card: React.ReactNode = null
-                                if (item.type === 'profile') {
-                                    const profile = profileData.profiles[item.id]
-                                    card = profile ? (
-                                        <SocialProfileCard
-                                            profile={profile}
-                                            store={profileData.storesByOwner[item.id] || null}
-                                            isMe={item.id === viewerId}
-                                            userId={viewerId || null}
-                                            following={profileData.followingIds.has(item.id)}
-                                            followers={profileData.followerCounts[item.id] ?? 0}
-                                            onFollowChange={profileData.onFollowChange}
-                                            seenAt={profileData.lastSeen[item.id]}
+                                if (item.type === 'profile' || item.type === 'store') {
+                                    // Perfil e loja: só foto, nome e @ (cartão pequeno)
+                                    const slug = item.url.replace(/^\//, '').split('/')[0] || null
+                                    card = (
+                                        <MiniEntityCard
+                                            kind={item.type}
+                                            name={item.name}
+                                            slug={slug}
+                                            imageUrl={item.imageUrl}
+                                            profileId={item.type === 'profile' ? item.id : null}
                                             colors={colors}
-                                            cardBg={`${colors.surface}`}
-                                            onOpen={open}
+                                            onClick={open}
+                                            onHover={item.type === 'profile' ? () => { trackProfileVisit(item.id, viewerId) } : undefined}
                                         />
-                                    ) : null
-                                } else if (item.type === 'store') {
-                                    const store = storeCards[item.id]
-                                    card = store ? <StoreCard store={store} colors={colors} onClick={open} /> : null
+                                    )
                                 } else if (item.type === 'product') {
                                     card = (
                                         <ListingRowCard
