@@ -179,9 +179,10 @@ export default function SocialProfileCard({ profile, store, rank, isMe, userId, 
                 </button>
             )}
 
-            {!isMe && (
+            {!isMe && (!!userId || profile.chat_enabled) && (
                 <div className="flex items-center gap-2 mt-auto pt-1 w-full">
-                    <button
+                    {/* Visitante (sem conta) não vê o Seguir */}
+                    {!!userId && <button
                         onClick={toggleFollow}
                         disabled={followBusy}
                         className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-full text-sm font-black transition-all active:scale-95 disabled:opacity-70"
@@ -190,7 +191,7 @@ export default function SocialProfileCard({ profile, store, rank, isMe, userId, 
                             : { background: GRADIENT, color: '#fff', boxShadow: '0 4px 12px #f9731640', border: '2px solid transparent' }}
                     >
                         {followBusy ? <Spinner size={14} color={following ? colors.accent : '#fff'} /> : following ? <><Check size={15} /> Seguindo</> : <><UserPlus size={15} /> Seguir</>}
-                    </button>
+                    </button>}
                     {profile.chat_enabled && (
                         <button
                             onClick={openChat}

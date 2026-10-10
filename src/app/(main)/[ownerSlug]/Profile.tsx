@@ -52,6 +52,7 @@ import ProfileScheduleModal from '@/components/ProfileScheduleModal'
 import { toast } from 'sonner'
 import { getAvatarUrl } from '@/lib/avatar'
 import PlanAvatarRing, { usePlanRing } from '@/components/PlanAvatarRing'
+import ImageZoomDialog from '@/components/ImageZoomDialog'
 import { usePublicationsStore } from '@/store/usePublicationStore'
 import { handleShareLink } from '@/lib/share'
 import { Follows } from './Follows'
@@ -261,6 +262,7 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
     const [services, setServices] = useState<any[]>([])
     const [ratings, setRatings] = useState<RatingRow[]>([])
     const [imageUrl, setImageUrl] = useState<string | null>(null)
+    const [zoomAvatar, setZoomAvatar] = useState(false)
     const ownerHasRing = usePlanRing(owner?.id)
     // Graduação de quem é o dono do perfil (selo discreto abaixo do nome)
     const ownerLevel = useLevelsFor([owner?.id]).get(owner?.id || '') || null
@@ -1429,7 +1431,12 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                                 className={`w-28 h-28 rounded-full p-[3px] ${ownerHasRing ? '' : 'animate-pulse-glow'}`}
                                 style={{ background: ownerHasRing ? 'transparent' : GRADIENT }}
                             >
-                                <div className="w-full h-full rounded-full overflow-hidden bg-white flex items-center justify-center">
+                                <div
+                                    className={`w-full h-full rounded-full overflow-hidden bg-white flex items-center justify-center ${imageUrl ? 'cursor-zoom-in' : ''}`}
+                                    onClick={imageUrl ? () => setZoomAvatar(true) : undefined}
+                                    role={imageUrl ? 'button' : undefined}
+                                    aria-label={imageUrl ? 'Ampliar foto' : undefined}
+                                >
                                     {imageUrl ? (
                                         <img src={imageUrl} alt={owner.name} className="w-full h-full object-cover" />
                                     ) : (
@@ -1440,6 +1447,7 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                                 </div>
                             </div>
                         </PlanAvatarRing>
+                        {zoomAvatar && imageUrl && <ImageZoomDialog src={imageUrl} alt={owner.name} onClose={() => setZoomAvatar(false)} />}
                         {isOwner && (
                             <>
                                 <input type="file" ref={fileInputRef} onChange={handleAvatarChange} accept="image/*" style={{ display: 'none' }} />
