@@ -51,6 +51,7 @@ import Commission from './Commission'
 import MyPoints from './MyPoints'
 import LastSeenSettings from './LastSeenSettings'
 import ProfileNotification from './ProfileNotification'
+import MyComments from './MyComments'
 import ProfileLocationSettings from './ProfileLocationSettings'
 import ProfileLinkButtons from './ProfileLinkButtons'
 import MyTasks from './MyTasks'
@@ -1402,6 +1403,11 @@ export default function ProfileDashboard({
             {/* ===== NOTIFICAÇÕES DO PERFIL — tudo o que acontece com o perfil ===== */}
             <div className="mb-6">
                 <ProfileNotification userId={profile.id} />
+            </div>
+
+            {/* ===== MEUS COMENTÁRIOS — os que a pessoa fez nas publicações, pra poder apagar ===== */}
+            <div className="mb-6">
+                <MyComments userId={profile.id} />
             </div>
 
             {/* ===== TAREFAS — só aparece pra quem é funcionário vinculado a alguma loja ===== */}
