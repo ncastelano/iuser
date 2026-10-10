@@ -1,6 +1,7 @@
 // src/components/ProfileVisitors.tsx
 'use client'
 
+import { profileLabel } from '@/lib/profileDisplay'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
@@ -462,7 +463,7 @@ export default function ProfileVisitors({ profileId, onLatestUpdate }: ProfileVi
                                             />
                                         ) : (
                                             <span className="font-bold text-sm" style={{ color: '#f97316' }}>
-                                                {profile?.name?.charAt(0) || '?'}
+                                                {(profile?.profileSlug || profile?.name)?.charAt(0).toUpperCase() || '?'}
                                             </span>
                                         )}
                                     </div>
@@ -471,7 +472,7 @@ export default function ProfileVisitors({ profileId, onLatestUpdate }: ProfileVi
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2">
                                             <span className="font-bold text-sm truncate" style={{ color: textPrimary }}>
-                                                {isAnonymous ? 'Visitante anônimo' : profile?.name || 'Usuário'}
+                                                {isAnonymous ? 'Visitante anônimo' : profileLabel(profile)}
                                             </span>
                                             <span
                                                 className="text-[10px] px-1.5 py-0.5 rounded-full font-bold"

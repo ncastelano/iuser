@@ -1,6 +1,7 @@
 // app/(main)/comunidade/[communitySlug]/CommunityRoomClient.tsx
 'use client'
 
+import { profileLabel } from '@/lib/profileDisplay'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase/client'
@@ -302,7 +303,7 @@ export default function CommunityRoomClient() {
                                             <img src={senderAvatar} alt="" className="w-full h-full object-cover" />
                                         ) : (
                                             <div className="w-full h-full flex items-center justify-center text-xs font-bold" style={{ color: colors.textSecondary }}>
-                                                {message.profiles?.name?.charAt(0).toUpperCase() || '?'}
+                                                {(message.profiles?.profileSlug || message.profiles?.name)?.charAt(0).toUpperCase() || '?'}
                                             </div>
                                         )}
                                     </div>
@@ -310,7 +311,7 @@ export default function CommunityRoomClient() {
                                     <div className={`max-w-[75%] ${isMine ? 'items-end' : 'items-start'} flex flex-col`}>
                                         <div className="flex items-center gap-2">
                                             <span className="text-xs font-bold" style={{ color: colors.textPrimary }}>
-                                                {message.profiles?.name || 'Usuário'}
+                                                {profileLabel(message.profiles)}
                                             </span>
                                             <span className="text-[10px]" style={{ color: colors.textSecondary }}>
                                                 {formatDistanceToNow(new Date(message.created_at), { addSuffix: true, locale: ptBR })}

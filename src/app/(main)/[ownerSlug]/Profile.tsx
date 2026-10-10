@@ -1,6 +1,7 @@
 // src/components/owner/Profile.tsx
 'use client'
 
+import { profileLabel } from '@/lib/profileDisplay'
 import { useLevelsFor } from '@/hooks/useLevelsFor'
 import LevelBadge from '@/components/Graduation/LevelBadge'
 import { notifyNewFollower } from '@/lib/notifyRideStatus'
@@ -1190,7 +1191,7 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                             <div className="flex items-center justify-between flex-wrap gap-1">
                                 <div className="flex items-center gap-2">
                                     <span className="text-sm font-bold" style={{ color: colors.textPrimary }}>
-                                        {comment.profiles?.name || 'Usuário'}
+                                        {profileLabel(comment.profiles)}
                                     </span>
                                     <span className="text-[10px]" style={{ color: colors.textSecondary }}>
                                         {formatDistanceToNow(new Date(comment.created_at), {
@@ -1271,7 +1272,7 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                                 border: `1px solid rgba(249, 115, 22, 0.2)`,
                             }}>
                                 <span className="text-xs" style={{ color: colors.textSecondary }}>
-                                    Respondendo a <strong>{comment.profiles?.name}</strong>
+                                    Respondendo a <strong>{profileLabel(comment.profiles)}</strong>
                                 </span>
                                 <button
                                     onClick={() => {
@@ -1301,7 +1302,7 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                                             setPubCommentContent(e.target.value)
                                         }
                                     }}
-                                    placeholder={`Escreva sua resposta para ${comment.profiles?.name}...`}
+                                    placeholder={`Escreva sua resposta para ${profileLabel(comment.profiles)}...`}
                                     className="flex-1 rounded-xl py-2 px-3 text-sm focus:outline-none transition"
                                     style={{
                                         background: 'rgba(255,255,255,0.05)',

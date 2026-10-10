@@ -50,7 +50,7 @@ export function RideAcceptedDialog() {
         setPending(
             rides.map((r) => {
                 const p = profilesById.get(r.requester_id)
-                return { id: r.id, requesterName: p?.name || (p?.profileSlug ? `@${p.profileSlug}` : 'Passageiro') }
+                return { id: r.id, requesterName: (p?.profileSlug ? `@${p.profileSlug}` : p?.name || 'Passageiro') }
             })
         )
     }, [])

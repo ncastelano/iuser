@@ -119,8 +119,9 @@ export default function SocialProfileCard({ profile, store, rank, isMe, userId, 
                     )}
                 </div>
                 <div className="min-w-0 text-left">
-                    <h3 className="text-base font-black leading-tight truncate" style={{ color: colors.textPrimary }}>{profile.name || 'Usuário'}</h3>
-                    <p className="text-sm font-bold truncate" style={{ color: colors.accent }}>@{profile.profileSlug}</p>
+                    {/* O @ identifica a pessoa (nome pode ser enorme): @ em cima, nome embaixo */}
+                    <h3 className="text-base font-black leading-tight truncate" style={{ color: colors.textPrimary }}>@{profile.profileSlug}</h3>
+                    {profile.name && <p className="text-xs font-semibold truncate" style={{ color: colors.textSecondary }}>{profile.name}</p>}
                 </div>
             </div>
 

@@ -50,7 +50,7 @@ export async function POST(req: Request) {
                 .maybeSingle(),
         ])
 
-        const requesterName = requester?.name || (requester?.profileSlug ? `@${requester.profileSlug}` : 'O passageiro')
+        const requesterName = (requester?.profileSlug ? `@${requester.profileSlug}` : requester?.name || 'O passageiro')
         const priceText = application?.proposed_price != null ? ` de R$ ${Number(application.proposed_price).toFixed(2)}` : ''
 
         const { sent } = await sendPushToUser(ride.driver_id, {

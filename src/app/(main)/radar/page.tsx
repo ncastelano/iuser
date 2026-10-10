@@ -430,7 +430,7 @@ export default function MapPage() {
             const { data: peopleData } = await supabase.rpc('get_people_on_map', { p_limit: 200 })
             setPeople((peopleData || []).map((p: any) => ({
                 id: p.id,
-                name: p.name || `@${p.profile_slug}`,
+                name: p.profile_slug ? `@${p.profile_slug}` : p.name,
                 profileSlug: p.profile_slug,
                 logo_url: p.avatar_url ? (p.avatar_url.startsWith('http') ? p.avatar_url : supabase.storage.from('avatars').getPublicUrl(p.avatar_url).data.publicUrl) : null,
                 location: { type: 'Point', coordinates: [p.lng, p.lat] },

@@ -137,7 +137,7 @@ export default function CompromissoPage({ params }: { params: Promise<{ id: stri
                                                             : <span style={{ width: 44, height: 44, borderRadius: '50%', background: GRADIENT, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><User size={20} /></span>}
                                                     </PlanAvatarRing>
                                                     <div style={{ minWidth: 0 }}>
-                                                        <p style={{ fontWeight: 800, color: colors.textPrimary, fontSize: 15 }}>{p.isViewer ? 'Você' : (p.name || (p.profileSlug ? `@${p.profileSlug}` : 'Usuário'))}</p>
+                                                        <p style={{ fontWeight: 800, color: colors.textPrimary, fontSize: 15 }}>{p.isViewer ? 'Você' : ((p.profileSlug ? `@${p.profileSlug}` : p.name || 'Usuário'))}</p>
                                                         {p.profileSlug && <p style={{ fontSize: 12, color: colors.textSecondary }}>@{p.profileSlug}</p>}
                                                     </div>
                                                 </div>

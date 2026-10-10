@@ -45,8 +45,11 @@ export default function MiniEntityCard({ kind, name, slug, imageUrl, profileId, 
         >
             {isStore || !profileId ? photo : <PlanAvatarRing userId={profileId} width={3}>{photo}</PlanAvatarRing>}
             <div className="min-w-0 flex-1">
-                <p className="text-sm font-black leading-tight truncate" style={{ color: colors.textPrimary }}>{name || (isStore ? 'Loja' : 'Usuário')}</p>
-                {slug && <p className="text-xs font-bold truncate" style={{ color: colors.accent }}>@{slug}</p>}
+                {/* Perfil: só o @ (o nome pode ser enorme). Loja: nome e @ da loja */}
+                <p className="text-sm font-black leading-tight truncate" style={{ color: colors.textPrimary }}>
+                    {isStore ? (name || 'Loja') : (slug ? `@${slug}` : name || 'Usuário')}
+                </p>
+                {isStore && slug && <p className="text-xs font-bold truncate" style={{ color: colors.accent }}>@{slug}</p>}
             </div>
         </div>
     )

@@ -455,7 +455,7 @@ export default function MotoristaSection({ dragHandle, onBreveStatusChange, onUr
                                 </PlanAvatarRing>
                                 <div className="min-w-0 flex-1">
                                     <p className="text-[11px] font-black truncate" style={{ color: colors.textPrimary }}>
-                                        {driverInfo.name || (driverInfo.profileSlug ? `@${driverInfo.profileSlug}` : 'Motorista')}
+                                        {(driverInfo.profileSlug ? `@${driverInfo.profileSlug}` : driverInfo.name || 'Motorista')}
                                     </p>
                                     {liveEta ? (
                                         <span className="flex items-center gap-1 text-[10px] font-bold" style={{ color: '#22c55e' }} title="Localização em tempo real">

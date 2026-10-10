@@ -795,7 +795,7 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
                             </div>
                         )}
                         <p className="text-xs font-black truncate flex-1 min-w-0" style={{ color: colors.textPrimary }}>
-                            {driver.name || (driver.profileSlug ? `@${driver.profileSlug}` : 'Motorista')}
+                            {(driver.profileSlug ? `@${driver.profileSlug}` : driver.name || 'Motorista')}
                         </p>
                         {driver.carPlate && (
                             <span
@@ -902,7 +902,7 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
 
                                     <div className="w-full min-w-0">
                                         <span className="text-[11px] font-bold block truncate" style={{ color: colors.textPrimary }}>
-                                            {c.name || (c.profileSlug ? `@${c.profileSlug}` : 'Candidato')}
+                                            {(c.profileSlug ? `@${c.profileSlug}` : c.name || 'Candidato')}
                                         </span>
                                         <span className="text-[11px] font-black block mt-0.5 truncate" style={{ color: '#f97316' }}>
                                             {c.proposedPrice != null ? `R$ ${c.proposedPrice.toFixed(2)}` : 'Sem valor'}

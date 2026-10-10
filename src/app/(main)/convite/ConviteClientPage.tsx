@@ -378,7 +378,7 @@ function ConviteContent() {
                             <p className="text-sm text-center font-bold" style={{ color: textPrimary }}>Você já tem uma rede</p>
                             <p className="text-xs text-center" style={{ color: textSecondary }}>
                                 {currentUpline
-                                    ? <>Sua conta já foi convidada por <b>{currentUpline.name || `@${currentUpline.profileSlug}`}</b>, então não aceita outro convite.</>
+                                    ? <>Sua conta já foi convidada por <b>{currentUpline.profileSlug ? `@${currentUpline.profileSlug}` : currentUpline.name}</b>, então não aceita outro convite.</>
                                     : 'Sua conta atual já está conectada a um líder, então não aceita outro convite.'}
                                 {' '}Quem entra pelo link de convite já se cadastra ligado a quem convidou.
                             </p>

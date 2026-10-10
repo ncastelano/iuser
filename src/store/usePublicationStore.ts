@@ -1,4 +1,5 @@
 // src/store/usePublicationsStore.ts
+import { profileLabel } from '@/lib/profileDisplay'
 import { create } from 'zustand'
 import { supabase } from '@/lib/supabase/client'
 import { toast } from 'sonner'
@@ -191,7 +192,7 @@ export const usePublicationsStore = create<PublicationsStore>((set, get) => ({
 
             const publications: Publication[] = (data || []).map(pub => {
                 const isStore = !!pub.store_id && pub.stores
-                const rawOwnerName = isStore ? pub.stores.name : pub.profiles?.name || 'Usuário'
+                const rawOwnerName = isStore ? pub.stores.name : profileLabel(pub.profiles)
                 const rawOwnerSlug = isStore ? pub.stores.storeSlug : pub.profiles?.profileSlug || 'usuario'
                 const rawAvatar = isStore
                     ? resolveImageUrl(pub.stores.logo_url, 'store-logos')
@@ -311,7 +312,7 @@ export const usePublicationsStore = create<PublicationsStore>((set, get) => ({
 
             const newPublications: Publication[] = (data || []).map(pub => {
                 const isStore = !!pub.store_id && pub.stores
-                const rawOwnerName = isStore ? pub.stores.name : pub.profiles?.name || 'Usuário'
+                const rawOwnerName = isStore ? pub.stores.name : profileLabel(pub.profiles)
                 const rawOwnerSlug = isStore ? pub.stores.storeSlug : pub.profiles?.profileSlug || 'usuario'
                 const rawAvatar = isStore
                     ? resolveImageUrl(pub.stores.logo_url, 'store-logos')

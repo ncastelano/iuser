@@ -107,7 +107,7 @@ export async function fetchNearest(origin: { lat: number; lng: number } | null, 
         const d = km(Number.isFinite(p.lat) && Number.isFinite(p.lng) ? [p.lng, p.lat] as [number, number] : null)
         if (d === undefined) continue
         const avatar = p.avatar_url ? (String(p.avatar_url).startsWith('http') ? p.avatar_url : supabase.storage.from('avatars').getPublicUrl(p.avatar_url).data.publicUrl) : null
-        nearestPeople.push({ kind: 'pessoa', id: p.id, name: p.name || `@${p.profile_slug}`, subtitle: `@${p.profile_slug}`, imageUrl: avatar, price: null, distanceKm: d, viewCount: 0, points: Number(p.points) || 0, href: `/${p.profile_slug}` })
+        nearestPeople.push({ kind: 'pessoa', id: p.id, name: `@${p.profile_slug}`, subtitle: null, imageUrl: avatar, price: null, distanceKm: d, viewCount: 0, points: Number(p.points) || 0, href: `/${p.profile_slug}` })
     }
 
     // Com local: os 3 mais perto. Sem local: os 3 mais vistos.

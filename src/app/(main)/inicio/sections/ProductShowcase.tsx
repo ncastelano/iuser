@@ -195,7 +195,7 @@ export async function loadProductCards(): Promise<ProductCard[]> {
 
         if (isProfileProduct) {
             if (profile) {
-                storeName = profile.name || 'Perfil sem nome'
+                storeName = profile.profileSlug ? `@${profile.profileSlug}` : profile.name || 'Perfil sem nome'
                 storeSlug = profile.profileSlug || '#'
                 storeAddress = null
 
@@ -217,7 +217,7 @@ export async function loadProductCards(): Promise<ProductCard[]> {
             }
         } else {
             if (profile) {
-                storeName = profile.name || 'Perfil sem nome'
+                storeName = profile.profileSlug ? `@${profile.profileSlug}` : profile.name || 'Perfil sem nome'
                 storeSlug = profile.profileSlug || '#'
                 storeAddress = null
 

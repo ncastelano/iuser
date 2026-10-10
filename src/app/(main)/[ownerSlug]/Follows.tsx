@@ -106,7 +106,7 @@ export function Follows({
                         const profile = Array.isArray(item.profiles) ? item.profiles[0] : item.profiles
                         return {
                             id: profile.id,
-                            name: profile.name || 'Usuário',
+                            name: profile.profileSlug ? `@${profile.profileSlug}` : profile.name || 'Usuário',
                             profileSlug: profile.profileSlug || profile.id,
                             avatar_url: profile.avatar_url,
                             isFollowing: false,
@@ -143,7 +143,7 @@ export function Follows({
                         if (profile) {
                             acc.push({
                                 id: profile.id,
-                                name: profile.name || 'Usuário',
+                                name: profile.profileSlug ? `@${profile.profileSlug}` : profile.name || 'Usuário',
                                 profileSlug: profile.profileSlug || profile.id,
                                 avatar_url: profile.avatar_url,
                                 isFollowing: false,
@@ -446,9 +446,11 @@ export function Follows({
                                                     </span>
                                                 )}
                                             </div>
+                                            {user.kind !== 'profile' && (
                                             <p className="text-[10px] opacity-60 truncate" style={{ color: colors.textSecondary }}>
-                                                @{user.profileSlug}
-                                            </p>
+                                                    @{user.profileSlug}
+                                                </p>
+                                            )}
                                         </div>
 
                                         {/* Follow button */}

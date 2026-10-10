@@ -2,6 +2,7 @@
 
 'use client'
 
+import { profileLabel } from '@/lib/profileDisplay'
 import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase/client'
@@ -277,7 +278,7 @@ export function ProductClientPage({
 
         supabase
             .from('product_reviews')
-            .select('id, rating, comment, is_anonymous, created_at, profiles(id, name, avatar_url)')
+            .select('id, rating, comment, is_anonymous, created_at, profiles(id, name, avatar_url, "profileSlug")')
             .eq('product_id', productId)
             .order('created_at', { ascending: false })
             .then(({ data }) => {
@@ -1217,7 +1218,7 @@ export function ProductClientPage({
                                         <div className="space-y-2 mt-2 max-h-56 overflow-y-auto pr-0.5">
                                             {productReviews.map((r) => {
                                                 const reviewerAvatar = getAvatarUrl(supabase, r.profiles?.avatar_url)
-                                                const reviewerName = r.is_anonymous ? 'Anônimo' : (r.profiles?.name || 'Usuário')
+                                                const reviewerName = r.is_anonymous ? 'Anônimo' : profileLabel(r.profiles)
                                                 return (
                                                     <div
                                                         key={r.id}

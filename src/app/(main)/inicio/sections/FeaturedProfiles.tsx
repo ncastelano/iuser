@@ -64,7 +64,7 @@ function useFeaturedProfiles() {
                 const cards: ProfileCard[] = data.map((p: any) => ({
                     id: p.id,
                     slug: p.profileSlug || p.id,
-                    name: p.name || 'Usuário',
+                    name: p.profileSlug ? `@${p.profileSlug}` : p.name || 'Usuário',
                     avatarUrl: p.avatar_url ? (getAvatarUrl(supabase, p.avatar_url) || null) : null,
                 }))
 
@@ -181,7 +181,6 @@ export default function FeaturedProfiles({
                         </PlanAvatarRing>
                         <div className="text-center w-24">
                             <p className="text-[11px] font-bold truncate" style={{ color: colors.textPrimary }}>{profile.name}</p>
-                            <p className="text-[9px] opacity-50 truncate" style={{ color: colors.textPrimary }}>@{profile.slug}</p>
                         </div>
                     </div>
                 ))}

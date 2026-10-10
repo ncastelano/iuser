@@ -131,7 +131,7 @@ function usePublications() {
                                 const profile = profileMap.get(pub.owner_id)
                                 if (profile) {
                                     ownerType = 'profile'
-                                    ownerName = profile.name || 'Usuário'
+                                    ownerName = profile.profileSlug ? `@${profile.profileSlug}` : profile.name || 'Usuário'
                                     ownerSlug = profile.profileSlug || '#'
                                     ownerImageUrl = profile.avatar_url || null
                                     isProfileAvatar = true
@@ -143,7 +143,7 @@ function usePublications() {
                         const profile = profileMap.get(pub.owner_id)
                         if (profile) {
                             ownerType = 'profile'
-                            ownerName = profile.name || 'Usuário'
+                            ownerName = profile.profileSlug ? `@${profile.profileSlug}` : profile.name || 'Usuário'
                             ownerSlug = profile.profileSlug || '#'
                             ownerImageUrl = profile.avatar_url || null
                             isProfileAvatar = true

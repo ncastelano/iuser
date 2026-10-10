@@ -35,6 +35,11 @@ interface ConversationRow {
     other_is_store: boolean
 }
 
+function otherLabel(r: { other_name: string | null; other_slug: string | null; other_is_store: boolean }, fallback = 'Conversa') {
+    if (!r.other_is_store && r.other_slug) return `@${r.other_slug}`
+    return r.other_name || fallback
+}
+
 interface MyStore { id: string; name: string; storeSlug: string; logoUrl: string | null }
 
 interface Message { id: string; conversation_id: string; sender_id: string; content: string; created_at: string; ref_product_id?: string | null }
@@ -150,12 +155,12 @@ function Thread({ conversation, userId, onBack, onRead, colors }: {
                     <Link href={profileHref} className="flex items-center gap-3 min-w-0 flex-1">
                         <Avatar url={avatar} name={conversation.other_name} isStore={conversation.other_is_store} userId={conversation.other_is_store ? undefined : conversation.other_id} size={40} />
                         <div className="min-w-0">
-                            <p className="text-sm font-black truncate" style={{ color: colors.textPrimary }}>{conversation.other_name || 'Conversa'}</p>
-                            <p className="text-[11px] truncate" style={{ color: colors.textSecondary }}>@{conversation.other_slug} · ver {conversation.other_is_store ? 'loja' : 'perfil'}</p>
+                            <p className="text-sm font-black truncate" style={{ color: colors.textPrimary }}>{otherLabel(conversation)}</p>
+                            <p className="text-[11px] truncate" style={{ color: colors.textSecondary }}>{conversation.other_is_store ? `@${conversation.other_slug} · ver loja` : 'ver perfil'}</p>
                         </div>
                     </Link>
                 ) : (
-                    <p className="text-sm font-black truncate" style={{ color: colors.textPrimary }}>{conversation.other_name || 'Conversa'}</p>
+                    <p className="text-sm font-black truncate" style={{ color: colors.textPrimary }}>{otherLabel(conversation)}</p>
                 )}
             </div>
 
@@ -411,13 +416,13 @@ function ConversasInner() {
                                                     ) : r.other_is_store ? (
                                                         <StoreIcon size={32} />
                                                     ) : (
-                                                        (r.other_name || '?').charAt(0).toUpperCase()
+                                                        (otherLabel(r, '?')).replace('@', '').charAt(0).toUpperCase()
                                                     )}
                                                     {!r.other_is_store && <PlanRingInset userId={r.other_id} width={3} radius="0px" />}
                                                 </span>
                                                 <span className="min-w-0 flex-1 px-3 py-2.5 flex flex-col justify-center gap-0.5">
                                                     <span className="flex items-baseline justify-between gap-2">
-                                                        <span className="text-sm font-black truncate" style={{ color: fg }}>{r.other_name || 'Conversa'}</span>
+                                                        <span className="text-sm font-black truncate" style={{ color: fg }}>{otherLabel(r)}</span>
                                                         <span className="text-[11px] flex-shrink-0" style={{ color: fg2 }}>{timeLabel(r.last_message_at)}</span>
                                                     </span>
                                                     <span className="flex items-center justify-between gap-2">

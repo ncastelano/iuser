@@ -1,6 +1,7 @@
 // app/(main)/publicacoes/page.tsx
 'use client'
 
+import { profileLabel } from '@/lib/profileDisplay'
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
@@ -292,7 +293,7 @@ function PublicationCardComponent({
                                 <img
                                     src={getAvatarUrl(supabase, pub.top_comment.profiles.avatar_url) || ''}
                                     className="w-full h-full object-cover"
-                                    alt={pub.top_comment.profiles?.name || 'Usuário'}
+                                    alt={profileLabel(pub.top_comment.profiles)}
                                 />
                             ) : (
                                 <span className="text-white font-bold text-[10px]">
@@ -304,7 +305,7 @@ function PublicationCardComponent({
                         <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
                                 <span className="text-xs font-semibold" style={{ color: colors.textPrimary }}>
-                                    {pub.top_comment.profiles?.name || 'Usuário'}
+                                    {profileLabel(pub.top_comment.profiles)}
                                 </span>
                                 <span className="text-[9px]" style={{ color: colors.textSecondary }}>
                                     • Comentário mais curtido
@@ -477,7 +478,7 @@ export default function AllPublicationsPage() {
                         const profile = profileMap.get(pub.owner_id)
                         if (profile) {
                             ownerType = 'profile'
-                            ownerName = profile.name || 'Usuário'
+                            ownerName = profileLabel(profile)
                             ownerSlug = profile.profileSlug || '#'
                             ownerImageUrl = profile.avatar_url || null
                             isProfileAvatar = true
@@ -488,7 +489,7 @@ export default function AllPublicationsPage() {
                     const profile = profileMap.get(pub.owner_id)
                     if (profile) {
                         ownerType = 'profile'
-                        ownerName = profile.name || 'Usuário'
+                        ownerName = profileLabel(profile)
                         ownerSlug = profile.profileSlug || '#'
                         ownerImageUrl = profile.avatar_url || null
                         isProfileAvatar = true

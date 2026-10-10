@@ -308,9 +308,9 @@ function PainelMotoristaContent() {
             .limit(20)
 
         const reviewerIds = Array.from(new Set((reviewRows || []).map((r) => r.reviewer_id)))
-        let reviewersById = new Map<string, { name: string | null; avatar_url: string | null }>()
+        let reviewersById = new Map<string, { name: string | null; avatar_url: string | null; profileSlug?: string | null }>()
         if (reviewerIds.length > 0) {
-            const { data: reviewers } = await supabase.from('profiles').select('id, name, avatar_url').in('id', reviewerIds)
+            const { data: reviewers } = await supabase.from('profiles').select('id, name, avatar_url, "profileSlug"').in('id', reviewerIds)
             reviewersById = new Map((reviewers || []).map((p) => [p.id, p]))
         }
         setReviews((reviewRows || []).map((r) => ({
@@ -318,7 +318,7 @@ function PainelMotoristaContent() {
             comment: r.comment,
             created_at: r.created_at,
             reviewerId: r.reviewer_id,
-            reviewerName: reviewersById.get(r.reviewer_id)?.name || null,
+            reviewerName: reviewersById.get(r.reviewer_id)?.profileSlug ? `@${reviewersById.get(r.reviewer_id)?.profileSlug}` : reviewersById.get(r.reviewer_id)?.name || null,
             reviewerAvatarUrl: getAvatarUrl(supabase, reviewersById.get(r.reviewer_id)?.avatar_url),
         })))
 

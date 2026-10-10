@@ -389,7 +389,7 @@ export default function AtalhoCompromissosDaLoja({
 
                                     const person = people.get(appointment.customer_id)
                                     const avatarUrl = person?.avatarUrl || null
-                                    const customerName = person?.name || (appointment.customer_slug ? `@${appointment.customer_slug}` : 'Cliente')
+                                    const customerName = (appointment.customer_slug ? `@${appointment.customer_slug}` : person?.name || 'Cliente')
                                     const serviceName = appointment.service_name
                                     const customerSlug = appointment.customer_slug || null
                                     const duration = appointment.duration_minutes

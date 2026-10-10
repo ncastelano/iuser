@@ -75,7 +75,7 @@ function TreeLevel({ parentId, loader, depth }: { parentId: string | null; loade
                             <div className="min-w-0 flex-1">
                                 <div className="flex items-center gap-1.5 flex-wrap">
                                     {c.profile_slug
-                                        ? <Link href={`/${c.profile_slug}`} className="text-sm font-black truncate hover:underline" style={{ color: colors.textPrimary }}>{c.name || `@${c.profile_slug}`}</Link>
+                                        ? <Link href={`/${c.profile_slug}`} className="text-sm font-black truncate hover:underline" style={{ color: colors.textPrimary }}>{c.profile_slug ? `@${c.profile_slug}` : c.name}</Link>
                                         : <span className="text-sm font-black truncate" style={{ color: colors.textPrimary }}>{c.name || 'Usuário'}</span>}
                                     <LevelBadge level={{ ...c, name: c.level_name }} size="sm" />
                                     {!c.is_valid && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: '#ef444420', color: '#ef4444' }}>Inativo</span>}

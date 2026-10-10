@@ -36,7 +36,7 @@ export async function POST(req: Request) {
         .select('name, profileSlug')
         .eq('id', user.id)
         .maybeSingle()
-    const who = actor?.name || (actor?.profileSlug ? `@${actor.profileSlug}` : 'Alguém')
+    const who = (actor?.profileSlug ? `@${actor.profileSlug}` : actor?.name || 'Alguém')
     const requestTitle = getRequestTitle(request.description, request.service_type, request.custom_service, 60)
 
     await sendPushToUser(request.requester_id, {

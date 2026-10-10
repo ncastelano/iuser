@@ -135,7 +135,7 @@ export default function CriarCompromissoLoja({ onBack, context, storeId, activeF
                     .limit(5)
                 const merged: SearchTarget[] = (profiles || []).map(p => ({
                     id: p.id,
-                    name: p.name || `@${p.profileSlug}`,
+                    name: p.profileSlug ? `@${p.profileSlug}` : p.name,
                     slug: p.profileSlug,
                     logo_url: p.avatar_url,
                 }))

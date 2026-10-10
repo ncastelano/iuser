@@ -125,7 +125,7 @@ export function ServiceClientPage({ ownerSlug, colors, initialService }: Service
 
     const Icon = getServiceIcon(service.service_type || 'outro')
     const typeLabel = service.service_type ? getServiceLabel(service.service_type) : 'Serviço'
-    const providerName = provider?.name || `@${ownerSlug}`
+    const providerName = `@${provider?.profileSlug || ownerSlug}`
     const views = service.view_count || 0
 
     const pageUrl = typeof window !== 'undefined' ? window.location.href : ''

@@ -114,7 +114,7 @@ export default function ProfileNotification({ userId }: { userId: string }) {
         setItems((prev) => (prev || []).map((n) => ({ ...n, read_at: n.read_at || new Date().toISOString() })))
     }
 
-    const nameOf = (n: Notif) => n.actor_name || (n.actor_slug ? `@${n.actor_slug}` : 'Um visitante')
+    const nameOf = (n: Notif) => (n.actor_slug ? `@${n.actor_slug}` : n.actor_name || 'Um visitante')
 
     const textOf = (n: Notif): string => {
         const who = nameOf(n)
@@ -192,7 +192,7 @@ export default function ProfileNotification({ userId }: { userId: string }) {
                                 <img src={avatar} alt="" className="w-11 h-11 rounded-full object-cover" />
                             ) : (
                                 <span className="w-11 h-11 rounded-full flex items-center justify-center text-white font-black" style={{ background: GRADIENT }}>
-                                    {(n.actor_name || '?').charAt(0).toUpperCase()}
+                                    {(n.actor_slug || n.actor_name || '?').charAt(0).toUpperCase()}
                                 </span>
                             )}
                         </PlanAvatarRing>

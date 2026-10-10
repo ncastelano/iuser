@@ -143,7 +143,7 @@ function useFeaturedServices() {
                         description: row.description || null,
                         slug: row.slug || null,
                         serviceType: row.service_type,
-                        providerName: p?.name || 'Prestador',
+                        providerName: p?.profileSlug ? `@${p.profileSlug}` : p?.name || 'Prestador',
                         providerSlug: p?.profileSlug || '',
                         providerId: row.owner_id,
                         providerImageUrl: getAvatarUrl(supabase, p?.avatar_url),

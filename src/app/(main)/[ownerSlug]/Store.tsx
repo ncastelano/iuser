@@ -1,6 +1,7 @@
 // src/components/owner/Store.tsx
 'use client'
 
+import { profileLabel } from '@/lib/profileDisplay'
 import { notifyNewFollower } from '@/lib/notifyRideStatus'
 import { useCallback, useEffect, useRef, useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
@@ -1586,7 +1587,7 @@ export function Store({
                                                         <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
                                                     ) : (
                                                         <span className="font-bold text-xs" style={{ color: '#f97316' }}>
-                                                            {(rating.profiles?.name || '?').slice(0, 1).toUpperCase()}
+                                                            {(rating.profiles?.profileSlug || rating.profiles?.name || '?').slice(0, 1).toUpperCase()}
                                                         </span>
                                                     )}
                                                 </div>
@@ -1595,7 +1596,7 @@ export function Store({
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center justify-between">
                                                     <p className="text-xs font-bold" style={{ color: colors.textPrimary }}>
-                                                        {rating.profiles?.name || 'Usuário'}
+                                                        {profileLabel(rating.profiles)}
                                                     </p>
                                                     <span className="text-[10px]" style={{ color: colors.textSecondary }}>
                                                         {new Date(rating.created_at).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short', year: 'numeric' })}

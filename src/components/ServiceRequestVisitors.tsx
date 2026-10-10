@@ -212,7 +212,7 @@ export default function ServiceRequestVisitors({ requestId }: { requestId: strin
                                 <div className="min-w-0 flex-1">
                                     <div className="flex items-center gap-2">
                                         <span className="font-bold text-sm truncate" style={{ color: colors.textPrimary }}>
-                                            {anonymous ? 'Visitante anônimo' : viewer?.name || (viewer?.profileSlug ? `@${viewer.profileSlug}` : 'Usuário')}
+                                            {anonymous ? 'Visitante anônimo' : (viewer?.profileSlug ? `@${viewer.profileSlug}` : viewer?.name || 'Usuário')}
                                         </span>
                                         <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold flex-shrink-0" style={{ background: anonymous ? '#ef444420' : '#10b98120', color: anonymous ? '#ef4444' : '#10b981' }}>
                                             {anonymous ? 'Anônimo' : 'Logado'}

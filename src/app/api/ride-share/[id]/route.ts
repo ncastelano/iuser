@@ -30,7 +30,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
         .select('name, profileSlug')
         .eq('id', ride.requester_id)
         .maybeSingle()
-    const requesterFirstName = (requester?.name || requester?.profileSlug || 'Passageiro').split(' ')[0]
+    const requesterFirstName = (requester?.profileSlug ? `@${requester.profileSlug}` : requester?.name || 'Passageiro')
 
     let driver: {
         id: string
@@ -53,7 +53,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 
         driver = {
             id: ride.driver_id,
-            name: driverProfile?.name || (driverProfile?.profileSlug ? `@${driverProfile.profileSlug}` : null),
+            name: (driverProfile?.profileSlug ? `@${driverProfile.profileSlug}` : driverProfile?.name || null),
             avatarUrl: driverProfile?.avatar_url
                 ? (driverProfile.avatar_url.startsWith('http')
                     ? driverProfile.avatar_url

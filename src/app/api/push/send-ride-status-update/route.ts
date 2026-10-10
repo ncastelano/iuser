@@ -63,7 +63,7 @@ export async function POST(req: Request) {
             urgent = true
             url = '/pedir-motorista'
             const { data: driver } = await supabaseAdmin.from('profiles').select('name, profileSlug').eq('id', ride.driver_id).single()
-            const driverName = driver?.name || (driver?.profileSlug ? `@${driver.profileSlug}` : 'O motorista')
+            const driverName = (driver?.profileSlug ? `@${driver.profileSlug}` : driver?.name || 'O motorista')
             if (status === 'approaching_pickup') {
                 title = 'Motorista chegando!'
                 body = `${driverName} está chegando ao local de partida.`
@@ -81,7 +81,7 @@ export async function POST(req: Request) {
             url = '/pedir-motorista'
             if (status === 'en_route' || status === 'arrived' || status === 'started') {
                 const { data: driver } = await supabaseAdmin.from('profiles').select('name, profileSlug').eq('id', ride.driver_id).single()
-                const driverName = driver?.name || (driver?.profileSlug ? `@${driver.profileSlug}` : 'O motorista')
+                const driverName = (driver?.profileSlug ? `@${driver.profileSlug}` : driver?.name || 'O motorista')
                 if (status === 'en_route') {
                     title = 'Motorista a caminho!'
                     body = `${driverName} está a caminho do local de partida.`

@@ -369,7 +369,7 @@ function DetailsBody({ request, setRequest, decidingId, onDecide, onClose, color
                                             )}
                                         </PlanAvatarRing>
                                         <span className="text-sm font-bold flex-1 truncate" style={{ color: colors.textPrimary }}>
-                                            {c.name || (c.profileSlug ? `@${c.profileSlug}` : 'Profissional')}
+                                            {(c.profileSlug ? `@${c.profileSlug}` : c.name || 'Profissional')}
                                         </span>
                                         {c.status === 'pending' ? (
                                             decidingId === c.applicationId ? (

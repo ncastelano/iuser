@@ -128,7 +128,7 @@ export default function StoreSalesExtractDialog({ storeId, storeName, period, on
     const buildSummaryText = (order: OrderRow) => {
         const items = itemsByOrder[order.id] || []
         const itemsText = items.map((i) => `- ${i.quantity}x ${i.product_name} (R$ ${Number(i.total_price).toFixed(2)})`).join('\n')
-        const buyer = order.buyer_name || (order.buyer_profile_slug ? `@${order.buyer_profile_slug}` : 'Cliente')
+        const buyer = (order.buyer_profile_slug ? `@${order.buyer_profile_slug}` : order.buyer_name || 'Cliente')
         return (
             `*Pedido — ${storeName}*\n` +
             `Cliente: ${buyer}\n` +
@@ -264,7 +264,7 @@ export default function StoreSalesExtractDialog({ storeId, storeName, period, on
                                     >
                                         <div className="min-w-0">
                                             <p className="text-sm font-bold truncate" style={{ color: colors.textPrimary }}>
-                                                {order.buyer_name || (order.buyer_profile_slug ? `@${order.buyer_profile_slug}` : 'Cliente')}
+                                                {(order.buyer_profile_slug ? `@${order.buyer_profile_slug}` : order.buyer_name || 'Cliente')}
                                             </p>
                                             <p className="text-[11px]" style={{ color: colors.textSecondary }}>
                                                 {new Date(order.created_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}

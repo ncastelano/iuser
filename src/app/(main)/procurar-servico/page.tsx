@@ -379,7 +379,7 @@ function SerParceiroContent() {
                                 const isMine = job.requester_id === userId
                                 const title = getRequestTitle(job.description, job.service_type, job.custom_service)
                                 const photo = job.photo_urls[0] || null
-                                const requesterName = job.requester?.name || (job.requester?.profileSlug ? `@${job.requester.profileSlug}` : 'Alguém')
+                                const requesterName = (job.requester?.profileSlug ? `@${job.requester.profileSlug}` : job.requester?.name || 'Alguém')
                                 return (
                                     <div
                                         key={key}
