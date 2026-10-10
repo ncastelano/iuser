@@ -13,6 +13,7 @@ import { MapPin, Plus, Eye, Check, Wrench, MoreHorizontal, Pencil, Trash2, X } f
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase/client'
 import ServiceRequestDetailsDialog from '@/components/ServiceRequestDetailsDialog'
+import ServiceRequestViewDialog from '@/components/ServiceRequestViewDialog'
 import { Spinner } from '@/components/Spinner'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
@@ -47,6 +48,8 @@ export default function NeedAService({ dragHandle, limit = 8 }: { dragHandle?: R
     const [confirmDelete, setConfirmDelete] = useState(false)
     const [deleting, setDeleting] = useState(false)
     const [detailsId, setDetailsId] = useState<string | null>(null)
+    // Card tocado: abre aqui mesmo, em tamanho grande (foto inteira + detalhes), e já conta a visita
+    const [viewItem, setViewItem] = useState<BoardItem | null>(null)
     const pageSize = useResponsivePageSize({ base: 2, md: 3 })
     const { page, dir, pages, goTo, handlers, visibleRange } = usePagedRotation(items?.length ?? 0, pageSize)
 
@@ -121,9 +124,9 @@ export default function NeedAService({ dragHandle, limit = 8 }: { dragHandle?: R
                             // Só passar por cima (ou ficar visível) já conta como visto: aparece em "Visitantes dos serviços" do pedido
                             onSeen={() => trackServiceRequestView(item.id)}
                             seenKey={`request:${item.id}`}
-                            // Pedido de outra pessoa: tocar no card leva até ele na lista de serviços (o dono usa o menu ⋯)
-                            onClick={!mine ? () => goFromHome(`/procurar-servico?ver=${item.id}`) : undefined}
-                            className={`w-full h-full rounded-3xl overflow-hidden flex flex-col ${!mine ? 'cursor-pointer' : ''}`}
+                            // Tocar no card abre o pedido em tamanho grande (o dono também vê assim, e edita pelo menu ⋯)
+                            onClick={() => setViewItem(item)}
+                            className="w-full h-full rounded-3xl overflow-hidden flex flex-col cursor-pointer"
                             style={{
                                 background: colors.surface,
                                 border: `1px solid ${mine ? colors.accent : colors.border}`,
@@ -292,6 +295,16 @@ export default function NeedAService({ dragHandle, limit = 8 }: { dragHandle?: R
             )}
 
             {detailsId && <ServiceRequestDetailsDialog requestId={detailsId} onClose={() => { setDetailsId(null); load() }} />}
+
+            {viewItem && (
+                <ServiceRequestViewDialog
+                    item={viewItem}
+                    isMine={viewItem.requester_id === userId}
+                    applied={applied.has(viewItem.id)}
+                    onApply={() => { const id = viewItem.id; setViewItem(null); goFromHome(`/procurar-servico?pedido=${id}`) }}
+                    onClose={() => setViewItem(null)}
+                />
+            )}
 
             {/* Fora do carrossel de propósito: com muitos pedidos o botão ficaria
                 lá no fim da rolagem e ninguém veria. */}

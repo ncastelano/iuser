@@ -16,6 +16,7 @@ import { Spinner } from '@/components/Spinner'
 import DriverDebtBanner from '@/components/DriverDebtBanner'
 import { notifyServiceApplication } from '@/lib/notifyRideStatus'
 import { trackServiceRequestView } from '@/lib/trackServiceRequestView'
+import ServiceRequestViewDialog from '@/components/ServiceRequestViewDialog'
 import { getServiceIcon } from '@/lib/serviceTypes'
 import { useMyServiceApplications } from '@/hooks/useMyServiceApplications'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
@@ -52,6 +53,8 @@ function SerParceiroContent() {
     const focusHandledRef = useRef(false)
     // Vem de tocar no card do pedido na home: só desliza até ele (sem se inscrever)
     const viewId = searchParams.get('ver')
+    // Pedido aberto em tamanho grande (card tocado ou ?ver=<id>)
+    const [viewJob, setViewJob] = useState<BoardItem | null>(null)
     const viewHandledRef = useRef(false)
     // Abas, no mesmo molde de /aceitar-corridas: Serviços disponíveis | Me inscrevi
     const [activeTab, setActiveTab] = useState<'disponiveis' | 'inscrevi'>(searchParams.get('aba') === 'inscrevi' ? 'inscrevi' : 'disponiveis')
@@ -176,9 +179,11 @@ function SerParceiroContent() {
         const el = document.getElementById(`job-card-${viewId}`)
         if (!el) { if (jobs.length > 0) viewHandledRef.current = true; return }
         viewHandledRef.current = true
-        // O cartão acabou de entrar na tela: começa do topo e desliza até ele
+        // O cartão acabou de entrar na tela: começa do topo e desliza até ele — e abre o pedido em tamanho grande
         window.scrollTo({ top: 0 })
         setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'center' }), 250)
+        const target = jobs.find((j) => j.id === viewId)
+        if (target) setViewJob(target)
     }, [viewId, loading, jobs])
 
     // ===== FOCO + INSCRIÇÃO AUTOMÁTICA (?pedido=<id>) =====
@@ -384,7 +389,9 @@ function SerParceiroContent() {
                                     <div
                                         key={key}
                                         id={`job-card-${job.id}`}
-                                        className="rounded-3xl p-3 scroll-mt-32 flex gap-3"
+                                        // Tocar no card (fora dos botões) abre o pedido em tamanho grande e já conta a visita
+                                        onClick={(e) => { if (!(e.target as HTMLElement).closest('button, a, input, textarea')) setViewJob(job) }}
+                                        className="rounded-3xl p-3 scroll-mt-32 flex gap-3 cursor-pointer"
                                         style={{
                                             background: colors.surface,
                                             border: `1px solid ${focusId === job.id ? colors.accent : colors.border}`,
@@ -674,6 +681,16 @@ function SerParceiroContent() {
                     </div>
                 )}
             </main>
+        
+            {viewJob && (
+                <ServiceRequestViewDialog
+                    item={viewJob}
+                    isMine={viewJob.requester_id === userId}
+                    applied={appliedKeys.has(itemKey(viewJob))}
+                    onApply={() => { const j = viewJob; setViewJob(null); handleApply(j) }}
+                    onClose={() => setViewJob(null)}
+                />
+            )}
         </div>
     )
 }
