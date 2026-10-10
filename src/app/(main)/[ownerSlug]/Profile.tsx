@@ -53,6 +53,7 @@ import { toast } from 'sonner'
 import { getAvatarUrl } from '@/lib/avatar'
 import PlanAvatarRing, { usePlanRing } from '@/components/PlanAvatarRing'
 import ImageZoomDialog from '@/components/ImageZoomDialog'
+import { trackProfileVisit } from '@/lib/trackProfileVisit'
 import { usePublicationsStore } from '@/store/usePublicationStore'
 import { handleShareLink } from '@/lib/share'
 import { Follows } from './Follows'
@@ -241,7 +242,7 @@ export function extractStreetDisplay(fullAddress: string): string {
 export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug }: ProfileProps) {
     const router = useRouter()
     const fileInputRef = useRef<HTMLInputElement>(null)
-    const { userId: currentUserId } = useProfile()
+    const { userId: currentUserId, loading: profileCtxLoading } = useProfile()
 
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
@@ -486,6 +487,19 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
             setLoading(false)
         }
     }, [ownerSlug, currentUserId])
+
+    // ========== VISITA NO PERFIL ==========
+    // Abrir o perfil (link direto, card do /social, busca, últimos acessados...) conta como visita — uma vez por abertura,
+    // e só depois de saber quem está vendo (o banco ignora a mesma sessão repetida em 60 s e a própria pessoa não conta).
+    const visitCountedFor = useRef<string | null>(null)
+    useEffect(() => {
+        if (!owner?.id || profileCtxLoading || visitCountedFor.current === owner.id) return
+        visitCountedFor.current = owner.id
+        if (currentUserId === owner.id) return
+        trackProfileVisit(owner.id, currentUserId).then((counted) => {
+            if (counted) setTotalVisitors((v) => v + 1)
+        })
+    }, [owner?.id, profileCtxLoading, currentUserId])
 
     // ========== CARREGAR COMENTÁRIOS DO PERFIL ==========
     const loadProfileComments = async (profileId: string) => {

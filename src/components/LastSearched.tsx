@@ -5,6 +5,8 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Clock, X, History, User, Store, Package, Search, Car } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
+import { useProfile } from '@/app/contexts/ProfileContext'
+import { trackProfileVisit } from '@/lib/trackProfileVisit'
 
 // ---------- Tipos e funções do histórico ----------
 export interface RecentClickItem {
@@ -57,6 +59,7 @@ interface LastSearchedProps {
 export default function LastSearched({ onItemClick, onClearResults }: LastSearchedProps) {
     const router = useRouter()
     const { colors } = useTheme()
+    const { userId: viewerId } = useProfile()
     const [items, setItems] = useState<RecentClickItem[]>([])
     const [visibleItems, setVisibleItems] = useState<Set<string>>(new Set())
     const containerRef = useRef<HTMLDivElement>(null)
@@ -288,6 +291,8 @@ export default function LastSearched({ onItemClick, onClearResults }: LastSearch
                                     <div
                                         key={key}
                                         onClick={() => handleItemClick(item)}
+                                        // Passar o mouse por cima de um perfil conta como visita nele
+                                        onMouseEnter={item.type === 'profile' ? () => { trackProfileVisit(item.id, viewerId) } : undefined}
                                         className="group relative block overflow-hidden rounded-xl aspect-square cursor-pointer transition-all duration-500 ease-out"
                                         style={{
                                             opacity: isVisible ? 1 : 0,

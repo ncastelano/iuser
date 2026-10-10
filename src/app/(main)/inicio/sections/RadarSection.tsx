@@ -5,6 +5,7 @@ import { ReactNode, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Radar as Navigation, Store, ShoppingBag, Wrench, MapPin, Eye, Users } from 'lucide-react'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
+import { trackProfileVisit } from '@/lib/trackProfileVisit'
 import { fetchNearest, formatDistance, type NearestItem, type NearestKind } from '@/lib/radarNearest'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -177,6 +178,7 @@ export default function RadarSection({ dragHandle, origin, userId, onDefineLocat
                                         </span>
                                         <button
                                             onClick={(e) => { e.stopPropagation(); startNavProgress(); router.push(item.href) }}
+                                            onMouseEnter={item.kind === 'pessoa' ? () => { trackProfileVisit(item.id, userId) } : undefined}
                                             className="group relative block w-full overflow-hidden rounded-xl aspect-square text-left transition-all hover:scale-[1.03] active:scale-95"
                                             style={{ border: '1px solid rgba(255,255,255,0.3)' }}
                                         >

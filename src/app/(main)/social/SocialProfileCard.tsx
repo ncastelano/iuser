@@ -10,6 +10,7 @@ import { supabase } from '@/lib/supabase/client'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
 import { Spinner } from '@/components/Spinner'
 import { lastSeenLabel, type PresenceInfo } from '@/lib/lastSeen'
+import { trackProfileVisit } from '@/lib/trackProfileVisit'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -90,6 +91,8 @@ export default function SocialProfileCard({ profile, store, rank, isMe, userId, 
     return (
         <div
             onClick={onOpen}
+            // Passar o mouse por cima do cartão conta como visita no perfil
+            onMouseEnter={() => { if (!isMe) trackProfileVisit(profile.id, userId) }}
             className="group relative rounded-3xl p-4 border cursor-pointer flex flex-col items-center text-center gap-3 transition-all duration-300 hover:shadow-2xl hover:-translate-y-1"
             style={{ background: cardBg, backdropFilter: 'blur(12px)', borderColor: colors.border, boxShadow: colors.shadow }}
         >

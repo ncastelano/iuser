@@ -10,6 +10,8 @@ import { Star, Clock, Search, Package, ChevronRight } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import { useTheme } from '@/app/contexts/theme'
 import { addRecentClick } from '@/components/LastSearched'
+import { useProfile } from '@/app/contexts/ProfileContext'
+import { trackProfileVisit } from '@/lib/trackProfileVisit'
 import { getAvatarUrl } from '@/lib/avatar'
 import { hexToRgb } from '@/lib/color'
 
@@ -56,6 +58,7 @@ interface StoreWithProducts {
 
 export default function SearchResultsSection({ searchQuery, onSearchSelect }: SearchResultsSectionProps) {
     const { colors } = useTheme()
+    const { userId: viewerId } = useProfile()
     const router = useRouter()
     const [loading, setLoading] = useState(false)
     const [profiles, setProfiles] = useState<any[]>([])
@@ -337,6 +340,7 @@ export default function SearchResultsSection({ searchQuery, onSearchSelect }: Se
                                     <div
                                         key={profile.id}
                                         onClick={(e) => handleProfileClick(profile, e)}
+                                        onMouseEnter={() => { trackProfileVisit(profile.id, viewerId) }}
                                         className="group relative block overflow-hidden rounded-xl aspect-square cursor-pointer"
                                     >
                                         <PlanRingInset userId={profile.id} />
