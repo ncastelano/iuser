@@ -2,6 +2,7 @@
 
 'use client'
 
+import DeleteCommentButton from '@/components/DeleteCommentButton'
 import { profileLabel } from '@/lib/profileDisplay'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useState, useCallback, useRef } from 'react'
@@ -431,8 +432,6 @@ export default function PublicationClientPage() {
 
     // ========== DELETAR COMENTÁRIO ==========
     const handleDeleteComment = async (commentId: string) => {
-        if (!confirm('Tem certeza que deseja excluir este comentário?')) return
-
         try {
             const { error } = await supabase
                 .from('comments')
@@ -553,12 +552,7 @@ export default function PublicationClientPage() {
                                     </span>
                                 </div>
                                 {currentUserId === comment.profile_id && (
-                                    <button
-                                        onClick={() => handleDeleteComment(comment.id)}
-                                        className="p-1 rounded hover:bg-red-500/10 transition"
-                                    >
-                                        <Trash2 size={12} style={{ color: '#ef4444' }} />
-                                    </button>
+                                    <DeleteCommentButton colors={colors} onConfirm={() => handleDeleteComment(comment.id)} />
                                 )}
                             </div>
 

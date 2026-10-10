@@ -399,9 +399,10 @@ export function PublicationClientPage({
     }
 
     // ========== DELETAR COMENTÁRIO ==========
+    // Confirmação no próprio comentário (o confirm() do navegador some em alguns aparelhos/navegadores embutidos)
+    const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
     const handleDeleteComment = async (commentId: string) => {
-        if (!confirm('Tem certeza que deseja excluir este comentário?')) return
-
+        setConfirmDeleteId(null)
         try {
             const { error } = await supabase
                 .from('comments')
@@ -522,12 +523,34 @@ export function PublicationClientPage({
                                     </span>
                                 </div>
                                 {currentUserId === comment.profile_id && (
-                                    <button
-                                        onClick={() => handleDeleteComment(comment.id)}
-                                        className="p-1 rounded hover:bg-red-500/10 transition"
-                                    >
-                                        <Trash2 size={12} style={{ color: '#ef4444' }} />
-                                    </button>
+                                    confirmDeleteId === comment.id ? (
+                                        <div className="flex items-center gap-1.5">
+                                            <button
+                                                onClick={() => handleDeleteComment(comment.id)}
+                                                className="px-3 py-1.5 rounded-full text-xs font-black text-white"
+                                                style={{ background: '#ef4444' }}
+                                            >
+                                                Excluir
+                                            </button>
+                                            <button
+                                                onClick={() => setConfirmDeleteId(null)}
+                                                className="px-3 py-1.5 rounded-full text-xs font-bold"
+                                                style={{ color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                                            >
+                                                Cancelar
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <button
+                                            onClick={() => setConfirmDeleteId(comment.id)}
+                                            aria-label="Excluir meu comentário"
+                                            title="Excluir meu comentário"
+                                            className="w-9 h-9 rounded-full flex items-center justify-center transition hover:scale-105"
+                                            style={{ background: '#ef444414' }}
+                                        >
+                                            <Trash2 size={16} style={{ color: '#ef4444' }} />
+                                        </button>
+                                    )
                                 )}
                             </div>
 

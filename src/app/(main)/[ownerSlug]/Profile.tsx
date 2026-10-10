@@ -1,6 +1,7 @@
 // src/components/owner/Profile.tsx
 'use client'
 
+import DeleteCommentButton from '@/components/DeleteCommentButton'
 import { profileLabel } from '@/lib/profileDisplay'
 import { useLevelsFor } from '@/hooks/useLevelsFor'
 import LevelBadge from '@/components/Graduation/LevelBadge'
@@ -997,8 +998,6 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
 
     // ========== DELETAR COMENTÁRIO ==========
     const handleDeleteComment = async (commentId: string, type: 'profile' | 'publication', publicationId?: string) => {
-        if (!confirm('Tem certeza que deseja excluir este comentário?')) return
-
         try {
             const { error } = await supabase
                 .from('comments')
@@ -1201,12 +1200,7 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                                     </span>
                                 </div>
                                 {currentUserId === comment.profile_id && (
-                                    <button
-                                        onClick={() => handleDeleteComment(comment.id, type, publicationId)}
-                                        className="p-1 rounded hover:bg-red-500/10 transition"
-                                    >
-                                        <Trash2 size={12} style={{ color: '#ef4444' }} />
-                                    </button>
+                                    <DeleteCommentButton colors={colors} onConfirm={() => handleDeleteComment(comment.id, type, publicationId)} />
                                 )}
                             </div>
 
