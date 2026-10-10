@@ -17,6 +17,7 @@ import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import PlanAvatarRing, { PlanRingInset } from '@/components/PlanAvatarRing'
 import { Spinner } from '@/components/Spinner'
 import { getAvatarUrl } from '@/lib/avatar'
+import { notifyChatMessage } from '@/lib/notifyRideStatus'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -140,6 +141,7 @@ function Thread({ conversation, userId, onBack, onRead, colors }: {
         setText('')
         setMessages((prev) => (prev.some((x) => x.id === data.id) ? prev : [...prev, data as Message]))
         onReadRef.current()
+        notifyChatMessage(convId)
     }
 
     const avatar = otherAvatarUrl(conversation)

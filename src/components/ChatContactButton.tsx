@@ -8,6 +8,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { MessageCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase/client'
+import { notifyChatMessage } from '@/lib/notifyRideStatus'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { Spinner } from '@/components/Spinner'
 
@@ -42,6 +43,8 @@ export default function ChatContactButton({ profileId, storeId, colors, backgrou
             : await supabase.rpc('start_conversation', { p_owner_profile: profileId ?? null, p_store: storeId ?? null })
         setLoading(false)
         if (error || !data) { toast.error(error?.message || 'Não foi possível abrir a conversa'); return }
+        // Veio de um serviço: a mensagem com a postagem já foi criada — avisa quem recebe no aparelho
+        if (productId) notifyChatMessage(data as string)
         router.push(`/conversas?c=${data}`)
     }
 

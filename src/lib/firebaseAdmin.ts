@@ -21,7 +21,7 @@ export function isFirebasePushConfigured() {
 
 export async function sendFcmToTokens(
     tokens: string[],
-    notification: { title: string; body: string; url?: string; tag?: string; urgent?: boolean }
+    notification: { title: string; body: string; url?: string; tag?: string; urgent?: boolean; icon?: string }
 ): Promise<{ successCount: number; invalidTokens: string[] }> {
     const app = getFirebaseApp()
     if (!app || tokens.length === 0) return { successCount: 0, invalidTokens: [] }
@@ -32,6 +32,7 @@ export async function sendFcmToTokens(
         notification: {
             title: notification.title,
             body: notification.body,
+            ...(notification.icon ? { imageUrl: notification.icon } : {}),
         },
         data: {
             url: notification.url || '/',

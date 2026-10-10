@@ -37,7 +37,8 @@ function showPushNotification(data) {
   const alert = data.rideAlert
   const options = {
     body: alert ? data.body + '\nToque para ver no mapa' : data.body,
-    icon: '/android-chrome-192x192.png',
+    // Mensagem de chat: a foto de quem mandou aparece no cartão da notificação
+    icon: data.icon || '/android-chrome-192x192.png',
     badge: '/favicon-128x128.png',
     tag: data.tag || `iuser-${Date.now()}`,
     // Som e vibração do sistema: renotify faz tocar de novo mesmo com a mesma tag;
@@ -58,6 +59,22 @@ self.addEventListener('push', (event) => {
     if (event.data) data = { ...data, ...event.data.json() }
   } catch (e) {
     if (event.data) data.body = event.data.text()
+  }
+  // Mensagem de chat com a pessoa olhando justamente essa conversa agora: não precisa avisar (ela já vê na tela)
+  if (data.chat && data.url) {
+    event.waitUntil(
+      self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+        const target = new URL(data.url, self.location.origin)
+        const watching = clientList.some((c) => {
+          try {
+            const u = new URL(c.url)
+            return c.visibilityState === 'visible' && u.pathname === target.pathname && u.searchParams.get('c') === target.searchParams.get('c')
+          } catch (e) { return false }
+        })
+        return watching ? undefined : showPushNotification(data)
+      })
+    )
+    return
   }
   event.waitUntil(showPushNotification(data))
 })

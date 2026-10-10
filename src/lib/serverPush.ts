@@ -20,6 +20,10 @@ export interface PushPayload {
     body: string
     url?: string
     tag?: string
+    /** Imagem do ícone da notificação (ex: foto de quem mandou a mensagem) */
+    icon?: string
+    /** Mensagem de chat: o service worker não mostra se a pessoa já está olhando essa conversa */
+    chat?: boolean
     /** Aviso que não pode passar batido (corrida nova, motorista chegando): fica na tela e vibra mais. */
     urgent?: boolean
     /** Corrida nova: o service worker monta os botões de valor (Tarifa iUser / Minha tarifa / editar) na notificação. */
@@ -59,6 +63,8 @@ async function sendWebPush(userId: string, payload: PushPayload): Promise<number
         body: payload.body,
         url: payload.url || '/',
         tag: payload.tag,
+        icon: payload.icon,
+        chat: !!payload.chat,
         urgent: !!payload.urgent,
         rideAlert: payload.rideAlert,
     })

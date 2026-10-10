@@ -30,6 +30,18 @@ export function notifyNewRide(rideRequestId: string) {
     })
 }
 
+// Best-effort: avisa no aparelho de quem recebe que chegou mensagem no chat (foto de quem mandou; toque abre a conversa).
+export function notifyChatMessage(conversationId: string) {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+        if (!session) return
+        fetch('/api/push/send-chat-message', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+            body: JSON.stringify({ conversationId }),
+        }).catch(() => { /* silencioso */ })
+    })
+}
+
 // Best-effort: avisa o perfil/loja que alguém começou a seguir.
 export function notifyNewFollower(followingId: string) {
     supabase.auth.getSession().then(({ data: { session } }) => {
