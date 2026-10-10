@@ -24,8 +24,10 @@ import {
     UserCheck,
     LogIn,
     MessageCircle,
+    Lock,
 } from 'lucide-react'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
+import CommunityPhotoCampaign from '@/components/communities/CommunityPhotoCampaign'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -36,6 +38,9 @@ interface Community {
     city: string
     description: string | null
     creator_id: string
+    image_url: string | null
+    kind: 'place' | 'custom'
+    requires_password: boolean
 }
 
 interface CommunityMessage {
@@ -68,6 +73,10 @@ export default function CommunityRoomClient() {
     const [messages, setMessages] = useState<CommunityMessage[]>([])
     const [messageInput, setMessageInput] = useState('')
     const [sending, setSending] = useState(false)
+    // Foto da comunidade: tocar nela abre a campanha de troca (votação) no lugar do texto do cartão
+    const [showCampaign, setShowCampaign] = useState(false)
+    const [password, setPassword] = useState('')
+    const photoInputRef = useRef<HTMLInputElement>(null)
 
     const loadRoom = useCallback(async () => {
         if (!communitySlug) return
@@ -76,7 +85,7 @@ export default function CommunityRoomClient() {
         try {
             const { data: communityData, error: communityErr } = await supabase
                 .from('communities')
-                .select('id, slug, name, city, description, creator_id')
+                .select('id, slug, name, city, description, creator_id, image_url, kind, requires_password')
                 .eq('slug', communitySlug)
                 .maybeSingle()
 
@@ -141,12 +150,11 @@ export default function CommunityRoomClient() {
 
         setJoining(true)
         try {
-            const { error } = await supabase
-                .from('community_members')
-                .insert({ community_id: community.id, profile_id: currentUserId })
+            const { error } = await supabase.rpc('join_community', { p_community: community.id, p_password: community.requires_password ? password : null })
 
             if (error) throw error
 
+            setPassword('')
             setIsMember(true)
             setMemberCount((prev) => prev + 1)
             toast.success(`Você entrou em ${community.name}!`)
@@ -154,6 +162,28 @@ export default function CommunityRoomClient() {
             toast.error('Erro ao entrar na comunidade: ' + (err.message || 'tente novamente'))
         } finally {
             setJoining(false)
+        }
+    }
+
+    // Comunidade criada por alguém: o criador troca a foto direto (as de lugar mudam pela votação)
+    const changeOwnPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        e.target.value = ''
+        if (!file || !community || !currentUserId) return
+        if (!file.type.startsWith('image/')) { toast.error('Escolha uma imagem'); return }
+        if (file.size > 6 * 1024 * 1024) { toast.error('A imagem pode ter até 6 MB'); return }
+        try {
+            const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg'
+            const path = `${currentUserId}/${community.id}-${Date.now()}.${ext}`
+            const { error: upErr } = await supabase.storage.from('community-photos').upload(path, file, { contentType: file.type })
+            if (upErr) throw upErr
+            const url = supabase.storage.from('community-photos').getPublicUrl(path).data.publicUrl
+            const { error } = await supabase.rpc('set_community_image', { p_community: community.id, p_image_url: url })
+            if (error) throw error
+            setCommunity({ ...community, image_url: url })
+            toast.success('Foto da comunidade atualizada')
+        } catch (err: any) {
+            toast.error(err.message || 'Não foi possível trocar a foto')
         }
     }
 
@@ -256,39 +286,116 @@ export default function CommunityRoomClient() {
                         className="rounded-2xl p-4 border flex items-center gap-3"
                         style={{ background: colors.surface, borderColor: colors.border, boxShadow: colors.shadow }}
                     >
-                        <div className="flex-1 min-w-0">
-                            <p className="text-xs flex items-center gap-1" style={{ color: colors.accent }}>
-                                <MapPin size={12} /> {community.city}
-                            </p>
-                            {community.description && (
-                                <p className="text-xs mt-1 line-clamp-2" style={{ color: colors.textSecondary }}>
-                                    {community.description}
-                                </p>
-                            )}
-                            <p className="text-[10px] font-bold flex items-center gap-1 mt-1" style={{ color: colors.textSecondary }}>
-                                <Users size={12} /> {memberCount} membro{memberCount !== 1 ? 's' : ''}
-                            </p>
-                        </div>
-                        <button
-                            onClick={handleJoin}
-                            disabled={joining || isMember}
-                            className="flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold flex-shrink-0 transition-all hover:scale-105 disabled:hover:scale-100"
-                            style={
-                                isMember
-                                    ? { background: `${colors.accent}20`, color: colors.accent }
-                                    : { background: GRADIENT, color: '#fff' }
+                        {/* Foto da comunidade, do lado esquerdo. Tocar nela abre a campanha de troca (nada muda na hora) */}
+                        {(() => {
+                            const canChange = community.kind === 'place' || community.creator_id === currentUserId
+                            const thumb = (
+                                <span className="relative block w-16 h-16 rounded-2xl overflow-hidden flex-shrink-0" style={{ background: GRADIENT }}>
+                                    {community.image_url ? (
+                                        <img src={community.image_url} alt={community.name} className="w-full h-full object-cover" />
+                                    ) : (
+                                        <span className="w-full h-full flex items-center justify-center text-white"><MapPin size={26} /></span>
+                                    )}
+                                </span>
+                            )
+                            if (!canChange) return thumb
+                            if (community.kind === 'custom') {
+                                return (
+                                    <>
+                                        <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={changeOwnPhoto} />
+                                        <button onClick={() => photoInputRef.current?.click()} aria-label="Trocar a foto da comunidade" title="Trocar a foto" className="flex-shrink-0 transition hover:scale-105">
+                                            {thumb}
+                                        </button>
+                                    </>
+                                )
                             }
-                        >
-                            {joining ? (
-                                <Spinner size={14} />
-                            ) : isMember ? (
-                                <UserCheck size={14} />
-                            ) : (
-                                <UserPlus size={14} />
-                            )}
-                            {isMember ? 'Você é membro' : 'Entrar'}
-                        </button>
+                            return (
+                                <button onClick={() => setShowCampaign((v) => !v)} aria-label="Trocar a foto da comunidade" title="Trocar a foto" className="flex-shrink-0 transition hover:scale-105">
+                                    {thumb}
+                                </button>
+                            )
+                        })()}
+
+                        {showCampaign && community.kind === 'place' ? (
+                            <CommunityPhotoCampaign
+                                communityId={community.id}
+                                userId={currentUserId}
+                                onClose={async () => {
+                                    setShowCampaign(false)
+                                    // A foto pode ter mudado à meia-noite: atualiza só ela
+                                    const { data } = await supabase.from('communities').select('image_url').eq('id', community.id).maybeSingle()
+                                    if (data) setCommunity((prev) => (prev ? { ...prev, image_url: data.image_url } : prev))
+                                }}
+                                onLoginNeeded={() => router.push('/login?redirect=' + encodeURIComponent(`/comunidade/${community.slug}`))}
+                            />
+                        ) : (
+                            <>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-xs flex items-center gap-1" style={{ color: colors.accent }}>
+                                        <MapPin size={12} /> {community.city}
+                                        {community.requires_password && <Lock size={11} className="ml-1" />}
+                                    </p>
+                                    {community.description && (
+                                        <p className="text-xs mt-1 line-clamp-2" style={{ color: colors.textSecondary }}>
+                                            {community.description}
+                                        </p>
+                                    )}
+                                    <p className="text-[10px] font-bold flex items-center gap-1 mt-1" style={{ color: colors.textSecondary }}>
+                                        <Users size={12} /> {memberCount} membro{memberCount !== 1 ? 's' : ''}
+                                    </p>
+                                </div>
+                                {!(community.requires_password && !isMember) && (
+                                    <button
+                                        onClick={handleJoin}
+                                        disabled={joining || isMember}
+                                        className="flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold flex-shrink-0 transition-all hover:scale-105 disabled:hover:scale-100"
+                                        style={
+                                            isMember
+                                                ? { background: `${colors.accent}20`, color: colors.accent }
+                                                : { background: GRADIENT, color: '#fff' }
+                                        }
+                                    >
+                                        {joining ? (
+                                            <Spinner size={14} />
+                                        ) : isMember ? (
+                                            <UserCheck size={14} />
+                                        ) : (
+                                            <UserPlus size={14} />
+                                        )}
+                                        {isMember ? 'Você é membro' : 'Entrar'}
+                                    </button>
+                                )}
+                            </>
+                        )}
                     </div>
+
+                    {/* Comunidade com senha: só entra quem sabe a senha (e só membro lê as mensagens) */}
+                    {community.requires_password && !isMember && (
+                        <div className="mt-3 rounded-2xl p-4 border flex flex-col gap-2" style={{ background: colors.surface, borderColor: colors.border }}>
+                            <p className="text-sm font-black flex items-center gap-1.5" style={{ color: colors.textPrimary }}>
+                                <Lock size={14} /> Esta comunidade tem senha
+                            </p>
+                            <div className="flex gap-2">
+                                <input
+                                    type="password"
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    onKeyDown={(e) => { if (e.key === 'Enter') handleJoin() }}
+                                    placeholder="Senha da comunidade"
+                                    className="flex-1 min-w-0 px-4 py-2.5 rounded-xl text-sm focus:outline-none"
+                                    style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                                />
+                                <button
+                                    onClick={handleJoin}
+                                    disabled={joining || !password}
+                                    className="px-4 py-2.5 rounded-xl text-sm font-black text-white disabled:opacity-60"
+                                    style={{ background: GRADIENT }}
+                                >
+                                    {joining ? <Spinner size={14} /> : 'Entrar'}
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* Mensagens */}

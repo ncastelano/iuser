@@ -22,6 +22,7 @@ import {
     ChevronRight,
     Plus,
     Compass,
+    Lock,
 } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 
@@ -36,6 +37,8 @@ interface CommunityCard {
     city: string
     scope: 'city' | 'state' | 'country'
     description: string | null
+    image_url: string | null
+    requires_password: boolean
     memberCount: number
     recent: CommunityMessagePreview[]
 }
@@ -175,14 +178,22 @@ export default function ComunidadePage() {
         try {
             const { data, error } = await supabase
                 .from('communities')
-                .select('id, slug, name, city, description, scope')
+                .select('id, slug, name, city, description, scope, image_url, is_listed, requires_password, creator_id')
                 .order('created_at', { ascending: false })
 
             if (error) throw error
 
+            // Comunidade fora da lista (só por link): aparece só pra quem criou ou já é membro
+            let mine = new Set<string>()
+            if (userId) {
+                const { data: mem } = await supabase.from('community_members').select('community_id').eq('profile_id', userId)
+                mine = new Set((mem || []).map((m: any) => m.community_id))
+            }
+            const visible = (data || []).filter((c: any) => c.is_listed !== false || c.creator_id === userId || mine.has(c.id))
+
             // Contagem de membros e as últimas 10 mensagens de cada comunidade
             const base = await Promise.all(
-                (data || []).map(async (c) => {
+                visible.map(async (c: any) => {
                     const [{ count }, { data: msgs }] = await Promise.all([
                         supabase.from('community_members').select('*', { count: 'exact', head: true }).eq('community_id', c.id),
                         supabase.from('community_messages').select('id, profile_id, content, created_at').eq('community_id', c.id).order('created_at', { ascending: false }).limit(10),
@@ -219,7 +230,7 @@ export default function ComunidadePage() {
         } finally {
             setLoadingData(false)
         }
-    }, [])
+    }, [userId])
 
     useEffect(() => {
         loadCommunities()
@@ -243,7 +254,10 @@ export default function ComunidadePage() {
             const slug = await generateUniqueCommunitySlug(name)
             const { data: created, error: createError } = await supabase
                 .from('communities')
-                .insert({ slug, name, city: name, description, creator_id: userId, scope })
+                .insert({
+                    slug, name, city: name, description, creator_id: userId, scope, kind: 'place',
+                    tz: /porto velho|rond[ôo]nia/i.test(name) ? 'America/Porto_Velho' : 'America/Sao_Paulo',
+                })
                 .select('id')
                 .single()
             if (createError) {
@@ -424,14 +438,17 @@ export default function ComunidadePage() {
                                     >
                                         <div className="flex gap-4 items-center">
                                             <div
-                                                className="w-16 h-16 rounded-full flex items-center justify-center flex-shrink-0"
+                                                className="w-16 h-16 rounded-2xl overflow-hidden flex items-center justify-center flex-shrink-0"
                                                 style={{ background: GRADIENT, color: '#fff' }}
                                             >
-                                                <MessageCircle size={26} />
+                                                {community.image_url
+                                                    ? <img src={community.image_url} alt="" className="w-full h-full object-cover" loading="lazy" />
+                                                    : <MessageCircle size={26} />}
                                             </div>
                                             <div className="flex-1 min-w-0">
-                                                <h3 className="text-lg font-black truncate" style={{ color: colors.textPrimary }}>
-                                                    {community.name}
+                                                <h3 className="text-lg font-black truncate flex items-center gap-1.5" style={{ color: colors.textPrimary }}>
+                                                    <span className="truncate">{community.name}</span>
+                                                    {community.requires_password && <Lock size={14} className="flex-shrink-0" style={{ color: colors.textSecondary }} />}
                                                 </h3>
                                                 <p className="text-xs flex items-center gap-1 mt-0.5" style={{ color: colors.accent }}>
                                                     <MapPin size={12} /> {community.scope === 'country' ? 'Todo o país' : community.scope === 'state' ? 'Estado' : community.city}
@@ -502,7 +519,7 @@ export default function ComunidadePage() {
                 {showCreateModal && userId && (
                     <CreateCommunityModal
                         userId={userId}
-                        defaultCity={userCity}
+                        place={{ city: userCity, state: userState }}
                         onClose={() => setShowCreateModal(false)}
                         onCreated={(slug) => {
                             setShowCreateModal(false)

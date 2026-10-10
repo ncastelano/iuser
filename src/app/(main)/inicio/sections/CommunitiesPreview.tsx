@@ -53,7 +53,7 @@ export default function CommunitiesPreview({ origin, dragHandle }: { origin: { l
     useEffect(() => {
         let cancelled = false
         const load = async () => {
-            const { data: comms } = await supabase.from('communities').select('id, slug, name, city, scope')
+            const { data: comms } = await supabase.from('communities').select('id, slug, name, city, scope').eq('is_listed', true).eq('requires_password', false)
             if (!comms?.length) { if (!cancelled) setItems([]); return }
             const ids = comms.map((c) => c.id)
             const [{ data: members }, { data: msgs }] = await Promise.all([
