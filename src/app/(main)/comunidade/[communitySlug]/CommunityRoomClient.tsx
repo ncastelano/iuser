@@ -1,7 +1,8 @@
 // app/(main)/comunidade/[communitySlug]/CommunityRoomClient.tsx
 'use client'
 
-import DeleteCommentButton from '@/components/DeleteCommentButton'
+import LinkPreviewCard from '@/components/communities/LinkPreviewCard'
+import { extractFirstUrl, linkify } from '@/lib/linkify'
 import { profileLabel } from '@/lib/profileDisplay'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useState, useCallback, useRef } from 'react'
@@ -25,6 +26,10 @@ import {
     LogIn,
     MessageCircle,
     Lock,
+    MoreHorizontal,
+    Pencil,
+    Trash2,
+    X,
 } from 'lucide-react'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
 import CommunityPhotoCampaign from '@/components/communities/CommunityPhotoCampaign'
@@ -48,6 +53,7 @@ interface CommunityMessage {
     id: string
     content: string
     created_at: string
+    edited_at?: string | null
     profile_id: string
     profiles?: {
         name: string | null
@@ -79,6 +85,12 @@ export default function CommunityRoomClient() {
     const [password, setPassword] = useState('')
     const photoInputRef = useRef<HTMLInputElement>(null)
     const [activity, setActivity] = useState<CommunityActivity | null>(null)
+    // Menu "mais" da minha mensagem: editar ou excluir
+    const [menuId, setMenuId] = useState<string | null>(null)
+    const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+    const [editingId, setEditingId] = useState<string | null>(null)
+    const [editText, setEditText] = useState('')
+    const [savingEdit, setSavingEdit] = useState(false)
 
     const loadRoom = useCallback(async () => {
         if (!communitySlug) return
@@ -115,7 +127,7 @@ export default function CommunityRoomClient() {
 
             const { data: messagesData, error: messagesErr } = await supabase
                 .from('community_messages')
-                .select('id, content, created_at, profile_id, profiles(name, avatar_url, "profileSlug")')
+                .select('id, content, created_at, edited_at, profile_id, profiles(name, avatar_url, "profileSlug")')
                 .eq('community_id', communityData.id)
                 .order('created_at', { ascending: true })
 
@@ -197,6 +209,25 @@ export default function CommunityRoomClient() {
         }
     }
 
+    // Editar a própria mensagem (o banco só deixa editar o texto das suas)
+    const saveEdit = async () => {
+        const id = editingId
+        const text = editText.trim()
+        if (!id || !text) return
+        setSavingEdit(true)
+        const { data, error } = await supabase
+            .from('community_messages')
+            .update({ content: text })
+            .eq('id', id)
+            .select('content, edited_at')
+            .single()
+        setSavingEdit(false)
+        if (error) { toast.error('Não foi possível editar: ' + error.message); return }
+        setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, content: data.content, edited_at: data.edited_at } : m)))
+        setEditingId(null)
+        toast.success('Mensagem editada')
+    }
+
     // Apagar a própria mensagem (o banco só deixa apagar as suas)
     const deleteMessage = async (messageId: string) => {
         const { error } = await supabase.from('community_messages').delete().eq('id', messageId)
@@ -225,7 +256,7 @@ export default function CommunityRoomClient() {
                     profile_id: currentUserId,
                     content: messageInput.trim(),
                 })
-                .select('id, content, created_at, profile_id, profiles(name, avatar_url, "profileSlug")')
+                .select('id, content, created_at, edited_at, profile_id, profiles(name, avatar_url, "profileSlug")')
                 .single()
 
             if (error) throw error
@@ -464,18 +495,116 @@ export default function CommunityRoomClient() {
                                             <span className="text-[10px]" style={{ color: colors.textSecondary }}>
                                                 {formatDistanceToNow(new Date(message.created_at), { addSuffix: true, locale: ptBR })}
                                             </span>
-                                            {isMine && <DeleteCommentButton colors={colors} onConfirm={() => deleteMessage(message.id)} />}
+                                            {isMine && (
+                                                <div className="relative">
+                                                    <button
+                                                        onClick={() => { setMenuId(menuId === message.id ? null : message.id); setConfirmDeleteId(null) }}
+                                                        aria-label="Mais opções da mensagem"
+                                                        title="Mais opções"
+                                                        className="w-7 h-7 rounded-full flex items-center justify-center transition hover:scale-110"
+                                                        style={{ background: `${colors.border}50`, color: colors.textSecondary }}
+                                                    >
+                                                        <MoreHorizontal size={15} />
+                                                    </button>
+                                                    {menuId === message.id && (
+                                                        <>
+                                                            <div className="fixed inset-0 z-30" onClick={() => { setMenuId(null); setConfirmDeleteId(null) }} />
+                                                            <div
+                                                                className="absolute z-40 top-8 right-0 min-w-[170px] rounded-xl p-1.5 shadow-xl"
+                                                                style={{ background: colors.surface, border: `1px solid ${colors.border}` }}
+                                                            >
+                                                                {confirmDeleteId === message.id ? (
+                                                                    <div className="p-1.5 flex flex-col gap-1.5">
+                                                                        <p className="text-xs font-bold" style={{ color: colors.textPrimary }}>Excluir esta mensagem?</p>
+                                                                        <div className="flex gap-1.5">
+                                                                            <button
+                                                                                onClick={() => { setMenuId(null); setConfirmDeleteId(null); deleteMessage(message.id) }}
+                                                                                className="flex-1 px-3 py-1.5 rounded-full text-xs font-black text-white"
+                                                                                style={{ background: '#ef4444' }}
+                                                                            >
+                                                                                Excluir
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={() => setConfirmDeleteId(null)}
+                                                                                className="flex-1 px-3 py-1.5 rounded-full text-xs font-bold"
+                                                                                style={{ color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                                                                            >
+                                                                                Voltar
+                                                                            </button>
+                                                                        </div>
+                                                                    </div>
+                                                                ) : (
+                                                                    <>
+                                                                        <button
+                                                                            onClick={() => { setEditingId(message.id); setEditText(message.content); setMenuId(null) }}
+                                                                            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-bold text-left hover:bg-black/5"
+                                                                            style={{ color: colors.textPrimary }}
+                                                                        >
+                                                                            <Pencil size={14} /> Editar
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={() => setConfirmDeleteId(message.id)}
+                                                                            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-bold text-left hover:bg-red-500/10"
+                                                                            style={{ color: '#ef4444' }}
+                                                                        >
+                                                                            <Trash2 size={14} /> Excluir
+                                                                        </button>
+                                                                    </>
+                                                                )}
+                                                            </div>
+                                                        </>
+                                                    )}
+                                                </div>
+                                            )}
                                         </div>
-                                        <div
-                                            className="rounded-2xl px-3 py-2 mt-1 text-sm"
-                                            style={
-                                                isMine
-                                                    ? { background: GRADIENT, color: '#fff' }
-                                                    : { background: colors.surface, color: colors.textPrimary, border: `1px solid ${colors.border}` }
-                                            }
-                                        >
-                                            {message.content}
-                                        </div>
+                                        {editingId === message.id ? (
+                                            <div className="mt-1 w-full min-w-[220px] rounded-2xl p-2 flex flex-col gap-2" style={{ background: colors.surface, border: `1px solid ${colors.accent}` }}>
+                                                <textarea
+                                                    value={editText}
+                                                    onChange={(e) => setEditText(e.target.value)}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveEdit() }
+                                                        if (e.key === 'Escape') setEditingId(null)
+                                                    }}
+                                                    rows={2}
+                                                    maxLength={1000}
+                                                    autoFocus
+                                                    disabled={savingEdit}
+                                                    className="w-full resize-none rounded-xl px-3 py-2 text-sm focus:outline-none"
+                                                    style={{ background: `${colors.border}25`, color: colors.textPrimary }}
+                                                />
+                                                <div className="flex justify-end gap-2">
+                                                    <button onClick={() => setEditingId(null)} disabled={savingEdit} className="px-3 py-1.5 rounded-full text-xs font-bold" style={{ color: colors.textSecondary, border: `1px solid ${colors.border}` }}>
+                                                        Cancelar
+                                                    </button>
+                                                    <button onClick={saveEdit} disabled={savingEdit || !editText.trim()} className="px-3 py-1.5 rounded-full text-xs font-black text-white disabled:opacity-60" style={{ background: GRADIENT }}>
+                                                        {savingEdit ? '...' : 'Salvar'}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className={`flex flex-col gap-1.5 mt-1 ${isMine ? 'items-end' : 'items-start'}`}>
+                                                <div
+                                                    className="rounded-2xl px-3 py-2 text-sm break-words whitespace-pre-wrap max-w-full"
+                                                    style={
+                                                        isMine
+                                                            ? { background: GRADIENT, color: '#fff' }
+                                                            : { background: colors.surface, color: colors.textPrimary, border: `1px solid ${colors.border}` }
+                                                    }
+                                                >
+                                                    {linkify(message.content, { color: isMine ? '#fff' : colors.accent })}
+                                                    {message.edited_at && (
+                                                        <span className="ml-1.5 text-[10px] opacity-70">(editada)</span>
+                                                    )}
+                                                </div>
+                                                {(() => {
+                                                    const url = extractFirstUrl(message.content)
+                                                    return url ? (
+                                                        <div className="w-full max-w-[320px]"><LinkPreviewCard url={url} /></div>
+                                                    ) : null
+                                                })()}
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             )
@@ -511,6 +640,11 @@ export default function CommunityRoomClient() {
                             Entre na comunidade pra poder mandar mensagem
                         </div>
                     ) : (
+                        <div className="flex flex-col gap-2">
+                            {/* Colou um link: o cartão aparece antes de enviar, como no WhatsApp */}
+                            {extractFirstUrl(messageInput) && (
+                                <div className="max-w-[360px]"><LinkPreviewCard url={extractFirstUrl(messageInput)!} compact /></div>
+                            )}
                         <div className="flex gap-2">
                             <input
                                 type="text"
@@ -535,6 +669,7 @@ export default function CommunityRoomClient() {
                             >
                                 {sending ? <Spinner size={18} /> : <Send size={18} />}
                             </button>
+                        </div>
                         </div>
                     )}
                 </div>
