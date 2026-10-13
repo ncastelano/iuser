@@ -561,7 +561,7 @@ export default function ModeloInicialPage() {
                             <h2 className="text-xl font-black" style={{ color: colors.textPrimary }}>O que você quer fazer?</h2>
                             <p className="text-xs mt-0.5 mb-4" style={{ color: colors.textSecondary }}>Escolha um caminho. É só tocar.</p>
 
-                            <h3 className="text-sm font-black mb-2" style={{ color: colors.textPrimary }}>Preciso de…</h3>
+                            <h3 className="text-sm font-black mb-2" style={{ color: colors.textPrimary }}>Preciso …</h3>
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                                 {needs.map((a) => {
                                     const Icon = a.icon
