@@ -427,14 +427,16 @@ export default function ModeloInicialPage() {
                 .select('id, name, "storeSlug", logo_url, category, ratings_avg, business_hours, created_at')
                 .eq('is_active', true)
                 .order('created_at', { ascending: false })
-                .limit(10)
-            return (data || []).map((s: any) => ({
+                .limit(40)
+            // As abertas agora vão sempre na frente; dentro de cada grupo, das mais novas para as mais antigas
+            const all = (data || []).map((s: any) => ({
                 id: s.id, name: s.name, slug: s.storeSlug,
                 logo: toPublicImage('store-logos', s.logo_url),
                 category: s.category || null,
                 rating: s.ratings_avg ? Number(s.ratings_avg) : null,
                 open: isStoreOpenNow(s.business_hours as BusinessHours | null),
             })) as StoreItem[]
+            return [...all.filter((x) => x.open), ...all.filter((x) => !x.open)].slice(0, 10)
         }, setStores, [])
 
         // Do mais novo para o mais velho: loadProductCards (compartilhada com a home) ordena por visitas, então a ordem
