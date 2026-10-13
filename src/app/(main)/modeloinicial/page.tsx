@@ -33,6 +33,63 @@ import { useCartStore } from '@/store/useCartStore'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
+// Card de chamada final: quem tem loja, vende produto ou oferece serviço. Fundo preto, texto branco, detalhes em laranja e
+// o gradiente laranja→vermelho do iUser. Só elementos nativos (nada de imagem): três opções clicáveis.
+function SellCta({ onStore, onService, onProduct }: { onStore: () => void; onService: () => void; onProduct: () => void }) {
+    const options: { key: string; title: string; desc: string; icon: LucideIcon; onClick: () => void }[] = [
+        { key: 'loja', title: 'Criar minha loja', desc: 'Venda seus produtos e receba pedidos.', icon: StoreIcon, onClick: onStore },
+        { key: 'servico', title: 'Oferecer serviço', desc: 'Divulgue seu trabalho e encontre novos clientes.', icon: Wrench, onClick: onService },
+        { key: 'produto', title: 'Vender produto', desc: 'Anuncie seus produtos e alcance mais pessoas.', icon: Package, onClick: onProduct },
+    ]
+    return (
+        <section
+            aria-labelledby="sell-cta-title"
+            className="mt-10 relative overflow-hidden rounded-3xl p-5 sm:p-7 text-white"
+            style={{
+                background: 'radial-gradient(120% 90% at 100% 0%, rgba(249,115,22,0.22) 0%, rgba(10,10,10,0) 55%), #0a0a0a',
+                border: '1px solid rgba(249,115,22,0.35)',
+                boxShadow: '0 18px 40px rgba(249,115,22,0.18)',
+            }}
+        >
+            {/* filete em gradiente no topo do card */}
+            <span aria-hidden className="absolute inset-x-0 top-0 h-1" style={{ background: GRADIENT }} />
+
+            <h2 id="sell-cta-title" className="text-xl sm:text-2xl font-black leading-tight max-w-2xl">
+                Tem uma loja, vende produtos ou oferece serviços?
+            </h2>
+            <p className="text-sm sm:text-base mt-2 max-w-2xl" style={{ color: 'rgba(255,255,255,0.72)' }}>
+                Cadastre-se grátis no iUser e conecte-se com pessoas que estão perto de você.
+            </p>
+
+            <div className="mt-5 grid grid-cols-1 md:grid-cols-3 gap-3">
+                {options.map((o) => {
+                    const Icon = o.icon
+                    return (
+                        <button
+                            key={o.key}
+                            type="button"
+                            onClick={o.onClick}
+                            className="group text-left rounded-2xl p-4 flex items-center gap-3.5 transition-all duration-200 hover:-translate-y-0.5 active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316] focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                            style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)' }}
+                            onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'rgba(249,115,22,0.7)'; e.currentTarget.style.background = 'rgba(249,115,22,0.10)' }}
+                            onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)'; e.currentTarget.style.background = 'rgba(255,255,255,0.05)' }}
+                        >
+                            <span className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(249,115,22,0.16)', color: '#f97316' }}>
+                                <Icon size={24} aria-hidden />
+                            </span>
+                            <span className="min-w-0 flex-1">
+                                <span className="block text-[15px] font-black leading-tight text-white">{o.title}</span>
+                                <span className="block text-xs mt-1 leading-snug" style={{ color: 'rgba(255,255,255,0.65)' }}>{o.desc}</span>
+                            </span>
+                            <ChevronRight size={20} aria-hidden className="flex-shrink-0 transition-transform duration-200 group-hover:translate-x-1" style={{ color: '#f97316' }} />
+                        </button>
+                    )
+                })}
+            </div>
+        </section>
+    )
+}
+
 // Card "Social": pessoas e comunidades num lugar só. Duas metades tocáveis — as pessoas (pilha de fotos dos perfis
 // mais pontuados) e as comunidades (pilha de fotos + a que está mais movimentada) —, cada uma na cor do seu tipo.
 function SocialCard({ people, communities, colors, go }: {
@@ -124,7 +181,7 @@ function SocialCard({ people, communities, colors, go }: {
 }
 
 // "Vender": o que a pessoa quer mostrar — uma loja, um produto (precisa de uma loja) ou um serviço dela.
-function SellDialog({ open, onClose, userId, colors, go }: { open: boolean; onClose: () => void; userId: string | null; colors: any; go: (p: string) => void }) {
+function SellDialog({ open, onClose, userId, colors, go, mode = 'all' }: { open: boolean; onClose: () => void; userId: string | null; colors: any; go: (p: string) => void; mode?: 'all' | 'product' }) {
     const [myStores, setMyStores] = useState<{ id: string; name: string; storeSlug: string }[] | null>(null)
     const [pickStore, setPickStore] = useState(false)
 
@@ -137,6 +194,11 @@ function SellDialog({ open, onClose, userId, colors, go }: { open: boolean; onCl
         })
         return () => { cancelled = true }
     }, [open, userId])
+
+    // Vindo do "Vender produto": com mais de uma loja, já cai na escolha de qual loja
+    useEffect(() => {
+        if (open && mode === 'product' && myStores && myStores.length > 1) setPickStore(true)
+    }, [open, mode, myStores])
 
     if (!open) return null
     const option = (key: string, icon: ReactNode, color: string, title: string, desc: string, onClick: () => void) => (
@@ -448,6 +510,16 @@ export default function ModeloInicialPage() {
 
     const go = (path: string) => router.push(path)
     const [sellOpen, setSellOpen] = useState(false)
+    const [sellMode, setSellMode] = useState<'all' | 'product'>('all')
+    // "Vender produto": produto precisa de loja — sem conta, cadastro; sem loja, criar loja; uma loja, direto; várias, escolher
+    const sellProduct = async () => {
+        if (!userId) return go('/criar-loja-com-cadastro')
+        const { data } = await supabase.from('stores').select('storeSlug').eq('owner_id', userId)
+        if (!data || data.length === 0) return go('/criar-loja')
+        if (data.length === 1) return go(`/${data[0].storeSlug}/criar-produto`)
+        setSellMode('product')
+        setSellOpen(true)
+    }
     const [inviteOpen, setInviteOpen] = useState(false)
     const inviteUrl = typeof window !== 'undefined' && profileSlug ? `${window.location.origin}/convite?ref=${profileSlug}` : ''
 
@@ -531,7 +603,7 @@ export default function ModeloInicialPage() {
                     )}
                 </header>
 
-                <SellDialog open={sellOpen} onClose={() => setSellOpen(false)} userId={userId} colors={colors} go={go} />
+                <SellDialog open={sellOpen} onClose={() => { setSellOpen(false); setSellMode('all') }} userId={userId} colors={colors} go={go} mode={sellMode} />
                 <ShareLinkDialog
                     open={inviteOpen}
                     onClose={() => setInviteOpen(false)}
@@ -759,16 +831,11 @@ export default function ModeloInicialPage() {
                         </section>
 
                         {/* ===== 4. CONVITE FINAL ===== */}
-                        <section className="mt-10 rounded-3xl p-5 text-white flex flex-col md:flex-row md:items-center gap-4" style={{ background: GRADIENT, boxShadow: '0 12px 32px #f9731640' }}>
-                            <div className="flex-1">
-                                <h2 className="text-xl font-black leading-tight">Tem uma loja ou um serviço?</h2>
-                                <p className="text-sm opacity-90 mt-1">Cadastre grátis e seja encontrado por quem está perto de você.</p>
-                            </div>
-                            <div className="flex gap-2">
-                                <button onClick={() => go('/criar-loja')} className="flex-1 md:flex-none px-5 py-3 rounded-full text-sm font-black bg-white" style={{ color: '#dc2626' }}>Criar minha loja</button>
-                                <button onClick={() => go(profileSlug ? '/meus-servicos' : '/login')} className="flex-1 md:flex-none px-5 py-3 rounded-full text-sm font-black border-2 border-white text-white">Oferecer serviço</button>
-                            </div>
-                        </section>
+                        <SellCta
+                            onStore={() => go(userId ? '/criar-loja' : '/criar-loja-com-cadastro')}
+                            onService={() => go(profileSlug ? '/meus-servicos' : '/login')}
+                            onProduct={sellProduct}
+                        />
                     </>
                 )}
             </div>
