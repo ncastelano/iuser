@@ -803,7 +803,7 @@ export default function ModeloInicialPage() {
                                         <button
                                             key={p.id}
                                             onClick={() => go(`/${p.slug}`)}
-                                            className="snap-start flex-shrink-0 w-[132px] sm:w-[148px] rounded-3xl border p-3 flex flex-col items-center gap-2 text-center transition hover:-translate-y-0.5 hover:shadow-xl"
+                                            className="relative snap-start flex-shrink-0 w-[132px] sm:w-[148px] rounded-3xl border p-3 flex flex-col items-center gap-2 text-center transition hover:-translate-y-0.5 hover:shadow-xl"
                                             style={{ background: colors.surface, borderColor: colors.border, boxShadow: colors.shadow }}
                                         >
                                             <PlanAvatarRing userId={p.id} width={3} linkToProfile={false}>
@@ -815,11 +815,12 @@ export default function ModeloInicialPage() {
                                                     </span>
                                                 )}
                                             </PlanAvatarRing>
-                                            <span className="block w-full text-sm font-black truncate" style={{ color: colors.textPrimary }}>@{p.slug}</span>
-                                            {/* Colocação em Melhores perfis: 1º dourado, 2º prata, 3º bronze; o resto, degradê do iUser */}
-                                            <span className="px-2.5 py-0.5 rounded-full text-xs font-black" style={rankStyle(p.rank)} title={`${p.rank + 1}º lugar em Melhores perfis`}>
+                                            {/* Colocação em Melhores perfis, no canto: 1º dourado, 2º prata, 3º bronze; o resto, degradê do iUser */}
+                                            <span className="absolute left-2 top-2 px-2 py-0.5 rounded-full text-[11px] font-black" style={rankStyle(p.rank)} title={`${p.rank + 1}º lugar em Melhores perfis`}>
                                                 #{p.rank + 1}
                                             </span>
+                                            <span className="block w-full text-sm font-black truncate" style={{ color: colors.textPrimary }}>@{p.slug}</span>
+                                            <span className="text-[11px] font-bold" style={{ color: colors.textSecondary }}>⭐ {p.points} pts</span>
                                         </button>
                                     ))}
                                 </Strip>
