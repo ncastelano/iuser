@@ -351,8 +351,10 @@ function Strip({ children }: { children: ReactNode }) {
     )
 }
 
-function Tile({ type, onClick, image, fallback, children, colors, round = false }: {
+function Tile({ type, onClick, image, fallback, children, colors, round = false, badge }: {
     type: TypeKey; onClick: () => void; image?: string | null; fallback: ReactNode; children: ReactNode; colors: any; round?: boolean
+    /** Troca o rótulo do tipo por outro (ex.: Aberto/Fechado nas lojas) */
+    badge?: { label: string; color: string }
 }) {
     const t = TYPE[type]
     return (
@@ -368,8 +370,8 @@ function Tile({ type, onClick, image, fallback, children, colors, round = false 
                 ) : (
                     <span className="w-full h-full flex items-center justify-center" style={{ color: t.color }}>{fallback}</span>
                 )}
-                <span className="absolute left-2 top-2 text-[10px] font-black uppercase tracking-wide px-2 py-0.5 rounded-full text-white" style={{ background: t.color }}>
-                    {t.label}
+                <span className="absolute left-2 top-2 text-[10px] font-black uppercase tracking-wide px-2 py-0.5 rounded-full text-white" style={{ background: badge?.color || t.color }}>
+                    {badge?.label || t.label}
                 </span>
             </span>
             <span className="block p-3 flex-1">{children}</span>
@@ -445,7 +447,7 @@ export default function ModeloInicialPage() {
                 .select('id, name, slug, image_url, price, owner_id, store_id, view_count')
                 .eq('listing_type', 'service_offer')
                 .eq('is_active', true)
-                .order('view_count', { ascending: false })
+                .order('created_at', { ascending: false })
                 .limit(10)
             const list = rows || []
             const ownerIds = [...new Set(list.filter((r: any) => !r.store_id && r.owner_id).map((r: any) => r.owner_id))]
@@ -714,20 +716,14 @@ export default function ModeloInicialPage() {
                             {stores === null ? <Skeleton colors={colors} /> : stores.length === 0 ? null : (
                                 <Strip>
                                     {stores.map((s) => (
-                                        <Tile key={s.id} type="loja" colors={colors} image={s.logo} round fallback={<StoreIcon size={36} />} onClick={() => go(`/${s.slug}`)}>
+                                        <Tile key={s.id} type="loja" colors={colors} image={s.logo} fallback={<StoreIcon size={36} />} badge={{ label: s.open ? 'Aberto' : 'Fechado', color: s.open ? '#16a34a' : '#dc2626' }} onClick={() => go(`/${s.slug}`)}>
                                             <span className="block text-sm font-black leading-tight truncate" style={{ color: colors.textPrimary }}>{s.name}</span>
                                             {s.category && <span className="block text-[11px] truncate mt-0.5" style={{ color: colors.textSecondary }}>{s.category}</span>}
-                                            <span className="flex items-center gap-2 mt-2 text-[11px] font-bold">
-                                                <span className="flex items-center gap-1" style={{ color: s.open ? '#16a34a' : '#dc2626' }}>
-                                                    <span className="w-1.5 h-1.5 rounded-full" style={{ background: s.open ? '#16a34a' : '#dc2626' }} />
-                                                    {s.open ? 'Aberto' : 'Fechado'}
+                                            {s.rating != null && (
+                                                <span className="flex items-center gap-0.5 mt-2 text-[11px] font-bold" style={{ color: colors.textPrimary }}>
+                                                    <Star size={11} className="text-yellow-400 fill-yellow-400" />{s.rating.toFixed(1)}
                                                 </span>
-                                                {s.rating != null && (
-                                                    <span className="flex items-center gap-0.5" style={{ color: colors.textPrimary }}>
-                                                        <Star size={11} className="text-yellow-400 fill-yellow-400" />{s.rating.toFixed(1)}
-                                                    </span>
-                                                )}
-                                            </span>
+                                            )}
                                         </Tile>
                                     ))}
                                 </Strip>
@@ -750,7 +746,7 @@ export default function ModeloInicialPage() {
                         </section>
 
                         <section className="mt-8">
-                            <SectionHeader type="servico" title="Serviços para contratar" subtitle="Profissionais e lojas prontos pra te atender" onSeeAll={() => go('/produtos')} colors={colors} />
+                            <SectionHeader type="servico" title="Serviços que você pode gostar" onSeeAll={() => go('/produtos')} colors={colors} />
                             {services === null ? <Skeleton colors={colors} /> : services.length === 0 ? null : (
                                 <Strip>
                                     {services.map((s) => (
