@@ -18,6 +18,7 @@ import PlanAvatarRing, { PlanRingInset } from '@/components/PlanAvatarRing'
 import { Spinner } from '@/components/Spinner'
 import { getAvatarUrl } from '@/lib/avatar'
 import { notifyChatMessage } from '@/lib/notifyRideStatus'
+import RequestCard, { type RequestRef } from '@/components/RequestCard'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -43,7 +44,7 @@ function otherLabel(r: { other_name: string | null; other_slug: string | null; o
 
 interface MyStore { id: string; name: string; storeSlug: string; logoUrl: string | null }
 
-interface Message { id: string; conversation_id: string; sender_id: string; content: string; created_at: string; ref_product_id?: string | null }
+interface Message { id: string; conversation_id: string; sender_id: string; content: string; created_at: string; ref_product_id?: string | null; ref_request_id?: string | null }
 
 interface ProductRef { id: string; name: string; slug: string | null; image_url: string | null; owner_slug: string | null }
 
@@ -65,6 +66,7 @@ function otherAvatarUrl(row: { other_avatar: string | null; other_is_store: bool
     return getAvatarUrl(supabase, row.other_avatar) || null
 }
 
+
 // ====================== FIO DE MENSAGENS ======================
 function Thread({ conversation, userId, onBack, onRead, colors }: {
     conversation: ConversationRow
@@ -76,6 +78,8 @@ function Thread({ conversation, userId, onBack, onRead, colors }: {
     const [messages, setMessages] = useState<Message[]>([])
     // Postagens (serviços) citadas nas mensagens: viram um cartão que abre a página do serviço
     const [refs, setRefs] = useState<Record<string, ProductRef>>({})
+    // Pedidos de serviço citados: viram um cartão próprio (outro desenho do que o da postagem)
+    const [requestRefs, setRequestRefs] = useState<Record<string, RequestRef>>({})
     const [loading, setLoading] = useState(true)
     const [text, setText] = useState('')
     const [sending, setSending] = useState(false)
@@ -94,6 +98,8 @@ function Thread({ conversation, userId, onBack, onRead, colors }: {
     const loadRefs = useCallback(async () => {
         const { data } = await supabase.rpc('get_conversation_refs', { p_conv: convId })
         setRefs(Object.fromEntries(((data as ProductRef[]) || []).map((r) => [r.id, r])))
+        const { data: reqs } = await supabase.rpc('get_conversation_request_refs', { p_conv: convId })
+        setRequestRefs(Object.fromEntries(((reqs as RequestRef[]) || []).map((r) => [r.id, r])))
     }, [convId])
 
     useEffect(() => {
@@ -101,7 +107,7 @@ function Thread({ conversation, userId, onBack, onRead, colors }: {
         setLoading(true)
         supabase
             .from('direct_messages')
-            .select('id, conversation_id, sender_id, content, created_at, ref_product_id')
+            .select('id, conversation_id, sender_id, content, created_at, ref_product_id, ref_request_id')
             .eq('conversation_id', convId)
             .order('created_at', { ascending: true })
             .limit(300)
@@ -118,7 +124,7 @@ function Thread({ conversation, userId, onBack, onRead, colors }: {
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'direct_messages', filter: `conversation_id=eq.${convId}` }, (payload) => {
                 const m = payload.new as Message
                 setMessages((prev) => (prev.some((x) => x.id === m.id) ? prev : [...prev, m]))
-                if (m.ref_product_id) loadRefs()
+                if (m.ref_product_id || m.ref_request_id) loadRefs()
                 if (m.sender_id !== userId) markRead()
             })
             .subscribe()
@@ -181,6 +187,11 @@ function Thread({ conversation, userId, onBack, onRead, colors }: {
                                 <p className="text-center text-[11px] font-bold my-2" style={{ color: colors.textSecondary }}>
                                     {new Date(m.created_at).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' })}
                                 </p>
+                            )}
+                            {m.ref_request_id && requestRefs[m.ref_request_id] && (
+                                <div className="flex flex-col mb-1.5">
+                                    <RequestCard r={requestRefs[m.ref_request_id]} mine={mine} colors={colors} />
+                                </div>
                             )}
                             <div className={`max-w-[80%] px-3.5 py-2 rounded-2xl text-sm break-words whitespace-pre-wrap ${mine ? 'self-end rounded-br-md text-white' : 'self-start rounded-bl-md'}`}
                                 style={mine ? { background: GRADIENT } : { background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}>

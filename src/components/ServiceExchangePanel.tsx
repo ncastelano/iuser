@@ -120,7 +120,7 @@ export default function ServiceExchangePanel({ applicationId, role, counterpartI
                         </a>
                     )}
                     <div className="flex-1">
-                        <ChatContactButton profileId={counterpartId} colors={colors} variant="pill" label="iUser" />
+                        <ChatContactButton profileId={counterpartId} requestApplicationId={applicationId} colors={colors} variant="pill" label="iUser" />
                     </div>
                 </div>
             )}
