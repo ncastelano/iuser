@@ -28,6 +28,40 @@ import SearchResultsSection from '../inicio/SearchResultsSection'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
+// Selo redondo do topo, no tamanho de um avatar. Visitante: só a logo do iUser. Logado: alterna a cada 5 s entre a
+// foto do perfil (com a borda do plano, se tiver) e a logo, com um fade suave. Tocar leva ao perfil (foto) ou à home (logo).
+function HeaderBadge({ userId, avatarUrl, onProfile, onHome, colors }: {
+    userId: string | null; avatarUrl: string | null | undefined; onProfile: () => void; onHome: () => void; colors: any
+}) {
+    const [showAvatar, setShowAvatar] = useState(true)
+    useEffect(() => {
+        if (!userId) return
+        const t = setInterval(() => setShowAvatar((v) => !v), 5000)
+        return () => clearInterval(t)
+    }, [userId])
+
+    const avatarOn = !!userId && showAvatar
+    const layer = (on: boolean) => ({ opacity: on ? 1 : 0, transition: 'opacity 600ms ease', pointerEvents: on ? 'auto' : 'none' } as const)
+    return (
+        <div className="relative w-12 h-12 flex-shrink-0">
+            <button onClick={onHome} aria-label="iUser" tabIndex={avatarOn ? -1 : 0} className="absolute inset-0 rounded-full flex items-center justify-center" style={layer(!avatarOn)}>
+                <img src="/logo.png" alt="iUser" className="w-full h-full object-contain" />
+            </button>
+            {userId && (
+                <button onClick={onProfile} aria-label="Meu perfil" tabIndex={avatarOn ? 0 : -1} className="absolute inset-0 rounded-full" style={layer(avatarOn)}>
+                    <PlanAvatarRing userId={userId} width={3} linkToProfile={false}>
+                        <span className="block w-12 h-12 rounded-full overflow-hidden flex items-center justify-center" style={{ background: `${colors.border}60` }}>
+                            {avatarUrl
+                                ? <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
+                                : <User size={20} style={{ color: colors.textSecondary }} />}
+                        </span>
+                    </PlanAvatarRing>
+                </button>
+            )}
+        </div>
+    )
+}
+
 // Cada tipo de coisa tem uma cor e um rótulo só seus — é o que deixa a página "legível" de relance.
 const TYPE: Record<'loja' | 'produto' | 'servico' | 'pedido' | 'pessoa' | 'comunidade', { label: string; color: string; icon: LucideIcon }> = {
     loja: { label: 'Loja', color: '#2563eb', icon: StoreIcon },
@@ -245,16 +279,18 @@ export default function ModeloInicialPage() {
             <div className="max-w-5xl mx-auto px-4 pt-4">
                 {/* ===== TOPO: quem sou eu + busca ===== */}
                 <header className="flex items-center gap-3">
-                    <span className="w-10 h-10 rounded-2xl flex items-center justify-center text-white font-black text-lg flex-shrink-0" style={{ background: GRADIENT }}>i</span>
+                    <HeaderBadge
+                        userId={userId}
+                        avatarUrl={avatarUrl}
+                        colors={colors}
+                        onProfile={() => go(profileSlug ? `/${profileSlug}` : '/')}
+                        onHome={() => go('/')}
+                    />
                     <div className="min-w-0 flex-1">
                         <p className="text-xs" style={{ color: colors.textSecondary }}>{userId ? 'Bem-vindo de volta' : 'Bem-vindo ao iUser'}</p>
                         <p className="text-base font-black truncate" style={{ color: colors.textPrimary }}>{profileSlug ? `@${profileSlug}` : 'Visitante'}</p>
                     </div>
-                    {userId ? (
-                        <button onClick={() => go(profileSlug ? `/${profileSlug}` : '/')} aria-label="Meu perfil" className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0" style={{ background: `${colors.border}60` }}>
-                            {avatarUrl ? <img src={avatarUrl} alt="" className="w-full h-full object-cover" /> : <User size={18} style={{ color: colors.textSecondary }} />}
-                        </button>
-                    ) : (
+                    {!userId && (
                         <button onClick={() => go('/login')} className="flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-black text-white flex-shrink-0" style={{ background: GRADIENT }}>
                             <LogIn size={15} /> Entrar
                         </button>
