@@ -24,7 +24,13 @@ import {
     Plus,
     Compass,
     Lock,
+    MoreHorizontal,
+    Pin,
+    PinOff,
+    Bookmark,
+    Trash2,
 } from 'lucide-react'
+import { toast } from 'sonner'
 import { Spinner } from '@/components/Spinner'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -40,6 +46,8 @@ interface CommunityCard {
     description: string | null
     image_url: string | null
     requires_password: boolean
+    /** Criei ou sou membro (continua aparecendo na minha lista) */
+    mine: boolean
     memberCount: number
     recent: CommunityMessagePreview[]
     activity: CommunityActivity | null
@@ -56,6 +64,9 @@ export default function ComunidadePage() {
     const [error, setError] = useState<string | null>(null)
     const [searchQuery, setSearchQuery] = useState('')
     const [showCreateModal, setShowCreateModal] = useState(false)
+    // Lista pessoal: comunidades achadas na busca e guardadas (pinned = no topo)
+    const [saved, setSaved] = useState<Map<string, { pinned: boolean; pinnedAt: string | null }>>(new Map())
+    const [menuFor, setMenuFor] = useState<string | null>(null)
 
     // ===== LOCALIZAÇÃO SALVA (mesmo LocationPicker do header/radar/homepage) =====
     const [savedLocation, setSavedLocation] = useState<{
@@ -210,8 +221,16 @@ export default function ComunidadePage() {
                 : { data: [] as any[] }
             const authorMap = new Map((authors || []).map((a: any) => [a.id, a]))
 
+            if (userId) {
+                const { data: sv } = await supabase.from('community_saved').select('community_id, pinned, pinned_at').eq('profile_id', userId)
+                setSaved(new Map((sv || []).map((r: any) => [r.community_id, { pinned: !!r.pinned, pinnedAt: r.pinned_at }])))
+            } else {
+                setSaved(new Map())
+            }
+
             const withCounts: CommunityCard[] = base.map(({ c, count, msgs }) => ({
                 ...c,
+                mine: !!userId && (c.creator_id === userId || mine.has(c.id)),
                 scope: (c.scope || 'city') as CommunityCard['scope'],
                 memberCount: count,
                 activity: activityById[c.id] || null,
@@ -288,9 +307,17 @@ export default function ComunidadePage() {
         return () => { cancelled = true }
     }, [userId, userCity, userState, communities, loadingData, loadCommunities])
 
-    // ===== FILTRO + ORDENAÇÃO (cidade do usuário primeiro) =====
+    // ===== FILTRO + ORDENAÇÃO =====
+    // Sem busca: só o que é da pessoa — a cidade, o estado e o país dela, o que ela criou/participa e o que guardou da
+    // busca. Com busca: tudo que bate. Quem guardou "no topo" vai à frente de tudo.
+    const same = (a: string | null, b: string) => !!a && a.toLowerCase() === b.toLowerCase()
+    const isOwnPlace = useCallback((c: CommunityCard) =>
+        (c.scope === 'city' && same(userCity, c.city)) || (c.scope === 'state' && same(userState, c.city)) || c.scope === 'country',
+    [userCity, userState])
+
     const filteredCommunities = useMemo(() => {
         const q = searchQuery.trim().toLowerCase()
+        const placeKnown = !!(userCity || userState)
         const base = q
             ? communities.filter(
                 (c) =>
@@ -298,18 +325,44 @@ export default function ComunidadePage() {
                     c.city.toLowerCase().includes(q) ||
                     c.description?.toLowerCase().includes(q)
             )
-            : communities
+            // Sem localização definida não dá pra saber "o que é dela": mostra tudo, como antes
+            : placeKnown ? communities.filter((c) => isOwnPlace(c) || c.mine || saved.has(c.id)) : communities
 
         // Cidade da pessoa, depois o estado, depois o Brasil, depois as outras
-        const same = (a: string | null, b: string) => !!a && a.toLowerCase() === b.toLowerCase()
         const rank = (c: CommunityCard) =>
             c.scope === 'city' && same(userCity, c.city) ? 0
                 : c.scope === 'state' && same(userState, c.city) ? 1
                     : c.scope === 'country' ? 2 : 3
-        // Quem teve novidade (mensagem nova ou votação de foto) vai pra frente; depois, a ordem por lugar
+        const pinnedAt = (c: CommunityCard) => {
+            const sv = saved.get(c.id)
+            return sv?.pinned ? new Date(sv.pinnedAt || 0).getTime() || 1 : 0
+        }
+        // Fixadas primeiro (a mais recente na frente); depois quem teve novidade; depois a ordem por lugar
         const act = (c: CommunityCard) => c.activity?.activityAt || 0
-        return base.map((c, i) => ({ c, i })).sort((x, y) => (act(y.c) - act(x.c)) || (rank(x.c) - rank(y.c)) || (x.i - y.i)).map((x) => x.c)
-    }, [communities, searchQuery, userCity, userState])
+        return base.map((c, i) => ({ c, i }))
+            .sort((x, y) => (pinnedAt(y.c) - pinnedAt(x.c)) || (act(y.c) - act(x.c)) || (rank(x.c) - rank(y.c)) || (x.i - y.i))
+            .map((x) => x.c)
+    }, [communities, searchQuery, userCity, userState, saved, isOwnPlace])
+
+    // ===== LISTA PESSOAL: guardar, fixar no topo, tirar =====
+    const saveCommunity = async (c: CommunityCard, pinned: boolean) => {
+        if (!userId) { router.push('/login'); return }
+        const pinnedAt = pinned ? new Date().toISOString() : null
+        const { error: err } = await supabase
+            .from('community_saved')
+            .upsert({ profile_id: userId, community_id: c.id, pinned, pinned_at: pinnedAt }, { onConflict: 'profile_id,community_id' })
+        if (err) { toast.error('Não foi possível salvar agora'); return }
+        setSaved((prev) => new Map(prev).set(c.id, { pinned, pinnedAt }))
+        toast.success(pinned ? 'Colocada no topo da sua lista' : 'Guardada na sua lista')
+    }
+
+    const removeSaved = async (c: CommunityCard) => {
+        if (!userId) return
+        const { error: err } = await supabase.from('community_saved').delete().eq('profile_id', userId).eq('community_id', c.id)
+        if (err) { toast.error('Não foi possível remover agora'); return }
+        setSaved((prev) => { const m = new Map(prev); m.delete(c.id); return m })
+        toast.success('Tirada da sua lista')
+    }
 
     // ===== ESTILOS =====
     const surfaceRgb = hexToRgb(colors.surface)
@@ -436,11 +489,72 @@ export default function ComunidadePage() {
                     {/* Lista */}
                     {!loadingData && !error && filteredCommunities.length > 0 && (
                         <div className="space-y-4">
-                            {filteredCommunities.map((community) => (
-                                <Link key={community.id} href={`/comunidade/${community.slug}`} className="block group">
+                            {filteredCommunities.map((community) => {
+                                const sv = saved.get(community.id)
+                                const canManage = !!userId && !isOwnPlace(community)
+                                return (
+                                <div key={community.id} className="relative">
+                                {/* ⋯ : cartões que não são da cidade/estado/país da pessoa (achados na busca ou guardados) */}
+                                {canManage && (
+                                    <>
+                                        <button
+                                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); setMenuFor(menuFor === community.id ? null : community.id) }}
+                                            aria-label="Opções da comunidade"
+                                            className="absolute top-2.5 right-2.5 z-20 w-8 h-8 rounded-full flex items-center justify-center transition hover:scale-110"
+                                            style={{ background: `${colors.border}55`, color: colors.textPrimary }}
+                                        >
+                                            <MoreHorizontal size={18} />
+                                        </button>
+                                        {menuFor === community.id && (
+                                            <>
+                                                <div className="fixed inset-0 z-30" onClick={() => setMenuFor(null)} />
+                                                <div
+                                                    className="absolute top-12 right-2.5 z-40 min-w-[210px] rounded-2xl p-1.5 border shadow-2xl"
+                                                    style={{ background: colors.surface, borderColor: colors.border }}
+                                                >
+                                                    {sv?.pinned ? (
+                                                        <button
+                                                            onClick={() => { setMenuFor(null); saveCommunity(community, false) }}
+                                                            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-bold text-left hover:opacity-80"
+                                                            style={{ color: colors.textPrimary }}
+                                                        >
+                                                            <PinOff size={16} /> Tirar do topo
+                                                        </button>
+                                                    ) : (
+                                                        <button
+                                                            onClick={() => { setMenuFor(null); saveCommunity(community, true) }}
+                                                            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-bold text-left hover:opacity-80"
+                                                            style={{ color: colors.textPrimary }}
+                                                        >
+                                                            <Pin size={16} /> Colocar no topo
+                                                        </button>
+                                                    )}
+                                                    {sv ? (
+                                                        <button
+                                                            onClick={() => { setMenuFor(null); removeSaved(community) }}
+                                                            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-bold text-left hover:opacity-80"
+                                                            style={{ color: '#ef4444' }}
+                                                        >
+                                                            <Trash2 size={16} /> Deletar da minha lista
+                                                        </button>
+                                                    ) : (
+                                                        <button
+                                                            onClick={() => { setMenuFor(null); saveCommunity(community, false) }}
+                                                            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-bold text-left hover:opacity-80"
+                                                            style={{ color: colors.textPrimary }}
+                                                        >
+                                                            <Bookmark size={16} /> Guardar na minha lista
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </>
+                                        )}
+                                    </>
+                                )}
+                                <Link href={`/comunidade/${community.slug}`} className="block group">
                                     <div
                                         className="rounded-2xl p-4 border transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5"
-                                        style={{ background: cardBg, backdropFilter: 'blur(12px)', borderColor: colors.border, boxShadow: colors.shadow }}
+                                        style={{ background: cardBg, backdropFilter: 'blur(12px)', borderColor: sv?.pinned ? `${colors.accent}80` : colors.border, boxShadow: colors.shadow }}
                                     >
                                         <div className="flex gap-4 items-center">
                                             <div
@@ -454,6 +568,7 @@ export default function ComunidadePage() {
                                             <div className="flex-1 min-w-0">
                                                 <h3 className="text-lg font-black truncate flex items-center gap-1.5" style={{ color: colors.textPrimary }}>
                                                     <span className="truncate">{community.name}</span>
+                                                    {sv?.pinned && <Pin size={13} className="flex-shrink-0" style={{ color: colors.accent }} />}
                                                     {community.requires_password && <Lock size={14} className="flex-shrink-0" style={{ color: colors.textSecondary }} />}
                                                 </h3>
                                                 <p className="text-xs flex items-center gap-1 mt-0.5" style={{ color: colors.accent }}>
@@ -468,7 +583,7 @@ export default function ComunidadePage() {
                                                     <Users size={12} /> {community.memberCount} membro{community.memberCount !== 1 ? 's' : ''}
                                                 </p>
                                             </div>
-                                            <ChevronRight size={18} style={{ color: colors.textSecondary }} />
+                                            {canManage ? <span className="w-8 flex-shrink-0" /> : <ChevronRight size={18} style={{ color: colors.textSecondary }} />}
                                         </div>
 
                                         {/* Evento: votação da foto da comunidade acontecendo */}
@@ -520,7 +635,9 @@ export default function ComunidadePage() {
                                         )}
                                     </div>
                                 </Link>
-                            ))}
+                                </div>
+                                )
+                            })}
                         </div>
                     )}
                 </section>
