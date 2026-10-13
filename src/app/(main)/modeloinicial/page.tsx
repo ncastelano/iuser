@@ -316,6 +316,9 @@ interface ServiceItem {
     id: string; title: string; href: string; image: string | null; provider: string; price: number | null
     /** A loja que oferece está aberta agora? (null = serviço de perfil, sem loja) */
     storeOpen: boolean | null
+    /** Serviço de perfil: quem presta está online agora? (null = de loja, ou a pessoa não mostra a presença) */
+    ownerOnline?: boolean | null
+    ownerId?: string | null
 }
 interface PersonItem { id: string; slug: string; avatar: string | null; points: number; rank: number }
 interface CommunityItem { id: string; slug: string; name: string; city: string; members: number; image: string | null; activity: CommunityActivity | null }
@@ -471,6 +474,13 @@ export default function ModeloInicialPage() {
             ])
             const profMap = new Map((profs || []).map((p: any) => [p.id, p.profileSlug]))
             const storeMap = new Map((sts || []).map((s: any) => [s.id, s]))
+            // Quem presta o serviço (perfil) está online agora? Respeita a escolha de "visto por último" de cada pessoa:
+            // quem não mostra a presença aparece como offline.
+            const online = new Map<string, boolean>()
+            if (ownerIds.length) {
+                const { data: seen } = await supabase.rpc('get_last_seen_for', { p_ids: ownerIds })
+                ;((seen as { profile_id: string; online: boolean }[]) || []).forEach((r) => online.set(r.profile_id, !!r.online))
+            }
             return list.map((r: any) => {
                 const store: any = r.store_id ? storeMap.get(r.store_id) : null
                 const slug = store ? store.storeSlug : profMap.get(r.owner_id)
@@ -482,6 +492,8 @@ export default function ModeloInicialPage() {
                     provider: store ? store.name : slug ? `@${slug}` : 'Prestador',
                     price: r.price != null ? Number(r.price) : null,
                     storeOpen: store ? isStoreOpenNow(store.business_hours as BusinessHours | null) : null,
+                    ownerId: store ? null : r.owner_id,
+                    ownerOnline: store ? null : (online.get(r.owner_id) ?? false),
                 }
             }) as ServiceItem[]
         }, setServices, [])
@@ -726,7 +738,7 @@ export default function ModeloInicialPage() {
 
                         {/* ===== 3. VITRINES — uma por tipo, cada uma com a sua cor ===== */}
                         <section className="mt-9">
-                            <SectionHeader type="loja" title="Lojas para conhecer" onSeeAll={() => go('/lojas')} colors={colors} />
+                            <SectionHeader type="loja" title="Lojas para conhecer" subtitle="Veja o nome das lojas" onSeeAll={() => go('/lojas')} colors={colors} />
                             {stores === null ? <Skeleton colors={colors} /> : stores.length === 0 ? null : (
                                 <Strip>
                                     {stores.map((s) => (
@@ -745,7 +757,7 @@ export default function ModeloInicialPage() {
                         </section>
 
                         <section className="mt-8">
-                            <SectionHeader type="produto" title="Produtos que você pode gostar" onSeeAll={() => go('/produtos')} colors={colors} />
+                            <SectionHeader type="produto" title="Produtos que você pode gostar" subtitle="Itens para você" onSeeAll={() => go('/produtos')} colors={colors} />
                             {products === null ? <Skeleton colors={colors} /> : products.length === 0 ? null : (
                                 <Strip>
                                     {products.map((p) => (
@@ -760,11 +772,11 @@ export default function ModeloInicialPage() {
                         </section>
 
                         <section className="mt-8">
-                            <SectionHeader type="servico" title="Serviços que você pode gostar" onSeeAll={() => go('/produtos')} colors={colors} />
+                            <SectionHeader type="servico" title="Serviços que você pode gostar" subtitle="Profissionais divulgando os melhores serviços" onSeeAll={() => go('/produtos')} colors={colors} />
                             {services === null ? <Skeleton colors={colors} /> : services.length === 0 ? null : (
                                 <Strip>
                                     {services.map((s) => (
-                                        <Tile key={s.id} type="servico" colors={colors} image={s.image} fallback={<Wrench size={36} />} badge={s.storeOpen == null ? undefined : { label: s.storeOpen ? 'Aberto' : 'Fechado', color: s.storeOpen ? '#16a34a' : '#dc2626' }} onClick={() => go(s.href)}>
+                                        <Tile key={s.id} type="servico" colors={colors} image={s.image} fallback={<Wrench size={36} />} badge={s.storeOpen != null ? { label: s.storeOpen ? 'Aberto' : 'Fechado', color: s.storeOpen ? '#16a34a' : '#dc2626' } : s.ownerOnline != null ? { label: s.ownerOnline ? 'Online' : 'Offline', color: s.ownerOnline ? '#16a34a' : '#6b7280' } : undefined} onClick={() => go(s.href)}>
                                             <span className="block text-sm font-black leading-snug line-clamp-2" style={{ color: colors.textPrimary }}>{s.title}</span>
                                             {money(s.price) && <span className="block text-sm font-black mt-1" style={{ color: TYPE.servico.color }}>{money(s.price)}</span>}
                                             <span className="block text-[11px] truncate mt-0.5" style={{ color: colors.textSecondary }}>{s.provider}</span>
@@ -775,7 +787,7 @@ export default function ModeloInicialPage() {
                         </section>
 
                         <section className="mt-8">
-                            <SectionHeader type="pedido" title="Quem está procurando serviço" subtitle="Pedidos abertos — você pode atender" onSeeAll={() => go('/procurar-servico')} colors={colors} />
+                            <SectionHeader type="pedido" title="Quem está procurando serviço" subtitle="Ganhe dinheiro fazendo serviços" onSeeAll={() => go('/procurar-servico')} colors={colors} />
                             {requests === null ? <Skeleton colors={colors} /> : requests.length === 0 ? null : (
                                 <Strip>
                                     {requests.map((r) => (
@@ -796,7 +808,7 @@ export default function ModeloInicialPage() {
                         </section>
 
                         <section className="mt-8">
-                            <SectionHeader type="pessoa" title="Pessoas para seguir" subtitle="Os perfis com mais pontos do iUser" onSeeAll={() => go('/social')} colors={colors} />
+                            <SectionHeader type="pessoa" title="OUTDOOR iUSER" subtitle="Os perfis com mais pontos do iUser" onSeeAll={() => go('/social')} colors={colors} />
                             {people === null ? <Skeleton colors={colors} /> : people.length === 0 ? null : (
                                 <Strip>
                                     {people.map((p) => (
@@ -828,7 +840,7 @@ export default function ModeloInicialPage() {
                         </section>
 
                         <section className="mt-8">
-                            <SectionHeader type="comunidade" title="Comunidades" subtitle="Converse com quem é da sua cidade, estado e país" onSeeAll={() => go('/comunidade')} colors={colors} />
+                            <SectionHeader type="comunidade" title="Comunidades" subtitle="Veja o que estão falando na sua região" onSeeAll={() => go('/comunidade')} colors={colors} />
                             {communities === null ? <Skeleton colors={colors} /> : communities.length === 0 ? null : (
                                 <Strip>
                                     {communities.map((c) => (
