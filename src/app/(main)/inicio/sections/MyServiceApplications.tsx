@@ -50,10 +50,12 @@ export default function MyServiceApplications({ items }: { items: MyApplication[
                     : `${items.length} ${items.length === 1 ? 'inscrição' : 'inscrições'} — a gente avisa quando responderem`}
             />
 
-            <div className="flex gap-3 overflow-x-auto pb-1">
+            {/* Padding com margem negativa: folga pro brilho da borda pulsante e a sombra não serem cortados pela rolagem */}
+            <div className="flex gap-3 overflow-x-auto px-2 -mx-2 pt-3 pb-4 -mt-3 -mb-3 snap-x">
                 {items.map((item) => {
                     const Icon = getServiceIcon(item.serviceType)
                     const who = item.requesterSlug ? `@${item.requesterSlug}` : item.requesterName?.split(' ')[0] || 'Alguém'
+                    const pulsing = item.status === 'accepted' && !item.completedAt
                     const go = () => { startNavProgress(); router.push(`/procurar-servico?pedido=${item.requestId}`) }
                     // Mesmo desenho do card de "Quem procura serviço": quem pediu e há quanto tempo,
                     // foto + o que procura + onde, descrição e, embaixo, a situação da inscrição.
@@ -61,11 +63,14 @@ export default function MyServiceApplications({ items }: { items: MyApplication[
                         <div
                             key={item.applicationId}
                             onClick={go}
-                            className="flex-shrink-0 w-64 rounded-2xl p-3.5 flex flex-col gap-2 cursor-pointer"
+                            // Escolhido e ainda por fazer: mesma borda verde pulsante do card em "Seus pedidos em aberto"
+                            className={`snap-start flex-shrink-0 w-64 rounded-2xl p-3.5 flex flex-col gap-2 cursor-pointer ${pulsing ? 'hired-pulse-border' : ''}`}
                             style={{
                                 background: colors.surface,
-                                border: `1px solid ${item.status === 'accepted' ? '#22c55e' : colors.border}`,
-                                boxShadow: colors.shadow,
+                                ...(pulsing ? {} : {
+                                    border: `1px solid ${item.status === 'accepted' ? '#22c55e' : colors.border}`,
+                                    boxShadow: colors.shadow,
+                                }),
                                 opacity: item.status === 'rejected' ? 0.7 : 1,
                             }}
                         >
