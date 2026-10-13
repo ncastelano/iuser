@@ -402,7 +402,7 @@ export default function ModeloInicialPage() {
     const topCart = cartReady ? Object.values(cartMap).reduce((a, items) => a + items.reduce((n, i) => n + i.quantity, 0), 0) : 0
 
     const [stores, setStores] = useState<StoreItem[] | null>(null)
-    const [products, setProducts] = useState<ProductCard[] | null>(null)
+    const [products, setProducts] = useState<(ProductCard & { storeOpen: boolean | null })[] | null>(null)
     const [services, setServices] = useState<ServiceItem[] | null>(null)
     const [requests, setRequests] = useState<BoardItem[] | null>(null)
     const [people, setPeople] = useState<PersonItem[] | null>(null)
@@ -437,8 +437,16 @@ export default function ModeloInicialPage() {
                 supabase.from('products').select('id').eq('listing_type', 'sale').order('created_at', { ascending: false }).limit(60),
             ])
             const byId = new Map(cards.map((c) => [c.id, c]))
-            const ordered = (newest || []).map((r: any) => byId.get(r.id)).filter(Boolean) as ProductCard[]
-            return ordered.slice(0, 10)
+            const ordered = ((newest || []).map((r: any) => byId.get(r.id)).filter(Boolean) as ProductCard[]).slice(0, 10)
+
+            // A loja que vende está aberta agora? (produto de perfil, sem loja, fica sem essa informação)
+            const slugs = [...new Set(ordered.filter((p) => !p.isProfileProduct && p.storeSlug && p.storeSlug !== '#').map((p) => p.storeSlug))]
+            const open = new Map<string, boolean>()
+            if (slugs.length) {
+                const { data: sts } = await supabase.from('stores').select('"storeSlug", business_hours').in('storeSlug', slugs)
+                ;(sts || []).forEach((st: any) => open.set(st.storeSlug, isStoreOpenNow(st.business_hours as BusinessHours | null)))
+            }
+            return ordered.map((p) => ({ ...p, storeOpen: open.has(p.storeSlug) ? open.get(p.storeSlug)! : null }))
         }, setProducts, [])
 
         safe(async () => {
@@ -735,7 +743,7 @@ export default function ModeloInicialPage() {
                             {products === null ? <Skeleton colors={colors} /> : products.length === 0 ? null : (
                                 <Strip>
                                     {products.map((p) => (
-                                        <Tile key={p.id} type="produto" colors={colors} image={p.imageUrl} fallback={<ShoppingBag size={36} />} onClick={() => go(p.storeSlug && p.storeSlug !== '#' && p.slug ? `/${p.storeSlug}/${p.slug}` : `/${p.profileSlug || p.storeSlug}/${p.slug || p.id}`)}>
+                                        <Tile key={p.id} type="produto" colors={colors} image={p.imageUrl} fallback={<ShoppingBag size={36} />} badge={p.storeOpen == null ? undefined : { label: p.storeOpen ? 'Aberto' : 'Fechado', color: p.storeOpen ? '#16a34a' : '#dc2626' }} onClick={() => go(p.storeSlug && p.storeSlug !== '#' && p.slug ? `/${p.storeSlug}/${p.slug}` : `/${p.profileSlug || p.storeSlug}/${p.slug || p.id}`)}>
                                             <span className="block text-sm font-black leading-snug line-clamp-2" style={{ color: colors.textPrimary }}>{p.name}</span>
                                             {money(p.price) && <span className="block text-sm font-black mt-1" style={{ color: TYPE.produto.color }}>{money(p.price)}</span>}
                                             <span className="block text-[11px] truncate mt-0.5" style={{ color: colors.textSecondary }}>{p.storeName}</span>
