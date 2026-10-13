@@ -2,7 +2,7 @@
 //
 // MODELO INICIAL — proposta de página inicial pensada em quem usa: o que eu posso FAZER aqui, o que existe pra eu
 // VER, e como distinguir cada coisa. Mesmos dados reais da home, outra organização:
-//   1) cumprimento + busca;  2) "O que você quer fazer?" (4 ações grandes);  3) categorias;
+//   1) cumprimento + busca;  2) "O que você quer fazer?" (Preciso de… / Quero ganhar com o iUser);  3) categorias;
 //   4) vitrines, uma por tipo, cada tipo com a SUA cor e o seu rótulo (loja, produto, serviço, pedido, pessoa, comunidade).
 // Todos os cartões têm o mesmo tamanho (nem miúdos, nem gigantes) pra a página ter ritmo.
 'use client'
@@ -11,7 +11,7 @@ import { ReactNode, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
     Search, ShoppingBag, Store as StoreIcon, Car, Wrench, Megaphone, Briefcase, Users, MessageCircle,
-    ChevronRight, Star, MapPin, Eye, User, LogIn, LogOut, type LucideIcon,
+    ChevronRight, Star, MapPin, Eye, User, LogIn, LogOut, Radar, UserPlus, X, Package, type LucideIcon,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
@@ -25,8 +25,70 @@ import { getRequestTitle } from '@/lib/serviceTypes'
 import { fetchCommunitiesActivity, type CommunityActivity } from '@/lib/communityActivity'
 import PlanAvatarRing, { usePlanRing } from '@/components/PlanAvatarRing'
 import SearchResultsSection from '../inicio/SearchResultsSection'
+import ShareLinkDialog, { copyText } from '@/components/ShareLinkDialog'
+import { toast } from 'sonner'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
+
+// "Vender": o que a pessoa quer mostrar — uma loja, um produto (precisa de uma loja) ou um serviço dela.
+function SellDialog({ open, onClose, userId, colors, go }: { open: boolean; onClose: () => void; userId: string | null; colors: any; go: (p: string) => void }) {
+    const [myStores, setMyStores] = useState<{ id: string; name: string; storeSlug: string }[] | null>(null)
+    const [pickStore, setPickStore] = useState(false)
+
+    useEffect(() => {
+        if (!open) { setPickStore(false); return }
+        if (!userId) { setMyStores([]); return }
+        let cancelled = false
+        supabase.from('stores').select('id, name, "storeSlug"').eq('owner_id', userId).then(({ data }) => {
+            if (!cancelled) setMyStores((data as any[]) || [])
+        })
+        return () => { cancelled = true }
+    }, [open, userId])
+
+    if (!open) return null
+    const option = (key: string, icon: ReactNode, color: string, title: string, desc: string, onClick: () => void) => (
+        <button key={key} onClick={onClick} className="w-full flex items-center gap-3 p-3.5 rounded-2xl text-left border transition hover:-translate-y-0.5 active:scale-[0.98]" style={{ background: colors.surface, borderColor: colors.border }}>
+            <span className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${color}1f`, color }}>{icon}</span>
+            <span className="min-w-0 flex-1">
+                <span className="block text-sm font-black" style={{ color: colors.textPrimary }}>{title}</span>
+                <span className="block text-xs leading-snug" style={{ color: colors.textSecondary }}>{desc}</span>
+            </span>
+            <ChevronRight size={16} style={{ color: colors.textSecondary }} />
+        </button>
+    )
+
+    const product = () => {
+        if (!userId) return go('/criar-loja-com-cadastro')
+        if (!myStores || myStores.length === 0) return go('/criar-loja')
+        if (myStores.length === 1) return go(`/${myStores[0].storeSlug}/criar-produto`)
+        setPickStore(true)
+    }
+
+    return (
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-3" style={{ background: 'rgba(0,0,0,0.55)' }} onClick={onClose}>
+            <div className="w-full max-w-md rounded-3xl p-5" style={{ background: colors.background }} onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-start justify-between gap-3 mb-3">
+                    <div>
+                        <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>{pickStore ? 'Em qual loja?' : 'O que você quer vender?'}</h3>
+                        <p className="text-xs" style={{ color: colors.textSecondary }}>{pickStore ? 'Escolha a loja que vai receber o produto.' : 'Escolha o que quer mostrar no iUser.'}</p>
+                    </div>
+                    <button onClick={onClose} aria-label="Fechar" className="p-1" style={{ color: colors.textSecondary }}><X size={20} /></button>
+                </div>
+                <div className="flex flex-col gap-2.5">
+                    {pickStore
+                        ? (myStores || []).map((st) => option(st.id, <StoreIcon size={20} />, TYPE.loja.color, st.name, `/${st.storeSlug}`, () => go(`/${st.storeSlug}/criar-produto`)))
+                        : (
+                            <>
+                                {option('loja', <StoreIcon size={20} />, TYPE.loja.color, 'Uma loja', 'Crie sua loja e organize tudo num só lugar', () => go(userId ? '/criar-loja' : '/criar-loja-com-cadastro'))}
+                                {option('produto', <Package size={20} />, TYPE.produto.color, 'Um produto', myStores === null || myStores.length > 0 ? 'Publique na sua loja' : 'Precisa de uma loja — a gente leva você pra criar', product)}
+                                {option('servico', <Wrench size={20} />, TYPE.servico.color, 'Um serviço', 'Divulgue o que você faz e seja encontrado', () => go(userId ? '/meus-servicos' : '/login'))}
+                            </>
+                        )}
+                </div>
+            </div>
+        </div>
+    )
+}
 
 // Selo redondo do topo, do tamanho de um avatar. Visitante: só a logo do iUser. Logado: a cada 5 s a "página vira"
 // (giro em 3D, a logo numa face e a foto do perfil na outra). Tocar leva ao perfil (foto) ou à home (logo).
@@ -286,14 +348,31 @@ export default function ModeloInicialPage() {
     }, [])
 
     const go = (path: string) => router.push(path)
+    const [sellOpen, setSellOpen] = useState(false)
+    const [inviteOpen, setInviteOpen] = useState(false)
+    const inviteUrl = typeof window !== 'undefined' && profileSlug ? `${window.location.origin}/convite?ref=${profileSlug}` : ''
 
-    const actions = useMemo(() => ([
-        { type: 'loja' as TypeKey, title: 'Comprar', desc: 'Lojas, produtos ou serviços perto de você', icon: ShoppingBag, color: TYPE.loja.color, href: '/lojas' },
-        { type: 'pedido' as TypeKey, title: 'Pedir motorista', desc: 'Corrida rápida, preço combinado', icon: Car, color: '#ea580c', href: '/pedir-motorista' },
-        { type: 'servico' as TypeKey, title: 'Contratar serviço', desc: 'Descreva o que você precisa', icon: Wrench, color: TYPE.servico.color, href: '/solicitar-servico' },
-        { type: 'comunidade' as TypeKey, title: 'Vender', desc: 'Mostre seu produto, serviço ou loja', icon: Megaphone, color: '#16a34a', href: profileSlug ? '/meus-servicos' : '/login' },
-        { type: 'pessoa' as TypeKey, title: 'Social', desc: 'Conheça pessoas e comunidades', icon: Users, color: TYPE.pessoa.color, href: '/social' },
-    ]), [profileSlug])
+    type Action = { title: string; desc: string; icon: LucideIcon; color: string; onClick: () => void }
+    // Quem PRECISA de algo (o visitante chega por aqui)
+    const needs: Action[] = [
+        { title: 'Comprar', desc: 'Lojas e produtos perto de você', icon: ShoppingBag, color: TYPE.loja.color, onClick: () => go('/lojas') },
+        { title: 'Contratar serviço', desc: 'Descreva o que você precisa', icon: Wrench, color: TYPE.servico.color, onClick: () => go('/solicitar-servico') },
+        { title: 'Pedir motorista', desc: 'Corrida rápida, preço combinado', icon: Car, color: '#ea580c', onClick: () => go('/pedir-motorista') },
+        { title: 'Ver ao redor', desc: 'Mapa com lojas, serviços e pessoas', icon: Radar, color: '#0891b2', onClick: () => go('/radar') },
+    ]
+    // Quem QUER GANHAR com o iUser
+    const earns: Action[] = [
+        { title: 'Vender', desc: 'Mostre seu produto, serviço ou loja', icon: Megaphone, color: '#16a34a', onClick: () => setSellOpen(true) },
+        { title: 'Ser motorista', desc: 'Receba corridas na sua região', icon: Car, color: '#ea580c', onClick: () => go('/painel-motorista') },
+        {
+            title: 'Indicar e ganhar', desc: 'Convide e receba comissão', icon: UserPlus, color: '#7c3aed',
+            onClick: async () => {
+                if (!userId || !inviteUrl) return go('/login')
+                if (await copyText(inviteUrl)) toast.success('Link de convite copiado!')
+                setInviteOpen(true)
+            },
+        },
+    ]
 
     const searching = query.trim().length > 0
 
@@ -330,6 +409,15 @@ export default function ModeloInicialPage() {
                     )}
                 </header>
 
+                <SellDialog open={sellOpen} onClose={() => setSellOpen(false)} userId={userId} colors={colors} go={go} />
+                <ShareLinkDialog
+                    open={inviteOpen}
+                    onClose={() => setInviteOpen(false)}
+                    url={inviteUrl}
+                    title="Convidar para o iUser"
+                    text={`@${profileSlug} te chama pro iUser — compre, venda, preste serviço ou dirija, tudo numa plataforma só, sem taxa escondida.\n\nEntre pelo meu link e comece agora:`}
+                />
+
                 <div className="relative mt-4">
                     <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2" style={{ color: colors.textSecondary }} />
                     <input
@@ -346,18 +434,20 @@ export default function ModeloInicialPage() {
                     <div className="mt-6"><SearchResultsSection searchQuery={query} /></div>
                 ) : (
                     <>
-                        {/* ===== 1. O QUE VOCÊ QUER FAZER? ===== */}
+                        {/* ===== 1. O QUE VOCÊ QUER FAZER? — dois blocos: quem precisa / quem quer ganhar ===== */}
                         <section className="mt-7">
                             <h2 className="text-xl font-black" style={{ color: colors.textPrimary }}>O que você quer fazer?</h2>
-                            <p className="text-xs mt-0.5 mb-3" style={{ color: colors.textSecondary }}>Escolha um caminho. É só tocar.</p>
-                            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                                {actions.map((a, i) => {
+                            <p className="text-xs mt-0.5 mb-4" style={{ color: colors.textSecondary }}>Escolha um caminho. É só tocar.</p>
+
+                            <h3 className="text-sm font-black mb-2" style={{ color: colors.textPrimary }}>Preciso de…</h3>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                {needs.map((a) => {
                                     const Icon = a.icon
                                     return (
                                         <button
                                             key={a.title}
-                                            onClick={() => go(a.href)}
-                                            className={`${i === actions.length - 1 && actions.length % 2 === 1 ? 'col-span-2 md:col-span-1' : ''} text-left rounded-3xl p-4 border flex flex-col gap-3 transition-all hover:-translate-y-0.5 hover:shadow-xl active:scale-[0.98]`}
+                                            onClick={a.onClick}
+                                            className="text-left rounded-3xl p-4 border flex flex-col gap-3 transition-all hover:-translate-y-0.5 hover:shadow-xl active:scale-[0.98]"
                                             style={{ background: colors.surface, borderColor: colors.border, boxShadow: colors.shadow }}
                                         >
                                             <span className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: `${a.color}1f`, color: a.color }}>
@@ -371,6 +461,42 @@ export default function ModeloInicialPage() {
                                     )
                                 })}
                             </div>
+
+                            <h3 className="text-sm font-black mt-5 mb-2" style={{ color: colors.textPrimary }}>Quero ganhar com o iUser</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                {earns.map((a) => {
+                                    const Icon = a.icon
+                                    return (
+                                        <button
+                                            key={a.title}
+                                            onClick={a.onClick}
+                                            className="text-left rounded-2xl p-3.5 border flex items-center gap-3 transition-all hover:-translate-y-0.5 hover:shadow-xl active:scale-[0.98]"
+                                            style={{ background: colors.surface, borderColor: `${a.color}55`, boxShadow: colors.shadow }}
+                                        >
+                                            <span className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${a.color}1f`, color: a.color }}>
+                                                <Icon size={22} />
+                                            </span>
+                                            <span className="min-w-0 flex-1">
+                                                <span className="block text-[15px] font-black leading-tight" style={{ color: colors.textPrimary }}>{a.title}</span>
+                                                <span className="block text-xs mt-0.5 leading-snug" style={{ color: colors.textSecondary }}>{a.desc}</span>
+                                            </span>
+                                            <ChevronRight size={16} className="flex-shrink-0" style={{ color: colors.textSecondary }} />
+                                        </button>
+                                    )
+                                })}
+                            </div>
+
+                            {/* Social: um lugar pra estar, não uma ação — atalho discreto */}
+                            <button
+                                onClick={() => go('/social')}
+                                className="mt-4 w-full flex items-center gap-2.5 px-4 py-2.5 rounded-full text-left border transition hover:scale-[1.01] active:scale-[0.99]"
+                                style={{ background: `${TYPE.pessoa.color}12`, borderColor: `${TYPE.pessoa.color}40` }}
+                            >
+                                <Users size={16} style={{ color: TYPE.pessoa.color }} />
+                                <span className="text-sm font-black" style={{ color: colors.textPrimary }}>Social</span>
+                                <span className="text-xs flex-1 truncate" style={{ color: colors.textSecondary }}>Conheça pessoas e comunidades</span>
+                                <ChevronRight size={16} style={{ color: colors.textSecondary }} />
+                            </button>
                         </section>
 
                         {/* ===== 2. CATEGORIAS ===== */}
