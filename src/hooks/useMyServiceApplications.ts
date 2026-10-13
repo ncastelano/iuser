@@ -32,7 +32,12 @@ export interface MyApplication {
     photoUrl: string | null
     requesterId: string | null
     requesterName: string | null
+    requesterSlug: string | null
     requesterAvatarUrl: string | undefined
+    /** Quando quem pediu marcou o serviço como feito */
+    completedAt: string | null
+    /** Eu já avaliei quem pediu? */
+    reviewedByMe: boolean
 }
 
 interface Snapshot {
@@ -58,7 +63,7 @@ function emit(next: Snapshot) {
 async function fetchApplications(userId: string): Promise<MyApplication[]> {
         const { data: apps } = await supabase
             .from('service_applications')
-            .select('id, service_request_id, status, created_at')
+            .select('id, service_request_id, status, created_at, completed_at')
             .eq('applicant_id', userId)
             .order('created_at', { ascending: false })
             .limit(20)
@@ -73,14 +78,22 @@ async function fetchApplications(userId: string): Promise<MyApplication[]> {
 
         const requesterIds = Array.from(new Set((requests || []).map((r) => r.requester_id)))
         const { data: profiles } = requesterIds.length
-            ? await supabase.from('profiles').select('id, name, avatar_url').in('id', requesterIds)
+            ? await supabase.from('profiles').select('id, name, "profileSlug", avatar_url').in('id', requesterIds)
             : { data: [] as any[] }
         const profileById = new Map((profiles || []).map((p: any) => [p.id, p]))
+        const { data: myReviews } = await supabase
+            .from('service_reviews')
+            .select('application_id')
+            .eq('reviewer_id', userId)
+            .in('application_id', apps.map((a) => a.id))
+        const reviewed = new Set((myReviews || []).map((r: any) => r.application_id))
 
         const result: MyApplication[] = []
         for (const a of apps) {
             const r = requestById.get(a.service_request_id)
-            if (!r) continue // pedido apagado ou fechado: some da lista
+            if (!r) continue // pedido apagado: some da lista
+            // Escolhido e já feito + avaliado pelos dois lados: o card termina aqui (até lá ele fica, com contato e avaliação)
+            if (a.status === 'accepted' && (a as any).completed_at && reviewed.has(a.id)) continue
             const p: any = profileById.get(r.requester_id)
             result.push({
                 applicationId: a.id,
@@ -94,6 +107,9 @@ async function fetchApplications(userId: string): Promise<MyApplication[]> {
                 photoUrl: r.photo_urls?.[0] || null,
                 requesterId: r.requester_id,
                 requesterName: p?.name || null,
+                requesterSlug: p?.profileSlug || null,
+                completedAt: (a as any).completed_at || null,
+                reviewedByMe: reviewed.has(a.id),
                 requesterAvatarUrl: getAvatarUrl(supabase, p?.avatar_url),
             })
         }

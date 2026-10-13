@@ -5,6 +5,7 @@ import { ArrowLeft, Package, User } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { useProfile } from '@/app/contexts/ProfileContext'
+import OrderReviewPanel from '@/components/OrderReviewPanel'
 
 export default function PedidosPage() {
     const router = useRouter()
@@ -65,6 +66,7 @@ export default function PedidosPage() {
                     status: order.status,
                     delivery_status: deliveryStatusByCheckoutId.get(order.checkout_id) || null,
                     checkout_id: order.checkout_id,
+                    order_id: order.id,
                     buyer_id: order.buyer_id,
                     buyer_name: order.buyer_name,
                     buyer_profile_slug: order.buyer_profile_slug,
@@ -135,6 +137,7 @@ export default function PedidosPage() {
             if (!groups[p.checkout_id]) {
                 groups[p.checkout_id] = {
                     checkout_id: p.checkout_id,
+                    order_id: p.order_id,
                     store_name: p.store_name,
                     created_at: p.created_at,
                     status: p.status,
@@ -249,6 +252,7 @@ export default function PedidosPage() {
                                     <span className="text-[9px] font-black uppercase text-muted-foreground tracking-wider">Total do Pedido</span>
                                     <span className="text-lg font-black italic text-foreground">R$ {order.total.toFixed(2)}</span>
                                 </div>
+                                {order.status === 'paid' && <OrderReviewPanel orderId={order.order_id} className="mt-3" />}
                             </div>
                         ))}
                     </div>

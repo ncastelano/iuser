@@ -18,6 +18,7 @@ import { notifyServiceApplication } from '@/lib/notifyRideStatus'
 import { trackServiceRequestView } from '@/lib/trackServiceRequestView'
 import ServiceRequestViewDialog from '@/components/ServiceRequestViewDialog'
 import ServiceRequestDetailsDialog from '@/components/ServiceRequestDetailsDialog'
+import ServiceExchangePanel from '@/components/ServiceExchangePanel'
 import { getServiceIcon } from '@/lib/serviceTypes'
 import { useMyServiceApplications } from '@/hooks/useMyServiceApplications'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
@@ -59,7 +60,7 @@ function SerParceiroContent() {
     const viewHandledRef = useRef(false)
     // Abas, no mesmo molde de /aceitar-corridas: Serviços disponíveis | Me inscrevi
     const [activeTab, setActiveTab] = useState<'disponiveis' | 'inscrevi'>(searchParams.get('aba') === 'inscrevi' ? 'inscrevi' : 'disponiveis')
-    const { items: myApplications } = useMyServiceApplications()
+    const { items: myApplications, reload: reloadMyApplications } = useMyServiceApplications()
     const [cancelingId, setCancelingId] = useState<string | null>(null)
     const [confirmCancelId, setConfirmCancelId] = useState<string | null>(null)
     const [autoApplyingId, setAutoApplyingId] = useState<string | null>(null)
@@ -513,7 +514,7 @@ function SerParceiroContent() {
                                                 )}
                                             </PlanAvatarRing>
                                             <span className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>
-                                                {app.requesterName ? `${app.requesterName.split(' ')[0]} procura` : 'Alguém procura'}
+                                                {app.requesterSlug ? `@${app.requesterSlug} procura` : app.requesterName ? `${app.requesterName.split(' ')[0]} procura` : 'Alguém procura'}
                                             </span>
                                             <span className="text-[10px] ml-auto flex-shrink-0" style={{ color: colors.textSecondary }}>
                                                 inscrito {relativeTime(app.appliedAt)}
@@ -536,9 +537,25 @@ function SerParceiroContent() {
 
                                         <div className="mt-3">
                                             {app.status === 'accepted' ? (
-                                                <div className="flex items-center gap-2 rounded-xl px-3 py-2.5" style={{ background: '#22c55e18' }}>
-                                                    <CheckCircle2 size={16} color="#22c55e" className="flex-shrink-0" />
-                                                    <span className="text-sm font-bold" style={{ color: '#16a34a' }}>Você foi escolhido! Combine os detalhes com {app.requesterName?.split(' ')[0] || 'quem pediu'}.</span>
+                                                <div>
+                                                    <div className="flex items-center gap-2 rounded-xl px-3 py-2.5" style={{ background: '#22c55e18' }}>
+                                                        <CheckCircle2 size={16} color="#22c55e" className="flex-shrink-0" />
+                                                        <span className="text-sm font-bold" style={{ color: '#16a34a' }}>
+                                                            {app.completedAt
+                                                                ? 'Serviço feito! Avalie como foi.'
+                                                                : `Você foi escolhido! Combine os detalhes com ${app.requesterSlug ? `@${app.requesterSlug}` : 'quem pediu'}.`}
+                                                        </span>
+                                                    </div>
+                                                    {app.requesterId && (
+                                                        <ServiceExchangePanel
+                                                            applicationId={app.applicationId}
+                                                            role="provider"
+                                                            counterpartId={app.requesterId}
+                                                            counterpartSlug={app.requesterSlug}
+                                                            serviceTitle={app.description?.slice(0, 60) || app.serviceLabel}
+                                                            onChanged={reloadMyApplications}
+                                                        />
+                                                    )}
                                                 </div>
                                             ) : app.status === 'rejected' ? (
                                                 <div className="flex items-center gap-2 rounded-xl px-3 py-2.5" style={{ background: `${colors.border}30` }}>

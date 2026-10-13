@@ -12,6 +12,8 @@ import { getServiceIcon } from '@/lib/serviceTypes'
 import { MyApplication } from '@/hooks/useMyServiceApplications'
 import { HOME_GRADIENT, HomeSectionHeader } from './HomeSectionKit'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
+import ServiceExchangePanel from '@/components/ServiceExchangePanel'
+import { useMyServiceApplications } from '@/hooks/useMyServiceApplications'
 
 function appliedAgo(iso: string): string {
     const minutes = Math.floor((Date.now() - new Date(iso).getTime()) / 60000)
@@ -32,6 +34,7 @@ export default function MyServiceApplications({ items }: { items: MyApplication[
     const { colors } = useTheme()
     const router = useRouter()
     const startNavProgress = useNavProgressStore((s) => s.start)
+    const { reload } = useMyServiceApplications()
 
     if (items.length === 0) return null
 
@@ -50,7 +53,7 @@ export default function MyServiceApplications({ items }: { items: MyApplication[
             <div className="flex gap-3 overflow-x-auto pb-1">
                 {items.map((item) => {
                     const Icon = getServiceIcon(item.serviceType)
-                    const who = item.requesterName?.split(' ')[0] || 'Alguém'
+                    const who = item.requesterSlug ? `@${item.requesterSlug}` : item.requesterName?.split(' ')[0] || 'Alguém'
                     const go = () => { startNavProgress(); router.push(`/procurar-servico?pedido=${item.requestId}`) }
                     // Mesmo desenho do card de "Quem procura serviço": quem pediu e há quanto tempo,
                     // foto + o que procura + onde, descrição e, embaixo, a situação da inscrição.
@@ -107,9 +110,21 @@ export default function MyServiceApplications({ items }: { items: MyApplication[
                             )}
 
                             {item.status === 'accepted' ? (
-                                <div className="mt-auto w-full flex items-center justify-center gap-2 py-3 rounded-full font-black text-sm" style={{ background: '#22c55e18', color: '#16a34a', border: '1px solid #22c55e55' }}>
-                                    <CheckCircle2 size={16} />
-                                    Você foi escolhido!
+                                <div className="mt-auto flex flex-col gap-1">
+                                    <div className="w-full flex items-center justify-center gap-2 py-3 rounded-full font-black text-sm" style={{ background: '#22c55e18', color: '#16a34a', border: '1px solid #22c55e55' }}>
+                                        <CheckCircle2 size={16} />
+                                        {item.completedAt ? 'Serviço feito' : 'Você foi escolhido!'}
+                                    </div>
+                                    {item.requesterId && (
+                                        <ServiceExchangePanel
+                                            applicationId={item.applicationId}
+                                            role="provider"
+                                            counterpartId={item.requesterId}
+                                            counterpartSlug={item.requesterSlug}
+                                            serviceTitle={item.description?.slice(0, 60) || item.serviceLabel}
+                                            onChanged={reload}
+                                        />
+                                    )}
                                 </div>
                             ) : item.status === 'rejected' ? (
                                 <div className="mt-auto w-full flex items-center justify-center gap-2 py-3 rounded-full font-black text-sm" style={{ background: `${colors.border}30`, color: colors.textSecondary }}>

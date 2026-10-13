@@ -42,12 +42,14 @@ export interface StoreLocationInfo {
     whatsapp: string | null
     showWhatsapp?: boolean
     chatEnabled?: boolean
+    mutualReviews?: boolean
 }
 
 interface StoreDescriptionProps {
     location?: StoreLocationInfo
     onShowWhatsappChange?: (show: boolean) => void
     onChatEnabledChange?: (enabled: boolean) => void
+    onMutualReviewsChange?: (enabled: boolean) => void
     onLocationSaved?: (loc: { address: string; addressNumber: string; addressComplement: string; lat: number; lng: number }) => void
     name: string
     storeSlug: string
@@ -73,6 +75,7 @@ export function StoreDescription({
     onLocationSaved,
     onShowWhatsappChange,
     onChatEnabledChange,
+    onMutualReviewsChange,
     name,
     storeSlug,
     description,
@@ -126,6 +129,21 @@ export function StoreDescription({
         }
         onChatEnabledChange?.(next)
         toast.success(next ? 'Chat ligado: aparece o botão Conversar na página da loja' : 'Chat desligado')
+    }
+
+    const [savingMutual, setSavingMutual] = useState(false)
+    const toggleMutualReviews = async () => {
+        if (!location) return
+        const next = !location.mutualReviews
+        setSavingMutual(true)
+        const { error } = await supabase.from('stores').update({ mutual_reviews: next }).eq('id', location.storeId)
+        setSavingMutual(false)
+        if (error) {
+            toast.error('Erro ao salvar: ' + error.message)
+            return
+        }
+        onMutualReviewsChange?.(next)
+        toast.success(next ? 'Troca de avaliações ligada: você avalia os clientes e eles veem' : 'Troca de avaliações desligada')
     }
 
     // Grava a localização escolhida na própria loja (endereço, número,
@@ -515,6 +533,24 @@ export function StoreDescription({
                                         className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 disabled:opacity-60 ${location.chatEnabled ? 'bg-orange-500' : 'bg-gray-400'}`}
                                     >
                                         <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm transition-all ${location.chatEnabled ? 'right-1' : 'left-1'}`} />
+                                    </button>
+                                </div>
+                                <div className="flex items-center justify-between gap-3 p-3 rounded-2xl" style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`, border: `1px solid ${colors.border}` }}>
+                                    <div className="min-w-0">
+                                        <p className="text-xs font-bold" style={{ color: colors.textPrimary }}>Troca de avaliações com os clientes</p>
+                                        <p className="text-[11px]" style={{ color: colors.textSecondary }}>
+                                            {location.mutualReviews
+                                                ? 'Depois que o pedido é concluído você avalia o cliente, e os dois veem a avaliação um do outro.'
+                                                : 'Ligue para avaliar os clientes nos pedidos concluídos e mostrar a troca de avaliações.'}
+                                        </p>
+                                    </div>
+                                    <button
+                                        onClick={toggleMutualReviews}
+                                        disabled={savingMutual}
+                                        aria-label="Troca de avaliações com os clientes"
+                                        className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 disabled:opacity-60 ${location.mutualReviews ? 'bg-orange-500' : 'bg-gray-400'}`}
+                                    >
+                                        <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm transition-all ${location.mutualReviews ? 'right-1' : 'left-1'}`} />
                                     </button>
                                 </div>
                                 {location.whatsapp && (

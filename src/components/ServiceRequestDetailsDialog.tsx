@@ -15,6 +15,8 @@ import { getServiceIcon, getServiceLabel, getRequestTitle } from '@/lib/serviceT
 import ServiceTypePicker from '@/components/ServiceTypePicker'
 import { getAvatarUrl } from '@/lib/avatar'
 import { askedAgo, notifyServiceRequestsChanged } from '@/lib/serviceBoard'
+import ServiceExchangePanel from '@/components/ServiceExchangePanel'
+import { notifyServiceDecision } from '@/lib/notifyRideStatus'
 import { Spinner } from '@/components/Spinner'
 import ServiceRequestVisitors from '@/components/ServiceRequestVisitors'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
@@ -118,6 +120,7 @@ export default function ServiceRequestDetailsDialog({ requestId, onClose }: Prop
                 candidates: prev.candidates.map((c) => (c.applicationId === applicationId ? { ...c, status } : c)),
             }))
             toast.success(status === 'accepted' ? 'Inscrito aceito!' : 'Inscrito recusado.')
+            if (status === 'accepted') notifyServiceDecision(applicationId, 'selected')
             notifyServiceRequestsChanged()
         } catch (err: any) {
             toast.error('Erro ao atualizar inscrição: ' + (err.message || 'tente novamente'))
@@ -358,7 +361,8 @@ function DetailsBody({ request, setRequest, decidingId, onDecide, onClose, color
                         ) : (
                             <div className="flex flex-col gap-2">
                                 {request.candidates.map((c) => (
-                                    <div key={c.applicationId} className="flex items-center gap-2.5 rounded-xl px-3 py-2" style={{ background: `${colors.border}30` }}>
+                                    <div key={c.applicationId} className="rounded-xl" style={{ background: `${colors.border}30` }}>
+                                    <div className="flex items-center gap-2.5 px-3 py-2">
                                         <PlanAvatarRing userId={c.applicantId}>
                                             {c.avatarUrl ? (
                                                 <img src={c.avatarUrl} className="w-8 h-8 rounded-full object-cover flex-shrink-0" alt="" />
@@ -389,6 +393,18 @@ function DetailsBody({ request, setRequest, decidingId, onDecide, onClose, color
                                                 {c.status === 'accepted' ? 'Contratado' : 'Recusado'}
                                             </span>
                                         )}
+                                    </div>
+                                    {c.status === 'accepted' && c.applicantId && (
+                                        <div className="px-3 pb-3">
+                                            <ServiceExchangePanel
+                                                applicationId={c.applicationId}
+                                                role="owner"
+                                                counterpartId={c.applicantId}
+                                                counterpartSlug={c.profileSlug}
+                                                serviceTitle={request.description?.slice(0, 60) || request.serviceLabel}
+                                            />
+                                        </div>
+                                    )}
                                     </div>
                                 ))}
                             </div>

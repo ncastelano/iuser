@@ -65,3 +65,15 @@ export function notifyServiceApplication(serviceRequestId: string) {
         }).catch(() => { /* silencioso */ })
     })
 }
+
+// Best-effort: avisa no aparelho do escolhido (ou do profissional) que o dono do pedido o escolheu / marcou como feito.
+export function notifyServiceDecision(applicationId: string, kind: 'selected' | 'completed') {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+        if (!session) return
+        fetch('/api/service-requests/notify-decision', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+            body: JSON.stringify({ applicationId, kind }),
+        }).catch(() => { /* silencioso */ })
+    })
+}

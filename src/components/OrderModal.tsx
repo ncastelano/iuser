@@ -1,6 +1,7 @@
 // components/OrderModal.tsx
 'use client'
 
+import OrderReviewPanel from '@/components/OrderReviewPanel'
 import { X, CheckCircle2, ChevronRight, Package, Clock, ChefHat, CheckCircle, Ban, MapPin, Truck, Globe, Store, ShoppingCart, CreditCard, Coins, Calendar, User, Phone } from 'lucide-react'
 
 export interface GroupedOrder {
@@ -392,6 +393,9 @@ export function OrderModal({ order, onClose, onAction, storeLat, storeLng, assig
                                 </div>
                             </div>
                         </div>
+
+                        {/* Troca de avaliações (só aparece em pedido concluído, se a loja ligou) */}
+                        {order.status === 'paid' && <OrderReviewPanel orderId={order.id} />}
 
                         {/* Actions */}
                         <div className="space-y-2 pt-1">
