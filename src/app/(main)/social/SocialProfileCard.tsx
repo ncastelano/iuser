@@ -15,7 +15,7 @@ import { trackProfileVisit } from '@/lib/trackProfileVisit'
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
 // Colocação: 1º dourado, 2º prata, 3º bronze (letra preta); o resto, o degradê laranja → vermelho (letra branca)
-const rankStyle = (rank: number): React.CSSProperties =>
+export const rankStyle = (rank: number): React.CSSProperties =>
     rank === 0 ? { background: 'linear-gradient(135deg, #fde047, #eab308)', color: '#000', boxShadow: '0 2px 8px #eab30866' }
         : rank === 1 ? { background: 'linear-gradient(135deg, #e5e7eb, #9ca3af)', color: '#000', boxShadow: '0 2px 8px #6b728066', border: '1px solid #9ca3af' }
             : rank === 2 ? { background: 'linear-gradient(135deg, #e0a56b, #c77b30)', color: '#000', boxShadow: '0 2px 8px #c77b3066' }

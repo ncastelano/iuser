@@ -26,6 +26,7 @@ import { getRequestTitle } from '@/lib/serviceTypes'
 import { fetchCommunitiesActivity, type CommunityActivity } from '@/lib/communityActivity'
 import PlanAvatarRing, { usePlanRing } from '@/components/PlanAvatarRing'
 import SearchResultsSection from '../inicio/SearchResultsSection'
+import { rankStyle } from '../social/SocialProfileCard'
 import ShareLinkDialog, { copyText } from '@/components/ShareLinkDialog'
 import { toast } from 'sonner'
 import { useChatUnread } from '@/hooks/useChatUnread'
@@ -311,8 +312,12 @@ const money = (v: number | null | undefined) => (v != null && v > 0 ? `R$ ${v.to
 
 // ---------- dados das vitrines ----------
 interface StoreItem { id: string; name: string; slug: string; logo: string | null; category: string | null; rating: number | null; open: boolean }
-interface ServiceItem { id: string; title: string; href: string; image: string | null; provider: string; price: number | null }
-interface PersonItem { id: string; slug: string; avatar: string | null; points: number }
+interface ServiceItem {
+    id: string; title: string; href: string; image: string | null; provider: string; price: number | null
+    /** A loja que oferece está aberta agora? (null = serviço de perfil, sem loja) */
+    storeOpen: boolean | null
+}
+interface PersonItem { id: string; slug: string; avatar: string | null; points: number; rank: number }
 interface CommunityItem { id: string; slug: string; name: string; city: string; members: number; image: string | null; activity: CommunityActivity | null }
 
 const toPublicImage = (bucket: string, path: string | null | undefined) => {
@@ -462,7 +467,7 @@ export default function ModeloInicialPage() {
             const storeIds = [...new Set(list.filter((r: any) => r.store_id).map((r: any) => r.store_id))]
             const [{ data: profs }, { data: sts }] = await Promise.all([
                 ownerIds.length ? supabase.from('profiles').select('id, "profileSlug"').in('id', ownerIds) : Promise.resolve({ data: [] as any[] }),
-                storeIds.length ? supabase.from('stores').select('id, name, "storeSlug"').in('id', storeIds) : Promise.resolve({ data: [] as any[] }),
+                storeIds.length ? supabase.from('stores').select('id, name, "storeSlug", business_hours').in('id', storeIds) : Promise.resolve({ data: [] as any[] }),
             ])
             const profMap = new Map((profs || []).map((p: any) => [p.id, p.profileSlug]))
             const storeMap = new Map((sts || []).map((s: any) => [s.id, s]))
@@ -476,6 +481,7 @@ export default function ModeloInicialPage() {
                     image: toPublicImage('product-images', r.image_url),
                     provider: store ? store.name : slug ? `@${slug}` : 'Prestador',
                     price: r.price != null ? Number(r.price) : null,
+                    storeOpen: store ? isStoreOpenNow(store.business_hours as BusinessHours | null) : null,
                 }
             }) as ServiceItem[]
         }, setServices, [])
@@ -489,9 +495,9 @@ export default function ModeloInicialPage() {
             const { data: profs } = await supabase.from('profiles').select('id, "profileSlug", avatar_url').in('id', rows.map((r) => r.id))
             const byId = new Map((profs || []).map((p: any) => [p.id, p]))
             return rows
-                .map((r) => {
+                .map((r, i) => {
                     const p: any = byId.get(r.id)
-                    return p?.profileSlug ? { id: r.id, slug: p.profileSlug, avatar: getAvatarUrl(supabase, p.avatar_url) || null, points: Number(r.points) || 0 } : null
+                    return p?.profileSlug ? { id: r.id, slug: p.profileSlug, avatar: getAvatarUrl(supabase, p.avatar_url) || null, points: Number(r.points) || 0, rank: i } : null
                 })
                 .filter(Boolean) as PersonItem[]
         }, setPeople, [])
@@ -758,7 +764,7 @@ export default function ModeloInicialPage() {
                             {services === null ? <Skeleton colors={colors} /> : services.length === 0 ? null : (
                                 <Strip>
                                     {services.map((s) => (
-                                        <Tile key={s.id} type="servico" colors={colors} image={s.image} fallback={<Wrench size={36} />} onClick={() => go(s.href)}>
+                                        <Tile key={s.id} type="servico" colors={colors} image={s.image} fallback={<Wrench size={36} />} badge={s.storeOpen == null ? undefined : { label: s.storeOpen ? 'Aberto' : 'Fechado', color: s.storeOpen ? '#16a34a' : '#dc2626' }} onClick={() => go(s.href)}>
                                             <span className="block text-sm font-black leading-snug line-clamp-2" style={{ color: colors.textPrimary }}>{s.title}</span>
                                             {money(s.price) && <span className="block text-sm font-black mt-1" style={{ color: TYPE.servico.color }}>{money(s.price)}</span>}
                                             <span className="block text-[11px] truncate mt-0.5" style={{ color: colors.textSecondary }}>{s.provider}</span>
@@ -809,9 +815,11 @@ export default function ModeloInicialPage() {
                                                     </span>
                                                 )}
                                             </PlanAvatarRing>
-                                            <span className="text-[10px] font-black uppercase tracking-wide px-2 py-0.5 rounded-full text-white" style={{ background: TYPE.pessoa.color }}>Pessoa</span>
                                             <span className="block w-full text-sm font-black truncate" style={{ color: colors.textPrimary }}>@{p.slug}</span>
-                                            <span className="text-[11px] font-bold" style={{ color: colors.textSecondary }}>⭐ {p.points} pts</span>
+                                            {/* Colocação em Melhores perfis: 1º dourado, 2º prata, 3º bronze; o resto, degradê do iUser */}
+                                            <span className="px-2.5 py-0.5 rounded-full text-xs font-black" style={rankStyle(p.rank)} title={`${p.rank + 1}º lugar em Melhores perfis`}>
+                                                #{p.rank + 1}
+                                            </span>
                                         </button>
                                     ))}
                                 </Strip>
