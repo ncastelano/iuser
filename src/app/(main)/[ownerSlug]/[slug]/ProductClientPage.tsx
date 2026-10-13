@@ -44,6 +44,7 @@ import AddToCartModal from '@/components/AddToCartModal'
 import FallbackImage from '@/components/FallbackImage'
 import EditProductDialog from '@/components/EditProductDialog'
 import { useProfile } from '@/app/contexts/ProfileContext'
+import { trackProductView } from '@/lib/trackProductView'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -201,16 +202,6 @@ export function ProductClientPage({
 
                 setProduct(productWithStore)
 
-                // Não bloqueia a renderização: a página já pode aparecer
-                // enquanto essa contagem é atualizada em segundo plano.
-                supabase
-                    .from('products')
-                    .update({ view_count: (initialProduct.view_count || 0) + 1 })
-                    .eq('id', initialProduct.id)
-                    .then(({ error: viewErr }) => {
-                        if (viewErr) console.error('Erro ao atualizar visualizações:', viewErr)
-                    })
-
             } catch (err: any) {
                 console.error('Erro ao carregar produto:', err)
                 setError(err.message || 'Produto não encontrado')
@@ -221,6 +212,19 @@ export function ProductClientPage({
 
         fetchProduct()
     }, [initialProduct, initialStore])
+
+    // ===== CONTA A VISITA =====
+    // Pela função do banco (visitante sem conta não consegue atualizar products direto); espera a sessão carregar
+    // pra não contar o dono da loja olhando o próprio produto.
+    useEffect(() => {
+        // product?.id: só depois que o produto entrou no estado, senão o total devolvido seria sobrescrito pelo carregamento
+        if (profileLoading || !product?.id) return
+        if (currentUserId && initialStore?.owner_id && currentUserId === initialStore.owner_id) return
+        trackProductView(product.id).then(total => {
+            if (total !== null) setProduct(prev => (prev ? { ...prev, view_count: total } : prev))
+        })
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [product?.id, profileLoading, currentUserId])
 
     // ===== OUTROS PRODUTOS DA MESMA LOJA =====
     useEffect(() => {

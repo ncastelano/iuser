@@ -30,6 +30,8 @@ import { ptBR } from 'date-fns/locale'
 import { toast } from 'sonner'
 import { getWhatsAppLink } from '@/lib/whatsapp'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
+import { trackProductView } from '@/lib/trackProductView'
+import { trackProfileVisit } from '@/lib/trackProfileVisit'
 
 // ===== TIPOS =====
 interface PublicationWithOwner {
@@ -41,6 +43,7 @@ interface PublicationWithOwner {
     view_count: number | null
     created_at: string
     store_id: string
+    owner_id?: string | null
     show_whatsapp: boolean
     store?: {
         id: string
@@ -109,6 +112,19 @@ export function PublicationClientPage({
     const [replyTo, setReplyTo] = useState<Comment | null>(null)
     const [expandedComments, setExpandedComments] = useState<Set<string>>(new Set())
 
+    // ===== CONTA A VISITA (publicação + perfil de quem publicou, quando é de pessoa) =====
+    useEffect(() => {
+        const id = publication?.id
+        if (!id || profileLoading) return
+        const ownerId = publication?.owner_id ?? null
+        if (currentUserId && ownerId && currentUserId === ownerId) return
+        trackProductView(id).then(total => {
+            if (total !== null) setPublication(prev => (prev ? { ...prev, view_count: total } : prev))
+        })
+        if (!publication?.store_id && ownerId) trackProfileVisit(ownerId, currentUserId)
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [publication?.id, profileLoading, currentUserId])
+
     // ===== OUTRAS PUBLICAÇÕES DA MESMA LOJA =====
     const [otherPublications, setOtherPublications] = useState<{
         id: string
@@ -139,6 +155,7 @@ export function PublicationClientPage({
                         view_count,
                         created_at,
                         store_id,
+                        owner_id,
                         show_whatsapp
                     `)
                     .eq('slug', slug)
@@ -157,6 +174,7 @@ export function PublicationClientPage({
                             view_count,
                             created_at,
                             store_id,
+                            owner_id,
                             show_whatsapp
                         `)
                         .eq('id', slug)
@@ -196,11 +214,6 @@ export function PublicationClientPage({
                 setPublication(publicationWithOwner)
 
                 if (pubData?.id) {
-                    await supabase
-                        .from('products')
-                        .update({ view_count: (pubData.view_count || 0) + 1 })
-                        .eq('id', pubData.id)
-
                     await loadPublicationComments(pubData.id)
                 }
 

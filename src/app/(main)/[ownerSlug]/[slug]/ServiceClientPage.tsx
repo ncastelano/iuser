@@ -20,6 +20,8 @@ import { formatDistanceToNow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
 import ChatContactButton from '@/components/ChatContactButton'
+import { trackProductView } from '@/lib/trackProductView'
+import { trackProfileVisit } from '@/lib/trackProfileVisit'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -65,7 +67,7 @@ interface ServiceClientPageProps {
 
 export function ServiceClientPage({ ownerSlug, colors, initialService }: ServiceClientPageProps) {
     const router = useRouter()
-    const { userId } = useProfile()
+    const { userId, loading: profileLoading } = useProfile()
 
     const [service, setService] = useState<ServiceData>(initialService)
     const [provider, setProvider] = useState<Provider | null>(null)
@@ -107,15 +109,16 @@ export function ServiceClientPage({ ownerSlug, colors, initialService }: Service
         return () => { cancelled = true }
     }, [service.id, service.owner_id])
 
-    // Conta a visita (não conta o próprio dono olhando o serviço dele).
+    // Conta a visita: a do serviço (products.view_count) e a do perfil de quem oferece. Espera a sessão carregar
+    // (pra saber se quem olha é o próprio dono, que não conta) e vale também pra visitante sem conta.
     useEffect(() => {
-        if (userId === undefined || isOwner) return
-        supabase.rpc('increment_product_view_count', { p_product_id: service.id }).then(
-            () => { },
-            () => { }
-        )
+        if (profileLoading || isOwner) return
+        trackProductView(service.id).then(total => {
+            if (total !== null) setService(prev => ({ ...prev, view_count: total }))
+        })
+        trackProfileVisit(service.owner_id, userId)
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [service.id, isOwner])
+    }, [service.id, isOwner, profileLoading])
 
     const imageUrl = service.image_url
         ? (service.image_url.startsWith('http')
