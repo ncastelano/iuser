@@ -279,3 +279,16 @@ svg,
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
 }
+/* Card de pedido com profissional contratado ("fulano vai fazer"): a borda fica na cor desse texto (verde) e pulsa
+   entre um tom mais escuro e um mais claro, com um brilho leve que acompanha. */
+@keyframes hired-border-pulse {
+    0%, 100% { border-color: #15803d; box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.0), 0 2px 10px rgba(22, 163, 74, 0.18); }
+    50% { border-color: #4ade80; box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.22), 0 2px 14px rgba(74, 222, 128, 0.35); }
+}
+.hired-pulse-border {
+    border: 2px solid #16a34a;
+    animation: hired-border-pulse 1.8s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+    .hired-pulse-border { animation: none; border-color: #16a34a; }
+}

@@ -139,8 +139,10 @@ export default function MyOpenServiceRequests({ limit = 5, title, onCountChange 
                         <div
                             key={r.id}
                             onClick={() => setOpenId(r.id)}
-                            className="flex-shrink-0 w-64 rounded-3xl overflow-hidden flex flex-col cursor-pointer transition-transform hover:scale-[1.02] active:scale-[0.99]"
-                            style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
+                            className={`flex-shrink-0 w-64 rounded-3xl overflow-hidden flex flex-col cursor-pointer transition-transform hover:scale-[1.02] active:scale-[0.99] ${hired ? 'hired-pulse-border' : ''}`}
+                            style={hired
+                                ? { background: colors.surface }
+                                : { background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
                         >
                             {/* Capa de tamanho padrão: a foto aparece INTEIRA (object-contain), qualquer que seja
                                 a proporção dela, sobre uma cópia desfocada da própria foto pra não ficar faixa vazia */}
