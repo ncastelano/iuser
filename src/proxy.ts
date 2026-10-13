@@ -47,6 +47,7 @@ const IGNORED_ROUTES = [
     '/aceitar-corridas/mapa',
     '/pedir-motorista/escolher-local',
     '/modelodehomepage',
+    '/modeloinicial',
 ]
 
 // ===== PREFIXOS IGNORADOS =====

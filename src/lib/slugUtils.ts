@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase/client'
  * Lista de rotas e palavras reservadas do sistema que não podem ser usadas como slug
  */
 export const RESERVED_SLUGS = new Set([
+    'modeloinicial',
     'admin',
     'api',
     'auth',
