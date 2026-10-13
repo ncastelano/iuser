@@ -678,7 +678,7 @@ export default function ModeloInicialPage() {
 
                         {/* ===== 2. CATEGORIAS ===== */}
                         <section className="mt-8">
-                            <h2 className="text-lg font-black" style={{ color: colors.textPrimary }}>Explore por categoria</h2>
+                            <h2 className="text-lg font-black" style={{ color: colors.textPrimary }}>Explore lojas por categoria</h2>
                             <div className="grid grid-cols-4 md:grid-cols-8 gap-x-2 gap-y-4 mt-3">
                                 {categorias.filter((c) => c.slug !== 'comunidades' && c.slug !== 'social').map((c) => {
                                     const Icon = c.icone
