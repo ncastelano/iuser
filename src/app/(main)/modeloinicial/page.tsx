@@ -414,9 +414,9 @@ export default function ModeloInicialPage() {
         safe(async () => {
             const { data } = await supabase
                 .from('stores')
-                .select('id, name, "storeSlug", logo_url, category, ratings_avg, business_hours, view_count')
+                .select('id, name, "storeSlug", logo_url, category, ratings_avg, business_hours, created_at')
                 .eq('is_active', true)
-                .order('view_count', { ascending: false })
+                .order('created_at', { ascending: false })
                 .limit(10)
             return (data || []).map((s: any) => ({
                 id: s.id, name: s.name, slug: s.storeSlug,
@@ -700,7 +700,7 @@ export default function ModeloInicialPage() {
 
                         {/* ===== 3. VITRINES — uma por tipo, cada uma com a sua cor ===== */}
                         <section className="mt-9">
-                            <SectionHeader type="loja" title="Lojas para conhecer" subtitle="As mais visitadas da plataforma" onSeeAll={() => go('/lojas')} colors={colors} />
+                            <SectionHeader type="loja" title="Lojas para conhecer" subtitle="As lojas mais novas do iUser" onSeeAll={() => go('/lojas')} colors={colors} />
                             {stores === null ? <Skeleton colors={colors} /> : stores.length === 0 ? null : (
                                 <Strip>
                                     {stores.map((s) => (
