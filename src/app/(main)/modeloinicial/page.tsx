@@ -321,7 +321,7 @@ const toPublicImage = (bucket: string, path: string | null | undefined) => {
 }
 
 // ---------- peças visuais ----------
-function SectionHeader({ type, title, subtitle, onSeeAll, colors }: { type: TypeKey; title: string; subtitle: string; onSeeAll?: () => void; colors: any }) {
+function SectionHeader({ type, title, subtitle, onSeeAll, colors }: { type: TypeKey; title: string; subtitle?: string; onSeeAll?: () => void; colors: any }) {
     const t = TYPE[type]
     const Icon = t.icon
     return (
@@ -331,7 +331,7 @@ function SectionHeader({ type, title, subtitle, onSeeAll, colors }: { type: Type
             </span>
             <div className="min-w-0 flex-1">
                 <h2 className="text-lg font-black leading-tight truncate" style={{ color: colors.textPrimary }}>{title}</h2>
-                <p className="text-xs truncate" style={{ color: colors.textSecondary }}>{subtitle}</p>
+                {subtitle && <p className="text-xs truncate" style={{ color: colors.textSecondary }}>{subtitle}</p>}
             </div>
             {onSeeAll && (
                 <button onClick={onSeeAll} className="flex items-center gap-0.5 text-xs font-black flex-shrink-0 px-3 py-1.5 rounded-full transition hover:scale-105" style={{ color: t.color, background: `${t.color}14` }}>
@@ -700,7 +700,7 @@ export default function ModeloInicialPage() {
 
                         {/* ===== 3. VITRINES — uma por tipo, cada uma com a sua cor ===== */}
                         <section className="mt-9">
-                            <SectionHeader type="loja" title="Lojas para conhecer" subtitle="As lojas mais novas do iUser" onSeeAll={() => go('/lojas')} colors={colors} />
+                            <SectionHeader type="loja" title="Lojas para conhecer" onSeeAll={() => go('/lojas')} colors={colors} />
                             {stores === null ? <Skeleton colors={colors} /> : stores.length === 0 ? null : (
                                 <Strip>
                                     {stores.map((s) => (
@@ -725,7 +725,7 @@ export default function ModeloInicialPage() {
                         </section>
 
                         <section className="mt-8">
-                            <SectionHeader type="produto" title="Produtos em destaque" subtitle="Itens das lojas, prontos pra comprar" onSeeAll={() => go('/produtos')} colors={colors} />
+                            <SectionHeader type="produto" title="Produtos" onSeeAll={() => go('/produtos')} colors={colors} />
                             {products === null ? <Skeleton colors={colors} /> : products.length === 0 ? null : (
                                 <Strip>
                                     {products.map((p) => (
