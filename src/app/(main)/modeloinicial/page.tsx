@@ -11,7 +11,7 @@ import { ReactNode, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
     Search, ShoppingBag, Store as StoreIcon, Car, Wrench, Megaphone, Briefcase, Users, MessageCircle,
-    ChevronRight, Star, MapPin, Eye, User, LogIn, type LucideIcon,
+    ChevronRight, Star, MapPin, Eye, User, LogIn, LogOut, type LucideIcon,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
@@ -23,17 +23,21 @@ import { loadProductCards, type ProductCard } from '../inicio/sections/ProductSh
 import { fetchOpenBoardItems, askedAgo, shortAddress, type BoardItem } from '@/lib/serviceBoard'
 import { getRequestTitle } from '@/lib/serviceTypes'
 import { fetchCommunitiesActivity, type CommunityActivity } from '@/lib/communityActivity'
-import PlanAvatarRing from '@/components/PlanAvatarRing'
+import PlanAvatarRing, { usePlanRing } from '@/components/PlanAvatarRing'
 import SearchResultsSection from '../inicio/SearchResultsSection'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
-// Selo redondo do topo, no tamanho de um avatar. Visitante: só a logo do iUser. Logado: alterna a cada 5 s entre a
-// foto do perfil (com a borda do plano, se tiver) e a logo, com um fade suave. Tocar leva ao perfil (foto) ou à home (logo).
+// Selo redondo do topo, do tamanho de um avatar. Visitante: só a logo do iUser. Logado: a cada 5 s a "página vira"
+// (giro em 3D, a logo numa face e a foto do perfil na outra). Tocar leva ao perfil (foto) ou à home (logo).
+// A borda do plano é desenhada POR FORA da foto (3 px de cada lado) — por isso a foto fica menor quando tem borda,
+// pro conjunto ter exatamente o mesmo tamanho da logo.
+const BADGE = 48
 function HeaderBadge({ userId, avatarUrl, onProfile, onHome, colors }: {
     userId: string | null; avatarUrl: string | null | undefined; onProfile: () => void; onHome: () => void; colors: any
 }) {
     const [showAvatar, setShowAvatar] = useState(true)
+    const hasRing = usePlanRing(userId)
     useEffect(() => {
         if (!userId) return
         const t = setInterval(() => setShowAvatar((v) => !v), 5000)
@@ -41,23 +45,41 @@ function HeaderBadge({ userId, avatarUrl, onProfile, onHome, colors }: {
     }, [userId])
 
     const avatarOn = !!userId && showAvatar
-    const layer = (on: boolean) => ({ opacity: on ? 1 : 0, transition: 'opacity 600ms ease', pointerEvents: on ? 'auto' : 'none' } as const)
+    const avatarSize = hasRing ? BADGE - 6 : BADGE
+    const face = { position: 'absolute', inset: 0, backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' } as const
     return (
-        <div className="relative w-12 h-12 flex-shrink-0">
-            <button onClick={onHome} aria-label="iUser" tabIndex={avatarOn ? -1 : 0} className="absolute inset-0 rounded-full flex items-center justify-center" style={layer(!avatarOn)}>
-                <img src="/logo.png" alt="iUser" className="w-full h-full object-contain" />
-            </button>
-            {userId && (
-                <button onClick={onProfile} aria-label="Meu perfil" tabIndex={avatarOn ? 0 : -1} className="absolute inset-0 rounded-full" style={layer(avatarOn)}>
-                    <PlanAvatarRing userId={userId} width={3} linkToProfile={false}>
-                        <span className="block w-12 h-12 rounded-full overflow-hidden flex items-center justify-center" style={{ background: `${colors.border}60` }}>
-                            {avatarUrl
-                                ? <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
-                                : <User size={20} style={{ color: colors.textSecondary }} />}
-                        </span>
-                    </PlanAvatarRing>
-                </button>
-            )}
+        <div className="flex-shrink-0" style={{ width: BADGE, height: BADGE, perspective: 600 }}>
+            <div
+                className="relative w-full h-full"
+                style={{
+                    transformStyle: 'preserve-3d',
+                    transition: 'transform 900ms cubic-bezier(0.45, 0, 0.2, 1)',
+                    transform: avatarOn || !userId ? 'rotateY(0deg)' : 'rotateY(180deg)',
+                }}
+            >
+                {/* Frente: a foto do perfil (ou, sem conta, a logo) */}
+                {userId ? (
+                    <button onClick={onProfile} aria-label="Meu perfil" className="flex items-center justify-center rounded-full" style={face}>
+                        <PlanAvatarRing userId={userId} width={2} linkToProfile={false}>
+                            <span className="block rounded-full overflow-hidden flex items-center justify-center" style={{ width: avatarSize, height: avatarSize, background: `${colors.border}60` }}>
+                                {avatarUrl
+                                    ? <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
+                                    : <User size={20} style={{ color: colors.textSecondary }} />}
+                            </span>
+                        </PlanAvatarRing>
+                    </button>
+                ) : (
+                    <button onClick={onHome} aria-label="iUser" className="flex items-center justify-center rounded-full" style={face}>
+                        <img src="/logo.png" alt="iUser" className="w-full h-full object-contain" />
+                    </button>
+                )}
+                {/* Verso: a logo (só existe pra quem está logado) */}
+                {userId && (
+                    <button onClick={onHome} aria-label="iUser" className="flex items-center justify-center rounded-full" style={{ ...face, transform: 'rotateY(180deg)' }}>
+                        <img src="/logo.png" alt="iUser" className="w-full h-full object-contain" />
+                    </button>
+                )}
+            </div>
         </div>
     )
 }
@@ -266,10 +288,10 @@ export default function ModeloInicialPage() {
     const go = (path: string) => router.push(path)
 
     const actions = useMemo(() => ([
-        { type: 'loja' as TypeKey, title: 'Comprar', desc: 'Lojas e produtos perto de você', icon: ShoppingBag, color: TYPE.loja.color, href: '/lojas' },
+        { type: 'loja' as TypeKey, title: 'Comprar', desc: 'Lojas, produtos ou serviços perto de você', icon: ShoppingBag, color: TYPE.loja.color, href: '/lojas' },
         { type: 'pedido' as TypeKey, title: 'Pedir motorista', desc: 'Corrida rápida, preço combinado', icon: Car, color: '#ea580c', href: '/pedir-motorista' },
-        { type: 'servico' as TypeKey, title: 'Contratar serviço', desc: 'Descreva e receba propostas', icon: Wrench, color: TYPE.servico.color, href: '/solicitar-servico' },
-        { type: 'comunidade' as TypeKey, title: 'Oferecer meu serviço', desc: 'Divulgue e seja encontrado', icon: Megaphone, color: '#16a34a', href: profileSlug ? '/meus-servicos' : '/login' },
+        { type: 'servico' as TypeKey, title: 'Contratar serviço', desc: 'Descreva o que você precisa', icon: Wrench, color: TYPE.servico.color, href: '/solicitar-servico' },
+        { type: 'comunidade' as TypeKey, title: 'Vender', desc: 'Mostre seu produto, serviço ou loja', icon: Megaphone, color: '#16a34a', href: profileSlug ? '/meus-servicos' : '/login' },
     ]), [profileSlug])
 
     const searching = query.trim().length > 0
@@ -290,6 +312,16 @@ export default function ModeloInicialPage() {
                         <p className="text-xs" style={{ color: colors.textSecondary }}>{userId ? 'Bem-vindo de volta' : 'Bem-vindo ao iUser'}</p>
                         <p className="text-base font-black truncate" style={{ color: colors.textPrimary }}>{profileSlug ? `@${profileSlug}` : 'Visitante'}</p>
                     </div>
+                    {userId && (
+                        <button
+                            onClick={async () => { await supabase.auth.signOut(); window.location.href = '/modeloinicial' }}
+                            aria-label="Sair"
+                            className="flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-black flex-shrink-0"
+                            style={{ background: `${colors.border}50`, color: colors.textSecondary }}
+                        >
+                            <LogOut size={14} /> Sair
+                        </button>
+                    )}
                     {!userId && (
                         <button onClick={() => go('/login')} className="flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-black text-white flex-shrink-0" style={{ background: GRADIENT }}>
                             <LogIn size={15} /> Entrar
