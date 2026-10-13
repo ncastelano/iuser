@@ -292,6 +292,7 @@ export default function ModeloInicialPage() {
         { type: 'pedido' as TypeKey, title: 'Pedir motorista', desc: 'Corrida rápida, preço combinado', icon: Car, color: '#ea580c', href: '/pedir-motorista' },
         { type: 'servico' as TypeKey, title: 'Contratar serviço', desc: 'Descreva o que você precisa', icon: Wrench, color: TYPE.servico.color, href: '/solicitar-servico' },
         { type: 'comunidade' as TypeKey, title: 'Vender', desc: 'Mostre seu produto, serviço ou loja', icon: Megaphone, color: '#16a34a', href: profileSlug ? '/meus-servicos' : '/login' },
+        { type: 'pessoa' as TypeKey, title: 'Social', desc: 'Conheça pessoas e comunidades', icon: Users, color: TYPE.pessoa.color, href: '/social' },
     ]), [profileSlug])
 
     const searching = query.trim().length > 0
@@ -349,14 +350,14 @@ export default function ModeloInicialPage() {
                         <section className="mt-7">
                             <h2 className="text-xl font-black" style={{ color: colors.textPrimary }}>O que você quer fazer?</h2>
                             <p className="text-xs mt-0.5 mb-3" style={{ color: colors.textSecondary }}>Escolha um caminho. É só tocar.</p>
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                                {actions.map((a) => {
+                            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                                {actions.map((a, i) => {
                                     const Icon = a.icon
                                     return (
                                         <button
                                             key={a.title}
                                             onClick={() => go(a.href)}
-                                            className="text-left rounded-3xl p-4 border flex flex-col gap-3 transition-all hover:-translate-y-0.5 hover:shadow-xl active:scale-[0.98]"
+                                            className={`${i === actions.length - 1 && actions.length % 2 === 1 ? 'col-span-2 md:col-span-1' : ''} text-left rounded-3xl p-4 border flex flex-col gap-3 transition-all hover:-translate-y-0.5 hover:shadow-xl active:scale-[0.98]`}
                                             style={{ background: colors.surface, borderColor: colors.border, boxShadow: colors.shadow }}
                                         >
                                             <span className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: `${a.color}1f`, color: a.color }}>
@@ -376,12 +377,12 @@ export default function ModeloInicialPage() {
                         <section className="mt-8">
                             <h2 className="text-lg font-black" style={{ color: colors.textPrimary }}>Explore por categoria</h2>
                             <div className="grid grid-cols-4 md:grid-cols-8 gap-x-2 gap-y-4 mt-3">
-                                {categorias.filter((c) => c.slug !== 'comunidades').map((c) => {
+                                {categorias.filter((c) => c.slug !== 'comunidades' && c.slug !== 'social').map((c) => {
                                     const Icon = c.icone
                                     return (
                                         <button
                                             key={c.slug}
-                                            onClick={() => go(c.slug === 'social' ? '/social' : `/lojas/${c.slug}`)}
+                                            onClick={() => go(`/lojas/${c.slug}`)}
                                             className="flex flex-col items-center gap-1.5 text-center transition hover:scale-105 active:scale-95"
                                         >
                                             <span className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{ background: `${c.color}1f`, color: c.color }}>
