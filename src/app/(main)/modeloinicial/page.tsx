@@ -33,36 +33,32 @@ import { useCartStore } from '@/store/useCartStore'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
-// Card de chamada final: quem tem loja, vende produto ou oferece serviço. Segue o tema da página (superfície, borda e
-// texto do tema) com os detalhes em laranja e o gradiente laranja→vermelho do iUser. Só elementos nativos (nada de
-// imagem): três opções clicáveis.
+// Chamada final: quem tem loja, vende produto ou oferece serviço. Segue o desenho do resto da página — cabeçalho de seção
+// (ícone em caixa tingida + título + subtítulo, como nas vitrines) e as opções no mesmo formato dos cards de "Quero
+// ganhar", cada uma na cor do SEU tipo (loja, serviço, produto). Só elementos nativos; ícones Lucide.
 function SellCta({ colors, onStore, onService, onProduct }: { colors: any; onStore: () => void; onService: () => void; onProduct: () => void }) {
-    const options: { key: string; title: string; desc: string; icon: LucideIcon; onClick: () => void }[] = [
-        { key: 'loja', title: 'Criar minha loja', desc: 'Venda seus produtos e receba pedidos.', icon: StoreIcon, onClick: onStore },
-        { key: 'servico', title: 'Oferecer serviço', desc: 'Divulgue seu trabalho e encontre novos clientes.', icon: Wrench, onClick: onService },
-        { key: 'produto', title: 'Vender produto', desc: 'Anuncie seus produtos e alcance mais pessoas.', icon: Package, onClick: onProduct },
+    const options: { key: string; title: string; desc: string; icon: LucideIcon; color: string; onClick: () => void }[] = [
+        { key: 'loja', title: 'Criar minha loja', desc: 'Venda seus produtos e receba pedidos.', icon: StoreIcon, color: TYPE.loja.color, onClick: onStore },
+        { key: 'servico', title: 'Oferecer serviço', desc: 'Divulgue seu trabalho e encontre novos clientes.', icon: Wrench, color: TYPE.servico.color, onClick: onService },
+        { key: 'produto', title: 'Vender produto', desc: 'Anuncie seus produtos e alcance mais pessoas.', icon: Package, color: TYPE.produto.color, onClick: onProduct },
     ]
     return (
-        <section
-            aria-labelledby="sell-cta-title"
-            className="mt-10 relative overflow-hidden rounded-3xl p-5 sm:p-7"
-            style={{
-                background: colors.surface,
-                border: `1px solid ${colors.border}`,
-                boxShadow: colors.shadow,
-            }}
-        >
-            {/* filete em gradiente no topo do card */}
-            <span aria-hidden className="absolute inset-x-0 top-0 h-1.5" style={{ background: GRADIENT }} />
+        <section aria-labelledby="sell-cta-title" className="mt-10">
+            <div className="flex items-center gap-3 mb-3">
+                <span className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 text-white" style={{ background: GRADIENT }}>
+                    <Megaphone size={22} aria-hidden />
+                </span>
+                <div className="min-w-0 flex-1">
+                    <h2 id="sell-cta-title" className="text-lg font-black leading-tight" style={{ color: colors.textPrimary }}>
+                        Tem uma loja, vende produtos ou oferece serviços?
+                    </h2>
+                    <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>
+                        Cadastre-se grátis no iUser e conecte-se com pessoas que estão perto de você.
+                    </p>
+                </div>
+            </div>
 
-            <h2 id="sell-cta-title" className="text-xl sm:text-2xl font-black leading-tight max-w-2xl mt-1" style={{ color: colors.textPrimary }}>
-                Tem uma loja, vende produtos ou oferece serviços?
-            </h2>
-            <p className="text-sm sm:text-base mt-2 max-w-2xl" style={{ color: colors.textSecondary }}>
-                Cadastre-se grátis no iUser e conecte-se com pessoas que estão perto de você.
-            </p>
-
-            <div className="mt-5 grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 {options.map((o) => {
                     const Icon = o.icon
                     return (
@@ -70,19 +66,17 @@ function SellCta({ colors, onStore, onService, onProduct }: { colors: any; onSto
                             key={o.key}
                             type="button"
                             onClick={o.onClick}
-                            className="group text-left rounded-2xl p-4 flex items-center gap-3.5 border transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316] focus-visible:ring-offset-2"
-                            style={{ background: colors.background, borderColor: colors.border }}
-                            onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#f97316' }}
-                            onMouseLeave={(e) => { e.currentTarget.style.borderColor = colors.border }}
+                            className="group text-left rounded-2xl p-3.5 border flex items-center gap-3 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+                            style={{ background: colors.surface, borderColor: `${o.color}55`, boxShadow: colors.shadow, ['--tw-ring-color' as any]: o.color }}
                         >
-                            <span className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 text-white" style={{ background: GRADIENT }}>
-                                <Icon size={24} aria-hidden />
+                            <span className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${o.color}1f`, color: o.color }}>
+                                <Icon size={22} aria-hidden />
                             </span>
                             <span className="min-w-0 flex-1">
                                 <span className="block text-[15px] font-black leading-tight" style={{ color: colors.textPrimary }}>{o.title}</span>
-                                <span className="block text-xs mt-1 leading-snug" style={{ color: colors.textSecondary }}>{o.desc}</span>
+                                <span className="block text-xs mt-0.5 leading-snug" style={{ color: colors.textSecondary }}>{o.desc}</span>
                             </span>
-                            <ChevronRight size={20} aria-hidden className="flex-shrink-0 transition-transform duration-200 group-hover:translate-x-1" style={{ color: '#f97316' }} />
+                            <ChevronRight size={16} aria-hidden className="flex-shrink-0 transition-transform duration-200 group-hover:translate-x-1" style={{ color: o.color }} />
                         </button>
                     )
                 })}
