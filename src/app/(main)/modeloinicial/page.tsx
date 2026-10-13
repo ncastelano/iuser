@@ -33,9 +33,10 @@ import { useCartStore } from '@/store/useCartStore'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
-// Card de chamada final: quem tem loja, vende produto ou oferece serviço. Fundo preto, texto branco, detalhes em laranja e
-// o gradiente laranja→vermelho do iUser. Só elementos nativos (nada de imagem): três opções clicáveis.
-function SellCta({ onStore, onService, onProduct }: { onStore: () => void; onService: () => void; onProduct: () => void }) {
+// Card de chamada final: quem tem loja, vende produto ou oferece serviço. Segue o tema da página (superfície, borda e
+// texto do tema) com os detalhes em laranja e o gradiente laranja→vermelho do iUser. Só elementos nativos (nada de
+// imagem): três opções clicáveis.
+function SellCta({ colors, onStore, onService, onProduct }: { colors: any; onStore: () => void; onService: () => void; onProduct: () => void }) {
     const options: { key: string; title: string; desc: string; icon: LucideIcon; onClick: () => void }[] = [
         { key: 'loja', title: 'Criar minha loja', desc: 'Venda seus produtos e receba pedidos.', icon: StoreIcon, onClick: onStore },
         { key: 'servico', title: 'Oferecer serviço', desc: 'Divulgue seu trabalho e encontre novos clientes.', icon: Wrench, onClick: onService },
@@ -44,20 +45,20 @@ function SellCta({ onStore, onService, onProduct }: { onStore: () => void; onSer
     return (
         <section
             aria-labelledby="sell-cta-title"
-            className="mt-10 relative overflow-hidden rounded-3xl p-5 sm:p-7 text-white"
+            className="mt-10 relative overflow-hidden rounded-3xl p-5 sm:p-7"
             style={{
-                background: 'radial-gradient(120% 90% at 100% 0%, rgba(249,115,22,0.22) 0%, rgba(10,10,10,0) 55%), #0a0a0a',
-                border: '1px solid rgba(249,115,22,0.35)',
-                boxShadow: '0 18px 40px rgba(249,115,22,0.18)',
+                background: colors.surface,
+                border: `1px solid ${colors.border}`,
+                boxShadow: colors.shadow,
             }}
         >
             {/* filete em gradiente no topo do card */}
-            <span aria-hidden className="absolute inset-x-0 top-0 h-1" style={{ background: GRADIENT }} />
+            <span aria-hidden className="absolute inset-x-0 top-0 h-1.5" style={{ background: GRADIENT }} />
 
-            <h2 id="sell-cta-title" className="text-xl sm:text-2xl font-black leading-tight max-w-2xl">
+            <h2 id="sell-cta-title" className="text-xl sm:text-2xl font-black leading-tight max-w-2xl mt-1" style={{ color: colors.textPrimary }}>
                 Tem uma loja, vende produtos ou oferece serviços?
             </h2>
-            <p className="text-sm sm:text-base mt-2 max-w-2xl" style={{ color: 'rgba(255,255,255,0.72)' }}>
+            <p className="text-sm sm:text-base mt-2 max-w-2xl" style={{ color: colors.textSecondary }}>
                 Cadastre-se grátis no iUser e conecte-se com pessoas que estão perto de você.
             </p>
 
@@ -69,17 +70,17 @@ function SellCta({ onStore, onService, onProduct }: { onStore: () => void; onSer
                             key={o.key}
                             type="button"
                             onClick={o.onClick}
-                            className="group text-left rounded-2xl p-4 flex items-center gap-3.5 transition-all duration-200 hover:-translate-y-0.5 active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316] focus-visible:ring-offset-2 focus-visible:ring-offset-black"
-                            style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)' }}
-                            onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'rgba(249,115,22,0.7)'; e.currentTarget.style.background = 'rgba(249,115,22,0.10)' }}
-                            onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)'; e.currentTarget.style.background = 'rgba(255,255,255,0.05)' }}
+                            className="group text-left rounded-2xl p-4 flex items-center gap-3.5 border transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316] focus-visible:ring-offset-2"
+                            style={{ background: colors.background, borderColor: colors.border }}
+                            onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#f97316' }}
+                            onMouseLeave={(e) => { e.currentTarget.style.borderColor = colors.border }}
                         >
-                            <span className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(249,115,22,0.16)', color: '#f97316' }}>
+                            <span className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 text-white" style={{ background: GRADIENT }}>
                                 <Icon size={24} aria-hidden />
                             </span>
                             <span className="min-w-0 flex-1">
-                                <span className="block text-[15px] font-black leading-tight text-white">{o.title}</span>
-                                <span className="block text-xs mt-1 leading-snug" style={{ color: 'rgba(255,255,255,0.65)' }}>{o.desc}</span>
+                                <span className="block text-[15px] font-black leading-tight" style={{ color: colors.textPrimary }}>{o.title}</span>
+                                <span className="block text-xs mt-1 leading-snug" style={{ color: colors.textSecondary }}>{o.desc}</span>
                             </span>
                             <ChevronRight size={20} aria-hidden className="flex-shrink-0 transition-transform duration-200 group-hover:translate-x-1" style={{ color: '#f97316' }} />
                         </button>
@@ -832,6 +833,7 @@ export default function ModeloInicialPage() {
 
                         {/* ===== 4. CONVITE FINAL ===== */}
                         <SellCta
+                            colors={colors}
                             onStore={() => go(userId ? '/criar-loja' : '/criar-loja-com-cadastro')}
                             onService={() => go(profileSlug ? '/meus-servicos' : '/login')}
                             onProduct={sellProduct}
