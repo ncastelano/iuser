@@ -3,7 +3,7 @@
 // MODELO INICIAL — proposta de página inicial pensada em quem usa: o que ela pode
 // FAZER aqui e o que existe pra ela VER. Mesmos dados reais da home, outra organização:
 //   topo: selo (logo/foto), cumprimento, atalhos de conversas e carrinho (com selos) e sair; busca;
-//   1) "O que você quer fazer?": Preciso de… / Quero ganhar com o iUser, e o card Social;
+//   1) "O que você quer fazer?": Preciso … / Quero ganhar com o iUser, e o card Social;
 //   2) categorias;  3) vitrines, uma por tipo, cada tipo com a SUA cor e o seu rótulo;  4) convite final.
 // Todos os cartões das vitrines têm o mesmo tamanho (nem miúdos, nem gigantes) pra a página ter ritmo.
 'use client'
