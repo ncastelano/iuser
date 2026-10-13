@@ -30,6 +30,96 @@ import { toast } from 'sonner'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
+// Card "Social": pessoas e comunidades num lugar só. Duas metades tocáveis — as pessoas (pilha de fotos dos perfis
+// mais pontuados) e as comunidades (pilha de fotos + a que está mais movimentada) —, cada uma na cor do seu tipo.
+function SocialCard({ people, communities, colors, go }: {
+    people: { id: string; slug: string; avatar: string | null }[] | null
+    communities: { id: string; name: string; members: number; image: string | null; activity: { photoVoteActive?: boolean } | null }[] | null
+    colors: any
+    go: (p: string) => void
+}) {
+    const P = TYPE.pessoa.color
+    const C = TYPE.comunidade.color
+    const ppl = (people || []).slice(0, 5)
+    const comms = (communities || []).slice(0, 3)
+    const top = communities && communities[0]
+    return (
+        <div
+            className="mt-5 rounded-3xl border overflow-hidden"
+            style={{ background: `linear-gradient(135deg, ${P}14, ${C}14)`, borderColor: colors.border, boxShadow: colors.shadow }}
+        >
+            <button onClick={() => go('/social')} className="w-full flex items-center gap-3 px-4 pt-4 pb-3 text-left">
+                <span className="w-11 h-11 rounded-2xl flex items-center justify-center text-white flex-shrink-0" style={{ background: `linear-gradient(135deg, ${P}, ${C})` }}>
+                    <Users size={22} />
+                </span>
+                <span className="min-w-0 flex-1">
+                    <span className="block text-[15px] font-black leading-tight" style={{ color: colors.textPrimary }}>Social</span>
+                    <span className="block text-xs leading-snug" style={{ color: colors.textSecondary }}>Quem está no iUser e onde a conversa acontece</span>
+                </span>
+                <ChevronRight size={18} className="flex-shrink-0" style={{ color: colors.textSecondary }} />
+            </button>
+
+            <div className="grid grid-cols-2 gap-3 px-3 pb-3">
+                {/* Pessoas */}
+                <button
+                    onClick={() => go('/social')}
+                    className="rounded-2xl p-3 text-left border flex flex-col gap-2.5 transition hover:-translate-y-0.5 active:scale-[0.98]"
+                    style={{ background: colors.surface, borderColor: `${P}45` }}
+                >
+                    <span className="self-start text-[10px] font-black uppercase tracking-wide px-2 py-0.5 rounded-full text-white" style={{ background: P }}>Pessoas</span>
+                    <span className="flex items-center h-10">
+                        {people === null ? (
+                            <span className="h-10 w-24 rounded-full animate-pulse" style={{ background: `${colors.border}60` }} />
+                        ) : ppl.length === 0 ? (
+                            <Users size={26} style={{ color: P }} />
+                        ) : (
+                            <span className="flex -space-x-3">
+                                {ppl.map((p) => (
+                                    p.avatar
+                                        ? <img key={p.id} src={p.avatar} alt="" className="w-10 h-10 rounded-full object-cover" style={{ border: `2px solid ${colors.surface}` }} loading="lazy" />
+                                        : <span key={p.id} className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-black" style={{ background: GRADIENT, border: `2px solid ${colors.surface}` }}>{p.slug.charAt(0).toUpperCase()}</span>
+                                ))}
+                            </span>
+                        )}
+                    </span>
+                    <span className="block text-xs leading-snug" style={{ color: colors.textSecondary }}>
+                        {ppl.length > 0 ? <>Siga <b style={{ color: colors.textPrimary }}>@{ppl[0].slug}</b>{ppl[1] ? <> e outros perfis em alta</> : ' e outros perfis em alta'}</> : 'Descubra perfis e siga quem você gosta'}
+                    </span>
+                </button>
+
+                {/* Comunidades */}
+                <button
+                    onClick={() => go('/comunidade')}
+                    className="rounded-2xl p-3 text-left border flex flex-col gap-2.5 transition hover:-translate-y-0.5 active:scale-[0.98]"
+                    style={{ background: colors.surface, borderColor: `${C}45` }}
+                >
+                    <span className="self-start text-[10px] font-black uppercase tracking-wide px-2 py-0.5 rounded-full text-white" style={{ background: C }}>Comunidades</span>
+                    <span className="flex items-center h-10">
+                        {communities === null ? (
+                            <span className="h-10 w-24 rounded-xl animate-pulse" style={{ background: `${colors.border}60` }} />
+                        ) : comms.length === 0 ? (
+                            <MessageCircle size={26} style={{ color: C }} />
+                        ) : (
+                            <span className="flex -space-x-3">
+                                {comms.map((c) => (
+                                    c.image
+                                        ? <img key={c.id} src={c.image} alt="" className="w-10 h-10 rounded-xl object-cover" style={{ border: `2px solid ${colors.surface}` }} loading="lazy" />
+                                        : <span key={c.id} className="w-10 h-10 rounded-xl flex items-center justify-center text-white" style={{ background: C, border: `2px solid ${colors.surface}` }}><MessageCircle size={16} /></span>
+                                ))}
+                            </span>
+                        )}
+                    </span>
+                    <span className="block text-xs leading-snug" style={{ color: colors.textSecondary }}>
+                        {top ? (
+                            <><b className="block truncate" style={{ color: colors.textPrimary }}>{top.name}</b>{top.activity?.photoVoteActive ? 'Votação de foto rolando' : `${top.members} ${top.members === 1 ? 'membro' : 'membros'}`}</>
+                        ) : 'Converse com quem é da sua cidade'}
+                    </span>
+                </button>
+            </div>
+        </div>
+    )
+}
+
 // "Vender": o que a pessoa quer mostrar — uma loja, um produto (precisa de uma loja) ou um serviço dela.
 function SellDialog({ open, onClose, userId, colors, go }: { open: boolean; onClose: () => void; userId: string | null; colors: any; go: (p: string) => void }) {
     const [myStores, setMyStores] = useState<{ id: string; name: string; storeSlug: string }[] | null>(null)
@@ -486,17 +576,8 @@ export default function ModeloInicialPage() {
                                 })}
                             </div>
 
-                            {/* Social: um lugar pra estar, não uma ação — atalho discreto */}
-                            <button
-                                onClick={() => go('/social')}
-                                className="mt-4 w-full flex items-center gap-2.5 px-4 py-2.5 rounded-full text-left border transition hover:scale-[1.01] active:scale-[0.99]"
-                                style={{ background: `${TYPE.pessoa.color}12`, borderColor: `${TYPE.pessoa.color}40` }}
-                            >
-                                <Users size={16} style={{ color: TYPE.pessoa.color }} />
-                                <span className="text-sm font-black" style={{ color: colors.textPrimary }}>Social</span>
-                                <span className="text-xs flex-1 truncate" style={{ color: colors.textSecondary }}>Conheça pessoas e comunidades</span>
-                                <ChevronRight size={16} style={{ color: colors.textSecondary }} />
-                            </button>
+                            {/* Social: um lugar pra estar, não uma ação — card próprio com pessoas e comunidades */}
+                            <SocialCard people={people} communities={communities} colors={colors} go={go} />
                         </section>
 
                         {/* ===== 2. CATEGORIAS ===== */}
