@@ -130,7 +130,9 @@ export default function MyOpenServiceRequests({ limit = 5, title, onCountChange 
             {title && (
                 <HomeSubheading title={title} subtitle="Toque num pedido para ver os detalhes, editar ou escolher quem vai fazer" />
             )}
-            <div className="flex gap-3 overflow-x-auto pb-1">
+            {/* O padding (com margem negativa pra não mexer no layout) dá folga pro brilho da borda, pra sombra e pro
+                zoom do hover — sem isso o overflow da rolagem cortava as bordas do card nos quatro lados */}
+            <div className="flex gap-3 overflow-x-auto px-2 -mx-2 pt-3 pb-4 -mt-3 -mb-3 snap-x">
                 {requests.map((r) => {
                     const Icon = getServiceIcon(r.serviceType, r.customIcon)
                     const hired = r.candidates.find((c) => c.status === 'accepted')
@@ -139,7 +141,7 @@ export default function MyOpenServiceRequests({ limit = 5, title, onCountChange 
                         <div
                             key={r.id}
                             onClick={() => setOpenId(r.id)}
-                            className={`flex-shrink-0 w-64 rounded-3xl overflow-hidden flex flex-col cursor-pointer transition-transform hover:scale-[1.02] active:scale-[0.99] ${hired ? 'hired-pulse-border' : ''}`}
+                            className={`snap-start flex-shrink-0 w-64 rounded-3xl overflow-hidden flex flex-col cursor-pointer transition-transform hover:scale-[1.02] active:scale-[0.99] ${hired ? 'hired-pulse-border' : ''}`}
                             style={hired
                                 ? { background: colors.surface }
                                 : { background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}

@@ -14,7 +14,6 @@ import { addRecentServiceLocation, getRecentServiceLocations, RecentServiceLocat
 import { createSquareImage } from '@/lib/image'
 import { SERVICE_TYPES, SERVICE_ICON_OPTIONS, ServiceType, getServiceLabel, getServiceIcon } from '@/lib/serviceTypes'
 import { usePopularCustomServices } from '@/hooks/usePopularCustomServices'
-import MyOpenServiceRequests from '@/components/MyOpenServiceRequests'
 import { getAvatarUrl } from '@/lib/avatar'
 import {
     Wrench,
@@ -1372,10 +1371,6 @@ export default function PedirServicoPage() {
                                 </div>
                             )}
 
-                            {/* Meus pedidos de serviço em aberto + candidatos de cada um */}
-                            <div className="mt-5">
-                                <MyOpenServiceRequests limit={5} title="Meus pedidos de serviços em aberto" />
-                            </div>
                         </>
                     )}
 
