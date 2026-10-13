@@ -22,7 +22,6 @@ import {
     AlertCircle,
     ChevronRight,
     Plus,
-    Compass,
     Lock,
     MoreHorizontal,
     Pin,
@@ -48,6 +47,7 @@ interface CommunityCard {
     requires_password: boolean
     /** Criei ou sou membro (continua aparecendo na minha lista) */
     mine: boolean
+    creatorId: string | null
     memberCount: number
     recent: CommunityMessagePreview[]
     activity: CommunityActivity | null
@@ -231,6 +231,7 @@ export default function ComunidadePage() {
             const withCounts: CommunityCard[] = base.map(({ c, count, msgs }) => ({
                 ...c,
                 mine: !!userId && (c.creator_id === userId || mine.has(c.id)),
+                creatorId: c.creator_id || null,
                 scope: (c.scope || 'city') as CommunityCard['scope'],
                 memberCount: count,
                 activity: activityById[c.id] || null,
@@ -347,21 +348,44 @@ export default function ComunidadePage() {
     // ===== LISTA PESSOAL: guardar, fixar no topo, tirar =====
     const saveCommunity = async (c: CommunityCard, pinned: boolean) => {
         if (!userId) { router.push('/login'); return }
+        // Cidade/estado/país já aparecem sempre: tirar do topo só apaga a marca, não precisa de linha guardada
+        if (!pinned && isOwnPlace(c)) { await removeSaved(c, 'Saiu do topo'); return }
         const pinnedAt = pinned ? new Date().toISOString() : null
         const { error: err } = await supabase
             .from('community_saved')
             .upsert({ profile_id: userId, community_id: c.id, pinned, pinned_at: pinnedAt }, { onConflict: 'profile_id,community_id' })
-        if (err) { toast.error('Não foi possível salvar agora'); return }
+        if (err) {
+            console.error('[Comunidade] Erro ao guardar:', err)
+            toast.error(`Não foi possível salvar agora (${err.message})`)
+            return
+        }
         setSaved((prev) => new Map(prev).set(c.id, { pinned, pinnedAt }))
         toast.success(pinned ? 'Colocada no topo da sua lista' : 'Guardada na sua lista')
     }
 
-    const removeSaved = async (c: CommunityCard) => {
+    const removeSaved = async (c: CommunityCard, okMessage = 'Tirada da sua lista') => {
         if (!userId) return
         const { error: err } = await supabase.from('community_saved').delete().eq('profile_id', userId).eq('community_id', c.id)
-        if (err) { toast.error('Não foi possível remover agora'); return }
+        if (err) {
+            console.error('[Comunidade] Erro ao remover:', err)
+            toast.error(`Não foi possível remover agora (${err.message})`)
+            return
+        }
         setSaved((prev) => { const m = new Map(prev); m.delete(c.id); return m })
-        toast.success('Tirada da sua lista')
+        toast.success(okMessage)
+    }
+
+    // Por que esta sala está na lista: é da cidade/estado/país da pessoa, ela criou, participa ou guardou
+    const reasonsFor = (c: CommunityCard): string[] => {
+        const out: string[] = []
+        if (c.scope === 'city' && same(userCity, c.city)) out.push('Sua cidade')
+        else if (c.scope === 'state' && same(userState, c.city)) out.push('Seu estado')
+        else if (c.scope === 'country') out.push('Seu país')
+        else if (c.creatorId === userId && userId) out.push('Criada por você')
+        else if (c.mine) out.push('Você participa')
+        if (saved.get(c.id)?.pinned) out.push('No topo')
+        else if (saved.has(c.id)) out.push('Na sua lista')
+        return out
     }
 
     // ===== ESTILOS =====
@@ -406,43 +430,6 @@ export default function ComunidadePage() {
                 />
 
                 <section className="px-4 md:px-6 mt-2 pb-28">
-                    {/* Banner de localização - reativo ao LocationPicker: a cidade vem
-                        da localização salva no perfil (mesma usada no radar e no
-                        homepage), não de uma permissão de geolocalização separada. */}
-                    <div
-                        className="rounded-2xl p-4 mb-4 border flex items-center gap-3"
-                        style={{ background: cardBg, backdropFilter: 'blur(12px)', borderColor: colors.border, boxShadow: colors.shadow }}
-                    >
-                        <div
-                            className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
-                            style={{ background: GRADIENT, color: '#fff' }}
-                        >
-                            <Compass size={18} />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                            {resolvingCity ? (
-                                <p className="text-xs font-bold" style={{ color: colors.textSecondary }}>Detectando sua cidade...</p>
-                            ) : userCity ? (
-                                <p className="text-xs font-bold" style={{ color: colors.textPrimary }}>
-                                    Mostrando primeiro o chat de <span style={{ color: colors.accent }}>{[userCity, userState].filter(Boolean).join(', ')}</span> e do Brasil
-                                </p>
-                            ) : (
-                                <p className="text-xs font-bold" style={{ color: colors.textSecondary }}>
-                                    Defina sua localização para ver o chat da sua cidade
-                                </p>
-                            )}
-                        </div>
-                        {!resolvingCity && (
-                            <button
-                                onClick={() => userId ? setShowLocationDialog(true) : router.push('/login')}
-                                className="text-[10px] font-bold uppercase px-3 py-1.5 rounded-full flex-shrink-0"
-                                style={{ background: `${colors.accent}20`, color: colors.accent }}
-                            >
-                                {userCity ? 'Alterar' : 'Definir local'}
-                            </button>
-                        )}
-                    </div>
-
                     {/* Loading */}
                     {loadingData && (
                         <div className="flex justify-center py-12">
@@ -491,10 +478,12 @@ export default function ComunidadePage() {
                         <div className="space-y-4">
                             {filteredCommunities.map((community) => {
                                 const sv = saved.get(community.id)
-                                const canManage = !!userId && !isOwnPlace(community)
+                                const canManage = !!userId
+                                const ownPlace = isOwnPlace(community)
+                                const reasons = reasonsFor(community)
                                 return (
                                 <div key={community.id} className="relative">
-                                {/* ⋯ : cartões que não são da cidade/estado/país da pessoa (achados na busca ou guardados) */}
+                                {/* ⋯ : colocar no topo / tirar do topo em todos; guardar e deletar da lista nos que vieram da busca */}
                                 {canManage && (
                                     <>
                                         <button
@@ -529,7 +518,7 @@ export default function ComunidadePage() {
                                                             <Pin size={16} /> Colocar no topo
                                                         </button>
                                                     )}
-                                                    {sv ? (
+                                                    {ownPlace ? null : sv ? (
                                                         <button
                                                             onClick={() => { setMenuFor(null); removeSaved(community) }}
                                                             className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-bold text-left hover:opacity-80"
@@ -574,6 +563,21 @@ export default function ComunidadePage() {
                                                 <p className="text-xs flex items-center gap-1 mt-0.5" style={{ color: colors.accent }}>
                                                     <MapPin size={12} /> {community.scope === 'country' ? 'Todo o país' : community.scope === 'state' ? 'Estado' : community.city}
                                                 </p>
+                                                {reasons.length > 0 && (
+                                                    <p className="flex flex-wrap gap-1 mt-1.5">
+                                                        {reasons.map((r) => (
+                                                            <span
+                                                                key={r}
+                                                                className="text-[10px] font-black px-2 py-0.5 rounded-full"
+                                                                style={r === 'No topo'
+                                                                    ? { background: `${colors.accent}22`, color: colors.accent }
+                                                                    : { background: `${colors.border}55`, color: colors.textSecondary }}
+                                                            >
+                                                                {r}
+                                                            </span>
+                                                        ))}
+                                                    </p>
+                                                )}
                                                 {community.description && (
                                                     <p className="text-xs line-clamp-2 mt-1" style={{ color: colors.textSecondary }}>
                                                         {community.description}
@@ -651,7 +655,7 @@ export default function ComunidadePage() {
                         }
                         setShowCreateModal(true)
                     }}
-                    className="fixed bottom-24 right-6 z-40 flex items-center gap-2 px-5 py-3.5 rounded-full font-black text-xs uppercase tracking-wider shadow-2xl transition-transform hover:scale-105 active:scale-95"
+                    className={`${menuFor ? 'hidden' : ''} fixed bottom-24 right-6 z-40 flex items-center gap-2 px-5 py-3.5 rounded-full font-black text-xs uppercase tracking-wider shadow-2xl transition-transform hover:scale-105 active:scale-95`}
                     style={{ background: GRADIENT, color: '#fff', boxShadow: `0 8px 24px #14b8a660` }}
                 >
                     <Plus size={16} /> Criar Comunidade
