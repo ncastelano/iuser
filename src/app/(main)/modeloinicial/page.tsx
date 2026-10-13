@@ -1,17 +1,19 @@
 // app/(main)/modeloinicial/page.tsx
 //
-// MODELO INICIAL — proposta de página inicial pensada em quem usa: o que eu posso FAZER aqui, o que existe pra eu
-// VER, e como distinguir cada coisa. Mesmos dados reais da home, outra organização:
-//   1) cumprimento + busca;  2) "O que você quer fazer?" (Preciso de… / Quero ganhar com o iUser);  3) categorias;
-//   4) vitrines, uma por tipo, cada tipo com a SUA cor e o seu rótulo (loja, produto, serviço, pedido, pessoa, comunidade).
-// Todos os cartões têm o mesmo tamanho (nem miúdos, nem gigantes) pra a página ter ritmo.
+// MODELO INICIAL — proposta de página inicial pensada em quem usa: o que está acontecendo COM A PESSOA, o que ela pode
+// FAZER aqui e o que existe pra ela VER. Mesmos dados reais da home, outra organização:
+//   topo: selo (logo/foto), cumprimento, atalhos de conversas e carrinho (com selos) e sair; busca;
+//   0) "Para você agora": quem está falando comigo + meu carrinho;
+//   1) "O que você quer fazer?": Preciso de… / Quero ganhar com o iUser, e o card Social;
+//   2) categorias;  3) vitrines, uma por tipo, cada tipo com a SUA cor e o seu rótulo;  4) convite final.
+// Todos os cartões das vitrines têm o mesmo tamanho (nem miúdos, nem gigantes) pra a página ter ritmo.
 'use client'
 
 import { ReactNode, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
     Search, ShoppingBag, Store as StoreIcon, Car, Wrench, Megaphone, Briefcase, Users, MessageCircle,
-    ChevronRight, Star, MapPin, Eye, User, LogIn, LogOut, Radar, UserPlus, X, Package, type LucideIcon,
+    ChevronRight, Star, MapPin, Eye, User, LogIn, LogOut, Radar, UserPlus, X, Package, ShoppingCart, Bell, type LucideIcon,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
@@ -27,6 +29,8 @@ import PlanAvatarRing, { usePlanRing } from '@/components/PlanAvatarRing'
 import SearchResultsSection from '../inicio/SearchResultsSection'
 import ShareLinkDialog, { copyText } from '@/components/ShareLinkDialog'
 import { toast } from 'sonner'
+import { useChatUnread } from '@/hooks/useChatUnread'
+import { useCartStore, cartItemLineTotal } from '@/store/useCartStore'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -327,11 +331,213 @@ function Skeleton({ colors }: { colors: any }) {
     )
 }
 
+// ===================== PAINEL "PARA VOCÊ AGORA": CONVERSAS + CARRINHO =====================
+// Duas coisas que a pessoa precisa ver sem procurar: quem está falando com ela e o que ficou no carrinho.
+interface ChatRow {
+    id: string; unread: number; last_message: string | null; last_message_at: string | null; last_sender_id: string | null
+    other_name: string | null; other_slug: string | null; other_avatar: string | null; other_is_store: boolean; via?: string | null
+}
+
+function chatAvatar(r: ChatRow): string | null {
+    if (!r.other_avatar) return null
+    if (r.other_is_store) return r.other_avatar.startsWith('http') ? r.other_avatar : supabase.storage.from('store-logos').getPublicUrl(r.other_avatar).data.publicUrl
+    return getAvatarUrl(supabase, r.other_avatar) || null
+}
+
+function shortWhen(iso: string | null): string {
+    if (!iso) return ''
+    const d = new Date(iso)
+    const today = new Date()
+    return d.toDateString() === today.toDateString()
+        ? d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+        : d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+}
+
+function ChatPanel({ userId, unread, colors, go }: { userId: string | null; unread: number; colors: any; go: (p: string) => void }) {
+    const GREEN = '#16a34a'
+    const [rows, setRows] = useState<ChatRow[] | null>(null)
+
+    // Recarrega quando chega mensagem (o total de não lidas muda): as conversas do perfil e as das lojas da pessoa
+    useEffect(() => {
+        if (!userId) { setRows([]); return }
+        let cancelled = false
+        const load = async () => {
+            const [{ data: mine }, { data: myStores }] = await Promise.all([
+                supabase.rpc('get_my_conversations', { p_scope: 'profile' }),
+                supabase.from('stores').select('id, name').eq('owner_id', userId).limit(5),
+            ])
+            const fromStores = await Promise.all((myStores || []).map(async (st: any) => {
+                const { data } = await supabase.rpc('get_my_conversations', { p_scope: 'store', p_store: st.id })
+                return ((data as ChatRow[]) || []).map((r) => ({ ...r, via: st.name as string }))
+            }))
+            if (cancelled) return
+            const all = [...((mine as ChatRow[]) || []), ...fromStores.flat()]
+            all.sort((a, b) => (Number(b.unread > 0) - Number(a.unread > 0)) || (new Date(b.last_message_at || 0).getTime() - new Date(a.last_message_at || 0).getTime()))
+            setRows(all)
+        }
+        load().catch(() => { if (!cancelled) setRows([]) })
+        return () => { cancelled = true }
+    }, [userId, unread])
+
+    const shown = (rows || []).slice(0, 3)
+    return (
+        <div className="rounded-3xl border p-4 flex flex-col gap-3" style={{ background: colors.surface, borderColor: unread > 0 ? `${GREEN}80` : colors.border, boxShadow: colors.shadow }}>
+            <div className="flex items-center gap-3">
+                <span className="relative w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: `${GREEN}1f`, color: GREEN }}>
+                    <MessageCircle size={22} />
+                    {unread > 0 && (
+                        <span className="absolute -top-1.5 -right-1.5 min-w-[20px] h-5 px-1 rounded-full text-[11px] font-black text-white flex items-center justify-center animate-pulse" style={{ background: GREEN }}>
+                            {unread > 99 ? '99+' : unread}
+                        </span>
+                    )}
+                </span>
+                <div className="min-w-0 flex-1">
+                    <h2 className="text-base font-black leading-tight" style={{ color: colors.textPrimary }}>Conversas</h2>
+                    <p className="text-xs" style={{ color: unread > 0 ? GREEN : colors.textSecondary, fontWeight: unread > 0 ? 800 : 400 }}>
+                        {!userId ? 'Fale com lojas e prestadores'
+                            : unread > 0 ? `${unread} ${unread === 1 ? 'mensagem nova' : 'mensagens novas'}`
+                                : 'Quem está falando com você'}
+                    </p>
+                </div>
+                {userId && (
+                    <button onClick={() => go('/conversas')} className="flex items-center gap-0.5 text-xs font-black px-3 py-1.5 rounded-full flex-shrink-0 transition hover:scale-105" style={{ color: GREEN, background: `${GREEN}14` }}>
+                        Abrir <ChevronRight size={14} />
+                    </button>
+                )}
+            </div>
+
+            {!userId ? (
+                <button onClick={() => go('/login')} className="w-full py-2.5 rounded-full text-sm font-black text-white" style={{ background: GRADIENT }}>
+                    Entrar para conversar
+                </button>
+            ) : rows === null ? (
+                <div className="flex flex-col gap-2">{[0, 1].map((i) => <div key={i} className="h-12 rounded-2xl animate-pulse" style={{ background: `${colors.border}40` }} />)}</div>
+            ) : shown.length === 0 ? (
+                <p className="text-xs leading-snug rounded-2xl px-3 py-3" style={{ background: `${colors.border}30`, color: colors.textSecondary }}>
+                    Nenhuma conversa ainda. Toque em <b>iUser</b> numa loja, serviço ou pedido para começar uma.
+                </p>
+            ) : (
+                <div className="flex flex-col gap-1.5">
+                    {shown.map((r) => {
+                        const img = chatAvatar(r)
+                        const who = !r.other_is_store && r.other_slug ? `@${r.other_slug}` : r.other_name || 'Conversa'
+                        const hot = r.unread > 0
+                        return (
+                            <button
+                                key={r.id}
+                                onClick={() => go(`/conversas?c=${r.id}`)}
+                                className="w-full flex items-center gap-2.5 p-2 rounded-2xl text-left transition hover:opacity-90 active:scale-[0.99]"
+                                style={{ background: hot ? `${GREEN}18` : `${colors.border}25` }}
+                            >
+                                <span className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0 text-white text-sm font-black" style={{ background: img ? `${colors.border}60` : GRADIENT }}>
+                                    {img ? <img src={img} alt="" className="w-full h-full object-cover" loading="lazy" /> : who.replace('@', '').charAt(0).toUpperCase()}
+                                </span>
+                                <span className="min-w-0 flex-1">
+                                    <span className="flex items-center gap-1.5">
+                                        <span className="text-sm truncate" style={{ color: colors.textPrimary, fontWeight: hot ? 900 : 700 }}>{who}</span>
+                                        {r.via && <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ background: `${TYPE.loja.color}1f`, color: TYPE.loja.color }}>{r.via}</span>}
+                                    </span>
+                                    <span className="block text-xs truncate" style={{ color: hot ? colors.textPrimary : colors.textSecondary, fontWeight: hot ? 700 : 400 }}>
+                                        {r.last_sender_id === userId ? 'Você: ' : ''}{r.last_message || 'Conversa iniciada'}
+                                    </span>
+                                </span>
+                                <span className="flex flex-col items-end gap-1 flex-shrink-0">
+                                    <span className="text-[10px]" style={{ color: colors.textSecondary }}>{shortWhen(r.last_message_at)}</span>
+                                    {hot && <span className="min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black text-white flex items-center justify-center" style={{ background: GREEN }}>{r.unread}</span>}
+                                </span>
+                            </button>
+                        )
+                    })}
+                </div>
+            )}
+        </div>
+    )
+}
+
+function CartPanel({ colors, go }: { colors: any; go: (p: string) => void }) {
+    const ORANGE = '#ea580c'
+    const itemsByStore = useCartStore((st) => st.itemsByStore)
+    const storeDetails = useCartStore((st) => st.storeDetails)
+    // O carrinho fica salvo no aparelho: só desenha depois de montar, pra não divergir do servidor
+    const [mounted, setMounted] = useState(false)
+    useEffect(() => setMounted(true), [])
+
+    const entries = useMemo(() => Object.entries(itemsByStore)
+        .filter(([, items]) => items.length > 0)
+        .map(([slug, items]) => ({
+            slug,
+            name: storeDetails[slug]?.name || slug,
+            logo: toPublicImage('store-logos', storeDetails[slug]?.logo_url),
+            count: items.reduce((a, i) => a + i.quantity, 0),
+            total: items.reduce((a, i) => a + cartItemLineTotal(i), 0),
+        })), [itemsByStore, storeDetails])
+    const count = entries.reduce((a, e) => a + e.count, 0)
+    const total = entries.reduce((a, e) => a + e.total, 0)
+    const has = mounted && entries.length > 0
+
+    return (
+        <div className="rounded-3xl border p-4 flex flex-col gap-3" style={{ background: colors.surface, borderColor: has ? `${ORANGE}80` : colors.border, boxShadow: colors.shadow }}>
+            <div className="flex items-center gap-3">
+                <span className="relative w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: `${ORANGE}1f`, color: ORANGE }}>
+                    <ShoppingCart size={22} />
+                    {has && (
+                        <span className="absolute -top-1.5 -right-1.5 min-w-[20px] h-5 px-1 rounded-full text-[11px] font-black text-white flex items-center justify-center" style={{ background: ORANGE }}>{count > 99 ? '99+' : count}</span>
+                    )}
+                </span>
+                <div className="min-w-0 flex-1">
+                    <h2 className="text-base font-black leading-tight" style={{ color: colors.textPrimary }}>Carrinho</h2>
+                    <p className="text-xs" style={{ color: has ? ORANGE : colors.textSecondary, fontWeight: has ? 800 : 400 }}>
+                        {has ? `${count} ${count === 1 ? 'item' : 'itens'} · ${money(total) || 'R$ 0,00'}` : 'Seus produtos aparecem aqui'}
+                    </p>
+                </div>
+                {has && (
+                    <button onClick={() => go('/carrinho')} className="flex items-center gap-0.5 text-xs font-black px-3 py-1.5 rounded-full flex-shrink-0 transition hover:scale-105" style={{ color: ORANGE, background: `${ORANGE}14` }}>
+                        Ver <ChevronRight size={14} />
+                    </button>
+                )}
+            </div>
+
+            {!has ? (
+                <button onClick={() => go('/lojas')} className="w-full py-2.5 rounded-full text-sm font-black border-2 transition hover:scale-[1.01]" style={{ borderColor: `${ORANGE}60`, color: ORANGE }}>
+                    Ver lojas e produtos
+                </button>
+            ) : (
+                <>
+                    <div className="flex flex-col gap-1.5">
+                        {entries.slice(0, 3).map((e) => (
+                            <button key={e.slug} onClick={() => go('/carrinho')} className="w-full flex items-center gap-2.5 p-2 rounded-2xl text-left transition hover:opacity-90" style={{ background: `${colors.border}25` }}>
+                                <span className="w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center flex-shrink-0" style={{ background: `${TYPE.loja.color}22`, color: TYPE.loja.color }}>
+                                    {e.logo ? <img src={e.logo} alt="" className="w-full h-full object-contain p-1" loading="lazy" /> : <StoreIcon size={18} />}
+                                </span>
+                                <span className="min-w-0 flex-1">
+                                    <span className="block text-sm font-black truncate" style={{ color: colors.textPrimary }}>{e.name}</span>
+                                    <span className="block text-xs" style={{ color: colors.textSecondary }}>{e.count} {e.count === 1 ? 'item' : 'itens'}</span>
+                                </span>
+                                <span className="text-sm font-black flex-shrink-0" style={{ color: ORANGE }}>{money(e.total)}</span>
+                            </button>
+                        ))}
+                        {entries.length > 3 && <p className="text-[11px] text-center" style={{ color: colors.textSecondary }}>+ {entries.length - 3} {entries.length - 3 === 1 ? 'loja' : 'lojas'} no carrinho</p>}
+                    </div>
+                    <button onClick={() => go('/carrinho')} className="w-full py-3 rounded-full text-sm font-black text-white" style={{ background: GRADIENT }}>
+                        Finalizar compra
+                    </button>
+                </>
+            )}
+        </div>
+    )
+}
+
 export default function ModeloInicialPage() {
     const router = useRouter()
     const { colors } = useTheme()
     const { userId, profileSlug, avatarUrl } = useProfile()
     const [query, setQuery] = useState('')
+    // Selos do topo: não lidas do chat e itens do carrinho
+    const topUnread = useChatUnread(userId)
+    const cartMap = useCartStore((st) => st.itemsByStore)
+    const [cartReady, setCartReady] = useState(false)
+    useEffect(() => setCartReady(true), [])
+    const topCart = cartReady ? Object.values(cartMap).reduce((a, items) => a + items.reduce((n, i) => n + i.quantity, 0), 0) : 0
 
     const [stores, setStores] = useState<StoreItem[] | null>(null)
     const [products, setProducts] = useState<ProductCard[] | null>(null)
@@ -482,17 +688,40 @@ export default function ModeloInicialPage() {
                         <p className="text-xs" style={{ color: colors.textSecondary }}>{userId ? 'Bem-vindo de volta' : 'Bem-vindo ao iUser'}</p>
                         <p className="text-base font-black truncate" style={{ color: colors.textPrimary }}>{profileSlug ? `@${profileSlug}` : 'Visitante'}</p>
                     </div>
-                    {userId && (
+                    {/* Atalhos que valem em qualquer tela: conversas (com não lidas) e carrinho (com itens) */}
+                    <button
+                        onClick={() => go(userId ? '/conversas' : '/login')}
+                        aria-label="Conversas"
+                        className={`relative w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 transition hover:scale-105 active:scale-95 ${topUnread > 0 ? 'animate-pulse' : ''}`}
+                        style={{ background: topUnread > 0 ? '#16a34a' : `${colors.border}50`, color: topUnread > 0 ? '#fff' : colors.textPrimary }}
+                    >
+                        <MessageCircle size={20} />
+                        {topUnread > 0 && (
+                            <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black bg-red-500 text-white flex items-center justify-center">{topUnread > 99 ? '99+' : topUnread}</span>
+                        )}
+                    </button>
+                    <button
+                        onClick={() => go('/carrinho')}
+                        aria-label="Carrinho"
+                        className="relative w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 transition hover:scale-105 active:scale-95"
+                        style={{ background: topCart > 0 ? '#ea580c' : `${colors.border}50`, color: topCart > 0 ? '#fff' : colors.textPrimary }}
+                    >
+                        <ShoppingCart size={20} />
+                        {topCart > 0 && (
+                            <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black bg-red-500 text-white flex items-center justify-center">{topCart > 99 ? '99+' : topCart}</span>
+                        )}
+                    </button>
+                    {userId ? (
                         <button
                             onClick={async () => { await supabase.auth.signOut(); window.location.href = '/modeloinicial' }}
                             aria-label="Sair"
-                            className="flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-black flex-shrink-0"
+                            title="Sair"
+                            className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
                             style={{ background: `${colors.border}50`, color: colors.textSecondary }}
                         >
-                            <LogOut size={14} /> Sair
+                            <LogOut size={17} />
                         </button>
-                    )}
-                    {!userId && (
+                    ) : (
                         <button onClick={() => go('/login')} className="flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-black text-white flex-shrink-0" style={{ background: GRADIENT }}>
                             <LogIn size={15} /> Entrar
                         </button>
@@ -524,8 +753,20 @@ export default function ModeloInicialPage() {
                     <div className="mt-6"><SearchResultsSection searchQuery={query} /></div>
                 ) : (
                     <>
+                        {/* ===== 0. PARA VOCÊ AGORA: quem está falando comigo + meu carrinho ===== */}
+                        <section className="mt-6">
+                            <div className="flex items-center gap-2 mb-3">
+                                <Bell size={16} style={{ color: colors.textSecondary }} />
+                                <h2 className="text-sm font-black uppercase tracking-wide" style={{ color: colors.textSecondary }}>Para você agora</h2>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <ChatPanel userId={userId} unread={topUnread} colors={colors} go={go} />
+                                <CartPanel colors={colors} go={go} />
+                            </div>
+                        </section>
+
                         {/* ===== 1. O QUE VOCÊ QUER FAZER? — dois blocos: quem precisa / quem quer ganhar ===== */}
-                        <section className="mt-7">
+                        <section className="mt-8">
                             <h2 className="text-xl font-black" style={{ color: colors.textPrimary }}>O que você quer fazer?</h2>
                             <p className="text-xs mt-0.5 mb-4" style={{ color: colors.textSecondary }}>Escolha um caminho. É só tocar.</p>
 
