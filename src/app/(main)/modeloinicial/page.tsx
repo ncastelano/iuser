@@ -11,7 +11,7 @@ import { ReactNode, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
     Search, ShoppingBag, Store as StoreIcon, Car, Wrench, Megaphone, Briefcase, Users, MessageCircle,
-    ChevronRight, Star, MapPin, Eye, User, LogIn, type LucideIcon,
+    ChevronRight, Star, MapPin, Eye, User, LogIn, Plus, LayoutDashboard, ExternalLink, type LucideIcon,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
@@ -45,6 +45,7 @@ const money = (v: number | null | undefined) => (v != null && v > 0 ? `R$ ${v.to
 interface StoreItem { id: string; name: string; slug: string; logo: string | null; category: string | null; rating: number | null; open: boolean }
 interface ServiceItem { id: string; title: string; href: string; image: string | null; provider: string; price: number | null }
 interface PersonItem { id: string; slug: string; avatar: string | null; points: number }
+interface MyStore { id: string; name: string; slug: string; logo: string | null; open: boolean; active: boolean; pending: number }
 interface CommunityItem { id: string; slug: string; name: string; city: string; members: number; image: string | null; activity: CommunityActivity | null }
 
 const toPublicImage = (bucket: string, path: string | null | undefined) => {
@@ -131,6 +132,8 @@ export default function ModeloInicialPage() {
     const [requests, setRequests] = useState<BoardItem[] | null>(null)
     const [people, setPeople] = useState<PersonItem[] | null>(null)
     const [communities, setCommunities] = useState<CommunityItem[] | null>(null)
+    // "Meu espaço": minhas lojas (só quem está logado)
+    const [myStores, setMyStores] = useState<MyStore[] | null>(null)
 
     useEffect(() => {
         let cancelled = false
@@ -229,6 +232,38 @@ export default function ModeloInicialPage() {
         return () => { cancelled = true }
     }, [])
 
+    // Minhas lojas + quantos pedidos novos cada uma tem
+    useEffect(() => {
+        if (!userId) { setMyStores(null); return }
+        let cancelled = false
+        ;(async () => {
+            const { data } = await supabase
+                .from('stores')
+                .select('id, name, "storeSlug", logo_url, business_hours, is_active')
+                .eq('owner_id', userId)
+                .order('created_at', { ascending: true })
+            const list = data || []
+            let pending = new Map<string, number>()
+            if (list.length > 0) {
+                const { data: orders } = await supabase
+                    .from('orders')
+                    .select('store_id')
+                    .in('store_id', list.map((s: any) => s.id))
+                    .eq('status', 'pending')
+                ;(orders || []).forEach((o: any) => pending.set(o.store_id, (pending.get(o.store_id) || 0) + 1))
+            }
+            if (cancelled) return
+            setMyStores(list.map((s: any) => ({
+                id: s.id, name: s.name, slug: s.storeSlug,
+                logo: toPublicImage('store-logos', s.logo_url),
+                open: isStoreOpenNow(s.business_hours as BusinessHours | null),
+                active: s.is_active !== false,
+                pending: pending.get(s.id) || 0,
+            })))
+        })().catch(() => { if (!cancelled) setMyStores([]) })
+        return () => { cancelled = true }
+    }, [userId])
+
     const go = (path: string) => router.push(path)
 
     const actions = useMemo(() => ([
@@ -277,6 +312,141 @@ export default function ModeloInicialPage() {
                     <div className="mt-6"><SearchResultsSection searchQuery={query} /></div>
                 ) : (
                     <>
+                        {/* ===== MEU ESPAÇO: meu perfil e minhas lojas (só logado) ===== */}
+                        {userId && (
+                            <section className="mt-7">
+                                <h2 className="text-xl font-black" style={{ color: colors.textPrimary }}>Meu espaço</h2>
+                                <p className="text-xs mt-0.5 mb-3" style={{ color: colors.textSecondary }}>Seu perfil e as lojas que você criou.</p>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    {/* Meu perfil */}
+                                    <div className="rounded-3xl border p-4 flex flex-col gap-3" style={{ background: colors.surface, borderColor: colors.border, boxShadow: colors.shadow }}>
+                                        <div className="flex items-center gap-3">
+                                            <PlanAvatarRing userId={userId} width={3} linkToProfile={false}>
+                                                {avatarUrl ? (
+                                                    <img src={avatarUrl} alt="" className="w-16 h-16 rounded-full object-cover" />
+                                                ) : (
+                                                    <span className="w-16 h-16 rounded-full flex items-center justify-center text-white text-2xl font-black" style={{ background: GRADIENT }}>
+                                                        {(profileSlug || '?').charAt(0).toUpperCase()}
+                                                    </span>
+                                                )}
+                                            </PlanAvatarRing>
+                                            <div className="min-w-0 flex-1">
+                                                <span className="inline-block text-[10px] font-black uppercase tracking-wide px-2 py-0.5 rounded-full text-white" style={{ background: TYPE.pessoa.color }}>Meu perfil</span>
+                                                <p className="text-base font-black truncate mt-0.5" style={{ color: colors.textPrimary }}>@{profileSlug || '...'}</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => profileSlug && go(`/${profileSlug}`)}
+                                                className="flex-1 py-2.5 rounded-full text-sm font-black text-white flex items-center justify-center gap-1.5"
+                                                style={{ background: GRADIENT }}
+                                            >
+                                                <ExternalLink size={14} /> Ver meu perfil
+                                            </button>
+                                            <button
+                                                onClick={() => go('/?view=perfil')}
+                                                className="flex-1 py-2.5 rounded-full text-sm font-black flex items-center justify-center gap-1.5 border-2"
+                                                style={{ color: TYPE.pessoa.color, borderColor: TYPE.pessoa.color }}
+                                            >
+                                                <LayoutDashboard size={14} /> Meu painel
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Minhas lojas */}
+                                    <div className="rounded-3xl border p-4 flex flex-col gap-3" style={{ background: colors.surface, borderColor: colors.border, boxShadow: colors.shadow }}>
+                                        <div className="flex items-center justify-between">
+                                            <span className="inline-block text-[10px] font-black uppercase tracking-wide px-2 py-0.5 rounded-full text-white" style={{ background: TYPE.loja.color }}>
+                                                {myStores && myStores.length > 1 ? 'Minhas lojas' : 'Minha loja'}
+                                            </span>
+                                            <button onClick={() => go('/criar-loja')} className="flex items-center gap-1 text-xs font-black" style={{ color: TYPE.loja.color }}>
+                                                <Plus size={14} /> Nova loja
+                                            </button>
+                                        </div>
+
+                                        {myStores === null ? (
+                                            <div className="h-16 rounded-2xl animate-pulse" style={{ background: `${colors.border}40` }} />
+                                        ) : myStores.length === 0 ? (
+                                            <div className="flex items-center gap-3">
+                                                <span className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: `${TYPE.loja.color}1f`, color: TYPE.loja.color }}>
+                                                    <StoreIcon size={26} />
+                                                </span>
+                                                <div className="min-w-0 flex-1">
+                                                    <p className="text-sm font-black" style={{ color: colors.textPrimary }}>Você ainda não tem loja</p>
+                                                    <p className="text-xs" style={{ color: colors.textSecondary }}>Crie grátis e venda para quem está perto.</p>
+                                                </div>
+                                                <button onClick={() => go('/criar-loja')} className="px-4 py-2 rounded-full text-xs font-black text-white flex-shrink-0" style={{ background: TYPE.loja.color }}>
+                                                    Criar loja
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <div className="flex flex-col gap-3">
+                                                {myStores.map((st) => (
+                                                    <div key={st.id} className="flex flex-col gap-2">
+                                                        <div className="flex items-center gap-3">
+                                                            <span className="w-14 h-14 rounded-2xl overflow-hidden flex items-center justify-center flex-shrink-0" style={{ background: `${TYPE.loja.color}1f`, color: TYPE.loja.color }}>
+                                                                {st.logo ? <img src={st.logo} alt="" className="w-full h-full object-cover" /> : <StoreIcon size={26} />}
+                                                            </span>
+                                                            <div className="min-w-0 flex-1">
+                                                                <p className="text-base font-black truncate" style={{ color: colors.textPrimary }}>{st.name}</p>
+                                                                <p className="flex items-center gap-2 text-[11px] font-bold">
+                                                                    <span className="flex items-center gap-1" style={{ color: st.active ? (st.open ? '#16a34a' : '#dc2626') : colors.textSecondary }}>
+                                                                        <span className="w-1.5 h-1.5 rounded-full" style={{ background: st.active ? (st.open ? '#16a34a' : '#dc2626') : colors.textSecondary }} />
+                                                                        {!st.active ? 'Desativada' : st.open ? 'Aberta agora' : 'Fechada agora'}
+                                                                    </span>
+                                                                    {st.pending > 0 && (
+                                                                        <span className="px-2 py-0.5 rounded-full text-white" style={{ background: '#ea580c' }}>
+                                                                            {st.pending} {st.pending === 1 ? 'pedido novo' : 'pedidos novos'}
+                                                                        </span>
+                                                                    )}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex gap-2">
+                                                            <button
+                                                                onClick={() => go(`/${st.slug}`)}
+                                                                className="flex-1 py-2.5 rounded-full text-sm font-black text-white flex items-center justify-center gap-1.5"
+                                                                style={{ background: TYPE.loja.color }}
+                                                            >
+                                                                <ExternalLink size={14} /> Ver loja
+                                                            </button>
+                                                            <button
+                                                                onClick={() => go(`/?view=loja&store=${encodeURIComponent(st.slug)}`)}
+                                                                className="flex-1 py-2.5 rounded-full text-sm font-black flex items-center justify-center gap-1.5 border-2"
+                                                                style={{ color: TYPE.loja.color, borderColor: TYPE.loja.color }}
+                                                            >
+                                                                <LayoutDashboard size={14} /> Painel
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </section>
+                        )}
+
+                        {/* Visitante: o mesmo lugar, convidando a entrar (é onde ficam o perfil e as lojas depois do login) */}
+                        {!userId && (
+                            <section className="mt-7">
+                                <div className="rounded-3xl border p-4 flex flex-col sm:flex-row sm:items-center gap-3" style={{ background: colors.surface, borderColor: colors.border, boxShadow: colors.shadow }}>
+                                    <span className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: `${TYPE.pessoa.color}1f`, color: TYPE.pessoa.color }}>
+                                        <User size={24} />
+                                    </span>
+                                    <div className="min-w-0 flex-1">
+                                        <p className="text-base font-black" style={{ color: colors.textPrimary }}>Meu espaço</p>
+                                        <p className="text-xs" style={{ color: colors.textSecondary }}>Entre para ver o seu perfil e as lojas que você criou — ou crie a sua agora.</p>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button onClick={() => go('/login')} className="px-4 py-2.5 rounded-full text-sm font-black text-white" style={{ background: GRADIENT }}>Entrar</button>
+                                        <button onClick={() => go('/criar-loja')} className="px-4 py-2.5 rounded-full text-sm font-black border-2" style={{ color: TYPE.loja.color, borderColor: TYPE.loja.color }}>Criar loja</button>
+                                    </div>
+                                </div>
+                            </section>
+                        )}
+
                         {/* ===== 1. O QUE VOCÊ QUER FAZER? ===== */}
                         <section className="mt-7">
                             <h2 className="text-xl font-black" style={{ color: colors.textPrimary }}>O que você quer fazer?</h2>
