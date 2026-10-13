@@ -188,11 +188,6 @@ function Thread({ conversation, userId, onBack, onRead, colors }: {
                                     {new Date(m.created_at).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' })}
                                 </p>
                             )}
-                            {m.ref_request_id && requestRefs[m.ref_request_id] && (
-                                <div className="flex flex-col mb-1.5">
-                                    <RequestCard r={requestRefs[m.ref_request_id]} mine={mine} colors={colors} />
-                                </div>
-                            )}
                             <div className={`max-w-[80%] px-3.5 py-2 rounded-2xl text-sm break-words whitespace-pre-wrap ${mine ? 'self-end rounded-br-md text-white' : 'self-start rounded-bl-md'}`}
                                 style={mine ? { background: GRADIENT } : { background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}>
                                 {m.ref_product_id && refs[m.ref_product_id] && (() => {
@@ -213,6 +208,9 @@ function Thread({ conversation, userId, onBack, onRead, colors }: {
                                     )
                                     return href ? <Link href={href} className="block">{card}</Link> : card
                                 })()}
+                                {m.ref_request_id && requestRefs[m.ref_request_id] && (
+                                    <RequestCard r={requestRefs[m.ref_request_id]} mine={mine} colors={colors} />
+                                )}
                                 {m.content}
                                 <span className="block text-[10px] mt-0.5 text-right" style={{ opacity: 0.7 }}>
                                     {new Date(m.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}

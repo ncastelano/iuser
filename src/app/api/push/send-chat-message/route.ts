@@ -42,7 +42,7 @@ export async function POST(req: Request) {
         // A mensagem mais recente de quem chamou, ainda não avisada
         const { data: msg } = await supabaseAdmin
             .from('direct_messages')
-            .select('id, content, ref_product_id, ref_request_id, created_at, push_notified_at')
+            .select('id, content, ref_product_id, created_at, push_notified_at')
             .eq('conversation_id', conv.id)
             .eq('sender_id', user.id)
             .order('created_at', { ascending: false })
@@ -77,12 +77,6 @@ export async function POST(req: Request) {
         if (msg.ref_product_id) {
             const { data: prod } = await supabaseAdmin.from('products').select('name').eq('id', msg.ref_product_id).maybeSingle()
             if (prod?.name) body = `Interessado em "${prod.name}": ${body}`
-        }
-        if (msg.ref_request_id) {
-            const { data: req } = await supabaseAdmin.from('service_requests').select('service_type, custom_service, description').eq('id', msg.ref_request_id).maybeSingle()
-            const first = String(req?.description || '').split('\n').map((l: string) => l.trim()).find(Boolean) || ''
-            const what = first || req?.custom_service || ''
-            if (what) body = `Pedido de serviço — ${what.length > 70 ? what.slice(0, 69) + '…' : what}`
         }
         if (body.length > MAX_BODY) body = body.slice(0, MAX_BODY - 1) + '…'
 
