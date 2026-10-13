@@ -427,7 +427,17 @@ export default function ModeloInicialPage() {
             })) as StoreItem[]
         }, setStores, [])
 
-        safe(async () => (await loadProductCards()).slice(0, 10), setProducts, [])
+        // Do mais novo para o mais velho: loadProductCards (compartilhada com a home) ordena por visitas, então a ordem
+        // por data de criação é aplicada aqui, em cima dos mesmos cartões.
+        safe(async () => {
+            const [cards, { data: newest }] = await Promise.all([
+                loadProductCards(),
+                supabase.from('products').select('id').eq('listing_type', 'sale').order('created_at', { ascending: false }).limit(60),
+            ])
+            const byId = new Map(cards.map((c) => [c.id, c]))
+            const ordered = (newest || []).map((r: any) => byId.get(r.id)).filter(Boolean) as ProductCard[]
+            return ordered.slice(0, 10)
+        }, setProducts, [])
 
         safe(async () => {
             const { data: rows } = await supabase
@@ -725,7 +735,7 @@ export default function ModeloInicialPage() {
                         </section>
 
                         <section className="mt-8">
-                            <SectionHeader type="produto" title="Produtos" onSeeAll={() => go('/produtos')} colors={colors} />
+                            <SectionHeader type="produto" title="Produtos que você pode gostar" onSeeAll={() => go('/produtos')} colors={colors} />
                             {products === null ? <Skeleton colors={colors} /> : products.length === 0 ? null : (
                                 <Strip>
                                     {products.map((p) => (
