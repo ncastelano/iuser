@@ -3,7 +3,7 @@
 // MODELO INICIAL — proposta de página inicial pensada em quem usa: o que ela pode
 // FAZER aqui e o que existe pra ela VER. Mesmos dados reais da home, outra organização:
 //   topo: selo (logo/foto), cumprimento, atalhos de conversas e carrinho (com selos) e sair; busca;
-//   1) "O que você quer fazer?": Preciso … / Quero ganhar com o iUser, e o card Social;
+//   1) "Preciso…" / "Quero ganhar com o iUser", e o card Social;
 //   2) categorias;  3) vitrines, uma por tipo, cada tipo com a SUA cor e o seu rótulo;  4) convite final.
 // Todos os cartões das vitrines têm o mesmo tamanho (nem miúdos, nem gigantes) pra a página ter ritmo.
 'use client'
@@ -558,10 +558,7 @@ export default function ModeloInicialPage() {
                     <>
                         {/* ===== 1. O QUE VOCÊ QUER FAZER? — dois blocos: quem precisa / quem quer ganhar ===== */}
                         <section className="mt-7">
-                            <h2 className="text-xl font-black" style={{ color: colors.textPrimary }}>O que você quer fazer?</h2>
-                            <p className="text-xs mt-0.5 mb-4" style={{ color: colors.textSecondary }}>Escolha um caminho. É só tocar.</p>
-
-                            <h3 className="text-sm font-black mb-2" style={{ color: colors.textPrimary }}>Preciso …</h3>
+                            <h2 className="text-xl font-black mb-3" style={{ color: colors.textPrimary }}>Preciso…</h2>
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                                 {needs.map((a) => {
                                     const Icon = a.icon
@@ -584,7 +581,7 @@ export default function ModeloInicialPage() {
                                 })}
                             </div>
 
-                            <h3 className="text-sm font-black mt-5 mb-2" style={{ color: colors.textPrimary }}>Quero ganhar com o iUser</h3>
+                            <h2 className="text-xl font-black mt-6 mb-3" style={{ color: colors.textPrimary }}>Quero ganhar com o iUser</h2>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                                 {earns.map((a) => {
                                     const Icon = a.icon
