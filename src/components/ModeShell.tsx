@@ -150,7 +150,7 @@ function MenuDrawerContent({ slug, avatarUrl, data, active, recent, onSelect, on
     )
 
     return (
-        <div className="h-full w-full flex flex-col px-4 pt-6 pb-8 overflow-y-auto">
+        <div className="h-full w-full flex flex-col px-4 pt-6 pb-28 overflow-y-auto">
             {/* Só o fechar: a foto e o @ aparecem uma vez só, no cartão "Meu perfil" logo abaixo */}
             <div className="flex justify-end">
                 <button onClick={onClose} aria-label="Fechar menu" className="w-9 h-9 rounded-full flex items-center justify-center text-white hover:bg-white/15 flex-shrink-0">
@@ -261,7 +261,7 @@ function DrawerExplorar({ recent, onGo }: { recent: RecentClickItem[]; onGo: (pa
 // Menu de quem não tem conta: o "modo" é o de visitante (já selecionado), mais entrar/criar conta e o Explorar
 function VisitorDrawerContent({ recent, onGo, onClose }: { recent: RecentClickItem[]; onGo: (path: string) => void; onClose: () => void }) {
     return (
-        <div className="h-full w-full flex flex-col px-4 pt-6 pb-8 overflow-y-auto">
+        <div className="h-full w-full flex flex-col px-4 pt-6 pb-28 overflow-y-auto">
             <div className="flex justify-end">
                 <button onClick={onClose} aria-label="Fechar menu" className="w-9 h-9 rounded-full flex items-center justify-center text-white hover:bg-white/15 flex-shrink-0">
                     <X size={20} />
@@ -608,148 +608,149 @@ export default function ModeShell({ children, search }: {
                 {children}
             </div>
 
-            {/* Navegação embaixo: o botão do menu (selo + nome), o carrinho, as mensagens e a lupa. Na página com busca,
-                a lupa se EXPANDE no lugar e vira o campo; nas outras, leva ao /modeloinicial. */}
-            <nav
-                className="fixed bottom-0 left-0 right-0 z-40 border-t"
-                style={{
-                    background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.94)`,
-                    backdropFilter: 'blur(14px)',
-                    WebkitBackdropFilter: 'blur(14px)',
-                    borderColor: colors.border,
-                    paddingBottom: 'env(safe-area-inset-bottom)',
-                }}
-            >
-                <div className="max-w-5xl mx-auto px-4 py-2 flex items-center">
-                    {/* Grupo da esquerda: some (encolhe) quando a lupa vira o campo de busca */}
-                    <div
-                        className="flex items-center gap-2.5 min-w-0"
-                        style={{
-                            flex: searchOpen ? '0 0 0px' : '1 1 0%',
-                            maxWidth: searchOpen ? 0 : '100%',
-                            opacity: searchOpen ? 0 : 1,
-                            overflow: 'hidden',
-                            marginRight: searchOpen ? 0 : 10,
-                            transition: 'flex 320ms cubic-bezier(0.22, 1, 0.36, 1), max-width 320ms cubic-bezier(0.22, 1, 0.36, 1), opacity 200ms ease, margin 320ms ease',
-                        }}
-                    >
-                        <HeaderBadge
-                            userId={userId}
-                            avatarUrl={headerView.image}
-                            colors={colors}
-                            noRing={headerView.noRing}
-                            label={headerView.label}
-                            modeIcon={headerView.modeIcon}
-                            popToken={modeTick}
-                            onProfile={() => { window.scrollTo({ top: 0 }); setDrawerOpen(true) }}
-                            // A logo (outra face do selo) também abre o menu
-                            onHome={() => { window.scrollTo({ top: 0 }); setDrawerOpen(true) }}
-                        />
-
-                        {/* Nome, frase e triângulo: um botão só — abre/fecha o menu (igual ao selo) */}
-                            <button
-                                type="button"
-                                onClick={() => { window.scrollTo({ top: 0 }); setDrawerOpen((v) => !v) }}
-                                aria-label={drawerOpen ? 'Fechar menu' : 'Abrir menu'}
-                                aria-expanded={drawerOpen}
-                                className="min-w-0 flex-1 text-left rounded-xl py-1 transition active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]"
-                            >
-                                <span className="block text-xs truncate" style={{ color: colors.textSecondary }}>{headerView.line1}</span>
-                                <span className="flex items-center gap-1.5 min-w-0">
-                                    <span className="text-base font-black truncate" style={{ color: colors.textPrimary }}>{headerView.line2}</span>
-                                    <span className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center" style={{ background: `${colors.border}55` }}>
-                                        <svg
-                                            width="10" height="9" viewBox="0 0 10 9" aria-hidden
-                                            style={{ transition: 'transform 350ms cubic-bezier(0.22, 1, 0.36, 1)', transform: drawerOpen ? 'rotate(-90deg)' : 'rotate(0deg)' }}
-                                        >
-                                            <polygon points="5,0 10,9 0,9" fill={colors.textPrimary} />
-                                        </svg>
-                                    </span>
-                                </span>
-                            </button>
-                                    </div>
-
-                    {/* Carrinho, conversas e lupa: uma cápsula só. Com busca na página, a lupa expande no lugar e vira o campo
-                        (o carrinho e as conversas encolhem); nas outras, leva ao /modeloinicial. */}
-                    <div
-                        className="flex items-center rounded-full"
-                        style={{
-                            flex: searchOpen ? '1 1 0%' : '0 0 auto',
-                            height: 48,
-                            padding: 2,
-                            background: searchOpen ? colors.surface : `${colors.border}50`,
-                            border: searchOpen ? `1.5px solid ${colors.border}` : '1.5px solid transparent',
-                            color: colors.textPrimary,
-                            transition: 'flex 320ms cubic-bezier(0.22, 1, 0.36, 1), background 250ms ease, border-color 250ms ease',
-                        }}
-                    >
-                        <div
-                            className="flex items-center"
-                            style={{
-                                maxWidth: searchOpen ? 0 : 100,
-                                opacity: searchOpen ? 0 : 1,
-                                overflow: searchOpen ? 'hidden' : 'visible',
-                                transition: 'max-width 320ms cubic-bezier(0.22, 1, 0.36, 1), opacity 200ms ease',
-                            }}
-                        >
-                            <button
-                                onClick={() => go('/carrinho')}
-                                aria-label="Carrinho"
-                                className="relative w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 transition hover:scale-105 active:scale-95"
-                                style={{ background: topCart > 0 ? '#ea580c' : 'transparent', color: topCart > 0 ? '#fff' : colors.textPrimary }}
-                            >
-                                <ShoppingCart size={20} />
-                                {topCart > 0 && (
-                                    <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black bg-red-500 text-white flex items-center justify-center">{topCart > 99 ? '99+' : topCart}</span>
-                                )}
-                            </button>
-                            <button
-                                onClick={() => go(userId ? '/conversas' : '/login')}
-                                aria-label="Conversas"
-                                className={`relative w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 transition hover:scale-105 active:scale-95 ${topUnread > 0 ? 'animate-pulse' : ''}`}
-                                style={{ background: topUnread > 0 ? '#16a34a' : 'transparent', color: topUnread > 0 ? '#fff' : colors.textPrimary }}
-                            >
-                                <MessageCircle size={20} />
-                                {topUnread > 0 && (
-                                    <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black bg-red-500 text-white flex items-center justify-center">{topUnread > 99 ? '99+' : topUnread}</span>
-                                )}
-                            </button>
-                        </div>
-
-                        {search && searchOpen ? (
-                            <>
-                                <Search size={18} className="ml-3 flex-shrink-0" style={{ color: colors.textSecondary }} />
-                                <input
-                                    ref={searchInputRef}
-                                    type="search"
-                                    value={search.value}
-                                    onChange={(e) => search.onChange(e.target.value)}
-                                    placeholder={search.placeholder || 'Buscar...'}
-                                    className="flex-1 min-w-0 bg-transparent px-2.5 text-sm focus:outline-none"
-                                    style={{ color: colors.textPrimary }}
-                                />
-                                <button
-                                    onClick={() => { search.onChange(''); setSearchOpen(false) }}
-                                    aria-label="Fechar busca"
-                                    className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
-                                    style={{ color: colors.textPrimary }}
-                                >
-                                    <X size={18} />
-                                </button>
-                            </>
-                        ) : (
-                            <button
-                                onClick={() => (search ? setSearchOpen(true) : go('/modeloinicial'))}
-                                aria-label="Buscar"
-                                className="w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 transition hover:scale-105 active:scale-95"
-                            >
-                                <Search size={20} />
-                            </button>
-                        )}
-                    </div>
-                </div>
-            </nav>
         </div>
+
+        {/* Navegação embaixo (fora da página que desliza: fica sempre fixa na tela, com o menu aberto ou não): o botão do menu (selo + nome), o carrinho, as mensagens e a lupa. Na página com busca,
+            a lupa se EXPANDE no lugar e vira o campo; nas outras, leva ao /modeloinicial. */}
+        <nav
+            className="fixed bottom-0 left-0 right-0 z-40 border-t"
+            style={{
+                background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.94)`,
+                backdropFilter: 'blur(14px)',
+                WebkitBackdropFilter: 'blur(14px)',
+                borderColor: colors.border,
+                paddingBottom: 'env(safe-area-inset-bottom)',
+            }}
+        >
+            <div className="max-w-5xl mx-auto px-4 py-2 flex items-center">
+                {/* Grupo da esquerda: some (encolhe) quando a lupa vira o campo de busca */}
+                <div
+                    className="flex items-center gap-2.5 min-w-0"
+                    style={{
+                        flex: searchOpen ? '0 0 0px' : '1 1 0%',
+                        maxWidth: searchOpen ? 0 : '100%',
+                        opacity: searchOpen ? 0 : 1,
+                        overflow: 'hidden',
+                        marginRight: searchOpen ? 0 : 10,
+                        transition: 'flex 320ms cubic-bezier(0.22, 1, 0.36, 1), max-width 320ms cubic-bezier(0.22, 1, 0.36, 1), opacity 200ms ease, margin 320ms ease',
+                    }}
+                >
+                    <HeaderBadge
+                        userId={userId}
+                        avatarUrl={headerView.image}
+                        colors={colors}
+                        noRing={headerView.noRing}
+                        label={headerView.label}
+                        modeIcon={headerView.modeIcon}
+                        popToken={modeTick}
+                        onProfile={() => { window.scrollTo({ top: 0 }); setDrawerOpen(true) }}
+                        // A logo (outra face do selo) também abre o menu
+                        onHome={() => { window.scrollTo({ top: 0 }); setDrawerOpen(true) }}
+                    />
+
+                    {/* Nome, frase e triângulo: um botão só — abre/fecha o menu (igual ao selo) */}
+                        <button
+                            type="button"
+                            onClick={() => { window.scrollTo({ top: 0 }); setDrawerOpen((v) => !v) }}
+                            aria-label={drawerOpen ? 'Fechar menu' : 'Abrir menu'}
+                            aria-expanded={drawerOpen}
+                            className="min-w-0 flex-1 text-left rounded-xl py-1 transition active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]"
+                        >
+                            <span className="block text-xs truncate" style={{ color: colors.textSecondary }}>{headerView.line1}</span>
+                            <span className="flex items-center gap-1.5 min-w-0">
+                                <span className="text-base font-black truncate" style={{ color: colors.textPrimary }}>{headerView.line2}</span>
+                                <span className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center" style={{ background: `${colors.border}55` }}>
+                                    <svg
+                                        width="10" height="9" viewBox="0 0 10 9" aria-hidden
+                                        style={{ transition: 'transform 350ms cubic-bezier(0.22, 1, 0.36, 1)', transform: drawerOpen ? 'rotate(-90deg)' : 'rotate(0deg)' }}
+                                    >
+                                        <polygon points="5,0 10,9 0,9" fill={colors.textPrimary} />
+                                    </svg>
+                                </span>
+                            </span>
+                        </button>
+                                </div>
+
+                {/* Carrinho, conversas e lupa: uma cápsula só. Com busca na página, a lupa expande no lugar e vira o campo
+                    (o carrinho e as conversas encolhem); nas outras, leva ao /modeloinicial. */}
+                <div
+                    className="flex items-center rounded-full"
+                    style={{
+                        flex: searchOpen ? '1 1 0%' : '0 0 auto',
+                        height: 48,
+                        padding: 2,
+                        background: searchOpen ? colors.surface : `${colors.border}50`,
+                        border: searchOpen ? `1.5px solid ${colors.border}` : '1.5px solid transparent',
+                        color: colors.textPrimary,
+                        transition: 'flex 320ms cubic-bezier(0.22, 1, 0.36, 1), background 250ms ease, border-color 250ms ease',
+                    }}
+                >
+                    <div
+                        className="flex items-center"
+                        style={{
+                            maxWidth: searchOpen ? 0 : 100,
+                            opacity: searchOpen ? 0 : 1,
+                            overflow: searchOpen ? 'hidden' : 'visible',
+                            transition: 'max-width 320ms cubic-bezier(0.22, 1, 0.36, 1), opacity 200ms ease',
+                        }}
+                    >
+                        <button
+                            onClick={() => go('/carrinho')}
+                            aria-label="Carrinho"
+                            className="relative w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 transition hover:scale-105 active:scale-95"
+                            style={{ background: topCart > 0 ? '#ea580c' : 'transparent', color: topCart > 0 ? '#fff' : colors.textPrimary }}
+                        >
+                            <ShoppingCart size={20} />
+                            {topCart > 0 && (
+                                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black bg-red-500 text-white flex items-center justify-center">{topCart > 99 ? '99+' : topCart}</span>
+                            )}
+                        </button>
+                        <button
+                            onClick={() => go(userId ? '/conversas' : '/login')}
+                            aria-label="Conversas"
+                            className={`relative w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 transition hover:scale-105 active:scale-95 ${topUnread > 0 ? 'animate-pulse' : ''}`}
+                            style={{ background: topUnread > 0 ? '#16a34a' : 'transparent', color: topUnread > 0 ? '#fff' : colors.textPrimary }}
+                        >
+                            <MessageCircle size={20} />
+                            {topUnread > 0 && (
+                                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black bg-red-500 text-white flex items-center justify-center">{topUnread > 99 ? '99+' : topUnread}</span>
+                            )}
+                        </button>
+                    </div>
+
+                    {search && searchOpen ? (
+                        <>
+                            <Search size={18} className="ml-3 flex-shrink-0" style={{ color: colors.textSecondary }} />
+                            <input
+                                ref={searchInputRef}
+                                type="search"
+                                value={search.value}
+                                onChange={(e) => search.onChange(e.target.value)}
+                                placeholder={search.placeholder || 'Buscar...'}
+                                className="flex-1 min-w-0 bg-transparent px-2.5 text-sm focus:outline-none"
+                                style={{ color: colors.textPrimary }}
+                            />
+                            <button
+                                onClick={() => { search.onChange(''); setSearchOpen(false) }}
+                                aria-label="Fechar busca"
+                                className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
+                                style={{ color: colors.textPrimary }}
+                            >
+                                <X size={18} />
+                            </button>
+                        </>
+                    ) : (
+                        <button
+                            onClick={() => (search ? setSearchOpen(true) : go('/modeloinicial'))}
+                            aria-label="Buscar"
+                            className="w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 transition hover:scale-105 active:scale-95"
+                        >
+                            <Search size={20} />
+                        </button>
+                    )}
+                </div>
+            </div>
+        </nav>
         </>
     )
 }
