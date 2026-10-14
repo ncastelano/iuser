@@ -511,7 +511,7 @@ export default function ModeloInicialPage() {
     const searching = query.trim().length > 0
 
     return (
-        <ModeShell>
+        <ModeShell search={{ value: query, onChange: setQuery, placeholder: 'O que você procura? Lojas, serviços, pessoas...' }}>
 
                 <SellDialog open={sellOpen} onClose={() => { setSellOpen(false); setSellMode('all') }} userId={userId} colors={colors} go={go} mode={sellMode} />
                 <ShareLinkDialog
@@ -521,18 +521,6 @@ export default function ModeloInicialPage() {
                     title="Convidar para o iUser"
                     text={`@${profileSlug} te chama pro iUser — compre, venda, preste serviço ou dirija, tudo numa plataforma só, sem taxa escondida.\n\nEntre pelo meu link e comece agora:`}
                 />
-
-                <div className="relative mt-4">
-                    <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2" style={{ color: colors.textSecondary }} />
-                    <input
-                        type="search"
-                        value={query}
-                        onChange={(e) => setQuery(e.target.value)}
-                        placeholder="O que você procura? Lojas, serviços, pessoas..."
-                        className="w-full rounded-full py-3.5 pl-11 pr-4 text-sm focus:outline-none"
-                        style={{ background: colors.surface, border: `1.5px solid ${colors.border}`, color: colors.textPrimary, boxShadow: colors.shadow }}
-                    />
-                </div>
 
                 {searching ? (
                     <div className="mt-6"><SearchResultsSection searchQuery={query} /></div>

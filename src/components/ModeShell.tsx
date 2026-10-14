@@ -5,10 +5,10 @@
 // loja ou motorista. O menu empurra a página pra direita. O conteúdo de cada página entra como `children`.
 'use client'
 
-import { ReactNode, useEffect, useState } from 'react'
+import { ReactNode, useEffect, useRef, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import {
-    Store as StoreIcon, Car, Wrench, MessageCircle, ShoppingCart, User, LogIn, LogOut, ChevronRight, X, Check,
+    Store as StoreIcon, Car, Wrench, MessageCircle, ShoppingCart, User, LogIn, LogOut, ChevronRight, X, Check, Search,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
@@ -132,11 +132,11 @@ function DrawerLabel({ children }: { children: ReactNode }) {
     return <p className="px-3 pt-2 pb-1 text-[11px] font-black uppercase tracking-widest text-white/80">{children}</p>
 }
 
-function MenuDrawerContent({ slug, avatarUrl, data, active, onSelect, onGo, onClose }: {
+function MenuDrawerContent({ slug, avatarUrl, data, active, onSelect, onGo, onSignOut, onClose }: {
     slug: string | null; avatarUrl: string | null | undefined; data: DrawerData
     /** Modo selecionado: 'perfil' | 'prestador' | 'loja:<slug>' | 'motorista:<vehicle_slug>' */
     active: string
-    onSelect: (mode: string) => void; onGo: (path: string) => void; onClose: () => void
+    onSelect: (mode: string) => void; onGo: (path: string) => void; onSignOut: () => void; onClose: () => void
 }) {
     // Cada grupo é um painel separado, com o seu título
     const Panel = ({ title, children }: { title: string; children: ReactNode }) => (
@@ -218,6 +218,14 @@ function MenuDrawerContent({ slug, avatarUrl, data, active, onSelect, onGo, onCl
                     )}
                 />
             </Panel>
+
+            <button
+                onClick={onSignOut}
+                className="mt-5 w-full py-2.5 rounded-full text-sm font-black text-white flex items-center justify-center gap-2 transition hover:scale-[1.02] active:scale-95"
+                style={{ background: 'rgba(255,255,255,0.18)', border: '1px solid rgba(255,255,255,0.45)' }}
+            >
+                <LogOut size={16} /> Sair da conta
+            </button>
         </div>
     )
 }
@@ -316,7 +324,11 @@ function HeaderBadge({ userId, avatarUrl, onProfile, onHome, colors, noRing = fa
 }
 
 
-export default function ModeShell({ children }: { children: ReactNode }) {
+export default function ModeShell({ children, search }: {
+    children: ReactNode
+    /** Busca da página: vira uma lupa na navegação de baixo e abre o campo ao tocar */
+    search?: { value: string; onChange: (v: string) => void; placeholder?: string }
+}) {
     const router = useRouter()
     const pathname = usePathname()
     const { colors } = useTheme()
@@ -333,6 +345,9 @@ export default function ModeShell({ children }: { children: ReactNode }) {
 
     // Menu lateral: abre pelo avatar. Carrega o que a pessoa tem (loja, veículo, modo prestador) pra mostrar só isso.
     const [drawerOpen, setDrawerOpen] = useState(false)
+    const [searchOpen, setSearchOpen] = useState(false)
+    const searchInputRef = useRef<HTMLInputElement>(null)
+    useEffect(() => { if (searchOpen) searchInputRef.current?.focus() }, [searchOpen])
     const [drawerData, setDrawerData] = useState<DrawerData>({ stores: [], vehicles: [], driverActive: false, providerOn: false })
     const [dataLoaded, setDataLoaded] = useState(false)
     // Modo selecionado (guardado no aparelho, por conta): 'perfil' | 'prestador' | 'loja:<slug>' | 'motorista:<vehicle_slug>'
@@ -461,21 +476,23 @@ export default function ModeShell({ children }: { children: ReactNode }) {
     }
     const goAndClose = (path: string) => { setDrawerOpen(false); router.push(path) }
 
+    const signOut = async () => { await supabase.auth.signOut(); window.location.href = '/modeloinicial' }
+
     return (
         <>
         {/* Fundo do menu: degradê do iUser, atrás de tudo (só aparece quando a página desliza) */}
         <div
             aria-hidden={!drawerOpen}
             className="fixed inset-0"
-            style={{ background: 'linear-gradient(200deg, #f97316 0%, #dc2626 100%)', zIndex: 0 }}
+            style={{ background: 'linear-gradient(160deg, #f97316 0%, #dc2626 100%)', zIndex: 0 }}
         />
-        {/* O menu fica no lado DIREITO e a página desliza pra esquerda */}
+        {/* O menu fica no lado ESQUERDO e a página desliza pra direita */}
         <div
-            className="fixed right-0 top-0 h-dvh"
+            className="fixed left-0 top-0 h-dvh"
             style={{
                 width: DRAWER_W, zIndex: 1,
                 opacity: drawerOpen ? 1 : 0, pointerEvents: drawerOpen ? 'auto' : 'none',
-                transform: drawerOpen ? 'translateX(0)' : 'translateX(24px)',
+                transform: drawerOpen ? 'translateX(0)' : 'translateX(-24px)',
                 transition: 'opacity 350ms ease, transform 450ms cubic-bezier(0.22, 1, 0.36, 1)',
             }}
         >
@@ -487,21 +504,22 @@ export default function ModeShell({ children }: { children: ReactNode }) {
                     active={activeMode}
                     onSelect={selectMode}
                     onGo={goAndClose}
+                    onSignOut={signOut}
                     onClose={() => setDrawerOpen(false)}
                 />
             )}
         </div>
 
-        {/* A página: desliza pra esquerda e encolhe um pouco, com cantos arredondados e sombra */}
+        {/* A página: desliza pra direita e encolhe um pouco, com cantos arredondados e sombra */}
         <div
             className="relative min-h-dvh pb-28"
             style={{
                 background: colors.background, zIndex: 2,
-                transformOrigin: 'right top',
+                transformOrigin: 'left top',
                 // desce um pouco (7% da altura) além de deslizar e encolher: a janela fica mais pra baixo, com folga em cima
-                transform: drawerOpen ? `translateX(calc(-1 * ${DRAWER_W})) translateY(7dvh) scale(0.9)` : 'none',
+                transform: drawerOpen ? `translateX(${DRAWER_W}) translateY(7dvh) scale(0.9)` : 'none',
                 borderRadius: drawerOpen ? 32 : 0,
-                boxShadow: drawerOpen ? '12px 0 40px rgba(0,0,0,0.35)' : 'none',
+                boxShadow: drawerOpen ? '-12px 0 40px rgba(0,0,0,0.35)' : 'none',
                 height: drawerOpen ? '100dvh' : undefined,
                 overflow: drawerOpen ? 'hidden' : undefined,
                 transition: 'transform 450ms cubic-bezier(0.22, 1, 0.36, 1), border-radius 450ms ease, box-shadow 450ms ease',
@@ -514,8 +532,7 @@ export default function ModeShell({ children }: { children: ReactNode }) {
                 {children}
             </div>
 
-            {/* Navegação embaixo (o antigo cabeçalho, invertido): sair, carrinho e conversas à esquerda; o modo
-                (nome + selo) à direita, do lado do menu */}
+            {/* Navegação embaixo: o botão do menu (selo + nome), o carrinho, as mensagens e a lupa */}
             <nav
                 className="fixed bottom-0 left-0 right-0 z-40 border-t"
                 style={{
@@ -526,90 +543,113 @@ export default function ModeShell({ children }: { children: ReactNode }) {
                     paddingBottom: 'env(safe-area-inset-bottom)',
                 }}
             >
-                <div className="max-w-5xl mx-auto px-4 py-2 flex items-center gap-2.5">
-                    {userId ? (
-                        <button
-                            onClick={async () => { await supabase.auth.signOut(); window.location.href = '/modeloinicial' }}
-                            aria-label="Sair"
-                            title="Sair"
-                            className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
-                            style={{ background: `${colors.border}50`, color: colors.textSecondary }}
-                        >
-                            <LogOut size={17} />
-                        </button>
-                    ) : (
-                        <button onClick={() => go('/login')} className="flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-black text-white flex-shrink-0" style={{ background: GRADIENT }}>
-                            <LogIn size={15} /> Entrar
-                        </button>
-                    )}
-
-                    <button
-                        onClick={() => go('/carrinho')}
-                        aria-label="Carrinho"
-                        className="relative w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 transition hover:scale-105 active:scale-95"
-                        style={{ background: topCart > 0 ? '#ea580c' : `${colors.border}50`, color: topCart > 0 ? '#fff' : colors.textPrimary }}
-                    >
-                        <ShoppingCart size={20} />
-                        {topCart > 0 && (
-                            <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black bg-red-500 text-white flex items-center justify-center">{topCart > 99 ? '99+' : topCart}</span>
-                        )}
-                    </button>
-
-                    <button
-                        onClick={() => go(userId ? '/conversas' : '/login')}
-                        aria-label="Conversas"
-                        className={`relative w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 transition hover:scale-105 active:scale-95 ${topUnread > 0 ? 'animate-pulse' : ''}`}
-                        style={{ background: topUnread > 0 ? '#16a34a' : `${colors.border}50`, color: topUnread > 0 ? '#fff' : colors.textPrimary }}
-                    >
-                        <MessageCircle size={20} />
-                        {topUnread > 0 && (
-                            <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black bg-red-500 text-white flex items-center justify-center">{topUnread > 99 ? '99+' : topUnread}</span>
-                        )}
-                    </button>
-
-                    {/* Nome, frase e triângulo: um botão só — abre/fecha o menu (igual ao selo) */}
-                    {userId ? (
-                        <button
-                            type="button"
-                            onClick={() => { window.scrollTo({ top: 0 }); setDrawerOpen((v) => !v) }}
-                            aria-label={drawerOpen ? 'Fechar menu' : 'Abrir menu'}
-                            aria-expanded={drawerOpen}
-                            className="min-w-0 flex-1 text-right rounded-xl py-1 transition active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]"
-                        >
-                            <span className="block text-xs truncate" style={{ color: colors.textSecondary }}>{headerView.line1}</span>
-                            <span className="flex items-center justify-end gap-1.5 min-w-0">
-                                {/* Triângulo: aponta pra cima com o menu fechado e vira pro lado do menu (direita) quando aberto */}
-                                <span className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center" style={{ background: `${colors.border}55` }}>
-                                    <svg
-                                        width="10" height="9" viewBox="0 0 10 9" aria-hidden
-                                        style={{ transition: 'transform 350ms cubic-bezier(0.22, 1, 0.36, 1)', transform: drawerOpen ? 'rotate(90deg)' : 'rotate(0deg)' }}
-                                    >
-                                        <polygon points="5,0 10,9 0,9" fill={colors.textPrimary} />
-                                    </svg>
-                                </span>
-                                <span className="text-base font-black truncate" style={{ color: colors.textPrimary }}>{headerView.line2}</span>
-                            </span>
-                        </button>
-                    ) : (
-                        <div className="min-w-0 flex-1 text-right">
-                            <p className="text-xs truncate" style={{ color: colors.textSecondary }}>{headerView.line1}</p>
-                            <p className="text-base font-black truncate" style={{ color: colors.textPrimary }}>{headerView.line2}</p>
+                {search && searchOpen ? (
+                    // Lupa aberta: o campo ocupa a barra toda
+                    <div className="max-w-5xl mx-auto px-4 py-2 flex items-center gap-2.5">
+                        <div className="relative flex-1">
+                            <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2" style={{ color: colors.textSecondary }} />
+                            <input
+                                ref={searchInputRef}
+                                type="search"
+                                value={search.value}
+                                onChange={(e) => search.onChange(e.target.value)}
+                                placeholder={search.placeholder || 'Buscar...'}
+                                className="w-full rounded-full py-3 pl-11 pr-4 text-sm focus:outline-none"
+                                style={{ background: colors.surface, border: `1.5px solid ${colors.border}`, color: colors.textPrimary }}
+                            />
                         </div>
-                    )}
+                        <button
+                            onClick={() => { search.onChange(''); setSearchOpen(false) }}
+                            aria-label="Fechar busca"
+                            className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
+                            style={{ background: `${colors.border}50`, color: colors.textPrimary }}
+                        >
+                            <X size={18} />
+                        </button>
+                    </div>
+                ) : (
+                    <div className="max-w-5xl mx-auto px-4 py-2 flex items-center gap-2.5">
+                        <HeaderBadge
+                            userId={userId}
+                            avatarUrl={headerView.image}
+                            colors={colors}
+                            noRing={headerView.noRing}
+                            label={headerView.label}
+                            modeIcon={headerView.modeIcon}
+                            popToken={modeTick}
+                            onProfile={() => { window.scrollTo({ top: 0 }); setDrawerOpen(true) }}
+                            // A logo (outra face do selo) também abre o menu; só o visitante, que não tem menu, vai pra home
+                            onHome={() => { if (userId) { window.scrollTo({ top: 0 }); setDrawerOpen(true) } else go('/') }}
+                        />
 
-                    <HeaderBadge
-                        userId={userId}
-                        avatarUrl={headerView.image}
-                        colors={colors}
-                        noRing={headerView.noRing}
-                        label={headerView.label}
-                        modeIcon={headerView.modeIcon}
-                        popToken={modeTick}
-                        onProfile={() => { window.scrollTo({ top: 0 }); setDrawerOpen(true) }}
-                        // A logo (outra face do selo) também abre o menu; só o visitante, que não tem menu, vai pra home
-                        onHome={() => { if (userId) { window.scrollTo({ top: 0 }); setDrawerOpen(true) } else go('/') }}
-                    />
-                </div>
+                        {/* Nome, frase e triângulo: um botão só — abre/fecha o menu (igual ao selo) */}
+                        {userId ? (
+                            <button
+                                type="button"
+                                onClick={() => { window.scrollTo({ top: 0 }); setDrawerOpen((v) => !v) }}
+                                aria-label={drawerOpen ? 'Fechar menu' : 'Abrir menu'}
+                                aria-expanded={drawerOpen}
+                                className="min-w-0 flex-1 text-left rounded-xl py-1 transition active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]"
+                            >
+                                <span className="block text-xs truncate" style={{ color: colors.textSecondary }}>{headerView.line1}</span>
+                                <span className="flex items-center gap-1.5 min-w-0">
+                                    <span className="text-base font-black truncate" style={{ color: colors.textPrimary }}>{headerView.line2}</span>
+                                    {/* Triângulo: aponta pra cima com o menu fechado e vira pro lado do menu (esquerda) quando aberto */}
+                                    <span className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center" style={{ background: `${colors.border}55` }}>
+                                        <svg
+                                            width="10" height="9" viewBox="0 0 10 9" aria-hidden
+                                            style={{ transition: 'transform 350ms cubic-bezier(0.22, 1, 0.36, 1)', transform: drawerOpen ? 'rotate(-90deg)' : 'rotate(0deg)' }}
+                                        >
+                                            <polygon points="5,0 10,9 0,9" fill={colors.textPrimary} />
+                                        </svg>
+                                    </span>
+                                </span>
+                            </button>
+                        ) : (
+                            <div className="min-w-0 flex-1">
+                                <button onClick={() => go('/login')} className="flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-black text-white" style={{ background: GRADIENT }}>
+                                    <LogIn size={15} /> Entrar
+                                </button>
+                            </div>
+                        )}
+
+                        <button
+                            onClick={() => go('/carrinho')}
+                            aria-label="Carrinho"
+                            className="relative w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 transition hover:scale-105 active:scale-95"
+                            style={{ background: topCart > 0 ? '#ea580c' : `${colors.border}50`, color: topCart > 0 ? '#fff' : colors.textPrimary }}
+                        >
+                            <ShoppingCart size={20} />
+                            {topCart > 0 && (
+                                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black bg-red-500 text-white flex items-center justify-center">{topCart > 99 ? '99+' : topCart}</span>
+                            )}
+                        </button>
+
+                        <button
+                            onClick={() => go(userId ? '/conversas' : '/login')}
+                            aria-label="Conversas"
+                            className={`relative w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 transition hover:scale-105 active:scale-95 ${topUnread > 0 ? 'animate-pulse' : ''}`}
+                            style={{ background: topUnread > 0 ? '#16a34a' : `${colors.border}50`, color: topUnread > 0 ? '#fff' : colors.textPrimary }}
+                        >
+                            <MessageCircle size={20} />
+                            {topUnread > 0 && (
+                                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black bg-red-500 text-white flex items-center justify-center">{topUnread > 99 ? '99+' : topUnread}</span>
+                            )}
+                        </button>
+
+                        {/* Lupa: a busca da página; toca e o campo abre */}
+                        {search && (
+                            <button
+                                onClick={() => setSearchOpen(true)}
+                                aria-label="Buscar"
+                                className="w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 transition hover:scale-105 active:scale-95 text-white"
+                                style={{ background: GRADIENT }}
+                            >
+                                <Search size={20} />
+                            </button>
+                        )}
+                    </div>
+                )}
             </nav>
         </div>
         </>
