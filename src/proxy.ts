@@ -49,6 +49,7 @@ const IGNORED_ROUTES = [
     '/modelodehomepage',
     '/modeloinicial',
     '/modoprestador',
+    '/painel-perfil',
 ]
 
 // ===== PREFIXOS IGNORADOS =====
@@ -60,6 +61,8 @@ const IGNORED_PREFIXES = [
     '/acompanhar-corrida/', // link de acompanhar corrida (iuser.com.br/acompanhar-corrida/<id>) — não é slug de perfil/loja
     '/compromissos/', // agenda de um perfil/loja (iuser.com.br/compromissos/<slug>) — o 1º segmento não é slug de perfil/loja
     '/compromisso/', // link de um agendamento compartilhado (iuser.com.br/compromisso/<id>)
+    '/painel-loja/', // painel de uma loja (iuser.com.br/painel-loja/<storeSlug>) — o 1º segmento não é slug de perfil/loja
+    '/veiculo/', // página de um veículo (rota interna; o endereço público é iuser.com.br/<vehicleSlug>)
 ]
 
 // ===== EXTENSÕES IGNORADAS =====
@@ -117,7 +120,7 @@ const PUBLIC_ROUTE_PREFIXES = [
 ]
 
 // ===== CACHE EM MEMÓRIA =====
-const cache = new Map<string, { type: 'profile' | 'store' | 'category' | 'product'; slug: string; timestamp: number }>()
+const cache = new Map<string, { type: 'profile' | 'store' | 'category' | 'product' | 'vehicle'; slug: string; timestamp: number }>()
 const CACHE_TTL = 60 * 1000 // 60 segundos
 
 function getFromCache(slug: string) {
@@ -128,7 +131,7 @@ function getFromCache(slug: string) {
     return null
 }
 
-function setCache(slug: string, type: 'profile' | 'store' | 'category' | 'product') {
+function setCache(slug: string, type: 'profile' | 'store' | 'category' | 'product' | 'vehicle') {
     cache.set(slug, { type, slug, timestamp: Date.now() })
 }
 
@@ -265,16 +268,24 @@ export async function proxy(request: NextRequest) {
     if (segments.length === 1) {
         const slug = segments[0]
 
+        // Veículo: o endereço público é /<vehicleSlug>, servido internamente por /veiculo/<vehicleSlug>
+        const rewriteToVehicle = () => {
+            const vehicleUrl = request.nextUrl.clone()
+            vehicleUrl.pathname = `/veiculo/${slug}`
+            return NextResponse.rewrite(vehicleUrl)
+        }
+
         let cached = getFromCache(slug)
         if (cached) {
             console.log(`[Proxy] ${slug} é um ${cached.type} (cache) ✅`)
-            return NextResponse.next()
+            return cached.type === 'vehicle' ? rewriteToVehicle() : NextResponse.next()
         }
 
-        // Verifica perfil e loja em paralelo (slugs sao globalmente unicos).
-        const [profileResult, storeResult] = await Promise.all([
+        // Verifica perfil, loja e veículo em paralelo (slugs sao globalmente unicos).
+        const [profileResult, storeResult, vehicleResult] = await Promise.all([
             supabaseAdmin.from('profiles').select('profileSlug').eq('profileSlug', slug).maybeSingle(),
             supabaseAdmin.from('stores').select('storeSlug').eq('storeSlug', slug).maybeSingle(),
+            supabaseAdmin.from('driver_vehicles').select('vehicle_slug').ilike('vehicle_slug', slug).maybeSingle(),
         ])
 
         if (profileResult.error) {
@@ -294,6 +305,12 @@ export async function proxy(request: NextRequest) {
             setCache(slug, 'store')
             console.log(`[Proxy] ${slug} é uma loja ✅`)
             return NextResponse.next()
+        }
+
+        if (vehicleResult.data) {
+            setCache(slug, 'vehicle')
+            console.log(`[Proxy] ${slug} é um veículo ✅`)
+            return rewriteToVehicle()
         }
 
         // Verifica se é uma categoria

@@ -8,7 +8,7 @@
 import { ReactNode, useEffect, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import {
-    Store as StoreIcon, Car, MessageCircle, ShoppingCart, User, LogIn, LogOut, ChevronRight, X, Check,
+    Store as StoreIcon, Car, Wrench, MessageCircle, ShoppingCart, User, LogIn, LogOut, ChevronRight, X, Check,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
@@ -26,11 +26,12 @@ const toPublicImage = (bucket: string, path: string | null | undefined) => {
 }
 
 // ===================== MENU LATERAL (DRAWER) =====================
-// Abre ao tocar na foto do perfil. A página inteira desliza pra direita (encolhendo um pouco, com cantos arredondados e
-// sombra), revelando o menu sobre o degradê do iUser. Só mostra o que a pessoa realmente tem: loja, veículo, inscrições.
+// Abre ao tocar no selo/nome do topo. A página inteira desliza pra direita (encolhendo um pouco, com cantos arredondados
+// e sombra), revelando o menu sobre o degradê do iUser. Cada modo tem a sua página: Meu perfil (/painel-perfil), Modo
+// prestador (/modoprestador), cada loja (/painel-loja/<slug>) e cada veículo (/<vehicle_slug>).
 interface DrawerData {
     stores: { id: string; name: string; slug: string; logo: string | null; open: boolean }[]
-    vehicles: { kind: string; model: string | null; plate: string | null; photo: string | null }[]
+    vehicles: { kind: string; slug: string; model: string | null; plate: string | null; photo: string | null }[]
     /** Modo motorista ligado (driver_pricing.driver_mode_active) */
     driverActive: boolean
     /** Modo prestador ligado no perfil (profiles.service_mode_active) */
@@ -38,33 +39,90 @@ interface DrawerData {
 }
 const VEHICLE_LABEL: Record<string, string> = { carro: 'Carro', moto: 'Moto', bicicleta: 'Bicicleta' }
 
+/** Resumo do topo guardado no aparelho (pra desenhar o cabeçalho na hora na próxima abertura) */
+interface HeaderSnap {
+    userId: string; mode: string; line1: string; line2: string; image: string | null
+    noRing: boolean; label: string; icon: 'user' | 'store' | 'car'
+}
+
+/** Página de cada modo (o que abre ao escolher o modo no menu) */
+function modePath(mode: string, data: DrawerData): string {
+    if (mode === 'perfil') return '/painel-perfil'
+    if (mode === 'prestador') return '/modoprestador'
+    if (mode.startsWith('loja:')) return `/painel-loja/${encodeURIComponent(mode.slice(5))}`
+    if (mode.startsWith('motorista:')) {
+        const v = data.vehicles.find((x) => `motorista:${x.slug}` === mode)
+        return v ? `/${v.slug}` : '/painel-motorista'
+    }
+    return '/'
+}
+
 // Linha de um modo no menu: mostra a imagem do modo (foto do perfil, logo da loja, foto do carro) ou, sem imagem, o ícone.
 // Nada some nem aparece aqui — a animação de troca acontece só no topo da página (seção "Bem-vindo").
-function DrawerRow({ mode, active, icon, image, title, desc, dot, onSelect }: {
-    mode: string; active: string; icon: ReactNode; image?: string | null; title: string; desc?: string; dot?: string; onSelect: (mode: string) => void
+function DrawerRow({ mode, active, icon, image, title, desc, dot, onSelect, actions }: {
+    mode: string; active: string; icon: ReactNode; image?: string | null; title: string; desc?: string; dot?: string
+    onSelect: (mode: string) => void
+    /** Botões extras embaixo da linha (ex.: "Ver loja" e "Painel") */
+    actions?: ReactNode
 }) {
     const selected = active === mode
     return (
-        <button
-            onClick={() => onSelect(mode)}
-            aria-pressed={selected}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl text-left text-white transition hover:bg-white/15 active:bg-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+        <div
+            className="rounded-2xl"
             style={selected ? { background: 'rgba(255,255,255,0.22)', boxShadow: 'inset 0 0 0 1.5px rgba(255,255,255,0.85)' } : undefined}
         >
-            <span className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden" style={{ background: 'rgba(255,255,255,0.18)' }}>
-                {image ? <img src={image} alt="" className="w-full h-full object-cover" /> : icon}
-            </span>
+            <button
+                onClick={() => onSelect(mode)}
+                aria-pressed={selected}
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl text-left text-white transition hover:bg-white/15 active:bg-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+            >
+                <span className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden" style={{ background: 'rgba(255,255,255,0.18)' }}>
+                    {image ? <img src={image} alt="" className="w-full h-full object-cover" /> : icon}
+                </span>
+                <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-black leading-tight truncate">{title}</span>
+                    {desc && (
+                        <span className="flex items-center gap-1.5 text-xs opacity-90 truncate">
+                            {dot && <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: dot }} />}{desc}
+                        </span>
+                    )}
+                </span>
+                {selected
+                    ? <span className="flex-shrink-0 w-6 h-6 rounded-full bg-white flex items-center justify-center" title="Modo selecionado"><Check size={14} color="#dc2626" strokeWidth={3} /></span>
+                    : <ChevronRight size={16} className="flex-shrink-0 opacity-70" />}
+            </button>
+            {actions && <div className="flex gap-2 px-3 pb-2.5 pt-0.5">{actions}</div>}
+        </div>
+    )
+}
+
+/** Botão pequeno de ação dentro de uma linha do menu */
+function DrawerPill({ onClick, children, solid = false }: { onClick: () => void; children: ReactNode; solid?: boolean }) {
+    return (
+        <button
+            onClick={onClick}
+            className="flex-1 py-2 rounded-full text-xs font-black transition hover:scale-[1.03] active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+            style={solid ? { background: '#fff', color: '#dc2626' } : { background: 'rgba(255,255,255,0.18)', color: '#fff', border: '1px solid rgba(255,255,255,0.45)' }}
+        >
+            {children}
+        </button>
+    )
+}
+
+/** Linha de chamada (cadastrar loja / virar motorista): não é um modo, só leva ao cadastro */
+function DrawerCta({ icon, title, desc, onClick }: { icon: ReactNode; title: string; desc: string; onClick: () => void }) {
+    return (
+        <button
+            onClick={onClick}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl text-left text-white transition hover:bg-white/15 active:bg-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+            style={{ border: '1.5px dashed rgba(255,255,255,0.6)' }}
+        >
+            <span className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(255,255,255,0.18)' }}>{icon}</span>
             <span className="min-w-0 flex-1">
                 <span className="block text-sm font-black leading-tight truncate">{title}</span>
-                {desc && (
-                    <span className="flex items-center gap-1.5 text-xs opacity-90 truncate">
-                        {dot && <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: dot }} />}{desc}
-                    </span>
-                )}
+                <span className="block text-xs opacity-90 truncate">{desc}</span>
             </span>
-            {selected
-                ? <span className="flex-shrink-0 w-6 h-6 rounded-full bg-white flex items-center justify-center" title="Modo selecionado"><Check size={14} color="#dc2626" strokeWidth={3} /></span>
-                : <ChevronRight size={16} className="flex-shrink-0 opacity-70" />}
+            <ChevronRight size={16} className="flex-shrink-0 opacity-70" />
         </button>
     )
 }
@@ -73,17 +131,17 @@ function DrawerLabel({ children }: { children: ReactNode }) {
     return <p className="px-3 pt-2 pb-1 text-[11px] font-black uppercase tracking-widest text-white/80">{children}</p>
 }
 
-function MenuDrawerContent({ slug, avatarUrl, data, active, onSelect, onClose }: {
+function MenuDrawerContent({ slug, avatarUrl, data, active, onSelect, onGo, onClose }: {
     slug: string | null; avatarUrl: string | null | undefined; data: DrawerData
-    /** Modo selecionado: 'perfil' | 'loja:<slug>' | 'motorista:<tipo>' */
+    /** Modo selecionado: 'perfil' | 'prestador' | 'loja:<slug>' | 'motorista:<vehicle_slug>' */
     active: string
-    onSelect: (mode: string) => void; onClose: () => void
+    onSelect: (mode: string) => void; onGo: (path: string) => void; onClose: () => void
 }) {
-    // Cada grupo é um painel separado, com o seu título: perfil/prestador, lojas e motorista
+    // Cada grupo é um painel separado, com o seu título
     const Panel = ({ title, children }: { title: string; children: ReactNode }) => (
         <section className="mt-4 rounded-3xl p-2 pb-1.5" style={{ background: 'rgba(255,255,255,0.10)', border: '1px solid rgba(255,255,255,0.18)' }}>
             <DrawerLabel>{title}</DrawerLabel>
-            <div className="flex flex-col gap-1">{children}</div>
+            <div className="flex flex-col gap-1.5">{children}</div>
         </section>
     )
 
@@ -101,7 +159,7 @@ function MenuDrawerContent({ slug, avatarUrl, data, active, onSelect, onClose }:
                 </button>
             </div>
 
-            <Panel title={data.providerOn ? 'Modo prestador' : 'Meu perfil'}>
+            <Panel title="Meu perfil">
                 <DrawerRow
                     mode="perfil"
                     active={active}
@@ -109,46 +167,66 @@ function MenuDrawerContent({ slug, avatarUrl, data, active, onSelect, onClose }:
                     icon={<User size={20} color="#fff" />}
                     image={avatarUrl}
                     title="Meu perfil"
-                    desc={data.providerOn ? 'Modo prestador ligado' : slug ? `@${slug}` : undefined}
-                    dot={data.providerOn ? '#4ade80' : undefined}
+                    desc={slug ? `@${slug}` : undefined}
                 />
             </Panel>
 
-            {data.stores.length > 0 && (
-                <Panel title="Modo loja">
-                    {data.stores.map((st) => (
-                        <DrawerRow
-                            key={st.id}
-                            mode={`loja:${st.slug}`}
-                            active={active}
-                            onSelect={onSelect}
-                            icon={<StoreIcon size={20} color="#fff" />}
-                            image={st.logo}
-                            title={st.name}
-                            desc={st.open ? 'Aberta agora' : 'Fechada agora'}
-                            dot={st.open ? '#4ade80' : '#fca5a5'}
-                        />
-                    ))}
+            {data.providerOn && (
+                <Panel title="Modo prestador">
+                    <DrawerRow
+                        mode="prestador"
+                        active={active}
+                        onSelect={onSelect}
+                        icon={<Wrench size={20} color="#fff" />}
+                        image={avatarUrl}
+                        title="Modo prestador"
+                        desc="Modo prestador ligado"
+                        dot="#4ade80"
+                    />
                 </Panel>
             )}
 
-            {data.vehicles.length > 0 && (
-                <Panel title="Modo motorista">
-                    {data.vehicles.map((v) => (
-                        <DrawerRow
-                            key={v.kind}
-                            mode={`motorista:${v.kind}`}
-                            active={active}
-                            onSelect={onSelect}
-                            icon={<Car size={20} color="#fff" />}
-                            image={v.photo}
-                            title={`${VEHICLE_LABEL[v.kind] || 'Veículo'}${v.model ? ` · ${v.model}` : ''}`}
-                            desc={data.driverActive ? 'Motorista ativado' : 'Motorista desligado'}
-                            dot={data.driverActive ? '#4ade80' : '#fca5a5'}
-                        />
-                    ))}
-                </Panel>
-            )}
+            <Panel title="Modo loja">
+                {data.stores.length > 0 ? data.stores.map((st) => (
+                    <DrawerRow
+                        key={st.id}
+                        mode={`loja:${st.slug}`}
+                        active={active}
+                        onSelect={onSelect}
+                        icon={<StoreIcon size={20} color="#fff" />}
+                        image={st.logo}
+                        title={st.name}
+                        desc={st.open ? 'Aberta agora' : 'Fechada agora'}
+                        dot={st.open ? '#4ade80' : '#fca5a5'}
+                        actions={(
+                            <>
+                                <DrawerPill onClick={() => onGo(`/${st.slug}`)}>Ver loja</DrawerPill>
+                                <DrawerPill solid onClick={() => onGo(`/painel-loja/${encodeURIComponent(st.slug)}`)}>Painel</DrawerPill>
+                            </>
+                        )}
+                    />
+                )) : (
+                    <DrawerCta icon={<StoreIcon size={20} color="#fff" />} title="Criar minha loja" desc="Cadastre sua loja grátis" onClick={() => onGo('/criar-loja')} />
+                )}
+            </Panel>
+
+            <Panel title="Modo motorista">
+                {data.vehicles.length > 0 ? data.vehicles.map((v) => (
+                    <DrawerRow
+                        key={v.slug}
+                        mode={`motorista:${v.slug}`}
+                        active={active}
+                        onSelect={onSelect}
+                        icon={<Car size={20} color="#fff" />}
+                        image={v.photo}
+                        title={`${VEHICLE_LABEL[v.kind] || 'Veículo'}${v.model ? ` · ${v.model}` : ''}`}
+                        desc={data.driverActive ? 'Motorista ativado' : 'Motorista desligado'}
+                        dot={data.driverActive ? '#4ade80' : '#fca5a5'}
+                    />
+                )) : (
+                    <DrawerCta icon={<Car size={20} color="#fff" />} title="Ser motorista" desc="Cadastre seu veículo e receba corridas" onClick={() => onGo('/painel-motorista')} />
+                )}
+            </Panel>
         </div>
     )
 }
@@ -251,7 +329,7 @@ export default function ModeShell({ children }: { children: ReactNode }) {
     const router = useRouter()
     const pathname = usePathname()
     const { colors } = useTheme()
-    const { userId, profileSlug, avatarUrl } = useProfile()
+    const { userId, profileSlug, avatarUrl, loading: profileLoading } = useProfile()
     const go = (path: string) => router.push(path)
 
     // Selos do topo: não lidas do chat e itens do carrinho
@@ -264,20 +342,39 @@ export default function ModeShell({ children }: { children: ReactNode }) {
     // Menu lateral: abre pelo avatar. Carrega o que a pessoa tem (loja, veículo, modo prestador) pra mostrar só isso.
     const [drawerOpen, setDrawerOpen] = useState(false)
     const [drawerData, setDrawerData] = useState<DrawerData>({ stores: [], vehicles: [], driverActive: false, providerOn: false })
-    // Modo selecionado (guardado no aparelho, por conta): 'perfil' | 'loja:<slug>' | 'motorista:<tipo>'
+    const [dataLoaded, setDataLoaded] = useState(false)
+    // Modo selecionado (guardado no aparelho, por conta): 'perfil' | 'prestador' | 'loja:<slug>' | 'motorista:<vehicle_slug>'
     const [activeMode, setActiveMode] = useState('perfil')
     const [modeTick, setModeTick] = useState(0)
+    // Resumo do topo da última visita: desenha o cabeçalho na hora (sem esperar o banco) e depois confere
+    const [snap, setSnap] = useState<HeaderSnap | null>(null)
+    useEffect(() => {
+        try {
+            const raw = localStorage.getItem('iuser_header_last')
+            if (raw) {
+                const parsed = JSON.parse(raw) as HeaderSnap
+                setSnap(parsed)
+                if (parsed.mode) setActiveMode(parsed.mode)
+                // as imagens já começam a baixar antes mesmo dos dados chegarem
+                if (parsed.image) { const im = new Image(); im.src = parsed.image }
+            }
+        } catch { /* sem armazenamento */ }
+    }, [])
     useEffect(() => {
         if (!userId) return
         try { setActiveMode(localStorage.getItem(`iuser_mode_${userId}`) || 'perfil') } catch { /* sem armazenamento */ }
     }, [userId])
     useEffect(() => {
-        if (!userId) { setDrawerData({ stores: [], vehicles: [], driverActive: false, providerOn: false }); return }
+        if (!userId) {
+            setDrawerData({ stores: [], vehicles: [], driverActive: false, providerOn: false })
+            setDataLoaded(!profileLoading)
+            return
+        }
         let cancelled = false
         ;(async () => {
             const [{ data: sts }, { data: veh }, { data: drv }, { data: prof }] = await Promise.all([
                 supabase.from('stores').select('id, name, "storeSlug", logo_url, business_hours').eq('owner_id', userId),
-                supabase.from('driver_vehicles').select('vehicle_kind, car_model, car_plate, car_photo_url').eq('driver_id', userId),
+                supabase.from('driver_vehicles').select('vehicle_kind, vehicle_slug, car_model, car_plate, car_photo_url').eq('driver_id', userId),
                 supabase.from('driver_pricing').select('driver_mode_active').eq('driver_id', userId).maybeSingle(),
                 supabase.from('profiles').select('service_mode_active').eq('id', userId).maybeSingle(),
             ])
@@ -289,15 +386,16 @@ export default function ModeShell({ children }: { children: ReactNode }) {
                     open: isStoreOpenNow(st.business_hours as BusinessHours | null),
                 })),
                 vehicles: (veh || []).map((v: any) => ({
-                    kind: v.vehicle_kind, model: v.car_model || null, plate: v.car_plate || null,
+                    kind: v.vehicle_kind, slug: v.vehicle_slug || v.vehicle_kind, model: v.car_model || null, plate: v.car_plate || null,
                     photo: v.car_photo_url ? supabase.storage.from('driver-car-photos').getPublicUrl(v.car_photo_url).data.publicUrl : null,
                 })),
                 driverActive: !!(drv as any)?.driver_mode_active,
                 providerOn: !!(prof as any)?.service_mode_active,
             })
-        })().catch(() => { /* o menu só mostra o perfil */ })
+            setDataLoaded(true)
+        })().catch(() => { if (!cancelled) setDataLoaded(true) /* o menu só mostra o perfil */ })
         return () => { cancelled = true }
-    }, [userId])
+    }, [userId, profileLoading])
 
     // Fecha com ESC e trava a rolagem da página enquanto o menu está aberto
     useEffect(() => {
@@ -313,25 +411,63 @@ export default function ModeShell({ children }: { children: ReactNode }) {
     // O topo responde ao modo escolhido no menu: loja (logo + nome), motorista (foto do carro + modelo e placa),
     // prestador (foto do perfil + "Modo prestador") ou o perfil de sempre.
     const activeStore = activeMode.startsWith('loja:') ? drawerData.stores.find((st) => `loja:${st.slug}` === activeMode) : undefined
-    const activeVehicle = activeMode.startsWith('motorista:') ? drawerData.vehicles.find((v) => `motorista:${v.kind}` === activeMode) : undefined
-    const headerView: { line1: string; line2: string; image: string | null | undefined; noRing: boolean; label: string; modeIcon?: ReactNode } =
-        activeStore ? { line1: 'Sua loja', line2: activeStore.name, image: activeStore.logo, noRing: true, label: 'Menu da loja', modeIcon: <StoreIcon size={22} /> }
-            : activeVehicle ? {
-                line1: profileSlug ? `@${profileSlug}` : 'Motorista',
-                line2: [activeVehicle.model, activeVehicle.plate].filter(Boolean).join(' · ') || (VEHICLE_LABEL[activeVehicle.kind] || 'Veículo'),
-                image: activeVehicle.photo, noRing: true, label: 'Menu do motorista', modeIcon: <Car size={22} />,
-            }
-                : userId && drawerData.providerOn ? { line1: profileSlug ? `@${profileSlug}` : 'Meu perfil', line2: 'Modo prestador', image: avatarUrl, noRing: false, label: 'Meu perfil', modeIcon: <User size={22} /> }
-                    : { line1: userId ? 'Bem-vindo de volta' : 'Bem-vindo ao iUser', line2: profileSlug ? `@${profileSlug}` : 'Visitante', image: avatarUrl, noRing: false, label: 'Meu perfil', modeIcon: <User size={22} /> }
+    const activeVehicle = activeMode.startsWith('motorista:') ? drawerData.vehicles.find((v) => `motorista:${v.slug}` === activeMode) : undefined
+    const computed: HeaderSnap = (() => {
+        const base = { userId: userId || '', mode: activeMode, noRing: false, label: 'Meu perfil', icon: 'user' as const }
+        if (activeStore) return { ...base, line1: 'Sua loja', line2: activeStore.name, image: activeStore.logo, noRing: true, label: 'Menu da loja', icon: 'store' as const }
+        if (activeVehicle) return {
+            ...base,
+            line1: profileSlug ? `@${profileSlug}` : 'Motorista',
+            line2: [activeVehicle.model, activeVehicle.plate].filter(Boolean).join(' · ') || (VEHICLE_LABEL[activeVehicle.kind] || 'Veículo'),
+            image: activeVehicle.photo, noRing: true, label: 'Menu do motorista', icon: 'car' as const,
+        }
+        if (userId && activeMode === 'prestador' && drawerData.providerOn) {
+            return { ...base, line1: profileSlug ? `@${profileSlug}` : 'Meu perfil', line2: 'Modo prestador', image: avatarUrl || null }
+        }
+        return { ...base, mode: 'perfil', line1: userId ? 'Bem-vindo de volta' : 'Bem-vindo ao iUser', line2: profileSlug ? `@${profileSlug}` : 'Visitante', image: avatarUrl || null }
+    })()
+    // Enquanto o banco não respondeu, usa o resumo guardado da última visita (se for da mesma pessoa)
+    const useSnap = !dataLoaded && !!snap && (!userId || snap.userId === userId)
+    const view = useSnap ? snap! : computed
+    const iconFor = (k: HeaderSnap['icon']) => k === 'store' ? <StoreIcon size={22} /> : k === 'car' ? <Car size={22} /> : <User size={22} />
+    const headerView = { line1: view.line1, line2: view.line2, image: view.image, noRing: view.noRing, label: view.label, modeIcon: iconFor(view.icon) }
 
-    // Escolher o modo prestador (Meu perfil com o prestador ligado) leva pra página dele
-    const closeAndMaybeGo = (mode: string, delay: number) => {
-        const toPrestador = mode === 'perfil' && drawerData.providerOn && pathname !== '/modoprestador'
-        window.setTimeout(() => {
-            setDrawerOpen(false)
-            if (toPrestador) router.push('/modoprestador')
-        }, delay)
+    // Guarda o resumo pra próxima abertura do app (e pré-carrega a imagem)
+    useEffect(() => {
+        if (!dataLoaded || !userId) return
+        try { localStorage.setItem('iuser_header_last', JSON.stringify(computed)) } catch { /* sem armazenamento */ }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [dataLoaded, userId, computed.mode, computed.line1, computed.line2, computed.image])
+
+    // Quem chega direto numa página de modo (link, voltar do navegador) fica com aquele modo selecionado no topo
+    useEffect(() => {
+        if (!dataLoaded || !userId) return
+        const candidates = [
+            'perfil',
+            ...(drawerData.providerOn ? ['prestador'] : []),
+            ...drawerData.stores.map((st) => `loja:${st.slug}`),
+            ...drawerData.vehicles.map((v) => `motorista:${v.slug}`),
+        ]
+        const match = candidates.find((m) => modePath(m, drawerData) === pathname)
+        if (match && match !== activeMode) {
+            setActiveMode(match)
+            try { localStorage.setItem(`iuser_mode_${userId}`, match) } catch { /* sem armazenamento */ }
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [dataLoaded, userId, pathname])
+
+    // Escolher um modo: marca como selecionado e abre a página dele (cada modo tem a sua)
+    const selectMode = (mode: string) => {
+        if (mode !== activeMode) {
+            setActiveMode(mode)
+            setModeTick((n) => n + 1)
+            try { localStorage.setItem(`iuser_mode_${userId}`, mode) } catch { /* sem armazenamento */ }
+        }
+        const target = modePath(mode, drawerData)
+        setDrawerOpen(false)
+        if (pathname !== target) router.push(target)
     }
+    const goAndClose = (path: string) => { setDrawerOpen(false); router.push(path) }
 
     return (
         <>
@@ -356,16 +492,8 @@ export default function ModeShell({ children }: { children: ReactNode }) {
                     avatarUrl={avatarUrl}
                     data={drawerData}
                     active={activeMode}
-                    onSelect={(mode) => {
-                        // Meu perfil, loja e motorista se escolhem do mesmo jeito; só o prestador (Meu perfil com
-                        // o modo ligado) também leva à página /modoprestador
-                        if (mode === activeMode) { closeAndMaybeGo(mode, 0); return }
-                        setActiveMode(mode)
-                        setModeTick((n) => n + 1)
-                        try { localStorage.setItem(`iuser_mode_${userId}`, mode) } catch { /* sem armazenamento */ }
-                        // O menu espera a troca do ícone terminar antes de fechar
-                        closeAndMaybeGo(mode, 850)
-                    }}
+                    onSelect={selectMode}
+                    onGo={goAndClose}
                     onClose={() => setDrawerOpen(false)}
                 />
             )}

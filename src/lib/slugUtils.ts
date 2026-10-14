@@ -6,6 +6,9 @@ import { supabase } from '@/lib/supabase/client'
 export const RESERVED_SLUGS = new Set([
     'modeloinicial',
     'modoprestador',
+    'painel-perfil',
+    'painel-loja',
+    'veiculo',
     'admin',
     'api',
     'auth',
@@ -75,7 +78,7 @@ export function sanitizeSlug(text: string): string {
         .slice(0, 60) // limita tamanho máximo
 }
 
-export type SlugConflictType = 'reserved' | 'profile' | 'store' | 'product' | 'publication'
+export type SlugConflictType = 'reserved' | 'profile' | 'store' | 'vehicle' | 'product' | 'publication'
 
 export interface SlugAvailabilityResult {
     available: boolean
@@ -160,6 +163,21 @@ export async function checkSlugAvailability(
                 available: false,
                 conflictType: 'store',
                 message: 'Este link já está em uso por uma loja.',
+            }
+        }
+
+        // 3b. Verificar na tabela driver_vehicles (vehicle_slug) — veículos também vivem na URL de topo
+        const { data: vehicleData } = await supabase
+            .from('driver_vehicles')
+            .select('id')
+            .ilike('vehicle_slug', clean)
+            .limit(1)
+            .maybeSingle()
+        if (vehicleData) {
+            return {
+                available: false,
+                conflictType: 'vehicle',
+                message: 'Este link já está em uso por um veículo.',
             }
         }
 
