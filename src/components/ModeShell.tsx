@@ -133,10 +133,12 @@ function DrawerLabel({ children }: { children: ReactNode }) {
     return <p className="px-3 pt-2 pb-1 text-[11px] font-black uppercase tracking-widest text-white/80">{children}</p>
 }
 
-function MenuDrawerContent({ slug, avatarUrl, data, active, onSelect, onGo, onClose }: {
+function MenuDrawerContent({ slug, avatarUrl, data, active, recent, onSelect, onGo, onClose }: {
     slug: string | null; avatarUrl: string | null | undefined; data: DrawerData
     /** Modo selecionado: 'perfil' | 'prestador' | 'loja:<slug>' | 'motorista:<vehicle_slug>' */
     active: string
+    /** As últimas coisas que a pessoa abriu pela busca (avatares do Explorar) */
+    recent: RecentClickItem[]
     onSelect: (mode: string) => void; onGo: (path: string) => void; onClose: () => void
 }) {
     // Cada grupo é um painel separado, com o seu título
@@ -220,6 +222,30 @@ function MenuDrawerContent({ slug, avatarUrl, data, active, onSelect, onGo, onCl
                 />
             </Panel>
 
+            {/* Explorar: a lupa + as 5 últimas coisas buscadas; leva ao /modeloinicial */}
+            <button
+                type="button"
+                onClick={() => onGo('/modeloinicial')}
+                className="mt-4 w-full rounded-full px-4 py-3 flex items-center gap-3 text-white font-black text-sm transition active:scale-[0.98]"
+                style={{ background: 'rgba(255,255,255,0.18)', border: '1px solid rgba(255,255,255,0.3)' }}
+            >
+                <Search size={20} className="flex-shrink-0" />
+                <span className="flex-1 text-left">Explorar</span>
+                {recent.length > 0 && (
+                    <span className="flex flex-shrink-0">
+                        {recent.map((r, i) => (
+                            <span
+                                key={`${r.type}-${r.id}`}
+                                className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center text-xs font-black flex-shrink-0"
+                                style={{ marginLeft: i === 0 ? 0 : -10, background: 'rgba(255,255,255,0.35)', boxShadow: '0 0 0 2px #ea580c' }}
+                                title={r.name}
+                            >
+                                {r.imageUrl ? <img src={r.imageUrl} alt="" className="w-full h-full object-cover" /> : (r.name || '?').charAt(0).toUpperCase()}
+                            </span>
+                        ))}
+                    </span>
+                )}
+            </button>
         </div>
     )
 }
@@ -340,7 +366,7 @@ export default function ModeShell({ children, search }: {
     // Menu lateral: abre pelo avatar. Carrega o que a pessoa tem (loja, veículo, modo prestador) pra mostrar só isso.
     const [drawerOpen, setDrawerOpen] = useState(false)
     const [searchOpen, setSearchOpen] = useState(false)
-    // As 5 últimas coisas que a pessoa abriu pela busca (perfil, loja, produto) — vão no botão Explorar
+    // As 5 últimas coisas que a pessoa abriu pela busca (perfil, loja, produto) — vão no Explorar do menu
     const [recent, setRecent] = useState<RecentClickItem[]>([])
     useEffect(() => {
         const read = () => setRecent(getRecentClicks().filter((i) => i.type !== 'ride').slice(0, 5))
@@ -503,6 +529,7 @@ export default function ModeShell({ children, search }: {
                     avatarUrl={avatarUrl}
                     data={drawerData}
                     active={activeMode}
+                    recent={recent}
                     onSelect={selectMode}
                     onGo={goAndClose}
                     onClose={() => setDrawerOpen(false)}
@@ -532,9 +559,8 @@ export default function ModeShell({ children, search }: {
                 {children}
             </div>
 
-            {/* Navegação embaixo: o botão do menu (selo + nome), o carrinho, as mensagens e o Explorar (lupa + as últimas
-                5 coisas buscadas). Na página com busca, o Explorar se EXPANDE no lugar e vira o campo; nas outras,
-                leva ao /modeloinicial. */}
+            {/* Navegação embaixo: o botão do menu (selo + nome), o carrinho, as mensagens e a lupa. Na página com busca,
+                a lupa se EXPANDE no lugar e vira o campo; nas outras, leva ao /modeloinicial. */}
             <nav
                 className="fixed bottom-0 left-0 right-0 z-40 border-t"
                 style={{
@@ -546,7 +572,7 @@ export default function ModeShell({ children, search }: {
                 }}
             >
                 <div className="max-w-5xl mx-auto px-4 py-2 flex items-center">
-                    {/* Grupo da esquerda: some (encolhe) quando o Explorar vira o campo de busca */}
+                    {/* Grupo da esquerda: some (encolhe) quando a lupa vira o campo de busca */}
                     <div
                         className="flex items-center gap-2.5 min-w-0"
                         style={{
@@ -571,15 +597,14 @@ export default function ModeShell({ children, search }: {
                             onHome={() => { if (userId) { window.scrollTo({ top: 0 }); setDrawerOpen(true) } else go('/') }}
                         />
 
-                        {/* Nome, frase e triângulo: um botão só — abre/fecha o menu (igual ao selo). Só de tela média pra cima:
-                            no celular o espaço é do Explorar, e o selo já abre o menu e mostra o modo. */}
+                        {/* Nome, frase e triângulo: um botão só — abre/fecha o menu (igual ao selo) */}
                         {userId ? (
                             <button
                                 type="button"
                                 onClick={() => { window.scrollTo({ top: 0 }); setDrawerOpen((v) => !v) }}
                                 aria-label={drawerOpen ? 'Fechar menu' : 'Abrir menu'}
                                 aria-expanded={drawerOpen}
-                                className="hidden sm:block min-w-0 flex-1 text-left rounded-xl py-1 transition active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]"
+                                className="min-w-0 flex-1 text-left rounded-xl py-1 transition active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]"
                             >
                                 <span className="block text-xs truncate" style={{ color: colors.textSecondary }}>{headerView.line1}</span>
                                 <span className="flex items-center gap-1.5 min-w-0">
@@ -599,12 +624,10 @@ export default function ModeShell({ children, search }: {
                                 <LogIn size={15} /> Entrar
                             </button>
                         )}
-                        <span className="hidden sm:block flex-1" />
-
-                        <button
+                                        <button
                             onClick={() => go('/carrinho')}
                             aria-label="Carrinho"
-                            className="relative w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 transition hover:scale-105 active:scale-95 ml-auto sm:ml-0"
+                            className="relative w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 transition hover:scale-105 active:scale-95"
                             style={{ background: topCart > 0 ? '#ea580c' : `${colors.border}50`, color: topCart > 0 ? '#fff' : colors.textPrimary }}
                         >
                             <ShoppingCart size={20} />
@@ -626,15 +649,15 @@ export default function ModeShell({ children, search }: {
                         </button>
                     </div>
 
-                    {/* Explorar: a lupa + as 5 últimas coisas buscadas. Com busca na página, expande e vira o campo. */}
+                    {/* Lupa: com busca na página, expande no lugar e vira o campo. */}
                     <div
-                        className="flex items-center rounded-full overflow-hidden"
+                        className={`flex items-center rounded-full overflow-hidden ${searchOpen ? '' : 'ml-2.5'}`}
                         style={{
-                            flex: searchOpen ? '1 1 0%' : '0 0 auto',
+                            flex: searchOpen ? '1 1 0%' : '0 0 44px',
                             height: 44,
-                            background: searchOpen ? colors.surface : GRADIENT,
+                            background: searchOpen ? colors.surface : `${colors.border}50`,
                             border: searchOpen ? `1.5px solid ${colors.border}` : '1.5px solid transparent',
-                            color: searchOpen ? colors.textPrimary : '#fff',
+                            color: colors.textPrimary,
                             transition: 'flex 320ms cubic-bezier(0.22, 1, 0.36, 1), background 250ms ease, border-color 250ms ease',
                         }}
                     >
@@ -662,25 +685,10 @@ export default function ModeShell({ children, search }: {
                         ) : (
                             <button
                                 onClick={() => (search ? setSearchOpen(true) : go('/modeloinicial'))}
-                                aria-label="Explorar"
-                                className="h-full pl-3.5 pr-3 flex items-center gap-2 transition active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                                aria-label="Buscar"
+                                className="w-11 h-11 flex items-center justify-center flex-shrink-0 transition hover:scale-105 active:scale-95"
                             >
-                                <Search size={19} className="flex-shrink-0" />
-                                <span className="text-xs font-black">Explorar</span>
-                                {recent.length > 0 && (
-                                    <span className="flex ml-0.5">
-                                        {recent.map((r, i) => (
-                                            <span
-                                                key={`${r.type}-${r.id}`}
-                                                className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center text-[10px] font-black flex-shrink-0"
-                                                style={{ marginLeft: i === 0 ? 0 : -9, background: r.imageUrl ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.35)', boxShadow: '0 0 0 2px #ea580c' }}
-                                                title={r.name}
-                                            >
-                                                {r.imageUrl ? <img src={r.imageUrl} alt="" className="w-full h-full object-cover" /> : (r.name || '?').charAt(0).toUpperCase()}
-                                            </span>
-                                        ))}
-                                    </span>
-                                )}
+                                <Search size={20} />
                             </button>
                         )}
                     </div>
