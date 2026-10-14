@@ -775,9 +775,9 @@ export default function ModeShell({ children, search }: {
                             aria-expanded={drawerOpen}
                             className="relative min-w-0 flex-1 text-left rounded-xl py-1 transition active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]"
                         >
-                            <span className="block text-xs truncate" style={{ color: leftTabOn ? colors.textSecondary : 'rgba(255,255,255,0.85)', transition: 'color 300ms ease' }}>{headerView.line1}</span>
+                            <span className="block text-xs truncate" style={{ color: leftTabOn ? colors.textSecondary : 'rgba(255,255,255,0.85)', transition: 'color 120ms ease' }}>{headerView.line1}</span>
                             <span className="flex items-center gap-1.5 min-w-0">
-                                <span className="text-base font-black truncate" style={{ color: leftTabOn ? colors.textPrimary : '#fff', transition: 'color 300ms ease' }}>{headerView.line2}</span>
+                                <span className="text-base font-black truncate" style={{ color: leftTabOn ? colors.textPrimary : '#fff', transition: 'color 120ms ease' }}>{headerView.line2}</span>
                                 <span className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center" style={{ background: leftTabOn ? `${colors.border}66` : 'rgba(255,255,255,0.22)', transition: 'background 300ms ease' }}>
                                     <svg
                                         width="10" height="9" viewBox="0 0 10 9" aria-hidden
@@ -860,8 +860,12 @@ export default function ModeShell({ children, search }: {
                         top: 'calc(8px + env(safe-area-inset-top))', bottom: -1,
                         left: ind.left, width: ind.width,
                         background: colors.background, borderRadius: '18px 18px 0 0',
+                        // some rápido (e de vez, com `visibility`): o menu abrindo não deixa a aba clara boiando nem uma linha
                         opacity: indicatorOn ? 1 : 0,
-                        transition: 'left 420ms cubic-bezier(0.22, 1, 0.36, 1), width 420ms cubic-bezier(0.22, 1, 0.36, 1), opacity 250ms ease',
+                        visibility: indicatorOn ? 'visible' : 'hidden',
+                        transition: indicatorOn
+                            ? 'left 420ms cubic-bezier(0.22, 1, 0.36, 1), width 420ms cubic-bezier(0.22, 1, 0.36, 1), opacity 250ms ease'
+                            : 'left 420ms cubic-bezier(0.22, 1, 0.36, 1), width 420ms cubic-bezier(0.22, 1, 0.36, 1), opacity 90ms ease, visibility 0s linear 90ms',
                     }}
                 >
                     {(['left', 'right'] as const).map((side) => {
