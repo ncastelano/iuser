@@ -302,6 +302,8 @@ function VisitorDrawerContent({ recent, onGo, onClose }: { recent: RecentClickIt
 // pro conjunto ter exatamente o mesmo tamanho da logo.
 const BADGE = 48
 // Degradê do menu: o fundo atrás do cartão do app e a cor da navbar do topo
+// Raio dos cantos côncavos da barra do topo (px)
+const CORNER = 24
 const MENU_GRADIENT = 'linear-gradient(160deg, #f97316 0%, #dc2626 100%)'
 function HeaderBadge({ userId, avatarUrl, onProfile, onHome, colors, noRing = false, label = 'Meu perfil', modeIcon, popToken = 0 }: {
     userId: string | null; avatarUrl: string | null | undefined; onProfile: () => void; onHome: () => void; colors: any
@@ -622,7 +624,6 @@ export default function ModeShell({ children, search }: {
         <nav
             className="fixed top-0 left-0 right-0 z-40"
             style={{
-                // Com o menu aberto a barra fica de fora do cartão do app: sem fundo, em cima do degradê do menu
                 // Sempre da cor do menu (o mesmo degradê do fundo, preso à tela): parece que a barra vem de fora do app
                 backgroundImage: MENU_GRADIENT,
                 backgroundSize: '100vw 100dvh',
@@ -630,6 +631,8 @@ export default function ModeShell({ children, search }: {
                 backgroundRepeat: 'no-repeat',
                 backgroundColor: '#dc2626',
                 paddingTop: 'env(safe-area-inset-top)',
+                boxSizing: 'border-box',
+                height: NAV_H,
             }}
         >
             <div className="max-w-5xl mx-auto px-4 py-2 flex items-center">
@@ -760,6 +763,27 @@ export default function ModeShell({ children, search }: {
                     )}
                 </div>
             </div>
+            {/* Cantos CÔNCAVOS: a borda de baixo da barra "entra" na página — o cartão do app tem os cantos de cima
+                arredondados, preenchidos com o degradê da barra, e parece que a parte de baixo está subindo */}
+            {(['left', 'right'] as const).map((side) => (
+                <span
+                    key={side}
+                    aria-hidden
+                    className="absolute pointer-events-none"
+                    style={{
+                        top: '100%', [side]: 0, width: CORNER, height: CORNER,
+                        backgroundImage: MENU_GRADIENT,
+                        backgroundSize: '100vw 100dvh',
+                        backgroundRepeat: 'no-repeat',
+                        backgroundColor: '#dc2626',
+                        backgroundPosition: side === 'left' ? `0 calc(-1 * ${NAV_H})` : `calc(${CORNER}px - 100vw) calc(-1 * ${NAV_H})`,
+                        WebkitMaskImage: `radial-gradient(circle at ${side === 'left' ? '100% 100%' : '0% 100%'}, transparent ${CORNER - 0.5}px, #000 ${CORNER}px)`,
+                        maskImage: `radial-gradient(circle at ${side === 'left' ? '100% 100%' : '0% 100%'}, transparent ${CORNER - 0.5}px, #000 ${CORNER}px)`,
+                        opacity: drawerOpen ? 0 : 1,
+                        transition: 'opacity 250ms ease',
+                    }}
+                />
+            ))}
         </nav>
         </>
     )
