@@ -135,7 +135,7 @@ export default function ProfilePublication({ profileId, profileSlug, isOwner = t
     }
 
     useEffect(() => {
-        if (!isExpanded || !profileId) return
+        if (!profileId) return
         let isMounted = true
 
         const load = async () => {
@@ -177,7 +177,7 @@ export default function ProfilePublication({ profileId, profileSlug, isOwner = t
         load()
 
         return () => { isMounted = false }
-    }, [isExpanded, profileId])
+    }, [profileId])
 
     useEffect(() => {
         if (!imageFile) return
@@ -477,6 +477,35 @@ export default function ProfilePublication({ profileId, profileSlug, isOwner = t
         )
     }
 
+    // ===== Prévia (cartão fechado): o card da publicação SEM botões — foto, título, trecho e os números em texto =====
+    const renderPreviewCard = (pub: Publication) => {
+        const imgUrl = getImageUrl(pub.image_url)
+        return (
+            <div
+                key={pub.id}
+                onClick={() => router.push(`/publicacoes/${pub.slug}`)}
+                className="rounded-2xl overflow-hidden flex-shrink-0 w-52 cursor-pointer transition-transform hover:scale-[1.02]"
+                style={{
+                    background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.5)`,
+                    border: `1px solid ${colors.border}`,
+                }}
+            >
+                {imgUrl && <img src={imgUrl} alt={pub.name} className="w-full h-24 object-cover" />}
+                <div className="p-2.5">
+                    <p className="text-xs font-black truncate" style={{ color: textPrimary }}>{pub.name || 'Sem título'}</p>
+                    {pub.description && (
+                        <p className="text-[11px] mt-0.5 line-clamp-2" style={{ color: textSecondary }}>{pub.description}</p>
+                    )}
+                    <p className="flex items-center gap-2.5 text-[10px] mt-1.5" style={{ color: textSecondary }}>
+                        <span className="flex items-center gap-1"><Heart size={10} /> {pub.like_count || 0}</span>
+                        <span className="flex items-center gap-1"><MessageCircle size={10} /> {pub.comment_count || 0}</span>
+                        <span className="flex items-center gap-1"><Eye size={10} /> {pub.view_count || 0}</span>
+                    </p>
+                </div>
+            </div>
+        )
+    }
+
     // Se não for o dono, mostra apenas as publicações
     if (!isOwner) {
         return (
@@ -588,6 +617,12 @@ export default function ProfilePublication({ profileId, profileSlug, isOwner = t
                     </div>
                 </button>
 
+                {!isExpanded && !loading && publications.length > 0 && (
+                    <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
+                        {publications.slice(0, 6).map((pub) => renderPreviewCard(pub))}
+                    </div>
+                )}
+
                 {isExpanded && (
                     <div className="flex flex-col gap-4">
                         {!isCreating && publications.length > 0 && (
@@ -652,8 +687,8 @@ export default function ProfilePublication({ profileId, profileSlug, isOwner = t
                                 )}
                             </div>
                         ) : (
-                            <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
-                                {publications.map(pub => renderPublicationCard(pub, true, true))}
+                            <div className="flex flex-col gap-4">
+                                {publications.map(pub => renderPublicationCard(pub, true, false))}
                             </div>
                         )}
 
