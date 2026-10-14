@@ -241,7 +241,7 @@ function SellDialog({ open, onClose, userId, colors, go, mode = 'all' }: { open:
 // sombra), revelando o menu sobre o degradê do iUser. Só mostra o que a pessoa realmente tem: loja, veículo, inscrições.
 interface DrawerData {
     stores: { id: string; name: string; slug: string; logo: string | null; open: boolean }[]
-    vehicles: { kind: string; model: string | null }[]
+    vehicles: { kind: string; model: string | null; plate: string | null; photo: string | null }[]
     /** Modo motorista ligado (driver_pricing.driver_mode_active) */
     driverActive: boolean
     /** Modo prestador ligado no perfil (profiles.service_mode_active) */
@@ -249,12 +249,16 @@ interface DrawerData {
 }
 const VEHICLE_LABEL: Record<string, string> = { carro: 'Carro', moto: 'Moto', bicicleta: 'Bicicleta' }
 
-function MenuDrawerContent({ slug, avatarUrl, data, active, onSelect, onClose }: {
+function MenuDrawerContent({ slug, avatarUrl, data, active, onSelect, onOpenPanel, onClose }: {
     slug: string | null; avatarUrl: string | null | undefined; data: DrawerData
     /** Modo selecionado: 'perfil' | 'loja:<slug>' | 'motorista:<tipo>' */
     active: string
-    onSelect: (mode: string, path: string) => void; onClose: () => void
+    onSelect: (mode: string) => void; onOpenPanel: (path: string) => void; onClose: () => void
 }) {
+    // Painel do modo selecionado (o botão "Abrir painel" do topo)
+    const activePath = active.startsWith('loja:') ? `/?view=loja&store=${encodeURIComponent(active.slice(5))}`
+        : active.startsWith('motorista:') ? `/painel-motorista?veiculo=${encodeURIComponent(active.slice(10))}`
+            : '/?view=perfil'
     const activeLabel = active.startsWith('loja:')
         ? `Loja · ${data.stores.find((st) => `loja:${st.slug}` === active)?.name || ''}`
         : active.startsWith('motorista:')
@@ -265,7 +269,7 @@ function MenuDrawerContent({ slug, avatarUrl, data, active, onSelect, onClose }:
         const selected = active === mode
         return (
             <button
-                onClick={() => onSelect(mode, path)}
+                onClick={() => onSelect(mode)}
                 aria-pressed={selected}
                 className="w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl text-left text-white transition hover:bg-white/15 active:bg-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
                 style={selected ? { background: 'rgba(255,255,255,0.22)', boxShadow: 'inset 0 0 0 1.5px rgba(255,255,255,0.85)' } : undefined}
@@ -303,6 +307,14 @@ function MenuDrawerContent({ slug, avatarUrl, data, active, onSelect, onClose }:
                     <X size={20} />
                 </button>
             </div>
+
+            <button
+                onClick={() => onOpenPanel(activePath)}
+                className="mt-4 w-full flex items-center justify-center gap-1.5 py-2.5 rounded-full text-sm font-black bg-white transition hover:scale-[1.02] active:scale-95"
+                style={{ color: '#dc2626' }}
+            >
+                Abrir painel <ChevronRight size={16} />
+            </button>
 
             <div className="mt-5">
                 <Row
@@ -357,11 +369,16 @@ function MenuDrawerContent({ slug, avatarUrl, data, active, onSelect, onClose }:
 // A borda do plano é desenhada POR FORA da foto (3 px de cada lado) — por isso a foto fica menor quando tem borda,
 // pro conjunto ter exatamente o mesmo tamanho da logo.
 const BADGE = 48
-function HeaderBadge({ userId, avatarUrl, onProfile, onHome, colors }: {
+function HeaderBadge({ userId, avatarUrl, onProfile, onHome, colors, noRing = false, label = 'Meu perfil', fallbackIcon }: {
     userId: string | null; avatarUrl: string | null | undefined; onProfile: () => void; onHome: () => void; colors: any
+    /** Imagem que não é do perfil (logo da loja, foto do carro): sem a borda do plano */
+    noRing?: boolean
+    label?: string
+    fallbackIcon?: ReactNode
 }) {
     const [showAvatar, setShowAvatar] = useState(true)
-    const hasRing = usePlanRing(userId)
+    const planRing = usePlanRing(userId)
+    const hasRing = planRing && !noRing
     useEffect(() => {
         if (!userId) return
         const t = setInterval(() => setShowAvatar((v) => !v), 5000)
@@ -383,12 +400,12 @@ function HeaderBadge({ userId, avatarUrl, onProfile, onHome, colors }: {
             >
                 {/* Frente: a foto do perfil (ou, sem conta, a logo) */}
                 {userId ? (
-                    <button onClick={onProfile} aria-label="Meu perfil" className="flex items-center justify-center rounded-full" style={face}>
-                        <PlanAvatarRing userId={userId} width={2} linkToProfile={false}>
+                    <button onClick={onProfile} aria-label={label} className="flex items-center justify-center rounded-full" style={face}>
+                        <PlanAvatarRing userId={noRing ? null : userId} width={2} linkToProfile={false}>
                             <span className="block rounded-full overflow-hidden flex items-center justify-center" style={{ width: avatarSize, height: avatarSize, background: `${colors.border}60` }}>
                                 {avatarUrl
                                     ? <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
-                                    : <User size={20} style={{ color: colors.textSecondary }} />}
+                                    : (fallbackIcon || <User size={20} style={{ color: colors.textSecondary }} />)}
                             </span>
                         </PlanAvatarRing>
                     </button>
@@ -667,7 +684,7 @@ export default function ModeloInicialPage() {
         ;(async () => {
             const [{ data: sts }, { data: veh }, { data: drv }, { data: prof }] = await Promise.all([
                 supabase.from('stores').select('id, name, "storeSlug", logo_url, business_hours').eq('owner_id', userId),
-                supabase.from('driver_vehicles').select('vehicle_kind, car_model').eq('driver_id', userId),
+                supabase.from('driver_vehicles').select('vehicle_kind, car_model, car_plate, car_photo_url').eq('driver_id', userId),
                 supabase.from('driver_pricing').select('driver_mode_active').eq('driver_id', userId).maybeSingle(),
                 supabase.from('profiles').select('service_mode_active').eq('id', userId).maybeSingle(),
             ])
@@ -678,7 +695,10 @@ export default function ModeloInicialPage() {
                     logo: toPublicImage('store-logos', st.logo_url),
                     open: isStoreOpenNow(st.business_hours as BusinessHours | null),
                 })),
-                vehicles: (veh || []).map((v: any) => ({ kind: v.vehicle_kind, model: v.car_model || null })),
+                vehicles: (veh || []).map((v: any) => ({
+                    kind: v.vehicle_kind, model: v.car_model || null, plate: v.car_plate || null,
+                    photo: v.car_photo_url ? supabase.storage.from('driver-car-photos').getPublicUrl(v.car_photo_url).data.publicUrl : null,
+                })),
                 driverActive: !!(drv as any)?.driver_mode_active,
                 providerOn: !!(prof as any)?.service_mode_active,
             })
@@ -732,6 +752,20 @@ export default function ModeloInicialPage() {
         },
     ]
 
+    // O topo responde ao modo escolhido no menu: loja (logo + nome), motorista (foto do carro + modelo e placa),
+    // prestador (foto do perfil + "Modo prestador") ou o perfil de sempre.
+    const activeStore = activeMode.startsWith('loja:') ? drawerData.stores.find((st) => `loja:${st.slug}` === activeMode) : undefined
+    const activeVehicle = activeMode.startsWith('motorista:') ? drawerData.vehicles.find((v) => `motorista:${v.kind}` === activeMode) : undefined
+    const headerView: { line1: string; line2: string; image: string | null | undefined; noRing: boolean; label: string; fallbackIcon?: ReactNode } =
+        activeStore ? { line1: 'Sua loja', line2: activeStore.name, image: activeStore.logo, noRing: true, label: 'Menu da loja', fallbackIcon: <StoreIcon size={20} style={{ color: colors.textSecondary }} /> }
+            : activeVehicle ? {
+                line1: profileSlug ? `@${profileSlug}` : 'Motorista',
+                line2: [activeVehicle.model, activeVehicle.plate].filter(Boolean).join(' · ') || (VEHICLE_LABEL[activeVehicle.kind] || 'Veículo'),
+                image: activeVehicle.photo, noRing: true, label: 'Menu do motorista', fallbackIcon: <Car size={20} style={{ color: colors.textSecondary }} />,
+            }
+                : userId && drawerData.providerOn ? { line1: profileSlug ? `@${profileSlug}` : 'Meu perfil', line2: 'Modo prestador', image: avatarUrl, noRing: false, label: 'Meu perfil' }
+                    : { line1: userId ? 'Bem-vindo de volta' : 'Bem-vindo ao iUser', line2: profileSlug ? `@${profileSlug}` : 'Visitante', image: avatarUrl, noRing: false, label: 'Meu perfil' }
+
     const searching = query.trim().length > 0
 
     return (
@@ -757,12 +791,12 @@ export default function ModeloInicialPage() {
                     avatarUrl={avatarUrl}
                     data={drawerData}
                     active={activeMode}
-                    onSelect={(mode, path) => {
+                    onSelect={(mode) => {
                         setActiveMode(mode)
                         try { localStorage.setItem(`iuser_mode_${userId}`, mode) } catch { /* sem armazenamento */ }
                         setDrawerOpen(false)
-                        router.push(path)
                     }}
+                    onOpenPanel={(path) => { setDrawerOpen(false); router.push(path) }}
                     onClose={() => setDrawerOpen(false)}
                 />
             )}
@@ -789,14 +823,17 @@ export default function ModeloInicialPage() {
                 <header className="flex items-center gap-3">
                     <HeaderBadge
                         userId={userId}
-                        avatarUrl={avatarUrl}
+                        avatarUrl={headerView.image}
                         colors={colors}
+                        noRing={headerView.noRing}
+                        label={headerView.label}
+                        fallbackIcon={headerView.fallbackIcon}
                         onProfile={() => { window.scrollTo({ top: 0 }); setDrawerOpen(true) }}
                         onHome={() => go('/')}
                     />
                     <div className="min-w-0 flex-1">
-                        <p className="text-xs" style={{ color: colors.textSecondary }}>{userId ? 'Bem-vindo de volta' : 'Bem-vindo ao iUser'}</p>
-                        <p className="text-base font-black truncate" style={{ color: colors.textPrimary }}>{profileSlug ? `@${profileSlug}` : 'Visitante'}</p>
+                        <p className="text-xs truncate" style={{ color: colors.textSecondary }}>{headerView.line1}</p>
+                        <p className="text-base font-black truncate" style={{ color: colors.textPrimary }}>{headerView.line2}</p>
                     </div>
                     {/* Atalhos que valem em qualquer tela: conversas (com não lidas) e carrinho (com itens) */}
                     <button
