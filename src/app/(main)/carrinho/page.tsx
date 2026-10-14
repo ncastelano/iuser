@@ -38,8 +38,8 @@ import { ReviewModal } from '@/components/ratings/ReviewModal'
 import { Spinner } from '@/components/Spinner'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
-import Header from '@/components/Header'
-import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
+import ModeShell from '@/components/ModeShell'
+import PageTabs from '@/components/PageTabs'
 import { isStoreOpenNow, getStoreStatusText, getNextOpeningInfo, type BusinessHours } from '@/lib/storeHours'
 import CatalogBag from '../[ownerSlug]/catalogo/CatalogBag'
 
@@ -1479,28 +1479,20 @@ export default function CarrinhoPage() {
     )
 
     return (
-        <div className="relative min-h-dvh" style={{ background: colors.background }}>
-            {/* ===== FUNDO ANIMADO ===== */}
-            <div className="fixed inset-0 z-0">
-                <AnimatedBackgroundiUser bgMode={bgMode} customBgUrl={customBgUrl} />
-            </div>
-
-            <main className="relative z-10 min-h-dvh" style={{ overscrollBehavior: 'none' }}>
-                <Header
-                    title="iUser"
-                    showBack={false}
-                    greeting={`Olá, ${currentUserSlug ? `@${currentUserSlug}` : 'Visitante'}`}
-                    avatarUrl={currentUserAvatar}
-                    loading={false}
-                    tabs={tabs}
-                    showSearch={true}
-                    searchPlaceholder="Buscar pedido, produto ou loja..."
-                    onSearch={setSearchQuery}
-                    profileSlug={currentUserSlug}
-                    onHomeClick={() => router.push('/')}
+        <ModeShell>
+        <div className="relative">
+            <main className="relative" style={{ overscrollBehavior: 'none' }}>
+                <PageTabs tabs={tabs} />
+                <input
+                    type="search"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Buscar pedido, produto ou loja..."
+                    className="w-full mt-3 px-4 py-2.5 rounded-full text-sm focus:outline-none"
+                    style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
                 />
 
-                <div className="px-4 pt-4 pb-24 space-y-10">
+                <div className="pt-4 pb-24 space-y-10">
                     {/* Seção Carrinho - visível apenas quando activeTab === 'carrinho' */}
                     {activeTab === 'carrinho' && (
                         <section id="section-carrinho" className="scroll-mt-24">
@@ -2390,5 +2382,6 @@ export default function CarrinhoPage() {
                 storeId={reviewOrder.storeId}
             />
         </div>
+        </ModeShell>
     )
 }

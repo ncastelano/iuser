@@ -12,8 +12,8 @@ import { ArrowLeft, MessageCircle, Send, Store as StoreIcon, User } from 'lucide
 import { supabase } from '@/lib/supabase/client'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { useTheme } from '@/app/contexts/theme'
-import Header from '@/components/Header'
-import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
+import ModeShell from '@/components/ModeShell'
+import PageTabs from '@/components/PageTabs'
 import PlanAvatarRing, { PlanRingInset } from '@/components/PlanAvatarRing'
 import { Spinner } from '@/components/Spinner'
 import { getAvatarUrl } from '@/lib/avatar'
@@ -351,23 +351,11 @@ function ConversasInner() {
     const active = rows?.find((r) => r.id === activeId) || null
 
     return (
-        <div className="relative min-h-dvh" style={{ background: colors.background }}>
-            <div className="fixed inset-0 z-0">
-                <AnimatedBackgroundiUser bgMode={bgMode} customBgUrl={customBgUrl} />
-            </div>
+        <ModeShell>
+            <main className="relative pb-8">
+                <PageTabs tabs={tabs} />
 
-            <main className="relative z-10 min-h-dvh pb-8">
-                <Header
-                    title="Conversas"
-                    showBack
-                    onBack={() => router.push('/')}
-                    greeting={`Olá, ${profileLoading ? '...' : profileSlug ? `@${profileSlug}` : 'Visitante'}`}
-                    avatarUrl={avatarUrl}
-                    loading={profileLoading}
-                    tabs={tabs}
-                />
-
-                <section className="px-4 md:px-6 mt-3">
+                <section className="mt-3">
                     {!profileLoading && !userId ? (
                         <div className="rounded-3xl p-8 text-center flex flex-col items-center gap-3" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
                             <MessageCircle size={36} style={{ color: colors.accent }} />
@@ -379,7 +367,7 @@ function ConversasInner() {
                             <Link href="/login?redirect=/conversas" className="px-6 py-3 rounded-full text-sm font-black text-white" style={{ background: GRADIENT }}>Entrar</Link>
                         </div>
                     ) : (
-                        <div className="grid md:grid-cols-[360px_1fr] gap-4 md:h-[calc(100dvh-260px)]">
+                        <div className="grid md:grid-cols-[360px_1fr] gap-4 md:h-[calc(100dvh-230px)]">
                             {/* Lista: o título sozinho em cima e os cartões (quadrados) embaixo */}
                             <div className={`${active ? 'hidden md:flex' : 'flex'} flex-col min-h-0`}>
                                 <div className="pb-3 flex-shrink-0">
@@ -469,7 +457,7 @@ function ConversasInner() {
                     )}
                 </section>
             </main>
-        </div>
+        </ModeShell>
     )
 }
 
