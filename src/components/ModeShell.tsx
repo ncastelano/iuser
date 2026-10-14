@@ -377,7 +377,8 @@ export default function ModeShell({ children }: { children: ReactNode }) {
             style={{
                 background: colors.background, zIndex: 2,
                 transformOrigin: 'left top',
-                transform: drawerOpen ? `translateX(${DRAWER_W}) scale(0.9)` : 'none',
+                // desce um pouco (7% da altura) além de deslizar e encolher: a janela fica mais pra baixo, com folga em cima
+                transform: drawerOpen ? `translateX(${DRAWER_W}) translateY(7dvh) scale(0.9)` : 'none',
                 borderRadius: drawerOpen ? 32 : 0,
                 boxShadow: drawerOpen ? '-12px 0 40px rgba(0,0,0,0.35)' : 'none',
                 height: drawerOpen ? '100dvh' : undefined,
