@@ -398,7 +398,8 @@ export default function ModeShell({ children }: { children: ReactNode }) {
                         modeIcon={headerView.modeIcon}
                         popToken={modeTick}
                         onProfile={() => { window.scrollTo({ top: 0 }); setDrawerOpen(true) }}
-                        onHome={() => go('/')}
+                        // A logo (outra face do selo) também abre o menu; só o visitante, que não tem menu, vai pra home
+                        onHome={() => { if (userId) { window.scrollTo({ top: 0 }); setDrawerOpen(true) } else go('/') }}
                     />
                     <div className="min-w-0 flex-1">
                         <p className="text-xs truncate" style={{ color: colors.textSecondary }}>{headerView.line1}</p>
