@@ -281,24 +281,22 @@ function DrawerRow({ mode, active, icon, image, title, desc, dot, onSelect }: {
 }
 
 function DrawerLabel({ children }: { children: ReactNode }) {
-    return <p className="px-3 mt-5 mb-1.5 text-[11px] font-black uppercase tracking-widest text-white/70">{children}</p>
+    return <p className="px-3 pt-2 pb-1 text-[11px] font-black uppercase tracking-widest text-white/80">{children}</p>
 }
 
-function MenuDrawerContent({ slug, avatarUrl, data, active, onSelect, onOpenPanel, onClose }: {
+function MenuDrawerContent({ slug, avatarUrl, data, active, onSelect, onClose }: {
     slug: string | null; avatarUrl: string | null | undefined; data: DrawerData
     /** Modo selecionado: 'perfil' | 'loja:<slug>' | 'motorista:<tipo>' */
     active: string
-    onSelect: (mode: string) => void; onOpenPanel: (path: string) => void; onClose: () => void
+    onSelect: (mode: string) => void; onClose: () => void
 }) {
-    // Painel do modo selecionado (o botão "Abrir painel" do topo)
-    const activePath = active.startsWith('loja:') ? `/?view=loja&store=${encodeURIComponent(active.slice(5))}`
-        : active.startsWith('motorista:') ? `/painel-motorista?veiculo=${encodeURIComponent(active.slice(10))}`
-            : '/?view=perfil'
-    const activeLabel = active.startsWith('loja:')
-        ? `Loja · ${data.stores.find((st) => `loja:${st.slug}` === active)?.name || ''}`
-        : active.startsWith('motorista:')
-            ? `Motorista · ${VEHICLE_LABEL[active.split(':')[1]] || 'Veículo'}`
-            : 'Meu perfil'
+    // Cada grupo é um painel separado, com o seu título: perfil/prestador, lojas e motorista
+    const Panel = ({ title, children }: { title: string; children: ReactNode }) => (
+        <section className="mt-4 rounded-3xl p-2 pb-1.5" style={{ background: 'rgba(255,255,255,0.10)', border: '1px solid rgba(255,255,255,0.18)' }}>
+            <DrawerLabel>{title}</DrawerLabel>
+            <div className="flex flex-col gap-1">{children}</div>
+        </section>
+    )
 
     return (
         <div className="h-full w-full flex flex-col px-4 pt-6 pb-8 overflow-y-auto">
@@ -308,22 +306,13 @@ function MenuDrawerContent({ slug, avatarUrl, data, active, onSelect, onOpenPane
                 </span>
                 <span className="min-w-0 flex-1">
                     <span className="block text-base font-black text-white truncate">{slug ? `@${slug}` : 'Minha conta'}</span>
-                    <span className="block text-xs text-white/85 leading-snug break-words">Modo atual: <b>{activeLabel}</b></span>
                 </span>
                 <button onClick={onClose} aria-label="Fechar menu" className="w-9 h-9 rounded-full flex items-center justify-center text-white hover:bg-white/15 flex-shrink-0">
                     <X size={20} />
                 </button>
             </div>
 
-            <button
-                onClick={() => onOpenPanel(activePath)}
-                className="mt-4 w-full flex items-center justify-center gap-1.5 py-2.5 rounded-full text-sm font-black bg-white transition hover:scale-[1.02] active:scale-95"
-                style={{ color: '#dc2626' }}
-            >
-                Abrir painel <ChevronRight size={16} />
-            </button>
-
-            <div className="mt-5">
+            <Panel title={data.providerOn ? 'Modo prestador' : 'Meu perfil'}>
                 <DrawerRow
                     mode="perfil"
                     active={active}
@@ -334,11 +323,10 @@ function MenuDrawerContent({ slug, avatarUrl, data, active, onSelect, onOpenPane
                     desc={data.providerOn ? 'Modo prestador ligado' : slug ? `@${slug}` : undefined}
                     dot={data.providerOn ? '#4ade80' : undefined}
                 />
-            </div>
+            </Panel>
 
             {data.stores.length > 0 && (
-                <>
-                    <DrawerLabel>Modo loja</DrawerLabel>
+                <Panel title="Modo loja">
                     {data.stores.map((st) => (
                         <DrawerRow
                             key={st.id}
@@ -352,12 +340,11 @@ function MenuDrawerContent({ slug, avatarUrl, data, active, onSelect, onOpenPane
                             dot={st.open ? '#4ade80' : '#fca5a5'}
                         />
                     ))}
-                </>
+                </Panel>
             )}
 
             {data.vehicles.length > 0 && (
-                <>
-                    <DrawerLabel>Modo motorista</DrawerLabel>
+                <Panel title="Modo motorista">
                     {data.vehicles.map((v) => (
                         <DrawerRow
                             key={v.kind}
@@ -371,7 +358,7 @@ function MenuDrawerContent({ slug, avatarUrl, data, active, onSelect, onOpenPane
                             dot={data.driverActive ? '#4ade80' : '#fca5a5'}
                         />
                     ))}
-                </>
+                </Panel>
             )}
         </div>
     )
@@ -838,13 +825,21 @@ export default function ModeloInicialPage() {
                     data={drawerData}
                     active={activeMode}
                     onSelect={(mode) => {
+                        // Tocar no modo que já está selecionado abre o painel dele; nos outros, só troca o modo
+                        if (mode === activeMode) {
+                            const path = mode.startsWith('loja:') ? `/?view=loja&store=${encodeURIComponent(mode.slice(5))}`
+                                : mode.startsWith('motorista:') ? `/painel-motorista?veiculo=${encodeURIComponent(mode.slice(10))}`
+                                    : '/?view=perfil'
+                            setDrawerOpen(false)
+                            router.push(path)
+                            return
+                        }
                         setActiveMode(mode)
                         setModeTick((n) => n + 1)
                         try { localStorage.setItem(`iuser_mode_${userId}`, mode) } catch { /* sem armazenamento */ }
-                        // O menu espera o giro do ícone terminar antes de fechar
+                        // O menu espera a troca do ícone terminar antes de fechar
                         window.setTimeout(() => setDrawerOpen(false), 850)
                     }}
-                    onOpenPanel={(path) => { setDrawerOpen(false); router.push(path) }}
                     onClose={() => setDrawerOpen(false)}
                 />
             )}
