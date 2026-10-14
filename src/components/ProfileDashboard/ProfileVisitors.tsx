@@ -404,14 +404,6 @@ export default function ProfileVisitors({ profileId, onLatestUpdate }: ProfileVi
                 >
                     <div className="min-w-0">
                         <h3 className="text-sm font-black" style={{ color: textPrimary }}>Visitantes do perfil</h3>
-                        <div className="flex items-center flex-wrap gap-x-2.5 gap-y-0.5 text-[11px] mt-0.5" style={{ color: textSecondary }}>
-                            <span><b style={{ color: '#f97316' }}>{totalUnique}</b> únicos</span>
-                            <span><b style={{ color: '#10b981' }}>{todayVisitors}</b> hoje</span>
-                            <span className="flex items-center gap-1">
-                                {onlineNow > 0 && <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: '#22c55e' }} />}
-                                <b style={{ color: '#f59e0b' }}>{onlineNow}</b> online
-                            </span>
-                        </div>
                     </div>
                     {isExpanded
                         ? <ChevronUp size={18} style={{ color: textSecondary }} className="flex-shrink-0" />
