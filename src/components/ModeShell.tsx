@@ -530,30 +530,35 @@ export default function ModeShell({ children }: { children: ReactNode }) {
                         // A logo (outra face do selo) também abre o menu; só o visitante, que não tem menu, vai pra home
                         onHome={() => { if (userId) { window.scrollTo({ top: 0 }); setDrawerOpen(true) } else go('/') }}
                     />
-                    <div className="min-w-0 flex-1">
-                        <p className="text-xs truncate" style={{ color: colors.textSecondary }}>{headerView.line1}</p>
-                        <div className="flex items-center gap-1.5 min-w-0">
-                            <p className="text-base font-black truncate" style={{ color: colors.textPrimary }}>{headerView.line2}</p>
-                            {/* Triângulo-botão: aponta pra baixo com o menu fechado e vira pra esquerda com o menu aberto */}
-                            {userId && (
-                                <button
-                                    type="button"
-                                    onClick={() => { window.scrollTo({ top: 0 }); setDrawerOpen((v) => !v) }}
-                                    aria-label={drawerOpen ? 'Fechar menu' : 'Abrir menu'}
-                                    aria-expanded={drawerOpen}
-                                    className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center transition hover:scale-110 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]"
-                                    style={{ background: `${colors.border}55` }}
-                                >
+                    {/* Nome, frase e triângulo: tudo é um botão só — tocar em qualquer parte abre/fecha o menu (igual ao selo) */}
+                    {userId ? (
+                        <button
+                            type="button"
+                            onClick={() => { window.scrollTo({ top: 0 }); setDrawerOpen((v) => !v) }}
+                            aria-label={drawerOpen ? 'Fechar menu' : 'Abrir menu'}
+                            aria-expanded={drawerOpen}
+                            className="min-w-0 flex-1 text-left rounded-xl py-1 -my-1 pr-1 transition active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]"
+                        >
+                            <span className="block text-xs truncate" style={{ color: colors.textSecondary }}>{headerView.line1}</span>
+                            <span className="flex items-center gap-1.5 min-w-0">
+                                <span className="text-base font-black truncate" style={{ color: colors.textPrimary }}>{headerView.line2}</span>
+                                {/* Triângulo: aponta pra baixo com o menu fechado e vira pra esquerda com o menu aberto */}
+                                <span className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center" style={{ background: `${colors.border}55` }}>
                                     <svg
                                         width="10" height="9" viewBox="0 0 10 9" aria-hidden
                                         style={{ transition: 'transform 350ms cubic-bezier(0.22, 1, 0.36, 1)', transform: drawerOpen ? 'rotate(90deg)' : 'rotate(0deg)' }}
                                     >
                                         <polygon points="0,0 10,0 5,9" fill={colors.textPrimary} />
                                     </svg>
-                                </button>
-                            )}
+                                </span>
+                            </span>
+                        </button>
+                    ) : (
+                        <div className="min-w-0 flex-1">
+                            <p className="text-xs truncate" style={{ color: colors.textSecondary }}>{headerView.line1}</p>
+                            <p className="text-base font-black truncate" style={{ color: colors.textPrimary }}>{headerView.line2}</p>
                         </div>
-                    </div>
+                    )}
                     {/* Atalhos que valem em qualquer tela: conversas (com não lidas) e carrinho (com itens) */}
                     <button
                         onClick={() => go(userId ? '/conversas' : '/login')}
