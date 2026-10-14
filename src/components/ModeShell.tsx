@@ -303,7 +303,53 @@ function VisitorDrawerContent({ recent, onGo, onClose }: { recent: RecentClickIt
 const BADGE = 48
 // Degradê do menu: o fundo atrás do cartão do app e a cor da navbar do topo
 // Borda branca em volta da logo do selo: ela aparece bem em cima do degradê laranja da barra
-const LOGO_RING = { border: '3px solid #fff', background: '#fff', boxShadow: '0 1px 6px rgba(0,0,0,0.18)' } as const
+const LOGO_RING = { border: '2px solid #fff', background: '#fff', boxShadow: '0 1px 6px rgba(0,0,0,0.18)' } as const
+// Altura da aba (ícone selecionado): do alto da barra até o pé dela, onde encontra o cartão do app
+const TAB_H = 58
+const FILLET = 12
+// Ícone da barra do topo. Selecionado = aba da cor do cartão do app, que desce até o pé da barra e se funde a ele,
+// com curvas côncavas nos dois lados da base
+function NavTab({ selected, label, onClick, bg, badge = 0, badgeColor = '#ef4444', pulse = false, children }: {
+    selected: boolean; label: string; onClick: () => void; bg: string; badge?: number; badgeColor?: string; pulse?: boolean; children: ReactNode
+}) {
+    return (
+        <button
+            onClick={onClick}
+            aria-label={label}
+            aria-current={selected ? 'page' : undefined}
+            className={`relative flex items-center justify-center flex-shrink-0 transition active:scale-95 ${pulse && !selected ? 'animate-pulse' : ''}`}
+            style={{
+                width: 48, height: '100%', paddingBottom: 8,
+                background: selected ? bg : 'transparent',
+                borderRadius: '18px 18px 0 0',
+                color: selected ? '#ea580c' : '#fff',
+                transition: 'background 300ms ease, color 300ms ease',
+            }}
+        >
+            {children}
+            {badge > 0 && (
+                <span className="absolute top-1.5 right-1 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black text-white flex items-center justify-center" style={{ background: badgeColor, boxShadow: '0 0 0 2px #ea580c' }}>
+                    {badge > 99 ? '99+' : badge}
+                </span>
+            )}
+            {(['left', 'right'] as const).map((side) => (
+                <span
+                    key={side}
+                    aria-hidden
+                    className="absolute pointer-events-none"
+                    style={{
+                        bottom: 0, [side === 'left' ? 'right' : 'left']: '100%', width: FILLET, height: FILLET,
+                        background: bg,
+                        WebkitMaskImage: `radial-gradient(circle at ${side === 'left' ? '0% 0%' : '100% 0%'}, transparent ${FILLET - 0.5}px, #000 ${FILLET}px)`,
+                        maskImage: `radial-gradient(circle at ${side === 'left' ? '0% 0%' : '100% 0%'}, transparent ${FILLET - 0.5}px, #000 ${FILLET}px)`,
+                        opacity: selected ? 1 : 0,
+                        transition: 'opacity 300ms ease',
+                    }}
+                />
+            ))}
+        </button>
+    )
+}
 // Raio dos cantos côncavos da barra do topo (px)
 const CORNER = 24
 const MENU_GRADIENT = 'linear-gradient(160deg, #f97316 0%, #dc2626 100%)'
@@ -506,6 +552,9 @@ export default function ModeShell({ children, search }: {
     // Altura da barra do topo: o cartão do app (tudo que está abaixo dela) começa nela, e a barra fica de fora do cartão.
     // Fica em CIMA (e não embaixo) pra o teclado não cobrir a barra quando a busca está aberta.
     const NAV_H = 'calc(66px + env(safe-area-inset-top))'
+    // Qual ícone da barra é o da página atual (o "selecionado")
+    const activeTab: 'cart' | 'chat' | 'search' | null =
+        pathname?.startsWith('/carrinho') ? 'cart' : pathname?.startsWith('/conversas') ? 'chat' : pathname === '/modeloinicial' ? 'search' : null
 
     // O topo responde ao modo escolhido no menu: loja (logo + nome), motorista (foto do carro + modelo e placa),
     // prestador (foto do perfil + "Modo prestador") ou o perfil de sempre.
@@ -646,7 +695,7 @@ export default function ModeShell({ children, search }: {
                 height: NAV_H,
             }}
         >
-            <div className="max-w-5xl mx-auto px-4 py-2 flex items-center">
+            <div className="max-w-5xl mx-auto px-4 h-full flex items-center">
                 {/* Grupo da esquerda: some (encolhe) quando a lupa vira o campo de busca */}
                 <div
                     className="flex items-center gap-2.5 min-w-0"
@@ -695,51 +744,36 @@ export default function ModeShell({ children, search }: {
                         </button>
                                 </div>
 
-                {/* Carrinho, conversas e lupa: uma cápsula só. Com busca na página, a lupa expande no lugar e vira o campo
-                    (o carrinho e as conversas encolhem); nas outras, leva ao /modeloinicial. */}
+                {/* Carrinho, conversas e lupa, juntos. O da página atual fica "selecionado": vira uma aba com a cor do cartão
+                    do app e se funde a ele (com curvas de encaixe nos pés). Com busca na página, a lupa expande no lugar e
+                    vira o campo (o carrinho e as conversas encolhem); nas outras páginas, leva ao /modeloinicial. */}
                 <div
-                    className="flex items-center rounded-full"
+                    className={`flex ${searchOpen ? 'items-center self-center rounded-full' : 'items-stretch self-end'}`}
                     style={{
                         flex: searchOpen ? '1 1 0%' : '0 0 auto',
-                        height: 48,
-                        padding: 2,
-                        background: searchOpen ? colors.surface : 'rgba(255,255,255,0.2)',
+                        height: searchOpen ? 48 : TAB_H,
+                        padding: searchOpen ? 2 : 0,
+                        background: searchOpen ? colors.surface : 'transparent',
                         border: searchOpen ? `1.5px solid ${colors.border}` : '1.5px solid transparent',
                         color: searchOpen ? colors.textPrimary : '#fff',
                         transition: 'flex 320ms cubic-bezier(0.22, 1, 0.36, 1), background 350ms ease, border-color 250ms ease',
                     }}
                 >
                     <div
-                        className="flex items-center"
+                        className="flex items-stretch"
                         style={{
-                            maxWidth: searchOpen ? 0 : 100,
+                            maxWidth: searchOpen ? 0 : 160,
                             opacity: searchOpen ? 0 : 1,
                             overflow: searchOpen ? 'hidden' : 'visible',
                             transition: 'max-width 320ms cubic-bezier(0.22, 1, 0.36, 1), opacity 200ms ease',
                         }}
                     >
-                        <button
-                            onClick={() => go('/carrinho')}
-                            aria-label="Carrinho"
-                            className="relative w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 transition hover:scale-105 active:scale-95"
-                            style={{ background: topCart > 0 ? '#fff' : 'transparent', color: topCart > 0 ? '#dc2626' : '#fff' }}
-                        >
+                        <NavTab selected={activeTab === 'cart' && !drawerOpen} label="Carrinho" onClick={() => go('/carrinho')} bg={colors.background} badge={topCart}>
                             <ShoppingCart size={20} />
-                            {topCart > 0 && (
-                                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black bg-red-500 text-white flex items-center justify-center">{topCart > 99 ? '99+' : topCart}</span>
-                            )}
-                        </button>
-                        <button
-                            onClick={() => go(userId ? '/conversas' : '/login')}
-                            aria-label="Conversas"
-                            className={`relative w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 transition hover:scale-105 active:scale-95 ${topUnread > 0 ? 'animate-pulse' : ''}`}
-                            style={{ background: topUnread > 0 ? '#16a34a' : 'transparent', color: '#fff' }}
-                        >
+                        </NavTab>
+                        <NavTab selected={activeTab === 'chat' && !drawerOpen} label="Conversas" onClick={() => go(userId ? '/conversas' : '/login')} bg={colors.background} badge={topUnread} badgeColor="#16a34a" pulse={topUnread > 0}>
                             <MessageCircle size={20} />
-                            {topUnread > 0 && (
-                                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black bg-red-500 text-white flex items-center justify-center">{topUnread > 99 ? '99+' : topUnread}</span>
-                            )}
-                        </button>
+                        </NavTab>
                     </div>
 
                     {search && searchOpen ? (
@@ -764,13 +798,9 @@ export default function ModeShell({ children, search }: {
                             </button>
                         </>
                     ) : (
-                        <button
-                            onClick={() => (search ? setSearchOpen(true) : go('/modeloinicial'))}
-                            aria-label="Buscar"
-                            className="w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 transition hover:scale-105 active:scale-95"
-                        >
+                        <NavTab selected={activeTab === 'search' && !drawerOpen} label="Buscar" onClick={() => (search ? setSearchOpen(true) : go('/modeloinicial'))} bg={colors.background}>
                             <Search size={20} />
-                        </button>
+                        </NavTab>
                     )}
                 </div>
             </div>

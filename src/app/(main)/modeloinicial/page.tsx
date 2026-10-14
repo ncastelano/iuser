@@ -527,8 +527,7 @@ export default function ModeloInicialPage() {
                 ) : (
                     <>
                         {/* ===== 1. O QUE VOCÊ QUER FAZER? — dois blocos: quem precisa / quem quer ganhar ===== */}
-                        <section className="mt-7">
-                            <h2 className="text-xl font-black mb-3" style={{ color: colors.textPrimary }}>Precisando...</h2>
+                        <section className="mt-2">
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                                 {needs.map((a) => {
                                     const Icon = a.icon
