@@ -700,11 +700,11 @@ export default function ModeShell({ children, search }: {
                 // vira um cartão abaixo da barra do topo: desliza pra direita e encolhe um pouco, mostrando o menu atrás
                 transform: drawerOpen ? `translateX(${DRAWER_W}) scale(0.9)` : 'none',
                 // aberto: cartão com os 4 cantos; fechado: só os de cima, que se encaixam nos cantos côncavos da barra
-                borderRadius: drawerOpen ? '32px' : `${modeSelected ? 0 : CORNER}px ${activeTab === 'search' ? 0 : CORNER}px 0px 0px`,
+                borderRadius: drawerOpen ? '32px' : `${target === 'mode' ? 0 : CORNER}px ${target === 'search' ? 0 : CORNER}px 0px 0px`,
                 boxShadow: drawerOpen ? '-12px 0 40px rgba(0,0,0,0.35)' : 'none',
                 height: cardClipped ? `calc(100dvh - ${NAV_H})` : undefined,
                 overflow: cardClipped ? 'hidden' : undefined,
-                transition: 'transform 450ms cubic-bezier(0.22, 1, 0.36, 1), border-radius 450ms ease, box-shadow 450ms ease',
+                transition: 'transform 450ms cubic-bezier(0.22, 1, 0.36, 1), border-radius 420ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 450ms ease',
             }}
         >
             {/* Toque na página (com o menu aberto) fecha o menu */}
@@ -876,7 +876,7 @@ export default function ModeShell({ children, search }: {
                                     WebkitMaskImage: `radial-gradient(circle at ${side === 'left' ? '0% 0%' : '100% 0%'}, transparent ${FILLET - 0.5}px, #000 ${FILLET}px)`,
                                     maskImage: `radial-gradient(circle at ${side === 'left' ? '0% 0%' : '100% 0%'}, transparent ${FILLET - 0.5}px, #000 ${FILLET}px)`,
                                     opacity: hidden ? 0 : 1,
-                                    transition: 'opacity 250ms ease',
+                                    transition: 'opacity 420ms ease',
                                 }}
                             />
                         )
@@ -900,8 +900,8 @@ export default function ModeShell({ children, search }: {
                         WebkitMaskImage: `radial-gradient(circle at ${side === 'left' ? '100% 100%' : '0% 100%'}, transparent ${CORNER - 0.5}px, #000 ${CORNER}px)`,
                         maskImage: `radial-gradient(circle at ${side === 'left' ? '100% 100%' : '0% 100%'}, transparent ${CORNER - 0.5}px, #000 ${CORNER}px)`,
                         // com a lupa selecionada, a aba dela chega na borda da tela e ocupa esse canto
-                        opacity: drawerOpen || (side === 'right' && activeTab === 'search') || (side === 'left' && modeSelected) ? 0 : 1,
-                        transition: 'opacity 250ms ease',
+                        opacity: drawerOpen || (side === 'right' && target === 'search') || (side === 'left' && target === 'mode') ? 0 : 1,
+                        transition: 'opacity 420ms ease',
                     }}
                 />
             ))}
