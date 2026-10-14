@@ -1469,13 +1469,16 @@ export default function CarrinhoPage() {
         )
     }
 
+    // O carregamento também fica dentro do ModeShell: a barra do topo (e a aba do carrinho) não some enquanto carrega
     if (!mounted || globalLoading) return (
-        <div className="min-h-screen flex items-center justify-center" style={{ background: colors.background }}>
-            <div className="text-center">
-                <Spinner size={48} color={colors.accent} className="mx-auto mb-4" />
-                <p className="text-sm font-bold" style={{ color: colors.textSecondary }}>Carregando carrinho...</p>
+        <ModeShell>
+            <div className="flex items-center justify-center py-24">
+                <div className="text-center">
+                    <Spinner size={48} color={colors.accent} className="mx-auto mb-4" />
+                    <p className="text-sm font-bold" style={{ color: colors.textSecondary }}>Carregando carrinho...</p>
+                </div>
             </div>
-        </div>
+        </ModeShell>
     )
 
     return (
