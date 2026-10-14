@@ -13,7 +13,6 @@ import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { getAvatarUrl } from '@/lib/avatar'
-import ModeShell from '@/components/ModeShell'
 import { Spinner } from '@/components/Spinner'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -103,7 +102,7 @@ export default function VeiculoPage() {
         : [0, 0]
 
     return (
-        <ModeShell>
+        <>
             {loading || vehicle === undefined ? (
                 <div className="flex justify-center py-16"><Spinner size={28} color={colors.accent} /></div>
             ) : vehicle === null ? (
@@ -201,6 +200,6 @@ export default function VeiculoPage() {
                     )}
                 </>
             )}
-        </ModeShell>
+        </>
     )
 }

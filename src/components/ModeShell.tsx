@@ -5,7 +5,7 @@
 // loja ou motorista. O menu empurra a página pra direita. O conteúdo de cada página entra como `children`.
 'use client'
 
-import { ReactNode, useEffect, useRef, useState } from 'react'
+import { ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import {
     Store as StoreIcon, Car, Wrench, MessageCircle, ShoppingCart, User, LogIn, LogOut, ChevronRight, X, Check, Search,
@@ -309,14 +309,16 @@ const EDGE_GAP = 'calc(16px + max(0px, (100vw - 1024px) / 2))'
 // Altura da aba (ícone selecionado): do alto da barra até o pé dela, onde encontra o cartão do app
 const TAB_H = 58
 const FILLET = 12
-// Ícone da barra do topo. A aba clara (selecionado) é UM indicador só, que desliza entre os três (ver `TabIndicator`)
-function NavTab({ selected, label, onClick, badge = 0, badgeColor = '#ef4444', pulse = false, toEdge = false, children }: {
+// Ícone da barra do topo. A aba clara (selecionado) é UM indicador só, que desliza entre os três (`indicator`, dentro da barra)
+function NavTab({ selected, label, onClick, badge = 0, badgeColor = '#ef4444', pulse = false, toEdge = false, btnRef, children }: {
+    btnRef?: React.Ref<HTMLButtonElement>
     /** Aba do canto direito: estica até a borda da tela pra aba clara se fundir ao canto do cartão */
     toEdge?: boolean
     selected: boolean; label: string; onClick: () => void; badge?: number; badgeColor?: string; pulse?: boolean; children: ReactNode
 }) {
     return (
         <button
+            ref={btnRef}
             onClick={onClick}
             aria-label={label}
             aria-current={selected ? 'page' : undefined}
@@ -340,43 +342,8 @@ function NavTab({ selected, label, onClick, badge = 0, badgeColor = '#ef4444', p
     )
 }
 
-// A aba clara que fica atrás do ícone selecionado e se funde ao cartão do app: desliza (left/width animam) de um ícone
-// pro outro. Desce 1px dentro do cartão pra não deixar fresta, e tem curvas côncavas nos pés.
-function TabIndicator({ index, visible, bg }: { index: number; visible: boolean; bg: string }) {
-    const toEdge = index === 2
-    return (
-        <span
-            aria-hidden
-            className="absolute pointer-events-none"
-            style={{
-                left: index * TAB_W,
-                width: toEdge ? `calc(${TAB_W}px + ${EDGE_GAP})` : TAB_W,
-                bottom: -1, height: 'calc(100% + 1px)',
-                background: bg, borderRadius: '18px 18px 0 0',
-                opacity: visible ? 1 : 0,
-                transition: 'left 380ms cubic-bezier(0.22, 1, 0.36, 1), width 380ms cubic-bezier(0.22, 1, 0.36, 1), opacity 250ms ease',
-            }}
-        >
-            {(['left', 'right'] as const).map((side) => (
-                <span
-                    key={side}
-                    className="absolute"
-                    style={{
-                        bottom: 0, [side === 'left' ? 'right' : 'left']: '100%', width: FILLET, height: FILLET + 1,
-                        background: bg,
-                        WebkitMaskImage: `radial-gradient(circle at ${side === 'left' ? '0% 0%' : '100% 0%'}, transparent ${FILLET - 0.5}px, #000 ${FILLET}px)`,
-                        maskImage: `radial-gradient(circle at ${side === 'left' ? '0% 0%' : '100% 0%'}, transparent ${FILLET - 0.5}px, #000 ${FILLET}px)`,
-                        opacity: toEdge && side === 'right' ? 0 : 1,
-                        transition: 'opacity 250ms ease',
-                    }}
-                />
-            ))}
-        </span>
-    )
-}
-// Largura de cada ícone da barra (px) e qual aba estava selecionada na última página (pra aba deslizar de lá pra cá)
+// Largura de cada ícone da barra (px)
 const TAB_W = 48
-let lastShownTab: 'cart' | 'chat' | 'search' | null = null
 // Raio dos cantos côncavos da barra do topo (px)
 const CORNER = 24
 const MENU_GRADIENT = 'linear-gradient(160deg, #f97316 0%, #dc2626 100%)'
@@ -509,6 +476,8 @@ export default function ModeShell({ children, search }: {
         return () => { window.removeEventListener('focus', read); window.removeEventListener('storage', read) }
     }, [])
     const searchInputRef = useRef<HTMLInputElement>(null)
+    // Saiu de uma página com busca: o campo fecha (o layout é o mesmo entre as páginas)
+    useEffect(() => { if (!search) setSearchOpen(false) }, [search])
     useEffect(() => { if (searchOpen) searchInputRef.current?.focus() }, [searchOpen])
     const [drawerData, setDrawerData] = useState<DrawerData>({ stores: [], vehicles: [], driverActive: false, providerOn: false })
     const [dataLoaded, setDataLoaded] = useState(false)
@@ -582,25 +551,47 @@ export default function ModeShell({ children, search }: {
     // Qual ícone da barra é o da página atual (o "selecionado")
     const activeTab: 'cart' | 'chat' | 'search' | null =
         pathname?.startsWith('/carrinho') ? 'cart' : pathname?.startsWith('/conversas') ? 'chat' : pathname === '/modeloinicial' ? 'search' : null
-    // A aba clara começa onde estava na página anterior e desliza até a desta; ao tocar num ícone ela já sai andando,
-    // antes mesmo da página nova abrir
-    const [shownTab, setShownTab] = useState<'cart' | 'chat' | 'search' | null>(() => lastShownTab ?? activeTab)
-    useEffect(() => {
-        if (!activeTab) return
-        setShownTab(activeTab)
-        lastShownTab = activeTab
-    }, [activeTab])
-    const [pendingTab, setPendingTab] = useState(false)
-    // Na página do modo escolhido (painel do perfil, loja, veículo...), o botão do menu (selo + nome) vira a aba clara
-    // fundida ao cartão, igual aos ícones da direita
+    // Na página do modo escolhido (painel do perfil, loja, veículo...), o botão do menu (selo + nome) também é uma aba
     const modeSelected = !!userId && dataLoaded && !!pathname && modePath(activeMode, drawerData) === pathname
-    const leftTabOn = modeSelected && !drawerOpen && !searchOpen
-    useEffect(() => { setPendingTab(false) }, [pathname])
+    // Qual aba está selecionada: ao tocar num ícone ela já sai andando (antes da página nova abrir). O layout é o mesmo
+    // entre as páginas, então o estado se mantém e a aba desliza de verdade de um lugar pro outro.
+    type TabKey = 'mode' | 'cart' | 'chat' | 'search'
+    const [pendingTab, setPendingTab] = useState<TabKey | null>(null)
+    useEffect(() => { setPendingTab(null) }, [pathname])
+    const target: TabKey | null = pendingTab ?? (modeSelected ? 'mode' : activeTab)
+    const indicatorOn = target !== null && !drawerOpen && !searchOpen
+    const leftTabOn = indicatorOn && target === 'mode'
     const pickTab = (tab: 'cart' | 'chat' | 'search', then: () => void) => {
-        setShownTab(tab); lastShownTab = tab; setPendingTab(true)
+        setPendingTab(tab)
         then()
     }
-    const tabIndex = shownTab === 'cart' ? 0 : shownTab === 'chat' ? 1 : 2
+    // Posição da aba clara: medida nos próprios botões (o grupo do menu esquerdo, o carrinho, as conversas e a lupa)
+    const modeRef = useRef<HTMLDivElement>(null)
+    const cartRef = useRef<HTMLButtonElement>(null)
+    const chatRef = useRef<HTMLButtonElement>(null)
+    const lupaRef = useRef<HTMLButtonElement>(null)
+    const [ind, setInd] = useState<{ left: number; width: number } | null>(null)
+    const lastTarget = useRef<TabKey | null>(null)
+    if (target) lastTarget.current = target
+    const measureKey = lastTarget.current
+    useLayoutEffect(() => {
+        const measure = () => {
+            const key = lastTarget.current
+            if (!key) return
+            const el = key === 'mode' ? modeRef.current : key === 'cart' ? cartRef.current : key === 'chat' ? chatRef.current : lupaRef.current
+            if (!el) return
+            const r = el.getBoundingClientRect()
+            if (r.width === 0) return
+            const W = window.innerWidth
+            // o menu esquerdo e a lupa esticam até a borda da tela; o carrinho e as conversas ficam do tamanho do ícone
+            const left = key === 'mode' ? 0 : r.left
+            const width = key === 'mode' ? r.right : key === 'search' ? W - r.left : r.width
+            setInd((p) => (p && Math.abs(p.left - left) < 0.5 && Math.abs(p.width - width) < 0.5 ? p : { left, width }))
+        }
+        measure()
+        window.addEventListener('resize', measure)
+        return () => window.removeEventListener('resize', measure)
+    })
 
     // O topo responde ao modo escolhido no menu: loja (logo + nome), motorista (foto do carro + modelo e placa),
     // prestador (foto do perfil + "Modo prestador") ou o perfil de sempre.
@@ -741,9 +732,10 @@ export default function ModeShell({ children, search }: {
                 height: NAV_H,
             }}
         >
-            <div className="max-w-5xl mx-auto px-4 h-full flex items-center">
+            <div className="relative z-[1] max-w-5xl mx-auto px-4 h-full flex items-center">
                 {/* Grupo da esquerda: some (encolhe) quando a lupa vira o campo de busca */}
                 <div
+                    ref={modeRef}
                     className="relative self-stretch flex items-center gap-2.5 min-w-0"
                     style={{
                         flex: searchOpen ? '0 0 0px' : '1 1 0%',
@@ -754,26 +746,6 @@ export default function ModeShell({ children, search }: {
                         transition: 'flex 320ms cubic-bezier(0.22, 1, 0.36, 1), max-width 320ms cubic-bezier(0.22, 1, 0.36, 1), opacity 200ms ease, margin 320ms ease',
                     }}
                 >
-                    {/* Aba clara atrás do selo e do nome (quando a página é a do modo): estica até a borda esquerda da tela
-                        e desce até o cartão, com curva côncava no pé do lado direito */}
-                    <span
-                        aria-hidden
-                        className="absolute pointer-events-none"
-                        style={{
-                            top: 8, bottom: -1, left: `calc(-1 * ${EDGE_GAP})`, right: 0,
-                            background: colors.background, borderRadius: '18px 18px 0 0',
-                            opacity: leftTabOn ? 1 : 0, transition: 'opacity 300ms ease',
-                        }}
-                    >
-                        <span
-                            className="absolute"
-                            style={{
-                                bottom: 0, left: '100%', width: FILLET, height: FILLET + 1, background: colors.background,
-                                WebkitMaskImage: `radial-gradient(circle at 100% 0%, transparent ${FILLET - 0.5}px, #000 ${FILLET}px)`,
-                                maskImage: `radial-gradient(circle at 100% 0%, transparent ${FILLET - 0.5}px, #000 ${FILLET}px)`,
-                            }}
-                        />
-                    </span>
                     <HeaderBadge
                         userId={userId}
                         avatarUrl={headerView.image}
@@ -825,7 +797,6 @@ export default function ModeShell({ children, search }: {
                         transition: 'flex 320ms cubic-bezier(0.22, 1, 0.36, 1), background 350ms ease, border-color 250ms ease',
                     }}
                 >
-                    <TabIndicator index={tabIndex} visible={!!shownTab && (activeTab !== null || pendingTab) && !drawerOpen && !searchOpen} bg={colors.background} />
                     <div
                         className="flex items-stretch"
                         style={{
@@ -835,10 +806,10 @@ export default function ModeShell({ children, search }: {
                             transition: 'max-width 320ms cubic-bezier(0.22, 1, 0.36, 1), opacity 200ms ease',
                         }}
                     >
-                        <NavTab selected={shownTab === 'cart' && (activeTab !== null || pendingTab) && !drawerOpen} label="Carrinho" onClick={() => pickTab('cart', () => go('/carrinho'))} badge={topCart}>
+                        <NavTab btnRef={cartRef} selected={indicatorOn && target === 'cart'} label="Carrinho" onClick={() => pickTab('cart', () => go('/carrinho'))} badge={topCart}>
                             <ShoppingCart size={20} />
                         </NavTab>
-                        <NavTab selected={shownTab === 'chat' && (activeTab !== null || pendingTab) && !drawerOpen} label="Conversas" onClick={() => pickTab('chat', () => go(userId ? '/conversas' : '/login'))} badge={topUnread} badgeColor="#16a34a" pulse={topUnread > 0}>
+                        <NavTab btnRef={chatRef} selected={indicatorOn && target === 'chat'} label="Conversas" onClick={() => pickTab('chat', () => go(userId ? '/conversas' : '/login'))} badge={topUnread} badgeColor="#16a34a" pulse={topUnread > 0}>
                             <MessageCircle size={20} />
                         </NavTab>
                     </div>
@@ -865,12 +836,45 @@ export default function ModeShell({ children, search }: {
                             </button>
                         </>
                     ) : (
-                        <NavTab toEdge selected={shownTab === 'search' && (activeTab !== null || pendingTab) && !drawerOpen} label="Buscar" onClick={() => pickTab('search', () => (search ? setSearchOpen(true) : go('/modeloinicial')))}>
+                        <NavTab btnRef={lupaRef} toEdge selected={indicatorOn && target === 'search'} label="Buscar" onClick={() => pickTab('search', () => (search ? setSearchOpen(true) : go('/modeloinicial')))}>
                             <Search size={20} />
                         </NavTab>
                     )}
                 </div>
             </div>
+            {/* A aba clara: UMA peça só que desliza (left/width) entre o menu da esquerda e os três ícones, fundida ao
+                cartão do app (desce 1px nele pra não deixar fresta) e com curvas côncavas nos pés */}
+            {ind && (
+                <span
+                    aria-hidden
+                    className="absolute pointer-events-none"
+                    style={{
+                        top: 'calc(8px + env(safe-area-inset-top))', bottom: -1,
+                        left: ind.left, width: ind.width,
+                        background: colors.background, borderRadius: '18px 18px 0 0',
+                        opacity: indicatorOn ? 1 : 0,
+                        transition: 'left 420ms cubic-bezier(0.22, 1, 0.36, 1), width 420ms cubic-bezier(0.22, 1, 0.36, 1), opacity 250ms ease',
+                    }}
+                >
+                    {(['left', 'right'] as const).map((side) => {
+                        const hidden = (side === 'left' && measureKey === 'mode') || (side === 'right' && measureKey === 'search')
+                        return (
+                            <span
+                                key={side}
+                                className="absolute"
+                                style={{
+                                    bottom: 0, [side === 'left' ? 'right' : 'left']: '100%', width: FILLET, height: FILLET + 1,
+                                    background: colors.background,
+                                    WebkitMaskImage: `radial-gradient(circle at ${side === 'left' ? '0% 0%' : '100% 0%'}, transparent ${FILLET - 0.5}px, #000 ${FILLET}px)`,
+                                    maskImage: `radial-gradient(circle at ${side === 'left' ? '0% 0%' : '100% 0%'}, transparent ${FILLET - 0.5}px, #000 ${FILLET}px)`,
+                                    opacity: hidden ? 0 : 1,
+                                    transition: 'opacity 250ms ease',
+                                }}
+                            />
+                        )
+                    })}
+                </span>
+            )}
             {/* Cantos CÔNCAVOS: a borda de baixo da barra "entra" na página — o cartão do app tem os cantos de cima
                 arredondados, preenchidos com o degradê da barra, e parece que a parte de baixo está subindo */}
             {(['left', 'right'] as const).map((side) => (

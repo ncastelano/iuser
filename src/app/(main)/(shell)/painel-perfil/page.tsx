@@ -8,7 +8,6 @@
 import { useRouter } from 'next/navigation'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
-import ModeShell from '@/components/ModeShell'
 import { Spinner } from '@/components/Spinner'
 import ProfileDashboard from '@/components/ProfileDashboard/ProfileDashboard'
 
@@ -20,7 +19,7 @@ export default function PainelPerfilPage() {
     const { userId, profileSlug, avatarUrl, loading } = useProfile()
 
     return (
-        <ModeShell>
+        <>
             {loading ? (
                 <div className="flex justify-center py-16"><Spinner size={28} color={colors.accent} /></div>
             ) : !userId ? (
@@ -37,6 +36,6 @@ export default function PainelPerfilPage() {
                     </div>
                 </>
             )}
-        </ModeShell>
+        </>
     )
 }

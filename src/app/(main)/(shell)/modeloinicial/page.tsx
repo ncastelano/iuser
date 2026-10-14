@@ -20,16 +20,16 @@ import { useProfile } from '@/app/contexts/ProfileContext'
 import { categorias } from '@/lib/categorias'
 import { isStoreOpenNow, type BusinessHours } from '@/lib/storeHours'
 import { getAvatarUrl } from '@/lib/avatar'
-import { loadProductCards, type ProductCard } from '../inicio/sections/ProductShowcase'
+import { loadProductCards, type ProductCard } from '../../inicio/sections/ProductShowcase'
 import { fetchOpenBoardItems, askedAgo, shortAddress, type BoardItem } from '@/lib/serviceBoard'
 import { getRequestTitle } from '@/lib/serviceTypes'
 import { fetchCommunitiesActivity, type CommunityActivity } from '@/lib/communityActivity'
 import PlanAvatarRing, { usePlanRing } from '@/components/PlanAvatarRing'
-import SearchResultsSection from '../inicio/SearchResultsSection'
-import { rankStyle } from '../social/SocialProfileCard'
+import SearchResultsSection from '../../inicio/SearchResultsSection'
+import { rankStyle } from '../../social/SocialProfileCard'
 import ShareLinkDialog, { copyText } from '@/components/ShareLinkDialog'
 import { toast } from 'sonner'
-import ModeShell from '@/components/ModeShell'
+import { useShellSearch } from '@/components/ShellFrame'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -336,6 +336,8 @@ export default function ModeloInicialPage() {
     const { colors } = useTheme()
     const { userId, profileSlug, avatarUrl } = useProfile()
     const [query, setQuery] = useState('')
+    // A lupa da barra do topo (que vive no layout) abre o campo de busca desta página
+    useShellSearch({ value: query, onChange: setQuery, placeholder: 'O que você procura? Lojas, serviços, pessoas...' })
     const [stores, setStores] = useState<StoreItem[] | null>(null)
     const [products, setProducts] = useState<(ProductCard & { storeOpen: boolean | null })[] | null>(null)
     const [services, setServices] = useState<ServiceItem[] | null>(null)
@@ -511,7 +513,7 @@ export default function ModeloInicialPage() {
     const searching = query.trim().length > 0
 
     return (
-        <ModeShell search={{ value: query, onChange: setQuery, placeholder: 'O que você procura? Lojas, serviços, pessoas...' }}>
+        <>
 
                 <SellDialog open={sellOpen} onClose={() => { setSellOpen(false); setSellMode('all') }} userId={userId} colors={colors} go={go} mode={sellMode} />
                 <ShareLinkDialog
@@ -735,6 +737,6 @@ export default function ModeloInicialPage() {
                         />
                     </>
                 )}
-        </ModeShell>
+        </>
     )
 }

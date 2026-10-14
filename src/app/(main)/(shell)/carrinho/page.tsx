@@ -38,10 +38,9 @@ import { ReviewModal } from '@/components/ratings/ReviewModal'
 import { Spinner } from '@/components/Spinner'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
-import ModeShell from '@/components/ModeShell'
 import PageTabs from '@/components/PageTabs'
 import { isStoreOpenNow, getStoreStatusText, getNextOpeningInfo, type BusinessHours } from '@/lib/storeHours'
-import CatalogBag from '../[ownerSlug]/catalogo/CatalogBag'
+import CatalogBag from '../../[ownerSlug]/catalogo/CatalogBag'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -1469,20 +1468,20 @@ export default function CarrinhoPage() {
         )
     }
 
-    // O carregamento também fica dentro do ModeShell: a barra do topo (e a aba do carrinho) não some enquanto carrega
+    // A barra do topo vem do layout (ShellFrame): ela não some enquanto carrega
     if (!mounted || globalLoading) return (
-        <ModeShell>
+        <>
             <div className="flex items-center justify-center py-24">
                 <div className="text-center">
                     <Spinner size={48} color={colors.accent} className="mx-auto mb-4" />
                     <p className="text-sm font-bold" style={{ color: colors.textSecondary }}>Carregando carrinho...</p>
                 </div>
             </div>
-        </ModeShell>
+        </>
     )
 
     return (
-        <ModeShell>
+        <>
         <div className="relative">
             <main className="relative" style={{ overscrollBehavior: 'none' }}>
                 <PageTabs tabs={tabs} />
@@ -2385,6 +2384,6 @@ export default function CarrinhoPage() {
                 storeId={reviewOrder.storeId}
             />
         </div>
-        </ModeShell>
+        </>
     )
 }

@@ -12,7 +12,6 @@ import { ptBR } from 'date-fns/locale'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
-import ModeShell from '@/components/ModeShell'
 import { Spinner } from '@/components/Spinner'
 import { getServiceIcon, getServiceLabel } from '@/lib/serviceTypes'
 
@@ -68,7 +67,7 @@ export default function ModoPrestadorPage() {
     const open = (s: MyService) => router.push(`/${profileSlug}/${s.slug || s.id}`)
 
     return (
-        <ModeShell>
+        <>
             <section className="mt-6">
                 <div className="flex items-center gap-3 mb-3">
                     <div className="min-w-0 flex-1">
@@ -136,6 +135,6 @@ export default function ModoPrestadorPage() {
                     </div>
                 )}
             </section>
-        </ModeShell>
+        </>
     )
 }

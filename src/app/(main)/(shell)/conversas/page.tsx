@@ -12,7 +12,6 @@ import { ArrowLeft, MessageCircle, Send, Store as StoreIcon, User } from 'lucide
 import { supabase } from '@/lib/supabase/client'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { useTheme } from '@/app/contexts/theme'
-import ModeShell from '@/components/ModeShell'
 import PageTabs from '@/components/PageTabs'
 import PlanAvatarRing, { PlanRingInset } from '@/components/PlanAvatarRing'
 import { Spinner } from '@/components/Spinner'
@@ -351,7 +350,7 @@ function ConversasInner() {
     const active = rows?.find((r) => r.id === activeId) || null
 
     return (
-        <ModeShell>
+        <>
             <main className="relative pb-8">
                 <PageTabs tabs={tabs} />
 
@@ -457,7 +456,7 @@ function ConversasInner() {
                     )}
                 </section>
             </main>
-        </ModeShell>
+        </>
     )
 }
 

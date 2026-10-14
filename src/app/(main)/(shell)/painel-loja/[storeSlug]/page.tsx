@@ -10,7 +10,6 @@ import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
-import ModeShell from '@/components/ModeShell'
 import { Spinner } from '@/components/Spinner'
 import StoreDashboard from '@/components/StoreDashboard/StoreDashboard'
 import { isStoreOpenNow, type BusinessHours } from '@/lib/storeHours'
@@ -49,7 +48,7 @@ export default function PainelLojaPage() {
     }, [userId, loading, storeSlug])
 
     return (
-        <ModeShell>
+        <>
             {loading || store === undefined ? (
                 <div className="flex justify-center py-16"><Spinner size={28} color={colors.accent} /></div>
             ) : !userId ? (
@@ -70,6 +69,6 @@ export default function PainelLojaPage() {
                     </div>
                 </>
             )}
-        </ModeShell>
+        </>
     )
 }
