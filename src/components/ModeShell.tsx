@@ -326,9 +326,10 @@ function NavTab({ selected, label, onClick, bg, badge = 0, badgeColor = '#ef4444
                 width: toEdge ? `calc(48px + ${EDGE_GAP})` : 48,
                 paddingRight: toEdge ? EDGE_GAP : undefined,
                 marginRight: toEdge ? `calc(-1 * ${EDGE_GAP})` : undefined,
-                height: '100%', paddingBottom: 8,
+                // +1px pra baixo: a aba entra 1px no cartão e não deixa linha de fresta (subpixel) entre os dois
+                height: 'calc(100% + 1px)', marginBottom: -1, paddingBottom: 9,
                 background: selected ? bg : 'transparent',
-                borderRadius: toEdge ? '18px 0 0 0' : '18px 18px 0 0',
+                borderRadius: '18px 18px 0 0',
                 color: selected ? '#ea580c' : '#fff',
                 transition: 'background 300ms ease, color 300ms ease',
             }}
@@ -345,7 +346,7 @@ function NavTab({ selected, label, onClick, bg, badge = 0, badgeColor = '#ef4444
                     aria-hidden
                     className="absolute pointer-events-none"
                     style={{
-                        bottom: 0, [side === 'left' ? 'right' : 'left']: '100%', width: FILLET, height: FILLET,
+                        bottom: -1, [side === 'left' ? 'right' : 'left']: '100%', width: FILLET, height: FILLET + 1,
                         background: bg,
                         WebkitMaskImage: `radial-gradient(circle at ${side === 'left' ? '0% 0%' : '100% 0%'}, transparent ${FILLET - 0.5}px, #000 ${FILLET}px)`,
                         maskImage: `radial-gradient(circle at ${side === 'left' ? '0% 0%' : '100% 0%'}, transparent ${FILLET - 0.5}px, #000 ${FILLET}px)`,
@@ -761,7 +762,7 @@ export default function ModeShell({ children, search }: {
                         height: searchOpen ? 48 : TAB_H,
                         padding: searchOpen ? 2 : 0,
                         background: searchOpen ? colors.surface : 'transparent',
-                        border: searchOpen ? `1.5px solid ${colors.border}` : '1.5px solid transparent',
+                        border: searchOpen ? `1.5px solid ${colors.border}` : '0px solid transparent',
                         color: searchOpen ? colors.textPrimary : '#fff',
                         transition: 'flex 320ms cubic-bezier(0.22, 1, 0.36, 1), background 350ms ease, border-color 250ms ease',
                     }}
