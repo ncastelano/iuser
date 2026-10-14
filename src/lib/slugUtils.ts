@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase/client'
  */
 export const RESERVED_SLUGS = new Set([
     'modeloinicial',
+    'modoprestador',
     'admin',
     'api',
     'auth',

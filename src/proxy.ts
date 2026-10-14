@@ -48,6 +48,7 @@ const IGNORED_ROUTES = [
     '/pedir-motorista/escolher-local',
     '/modelodehomepage',
     '/modeloinicial',
+    '/modoprestador',
 ]
 
 // ===== PREFIXOS IGNORADOS =====
