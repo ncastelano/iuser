@@ -1412,7 +1412,7 @@ export default function Commission({ userId, profileSlug, onLatestUpdate, view =
                                         <div className="flex items-center justify-between gap-2 text-xs">
                                             <span className="font-black" style={{ color: textPrimary }}>Sua evolução</span>
                                             <span style={{ color: textSecondary }}>
-                                                <b style={{ color: textPrimary }}>{g.direct_referrals}</b> indicados · <b style={{ color: textPrimary }}>{g.total_network}</b> na rede
+                                                <b style={{ color: textPrimary }}>{g.direct_referrals}</b> {g.direct_referrals === 1 ? 'indicado' : 'indicados'}
                                             </span>
                                         </div>
                                         <div className="h-2 rounded-full overflow-hidden mt-2" style={{ background: `${borderColor}55` }}>
