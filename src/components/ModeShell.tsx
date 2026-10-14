@@ -17,6 +17,7 @@ import { isStoreOpenNow, type BusinessHours } from '@/lib/storeHours'
 import PlanAvatarRing, { usePlanRing } from '@/components/PlanAvatarRing'
 import { useChatUnread } from '@/hooks/useChatUnread'
 import { useCartStore } from '@/store/useCartStore'
+import { hexToRgb } from '@/lib/color'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -154,25 +155,22 @@ function MenuDrawerContent({ slug, avatarUrl, data, active, onSelect, onGo, onCl
                 </button>
             </div>
 
-            {/* Meu perfil: tudo num cartão só — foto, @, modo prestador (a bolinha verde) e os dois botões */}
-            <Panel title="Meu perfil">
-                <DrawerRow
-                    mode="perfil"
-                    active={active}
-                    onSelect={onSelect}
-                    icon={<User size={20} color="#fff" />}
-                    image={avatarUrl}
-                    title={slug ? `@${slug}` : 'Meu perfil'}
-                    desc={data.providerOn ? 'Modo prestador ligado' : undefined}
-                    dot={data.providerOn ? '#4ade80' : undefined}
-                    actions={(
-                        <>
-                            {slug && <DrawerPill onClick={() => onGo(`/${slug}`)}>Ver perfil</DrawerPill>}
-                            <DrawerPill solid onClick={() => onGo('/painel-perfil')}>Painel</DrawerPill>
-                            {data.providerOn && <DrawerPill onClick={() => onGo('/modoprestador')}>Serviços</DrawerPill>}
-                        </>
-                    )}
-                />
+            <Panel title="Modo motorista">
+                {data.vehicles.length > 0 ? data.vehicles.map((v) => (
+                    <DrawerRow
+                        key={v.slug}
+                        mode={`motorista:${v.slug}`}
+                        active={active}
+                        onSelect={onSelect}
+                        icon={<Car size={20} color="#fff" />}
+                        image={v.photo}
+                        title={`${VEHICLE_LABEL[v.kind] || 'Veículo'}${v.model ? ` · ${v.model}` : ''}`}
+                        desc={data.driverActive ? 'Motorista ativado' : 'Motorista desligado'}
+                        dot={data.driverActive ? '#4ade80' : '#fca5a5'}
+                    />
+                )) : (
+                    <DrawerCta icon={<Car size={20} color="#fff" />} title="Ser motorista" desc="Cadastre seu veículo e receba corridas" onClick={() => onGo('/painel-motorista')} />
+                )}
             </Panel>
 
             <Panel title="Modo loja">
@@ -199,22 +197,26 @@ function MenuDrawerContent({ slug, avatarUrl, data, active, onSelect, onGo, onCl
                 )}
             </Panel>
 
-            <Panel title="Modo motorista">
-                {data.vehicles.length > 0 ? data.vehicles.map((v) => (
-                    <DrawerRow
-                        key={v.slug}
-                        mode={`motorista:${v.slug}`}
-                        active={active}
-                        onSelect={onSelect}
-                        icon={<Car size={20} color="#fff" />}
-                        image={v.photo}
-                        title={`${VEHICLE_LABEL[v.kind] || 'Veículo'}${v.model ? ` · ${v.model}` : ''}`}
-                        desc={data.driverActive ? 'Motorista ativado' : 'Motorista desligado'}
-                        dot={data.driverActive ? '#4ade80' : '#fca5a5'}
-                    />
-                )) : (
-                    <DrawerCta icon={<Car size={20} color="#fff" />} title="Ser motorista" desc="Cadastre seu veículo e receba corridas" onClick={() => onGo('/painel-motorista')} />
-                )}
+
+            {/* Meu perfil: tudo num cartão só — foto, @, modo prestador (a bolinha verde) e os dois botões */}
+            <Panel title="Meu perfil">
+                <DrawerRow
+                    mode="perfil"
+                    active={active}
+                    onSelect={onSelect}
+                    icon={<User size={20} color="#fff" />}
+                    image={avatarUrl}
+                    title={slug ? `@${slug}` : 'Meu perfil'}
+                    desc={data.providerOn ? 'Modo prestador ligado' : undefined}
+                    dot={data.providerOn ? '#4ade80' : undefined}
+                    actions={(
+                        <>
+                            {slug && <DrawerPill onClick={() => onGo(`/${slug}`)}>Ver perfil</DrawerPill>}
+                            <DrawerPill solid onClick={() => onGo('/painel-perfil')}>Painel</DrawerPill>
+                            {data.providerOn && <DrawerPill onClick={() => onGo('/modoprestador')}>Serviços</DrawerPill>}
+                        </>
+                    )}
+                />
             </Panel>
         </div>
     )
@@ -318,6 +320,7 @@ export default function ModeShell({ children }: { children: ReactNode }) {
     const router = useRouter()
     const pathname = usePathname()
     const { colors } = useTheme()
+    const surfaceRgb = hexToRgb(colors.surface)
     const { userId, profileSlug, avatarUrl, loading: profileLoading } = useProfile()
     const go = (path: string) => router.push(path)
 
@@ -464,14 +467,15 @@ export default function ModeShell({ children }: { children: ReactNode }) {
         <div
             aria-hidden={!drawerOpen}
             className="fixed inset-0"
-            style={{ background: 'linear-gradient(160deg, #f97316 0%, #dc2626 100%)', zIndex: 0 }}
+            style={{ background: 'linear-gradient(200deg, #f97316 0%, #dc2626 100%)', zIndex: 0 }}
         />
+        {/* O menu fica no lado DIREITO e a página desliza pra esquerda */}
         <div
-            className="fixed left-0 top-0 h-dvh"
+            className="fixed right-0 top-0 h-dvh"
             style={{
                 width: DRAWER_W, zIndex: 1,
                 opacity: drawerOpen ? 1 : 0, pointerEvents: drawerOpen ? 'auto' : 'none',
-                transform: drawerOpen ? 'translateX(0)' : 'translateX(-24px)',
+                transform: drawerOpen ? 'translateX(0)' : 'translateX(24px)',
                 transition: 'opacity 350ms ease, transform 450ms cubic-bezier(0.22, 1, 0.36, 1)',
             }}
         >
@@ -488,16 +492,16 @@ export default function ModeShell({ children }: { children: ReactNode }) {
             )}
         </div>
 
-        {/* A página: desliza pra direita e encolhe um pouco, com cantos arredondados e sombra */}
+        {/* A página: desliza pra esquerda e encolhe um pouco, com cantos arredondados e sombra */}
         <div
-            className="relative min-h-dvh pb-24"
+            className="relative min-h-dvh pb-28"
             style={{
                 background: colors.background, zIndex: 2,
-                transformOrigin: 'left top',
+                transformOrigin: 'right top',
                 // desce um pouco (7% da altura) além de deslizar e encolher: a janela fica mais pra baixo, com folga em cima
-                transform: drawerOpen ? `translateX(${DRAWER_W}) translateY(7dvh) scale(0.9)` : 'none',
+                transform: drawerOpen ? `translateX(calc(-1 * ${DRAWER_W})) translateY(7dvh) scale(0.9)` : 'none',
                 borderRadius: drawerOpen ? 32 : 0,
-                boxShadow: drawerOpen ? '-12px 0 40px rgba(0,0,0,0.35)' : 'none',
+                boxShadow: drawerOpen ? '12px 0 40px rgba(0,0,0,0.35)' : 'none',
                 height: drawerOpen ? '100dvh' : undefined,
                 overflow: drawerOpen ? 'hidden' : undefined,
                 transition: 'transform 450ms cubic-bezier(0.22, 1, 0.36, 1), border-radius 450ms ease, box-shadow 450ms ease',
@@ -505,72 +509,24 @@ export default function ModeShell({ children }: { children: ReactNode }) {
         >
             {/* Toque na página (com o menu aberto) fecha o menu */}
             {drawerOpen && <div className="absolute inset-0 z-[60] cursor-pointer" onClick={() => setDrawerOpen(false)} aria-label="Fechar menu" />}
+
             <div className="max-w-5xl mx-auto px-4 pt-4">
-                <header className="flex items-center gap-3">
-                    <HeaderBadge
-                        userId={userId}
-                        avatarUrl={headerView.image}
-                        colors={colors}
-                        noRing={headerView.noRing}
-                        label={headerView.label}
-                        modeIcon={headerView.modeIcon}
-                        popToken={modeTick}
-                        onProfile={() => { window.scrollTo({ top: 0 }); setDrawerOpen(true) }}
-                        // A logo (outra face do selo) também abre o menu; só o visitante, que não tem menu, vai pra home
-                        onHome={() => { if (userId) { window.scrollTo({ top: 0 }); setDrawerOpen(true) } else go('/') }}
-                    />
-                    {/* Nome, frase e triângulo: tudo é um botão só — tocar em qualquer parte abre/fecha o menu (igual ao selo) */}
-                    {userId ? (
-                        <button
-                            type="button"
-                            onClick={() => { window.scrollTo({ top: 0 }); setDrawerOpen((v) => !v) }}
-                            aria-label={drawerOpen ? 'Fechar menu' : 'Abrir menu'}
-                            aria-expanded={drawerOpen}
-                            className="min-w-0 flex-1 text-left rounded-xl py-1 -my-1 pr-1 transition active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]"
-                        >
-                            <span className="block text-xs truncate" style={{ color: colors.textSecondary }}>{headerView.line1}</span>
-                            <span className="flex items-center gap-1.5 min-w-0">
-                                <span className="text-base font-black truncate" style={{ color: colors.textPrimary }}>{headerView.line2}</span>
-                                {/* Triângulo: aponta pra baixo com o menu fechado e vira pra esquerda com o menu aberto */}
-                                <span className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center" style={{ background: `${colors.border}55` }}>
-                                    <svg
-                                        width="10" height="9" viewBox="0 0 10 9" aria-hidden
-                                        style={{ transition: 'transform 350ms cubic-bezier(0.22, 1, 0.36, 1)', transform: drawerOpen ? 'rotate(90deg)' : 'rotate(0deg)' }}
-                                    >
-                                        <polygon points="0,0 10,0 5,9" fill={colors.textPrimary} />
-                                    </svg>
-                                </span>
-                            </span>
-                        </button>
-                    ) : (
-                        <div className="min-w-0 flex-1">
-                            <p className="text-xs truncate" style={{ color: colors.textSecondary }}>{headerView.line1}</p>
-                            <p className="text-base font-black truncate" style={{ color: colors.textPrimary }}>{headerView.line2}</p>
-                        </div>
-                    )}
-                    {/* Atalhos que valem em qualquer tela: conversas (com não lidas) e carrinho (com itens) */}
-                    <button
-                        onClick={() => go(userId ? '/conversas' : '/login')}
-                        aria-label="Conversas"
-                        className={`relative w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 transition hover:scale-105 active:scale-95 ${topUnread > 0 ? 'animate-pulse' : ''}`}
-                        style={{ background: topUnread > 0 ? '#16a34a' : `${colors.border}50`, color: topUnread > 0 ? '#fff' : colors.textPrimary }}
-                    >
-                        <MessageCircle size={20} />
-                        {topUnread > 0 && (
-                            <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black bg-red-500 text-white flex items-center justify-center">{topUnread > 99 ? '99+' : topUnread}</span>
-                        )}
-                    </button>
-                    <button
-                        onClick={() => go('/carrinho')}
-                        aria-label="Carrinho"
-                        className="relative w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 transition hover:scale-105 active:scale-95"
-                        style={{ background: topCart > 0 ? '#ea580c' : `${colors.border}50`, color: topCart > 0 ? '#fff' : colors.textPrimary }}
-                    >
-                        <ShoppingCart size={20} />
-                        {topCart > 0 && (
-                            <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black bg-red-500 text-white flex items-center justify-center">{topCart > 99 ? '99+' : topCart}</span>
-                        )}
-                    </button>
+                {children}
+            </div>
+
+            {/* Navegação embaixo (o antigo cabeçalho, invertido): sair, carrinho e conversas à esquerda; o modo
+                (nome + selo) à direita, do lado do menu */}
+            <nav
+                className="fixed bottom-0 left-0 right-0 z-40 border-t"
+                style={{
+                    background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.94)`,
+                    backdropFilter: 'blur(14px)',
+                    WebkitBackdropFilter: 'blur(14px)',
+                    borderColor: colors.border,
+                    paddingBottom: 'env(safe-area-inset-bottom)',
+                }}
+            >
+                <div className="max-w-5xl mx-auto px-4 py-2 flex items-center gap-2.5">
                     {userId ? (
                         <button
                             onClick={async () => { await supabase.auth.signOut(); window.location.href = '/modeloinicial' }}
@@ -586,10 +542,75 @@ export default function ModeShell({ children }: { children: ReactNode }) {
                             <LogIn size={15} /> Entrar
                         </button>
                     )}
-                </header>
 
-                {children}
-            </div>
+                    <button
+                        onClick={() => go('/carrinho')}
+                        aria-label="Carrinho"
+                        className="relative w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 transition hover:scale-105 active:scale-95"
+                        style={{ background: topCart > 0 ? '#ea580c' : `${colors.border}50`, color: topCart > 0 ? '#fff' : colors.textPrimary }}
+                    >
+                        <ShoppingCart size={20} />
+                        {topCart > 0 && (
+                            <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black bg-red-500 text-white flex items-center justify-center">{topCart > 99 ? '99+' : topCart}</span>
+                        )}
+                    </button>
+
+                    <button
+                        onClick={() => go(userId ? '/conversas' : '/login')}
+                        aria-label="Conversas"
+                        className={`relative w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 transition hover:scale-105 active:scale-95 ${topUnread > 0 ? 'animate-pulse' : ''}`}
+                        style={{ background: topUnread > 0 ? '#16a34a' : `${colors.border}50`, color: topUnread > 0 ? '#fff' : colors.textPrimary }}
+                    >
+                        <MessageCircle size={20} />
+                        {topUnread > 0 && (
+                            <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black bg-red-500 text-white flex items-center justify-center">{topUnread > 99 ? '99+' : topUnread}</span>
+                        )}
+                    </button>
+
+                    {/* Nome, frase e triângulo: um botão só — abre/fecha o menu (igual ao selo) */}
+                    {userId ? (
+                        <button
+                            type="button"
+                            onClick={() => { window.scrollTo({ top: 0 }); setDrawerOpen((v) => !v) }}
+                            aria-label={drawerOpen ? 'Fechar menu' : 'Abrir menu'}
+                            aria-expanded={drawerOpen}
+                            className="min-w-0 flex-1 text-right rounded-xl py-1 transition active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]"
+                        >
+                            <span className="block text-xs truncate" style={{ color: colors.textSecondary }}>{headerView.line1}</span>
+                            <span className="flex items-center justify-end gap-1.5 min-w-0">
+                                {/* Triângulo: aponta pra cima com o menu fechado e vira pro lado do menu (direita) quando aberto */}
+                                <span className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center" style={{ background: `${colors.border}55` }}>
+                                    <svg
+                                        width="10" height="9" viewBox="0 0 10 9" aria-hidden
+                                        style={{ transition: 'transform 350ms cubic-bezier(0.22, 1, 0.36, 1)', transform: drawerOpen ? 'rotate(90deg)' : 'rotate(0deg)' }}
+                                    >
+                                        <polygon points="5,0 10,9 0,9" fill={colors.textPrimary} />
+                                    </svg>
+                                </span>
+                                <span className="text-base font-black truncate" style={{ color: colors.textPrimary }}>{headerView.line2}</span>
+                            </span>
+                        </button>
+                    ) : (
+                        <div className="min-w-0 flex-1 text-right">
+                            <p className="text-xs truncate" style={{ color: colors.textSecondary }}>{headerView.line1}</p>
+                            <p className="text-base font-black truncate" style={{ color: colors.textPrimary }}>{headerView.line2}</p>
+                        </div>
+                    )}
+
+                    <HeaderBadge
+                        userId={userId}
+                        avatarUrl={headerView.image}
+                        colors={colors}
+                        noRing={headerView.noRing}
+                        label={headerView.label}
+                        modeIcon={headerView.modeIcon}
+                        popToken={modeTick}
+                        onProfile={() => { window.scrollTo({ top: 0 }); setDrawerOpen(true) }}
+                        // A logo (outra face do selo) também abre o menu; só o visitante, que não tem menu, vai pra home
+                        onHome={() => { if (userId) { window.scrollTo({ top: 0 }); setDrawerOpen(true) } else go('/') }}
+                    />
+                </div>
+            </nav>
         </div>
         </>
     )
