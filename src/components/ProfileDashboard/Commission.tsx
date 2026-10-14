@@ -1326,10 +1326,7 @@ export default function Commission({ userId, profileSlug, onLatestUpdate, view =
                             boxShadow: colors.shadow,
                         }}
                     >
-                        <div>
-                            <h3 className="text-sm font-black" style={{ color: textPrimary }}>Comissões</h3>
-                            <p className="text-[11px] mt-0.5" style={{ color: textSecondary }}>Seu saldo e o que a sua rede já rendeu</p>
-                        </div>
+                        <h3 className="text-sm font-black" style={{ color: textPrimary }}>Comissões</h3>
 
                     {/* Comissões (o cartão de saldo): a cor vem da graduação e termina no laranja/vermelho do iUser.
                             Fechado: só o saldo. Aberto: o incentivo a convidar — quanto cada indicado rende e o que falta
@@ -1445,10 +1442,12 @@ export default function Commission({ userId, profileSlug, onLatestUpdate, view =
                         </div>
 
 
-                        {/* O que já rendeu: cada comissão com a taxa usada */}
-                        <div className="max-h-80 overflow-y-auto pr-1">
-                            <GraduationCommissions commissions={graduation.commissions} />
-                        </div>
+                        {/* O que já rendeu (só com o cartão aberto e só se já houver comissões): cada uma com a taxa usada */}
+                        {saldoOpen && graduation.commissions && graduation.commissions.length > 0 && (
+                            <div className="max-h-80 overflow-y-auto pr-1">
+                                <GraduationCommissions commissions={graduation.commissions} />
+                            </div>
+                        )}
                     </section>
 
                     {/* Detalhes da rede: abre/fecha */}
