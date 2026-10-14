@@ -304,12 +304,16 @@ const BADGE = 48
 // Degradê do menu: o fundo atrás do cartão do app e a cor da navbar do topo
 // Borda branca em volta da logo do selo: ela aparece bem em cima do degradê laranja da barra
 const LOGO_RING = { border: '2px solid #fff', background: '#fff', boxShadow: '0 1px 6px rgba(0,0,0,0.18)' } as const
+// Distância do ícone da direita até a borda da tela (px-4 da barra + a sobra quando a página é mais larga que 5xl)
+const EDGE_GAP = 'calc(16px + max(0px, (100vw - 1024px) / 2))'
 // Altura da aba (ícone selecionado): do alto da barra até o pé dela, onde encontra o cartão do app
 const TAB_H = 58
 const FILLET = 12
 // Ícone da barra do topo. Selecionado = aba da cor do cartão do app, que desce até o pé da barra e se funde a ele,
 // com curvas côncavas nos dois lados da base
-function NavTab({ selected, label, onClick, bg, badge = 0, badgeColor = '#ef4444', pulse = false, children }: {
+function NavTab({ selected, label, onClick, bg, badge = 0, badgeColor = '#ef4444', pulse = false, toEdge = false, children }: {
+    /** Aba do canto direito: quando selecionada, estica até a borda da tela e se funde ao cartão sem sobrar quina */
+    toEdge?: boolean
     selected: boolean; label: string; onClick: () => void; bg: string; badge?: number; badgeColor?: string; pulse?: boolean; children: ReactNode
 }) {
     return (
@@ -319,9 +323,12 @@ function NavTab({ selected, label, onClick, bg, badge = 0, badgeColor = '#ef4444
             aria-current={selected ? 'page' : undefined}
             className={`relative flex items-center justify-center flex-shrink-0 transition active:scale-95 ${pulse && !selected ? 'animate-pulse' : ''}`}
             style={{
-                width: 48, height: '100%', paddingBottom: 8,
+                width: toEdge ? `calc(48px + ${EDGE_GAP})` : 48,
+                paddingRight: toEdge ? EDGE_GAP : undefined,
+                marginRight: toEdge ? `calc(-1 * ${EDGE_GAP})` : undefined,
+                height: '100%', paddingBottom: 8,
                 background: selected ? bg : 'transparent',
-                borderRadius: '18px 18px 0 0',
+                borderRadius: toEdge ? '18px 0 0 0' : '18px 18px 0 0',
                 color: selected ? '#ea580c' : '#fff',
                 transition: 'background 300ms ease, color 300ms ease',
             }}
@@ -342,7 +349,7 @@ function NavTab({ selected, label, onClick, bg, badge = 0, badgeColor = '#ef4444
                         background: bg,
                         WebkitMaskImage: `radial-gradient(circle at ${side === 'left' ? '0% 0%' : '100% 0%'}, transparent ${FILLET - 0.5}px, #000 ${FILLET}px)`,
                         maskImage: `radial-gradient(circle at ${side === 'left' ? '0% 0%' : '100% 0%'}, transparent ${FILLET - 0.5}px, #000 ${FILLET}px)`,
-                        opacity: selected ? 1 : 0,
+                        opacity: selected && !(toEdge && side === 'right') ? 1 : 0,
                         transition: 'opacity 300ms ease',
                     }}
                 />
@@ -663,7 +670,7 @@ export default function ModeShell({ children, search }: {
                 // vira um cartão abaixo da barra do topo: desliza pra direita e encolhe um pouco, mostrando o menu atrás
                 transform: drawerOpen ? `translateX(${DRAWER_W}) scale(0.9)` : 'none',
                 // aberto: cartão com os 4 cantos; fechado: só os de cima, que se encaixam nos cantos côncavos da barra
-                borderRadius: drawerOpen ? '32px' : `${CORNER}px ${CORNER}px 0px 0px`,
+                borderRadius: drawerOpen ? '32px' : `${CORNER}px ${activeTab === 'search' ? 0 : CORNER}px 0px 0px`,
                 boxShadow: drawerOpen ? '-12px 0 40px rgba(0,0,0,0.35)' : 'none',
                 height: cardClipped ? `calc(100dvh - ${NAV_H})` : undefined,
                 overflow: cardClipped ? 'hidden' : undefined,
@@ -798,7 +805,7 @@ export default function ModeShell({ children, search }: {
                             </button>
                         </>
                     ) : (
-                        <NavTab selected={activeTab === 'search' && !drawerOpen} label="Buscar" onClick={() => (search ? setSearchOpen(true) : go('/modeloinicial'))} bg={colors.background}>
+                        <NavTab toEdge selected={activeTab === 'search' && !drawerOpen} label="Buscar" onClick={() => (search ? setSearchOpen(true) : go('/modeloinicial'))} bg={colors.background}>
                             <Search size={20} />
                         </NavTab>
                     )}
@@ -820,7 +827,8 @@ export default function ModeShell({ children, search }: {
                         backgroundPosition: side === 'left' ? `0 calc(-1 * ${NAV_H})` : `calc(${CORNER}px - 100vw) calc(-1 * ${NAV_H})`,
                         WebkitMaskImage: `radial-gradient(circle at ${side === 'left' ? '100% 100%' : '0% 100%'}, transparent ${CORNER - 0.5}px, #000 ${CORNER}px)`,
                         maskImage: `radial-gradient(circle at ${side === 'left' ? '100% 100%' : '0% 100%'}, transparent ${CORNER - 0.5}px, #000 ${CORNER}px)`,
-                        opacity: drawerOpen ? 0 : 1,
+                        // com a lupa selecionada, a aba dela chega na borda da tela e ocupa esse canto
+                        opacity: drawerOpen || (side === 'right' && activeTab === 'search') ? 0 : 1,
                         transition: 'opacity 250ms ease',
                     }}
                 />
