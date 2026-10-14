@@ -150,7 +150,7 @@ function MenuDrawerContent({ slug, avatarUrl, data, active, recent, onSelect, on
     )
 
     return (
-        <div className="h-full w-full flex flex-col px-4 pt-6 pb-28 overflow-y-auto">
+        <div className="h-full w-full flex flex-col px-4 pb-8 overflow-y-auto" style={{ paddingTop: 'calc(66px + env(safe-area-inset-top) + 8px)' }}>
             {/* Só o fechar: a foto e o @ aparecem uma vez só, no cartão "Meu perfil" logo abaixo */}
             <div className="flex justify-end">
                 <button onClick={onClose} aria-label="Fechar menu" className="w-9 h-9 rounded-full flex items-center justify-center text-white hover:bg-white/15 flex-shrink-0">
@@ -261,7 +261,7 @@ function DrawerExplorar({ recent, onGo }: { recent: RecentClickItem[]; onGo: (pa
 // Menu de quem não tem conta: o "modo" é o de visitante (já selecionado), mais entrar/criar conta e o Explorar
 function VisitorDrawerContent({ recent, onGo, onClose }: { recent: RecentClickItem[]; onGo: (path: string) => void; onClose: () => void }) {
     return (
-        <div className="h-full w-full flex flex-col px-4 pt-6 pb-28 overflow-y-auto">
+        <div className="h-full w-full flex flex-col px-4 pb-8 overflow-y-auto" style={{ paddingTop: 'calc(66px + env(safe-area-inset-top) + 8px)' }}>
             <div className="flex justify-end">
                 <button onClick={onClose} aria-label="Fechar menu" className="w-9 h-9 rounded-full flex items-center justify-center text-white hover:bg-white/15 flex-shrink-0">
                     <X size={20} />
@@ -301,7 +301,7 @@ function VisitorDrawerContent({ recent, onGo, onClose }: { recent: RecentClickIt
 // A borda do plano é desenhada POR FORA da foto (3 px de cada lado) — por isso a foto fica menor quando tem borda,
 // pro conjunto ter exatamente o mesmo tamanho da logo.
 const BADGE = 48
-// Degradê do menu: o fundo atrás do cartão do app e a cor da navbar de baixo
+// Degradê do menu: o fundo atrás do cartão do app e a cor da navbar do topo
 const MENU_GRADIENT = 'linear-gradient(160deg, #f97316 0%, #dc2626 100%)'
 function HeaderBadge({ userId, avatarUrl, onProfile, onHome, colors, noRing = false, label = 'Meu perfil', modeIcon, popToken = 0 }: {
     userId: string | null; avatarUrl: string | null | undefined; onProfile: () => void; onHome: () => void; colors: any
@@ -491,8 +491,9 @@ export default function ModeShell({ children, search }: {
         return () => { window.removeEventListener('keydown', onKey); document.body.style.overflow = prev }
     }, [drawerOpen])
     const DRAWER_W = 'min(78vw, 300px)'
-    // Altura da barra de baixo: o cartão do app (tudo que está acima dela) termina nela, e a barra fica de fora do cartão
-    const NAV_H = 'calc(66px + env(safe-area-inset-bottom))'
+    // Altura da barra do topo: o cartão do app (tudo que está abaixo dela) começa nela, e a barra fica de fora do cartão.
+    // Fica em CIMA (e não embaixo) pra o teclado não cobrir a barra quando a busca está aberta.
+    const NAV_H = 'calc(66px + env(safe-area-inset-top))'
 
     // O topo responde ao modo escolhido no menu: loja (logo + nome), motorista (foto do carro + modelo e placa),
     // prestador (foto do perfil + "Modo prestador") ou o perfil de sempre.
@@ -592,16 +593,17 @@ export default function ModeShell({ children, search }: {
 
         {/* A página: desliza pra direita e encolhe um pouco, com cantos arredondados e sombra */}
         <div
-            className="relative min-h-dvh pb-28"
+            className="relative pb-10"
             style={{
                 background: colors.background, zIndex: 2,
+                marginTop: NAV_H,
+                minHeight: `calc(100dvh - ${NAV_H})`,
                 transformOrigin: 'left center',
-                // vira um cartão acima da barra de baixo: desliza pra direita e encolhe um pouco, mostrando o menu atrás
+                // vira um cartão abaixo da barra do topo: desliza pra direita e encolhe um pouco, mostrando o menu atrás
                 transform: drawerOpen ? `translateX(${DRAWER_W}) scale(0.9)` : 'none',
                 borderRadius: drawerOpen ? 32 : 0,
                 boxShadow: drawerOpen ? '-12px 0 40px rgba(0,0,0,0.35)' : 'none',
                 height: drawerOpen ? `calc(100dvh - ${NAV_H})` : undefined,
-                minHeight: drawerOpen ? 0 : undefined,
                 overflow: drawerOpen ? 'hidden' : undefined,
                 transition: 'transform 450ms cubic-bezier(0.22, 1, 0.36, 1), border-radius 450ms ease, box-shadow 450ms ease',
             }}
@@ -615,20 +617,19 @@ export default function ModeShell({ children, search }: {
 
         </div>
 
-        {/* Navegação embaixo, FORA do cartão do app (fica fixa na tela; o cartão desliza por cima do menu e termina nela): o botão do menu (selo + nome), o carrinho, as mensagens e a lupa. Na página com busca,
+        {/* Navegação no TOPO, FORA do cartão do app (fica fixa na tela; o cartão desliza por cima do menu e termina nela): o botão do menu (selo + nome), o carrinho, as mensagens e a lupa. Na página com busca,
             a lupa se EXPANDE no lugar e vira o campo; nas outras, leva ao /modeloinicial. */}
         <nav
-            className="fixed bottom-0 left-0 right-0 z-40 border-t"
+            className="fixed top-0 left-0 right-0 z-40"
             style={{
                 // Com o menu aberto a barra fica de fora do cartão do app: sem fundo, em cima do degradê do menu
                 // Sempre da cor do menu (o mesmo degradê do fundo, preso à tela): parece que a barra vem de fora do app
                 backgroundImage: MENU_GRADIENT,
                 backgroundSize: '100vw 100dvh',
-                backgroundPosition: 'left bottom',
+                backgroundPosition: 'left top',
                 backgroundRepeat: 'no-repeat',
                 backgroundColor: '#dc2626',
-                borderColor: 'transparent',
-                paddingBottom: 'env(safe-area-inset-bottom)',
+                paddingTop: 'env(safe-area-inset-top)',
             }}
         >
             <div className="max-w-5xl mx-auto px-4 py-2 flex items-center">
