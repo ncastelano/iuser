@@ -591,6 +591,10 @@ export default function ModeShell({ children, search }: {
         lastShownTab = activeTab
     }, [activeTab])
     const [pendingTab, setPendingTab] = useState(false)
+    // Na página do modo escolhido (painel do perfil, loja, veículo...), o botão do menu (selo + nome) vira a aba clara
+    // fundida ao cartão, igual aos ícones da direita
+    const modeSelected = !!userId && dataLoaded && !!pathname && modePath(activeMode, drawerData) === pathname
+    const leftTabOn = modeSelected && !drawerOpen && !searchOpen
     useEffect(() => { setPendingTab(false) }, [pathname])
     const pickTab = (tab: 'cart' | 'chat' | 'search', then: () => void) => {
         setShownTab(tab); lastShownTab = tab; setPendingTab(true)
@@ -705,7 +709,7 @@ export default function ModeShell({ children, search }: {
                 // vira um cartão abaixo da barra do topo: desliza pra direita e encolhe um pouco, mostrando o menu atrás
                 transform: drawerOpen ? `translateX(${DRAWER_W}) scale(0.9)` : 'none',
                 // aberto: cartão com os 4 cantos; fechado: só os de cima, que se encaixam nos cantos côncavos da barra
-                borderRadius: drawerOpen ? '32px' : `${CORNER}px ${activeTab === 'search' ? 0 : CORNER}px 0px 0px`,
+                borderRadius: drawerOpen ? '32px' : `${modeSelected ? 0 : CORNER}px ${activeTab === 'search' ? 0 : CORNER}px 0px 0px`,
                 boxShadow: drawerOpen ? '-12px 0 40px rgba(0,0,0,0.35)' : 'none',
                 height: cardClipped ? `calc(100dvh - ${NAV_H})` : undefined,
                 overflow: cardClipped ? 'hidden' : undefined,
@@ -740,16 +744,36 @@ export default function ModeShell({ children, search }: {
             <div className="max-w-5xl mx-auto px-4 h-full flex items-center">
                 {/* Grupo da esquerda: some (encolhe) quando a lupa vira o campo de busca */}
                 <div
-                    className="flex items-center gap-2.5 min-w-0"
+                    className="relative self-stretch flex items-center gap-2.5 min-w-0"
                     style={{
                         flex: searchOpen ? '0 0 0px' : '1 1 0%',
                         maxWidth: searchOpen ? 0 : '100%',
                         opacity: searchOpen ? 0 : 1,
-                        overflow: 'hidden',
+                        overflow: searchOpen ? 'hidden' : 'visible',
                         marginRight: searchOpen ? 0 : 10,
                         transition: 'flex 320ms cubic-bezier(0.22, 1, 0.36, 1), max-width 320ms cubic-bezier(0.22, 1, 0.36, 1), opacity 200ms ease, margin 320ms ease',
                     }}
                 >
+                    {/* Aba clara atrás do selo e do nome (quando a página é a do modo): estica até a borda esquerda da tela
+                        e desce até o cartão, com curva côncava no pé do lado direito */}
+                    <span
+                        aria-hidden
+                        className="absolute pointer-events-none"
+                        style={{
+                            top: 8, bottom: -1, left: `calc(-1 * ${EDGE_GAP})`, right: 0,
+                            background: colors.background, borderRadius: '18px 18px 0 0',
+                            opacity: leftTabOn ? 1 : 0, transition: 'opacity 300ms ease',
+                        }}
+                    >
+                        <span
+                            className="absolute"
+                            style={{
+                                bottom: 0, left: '100%', width: FILLET, height: FILLET + 1, background: colors.background,
+                                WebkitMaskImage: `radial-gradient(circle at 100% 0%, transparent ${FILLET - 0.5}px, #000 ${FILLET}px)`,
+                                maskImage: `radial-gradient(circle at 100% 0%, transparent ${FILLET - 0.5}px, #000 ${FILLET}px)`,
+                            }}
+                        />
+                    </span>
                     <HeaderBadge
                         userId={userId}
                         avatarUrl={headerView.image}
@@ -769,17 +793,17 @@ export default function ModeShell({ children, search }: {
                             onClick={() => { window.scrollTo({ top: 0 }); setDrawerOpen((v) => !v) }}
                             aria-label={drawerOpen ? 'Fechar menu' : 'Abrir menu'}
                             aria-expanded={drawerOpen}
-                            className="min-w-0 flex-1 text-left rounded-xl py-1 transition active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]"
+                            className="relative min-w-0 flex-1 text-left rounded-xl py-1 transition active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]"
                         >
-                            <span className="block text-xs truncate" style={{ color: 'rgba(255,255,255,0.85)' }}>{headerView.line1}</span>
+                            <span className="block text-xs truncate" style={{ color: leftTabOn ? colors.textSecondary : 'rgba(255,255,255,0.85)', transition: 'color 300ms ease' }}>{headerView.line1}</span>
                             <span className="flex items-center gap-1.5 min-w-0">
-                                <span className="text-base font-black truncate" style={{ color: '#fff' }}>{headerView.line2}</span>
-                                <span className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.22)' }}>
+                                <span className="text-base font-black truncate" style={{ color: leftTabOn ? colors.textPrimary : '#fff', transition: 'color 300ms ease' }}>{headerView.line2}</span>
+                                <span className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center" style={{ background: leftTabOn ? `${colors.border}66` : 'rgba(255,255,255,0.22)', transition: 'background 300ms ease' }}>
                                     <svg
                                         width="10" height="9" viewBox="0 0 10 9" aria-hidden
                                         style={{ transition: 'transform 350ms cubic-bezier(0.22, 1, 0.36, 1)', transform: drawerOpen ? 'rotate(-90deg)' : 'rotate(0deg)' }}
                                     >
-                                        <polygon points="5,0 10,9 0,9" fill="#fff" />
+                                        <polygon points="5,0 10,9 0,9" fill={leftTabOn ? colors.textPrimary : '#fff'} />
                                     </svg>
                                 </span>
                             </span>
@@ -864,7 +888,7 @@ export default function ModeShell({ children, search }: {
                         WebkitMaskImage: `radial-gradient(circle at ${side === 'left' ? '100% 100%' : '0% 100%'}, transparent ${CORNER - 0.5}px, #000 ${CORNER}px)`,
                         maskImage: `radial-gradient(circle at ${side === 'left' ? '100% 100%' : '0% 100%'}, transparent ${CORNER - 0.5}px, #000 ${CORNER}px)`,
                         // com a lupa selecionada, a aba dela chega na borda da tela e ocupa esse canto
-                        opacity: drawerOpen || (side === 'right' && activeTab === 'search') ? 0 : 1,
+                        opacity: drawerOpen || (side === 'right' && activeTab === 'search') || (side === 'left' && modeSelected) ? 0 : 1,
                         transition: 'opacity 250ms ease',
                     }}
                 />
