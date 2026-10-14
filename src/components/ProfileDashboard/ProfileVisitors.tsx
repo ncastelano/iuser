@@ -71,6 +71,16 @@ export default function ProfileVisitors({ profileId, onLatestUpdate }: ProfileVi
     const [visitors, setVisitors] = useState<any[]>([])
     const [totalCount, setTotalCount] = useState(0)
 
+    const stripRef = useRef<HTMLDivElement | null>(null)
+    const [stripWidth, setStripWidth] = useState(280)
+    useEffect(() => {
+        const el = stripRef.current
+        if (!el) return
+        const ro = new ResizeObserver(() => setStripWidth(el.clientWidth))
+        ro.observe(el)
+        setStripWidth(el.clientWidth)
+        return () => ro.disconnect()
+    })
     const intervalRef = useRef<NodeJS.Timeout | null>(null)
     const channelRef = useRef<any>(null)
 
@@ -275,15 +285,20 @@ export default function ProfileVisitors({ profileId, onLatestUpdate }: ProfileVi
         const seen = new Set<string>()
         const out: any[] = []
         for (const v of visitors) {
-            const key = v.viewer_id || v.anonymous_id || v.id
+            const key = v.viewer_id || v.anonymous_id || 'anonimo' // mesma conta de "únicos": sem identificação, todos viram um só
             if (seen.has(key)) continue
             seen.add(key)
             out.push(v)
-            if (out.length >= 5) break
+            if (out.length >= 40) break
         }
         return out
     })()
-    const extraDistinct = Math.max(0, totalUnique - recentDistinct.length)
+    // Quantas fotos cabem na fileira (fechado): depende da largura do cartão. Cada foto avança 22px (30px com sobreposição).
+    const FACE = 30
+    const STEP = 22
+    const fitCount = Math.max(1, Math.floor((stripWidth - 44) / STEP))
+    const shownFaces = recentDistinct.slice(0, fitCount)
+    const extraDistinct = Math.max(0, totalUnique - shownFaces.length)
 
     // Foto (ou o anônimo). `size` em px.
     const Face = ({ v, size = 36 }: { v: any; size?: number }) => {
@@ -403,23 +418,20 @@ export default function ProfileVisitors({ profileId, onLatestUpdate }: ProfileVi
                         : <ChevronDown size={18} style={{ color: textSecondary }} className="flex-shrink-0" />}
                 </button>
 
-                {/* Fechado: pilha com os 5 últimos (foto ou anônimo) + as 5 linhas compactas */}
+                {/* Fechado: só as fotos (ou o anônimo), enfileiradas — quantas couberem na largura do cartão */}
                 {!isExpanded && !loading && recentDistinct.length > 0 && (
-                    <>
-                        <div className="flex items-center gap-2.5">
-                            <span className="flex -space-x-2">
-                                {recentDistinct.map((v) => (
-                                    <span key={v.id} className="rounded-full" style={{ boxShadow: `0 0 0 2px ${colors.surface}` }}><Face v={v} size={30} /></span>
-                                ))}
-                            </span>
-                            {extraDistinct > 0 && (
-                                <span className="text-[11px] font-black px-2 py-0.5 rounded-full" style={{ background: `${colors.border}55`, color: textSecondary }}>+{extraDistinct}</span>
-                            )}
-                        </div>
-                        <div className="flex flex-col">
-                            {recentDistinct.map((v) => <Row key={v.id} v={v} />)}
-                        </div>
-                    </>
+                    <div ref={stripRef} className="flex items-center">
+                        <span className="flex">
+                            {shownFaces.map((v, i) => (
+                                <span key={v.id} className="rounded-full flex-shrink-0" style={{ marginLeft: i === 0 ? 0 : FACE - STEP > 0 ? -(FACE - STEP) : 0, boxShadow: `0 0 0 2px ${colors.surface}` }}>
+                                    <Face v={v} size={FACE} />
+                                </span>
+                            ))}
+                        </span>
+                        {extraDistinct > 0 && (
+                            <span className="ml-2 text-[11px] font-black px-2 py-0.5 rounded-full flex-shrink-0" style={{ background: `${colors.border}55`, color: textSecondary }}>+{extraDistinct}</span>
+                        )}
+                    </div>
                 )}
                 {!isExpanded && !loading && recentDistinct.length === 0 && (
                     <p className="text-xs" style={{ color: textSecondary }}>Ninguém visitou ainda. Quando alguém abrir o seu perfil, aparece aqui na hora.</p>
