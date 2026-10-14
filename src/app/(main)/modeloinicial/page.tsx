@@ -249,6 +249,48 @@ interface DrawerData {
 }
 const VEHICLE_LABEL: Record<string, string> = { carro: 'Carro', moto: 'Moto', bicicleta: 'Bicicleta' }
 
+// Linha de um modo no menu. O ícone vira a IMAGEM do modo (foto do perfil, logo da loja, foto do carro) num giro 3D
+// quando o modo é selecionado; sem imagem, fica o ícone.
+function DrawerRow({ mode, active, icon, image, title, desc, dot, onSelect }: {
+    mode: string; active: string; icon: ReactNode; image?: string | null; title: string; desc?: string; dot?: string; onSelect: (mode: string) => void
+}) {
+    const selected = active === mode
+    const flipped = selected && !!image
+    const face = { position: 'absolute', inset: 0, backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden', transition: 'transform 650ms cubic-bezier(0.45, 0, 0.2, 1)' } as const
+    return (
+        <button
+            onClick={() => onSelect(mode)}
+            aria-pressed={selected}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl text-left text-white transition hover:bg-white/15 active:bg-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+            style={selected ? { background: 'rgba(255,255,255,0.22)', boxShadow: 'inset 0 0 0 1.5px rgba(255,255,255,0.85)' } : undefined}
+        >
+            <span className="relative w-10 h-10 flex-shrink-0" style={{ perspective: 300 }}>
+                <span className="rounded-xl flex items-center justify-center overflow-hidden" style={{ ...face, background: 'rgba(255,255,255,0.18)', transform: flipped ? 'rotateY(180deg)' : 'rotateY(0deg)' }}>{icon}</span>
+                {image && (
+                    <span className="rounded-xl overflow-hidden" style={{ ...face, background: 'rgba(255,255,255,0.18)', transform: flipped ? 'rotateY(0deg)' : 'rotateY(-180deg)' }}>
+                        <img src={image} alt="" className="w-full h-full object-cover" />
+                    </span>
+                )}
+            </span>
+            <span className="min-w-0 flex-1">
+                <span className="block text-sm font-black leading-tight truncate">{title}</span>
+                {desc && (
+                    <span className="flex items-center gap-1.5 text-xs opacity-90 truncate">
+                        {dot && <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: dot }} />}{desc}
+                    </span>
+                )}
+            </span>
+            {selected
+                ? <span className="flex-shrink-0 w-6 h-6 rounded-full bg-white flex items-center justify-center" title="Modo selecionado"><Check size={14} color="#dc2626" strokeWidth={3} /></span>
+                : <ChevronRight size={16} className="flex-shrink-0 opacity-70" />}
+        </button>
+    )
+}
+
+function DrawerLabel({ children }: { children: ReactNode }) {
+    return <p className="px-3 mt-5 mb-1.5 text-[11px] font-black uppercase tracking-widest text-white/70">{children}</p>
+}
+
 function MenuDrawerContent({ slug, avatarUrl, data, active, onSelect, onOpenPanel, onClose }: {
     slug: string | null; avatarUrl: string | null | undefined; data: DrawerData
     /** Modo selecionado: 'perfil' | 'loja:<slug>' | 'motorista:<tipo>' */
@@ -264,34 +306,6 @@ function MenuDrawerContent({ slug, avatarUrl, data, active, onSelect, onOpenPane
         : active.startsWith('motorista:')
             ? `Motorista · ${VEHICLE_LABEL[active.split(':')[1]] || 'Veículo'}`
             : 'Meu perfil'
-
-    const Row = ({ mode, icon, title, desc, dot, path }: { mode: string; icon: ReactNode; title: string; desc?: string; dot?: string; path: string }) => {
-        const selected = active === mode
-        return (
-            <button
-                onClick={() => onSelect(mode)}
-                aria-pressed={selected}
-                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl text-left text-white transition hover:bg-white/15 active:bg-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
-                style={selected ? { background: 'rgba(255,255,255,0.22)', boxShadow: 'inset 0 0 0 1.5px rgba(255,255,255,0.85)' } : undefined}
-            >
-                <span className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden" style={{ background: 'rgba(255,255,255,0.18)' }}>{icon}</span>
-                <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-black leading-tight truncate">{title}</span>
-                    {desc && (
-                        <span className="flex items-center gap-1.5 text-xs opacity-90 truncate">
-                            {dot && <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: dot }} />}{desc}
-                        </span>
-                    )}
-                </span>
-                {selected
-                    ? <span className="flex-shrink-0 w-6 h-6 rounded-full bg-white flex items-center justify-center" title="Modo selecionado"><Check size={14} color="#dc2626" strokeWidth={3} /></span>
-                    : <ChevronRight size={16} className="flex-shrink-0 opacity-70" />}
-            </button>
-        )
-    }
-    const Label = ({ children }: { children: ReactNode }) => (
-        <p className="px-3 mt-5 mb-1.5 text-[11px] font-black uppercase tracking-widest text-white/70">{children}</p>
-    )
 
     return (
         <div className="h-full w-full flex flex-col px-4 pt-6 pb-8 overflow-y-auto">
@@ -317,28 +331,32 @@ function MenuDrawerContent({ slug, avatarUrl, data, active, onSelect, onOpenPane
             </button>
 
             <div className="mt-5">
-                <Row
+                <DrawerRow
                     mode="perfil"
+                    active={active}
+                    onSelect={onSelect}
                     icon={<User size={20} color="#fff" />}
+                    image={avatarUrl}
                     title="Meu perfil"
                     desc={data.providerOn ? 'Modo prestador ligado' : slug ? `@${slug}` : undefined}
                     dot={data.providerOn ? '#4ade80' : undefined}
-                    path="/?view=perfil"
                 />
             </div>
 
             {data.stores.length > 0 && (
                 <>
-                    <Label>Modo loja</Label>
+                    <DrawerLabel>Modo loja</DrawerLabel>
                     {data.stores.map((st) => (
-                        <Row
+                        <DrawerRow
                             key={st.id}
                             mode={`loja:${st.slug}`}
-                            icon={st.logo ? <img src={st.logo} alt="" className="w-full h-full object-cover" /> : <StoreIcon size={20} color="#fff" />}
+                            active={active}
+                            onSelect={onSelect}
+                            icon={<StoreIcon size={20} color="#fff" />}
+                            image={st.logo}
                             title={st.name}
                             desc={st.open ? 'Aberta agora' : 'Fechada agora'}
                             dot={st.open ? '#4ade80' : '#fca5a5'}
-                            path={`/?view=loja&store=${encodeURIComponent(st.slug)}`}
                         />
                     ))}
                 </>
@@ -346,16 +364,18 @@ function MenuDrawerContent({ slug, avatarUrl, data, active, onSelect, onOpenPane
 
             {data.vehicles.length > 0 && (
                 <>
-                    <Label>Modo motorista</Label>
+                    <DrawerLabel>Modo motorista</DrawerLabel>
                     {data.vehicles.map((v) => (
-                        <Row
+                        <DrawerRow
                             key={v.kind}
                             mode={`motorista:${v.kind}`}
+                            active={active}
+                            onSelect={onSelect}
                             icon={<Car size={20} color="#fff" />}
+                            image={v.photo}
                             title={`${VEHICLE_LABEL[v.kind] || 'Veículo'}${v.model ? ` · ${v.model}` : ''}`}
                             desc={data.driverActive ? 'Motorista ativado' : 'Motorista desligado'}
                             dot={data.driverActive ? '#4ade80' : '#fca5a5'}
-                            path={`/painel-motorista?veiculo=${encodeURIComponent(v.kind)}`}
                         />
                     ))}
                 </>
@@ -369,12 +389,14 @@ function MenuDrawerContent({ slug, avatarUrl, data, active, onSelect, onOpenPane
 // A borda do plano é desenhada POR FORA da foto (3 px de cada lado) — por isso a foto fica menor quando tem borda,
 // pro conjunto ter exatamente o mesmo tamanho da logo.
 const BADGE = 48
-function HeaderBadge({ userId, avatarUrl, onProfile, onHome, colors, noRing = false, label = 'Meu perfil', fallbackIcon }: {
+function HeaderBadge({ userId, avatarUrl, onProfile, onHome, colors, noRing = false, label = 'Meu perfil', fallbackIcon, popToken = 0 }: {
     userId: string | null; avatarUrl: string | null | undefined; onProfile: () => void; onHome: () => void; colors: any
     /** Imagem que não é do perfil (logo da loja, foto do carro): sem a borda do plano */
     noRing?: boolean
     label?: string
     fallbackIcon?: ReactNode
+    /** Sobe a cada troca de modo: a nova imagem entra com um "estouro" (0 = sem animação, carga inicial) */
+    popToken?: number
 }) {
     const [showAvatar, setShowAvatar] = useState(true)
     const planRing = usePlanRing(userId)
@@ -398,11 +420,16 @@ function HeaderBadge({ userId, avatarUrl, onProfile, onHome, colors, noRing = fa
                     transform: avatarOn || !userId ? 'rotateY(0deg)' : 'rotateY(180deg)',
                 }}
             >
+                <style>{`
+                    @keyframes modePop { from { opacity: 0; transform: scale(0.4) rotate(-25deg); } 60% { transform: scale(1.12) rotate(4deg); } to { opacity: 1; transform: scale(1) rotate(0deg); } }
+                    .mode-pop { animation: modePop 650ms cubic-bezier(0.22, 1, 0.36, 1) 850ms backwards; }
+                    @media (prefers-reduced-motion: reduce) { .mode-pop { animation: none; } }
+                `}</style>
                 {/* Frente: a foto do perfil (ou, sem conta, a logo) */}
                 {userId ? (
                     <button onClick={onProfile} aria-label={label} className="flex items-center justify-center rounded-full" style={face}>
                         <PlanAvatarRing userId={noRing ? null : userId} width={2} linkToProfile={false}>
-                            <span className="block rounded-full overflow-hidden flex items-center justify-center" style={{ width: avatarSize, height: avatarSize, background: `${colors.border}60` }}>
+                            <span key={popToken} className={`block rounded-full overflow-hidden flex items-center justify-center ${popToken > 0 ? 'mode-pop' : ''}`} style={{ width: avatarSize, height: avatarSize, background: `${colors.border}60` }}>
                                 {avatarUrl
                                     ? <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
                                     : (fallbackIcon || <User size={20} style={{ color: colors.textSecondary }} />)}
@@ -674,6 +701,7 @@ export default function ModeloInicialPage() {
     const [drawerData, setDrawerData] = useState<DrawerData>({ stores: [], vehicles: [], driverActive: false, providerOn: false })
     // Modo selecionado (guardado no aparelho, por conta): 'perfil' | 'loja:<slug>' | 'motorista:<tipo>'
     const [activeMode, setActiveMode] = useState('perfil')
+    const [modeTick, setModeTick] = useState(0)
     useEffect(() => {
         if (!userId) return
         try { setActiveMode(localStorage.getItem(`iuser_mode_${userId}`) || 'perfil') } catch { /* sem armazenamento */ }
@@ -793,8 +821,10 @@ export default function ModeloInicialPage() {
                     active={activeMode}
                     onSelect={(mode) => {
                         setActiveMode(mode)
+                        setModeTick((n) => n + 1)
                         try { localStorage.setItem(`iuser_mode_${userId}`, mode) } catch { /* sem armazenamento */ }
-                        setDrawerOpen(false)
+                        // O menu espera o giro do ícone terminar antes de fechar
+                        window.setTimeout(() => setDrawerOpen(false), 850)
                     }}
                     onOpenPanel={(path) => { setDrawerOpen(false); router.push(path) }}
                     onClose={() => setDrawerOpen(false)}
@@ -828,6 +858,7 @@ export default function ModeloInicialPage() {
                         noRing={headerView.noRing}
                         label={headerView.label}
                         fallbackIcon={headerView.fallbackIcon}
+                        popToken={modeTick}
                         onProfile={() => { window.scrollTo({ top: 0 }); setDrawerOpen(true) }}
                         onHome={() => go('/')}
                     />
