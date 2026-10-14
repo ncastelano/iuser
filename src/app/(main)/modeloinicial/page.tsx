@@ -825,15 +825,8 @@ export default function ModeloInicialPage() {
                     data={drawerData}
                     active={activeMode}
                     onSelect={(mode) => {
-                        // Tocar no modo que já está selecionado abre o painel dele; nos outros, só troca o modo
-                        if (mode === activeMode) {
-                            const path = mode.startsWith('loja:') ? `/?view=loja&store=${encodeURIComponent(mode.slice(5))}`
-                                : mode.startsWith('motorista:') ? `/painel-motorista?veiculo=${encodeURIComponent(mode.slice(10))}`
-                                    : '/?view=perfil'
-                            setDrawerOpen(false)
-                            router.push(path)
-                            return
-                        }
+                        // Qualquer opção (Meu perfil, loja, motorista) só seleciona o modo — nenhuma navega
+                        if (mode === activeMode) { setDrawerOpen(false); return }
                         setActiveMode(mode)
                         setModeTick((n) => n + 1)
                         try { localStorage.setItem(`iuser_mode_${userId}`, mode) } catch { /* sem armazenamento */ }
