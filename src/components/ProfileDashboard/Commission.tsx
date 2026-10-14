@@ -230,6 +230,7 @@ export default function Commission({ userId, profileSlug, onLatestUpdate, view =
     const [walletTransactions, setWalletTransactions] = useState<WalletTransaction[]>([])
     const [withdrawalRequests, setWithdrawalRequests] = useState<WithdrawalRequest[]>([])
     const [showWithdrawForm, setShowWithdrawForm] = useState(false)
+    const [redeTab, setRedeTab] = useState<'indicados' | 'saques' | 'extrato' | 'arvore'>('indicados')
     const [withdrawAmount, setWithdrawAmount] = useState('')
     const [pixKey, setPixKey] = useState('')
     const [pixKeyType, setPixKeyType] = useState('cpf')
@@ -870,9 +871,9 @@ export default function Commission({ userId, profileSlug, onLatestUpdate, view =
     )
 
     // ===== VISÃO "MINHA REDE": o "cartão de saldo" — saldo, sacar e convidar; embaixo, os detalhes da rede =====
-    const redeContent = (
+    // Cada parte dos detalhes da rede vira uma peça; as abas escolhem qual aparece (tamanho fixo, rola por dentro)
+    const resumoNode = (
         <>
-
                             {/* ===== MINHA REDE: resumo do que a rede rende ===== */}
                             {!loading && members.length > 0 && (
                                 <div className="grid grid-cols-2 gap-2">
@@ -893,6 +894,10 @@ export default function Commission({ userId, profileSlug, onLatestUpdate, view =
                                 </div>
                             )}
 
+        </>
+    )
+    const formNode = (
+        <>
                             {!showWithdrawForm ? null : (
                                 <div className="w-full rounded-2xl p-4 flex flex-col gap-3" style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.4)`, border: `1px solid ${borderColor}` }}>
                                     <p className="text-[11px]" style={{ color: textSecondary }}>
@@ -950,6 +955,10 @@ export default function Commission({ userId, profileSlug, onLatestUpdate, view =
                                 </div>
                             )}
 
+        </>
+    )
+    const requestsNode = (
+        <>
                             {!walletLoading && withdrawalRequests.length > 0 && (
                                 <div className="flex flex-col gap-2">
                                     <h2 className="text-xs font-black uppercase tracking-widest" style={{ color: textPrimary }}>
@@ -991,6 +1000,10 @@ export default function Commission({ userId, profileSlug, onLatestUpdate, view =
                                 </div>
                             )}
 
+        </>
+    )
+    const txNode = (
+        <>
                             {!walletLoading && walletTransactions.length > 0 && (
                                 <div className="flex flex-col gap-2">
                                     <h2 className="text-xs font-black uppercase tracking-widest" style={{ color: textPrimary }}>
@@ -1023,6 +1036,10 @@ export default function Commission({ userId, profileSlug, onLatestUpdate, view =
                                 </div>
                             )}
 
+        </>
+    )
+    const membersNode = (
+        <>
                             {loading ? (
                                 <div
                                     className="rounded-2xl p-8 text-center"
@@ -1180,6 +1197,10 @@ export default function Commission({ userId, profileSlug, onLatestUpdate, view =
                                 </div>
                             )}
 
+        </>
+    )
+    const treeNode = (
+        <>
                             {/* Árvore da rede: quem eles indicaram, com a graduação de cada um */}
                             {graduation.data && (
                                 <div className="flex flex-col gap-3 pt-2">
@@ -1193,59 +1214,150 @@ export default function Commission({ userId, profileSlug, onLatestUpdate, view =
         </>
     )
 
+    const redeTabs: { id: typeof redeTab; label: string; count?: number }[] = [
+        { id: 'indicados', label: 'Indicados', count: members.length },
+        { id: 'saques', label: 'Saques', count: withdrawalRequests.length },
+        { id: 'extrato', label: 'Extrato' },
+        { id: 'arvore', label: 'Árvore' },
+    ]
+    const emptyHint = (text: string) => (
+        <p className="text-xs text-center py-8" style={{ color: textSecondary }}>{text}</p>
+    )
+    const redeContent = (
+        <div className="flex flex-col gap-3">
+            <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+                {redeTabs.map((t) => {
+                    const active = redeTab === t.id
+                    return (
+                        <button
+                            key={t.id}
+                            onClick={() => setRedeTab(t.id)}
+                            className="px-3.5 py-1.5 rounded-full text-xs font-black whitespace-nowrap transition-all flex items-center gap-1.5"
+                            style={active
+                                ? { background: GRADIENT, color: '#fff', border: '1px solid transparent' }
+                                : { background: 'transparent', color: textPrimary, border: `1px solid ${borderColor}` }}
+                        >
+                            {t.label}
+                            {t.count ? <span className="text-[10px] opacity-80">{t.count}</span> : null}
+                        </button>
+                    )
+                })}
+            </div>
+
+            {/* Área de tamanho padrão: o conteúdo rola aqui dentro, o cartão não cresce */}
+            <div className="h-[420px] overflow-y-auto pr-1 flex flex-col gap-4">
+                {redeTab === 'indicados' && (
+                    <>
+                        {resumoNode}
+                        {membersNode}
+                    </>
+                )}
+                {redeTab === 'saques' && (
+                    <>
+                        {formNode}
+                        {requestsNode}
+                        {!showWithdrawForm && (walletLoading || withdrawalRequests.length === 0) && emptyHint(walletLoading ? 'Carregando…' : 'Nenhum pedido de saque ainda.')}
+                    </>
+                )}
+                {redeTab === 'extrato' && (
+                    <>
+                        {txNode}
+                        {(walletLoading || walletTransactions.length === 0) && emptyHint(walletLoading ? 'Carregando…' : 'Nenhum lançamento ainda.')}
+                    </>
+                )}
+                {redeTab === 'arvore' && (graduation.data ? treeNode : emptyHint('A árvore da rede aparece quando sua graduação carregar.'))}
+            </div>
+        </div>
+    )
+
+    // Cor do cartão de saldo, derivada da graduação (nada de nomes fixos: vem da configuração do nível)
+    const cardTheme = (() => {
+        // aceita '#rrggbb' e também 'rgb(r, g, b)' (resultado de uma mistura anterior)
+        const parse = (v: string) => {
+            const m = v.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/)
+            return m ? { r: Number(m[1]), g: Number(m[2]), b: Number(m[3]) } : hexToRgb(v)
+        }
+        const mixHex = (a: string, b: string, t: number) => {
+            const A = parse(a); const B = parse(b)
+            const c = (x: number, y: number) => Math.round(x + (y - x) * t)
+            return `rgb(${c(A.r, B.r)}, ${c(A.g, B.g)}, ${c(A.b, B.b)})`
+        }
+        const lum = (hex: string) => { const c = hexToRgb(hex); return (0.299 * c.r + 0.587 * c.g + 0.114 * c.b) / 255 }
+        const lvl = graduation.data?.level
+        const next = graduation.data?.next_level
+        const base = (lvl?.border_colors?.[0] || lvl?.border_color || '#f97316')
+        const base2 = (lvl?.border_colors?.[1] || base)
+        const target = next?.border_color || base2
+        const p = graduation.data && next ? Math.min(Math.max(graduation.data.progress_percent, 0), 100) / 100 : 0
+        const light = lum(base) > 0.62
+        const text = light ? '#1f2937' : '#ffffff'
+        const bg = `linear-gradient(135deg, ${mixHex(base, '#000000', light ? 0.18 : 0.42)} 0%, ${base} 36%, ${mixHex(mixHex(base2, target, 0.25 + 0.6 * p), '#000000', light ? 0 : 0.14)} 72%, ${light ? mixHex(target, '#ffffff', 0.18) : mixHex(target, '#000000', 0.28)} 100%)`
+        return {
+            background: bg,
+            text,
+            shadow: mixHex(base, '#000000', 0.15).replace('rgb(', 'rgba(').replace(')', ', 0.35)'),
+            sheen: light ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.12)',
+            sheenSoft: light ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.08)',
+            buttonSolidBg: light ? '#1f2937' : '#ffffff',
+            buttonSolidText: light ? '#ffffff' : mixHex(base, '#000000', 0.45),
+            buttonGhostBg: light ? 'rgba(31,41,55,0.10)' : 'rgba(255,255,255,0.18)',
+            buttonGhostBorder: light ? 'rgba(31,41,55,0.35)' : 'rgba(255,255,255,0.5)',
+            track: light ? 'rgba(31,41,55,0.18)' : 'rgba(255,255,255,0.28)',
+            fill: light ? '#1f2937' : '#ffffff',
+        }
+    })()
+
     if (view === 'rede') {
         const faces = members.slice(0, 5)
         const canWithdraw = walletBalance >= MIN_WITHDRAWAL_AMOUNT
         return (
             <>
                 <div className="mb-6 mt-4">
-                    {/* Carteira: cartão em degradê, com o saldo, a rede e as ações */}
+                    {/* Cartão de saldo: a cor acompanha a graduação — parte da cor do nível atual e vai se aproximando
+                        da cor do próximo conforme o progresso (no nível máximo, só o brilho do nível) */}
                     <div
-                        className="relative overflow-hidden rounded-3xl p-5 text-white"
-                        style={{ background: 'linear-gradient(135deg, #f97316 0%, #ea580c 45%, #b91c1c 100%)', boxShadow: '0 14px 34px rgba(220,38,38,0.28)' }}
+                        className="relative overflow-hidden rounded-3xl p-5"
+                        style={{ background: cardTheme.background, color: cardTheme.text, boxShadow: `0 14px 34px ${cardTheme.shadow}` }}
                     >
-                        <span aria-hidden className="absolute -right-10 -top-12 w-44 h-44 rounded-full" style={{ background: 'rgba(255,255,255,0.10)' }} />
-                        <span aria-hidden className="absolute -right-2 top-16 w-28 h-28 rounded-full" style={{ background: 'rgba(255,255,255,0.08)' }} />
+                        <span aria-hidden className="absolute -right-12 -top-14 w-48 h-48 rounded-full" style={{ background: cardTheme.sheen }} />
+                        <span aria-hidden className="absolute right-6 top-20 w-24 h-24 rounded-full" style={{ background: cardTheme.sheenSoft }} />
 
-                        <div className="relative flex items-center gap-2.5">
-                            {/* Chip do cartão: na cor da borda da graduação */}
-                            <span
-                                className="w-9 h-7 rounded-md flex-shrink-0"
-                                style={{
-                                    background: graduation.data
-                                        ? (['gradient', 'diamond'].includes(graduation.data.level.border_style) ? levelGradient(graduation.data.level) : graduation.data.level.border_color)
-                                        : 'linear-gradient(135deg, #fde68a, #f59e0b)',
-                                    boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.15), 0 1px 4px rgba(0,0,0,0.2)',
-                                }}
-                                aria-hidden
-                            />
-                            {graduation.data && <span className="rounded-full" style={{ background: 'rgba(255,255,255,0.96)', padding: 1 }}><LevelBadge level={graduation.data.level} size="sm" /></span>}
-                        </div>
-
-                        <div className="relative mt-4">
-                            <p className="text-[11px] font-bold uppercase tracking-wider opacity-85">Saldo disponível</p>
-                            <p className="text-4xl font-black leading-tight">R$ {walletBalance.toFixed(2)}</p>
-                        </div>
+                        <p className="relative text-[11px] font-bold uppercase tracking-[0.16em] opacity-80">Saldo disponível</p>
+                        <p className="relative text-4xl font-black leading-tight mt-0.5">R$ {walletBalance.toFixed(2)}</p>
 
                         <div className="relative mt-4 grid grid-cols-2 gap-2">
                             <button
-                                onClick={() => { setShowWithdrawForm(true); setIsExpanded(true) }}
+                                onClick={() => { setShowWithdrawForm(true); setRedeTab('saques'); setIsExpanded(true) }}
                                 disabled={!canWithdraw}
-                                className="py-2.5 rounded-full text-sm font-black flex items-center justify-center gap-1.5 bg-white transition hover:scale-[1.03] active:scale-95 disabled:opacity-60"
-                                style={{ color: '#b91c1c' }}
+                                className="py-2.5 rounded-full text-sm font-black flex items-center justify-center gap-1.5 transition hover:scale-[1.03] active:scale-95 disabled:opacity-55"
+                                style={{ background: cardTheme.buttonSolidBg, color: cardTheme.buttonSolidText }}
                             >
                                 <Send size={15} /> Sacar via PIX
                             </button>
                             <button
                                 onClick={handleInvite}
                                 className="py-2.5 rounded-full text-sm font-black flex items-center justify-center gap-1.5 transition hover:scale-[1.03] active:scale-95"
-                                style={{ background: 'rgba(255,255,255,0.20)', border: '1px solid rgba(255,255,255,0.55)', color: '#fff' }}
+                                style={{ background: cardTheme.buttonGhostBg, border: `1px solid ${cardTheme.buttonGhostBorder}`, color: cardTheme.text }}
                             >
                                 <UserPlus size={15} /> Convidar
                             </button>
                         </div>
+
+                        {/* Evolução: quanto falta pro próximo nível (a cor do cartão vai nessa direção) */}
+                        {graduation.data && (
+                            <div className="relative mt-4">
+                                <div className="h-1.5 rounded-full overflow-hidden" style={{ background: cardTheme.track }}>
+                                    <div style={{ width: `${graduation.data.next_level ? graduation.data.progress_percent : 100}%`, height: '100%', background: cardTheme.fill, transition: 'width .5s' }} />
+                                </div>
+                                <p className="text-[10px] mt-1.5 opacity-85">
+                                    {graduation.data.next_level
+                                        ? `${graduation.data.progress_percent}% do caminho até ${graduation.data.next_level.name}`
+                                        : 'Você está no nível mais alto'}
+                                </p>
+                            </div>
+                        )}
                         {!canWithdraw && (
-                            <p className="relative mt-2 text-[10px] text-center opacity-85">
+                            <p className="relative mt-2 text-[10px] opacity-85">
                                 Saque mínimo de R$ {MIN_WITHDRAWAL_AMOUNT.toFixed(2)} — faltam R$ {(MIN_WITHDRAWAL_AMOUNT - walletBalance).toFixed(2)}.
                             </p>
                         )}
