@@ -1374,7 +1374,6 @@ export default function ProfileDashboard({
         { key: 'agenda', node: agendaNode, ts: sectionTimestamps.agenda },
         { key: 'publicacoes', node: publicacoesNode, ts: sectionTimestamps.publicacoes },
         { key: 'indicacoes', node: indicacoesNode, ts: sectionTimestamps.indicacoes },
-        { key: 'visitantes', node: visitantesNode, ts: sectionTimestamps.visitantes },
     ].sort((a, b) => (b.ts || '1970-01-01').localeCompare(a.ts || '1970-01-01'))
 
     return (
@@ -1397,6 +1396,9 @@ export default function ProfileDashboard({
             <div className="mb-6 flex flex-col gap-4">
                 <ProfileLinkButtons profileSlug={profile.profileSlug || profileSlug || ''} />
             </div>
+
+            {/* ===== VISITANTES DO PERFIL — logo abaixo dos botões ===== */}
+            {visitantesNode}
 
             {/* ===== NOTIFICAÇÕES DO PERFIL — tudo o que acontece com o perfil ===== */}
             <div className="mb-6">

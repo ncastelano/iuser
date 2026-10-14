@@ -272,19 +272,6 @@ export default function ProfileNotification({ userId }: { userId: string }) {
             title="Notificações do perfil"
             collapsedContent={items !== null && preview.length > 0 ? (
                 <>
-                    <div className="flex items-center gap-2 mb-1">
-                        <span className="flex -space-x-2">
-                            {preview.map((n) => {
-                                const av = getAvatarUrl(supabase, n.actor_avatar)
-                                return (
-                                    <span key={n.id} className="w-7 h-7 rounded-full flex items-center justify-center overflow-hidden text-[11px] font-black text-white" style={{ boxShadow: `0 0 0 2px ${colors.surface}`, background: n.actor_id ? (av ? `${colors.border}55` : GRADIENT) : '#64748b26', color: n.actor_id ? '#fff' : '#64748b' }}>
-                                        {n.actor_id ? (av ? <img src={av} alt="" className="w-full h-full object-cover" /> : (n.actor_slug || n.actor_name || '?').charAt(0).toUpperCase()) : <User size={14} />}
-                                    </span>
-                                )
-                            })}
-                        </span>
-                        <p className="text-[11px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>Últimas {preview.length}</p>
-                    </div>
                     {preview.map((n) => renderRow(n))}
                 </>
             ) : undefined}
