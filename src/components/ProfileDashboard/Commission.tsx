@@ -1270,7 +1270,8 @@ export default function Commission({ userId, profileSlug, onLatestUpdate, view =
         </div>
     )
 
-    // Cor do cartão de saldo, derivada da graduação (nada de nomes fixos: vem da configuração do nível)
+    // Cor do cartão de saldo: o lado esquerdo carrega as cores da graduação (vêm da configuração do nível, sem nomes
+    // fixos) e o degradê termina nas cores originais do cartão (laranja → vermelho do iUser).
     const cardTheme = (() => {
         // aceita '#rrggbb' e também 'rgb(r, g, b)' (resultado de uma mistura anterior)
         const parse = (v: string) => {
@@ -1282,28 +1283,28 @@ export default function Commission({ userId, profileSlug, onLatestUpdate, view =
             const c = (x: number, y: number) => Math.round(x + (y - x) * t)
             return `rgb(${c(A.r, B.r)}, ${c(A.g, B.g)}, ${c(A.b, B.b)})`
         }
-        const lum = (hex: string) => { const c = hexToRgb(hex); return (0.299 * c.r + 0.587 * c.g + 0.114 * c.b) / 255 }
+        const lum = (v: string) => { const c = parse(v); return (0.299 * c.r + 0.587 * c.g + 0.114 * c.b) / 255 }
         const lvl = graduation.data?.level
-        const next = graduation.data?.next_level
-        const base = (lvl?.border_colors?.[0] || lvl?.border_color || '#f97316')
-        const base2 = (lvl?.border_colors?.[1] || base)
-        const target = next?.border_color || base2
-        const p = graduation.data && next ? Math.min(Math.max(graduation.data.progress_percent, 0), 100) / 100 : 0
-        const light = lum(base) > 0.62
-        const text = light ? '#1f2937' : '#ffffff'
-        const bg = `linear-gradient(135deg, ${mixHex(base, '#000000', light ? 0.18 : 0.42)} 0%, ${base} 36%, ${mixHex(mixHex(base2, target, 0.25 + 0.6 * p), '#000000', light ? 0 : 0.14)} 72%, ${light ? mixHex(target, '#ffffff', 0.18) : mixHex(target, '#000000', 0.28)} 100%)`
+        // Níveis claros (prata, ouro...) ganham um pouco de sombra pra o texto branco continuar legível
+        const tone = (c: string) => (lum(c) > 0.6 ? mixHex(c, '#000000', 0.38) : c)
+        const c1 = tone(lvl?.border_colors?.[0] || lvl?.border_color || '#f97316')
+        const c2 = tone(lvl?.border_colors?.[1] || lvl?.border_colors?.[0] || lvl?.border_color || '#f97316')
+        const ORANGE = '#ea580c'
+        const RED = '#b91c1c'
+        // a ponta esquerda é mais funda (identifica o nível de relance); a cor da graduação segura até ~40% antes de virar laranja
+        const bg = `linear-gradient(110deg, ${mixHex(c1, '#000000', 0.3)} 0%, ${c1} 18%, ${c2} 40%, ${mixHex(c2, ORANGE, 0.55)} 60%, ${ORANGE} 82%, ${RED} 100%)`
         return {
             background: bg,
-            text,
-            shadow: mixHex(base, '#000000', 0.15).replace('rgb(', 'rgba(').replace(')', ', 0.35)'),
-            sheen: light ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.12)',
-            sheenSoft: light ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.08)',
-            buttonSolidBg: light ? '#1f2937' : '#ffffff',
-            buttonSolidText: light ? '#ffffff' : mixHex(base, '#000000', 0.45),
-            buttonGhostBg: light ? 'rgba(31,41,55,0.10)' : 'rgba(255,255,255,0.18)',
-            buttonGhostBorder: light ? 'rgba(31,41,55,0.35)' : 'rgba(255,255,255,0.5)',
-            track: light ? 'rgba(31,41,55,0.18)' : 'rgba(255,255,255,0.28)',
-            fill: light ? '#1f2937' : '#ffffff',
+            text: '#ffffff',
+            shadow: 'rgba(185, 28, 28, 0.32)',
+            sheen: 'rgba(255,255,255,0.12)',
+            sheenSoft: 'rgba(255,255,255,0.08)',
+            buttonSolidBg: '#ffffff',
+            buttonSolidText: '#b91c1c',
+            buttonGhostBg: 'rgba(255,255,255,0.18)',
+            buttonGhostBorder: 'rgba(255,255,255,0.5)',
+            track: 'rgba(255,255,255,0.28)',
+            fill: '#ffffff',
         }
     })()
 
