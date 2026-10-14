@@ -301,6 +301,8 @@ function VisitorDrawerContent({ recent, onGo, onClose }: { recent: RecentClickIt
 // A borda do plano é desenhada POR FORA da foto (3 px de cada lado) — por isso a foto fica menor quando tem borda,
 // pro conjunto ter exatamente o mesmo tamanho da logo.
 const BADGE = 48
+// Degradê do menu: o fundo atrás do cartão do app e a cor da navbar de baixo
+const MENU_GRADIENT = 'linear-gradient(160deg, #f97316 0%, #dc2626 100%)'
 function HeaderBadge({ userId, avatarUrl, onProfile, onHome, colors, noRing = false, label = 'Meu perfil', modeIcon, popToken = 0 }: {
     userId: string | null; avatarUrl: string | null | undefined; onProfile: () => void; onHome: () => void; colors: any
     /** Imagem que não é do perfil (logo da loja, foto do carro): sem a borda do plano */
@@ -559,7 +561,7 @@ export default function ModeShell({ children, search }: {
         <div
             aria-hidden={!drawerOpen}
             className="fixed inset-0"
-            style={{ background: 'linear-gradient(160deg, #f97316 0%, #dc2626 100%)', zIndex: 0 }}
+            style={{ background: MENU_GRADIENT, zIndex: 0 }}
         />
         {/* O menu fica no lado ESQUERDO e a página desliza pra direita */}
         <div
@@ -619,12 +621,14 @@ export default function ModeShell({ children, search }: {
             className="fixed bottom-0 left-0 right-0 z-40 border-t"
             style={{
                 // Com o menu aberto a barra fica de fora do cartão do app: sem fundo, em cima do degradê do menu
-                background: drawerOpen ? 'transparent' : `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.94)`,
-                backdropFilter: drawerOpen ? 'none' : 'blur(14px)',
-                WebkitBackdropFilter: drawerOpen ? 'none' : 'blur(14px)',
-                borderColor: drawerOpen ? 'transparent' : colors.border,
+                // Sempre da cor do menu (o mesmo degradê do fundo, preso à tela): parece que a barra vem de fora do app
+                backgroundImage: MENU_GRADIENT,
+                backgroundSize: '100vw 100dvh',
+                backgroundPosition: 'left bottom',
+                backgroundRepeat: 'no-repeat',
+                backgroundColor: '#dc2626',
+                borderColor: 'transparent',
                 paddingBottom: 'env(safe-area-inset-bottom)',
-                transition: 'background 350ms ease, border-color 350ms ease',
             }}
         >
             <div className="max-w-5xl mx-auto px-4 py-2 flex items-center">
@@ -661,15 +665,15 @@ export default function ModeShell({ children, search }: {
                             aria-expanded={drawerOpen}
                             className="min-w-0 flex-1 text-left rounded-xl py-1 transition active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]"
                         >
-                            <span className="block text-xs truncate" style={{ color: drawerOpen ? 'rgba(255,255,255,0.85)' : colors.textSecondary, transition: 'color 350ms ease' }}>{headerView.line1}</span>
+                            <span className="block text-xs truncate" style={{ color: 'rgba(255,255,255,0.85)' }}>{headerView.line1}</span>
                             <span className="flex items-center gap-1.5 min-w-0">
-                                <span className="text-base font-black truncate" style={{ color: drawerOpen ? '#fff' : colors.textPrimary, transition: 'color 350ms ease' }}>{headerView.line2}</span>
-                                <span className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center" style={{ background: drawerOpen ? 'rgba(255,255,255,0.22)' : `${colors.border}55`, transition: 'background 350ms ease' }}>
+                                <span className="text-base font-black truncate" style={{ color: '#fff' }}>{headerView.line2}</span>
+                                <span className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.22)' }}>
                                     <svg
                                         width="10" height="9" viewBox="0 0 10 9" aria-hidden
                                         style={{ transition: 'transform 350ms cubic-bezier(0.22, 1, 0.36, 1)', transform: drawerOpen ? 'rotate(-90deg)' : 'rotate(0deg)' }}
                                     >
-                                        <polygon points="5,0 10,9 0,9" fill={drawerOpen ? '#fff' : colors.textPrimary} />
+                                        <polygon points="5,0 10,9 0,9" fill="#fff" />
                                     </svg>
                                 </span>
                             </span>
@@ -684,9 +688,9 @@ export default function ModeShell({ children, search }: {
                         flex: searchOpen ? '1 1 0%' : '0 0 auto',
                         height: 48,
                         padding: 2,
-                        background: searchOpen ? colors.surface : drawerOpen ? 'rgba(255,255,255,0.2)' : `${colors.border}50`,
+                        background: searchOpen ? colors.surface : 'rgba(255,255,255,0.2)',
                         border: searchOpen ? `1.5px solid ${colors.border}` : '1.5px solid transparent',
-                        color: drawerOpen && !searchOpen ? '#fff' : colors.textPrimary,
+                        color: searchOpen ? colors.textPrimary : '#fff',
                         transition: 'flex 320ms cubic-bezier(0.22, 1, 0.36, 1), background 350ms ease, border-color 250ms ease',
                     }}
                 >
@@ -703,7 +707,7 @@ export default function ModeShell({ children, search }: {
                             onClick={() => go('/carrinho')}
                             aria-label="Carrinho"
                             className="relative w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 transition hover:scale-105 active:scale-95"
-                            style={{ background: topCart > 0 ? '#ea580c' : 'transparent', color: topCart > 0 || drawerOpen ? '#fff' : colors.textPrimary }}
+                            style={{ background: topCart > 0 ? '#fff' : 'transparent', color: topCart > 0 ? '#dc2626' : '#fff' }}
                         >
                             <ShoppingCart size={20} />
                             {topCart > 0 && (
@@ -714,7 +718,7 @@ export default function ModeShell({ children, search }: {
                             onClick={() => go(userId ? '/conversas' : '/login')}
                             aria-label="Conversas"
                             className={`relative w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 transition hover:scale-105 active:scale-95 ${topUnread > 0 ? 'animate-pulse' : ''}`}
-                            style={{ background: topUnread > 0 ? '#16a34a' : 'transparent', color: topUnread > 0 || drawerOpen ? '#fff' : colors.textPrimary }}
+                            style={{ background: topUnread > 0 ? '#16a34a' : 'transparent', color: '#fff' }}
                         >
                             <MessageCircle size={20} />
                             {topUnread > 0 && (
