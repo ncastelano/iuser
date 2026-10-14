@@ -48,7 +48,6 @@ import ProfileVisitors from './ProfileVisitors'
 import PublicationProfile from './ProfilePublication'
 import ProfileServiceListing from './ProfileServiceListing'
 import Commission from './Commission'
-import MyPoints from './MyPoints'
 import LastSeenSettings from './LastSeenSettings'
 import ProfileNotification from './ProfileNotification'
 import MyComments from './MyComments'
@@ -1365,7 +1364,6 @@ export default function ProfileDashboard({
     )
     const indicacoesNode = (
         <div className="mb-6 flex flex-col gap-4">
-            <MyPoints />
             <Commission userId={profile.id} onLatestUpdate={onIndicacoesUpdate} />
         </div>
     )
@@ -1381,13 +1379,8 @@ export default function ProfileDashboard({
 
     return (
         <div className="w-full px-4 md:px-6 pb-28">
-            {/* ===== ATALHOS DO PERFIL — bem em cima, antes de Informações do Perfil ===== */}
-            <div className="mt-3 mb-6 flex flex-col gap-4">
-                <ProfileLinkButtons profileSlug={profile.profileSlug || profileSlug || ''} />
-            </div>
-
-            {/* ===== Informações do Perfil — mesmo design de "Informações da Loja" ===== */}
-            <div className="mb-6">
+            {/* ===== Informações do Perfil — no topo (mesmo design de "Informações da Loja") ===== */}
+            <div className="mt-3 mb-6">
                 <ProfileInfo
                     profile={{
                         id: profile.id,
@@ -1398,6 +1391,11 @@ export default function ProfileDashboard({
                     }}
                     onProfileUpdate={(updates) => setProfile((prev: any) => ({ ...prev, ...updates }))}
                 />
+            </div>
+
+            {/* ===== ATALHOS DO PERFIL — logo abaixo das informações ===== */}
+            <div className="mb-6 flex flex-col gap-4">
+                <ProfileLinkButtons profileSlug={profile.profileSlug || profileSlug || ''} />
             </div>
 
             {/* ===== NOTIFICAÇÕES DO PERFIL — tudo o que acontece com o perfil ===== */}

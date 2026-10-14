@@ -34,6 +34,7 @@ import {
     ShieldCheck,
     GraduationCap,
     Coins,
+    Trophy,
 } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import { formatDistanceToNow } from 'date-fns'
@@ -53,6 +54,7 @@ import {
 } from '@/lib/benefits/types'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
 import { useMyGraduation, GraduationOverview, GraduationCommissions, GraduationTree } from './MyGraduation'
+import { useMyPoints, MyPointsBody } from './MyPoints'
 
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
@@ -145,7 +147,7 @@ const WITHDRAWAL_STATUS_COLOR: Record<WithdrawalRequest['status'], string> = {
 
 const MIN_WITHDRAWAL_AMOUNT = 20
 
-type Pane = 'graduacao' | 'rede' | 'comissoes' | 'status' | 'grant' | 'history'
+type Pane = 'pontuacao' | 'graduacao' | 'rede' | 'comissoes' | 'status' | 'grant' | 'history'
 
 // 31/12 23:59:59 (Brasília), em dias a partir de agora.
 function daysUntilEndOfYear(): number {
@@ -235,7 +237,9 @@ export default function Commission({ userId, profileSlug, onLatestUpdate }: Comm
     // O que cada pessoa vê vem do banco já filtrado por permissão/escopo —
     // esconder aba aqui é só conforto; quem decide é o servidor.
     // ============================================
-    const [pane, setPane] = useState<Pane>('graduacao')
+    const [pane, setPane] = useState<Pane>('pontuacao')
+    // Pontuação: agora mora no mesmo cartão, na primeira aba
+    const points = useMyPoints()
     // Graduação (nível, comissões, escada, árvore da rede): tudo no mesmo cartão, em abas
     const graduation = useMyGraduation()
     const [status, setStatus] = useState<MyStatus | null>(null)
@@ -606,8 +610,11 @@ export default function Commission({ userId, profileSlug, onLatestUpdate }: Comm
     // Quem não pode conceder nada não tem Conceder/Histórico.
     const activePane: Pane = (pane === 'grant' || pane === 'history') && !canManage
         ? 'rede'
-        : (pane === 'graduacao' || pane === 'comissoes') && !graduation.loading && !graduation.data ? 'rede' : pane
+        : pane === 'pontuacao' && !points
+            ? ((graduation.loading || graduation.data) ? 'graduacao' : 'rede')
+            : (pane === 'graduacao' || pane === 'comissoes') && !graduation.loading && !graduation.data ? 'rede' : pane
     const panes: { id: Pane; label: string; icon: typeof Gift }[] = [
+        ...(points ? [{ id: 'pontuacao' as const, label: 'Pontuação', icon: Trophy }] : []),
         ...(graduation.data || graduation.loading ? [{ id: 'graduacao' as const, label: 'Graduação', icon: GraduationCap }] : []),
         { id: 'rede', label: 'Minha rede', icon: Users },
         ...(graduation.data ? [{ id: 'comissoes' as const, label: 'Comissões', icon: Coins }] : []),
@@ -645,9 +652,10 @@ export default function Commission({ userId, profileSlug, onLatestUpdate }: Comm
                         <div className="flex items-center gap-3">
                             <div>
                                 <h3 className={`${isExpanded ? 'text-lg' : 'text-sm'} font-black`} style={{ color: textPrimary }}>
-                                    Minha graduação
+                                    Minha pontuação e graduação
                                 </h3>
                                 <p className="text-xs mt-0.5" style={{ color: textSecondary }}>
+                                    {points && <><b style={{ color: '#f97316' }}>{points.total}</b> pontos · </>}
                                     {members.length} pessoa{members.length !== 1 ? 's' : ''} na sua rede
                                     {totalCommission > 0 && ` · ${formatCurrency(totalCommission)} em comissão`}
                                 </p>
@@ -690,6 +698,8 @@ export default function Commission({ userId, profileSlug, onLatestUpdate }: Comm
                                     )
                                 })}
                             </div>
+
+                            {activePane === 'pontuacao' && points && <MyPointsBody data={points} />}
 
                             {activePane === 'graduacao' && (
                                 graduation.data

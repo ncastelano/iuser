@@ -1,41 +1,38 @@
 // src/components/ProfileDashboard/MyPoints.tsx
 //
 // "Minha pontuação": total de pontos, quanto cada ação já rendeu e como ganhar mais. Os pontos (e o peso de cada ação,
-// ajustado pelo admin) somam em "Melhores perfis". Tudo vem do banco (get_my_points).
+// ajustado pelo admin) somam em "Melhores perfis". Tudo vem do banco (get_my_points). Não é mais um cartão separado:
+// o Commission (o cartão único "Minha pontuação e graduação", com abas) usa o hook e o corpo daqui.
 'use client'
 
 import { useEffect, useState } from 'react'
 import { Trophy } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
-import DashboardSection from './DashboardSection'
 
 interface Rule { action: string; label: string; description: string | null; points: number; daily_limit: number | null }
-interface MyPointsData { total: number; rules: Rule[]; by_action: { action: string; times: number; points: number }[] }
+export interface MyPointsData { total: number; rules: Rule[]; by_action: { action: string; times: number; points: number }[] }
 
-export default function MyPoints() {
-    const { colors } = useTheme()
+export function useMyPoints() {
     const [data, setData] = useState<MyPointsData | null>(null)
-
     useEffect(() => {
-        supabase.rpc('get_my_points').then(({ data: d }) => setData((d as MyPointsData) || null))
+        let cancelled = false
+        supabase.rpc('get_my_points').then(({ data: d }) => { if (!cancelled) setData((d as MyPointsData) || null) })
+        return () => { cancelled = true }
     }, [])
+    return data
+}
 
-    if (!data) return null
+export function MyPointsBody({ data }: { data: MyPointsData }) {
+    const { colors } = useTheme()
     const done = new Map(data.by_action.map((a) => [a.action, a]))
-
     return (
-        <DashboardSection
-            storageKey="minha-pontuacao"
-            title="Minha pontuação"
-            subtitle="Pontos que sobem você em Melhores perfis"
-            collapsedSummary={<span><b style={{ color: '#f97316' }}>{data.total}</b> pontos</span>}
-        >
+        <div className="flex flex-col gap-4">
             <div className="flex items-center gap-3 rounded-2xl p-4 text-white" style={{ background: 'linear-gradient(135deg, #f97316, #dc2626)' }}>
                 <Trophy size={30} />
                 <div>
                     <p className="text-3xl font-black leading-none">{data.total}</p>
-                    <p className="text-xs font-bold opacity-90 mt-1">pontos no total</p>
+                    <p className="text-xs font-bold opacity-90 mt-1">pontos no total · sobem você em Melhores perfis</p>
                 </div>
             </div>
 
@@ -57,6 +54,6 @@ export default function MyPoints() {
                     )
                 })}
             </div>
-        </DashboardSection>
+        </div>
     )
 }

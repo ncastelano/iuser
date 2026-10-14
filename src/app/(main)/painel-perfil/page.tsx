@@ -6,7 +6,6 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { ExternalLink } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import ModeShell from '@/components/ModeShell'
@@ -31,27 +30,9 @@ export default function PainelPerfilPage() {
                 </div>
             ) : (
                 <>
-                    {/* Cabeçalho do painel: quem sou eu + "Ver perfil" */}
-                    <section className="mt-6 rounded-3xl border p-4 flex items-center gap-3" style={{ background: colors.surface, borderColor: colors.border, boxShadow: colors.shadow }}>
-                        <span className="w-14 h-14 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0 text-white text-xl font-black" style={{ background: GRADIENT }}>
-                            {avatarUrl ? <img src={avatarUrl} alt="" className="w-full h-full object-cover" /> : (profileSlug || '?').charAt(0).toUpperCase()}
-                        </span>
-                        <div className="min-w-0 flex-1">
-                            <p className="text-xs" style={{ color: colors.textSecondary }}>Painel do perfil</p>
-                            <h1 className="text-lg font-black leading-tight truncate" style={{ color: colors.textPrimary }}>@{profileSlug}</h1>
-                        </div>
-                        <button
-                            onClick={() => router.push(`/${profileSlug}`)}
-                            className="flex items-center gap-1.5 px-4 py-2.5 rounded-full text-sm font-black text-white flex-shrink-0 transition hover:scale-105 active:scale-95"
-                            style={{ background: GRADIENT, boxShadow: '0 4px 12px #f9731640' }}
-                        >
-                            <ExternalLink size={15} /> Ver perfil
-                        </button>
-                    </section>
-
                     {/* Tudo do painel do perfil (informações, notificações, comentários, agenda, publicações, indicações,
                         visitantes e configurações). O -mx cancela o recuo duplicado do painel dentro da casca. */}
-                    <div className="-mx-4 mt-2">
+                    <div className="-mx-4">
                         <ProfileDashboard profileSlug={profileSlug} avatarUrl={avatarUrl} />
                     </div>
                 </>
