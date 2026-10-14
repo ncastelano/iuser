@@ -198,8 +198,9 @@ export default function ProfileNotification({ userId }: { userId: string }) {
         return out
     }, [pageRows])
 
+    // Linha compacta: foto (ou o anônimo) com o selo do tipo, texto em até 2 linhas, hora e a bolinha de "novo"
     const renderRow = (n: Notif) => {
-                                const meta = KIND_ICON[n.kind] || { icon: Bell, color: colors.accent }
+        const meta = KIND_ICON[n.kind] || { icon: Bell, color: colors.accent }
         const Icon = meta.icon
         const avatar = getAvatarUrl(supabase, n.actor_avatar)
         const clickable = !!hrefOf(n)
@@ -207,32 +208,34 @@ export default function ProfileNotification({ userId }: { userId: string }) {
             <button
                 key={n.id}
                 onClick={() => open(n)}
-                className={`w-full flex items-start gap-3 px-2 py-1.5 rounded-xl text-left transition-colors ${clickable ? 'hover:bg-black/5' : 'cursor-default'}`}
-                style={{ background: n.read_at ? 'transparent' : '#22c55e14' }}
+                className={`w-full flex items-center gap-2.5 px-2 py-1.5 rounded-xl text-left transition-colors ${clickable ? 'hover:bg-black/5' : 'cursor-default'}`}
+                style={{ background: n.read_at ? 'transparent' : '#22c55e12' }}
             >
                 <span className="relative flex-shrink-0">
                     {n.actor_id ? (
-                        <PlanAvatarRing userId={n.actor_id}>
+                        <PlanAvatarRing userId={n.actor_id} linkToProfile={false}>
                             {avatar ? (
-                                <img src={avatar} alt="" className="w-11 h-11 rounded-full object-cover" />
+                                <img src={avatar} alt="" className="w-9 h-9 rounded-full object-cover" />
                             ) : (
-                                <span className="w-11 h-11 rounded-full flex items-center justify-center text-white font-black" style={{ background: GRADIENT }}>
+                                <span className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-black" style={{ background: GRADIENT }}>
                                     {(n.actor_slug || n.actor_name || '?').charAt(0).toUpperCase()}
                                 </span>
                             )}
                         </PlanAvatarRing>
                     ) : (
-                        <span className="w-11 h-11 rounded-full flex items-center justify-center" style={{ background: `${colors.border}55`, color: colors.textSecondary }}><User size={20} /></span>
+                        <span className="w-9 h-9 rounded-full flex items-center justify-center" style={{ background: '#64748b26', color: '#64748b' }}><User size={17} /></span>
                     )}
-                    <span className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-white" style={{ background: meta.color, border: `2px solid ${colors.surface}` }}>
-                        <Icon size={11} />
+                    <span className="absolute -bottom-1 -right-1 w-[18px] h-[18px] rounded-full flex items-center justify-center text-white" style={{ background: meta.color, border: `2px solid ${colors.surface}` }}>
+                        <Icon size={10} />
                     </span>
                 </span>
                 <span className="min-w-0 flex-1">
-                    <span className="block text-sm leading-snug break-words" style={{ color: colors.textPrimary, fontWeight: n.read_at ? 500 : 800 }}>{textOf(n)}</span>
-                    <span className="block text-[11px] mt-0.5" style={{ color: colors.textSecondary }}>{timeLabel(n.created_at)}</span>
+                    <span className="block text-[13px] leading-snug break-words line-clamp-2" style={{ color: colors.textPrimary, fontWeight: n.read_at ? 500 : 800 }}>{textOf(n)}</span>
                 </span>
-                {!n.read_at && <span className="w-2.5 h-2.5 rounded-full flex-shrink-0 mt-1.5" style={{ background: '#22c55e' }} />}
+                <span className="flex flex-col items-end gap-1 flex-shrink-0">
+                    <span className="text-[10px] whitespace-nowrap" style={{ color: colors.textSecondary }}>{timeLabel(n.created_at).replace('há ', '')}</span>
+                    {!n.read_at && <span className="w-2 h-2 rounded-full" style={{ background: '#22c55e' }} />}
+                </span>
             </button>
         )
     }
@@ -246,7 +249,19 @@ export default function ProfileNotification({ userId }: { userId: string }) {
             title="Notificações do perfil"
             collapsedContent={items !== null && preview.length > 0 ? (
                 <>
-                    <p className="text-[11px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>Últimas notificações</p>
+                    <div className="flex items-center gap-2 mb-1">
+                        <span className="flex -space-x-2">
+                            {preview.map((n) => {
+                                const av = getAvatarUrl(supabase, n.actor_avatar)
+                                return (
+                                    <span key={n.id} className="w-7 h-7 rounded-full flex items-center justify-center overflow-hidden text-[11px] font-black text-white" style={{ boxShadow: `0 0 0 2px ${colors.surface}`, background: n.actor_id ? (av ? `${colors.border}55` : GRADIENT) : '#64748b26', color: n.actor_id ? '#fff' : '#64748b' }}>
+                                        {n.actor_id ? (av ? <img src={av} alt="" className="w-full h-full object-cover" /> : (n.actor_slug || n.actor_name || '?').charAt(0).toUpperCase()) : <User size={14} />}
+                                    </span>
+                                )
+                            })}
+                        </span>
+                        <p className="text-[11px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>Últimas {preview.length}</p>
+                    </div>
                     {preview.map((n) => renderRow(n))}
                 </>
             ) : undefined}
