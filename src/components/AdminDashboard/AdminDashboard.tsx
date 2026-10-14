@@ -312,6 +312,27 @@ interface WhatsAppBotStoreRow {
 // aqui. Também dá pra buscar qualquer loja (mesmo sem ter pedido) pra
 // conectar ou desconectar na mão.
 function WhatsAppBotSection({ cardStyle, colors }: SectionProps) {
+    // Mostrar (ou esconder) o atendimento automático para as lojas — escondido por padrão
+    const [botVisible, setBotVisible] = useState<boolean | null>(null)
+    const [togglingBot, setTogglingBot] = useState(false)
+    useEffect(() => {
+        supabase.from('feature_flags').select('enabled').eq('key', 'store_whatsapp_bot').maybeSingle()
+            .then(({ data }) => setBotVisible(!!(data as { enabled?: boolean } | null)?.enabled))
+    }, [])
+    const toggleBotVisible = async () => {
+        if (botVisible === null) return
+        setTogglingBot(true)
+        try {
+            await callAdminApi('/api/admin/feature-flags', { key: 'store_whatsapp_bot', enabled: !botVisible })
+            setBotVisible(!botVisible)
+            toast.success(!botVisible ? 'Atendimento automático visível para as lojas' : 'Atendimento automático escondido das lojas')
+        } catch (err: any) {
+            toast.error(err.message || 'Erro ao salvar')
+        } finally {
+            setTogglingBot(false)
+        }
+    }
+
     const [stores, setStores] = useState<WhatsAppBotStoreRow[]>([])
     const [loading, setLoading] = useState(true)
     const [query, setQuery] = useState('')
@@ -488,6 +509,27 @@ function WhatsAppBotSection({ cardStyle, colors }: SectionProps) {
 
     return (
         <div className="space-y-3">
+            <div style={cardStyle} className="flex items-center justify-between gap-4">
+                <div className="min-w-0">
+                    <p className="text-sm font-black" style={{ color: colors.textPrimary }}>Mostrar o atendimento automático nas lojas</p>
+                    <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>
+                        {botVisible
+                            ? 'Visível: as lojas veem o card "Atendimento automático por WhatsApp" no painel e podem pedir o serviço.'
+                            : 'Escondido: nenhuma loja vê o card. Lojas já conectadas continuam guardadas aqui, só não aparecem pra elas.'}
+                    </p>
+                </div>
+                <button
+                    onClick={toggleBotVisible}
+                    disabled={botVisible === null || togglingBot}
+                    role="switch"
+                    aria-checked={!!botVisible}
+                    className="relative w-12 h-7 rounded-full flex-shrink-0 transition-colors disabled:opacity-60"
+                    style={{ background: botVisible ? '#22c55e' : `${colors.border}` }}
+                >
+                    <span className="absolute top-0.5 w-6 h-6 rounded-full bg-white transition-all" style={{ left: botVisible ? 22 : 2 }} />
+                </button>
+            </div>
+
             <div style={cardStyle} className="space-y-3">
                 <p className="text-xs font-black uppercase tracking-wider flex items-center gap-1.5" style={{ color: colors.textSecondary }}>
                     <MessageCircle size={12} />

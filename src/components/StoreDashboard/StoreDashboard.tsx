@@ -41,6 +41,7 @@ import StoreOrders from './StoreOrders'
 import StoreDeliverySettings from './StoreDeliverySettings'
 import StorePaymentMethods from './StorePaymentMethods'
 import StoreWhatsAppBot from './StoreWhatsAppBot'
+import { useFeatureFlag } from '@/hooks/useFeatureFlag'
 
 import { isStoreOpenNow, getStoreStatusWithLunch, getNextOpeningInfo } from '@/lib/storeHours'
 import StoreSchedule from '@/components/StoreSchedule'
@@ -122,6 +123,8 @@ export default function StoreDashboard({
     const surfaceRgb = hexToRgb(colors.surface)
 
     const { userId } = useProfile()
+    // Atendimento automático por WhatsApp: escondido, a menos que o administrador ligue (Admin → WhatsApp Bot)
+    const showWhatsAppBot = useFeatureFlag('store_whatsapp_bot')
     const [store, setStore] = useState<any>(null)
     const [loading, setLoading] = useState(true)
     const [refreshing, setRefreshing] = useState(false)
@@ -765,9 +768,11 @@ export default function StoreDashboard({
             </div>
 
             {/* ===== Atendimento automático por WhatsApp ===== */}
-            <div className="mb-6">
-                <StoreWhatsAppBot storeId={store.id} />
-            </div>
+            {showWhatsAppBot && (
+                <div className="mb-6">
+                    <StoreWhatsAppBot storeId={store.id} />
+                </div>
+            )}
 
             {/* ===== Formas de Pagamento ===== */}
             <div className="mb-6">
