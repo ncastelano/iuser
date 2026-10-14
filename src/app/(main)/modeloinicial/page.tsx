@@ -12,7 +12,7 @@ import { ReactNode, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
     Search, ShoppingBag, Store as StoreIcon, Car, Wrench, Megaphone, Briefcase, Users, MessageCircle,
-    ChevronRight, Star, MapPin, Eye, User, LogIn, LogOut, Radar, UserPlus, X, Package, ShoppingCart, type LucideIcon,
+    ChevronRight, Star, MapPin, Eye, User, LogIn, LogOut, Radar, UserPlus, X, Package, ShoppingCart, Scissors, Check, type LucideIcon,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
@@ -242,26 +242,49 @@ function SellDialog({ open, onClose, userId, colors, go, mode = 'all' }: { open:
 interface DrawerData {
     stores: { id: string; name: string; slug: string; logo: string | null; open: boolean }[]
     vehicles: { kind: string; model: string | null }[]
-    applications: number
+    /** Modo motorista ligado (driver_pricing.driver_mode_active) */
+    driverActive: boolean
+    /** Modo prestador ligado no perfil (profiles.service_mode_active) */
+    providerOn: boolean
 }
 const VEHICLE_LABEL: Record<string, string> = { carro: 'Carro', moto: 'Moto', bicicleta: 'Bicicleta' }
 
-function MenuDrawerContent({ slug, avatarUrl, data, onGo, onClose }: {
-    slug: string | null; avatarUrl: string | null | undefined; data: DrawerData; onGo: (path: string) => void; onClose: () => void
+function MenuDrawerContent({ slug, avatarUrl, data, active, onSelect, onClose }: {
+    slug: string | null; avatarUrl: string | null | undefined; data: DrawerData
+    /** Modo selecionado: 'perfil' | 'loja:<slug>' | 'motorista:<tipo>' */
+    active: string
+    onSelect: (mode: string, path: string) => void; onClose: () => void
 }) {
-    const Row = ({ icon, title, desc, onClick, dot }: { icon: ReactNode; title: string; desc?: string; onClick: () => void; dot?: string }) => (
-        <button
-            onClick={onClick}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl text-left text-white transition hover:bg-white/15 active:bg-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
-        >
-            <span className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden" style={{ background: 'rgba(255,255,255,0.18)' }}>{icon}</span>
-            <span className="min-w-0 flex-1">
-                <span className="block text-sm font-black leading-tight truncate">{title}</span>
-                {desc && <span className="flex items-center gap-1.5 text-xs opacity-80 truncate">{dot && <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: dot }} />}{desc}</span>}
-            </span>
-            <ChevronRight size={16} className="flex-shrink-0 opacity-70" />
-        </button>
-    )
+    const activeLabel = active.startsWith('loja:')
+        ? `Loja · ${data.stores.find((st) => `loja:${st.slug}` === active)?.name || ''}`
+        : active.startsWith('motorista:')
+            ? `Motorista · ${VEHICLE_LABEL[active.split(':')[1]] || 'Veículo'}`
+            : 'Meu perfil'
+
+    const Row = ({ mode, icon, title, desc, dot, path }: { mode: string; icon: ReactNode; title: string; desc?: string; dot?: string; path: string }) => {
+        const selected = active === mode
+        return (
+            <button
+                onClick={() => onSelect(mode, path)}
+                aria-pressed={selected}
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl text-left text-white transition hover:bg-white/15 active:bg-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                style={selected ? { background: 'rgba(255,255,255,0.22)', boxShadow: 'inset 0 0 0 1.5px rgba(255,255,255,0.85)' } : undefined}
+            >
+                <span className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden" style={{ background: 'rgba(255,255,255,0.18)' }}>{icon}</span>
+                <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-black leading-tight truncate">{title}</span>
+                    {desc && (
+                        <span className="flex items-center gap-1.5 text-xs opacity-90 truncate">
+                            {dot && <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: dot }} />}{desc}
+                        </span>
+                    )}
+                </span>
+                {selected
+                    ? <span className="flex-shrink-0 w-6 h-6 rounded-full bg-white flex items-center justify-center" title="Modo selecionado"><Check size={14} color="#dc2626" strokeWidth={3} /></span>
+                    : <ChevronRight size={16} className="flex-shrink-0 opacity-70" />}
+            </button>
+        )
+    }
     const Label = ({ children }: { children: ReactNode }) => (
         <p className="px-3 mt-5 mb-1.5 text-[11px] font-black uppercase tracking-widest text-white/70">{children}</p>
     )
@@ -273,8 +296,8 @@ function MenuDrawerContent({ slug, avatarUrl, data, onGo, onClose }: {
                     {avatarUrl ? <img src={avatarUrl} alt="" className="w-full h-full object-cover" /> : <User size={26} color="#fff" />}
                 </span>
                 <span className="min-w-0 flex-1">
-                    <span className="block text-xs text-white/80">Bem-vindo de volta</span>
                     <span className="block text-base font-black text-white truncate">{slug ? `@${slug}` : 'Minha conta'}</span>
+                    <span className="block text-xs text-white/85 leading-snug break-words">Modo atual: <b>{activeLabel}</b></span>
                 </span>
                 <button onClick={onClose} aria-label="Fechar menu" className="w-9 h-9 rounded-full flex items-center justify-center text-white hover:bg-white/15 flex-shrink-0">
                     <X size={20} />
@@ -282,7 +305,14 @@ function MenuDrawerContent({ slug, avatarUrl, data, onGo, onClose }: {
             </div>
 
             <div className="mt-5">
-                <Row icon={<User size={20} color="#fff" />} title="Meu perfil" desc={slug ? `@${slug}` : undefined} onClick={() => onGo('/?view=perfil')} />
+                <Row
+                    mode="perfil"
+                    icon={<User size={20} color="#fff" />}
+                    title="Meu perfil"
+                    desc={data.providerOn ? 'Modo prestador ligado' : slug ? `@${slug}` : undefined}
+                    dot={data.providerOn ? '#4ade80' : undefined}
+                    path="/?view=perfil"
+                />
             </div>
 
             {data.stores.length > 0 && (
@@ -291,11 +321,12 @@ function MenuDrawerContent({ slug, avatarUrl, data, onGo, onClose }: {
                     {data.stores.map((st) => (
                         <Row
                             key={st.id}
+                            mode={`loja:${st.slug}`}
                             icon={st.logo ? <img src={st.logo} alt="" className="w-full h-full object-cover" /> : <StoreIcon size={20} color="#fff" />}
                             title={st.name}
                             desc={st.open ? 'Aberta agora' : 'Fechada agora'}
                             dot={st.open ? '#4ade80' : '#fca5a5'}
-                            onClick={() => onGo(`/?view=loja&store=${encodeURIComponent(st.slug)}`)}
+                            path={`/?view=loja&store=${encodeURIComponent(st.slug)}`}
                         />
                     ))}
                 </>
@@ -307,24 +338,14 @@ function MenuDrawerContent({ slug, avatarUrl, data, onGo, onClose }: {
                     {data.vehicles.map((v) => (
                         <Row
                             key={v.kind}
+                            mode={`motorista:${v.kind}`}
                             icon={<Car size={20} color="#fff" />}
-                            title={VEHICLE_LABEL[v.kind] || 'Veículo'}
-                            desc={v.model || 'Veículo cadastrado'}
-                            onClick={() => onGo(`/painel-motorista?veiculo=${encodeURIComponent(v.kind)}`)}
+                            title={`${VEHICLE_LABEL[v.kind] || 'Veículo'}${v.model ? ` · ${v.model}` : ''}`}
+                            desc={data.driverActive ? 'Motorista ativado' : 'Motorista desligado'}
+                            dot={data.driverActive ? '#4ade80' : '#fca5a5'}
+                            path={`/painel-motorista?veiculo=${encodeURIComponent(v.kind)}`}
                         />
                     ))}
-                </>
-            )}
-
-            {data.applications > 0 && (
-                <>
-                    <Label>Modo prestador</Label>
-                    <Row
-                        icon={<Briefcase size={20} color="#fff" />}
-                        title="Minhas inscrições"
-                        desc={`${data.applications} ${data.applications === 1 ? 'inscrição' : 'inscrições'}`}
-                        onClick={() => onGo('/procurar-servico?aba=inscrevi')}
-                    />
                 </>
             )}
         </div>
@@ -633,15 +654,22 @@ export default function ModeloInicialPage() {
 
     // Menu lateral: abre pelo avatar. Carrega o que a pessoa tem (loja, veículo, inscrições) pra mostrar só isso.
     const [drawerOpen, setDrawerOpen] = useState(false)
-    const [drawerData, setDrawerData] = useState<DrawerData>({ stores: [], vehicles: [], applications: 0 })
+    const [drawerData, setDrawerData] = useState<DrawerData>({ stores: [], vehicles: [], driverActive: false, providerOn: false })
+    // Modo selecionado (guardado no aparelho, por conta): 'perfil' | 'loja:<slug>' | 'motorista:<tipo>'
+    const [activeMode, setActiveMode] = useState('perfil')
     useEffect(() => {
-        if (!userId) { setDrawerData({ stores: [], vehicles: [], applications: 0 }); return }
+        if (!userId) return
+        try { setActiveMode(localStorage.getItem(`iuser_mode_${userId}`) || 'perfil') } catch { /* sem armazenamento */ }
+    }, [userId])
+    useEffect(() => {
+        if (!userId) { setDrawerData({ stores: [], vehicles: [], driverActive: false, providerOn: false }); return }
         let cancelled = false
         ;(async () => {
-            const [{ data: sts }, { data: veh }, { count }] = await Promise.all([
+            const [{ data: sts }, { data: veh }, { data: drv }, { data: prof }] = await Promise.all([
                 supabase.from('stores').select('id, name, "storeSlug", logo_url, business_hours').eq('owner_id', userId),
                 supabase.from('driver_vehicles').select('vehicle_kind, car_model').eq('driver_id', userId),
-                supabase.from('service_applications').select('id', { count: 'exact', head: true }).eq('applicant_id', userId),
+                supabase.from('driver_pricing').select('driver_mode_active').eq('driver_id', userId).maybeSingle(),
+                supabase.from('profiles').select('service_mode_active').eq('id', userId).maybeSingle(),
             ])
             if (cancelled) return
             setDrawerData({
@@ -651,7 +679,8 @@ export default function ModeloInicialPage() {
                     open: isStoreOpenNow(st.business_hours as BusinessHours | null),
                 })),
                 vehicles: (veh || []).map((v: any) => ({ kind: v.vehicle_kind, model: v.car_model || null })),
-                applications: count || 0,
+                driverActive: !!(drv as any)?.driver_mode_active,
+                providerOn: !!(prof as any)?.service_mode_active,
             })
         })().catch(() => { /* o menu só mostra o perfil */ })
         return () => { cancelled = true }
@@ -727,7 +756,13 @@ export default function ModeloInicialPage() {
                     slug={profileSlug}
                     avatarUrl={avatarUrl}
                     data={drawerData}
-                    onGo={(path) => { setDrawerOpen(false); router.push(path) }}
+                    active={activeMode}
+                    onSelect={(mode, path) => {
+                        setActiveMode(mode)
+                        try { localStorage.setItem(`iuser_mode_${userId}`, mode) } catch { /* sem armazenamento */ }
+                        setDrawerOpen(false)
+                        router.push(path)
+                    }}
                     onClose={() => setDrawerOpen(false)}
                 />
             )}
@@ -886,7 +921,9 @@ export default function ModeloInicialPage() {
                             <h2 className="text-lg font-black" style={{ color: colors.textPrimary }}>Explore lojas por categoria</h2>
                             <div className="grid grid-cols-4 md:grid-cols-8 gap-x-2 gap-y-4 mt-3">
                                 {categorias.filter((c) => c.slug !== 'comunidades' && c.slug !== 'social').map((c) => {
-                                    const Icon = c.icone
+                                    // Só nesta página: "Transporte e Logística" aparece como "Frete" e "Serviços" ganha a tesourinha
+                                    const Icon = c.slug === 'servicos' ? Scissors : c.icone
+                                    const label = c.slug === 'transporte' ? 'Frete' : c.nome
                                     return (
                                         <button
                                             key={c.slug}
@@ -896,7 +933,7 @@ export default function ModeloInicialPage() {
                                             <span className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{ background: `${c.color}1f`, color: c.color }}>
                                                 <Icon size={26} />
                                             </span>
-                                            <span className="text-[11px] font-bold leading-tight" style={{ color: colors.textPrimary }}>{c.nome}</span>
+                                            <span className="text-[11px] font-bold leading-tight" style={{ color: colors.textPrimary }}>{label}</span>
                                         </button>
                                     )
                                 })}
