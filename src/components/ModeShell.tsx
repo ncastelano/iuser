@@ -404,7 +404,27 @@ export default function ModeShell({ children }: { children: ReactNode }) {
                     />
                     <div className="min-w-0 flex-1">
                         <p className="text-xs truncate" style={{ color: colors.textSecondary }}>{headerView.line1}</p>
-                        <p className="text-base font-black truncate" style={{ color: colors.textPrimary }}>{headerView.line2}</p>
+                        <div className="flex items-center gap-1.5 min-w-0">
+                            <p className="text-base font-black truncate" style={{ color: colors.textPrimary }}>{headerView.line2}</p>
+                            {/* Triângulo-botão: aponta pra baixo com o menu fechado e vira pra esquerda com o menu aberto */}
+                            {userId && (
+                                <button
+                                    type="button"
+                                    onClick={() => { window.scrollTo({ top: 0 }); setDrawerOpen((v) => !v) }}
+                                    aria-label={drawerOpen ? 'Fechar menu' : 'Abrir menu'}
+                                    aria-expanded={drawerOpen}
+                                    className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center transition hover:scale-110 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]"
+                                    style={{ background: `${colors.border}55` }}
+                                >
+                                    <svg
+                                        width="10" height="9" viewBox="0 0 10 9" aria-hidden
+                                        style={{ transition: 'transform 350ms cubic-bezier(0.22, 1, 0.36, 1)', transform: drawerOpen ? 'rotate(90deg)' : 'rotate(0deg)' }}
+                                    >
+                                        <polygon points="0,0 10,0 5,9" fill={colors.textPrimary} />
+                                    </svg>
+                                </button>
+                            )}
+                        </div>
                     </div>
                     {/* Atalhos que valem em qualquer tela: conversas (com não lidas) e carrinho (com itens) */}
                     <button
