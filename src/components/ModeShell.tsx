@@ -762,8 +762,16 @@ export default function ModeShell({ children, search }: {
                     {/* Nome, frase e triângulo: um botão só — abre/fecha o menu (igual ao selo) */}
                         <button
                             type="button"
-                            onClick={() => { window.scrollTo({ top: 0 }); setDrawerOpen((v) => !v) }}
-                            aria-label={drawerOpen ? 'Fechar menu' : 'Abrir menu'}
+                            onClick={() => {
+                                // Numa das abas (carrinho, conversas, busca): tocar aqui volta pra página do modo escolhido
+                                // no menu — a aba clara desliza de volta pra cá. Na página do modo, abre/fecha o menu.
+                                if (userId && dataLoaded && activeTab !== null && !drawerOpen) {
+                                    const back = modePath(activeMode, drawerData)
+                                    if (back && back !== '/') { setPendingTab('mode'); go(back); return }
+                                }
+                                window.scrollTo({ top: 0 }); setDrawerOpen((v) => !v)
+                            }}
+                            aria-label={drawerOpen ? 'Fechar menu' : activeTab !== null ? 'Voltar ao modo escolhido' : 'Abrir menu'}
                             aria-expanded={drawerOpen}
                             className="relative min-w-0 flex-1 text-left rounded-xl py-1 transition active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]"
                         >
