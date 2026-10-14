@@ -4,6 +4,7 @@
 
 import { useLevelsFor } from '@/hooks/useLevelsFor'
 import LevelBadge from '@/components/Graduation/LevelBadge'
+import { levelGradient } from '@/lib/graduation'
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
@@ -868,7 +869,7 @@ export default function Commission({ userId, profileSlug, onLatestUpdate, view =
         </>
     )
 
-    // ===== VISÃO "MINHA REDE": a carteira — saldo, sacar, convidar e quem está na rede =====
+    // ===== VISÃO "MINHA REDE": o "cartão de saldo" — saldo, sacar e convidar; embaixo, os detalhes da rede =====
     const redeContent = (
         <>
 
@@ -1206,38 +1207,24 @@ export default function Commission({ userId, profileSlug, onLatestUpdate, view =
                         <span aria-hidden className="absolute -right-10 -top-12 w-44 h-44 rounded-full" style={{ background: 'rgba(255,255,255,0.10)' }} />
                         <span aria-hidden className="absolute -right-2 top-16 w-28 h-28 rounded-full" style={{ background: 'rgba(255,255,255,0.08)' }} />
 
-                        <div className="relative flex items-center justify-between gap-3">
-                            <div className="flex items-center gap-2">
-                                <span className="w-9 h-7 rounded-md" style={{ background: 'linear-gradient(135deg, #fde68a, #f59e0b)', boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.12)' }} aria-hidden />
-                                <span className="text-[11px] font-black uppercase tracking-[0.18em] opacity-90">Minha rede</span>
-                            </div>
-                            {graduation.data && <LevelBadge level={graduation.data.level} size="sm" />}
+                        <div className="relative flex items-center gap-2.5">
+                            {/* Chip do cartão: na cor da borda da graduação */}
+                            <span
+                                className="w-9 h-7 rounded-md flex-shrink-0"
+                                style={{
+                                    background: graduation.data
+                                        ? (['gradient', 'diamond'].includes(graduation.data.level.border_style) ? levelGradient(graduation.data.level) : graduation.data.level.border_color)
+                                        : 'linear-gradient(135deg, #fde68a, #f59e0b)',
+                                    boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.15), 0 1px 4px rgba(0,0,0,0.2)',
+                                }}
+                                aria-hidden
+                            />
+                            {graduation.data && <span className="rounded-full" style={{ background: 'rgba(255,255,255,0.96)', padding: 1 }}><LevelBadge level={graduation.data.level} size="sm" /></span>}
                         </div>
 
                         <div className="relative mt-4">
                             <p className="text-[11px] font-bold uppercase tracking-wider opacity-85">Saldo disponível</p>
                             <p className="text-4xl font-black leading-tight">R$ {walletBalance.toFixed(2)}</p>
-                        </div>
-
-                        <div className="relative mt-4 flex items-center justify-between gap-3">
-                            <div className="flex items-center gap-2.5 min-w-0">
-                                {faces.length > 0 && (
-                                    <span className="flex -space-x-2 flex-shrink-0">
-                                        {faces.map((m) => {
-                                            const img = getImageUrl(m.avatar_url)
-                                            return (
-                                                <span key={m.id} className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center text-xs font-black flex-shrink-0" style={{ boxShadow: '0 0 0 2px #dc2626', background: img ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.35)' }}>
-                                                    {img ? <img src={img} alt="" className="w-full h-full object-cover" /> : (m.name || '?').charAt(0).toUpperCase()}
-                                                </span>
-                                            )
-                                        })}
-                                    </span>
-                                )}
-                                <span className="text-xs leading-tight min-w-0">
-                                    <b className="text-sm">{members.length}</b> {members.length === 1 ? 'pessoa' : 'pessoas'} na rede
-                                    {totalCommission > 0 && <span className="block opacity-85">{formatCurrency(totalCommission)} em comissão</span>}
-                                </span>
-                            </div>
                         </div>
 
                         <div className="relative mt-4 grid grid-cols-2 gap-2">
@@ -1281,7 +1268,27 @@ export default function Commission({ userId, profileSlug, onLatestUpdate, view =
                         >
                             <div>
                                 <h3 className="text-sm font-black" style={{ color: textPrimary }}>Detalhes da rede</h3>
-                                <p className="text-[11px] mt-0.5" style={{ color: textSecondary }}>Quem você indicou, extrato de vendas, saques e lançamentos</p>
+                                <div className="flex items-center gap-2 mt-1.5">
+                                    {faces.length > 0 && (
+                                        <span className="flex -space-x-2 flex-shrink-0">
+                                            {faces.map((m) => {
+                                                const img = getImageUrl(m.avatar_url)
+                                                return (
+                                                    <span key={m.id} className="w-7 h-7 rounded-full overflow-hidden flex items-center justify-center text-[10px] font-black text-white flex-shrink-0" style={{ boxShadow: `0 0 0 2px ${colors.surface}`, background: img ? `${borderColor}55` : GRADIENT }}>
+                                                        {img ? <img src={img} alt="" className="w-full h-full object-cover" /> : (m.name || '?').charAt(0).toUpperCase()}
+                                                    </span>
+                                                )
+                                            })}
+                                        </span>
+                                    )}
+                                    <span className="text-[11px]" style={{ color: textSecondary }}>
+                                        {loading
+                                            ? 'Carregando sua rede…'
+                                            : members.length === 0
+                                                ? 'Você ainda não indicou ninguém'
+                                                : <><b style={{ color: textPrimary }}>{members.length}</b> {members.length === 1 ? 'pessoa' : 'pessoas'} na rede{totalCommission > 0 && ` · ${formatCurrency(totalCommission)} em comissão`}</>}
+                                    </span>
+                                </div>
                             </div>
                             {isExpanded ? <ChevronUp size={18} style={{ color: textSecondary }} /> : <ChevronDown size={18} style={{ color: textSecondary }} />}
                         </button>
