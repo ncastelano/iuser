@@ -147,18 +147,14 @@ function MenuDrawerContent({ slug, avatarUrl, data, active, onSelect, onGo, onCl
 
     return (
         <div className="h-full w-full flex flex-col px-4 pt-6 pb-8 overflow-y-auto">
-            <div className="flex items-center gap-3 px-1">
-                <span className="w-14 h-14 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0 border-2 border-white/80" style={{ background: 'rgba(255,255,255,0.2)' }}>
-                    {avatarUrl ? <img src={avatarUrl} alt="" className="w-full h-full object-cover" /> : <User size={26} color="#fff" />}
-                </span>
-                <span className="min-w-0 flex-1">
-                    <span className="block text-base font-black text-white truncate">{slug ? `@${slug}` : 'Minha conta'}</span>
-                </span>
+            {/* Só o fechar: a foto e o @ aparecem uma vez só, no cartão "Meu perfil" logo abaixo */}
+            <div className="flex justify-end">
                 <button onClick={onClose} aria-label="Fechar menu" className="w-9 h-9 rounded-full flex items-center justify-center text-white hover:bg-white/15 flex-shrink-0">
                     <X size={20} />
                 </button>
             </div>
 
+            {/* Meu perfil: tudo num cartão só — foto, @, modo prestador (a bolinha verde) e os dois botões */}
             <Panel title="Meu perfil">
                 <DrawerRow
                     mode="perfil"
@@ -166,25 +162,18 @@ function MenuDrawerContent({ slug, avatarUrl, data, active, onSelect, onGo, onCl
                     onSelect={onSelect}
                     icon={<User size={20} color="#fff" />}
                     image={avatarUrl}
-                    title="Meu perfil"
-                    desc={slug ? `@${slug}` : undefined}
+                    title={slug ? `@${slug}` : 'Meu perfil'}
+                    desc={data.providerOn ? 'Modo prestador ligado' : undefined}
+                    dot={data.providerOn ? '#4ade80' : undefined}
+                    actions={(
+                        <>
+                            {slug && <DrawerPill onClick={() => onGo(`/${slug}`)}>Ver perfil</DrawerPill>}
+                            <DrawerPill solid onClick={() => onGo('/painel-perfil')}>Painel</DrawerPill>
+                            {data.providerOn && <DrawerPill onClick={() => onGo('/modoprestador')}>Serviços</DrawerPill>}
+                        </>
+                    )}
                 />
             </Panel>
-
-            {data.providerOn && (
-                <Panel title="Modo prestador">
-                    <DrawerRow
-                        mode="prestador"
-                        active={active}
-                        onSelect={onSelect}
-                        icon={<Wrench size={20} color="#fff" />}
-                        image={avatarUrl}
-                        title="Modo prestador"
-                        desc="Modo prestador ligado"
-                        dot="#4ade80"
-                    />
-                </Panel>
-            )}
 
             <Panel title="Modo loja">
                 {data.stores.length > 0 ? data.stores.map((st) => (
