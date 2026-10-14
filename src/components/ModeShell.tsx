@@ -222,7 +222,15 @@ function MenuDrawerContent({ slug, avatarUrl, data, active, recent, onSelect, on
                 />
             </Panel>
 
-            {/* Explorar: a lupa + as 5 últimas coisas buscadas; leva ao /modeloinicial */}
+            <DrawerExplorar recent={recent} onGo={onGo} />
+        </div>
+    )
+}
+
+// Explorar: a lupa + as 5 últimas coisas buscadas; leva ao /modeloinicial
+function DrawerExplorar({ recent, onGo }: { recent: RecentClickItem[]; onGo: (path: string) => void }) {
+    return (
+        <>
             <button
                 type="button"
                 onClick={() => onGo('/modeloinicial')}
@@ -246,6 +254,44 @@ function MenuDrawerContent({ slug, avatarUrl, data, active, recent, onSelect, on
                     </span>
                 )}
             </button>
+        </>
+    )
+}
+
+// Menu de quem não tem conta: o "modo" é o de visitante (já selecionado), mais entrar/criar conta e o Explorar
+function VisitorDrawerContent({ recent, onGo, onClose }: { recent: RecentClickItem[]; onGo: (path: string) => void; onClose: () => void }) {
+    return (
+        <div className="h-full w-full flex flex-col px-4 pt-6 pb-8 overflow-y-auto">
+            <div className="flex justify-end">
+                <button onClick={onClose} aria-label="Fechar menu" className="w-9 h-9 rounded-full flex items-center justify-center text-white hover:bg-white/15 flex-shrink-0">
+                    <X size={20} />
+                </button>
+            </div>
+
+            <section className="mt-4 rounded-3xl p-2 pb-1.5" style={{ background: 'rgba(255,255,255,0.10)', border: '1px solid rgba(255,255,255,0.18)' }}>
+                <DrawerLabel>Modo visitante</DrawerLabel>
+                <div className="flex flex-col gap-1.5">
+                    <DrawerRow
+                        mode="visitante"
+                        active="visitante"
+                        onSelect={() => onClose()}
+                        icon={<User size={20} color="#fff" />}
+                        title="Visitante"
+                        desc="Navegando sem conta"
+                        dot="#fde68a"
+                    />
+                </div>
+            </section>
+
+            <section className="mt-4 rounded-3xl p-2 pb-1.5" style={{ background: 'rgba(255,255,255,0.10)', border: '1px solid rgba(255,255,255,0.18)' }}>
+                <DrawerLabel>Minha conta</DrawerLabel>
+                <div className="flex flex-col gap-1.5">
+                    <DrawerCta icon={<LogIn size={20} color="#fff" />} title="Entrar" desc="Já tenho conta no iUser" onClick={() => onGo('/login')} />
+                    <DrawerCta icon={<User size={20} color="#fff" />} title="Criar conta" desc="Grátis, leva um minuto" onClick={() => onGo('/cadastrar')} />
+                </div>
+            </section>
+
+            <DrawerExplorar recent={recent} onGo={onGo} />
         </div>
     )
 }
@@ -460,7 +506,7 @@ export default function ModeShell({ children, search }: {
         if (userId && activeMode === 'prestador' && drawerData.providerOn) {
             return { ...base, line1: profileSlug ? `@${profileSlug}` : 'Meu perfil', line2: 'Modo prestador', image: avatarUrl || null }
         }
-        return { ...base, mode: 'perfil', line1: userId ? 'Bem-vindo de volta' : 'Bem-vindo ao iUser', line2: profileSlug ? `@${profileSlug}` : 'Visitante', image: avatarUrl || null }
+        return { ...base, mode: 'perfil', line1: userId ? 'Bem-vindo de volta' : 'Você está como', line2: profileSlug ? `@${profileSlug}` : 'Visitante', image: avatarUrl || null }
     })()
     // Enquanto o banco não respondeu, usa o resumo guardado da última visita (se for da mesma pessoa)
     const useSnap = !dataLoaded && !!snap && (!userId || snap.userId === userId)
@@ -523,6 +569,9 @@ export default function ModeShell({ children, search }: {
                 transition: 'opacity 350ms ease, transform 450ms cubic-bezier(0.22, 1, 0.36, 1)',
             }}
         >
+            {!userId && (
+                <VisitorDrawerContent recent={recent} onGo={goAndClose} onClose={() => setDrawerOpen(false)} />
+            )}
             {userId && (
                 <MenuDrawerContent
                     slug={profileSlug}
@@ -593,12 +642,11 @@ export default function ModeShell({ children, search }: {
                             modeIcon={headerView.modeIcon}
                             popToken={modeTick}
                             onProfile={() => { window.scrollTo({ top: 0 }); setDrawerOpen(true) }}
-                            // A logo (outra face do selo) também abre o menu; só o visitante, que não tem menu, vai pra home
-                            onHome={() => { if (userId) { window.scrollTo({ top: 0 }); setDrawerOpen(true) } else go('/') }}
+                            // A logo (outra face do selo) também abre o menu
+                            onHome={() => { window.scrollTo({ top: 0 }); setDrawerOpen(true) }}
                         />
 
                         {/* Nome, frase e triângulo: um botão só — abre/fecha o menu (igual ao selo) */}
-                        {userId ? (
                             <button
                                 type="button"
                                 onClick={() => { window.scrollTo({ top: 0 }); setDrawerOpen((v) => !v) }}
@@ -619,51 +667,58 @@ export default function ModeShell({ children, search }: {
                                     </span>
                                 </span>
                             </button>
-                        ) : (
-                            <button onClick={() => go('/login')} className="flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-black text-white flex-shrink-0" style={{ background: GRADIENT }}>
-                                <LogIn size={15} /> Entrar
-                            </button>
-                        )}
-                                        <button
-                            onClick={() => go('/carrinho')}
-                            aria-label="Carrinho"
-                            className="relative w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 transition hover:scale-105 active:scale-95"
-                            style={{ background: topCart > 0 ? '#ea580c' : `${colors.border}50`, color: topCart > 0 ? '#fff' : colors.textPrimary }}
-                        >
-                            <ShoppingCart size={20} />
-                            {topCart > 0 && (
-                                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black bg-red-500 text-white flex items-center justify-center">{topCart > 99 ? '99+' : topCart}</span>
-                            )}
-                        </button>
+                                    </div>
 
-                        <button
-                            onClick={() => go(userId ? '/conversas' : '/login')}
-                            aria-label="Conversas"
-                            className={`relative w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 transition hover:scale-105 active:scale-95 ${topUnread > 0 ? 'animate-pulse' : ''}`}
-                            style={{ background: topUnread > 0 ? '#16a34a' : `${colors.border}50`, color: topUnread > 0 ? '#fff' : colors.textPrimary }}
-                        >
-                            <MessageCircle size={20} />
-                            {topUnread > 0 && (
-                                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black bg-red-500 text-white flex items-center justify-center">{topUnread > 99 ? '99+' : topUnread}</span>
-                            )}
-                        </button>
-                    </div>
-
-                    {/* Lupa: com busca na página, expande no lugar e vira o campo. */}
+                    {/* Carrinho, conversas e lupa: uma cápsula só. Com busca na página, a lupa expande no lugar e vira o campo
+                        (o carrinho e as conversas encolhem); nas outras, leva ao /modeloinicial. */}
                     <div
-                        className={`flex items-center rounded-full overflow-hidden ${searchOpen ? '' : 'ml-2.5'}`}
+                        className="flex items-center rounded-full"
                         style={{
-                            flex: searchOpen ? '1 1 0%' : '0 0 44px',
-                            height: 44,
+                            flex: searchOpen ? '1 1 0%' : '0 0 auto',
+                            height: 48,
+                            padding: 2,
                             background: searchOpen ? colors.surface : `${colors.border}50`,
                             border: searchOpen ? `1.5px solid ${colors.border}` : '1.5px solid transparent',
                             color: colors.textPrimary,
                             transition: 'flex 320ms cubic-bezier(0.22, 1, 0.36, 1), background 250ms ease, border-color 250ms ease',
                         }}
                     >
+                        <div
+                            className="flex items-center"
+                            style={{
+                                maxWidth: searchOpen ? 0 : 100,
+                                opacity: searchOpen ? 0 : 1,
+                                overflow: searchOpen ? 'hidden' : 'visible',
+                                transition: 'max-width 320ms cubic-bezier(0.22, 1, 0.36, 1), opacity 200ms ease',
+                            }}
+                        >
+                            <button
+                                onClick={() => go('/carrinho')}
+                                aria-label="Carrinho"
+                                className="relative w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 transition hover:scale-105 active:scale-95"
+                                style={{ background: topCart > 0 ? '#ea580c' : 'transparent', color: topCart > 0 ? '#fff' : colors.textPrimary }}
+                            >
+                                <ShoppingCart size={20} />
+                                {topCart > 0 && (
+                                    <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black bg-red-500 text-white flex items-center justify-center">{topCart > 99 ? '99+' : topCart}</span>
+                                )}
+                            </button>
+                            <button
+                                onClick={() => go(userId ? '/conversas' : '/login')}
+                                aria-label="Conversas"
+                                className={`relative w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 transition hover:scale-105 active:scale-95 ${topUnread > 0 ? 'animate-pulse' : ''}`}
+                                style={{ background: topUnread > 0 ? '#16a34a' : 'transparent', color: topUnread > 0 ? '#fff' : colors.textPrimary }}
+                            >
+                                <MessageCircle size={20} />
+                                {topUnread > 0 && (
+                                    <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black bg-red-500 text-white flex items-center justify-center">{topUnread > 99 ? '99+' : topUnread}</span>
+                                )}
+                            </button>
+                        </div>
+
                         {search && searchOpen ? (
                             <>
-                                <Search size={18} className="ml-3.5 flex-shrink-0" style={{ color: colors.textSecondary }} />
+                                <Search size={18} className="ml-3 flex-shrink-0" style={{ color: colors.textSecondary }} />
                                 <input
                                     ref={searchInputRef}
                                     type="search"
@@ -676,7 +731,7 @@ export default function ModeShell({ children, search }: {
                                 <button
                                     onClick={() => { search.onChange(''); setSearchOpen(false) }}
                                     aria-label="Fechar busca"
-                                    className="w-10 h-10 mr-0.5 rounded-full flex items-center justify-center flex-shrink-0"
+                                    className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
                                     style={{ color: colors.textPrimary }}
                                 >
                                     <X size={18} />
@@ -686,7 +741,7 @@ export default function ModeShell({ children, search }: {
                             <button
                                 onClick={() => (search ? setSearchOpen(true) : go('/modeloinicial'))}
                                 aria-label="Buscar"
-                                className="w-11 h-11 flex items-center justify-center flex-shrink-0 transition hover:scale-105 active:scale-95"
+                                className="w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 transition hover:scale-105 active:scale-95"
                             >
                                 <Search size={20} />
                             </button>
