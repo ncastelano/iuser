@@ -29,7 +29,11 @@ import {
     MapPin,
     MapPinPlus,
     Pencil,
+    ExternalLink,
+    Share2,
+    Eye,
 } from 'lucide-react'
+import { handleShareLink } from '@/lib/share'
 import { generateUniqueGlobalSlug } from '@/lib/slugUtils'
 import { getAvatarUrl } from '@/lib/avatar'
 import { Spinner } from '@/components/Spinner'
@@ -45,6 +49,7 @@ interface ServiceListing {
     lat: number | null
     lng: number | null
     created_at: string
+    view_count?: number | null
 }
 
 interface ProfileServiceListingProps {
@@ -136,7 +141,7 @@ export default function ProfileServiceListing({ profileId, profileSlug, linkToPr
     const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
     useEffect(() => {
-        if (!isExpanded || !profileId) return
+        if (!profileId) return
         let isMounted = true
 
         const load = async () => {
@@ -144,7 +149,7 @@ export default function ProfileServiceListing({ profileId, profileSlug, linkToPr
             try {
                 const { data, error } = await supabase
                     .from('products')
-                    .select('id, name, description, image_url, slug, service_type, address, lat, lng, created_at')
+                    .select('id, name, description, image_url, slug, service_type, address, lat, lng, created_at, view_count')
                     .eq('owner_id', profileId)
                     .eq('listing_type', 'service_offer')
                     .order('created_at', { ascending: false })
@@ -354,6 +359,37 @@ export default function ProfileServiceListing({ profileId, profileSlug, linkToPr
                     </div>
                 </button>
 
+                {/* Fechado: o card do serviço SEM botões (foto, nome, tipo e endereço) */}
+                {!isExpanded && !loading && listings.length > 0 && (
+                    <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
+                        {listings.slice(0, 6).map((listing) => {
+                            const imgUrl = getImageUrl(listing.image_url)
+                            return (
+                                <div
+                                    key={listing.id}
+                                    onClick={() => router.push(`/${profileSlug}/${listing.slug}`)}
+                                    className="flex-shrink-0 w-52 rounded-2xl overflow-hidden cursor-pointer transition-transform hover:scale-[1.02]"
+                                    style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.5)`, border: `1px solid ${colors.border}` }}
+                                >
+                                    <div className="w-full h-24 flex items-center justify-center" style={{ background: '#7c3aed1f', color: '#7c3aed' }}>
+                                        {imgUrl ? <img src={imgUrl} className="w-full h-full object-cover" alt={listing.name} /> : <Wrench size={26} />}
+                                    </div>
+                                    <div className="p-2.5">
+                                        <p className="text-xs font-black truncate" style={{ color: textPrimary }}>{listing.name}</p>
+                                        <p className="text-[11px] font-bold mt-0.5" style={{ color: '#f97316' }}>{serviceLabel(listing.service_type)}</p>
+                                        {listing.address && (
+                                            <p className="flex items-center gap-1 text-[10px] mt-1" style={{ color: textSecondary }}>
+                                                <MapPin size={10} className="flex-shrink-0" />
+                                                <span className="truncate">{listing.address}</span>
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                            )
+                        })}
+                    </div>
+                )}
+
                 {isExpanded && (
                     <div className="flex flex-col gap-5">
                         {loading ? (
@@ -386,49 +422,75 @@ export default function ProfileServiceListing({ profileId, profileSlug, linkToPr
                         ) : (
                             <>
                                 {listings.length > 0 && (
-                                    <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-gray-400">
+                                    <div className="flex flex-col gap-4">
                                         {listings.map(listing => {
                                             const imgUrl = getImageUrl(listing.image_url)
+                                            const pageUrl = `/${profileSlug}/${listing.slug}`
                                             return (
                                                 <div
                                                     key={listing.id}
-                                                    className="flex-shrink-0 w-40 rounded-2xl border p-3 flex flex-col gap-2 cursor-pointer hover:shadow-md transition-shadow relative"
-                                                    style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`, borderColor: colors.border }}
-                                                    onClick={() => setEditingServiceId(listing.id)}
+                                                    className="rounded-2xl border overflow-hidden flex flex-col"
+                                                    style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.4)`, borderColor: colors.border }}
                                                 >
-                                                    <button
-                                                        onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(listing.id) }}
-                                                        className="absolute top-2 left-2 w-7 h-7 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center hover:bg-red-500/80 transition-colors z-10"
-                                                        title="Excluir serviço"
+                                                    <div
+                                                        className="relative w-full h-44 flex items-center justify-center cursor-pointer"
+                                                        style={{ background: '#7c3aed1f', color: '#7c3aed' }}
+                                                        onClick={() => router.push(pageUrl)}
                                                     >
-                                                        <Trash2 size={13} color="white" />
-                                                    </button>
-                                                    <button
-                                                        onClick={(e) => { e.stopPropagation(); setEditingServiceId(listing.id) }}
-                                                        className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center hover:bg-black/50 transition-colors z-10"
-                                                        title="Editar serviço"
-                                                    >
-                                                        <Pencil size={13} color="white" />
-                                                    </button>
-
-                                                    <div className="w-full h-28 rounded-xl overflow-hidden bg-gray-100">
-                                                        {imgUrl ? (
-                                                            <img src={imgUrl} className="w-full h-full object-cover" alt={listing.name} />
-                                                        ) : (
-                                                            <div className="w-full h-full flex items-center justify-center" style={{ color: textSecondary }}>
-                                                                <Wrench size={28} />
-                                                            </div>
-                                                        )}
+                                                        {imgUrl ? <img src={imgUrl} className="w-full h-full object-cover" alt={listing.name} /> : <Wrench size={40} />}
+                                                        <span className="absolute left-2 top-2 text-[10px] font-black uppercase tracking-wide px-2 py-0.5 rounded-full text-white" style={{ background: '#7c3aed' }}>
+                                                            {serviceLabel(listing.service_type)}
+                                                        </span>
                                                     </div>
-                                                    <div className="flex-1 min-w-0">
-                                                        <p className="text-xs font-bold truncate" style={{ color: textPrimary }}>{listing.name}</p>
-                                                        <p className="text-xs font-bold mt-1" style={{ color: '#f97316' }}>{serviceLabel(listing.service_type)}</p>
-                                                        {listing.address && (
-                                                            <div className="flex items-center gap-1 text-[10px] mt-1" style={{ color: textSecondary }}>
-                                                                <MapPin size={10} className="flex-shrink-0" />
-                                                                <span className="truncate">{listing.address}</span>
-                                                            </div>
+                                                    <div className="p-4 flex flex-col gap-2">
+                                                        <p className="text-sm font-black" style={{ color: textPrimary }}>{listing.name}</p>
+                                                        {listing.description && (
+                                                            <p className="text-xs line-clamp-3" style={{ color: textSecondary }}>{listing.description}</p>
                                                         )}
+                                                        <div className="flex items-center flex-wrap gap-x-3 gap-y-1 text-[11px]" style={{ color: textSecondary }}>
+                                                            {listing.address && (
+                                                                <span className="flex items-center gap-1 min-w-0">
+                                                                    <MapPin size={11} className="flex-shrink-0" />
+                                                                    <span className="truncate">{listing.address}</span>
+                                                                </span>
+                                                            )}
+                                                            <span className="flex items-center gap-1"><Eye size={11} /> {listing.view_count || 0}</span>
+                                                        </div>
+                                                        <div className="flex items-center flex-wrap gap-2 pt-2 mt-1 border-t" style={{ borderColor: colors.border }}>
+                                                            <button
+                                                                onClick={() => router.push(pageUrl)}
+                                                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-black text-white transition hover:scale-105"
+                                                                style={{ background: GRADIENT }}
+                                                            >
+                                                                <ExternalLink size={12} /> Ver página
+                                                            </button>
+                                                            <button
+                                                                onClick={() => setEditingServiceId(listing.id)}
+                                                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-black border transition hover:scale-105"
+                                                                style={{ borderColor: colors.border, color: textPrimary }}
+                                                            >
+                                                                <Pencil size={12} /> Editar
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleShareLink({
+                                                                    title: listing.name,
+                                                                    text: listing.description || 'Confira este serviço no iUser!',
+                                                                    url: `${window.location.origin}${pageUrl}`,
+                                                                })}
+                                                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-black border transition hover:scale-105"
+                                                                style={{ borderColor: colors.border, color: textPrimary }}
+                                                            >
+                                                                <Share2 size={12} /> Compartilhar
+                                                            </button>
+                                                            <button
+                                                                onClick={() => setConfirmDeleteId(listing.id)}
+                                                                className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-black transition hover:scale-105"
+                                                                style={{ color: '#ef4444', background: '#ef444414' }}
+                                                                title="Excluir serviço"
+                                                            >
+                                                                <Trash2 size={12} /> Excluir
+                                                            </button>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             )
