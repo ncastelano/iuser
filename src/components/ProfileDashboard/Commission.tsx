@@ -4,7 +4,7 @@
 
 import { useLevelsFor } from '@/hooks/useLevelsFor'
 import LevelBadge from '@/components/Graduation/LevelBadge'
-import { levelGradient } from '@/lib/graduation'
+import { levelGradient, commissionCents, formatCents, formatPercent } from '@/lib/graduation'
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
@@ -231,6 +231,8 @@ export default function Commission({ userId, profileSlug, onLatestUpdate, view =
     const [withdrawalRequests, setWithdrawalRequests] = useState<WithdrawalRequest[]>([])
     const [showWithdrawForm, setShowWithdrawForm] = useState(false)
     const [redeTab, setRedeTab] = useState<'indicados' | 'saques' | 'extrato' | 'arvore'>('indicados')
+    // Cartão "Comissões" (o saldo): fechado mostra só o saldo; aberto, o incentivo a convidar e os detalhes
+    const [saldoOpen, setSaldoOpen] = usePersistedExpanded('comissoesCard', false)
     const [withdrawAmount, setWithdrawAmount] = useState('')
     const [pixKey, setPixKey] = useState('')
     const [pixKeyType, setPixKeyType] = useState('cpf')
@@ -1314,53 +1316,116 @@ export default function Commission({ userId, profileSlug, onLatestUpdate, view =
         return (
             <>
                 <div className="mb-6 mt-4">
-                    {/* Cartão de saldo: a cor acompanha a graduação — parte da cor do nível atual e vai se aproximando
-                        da cor do próximo conforme o progresso (no nível máximo, só o brilho do nível) */}
+                    {/* Comissões (o cartão de saldo): a cor vem da graduação e termina no laranja/vermelho do iUser.
+                        Fechado: só o saldo. Aberto: o incentivo a convidar — quanto cada indicado rende e o que falta
+                        pro próximo nível. */}
                     <div
-                        className="relative overflow-hidden rounded-3xl p-5"
+                        className="relative overflow-hidden rounded-3xl"
                         style={{ background: cardTheme.background, color: cardTheme.text, boxShadow: `0 14px 34px ${cardTheme.shadow}` }}
                     >
                         <span aria-hidden className="absolute -right-12 -top-14 w-48 h-48 rounded-full" style={{ background: cardTheme.sheen }} />
                         <span aria-hidden className="absolute right-6 top-20 w-24 h-24 rounded-full" style={{ background: cardTheme.sheenSoft }} />
 
-                        <p className="relative text-[11px] font-bold uppercase tracking-[0.16em] opacity-80">Saldo disponível</p>
-                        <p className="relative text-4xl font-black leading-tight mt-0.5">R$ {walletBalance.toFixed(2)}</p>
+                        <button
+                            onClick={() => setSaldoOpen(!saldoOpen)}
+                            aria-expanded={saldoOpen}
+                            aria-label="Comissões: ver detalhes"
+                            className="relative w-full p-5 flex items-start justify-between gap-3 text-left"
+                            style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'inherit' }}
+                        >
+                            <span>
+                                <span className="block text-[11px] font-bold uppercase tracking-[0.16em] opacity-80">Saldo disponível</span>
+                                <span className="block text-4xl font-black leading-tight mt-0.5">R$ {walletBalance.toFixed(2)}</span>
+                            </span>
+                            <span className="mt-1 flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center" style={{ background: cardTheme.buttonGhostBg }}>
+                                {saldoOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                            </span>
+                        </button>
 
-                        <div className="relative mt-4 grid grid-cols-2 gap-2">
-                            <button
-                                onClick={() => { setShowWithdrawForm(true); setRedeTab('saques'); setIsExpanded(true) }}
-                                disabled={!canWithdraw}
-                                className="py-2.5 rounded-full text-sm font-black flex items-center justify-center gap-1.5 transition hover:scale-[1.03] active:scale-95 disabled:opacity-55"
-                                style={{ background: cardTheme.buttonSolidBg, color: cardTheme.buttonSolidText }}
-                            >
-                                <Send size={15} /> Sacar via PIX
-                            </button>
-                            <button
-                                onClick={handleInvite}
-                                className="py-2.5 rounded-full text-sm font-black flex items-center justify-center gap-1.5 transition hover:scale-[1.03] active:scale-95"
-                                style={{ background: cardTheme.buttonGhostBg, border: `1px solid ${cardTheme.buttonGhostBorder}`, color: cardTheme.text }}
-                            >
-                                <UserPlus size={15} /> Convidar
-                            </button>
-                        </div>
-
-                        {/* Evolução: quanto falta pro próximo nível (a cor do cartão vai nessa direção) */}
-                        {graduation.data && (
-                            <div className="relative mt-4">
-                                <div className="h-1.5 rounded-full overflow-hidden" style={{ background: cardTheme.track }}>
-                                    <div style={{ width: `${graduation.data.next_level ? graduation.data.progress_percent : 100}%`, height: '100%', background: cardTheme.fill, transition: 'width .5s' }} />
+                        {saldoOpen && (
+                            <div className="relative px-5 pb-5 flex flex-col gap-4">
+                                <div className="grid grid-cols-2 gap-2">
+                                    <button
+                                        onClick={() => { setShowWithdrawForm(true); setRedeTab('saques'); setIsExpanded(true) }}
+                                        disabled={!canWithdraw}
+                                        className="py-2.5 rounded-full text-sm font-black flex items-center justify-center gap-1.5 transition hover:scale-[1.03] active:scale-95 disabled:opacity-55"
+                                        style={{ background: cardTheme.buttonSolidBg, color: cardTheme.buttonSolidText }}
+                                    >
+                                        <Send size={15} /> Sacar via PIX
+                                    </button>
+                                    <button
+                                        onClick={handleInvite}
+                                        className="py-2.5 rounded-full text-sm font-black flex items-center justify-center gap-1.5 transition hover:scale-[1.03] active:scale-95"
+                                        style={{ background: cardTheme.buttonGhostBg, border: `1px solid ${cardTheme.buttonGhostBorder}`, color: cardTheme.text }}
+                                    >
+                                        <UserPlus size={15} /> Convidar
+                                    </button>
                                 </div>
-                                <p className="text-[10px] mt-1.5 opacity-85">
-                                    {graduation.data.next_level
-                                        ? `${graduation.data.progress_percent}% do caminho até ${graduation.data.next_level.name}`
-                                        : 'Você está no nível mais alto'}
-                                </p>
+                                {!canWithdraw && (
+                                    <p className="text-[10px] -mt-2 opacity-85">
+                                        Saque mínimo de R$ {MIN_WITHDRAWAL_AMOUNT.toFixed(2)} — faltam R$ {(MIN_WITHDRAWAL_AMOUNT - walletBalance).toFixed(2)}.
+                                    </p>
+                                )}
+
+                                {graduation.data && (() => {
+                                    const g = graduation.data
+                                    const preBp = g.effective_prepaid.commission_rate_bp
+                                    const posBp = g.effective_postpaid.commission_rate_bp
+                                    const prePer = g.prepaid_price_cents ? commissionCents(g.prepaid_price_cents, preBp) : 0
+                                    const posPer = g.postpaid_reference_cents ? commissionCents(g.postpaid_reference_cents, posBp) : 0
+                                    const missing = g.next_level ? Math.max(g.next_level.min_direct_referrals - g.direct_referrals, 0) : 0
+                                    const panel = { background: 'rgba(255,255,255,0.14)', border: '1px solid rgba(255,255,255,0.28)' } as const
+                                    return (
+                                        <>
+                                            <div className="rounded-2xl p-3.5" style={panel}>
+                                                <p className="text-sm font-black">Convide e ganhe</p>
+                                                <div className="mt-1.5 flex flex-col gap-1 text-xs">
+                                                    {prePer > 0 && (
+                                                        <p>
+                                                            <b>{formatPercent(preBp)}</b> de cada mensalidade do Pré-pago:{' '}
+                                                            <b>{formatCents(prePer)}</b> por indicado, todo mês
+                                                        </p>
+                                                    )}
+                                                    {posPer > 0 && (
+                                                        <p>
+                                                            <b>{formatPercent(posBp)}</b> de cada quitação do Pós-pago:{' '}
+                                                            <b>{formatCents(posPer)}</b> por indicado
+                                                        </p>
+                                                    )}
+                                                    {prePer > 0 && (
+                                                        <p className="opacity-90 pt-1">
+                                                            Com 5 amigos no Pré-pago, são <b>{formatCents(prePer * 5)}</b> por mês no seu bolso.
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            <div className="rounded-2xl p-3.5" style={panel}>
+                                                <div className="flex items-center justify-between gap-2 text-xs">
+                                                    <span className="font-black">Sua evolução</span>
+                                                    <span className="opacity-90">
+                                                        <b>{g.direct_referrals}</b> indicados · <b>{g.total_network}</b> na rede
+                                                    </span>
+                                                </div>
+                                                <div className="h-2 rounded-full overflow-hidden mt-2" style={{ background: cardTheme.track }}>
+                                                    <div style={{ width: `${g.next_level ? g.progress_percent : 100}%`, height: '100%', background: cardTheme.fill, transition: 'width .5s' }} />
+                                                </div>
+                                                <p className="text-xs mt-2">
+                                                    {g.next_level
+                                                        ? <>Faltam <b>{missing}</b> {missing === 1 ? 'indicação' : 'indicações'} para <b>{g.next_level.name}</b>: sua comissão do Pré-pago sobe de <b>{formatPercent(preBp)}</b> para <b>{formatPercent(g.next_level.commission_prepaid_bp)}</b>.</>
+                                                        : 'Você está no nível mais alto. Cada novo indicado continua rendendo a comissão máxima.'}
+                                                </p>
+                                            </div>
+
+                                            {totalCommission > 0 && (
+                                                <p className="text-xs opacity-90">
+                                                    Você já ganhou <b>{formatCurrency(totalCommission)}</b> em comissões com a sua rede.
+                                                </p>
+                                            )}
+                                        </>
+                                    )
+                                })()}
                             </div>
-                        )}
-                        {!canWithdraw && (
-                            <p className="relative mt-2 text-[10px] opacity-85">
-                                Saque mínimo de R$ {MIN_WITHDRAWAL_AMOUNT.toFixed(2)} — faltam R$ {(MIN_WITHDRAWAL_AMOUNT - walletBalance).toFixed(2)}.
-                            </p>
                         )}
                     </div>
 
