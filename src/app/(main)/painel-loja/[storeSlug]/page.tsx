@@ -7,7 +7,6 @@
 
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ExternalLink, Store as StoreIcon } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
@@ -66,32 +65,8 @@ export default function PainelLojaPage() {
                 </div>
             ) : (
                 <>
-                    {/* Cabeçalho do painel: a loja + "Ver loja" */}
-                    <section className="mt-6 rounded-3xl border p-4 flex items-center gap-3" style={{ background: colors.surface, borderColor: colors.border, boxShadow: colors.shadow }}>
-                        <span className="w-14 h-14 rounded-2xl overflow-hidden flex items-center justify-center flex-shrink-0" style={{ background: '#2563eb22', color: '#2563eb' }}>
-                            {store.logo ? <img src={store.logo} alt="" className="w-full h-full object-cover" /> : <StoreIcon size={26} />}
-                        </span>
-                        <div className="min-w-0 flex-1">
-                            <p className="text-xs flex items-center gap-1.5" style={{ color: colors.textSecondary }}>
-                                Painel da loja
-                                <span className="inline-flex items-center gap-1 font-bold" style={{ color: store.open ? '#16a34a' : '#dc2626' }}>
-                                    <span className="w-1.5 h-1.5 rounded-full" style={{ background: store.open ? '#16a34a' : '#dc2626' }} />
-                                    {store.open ? 'Aberta agora' : 'Fechada agora'}
-                                </span>
-                            </p>
-                            <h1 className="text-lg font-black leading-tight truncate" style={{ color: colors.textPrimary }}>{store.name}</h1>
-                        </div>
-                        <button
-                            onClick={() => router.push(`/${storeSlug}`)}
-                            className="flex items-center gap-1.5 px-4 py-2.5 rounded-full text-sm font-black text-white flex-shrink-0 transition hover:scale-105 active:scale-95"
-                            style={{ background: GRADIENT, boxShadow: '0 4px 12px #f9731640' }}
-                        >
-                            <ExternalLink size={15} /> Ver loja
-                        </button>
-                    </section>
-
-                    <div className="-mx-4 mt-2">
-                        <StoreDashboard profileSlug={profileSlug || ''} storeSlug={storeSlug} />
+                    <div className="-mx-4">
+                        <StoreDashboard profileSlug={profileSlug || ''} storeSlug={storeSlug} infoFirst showDebtBanner={false} />
                     </div>
                 </>
             )}

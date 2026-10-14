@@ -110,6 +110,8 @@ export default function StoreDashboard({
     onBack,
     onOrderCountsChange,
     onDialogOpenChange,
+    infoFirst = false,
+    showDebtBanner = true,
 }: {
     profileSlug: string
     storeSlug: string
@@ -117,6 +119,10 @@ export default function StoreDashboard({
     onOrderCountsChange?: (counts: { pending: number; preparing: number; ready: number }) => void
     /** Avisa quando um dialog (extrato, excluir loja) abre/fecha, pra esconder os botões flutuantes da página. */
     onDialogOpenChange?: (open: boolean) => void
+    /** "Informações da Loja" logo no topo (antes dos pedidos) */
+    infoFirst?: boolean
+    /** Aviso do pós-pago (valor acumulado) no topo */
+    showDebtBanner?: boolean
 }) {
     const router = useRouter()
     const { colors } = useTheme()
@@ -540,56 +546,9 @@ export default function StoreDashboard({
     )
     if (!store) return null
 
-    return (
-        <div className="w-full px-4 md:px-6 pb-28">
-            {/* ===== MODAL DE HORÁRIOS ===== */}
-            {showScheduleModal && store && (
-                <div
-                    className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4"
-                    onClick={() => setShowScheduleModal(false)}
-                >
-                    <div
-                        className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-3xl"
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        <StoreSchedule
-                            storeId={store.id}
-                            storeName={store.name}
-                            storeSlug={store.storeSlug}
-                            onClose={() => setShowScheduleModal(false)}
-                            onSuccess={loadDashboard}
-                        />
-                    </div>
-                </div>
-            )}
-
-            <DriverDebtBanner userId={userId} />
-
-            {/* ===== StoreOrders NO TOPO - é a primeira coisa que a loja precisa ver ===== */}
-            <div className="mb-6">
-                <StoreOrders
-                    storeId={store.id}
-                    storeName={store.name}
-                    onOrderCountsChange={onOrderCountsChange}
-                />
-            </div>
-
-            {/* ===== Venda Presencial (logo abaixo dos Pedidos) ===== */}
-            <div className="mb-6">
-                <ButtonInPersonSale
-                    storeId={store.id}
-                    storeName={store.name}
-                    storeSlug={storeSlug}
-                    profileSlug={profileSlug}
-                    onSaleCompleted={() => loadDashboard()}
-                />
-            </div>
-
-            {/* ===== STORE OPERATING DAYS ===== */}
-            <div className="mb-4">
-                <StoreOperatingDays storeId={store.id} />
-            </div>
-
+    // "Informações da Loja" — pode subir pro topo (painel da loja) ou ficar no meio, como sempre
+    const descriptionNode = (
+        <>
             {/* ===== STORE DESCRIPTION COMPONENT ===== */}
             <div className="mb-6">
 
@@ -637,6 +596,62 @@ export default function StoreDashboard({
                     saving={savingDescription}
                 />
             </div>
+        </>
+    )
+
+    return (
+        <div className="w-full px-4 md:px-6 pb-28">
+            {/* ===== MODAL DE HORÁRIOS ===== */}
+            {showScheduleModal && store && (
+                <div
+                    className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4"
+                    onClick={() => setShowScheduleModal(false)}
+                >
+                    <div
+                        className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-3xl"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <StoreSchedule
+                            storeId={store.id}
+                            storeName={store.name}
+                            storeSlug={store.storeSlug}
+                            onClose={() => setShowScheduleModal(false)}
+                            onSuccess={loadDashboard}
+                        />
+                    </div>
+                </div>
+            )}
+
+            {infoFirst && descriptionNode}
+
+            {showDebtBanner && <DriverDebtBanner userId={userId} />}
+
+            {/* ===== StoreOrders NO TOPO - é a primeira coisa que a loja precisa ver ===== */}
+            <div className="mb-6">
+                <StoreOrders
+                    storeId={store.id}
+                    storeName={store.name}
+                    onOrderCountsChange={onOrderCountsChange}
+                />
+            </div>
+
+            {/* ===== Venda Presencial (logo abaixo dos Pedidos) ===== */}
+            <div className="mb-6">
+                <ButtonInPersonSale
+                    storeId={store.id}
+                    storeName={store.name}
+                    storeSlug={storeSlug}
+                    profileSlug={profileSlug}
+                    onSaleCompleted={() => loadDashboard()}
+                />
+            </div>
+
+            {/* ===== STORE OPERATING DAYS ===== */}
+            <div className="mb-4">
+                <StoreOperatingDays storeId={store.id} />
+            </div>
+
+            {!infoFirst && descriptionNode}
 
             {/* ===== Botões da Loja ===== */}
             <div className="mb-6">
