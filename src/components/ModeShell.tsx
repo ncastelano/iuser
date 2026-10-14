@@ -302,6 +302,8 @@ function VisitorDrawerContent({ recent, onGo, onClose }: { recent: RecentClickIt
 // pro conjunto ter exatamente o mesmo tamanho da logo.
 const BADGE = 48
 // Degradê do menu: o fundo atrás do cartão do app e a cor da navbar do topo
+// Borda branca em volta da logo do selo: ela aparece bem em cima do degradê laranja da barra
+const LOGO_RING = { border: '3px solid #fff', background: '#fff', boxShadow: '0 1px 6px rgba(0,0,0,0.18)' } as const
 // Raio dos cantos côncavos da barra do topo (px)
 const CORNER = 24
 const MENU_GRADIENT = 'linear-gradient(160deg, #f97316 0%, #dc2626 100%)'
@@ -378,14 +380,14 @@ function HeaderBadge({ userId, avatarUrl, onProfile, onHome, colors, noRing = fa
                         </PlanAvatarRing>
                     </button>
                 ) : (
-                    <button onClick={onHome} aria-label="iUser" className="flex items-center justify-center rounded-full" style={face}>
-                        <img src="/logo.png" alt="iUser" className="w-full h-full object-contain" />
+                    <button onClick={onHome} aria-label="iUser" className="flex items-center justify-center rounded-full" style={{ ...face, ...LOGO_RING }}>
+                        <img src="/logo.png" alt="iUser" className="w-full h-full object-contain rounded-full" />
                     </button>
                 )}
                 {/* Verso: a logo (só existe pra quem está logado) */}
                 {userId && (
-                    <button onClick={onHome} aria-label="iUser" className="flex items-center justify-center rounded-full" style={{ ...face, transform: 'rotateY(180deg)' }}>
-                        <img src="/logo.png" alt="iUser" className="w-full h-full object-contain" />
+                    <button onClick={onHome} aria-label="iUser" className="flex items-center justify-center rounded-full" style={{ ...face, ...LOGO_RING, transform: 'rotateY(180deg)' }}>
+                        <img src="/logo.png" alt="iUser" className="w-full h-full object-contain rounded-full" />
                     </button>
                 )}
             </div>
@@ -415,6 +417,14 @@ export default function ModeShell({ children, search }: {
 
     // Menu lateral: abre pelo avatar. Carrega o que a pessoa tem (loja, veículo, modo prestador) pra mostrar só isso.
     const [drawerOpen, setDrawerOpen] = useState(false)
+    // O cartão do app só solta o recorte (altura + overflow) DEPOIS da animação de fechar: se soltasse na hora, o
+    // conteúdo de baixo pularia pra dentro do cartão ainda encolhido e ele ficava "bugado"
+    const [cardClipped, setCardClipped] = useState(false)
+    useEffect(() => {
+        if (drawerOpen) { setCardClipped(true); return }
+        const t = setTimeout(() => setCardClipped(false), 480)
+        return () => clearTimeout(t)
+    }, [drawerOpen])
     const [searchOpen, setSearchOpen] = useState(false)
     // As 5 últimas coisas que a pessoa abriu pela busca (perfil, loja, produto) — vão no Explorar do menu
     const [recent, setRecent] = useState<RecentClickItem[]>([])
@@ -603,10 +613,11 @@ export default function ModeShell({ children, search }: {
                 transformOrigin: 'left center',
                 // vira um cartão abaixo da barra do topo: desliza pra direita e encolhe um pouco, mostrando o menu atrás
                 transform: drawerOpen ? `translateX(${DRAWER_W}) scale(0.9)` : 'none',
-                borderRadius: drawerOpen ? 32 : 0,
+                // aberto: cartão com os 4 cantos; fechado: só os de cima, que se encaixam nos cantos côncavos da barra
+                borderRadius: drawerOpen ? '32px' : `${CORNER}px ${CORNER}px 0px 0px`,
                 boxShadow: drawerOpen ? '-12px 0 40px rgba(0,0,0,0.35)' : 'none',
-                height: drawerOpen ? `calc(100dvh - ${NAV_H})` : undefined,
-                overflow: drawerOpen ? 'hidden' : undefined,
+                height: cardClipped ? `calc(100dvh - ${NAV_H})` : undefined,
+                overflow: cardClipped ? 'hidden' : undefined,
                 transition: 'transform 450ms cubic-bezier(0.22, 1, 0.36, 1), border-radius 450ms ease, box-shadow 450ms ease',
             }}
         >
