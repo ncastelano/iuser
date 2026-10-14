@@ -9,6 +9,7 @@ import { useAppointments, useDeleteAppointment } from '@/app/(main)/compromissos
 import { useProfilesById } from '@/hooks/useProfilesById'
 import ShareAppointmentButton from '@/components/ShareAppointmentButton'
 import { supabase } from '@/lib/supabase/client'
+import { notifyAppointmentUpdate } from '@/lib/notifyRideStatus'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { hexToRgb } from '@/lib/color'
@@ -162,7 +163,7 @@ export default function AtalhoCompromissosDaLoja({
             .from('appointments')
             .update({ status: 'confirmed' })
             .eq('id', id)
-        if (!error) refetch()
+        if (!error) { notifyAppointmentUpdate(id); refetch() }
         else alert(error.message.includes('pós-pago') ? error.message : 'Erro ao aceitar.')
     }, [refetch])
 
@@ -170,7 +171,7 @@ export default function AtalhoCompromissosDaLoja({
         e.stopPropagation()
         e.preventDefault()
         const { error } = await supabase.from('appointments').update({ status: 'cancelled' }).eq('id', id)
-        if (!error) refetch()
+        if (!error) { notifyAppointmentUpdate(id); refetch() }
     }, [refetch])
 
     const handleDelete = useCallback(async (id: string, e: React.MouseEvent) => {

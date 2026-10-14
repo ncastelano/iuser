@@ -10,7 +10,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
     Bell, Heart, MessageCircle, UserPlus, Eye, Link2, PartyPopper, CornerDownRight, CheckCheck, User,
-    Briefcase, CheckCircle2, Star, Car,
+    Briefcase, CheckCircle2, Star, Car, CalendarDays, CalendarCheck, CalendarX, CalendarClock,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
@@ -29,7 +29,7 @@ interface Notif {
     id: string
     kind: string
     ref_id: string | null
-    meta: { title?: string; snippet?: string; slug?: string; owner_slug?: string; path?: string; rating?: number; role?: string; price?: number }
+    meta: { title?: string; snippet?: string; slug?: string; owner_slug?: string; path?: string; rating?: number; role?: string; price?: number; store?: string; store_id?: string; date?: string; time?: string; flow?: string }
     created_at: string
     read_at: string | null
     actor_id: string | null
@@ -41,7 +41,7 @@ interface Notif {
 const PAGE_SIZE = 10
 const PREVIEW_COUNT = 5
 
-type Filter = 'all' | 'likes' | 'comments' | 'followers' | 'visits' | 'services'
+type Filter = 'all' | 'likes' | 'comments' | 'followers' | 'visits' | 'services' | 'agenda'
 
 const FILTERS: { id: Filter; label: string; kinds: string[] | null }[] = [
     { id: 'all', label: 'Tudo', kinds: null },
@@ -49,6 +49,7 @@ const FILTERS: { id: Filter; label: string; kinds: string[] | null }[] = [
     { id: 'comments', label: 'Comentários', kinds: ['publication_comment', 'profile_comment', 'comment_reply'] },
     { id: 'followers', label: 'Seguidores', kinds: ['follow', 'invite_signup'] },
     { id: 'visits', label: 'Visitas', kinds: ['profile_view', 'link_visit'] },
+    { id: 'agenda', label: 'Agenda', kinds: ['appointment_new', 'appointment_confirmed', 'appointment_cancelled', 'appointment_changed'] },
     { id: 'services', label: 'Serviços', kinds: ['service_application', 'service_selected', 'service_completed', 'service_review', 'ride_application', 'ride_selected', 'ride_review', 'customer_review'] },
 ]
 
@@ -72,6 +73,10 @@ const KIND_ICON: Record<string, { icon: typeof Bell; color: string }> = {
     ride_selected: { icon: CheckCircle2, color: '#22c55e' },
     ride_review: { icon: Star, color: '#eab308' },
     customer_review: { icon: Star, color: '#eab308' },
+    appointment_new: { icon: CalendarDays, color: '#0ea5e9' },
+    appointment_confirmed: { icon: CalendarCheck, color: '#22c55e' },
+    appointment_cancelled: { icon: CalendarX, color: '#ef4444' },
+    appointment_changed: { icon: CalendarClock, color: '#f59e0b' },
 }
 
 function dayLabel(iso: string) {
@@ -124,6 +129,13 @@ export default function ProfileNotification({ userId }: { userId: string }) {
         setItems((prev) => (prev || []).map((n) => ({ ...n, read_at: n.read_at || new Date().toISOString() })))
     }
 
+    // "Corte · 15/10 às 14:00"
+    const apptWhat = (n: Notif) => {
+        const d = n.meta?.date ? String(n.meta.date).split('-').reverse().join('/') : ''
+        const t = n.meta?.time ? ` às ${n.meta.time}` : ''
+        return `${n.meta?.title ? `“${n.meta.title}”` : 'um compromisso'}${d ? ` · ${d}${t}` : ''}`
+    }
+
     const nameOf = (n: Notif) => (n.actor_slug ? `@${n.actor_slug}` : n.actor_name || 'Um visitante')
 
     const textOf = (n: Notif): string => {
@@ -150,6 +162,12 @@ export default function ProfileNotification({ userId }: { userId: string }) {
             case 'ride_selected': return `${who} escolheu você para a corrida`
             case 'ride_review': return `${who} avaliou sua corrida ${'⭐'.repeat(Math.max(1, Math.min(5, n.meta?.rating || 0)))}${n.meta?.snippet ? `: “${n.meta.snippet}”` : ''}`
             case 'customer_review': return `${n.meta?.title ? `A loja ${n.meta.title}` : who} avaliou você ${'⭐'.repeat(Math.max(1, Math.min(5, n.meta?.rating || 0)))}${n.meta?.snippet ? `: “${n.meta.snippet}”` : ''}`
+            case 'appointment_new': return n.meta?.flow === 'booking'
+                ? `${who} agendou ${apptWhat(n)}${n.meta?.store ? ` em ${n.meta.store}` : ''}`
+                : `${who} convidou você para ${apptWhat(n)}`
+            case 'appointment_confirmed': return `${who} confirmou ${apptWhat(n)}`
+            case 'appointment_cancelled': return `${who} cancelou ${apptWhat(n)}`
+            case 'appointment_changed': return `${who} mudou o horário de ${apptWhat(n)}`
             default: return who
         }
     }
@@ -166,6 +184,11 @@ export default function ProfileNotification({ userId }: { userId: string }) {
         if (n.kind === 'ride_selected') return '/aceitar-corridas'
         if (n.kind === 'ride_review') return '/minhas-corridas'
         if (n.kind === 'customer_review') return '/pedidos'
+        if (n.kind.startsWith('appointment_')) {
+            // Quem é dono da loja abre direto a aba daquela loja: recebe o pedido de horário (booking/new) ou a resposta ao convite (invite/confirmed)
+            const storeOwnerSide = (n.kind === 'appointment_new' && n.meta?.flow === 'booking') || (n.kind === 'appointment_confirmed' && n.meta?.flow === 'invite')
+            return storeOwnerSide && n.meta?.store_id ? `/compromissos?tab=${n.meta.store_id}` : '/compromissos'
+        }
         // Comentário (ou resposta/curtida de comentário) no MEU perfil: abre o meu perfil nos comentários, não o de quem comentou
         if (['profile_comment', 'comment_reply', 'comment_like'].includes(n.kind) && mySlug) return `/${mySlug}?aba=comentarios`
         if (n.actor_slug) return `/${n.actor_slug}`

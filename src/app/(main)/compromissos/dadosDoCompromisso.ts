@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { useProfile } from '@/app/contexts/ProfileContext'
+import { notifyAppointmentUpdate } from '@/lib/notifyRideStatus'
 
 export type AppointmentStatus = 'confirmed' | 'pending' | 'cancelled' | 'completed'
 export type AppointmentDirection = 'outgoing' | 'incoming' | 'other'
@@ -88,6 +89,7 @@ export function useUpdateAppointmentStatus() {
                 .eq('id', appointmentId)
 
             if (error) throw error
+            notifyAppointmentUpdate(appointmentId)
             return true
         } catch (err: any) {
             console.error('Erro ao atualizar status:', err.message)

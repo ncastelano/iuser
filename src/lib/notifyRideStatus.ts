@@ -77,3 +77,16 @@ export function notifyServiceDecision(applicationId: string, kind: 'selected' | 
         }).catch(() => { /* silencioso */ })
     })
 }
+
+// Best-effort: avisa no aparelho quem precisa saber de um agendamento (confirmado, cancelado, alterado...). O registro na
+// lista de Notificações do perfil já foi gravado pelo banco; a rota só envia o push que ainda não foi enviado.
+export function notifyAppointmentUpdate(appointmentId: string) {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+        if (!session) return
+        fetch('/api/push/send-appointment-update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+            body: JSON.stringify({ appointmentId }),
+        }).catch(() => { /* silencioso */ })
+    })
+}
