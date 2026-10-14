@@ -249,14 +249,12 @@ interface DrawerData {
 }
 const VEHICLE_LABEL: Record<string, string> = { carro: 'Carro', moto: 'Moto', bicicleta: 'Bicicleta' }
 
-// Linha de um modo no menu. O ícone vira a IMAGEM do modo (foto do perfil, logo da loja, foto do carro) num giro 3D
-// quando o modo é selecionado; sem imagem, fica o ícone.
+// Linha de um modo no menu: mostra a imagem do modo (foto do perfil, logo da loja, foto do carro) ou, sem imagem, o ícone.
+// Nada some nem aparece aqui — a animação de troca acontece só no topo da página (seção "Bem-vindo").
 function DrawerRow({ mode, active, icon, image, title, desc, dot, onSelect }: {
     mode: string; active: string; icon: ReactNode; image?: string | null; title: string; desc?: string; dot?: string; onSelect: (mode: string) => void
 }) {
     const selected = active === mode
-    const flipped = selected && !!image
-    const face = { position: 'absolute', inset: 0, backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden', transition: 'transform 650ms cubic-bezier(0.45, 0, 0.2, 1)' } as const
     return (
         <button
             onClick={() => onSelect(mode)}
@@ -264,13 +262,8 @@ function DrawerRow({ mode, active, icon, image, title, desc, dot, onSelect }: {
             className="w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl text-left text-white transition hover:bg-white/15 active:bg-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
             style={selected ? { background: 'rgba(255,255,255,0.22)', boxShadow: 'inset 0 0 0 1.5px rgba(255,255,255,0.85)' } : undefined}
         >
-            <span className="relative w-10 h-10 flex-shrink-0" style={{ perspective: 300 }}>
-                <span className="rounded-xl flex items-center justify-center overflow-hidden" style={{ ...face, background: 'rgba(255,255,255,0.18)', transform: flipped ? 'rotateY(180deg)' : 'rotateY(0deg)' }}>{icon}</span>
-                {image && (
-                    <span className="rounded-xl overflow-hidden" style={{ ...face, background: 'rgba(255,255,255,0.18)', transform: flipped ? 'rotateY(0deg)' : 'rotateY(-180deg)' }}>
-                        <img src={image} alt="" className="w-full h-full object-cover" />
-                    </span>
-                )}
+            <span className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden" style={{ background: 'rgba(255,255,255,0.18)' }}>
+                {image ? <img src={image} alt="" className="w-full h-full object-cover" /> : icon}
             </span>
             <span className="min-w-0 flex-1">
                 <span className="block text-sm font-black leading-tight truncate">{title}</span>
@@ -389,16 +382,26 @@ function MenuDrawerContent({ slug, avatarUrl, data, active, onSelect, onOpenPane
 // A borda do plano é desenhada POR FORA da foto (3 px de cada lado) — por isso a foto fica menor quando tem borda,
 // pro conjunto ter exatamente o mesmo tamanho da logo.
 const BADGE = 48
-function HeaderBadge({ userId, avatarUrl, onProfile, onHome, colors, noRing = false, label = 'Meu perfil', fallbackIcon, popToken = 0 }: {
+function HeaderBadge({ userId, avatarUrl, onProfile, onHome, colors, noRing = false, label = 'Meu perfil', modeIcon, popToken = 0 }: {
     userId: string | null; avatarUrl: string | null | undefined; onProfile: () => void; onHome: () => void; colors: any
     /** Imagem que não é do perfil (logo da loja, foto do carro): sem a borda do plano */
     noRing?: boolean
     label?: string
-    fallbackIcon?: ReactNode
+    /** Ícone do modo atual: aparece primeiro e, 300 ms depois de trocar de modo, vira a imagem */
+    modeIcon?: ReactNode
     /** Sobe a cada troca de modo: a nova imagem entra com um "estouro" (0 = sem animação, carga inicial) */
     popToken?: number
 }) {
     const [showAvatar, setShowAvatar] = useState(true)
+    // Troca de modo (popToken muda): mostra o ícone, e só 300 ms depois vira a imagem — nunca fica um instante sem nada
+    // (derivado do token: na mesma renderização da troca já começa pelo ícone, sem piscar a imagem nova antes)
+    const [shownToken, setShownToken] = useState(popToken)
+    const imageShown = shownToken === popToken
+    useEffect(() => {
+        if (shownToken === popToken) return
+        const t = setTimeout(() => setShownToken(popToken), 300)
+        return () => clearTimeout(t)
+    }, [popToken, shownToken])
     const planRing = usePlanRing(userId)
     const hasRing = planRing && !noRing
     useEffect(() => {
@@ -420,19 +423,34 @@ function HeaderBadge({ userId, avatarUrl, onProfile, onHome, colors, noRing = fa
                     transform: avatarOn || !userId ? 'rotateY(0deg)' : 'rotateY(180deg)',
                 }}
             >
-                <style>{`
-                    @keyframes modePop { from { opacity: 0; transform: scale(0.4) rotate(-25deg); } 60% { transform: scale(1.12) rotate(4deg); } to { opacity: 1; transform: scale(1) rotate(0deg); } }
-                    .mode-pop { animation: modePop 650ms cubic-bezier(0.22, 1, 0.36, 1) 850ms backwards; }
-                    @media (prefers-reduced-motion: reduce) { .mode-pop { animation: none; } }
-                `}</style>
                 {/* Frente: a foto do perfil (ou, sem conta, a logo) */}
                 {userId ? (
                     <button onClick={onProfile} aria-label={label} className="flex items-center justify-center rounded-full" style={face}>
                         <PlanAvatarRing userId={noRing ? null : userId} width={2} linkToProfile={false}>
-                            <span key={popToken} className={`block rounded-full overflow-hidden flex items-center justify-center ${popToken > 0 ? 'mode-pop' : ''}`} style={{ width: avatarSize, height: avatarSize, background: `${colors.border}60` }}>
-                                {avatarUrl
-                                    ? <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
-                                    : (fallbackIcon || <User size={20} style={{ color: colors.textSecondary }} />)}
+                            <span className="block rounded-full overflow-hidden" style={{ width: avatarSize, height: avatarSize, perspective: 300 }}>
+                                <span key={popToken} className="relative block w-full h-full" style={{ transformStyle: 'preserve-3d' }}>
+                                    {/* Ícone do modo: aparece primeiro; só some quando a imagem já está pronta pra entrar */}
+                                    <span
+                                        className="absolute inset-0 rounded-full flex items-center justify-center text-white"
+                                        style={{
+                                            background: GRADIENT, backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden',
+                                            transition: 'transform 600ms cubic-bezier(0.45, 0, 0.2, 1)',
+                                            transform: imageShown ? 'rotateY(180deg)' : 'rotateY(0deg)',
+                                        }}
+                                    >
+                                        {modeIcon || <User size={20} />}
+                                    </span>
+                                    <span
+                                        className="absolute inset-0 rounded-full overflow-hidden flex items-center justify-center"
+                                        style={{
+                                            background: `${colors.border}60`, backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden',
+                                            transition: 'transform 600ms cubic-bezier(0.45, 0, 0.2, 1)',
+                                            transform: imageShown ? 'rotateY(0deg)' : 'rotateY(-180deg)',
+                                        }}
+                                    >
+                                        {avatarUrl ? <img src={avatarUrl} alt="" className="w-full h-full object-cover" /> : (modeIcon || <User size={20} style={{ color: colors.textSecondary }} />)}
+                                    </span>
+                                </span>
                             </span>
                         </PlanAvatarRing>
                     </button>
@@ -784,15 +802,15 @@ export default function ModeloInicialPage() {
     // prestador (foto do perfil + "Modo prestador") ou o perfil de sempre.
     const activeStore = activeMode.startsWith('loja:') ? drawerData.stores.find((st) => `loja:${st.slug}` === activeMode) : undefined
     const activeVehicle = activeMode.startsWith('motorista:') ? drawerData.vehicles.find((v) => `motorista:${v.kind}` === activeMode) : undefined
-    const headerView: { line1: string; line2: string; image: string | null | undefined; noRing: boolean; label: string; fallbackIcon?: ReactNode } =
-        activeStore ? { line1: 'Sua loja', line2: activeStore.name, image: activeStore.logo, noRing: true, label: 'Menu da loja', fallbackIcon: <StoreIcon size={20} style={{ color: colors.textSecondary }} /> }
+    const headerView: { line1: string; line2: string; image: string | null | undefined; noRing: boolean; label: string; modeIcon?: ReactNode } =
+        activeStore ? { line1: 'Sua loja', line2: activeStore.name, image: activeStore.logo, noRing: true, label: 'Menu da loja', modeIcon: <StoreIcon size={22} /> }
             : activeVehicle ? {
                 line1: profileSlug ? `@${profileSlug}` : 'Motorista',
                 line2: [activeVehicle.model, activeVehicle.plate].filter(Boolean).join(' · ') || (VEHICLE_LABEL[activeVehicle.kind] || 'Veículo'),
-                image: activeVehicle.photo, noRing: true, label: 'Menu do motorista', fallbackIcon: <Car size={20} style={{ color: colors.textSecondary }} />,
+                image: activeVehicle.photo, noRing: true, label: 'Menu do motorista', modeIcon: <Car size={22} />,
             }
-                : userId && drawerData.providerOn ? { line1: profileSlug ? `@${profileSlug}` : 'Meu perfil', line2: 'Modo prestador', image: avatarUrl, noRing: false, label: 'Meu perfil' }
-                    : { line1: userId ? 'Bem-vindo de volta' : 'Bem-vindo ao iUser', line2: profileSlug ? `@${profileSlug}` : 'Visitante', image: avatarUrl, noRing: false, label: 'Meu perfil' }
+                : userId && drawerData.providerOn ? { line1: profileSlug ? `@${profileSlug}` : 'Meu perfil', line2: 'Modo prestador', image: avatarUrl, noRing: false, label: 'Meu perfil', modeIcon: <User size={22} /> }
+                    : { line1: userId ? 'Bem-vindo de volta' : 'Bem-vindo ao iUser', line2: profileSlug ? `@${profileSlug}` : 'Visitante', image: avatarUrl, noRing: false, label: 'Meu perfil', modeIcon: <User size={22} /> }
 
     const searching = query.trim().length > 0
 
@@ -857,7 +875,7 @@ export default function ModeloInicialPage() {
                         colors={colors}
                         noRing={headerView.noRing}
                         label={headerView.label}
-                        fallbackIcon={headerView.fallbackIcon}
+                        modeIcon={headerView.modeIcon}
                         popToken={modeTick}
                         onProfile={() => { window.scrollTo({ top: 0 }); setDrawerOpen(true) }}
                         onHome={() => go('/')}
