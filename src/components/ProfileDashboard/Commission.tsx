@@ -55,6 +55,7 @@ import {
 import PlanAvatarRing from '@/components/PlanAvatarRing'
 import { useMyGraduation, GraduationOverview, GraduationCommissions, GraduationTree } from './MyGraduation'
 import { useMyPoints, MyPointsBody } from './MyPoints'
+import { rankStyle } from '@/app/(main)/social/SocialProfileCard'
 
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
@@ -91,6 +92,8 @@ interface CommissionProps {
     userId: string
     profileSlug?: string | null
     onLatestUpdate?: (iso: string) => void
+    /** 'graduacao' = cartão "Minha pontuação e graduação"; 'rede' = cartão "Minha rede" (a carteira) */
+    view?: 'graduacao' | 'rede'
 }
 
 interface CommissionSale {
@@ -147,7 +150,7 @@ const WITHDRAWAL_STATUS_COLOR: Record<WithdrawalRequest['status'], string> = {
 
 const MIN_WITHDRAWAL_AMOUNT = 20
 
-type Pane = 'pontuacao' | 'graduacao' | 'rede' | 'comissoes' | 'status' | 'grant' | 'history'
+type Pane = 'pontuacao' | 'graduacao' | 'comissoes' | 'status' | 'grant' | 'history'
 
 // 31/12 23:59:59 (Brasília), em dias a partir de agora.
 function daysUntilEndOfYear(): number {
@@ -201,7 +204,7 @@ const TwitterIcon = ({ size = 24, color = '#fff' }) => (
 // COMPONENTE PRINCIPAL
 // ============================================
 
-export default function Commission({ userId, profileSlug, onLatestUpdate }: CommissionProps) {
+export default function Commission({ userId, profileSlug, onLatestUpdate, view = 'graduacao' }: CommissionProps) {
     const { colors } = useTheme()
     const surfaceRgb = hexToRgb(colors.surface)
     const router = useRouter()
@@ -210,7 +213,7 @@ export default function Commission({ userId, profileSlug, onLatestUpdate }: Comm
     const [members, setMembers] = useState<CommissionMember[]>([])
     // Graduação de cada indicado (selo ao lado do nome)
     const memberLevels = useLevelsFor(members.map((m) => m.id))
-    const [isExpanded, setIsExpanded] = usePersistedExpanded('commission', true)
+    const [isExpanded, setIsExpanded] = usePersistedExpanded(view === 'rede' ? 'minhaRede' : 'commission', view !== 'rede')
     const [copied, setCopied] = useState(false)
     const [showShareModal, setShowShareModal] = useState(false)
     const [shareLink, setShareLink] = useState('')
@@ -394,19 +397,25 @@ export default function Commission({ userId, profileSlug, onLatestUpdate }: Comm
     useEffect(() => {
         if (userId) {
             fetchUserProfileSlug()
-            fetchCommissionData()
-            fetchWalletData()
+            if (view === 'rede') {
+                // Só a carteira/rede carrega indicados e saldo; o cartão de graduação não precisa
+                fetchCommissionData()
+                fetchWalletData()
+            } else {
+                setLoading(false)
+                setWalletLoading(false)
+            }
         } else {
             console.warn('⚠️ Commission: userId não fornecido')
             setLoading(false)
             setWalletLoading(false)
         }
-    }, [userId, fetchUserProfileSlug, fetchCommissionData, fetchWalletData])
+    }, [userId, view, fetchUserProfileSlug, fetchCommissionData, fetchWalletData])
 
     const walletBalance = walletTransactions.reduce((sum, t) => sum + Number(t.amount), 0)
 
     useEffect(() => {
-        if (!userId) return
+        if (!userId || view !== 'graduacao') return
         let cancelled = false
         Promise.all([supabase.rpc('get_my_status'), supabase.rpc('get_my_grantable_plans')]).then(([{ data: statusData }, { data: plansData }]) => {
             if (cancelled) return
@@ -416,7 +425,20 @@ export default function Commission({ userId, profileSlug, onLatestUpdate }: Comm
             setGrantPlanId((prev) => (prev && list.some((p) => p.id === prev) ? prev : list[0]?.id || ''))
         })
         return () => { cancelled = true }
-    }, [userId])
+    }, [userId, view])
+
+    // Minha posição em "Melhores perfis" (a mesma lista do /social): só pontos, do maior pro menor
+    const [myRank, setMyRank] = useState<number | null | undefined>(undefined)
+    useEffect(() => {
+        if (!userId || view !== 'graduacao') return
+        let cancelled = false
+        supabase.rpc('get_best_profiles', { p_limit: 500 }).then(({ data }) => {
+            if (cancelled) return
+            const idx = ((data as { id: string }[]) || []).findIndex((r) => r.id === userId)
+            setMyRank(idx >= 0 ? idx : null)
+        })
+        return () => { cancelled = true }
+    }, [userId, view])
 
     // Busca de pessoas pra conceder (dentro do escopo, filtrado pelo banco).
     useEffect(() => {
@@ -609,14 +631,13 @@ export default function Commission({ userId, profileSlug, onLatestUpdate }: Comm
     const selectedGrantPlan = plans.find((p) => p.id === grantPlanId)
     // Quem não pode conceder nada não tem Conceder/Histórico.
     const activePane: Pane = (pane === 'grant' || pane === 'history') && !canManage
-        ? 'rede'
+        ? 'status'
         : pane === 'pontuacao' && !points
-            ? ((graduation.loading || graduation.data) ? 'graduacao' : 'rede')
-            : (pane === 'graduacao' || pane === 'comissoes') && !graduation.loading && !graduation.data ? 'rede' : pane
+            ? ((graduation.loading || graduation.data) ? 'graduacao' : 'status')
+            : (pane === 'graduacao' || pane === 'comissoes') && !graduation.loading && !graduation.data ? 'status' : pane
     const panes: { id: Pane; label: string; icon: typeof Gift }[] = [
         ...(points ? [{ id: 'pontuacao' as const, label: 'Pontuação', icon: Trophy }] : []),
         ...(graduation.data || graduation.loading ? [{ id: 'graduacao' as const, label: 'Graduação', icon: GraduationCap }] : []),
-        { id: 'rede', label: 'Minha rede', icon: Users },
         ...(graduation.data ? [{ id: 'comissoes' as const, label: 'Comissões', icon: Coins }] : []),
         { id: 'status', label: 'Meu status', icon: ShieldCheck },
         ...(canManage ? [{ id: 'grant' as const, label: 'Conceder', icon: Gift }, { id: 'history' as const, label: 'Concessões', icon: History }] : []),
@@ -624,662 +645,9 @@ export default function Commission({ userId, profileSlug, onLatestUpdate }: Comm
     const networkPaidValue = members.reduce((acc, m) => acc + m.planPrice, 0)
     const networkPromisedValue = members.reduce((acc, m) => acc + m.postpaidDebt, 0)
 
-    return (
+    // Janela de compartilhar o convite (usada pelos dois cartões)
+    const shareModalNode = (
         <>
-            <div className="mb-6 mt-4">
-                <div
-                    className={`rounded-2xl relative flex flex-col ${isExpanded ? 'p-6 pt-7 gap-5' : 'p-4'}`}
-                    style={{
-                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
-                        backdropFilter: 'blur(12px)',
-                        WebkitBackdropFilter: 'blur(12px)',
-                        border: `1px solid ${borderColor}`,
-                        boxShadow: colors.shadow,
-                    }}
-                >
-                    {/* Cabeçalho com toggle - PILL */}
-                    <button
-                        onClick={() => setIsExpanded(!isExpanded)}
-                        className="w-full flex items-center justify-between text-left"
-                        style={{
-                            padding: isExpanded ? '0.5rem 0.75rem' : 0,
-                            borderRadius: '9999px',
-                            background: 'transparent',
-                            border: 'none',
-                            cursor: 'pointer',
-                        }}
-                    >
-                        <div className="flex items-center gap-3">
-                            <div>
-                                <h3 className={`${isExpanded ? 'text-lg' : 'text-sm'} font-black`} style={{ color: textPrimary }}>
-                                    Minha pontuação e graduação
-                                </h3>
-                                <p className="text-xs mt-0.5" style={{ color: textSecondary }}>
-                                    {points && <><b style={{ color: '#f97316' }}>{points.total}</b> pontos · </>}
-                                    {members.length} pessoa{members.length !== 1 ? 's' : ''} na sua rede
-                                    {totalCommission > 0 && ` · ${formatCurrency(totalCommission)} em comissão`}
-                                </p>
-                            </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            {graduation.data && <LevelBadge level={graduation.data.level} size="sm" />}
-                            {members.length > 0 && (
-                                <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: '#f9731620', color: '#f97316' }}>
-                                    {members.length}
-                                </span>
-                            )}
-                            {isExpanded ? (
-                                <ChevronUp size={isExpanded ? 22 : 18} style={{ color: textSecondary }} />
-                            ) : (
-                                <ChevronDown size={isExpanded ? 22 : 18} style={{ color: textSecondary }} />
-                            )}
-                        </div>
-                    </button>
-
-                    {isExpanded && (
-                        <div className="flex flex-col gap-5">
-                            {/* Abas internas — o que antes era a aba "Minha Rede" do cabeçalho */}
-                            <div className="flex gap-2 overflow-x-auto pb-1">
-                                {panes.map((t) => {
-                                    const Icon = t.icon
-                                    const active = activePane === t.id
-                                    return (
-                                        <button
-                                            key={t.id}
-                                            onClick={() => setPane(t.id)}
-                                            className="flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-all"
-                                            style={active
-                                                ? { background: GRADIENT, color: '#fff', border: '1px solid transparent' }
-                                                : { background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`, color: textPrimary, border: `1px solid ${borderColor}` }}
-                                        >
-                                            <Icon size={14} />
-                                            {t.label}
-                                        </button>
-                                    )
-                                })}
-                            </div>
-
-                            {activePane === 'pontuacao' && points && <MyPointsBody data={points} />}
-
-                            {activePane === 'graduacao' && (
-                                graduation.data
-                                    ? <GraduationOverview data={graduation.data} />
-                                    : <div className="flex justify-center py-6"><Spinner size={24} color={accentColor} /></div>
-                            )}
-
-                            {activePane === 'comissoes' && graduation.data && (
-                                <GraduationCommissions commissions={graduation.commissions} />
-                            )}
-
-                            {activePane === 'rede' && (
-                            <>
-                            {/* ===== CARTEIRA (saldo + saque) ===== */}
-                            <div className="w-full rounded-2xl p-6 flex flex-col items-center gap-2" style={{ background: GRADIENT }}>
-                                <Wallet size={28} color="#fff" />
-                                <span className="text-xs font-bold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.85)' }}>
-                                    Saldo disponível
-                                </span>
-                                <span className="text-3xl font-black" style={{ color: '#fff' }}>
-                                    R$ {walletBalance.toFixed(2)}
-                                </span>
-                            </div>
-
-                            {/* ===== MINHA REDE: resumo do que a rede rende ===== */}
-                            {!loading && members.length > 0 && (
-                                <div className="grid grid-cols-2 gap-2">
-                                    <div className="rounded-2xl p-3" style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`, border: `1px solid ${borderColor}` }}>
-                                        <p className="flex items-center gap-1 text-[10px] font-black uppercase tracking-wider" style={{ color: textSecondary }}>
-                                            <Check size={11} /> Planos pagos (rede)
-                                        </p>
-                                        <p className="text-lg font-black mt-1" style={{ color: textPrimary }}>{formatCurrency(networkPaidValue)}</p>
-                                        <p className="text-[10px] mt-0.5" style={{ color: textSecondary }}>Mensalidade do pré-pago de quem está ativo</p>
-                                    </div>
-                                    <div className="rounded-2xl p-3" style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`, border: `1px solid ${borderColor}` }}>
-                                        <p className="flex items-center gap-1 text-[10px] font-black uppercase tracking-wider" style={{ color: textSecondary }}>
-                                            <Clock size={11} /> Prometido (pós-pago)
-                                        </p>
-                                        <p className="text-lg font-black mt-1" style={{ color: '#f97316' }}>{formatCurrency(networkPromisedValue)}</p>
-                                        <p className="text-[10px] mt-0.5" style={{ color: textSecondary }}>Dívida acumulada, ainda não quitada</p>
-                                    </div>
-                                </div>
-                            )}
-
-                            {!showWithdrawForm ? (
-                                <div className="flex flex-col gap-2">
-                                    <button
-                                        onClick={() => setShowWithdrawForm(true)}
-                                        disabled={walletBalance < MIN_WITHDRAWAL_AMOUNT}
-                                        className="w-full py-3.5 rounded-full font-black uppercase text-sm tracking-wider transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
-                                        style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`, border: `1px solid ${borderColor}`, color: textPrimary }}
-                                    >
-                                        <Send size={16} />
-                                        Solicitar saque via PIX
-                                    </button>
-                                    <p className="text-[10px] text-center" style={{ color: textSecondary }}>
-                                        {walletBalance < MIN_WITHDRAWAL_AMOUNT
-                                            ? `Saque mínimo: R$ ${MIN_WITHDRAWAL_AMOUNT.toFixed(2)} — faltam R$ ${(MIN_WITHDRAWAL_AMOUNT - walletBalance).toFixed(2)} pra poder sacar.`
-                                            : `Valor mínimo de saque: R$ ${MIN_WITHDRAWAL_AMOUNT.toFixed(2)}.`}
-                                    </p>
-                                </div>
-                            ) : (
-                                <div className="w-full rounded-2xl p-4 flex flex-col gap-3" style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.4)`, border: `1px solid ${borderColor}` }}>
-                                    <p className="text-[11px]" style={{ color: textSecondary }}>
-                                        O PIX é enviado automaticamente pra chave abaixo assim que você confirmar. Valor mínimo: R$ {MIN_WITHDRAWAL_AMOUNT.toFixed(2)}.
-                                    </p>
-                                    <label className="text-[10px] font-bold uppercase" style={{ color: textSecondary }}>Valor (máx. R$ {walletBalance.toFixed(2)})</label>
-                                    <input
-                                        type="text"
-                                        inputMode="decimal"
-                                        value={withdrawAmount}
-                                        onChange={(e) => setWithdrawAmount(e.target.value)}
-                                        placeholder="0,00"
-                                        className="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none"
-                                        style={{ background: colors.background, borderColor: borderColor, color: textPrimary }}
-                                    />
-                                    <label className="text-[10px] font-bold uppercase" style={{ color: textSecondary }}>Tipo da chave</label>
-                                    <select
-                                        value={pixKeyType}
-                                        onChange={(e) => setPixKeyType(e.target.value)}
-                                        className="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none"
-                                        style={{ background: colors.background, borderColor: borderColor, color: textPrimary }}
-                                    >
-                                        <option value="cpf">CPF</option>
-                                        <option value="cnpj">CNPJ</option>
-                                        <option value="email">E-mail</option>
-                                        <option value="phone">Telefone</option>
-                                        <option value="random">Aleatória</option>
-                                    </select>
-                                    <label className="text-[10px] font-bold uppercase" style={{ color: textSecondary }}>Chave PIX</label>
-                                    <input
-                                        type="text"
-                                        value={pixKey}
-                                        onChange={(e) => setPixKey(e.target.value)}
-                                        placeholder="CPF, email, telefone ou chave aleatória"
-                                        className="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none"
-                                        style={{ background: colors.background, borderColor: borderColor, color: textPrimary }}
-                                    />
-                                    <div className="flex gap-2 mt-1">
-                                        <button
-                                            onClick={() => setShowWithdrawForm(false)}
-                                            className="flex-1 py-2.5 rounded-xl text-sm font-bold"
-                                            style={{ background: `${borderColor}30`, color: textPrimary }}
-                                        >
-                                            Cancelar
-                                        </button>
-                                        <button
-                                            onClick={handleWithdraw}
-                                            disabled={submittingWithdraw}
-                                            className="flex-1 py-2.5 rounded-xl text-sm font-bold disabled:opacity-60"
-                                            style={{ background: GRADIENT, color: '#fff' }}
-                                        >
-                                            {submittingWithdraw ? <Spinner size={14} color="#ffffff" /> : 'Confirmar'}
-                                        </button>
-                                    </div>
-                                </div>
-                            )}
-
-                            {!walletLoading && withdrawalRequests.length > 0 && (
-                                <div className="flex flex-col gap-2">
-                                    <h2 className="text-xs font-black uppercase tracking-widest" style={{ color: textPrimary }}>
-                                        Pedidos de saque
-                                    </h2>
-                                    {withdrawalRequests.map((w) => (
-                                        <div
-                                            key={w.id}
-                                            className="flex flex-col gap-1 p-3 rounded-xl"
-                                            style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`, border: `1px solid ${borderColor}` }}
-                                        >
-                                            <div className="flex items-center gap-3">
-                                                <Send size={16} style={{ color: textSecondary }} className="flex-shrink-0" />
-                                                <div className="flex-1 min-w-0">
-                                                    <p className="text-xs font-bold truncate" style={{ color: textPrimary }}>
-                                                        {w.pix_key}
-                                                    </p>
-                                                    <p className="text-[10px]" style={{ color: textSecondary }}>
-                                                        {formatWalletDate(w.requested_at)}
-                                                    </p>
-                                                </div>
-                                                <span className="text-sm font-black flex-shrink-0" style={{ color: textPrimary }}>
-                                                    R$ {Number(w.amount).toFixed(2)}
-                                                </span>
-                                                <span
-                                                    className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full flex-shrink-0"
-                                                    style={{ background: `${WITHDRAWAL_STATUS_COLOR[w.status]}20`, color: WITHDRAWAL_STATUS_COLOR[w.status] }}
-                                                >
-                                                    {WITHDRAWAL_STATUS_LABEL[w.status]}
-                                                </span>
-                                            </div>
-                                            {w.failure_reason && (
-                                                <p className="text-[10px]" style={{ color: '#ef4444' }}>
-                                                    {w.failure_reason}
-                                                </p>
-                                            )}
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-
-                            {!walletLoading && walletTransactions.length > 0 && (
-                                <div className="flex flex-col gap-2">
-                                    <h2 className="text-xs font-black uppercase tracking-widest" style={{ color: textPrimary }}>
-                                        Lançamentos
-                                    </h2>
-                                    {walletTransactions.map((t) => (
-                                        <div
-                                            key={t.id}
-                                            className="flex items-center gap-3 p-3 rounded-xl"
-                                            style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`, border: `1px solid ${borderColor}` }}
-                                        >
-                                            {t.amount >= 0 ? (
-                                                <ArrowDownCircle size={20} color="#22c55e" />
-                                            ) : (
-                                                <ArrowUpCircle size={20} color="#ef4444" />
-                                            )}
-                                            <div className="flex-1 min-w-0">
-                                                <p className="text-xs font-bold truncate" style={{ color: textPrimary }}>
-                                                    {t.description || (t.amount >= 0 ? 'Crédito' : 'Débito')}
-                                                </p>
-                                                <p className="text-[10px]" style={{ color: textSecondary }}>
-                                                    {formatWalletDate(t.created_at)}
-                                                </p>
-                                            </div>
-                                            <span className="text-sm font-black flex-shrink-0" style={{ color: t.amount >= 0 ? '#22c55e' : '#ef4444' }}>
-                                                {t.amount >= 0 ? '+' : ''}R$ {Number(t.amount).toFixed(2)}
-                                            </span>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-
-                            {/* Botão Convidar - PILL */}
-                            <button
-                                onClick={handleInvite}
-                                style={{
-                                    ...pillButtonFullStyle,
-                                    background: GRADIENT,
-                                    color: '#ffffff',
-                                    boxShadow: `0 4px 12px #f9731640`,
-                                }}
-                                className="hover:scale-[1.02] transition-transform"
-                            >
-                                <UserPlus size={16} />
-                                Convidar
-                            </button>
-
-                            {loading ? (
-                                <div
-                                    className="rounded-2xl p-8 text-center"
-                                    style={{
-                                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
-                                        border: `1px solid ${borderColor}`,
-                                    }}
-                                >
-                                    <div className="w-6 h-6 border-2 border-orange-200 border-t-orange-500 rounded-full animate-spin mx-auto" />
-                                    <p className="mt-3 text-xs" style={{ color: textSecondary }}>
-                                        Carregando...
-                                    </p>
-                                </div>
-                            ) : members.length === 0 ? (
-                                <div
-                                    className="rounded-2xl p-6 text-center flex flex-col items-center gap-4"
-                                    style={{
-                                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
-                                        border: `1px dashed ${borderColor}`,
-                                    }}
-                                >
-                                    <div
-                                        className="w-16 h-16 rounded-full flex items-center justify-center"
-                                        style={{ background: GRADIENT, color: '#ffffff' }}
-                                    >
-                                        <UserPlus size={28} />
-                                    </div>
-                                    <div>
-                                        <p className="text-sm font-bold" style={{ color: textPrimary }}>
-                                            Você ainda não indicou ninguém
-                                        </p>
-                                        <p className="text-xs mt-1" style={{ color: textSecondary }}>
-                                            Convide pessoas para começar a construir sua rede
-                                        </p>
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="flex flex-col gap-3">
-                                    {members.map(member => {
-                                        const avatarUrl = getImageUrl(member.avatar_url)
-                                        const hasSales = member.sales.length > 0
-
-                                        return (
-                                            <div
-                                                key={member.id}
-                                                className="rounded-2xl border overflow-hidden"
-                                                style={{
-                                                    background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
-                                                    borderColor: borderColor,
-                                                }}
-                                            >
-                                                <div
-                                                    className="flex items-center gap-3 p-3 cursor-pointer hover:opacity-80 transition-opacity"
-                                                    onClick={() => {
-                                                        if (member.profileSlug) {
-                                                            router.push(`/${member.profileSlug}`)
-                                                        }
-                                                    }}
-                                                >
-                                                    <PlanAvatarRing userId={member.id}>
-                                                    <div
-                                                        className="w-12 h-12 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0"
-                                                        style={{ background: `${accentColor}15` }}
-                                                    >
-                                                        {avatarUrl ? (
-                                                            <img
-                                                                src={avatarUrl}
-                                                                className="w-full h-full object-cover"
-                                                                alt={member.name}
-                                                            />
-                                                        ) : (
-                                                            <User size={22} style={{ color: '#f97316' }} />
-                                                        )}
-                                                    </div>
-                                                    </PlanAvatarRing>
-
-                                                    <div className="flex-1 min-w-0">
-                                                        <div className="flex items-center gap-1.5 min-w-0">
-                                                            <p className="text-sm font-bold truncate" style={{ color: textPrimary }}>
-                                                                {member.name}
-                                                            </p>
-                                                            {memberLevels.get(member.id) && <LevelBadge level={memberLevels.get(member.id)!} size="sm" />}
-                                                        </div>
-                                                        <p className="text-[10px] mt-0.5" style={{ color: textSecondary }}>
-                                                            Entrou {formatDistanceToNow(new Date(member.created_at), {
-                                                                addSuffix: true,
-                                                                locale: ptBRLocale,
-                                                            })}
-                                                        </p>
-                                                        {member.activePlans ? (
-                                                            <span
-                                                                className="inline-block mt-1.5 text-[9px] font-bold px-2 py-0.5 rounded-full truncate max-w-full"
-                                                                style={{ background: '#22c55e20', color: '#22c55e' }}
-                                                                title={member.activePlans}
-                                                            >
-                                                                {member.activePlans}
-                                                            </span>
-                                                        ) : (
-                                                            <span className="inline-block mt-1.5 text-[9px]" style={{ color: textSecondary }}>
-                                                                Sem plano ativo
-                                                            </span>
-                                                        )}
-                                                        {(member.planPrice > 0 || member.postpaidDebt > 0) && (
-                                                            <p className="text-[9px] font-bold mt-1">
-                                                                {member.planPrice > 0 && <span style={{ color: textPrimary }}>{formatCurrency(member.planPrice)}/mês</span>}
-                                                                {member.planPrice > 0 && member.postpaidDebt > 0 && <span style={{ color: textSecondary }}> · </span>}
-                                                                {member.postpaidDebt > 0 && <span style={{ color: '#f97316' }}>Deve {formatCurrency(member.postpaidDebt)}</span>}
-                                                            </p>
-                                                        )}
-                                                    </div>
-
-                                                    <div className="flex flex-col items-end gap-0.5 flex-shrink-0 text-right">
-                                                        <span className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider" style={{ color: textSecondary }}>
-                                                            <Wallet size={10} />
-                                                            Comissão
-                                                        </span>
-                                                        <span className="text-base font-black" style={{ color: member.commissionTotal > 0 ? '#f97316' : textSecondary }}>
-                                                            {formatCurrency(member.commissionTotal)}
-                                                        </span>
-                                                    </div>
-                                                </div>
-
-                                                {hasSales && (
-                                                    <div
-                                                        className="px-3 py-2.5 space-y-1.5 border-t"
-                                                        style={{
-                                                            borderColor,
-                                                            background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.25)`,
-                                                        }}
-                                                    >
-                                                        <p className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wider mb-1" style={{ color: textSecondary }}>
-                                                            <Receipt size={11} />
-                                                            Extrato de vendas
-                                                        </p>
-                                                        {member.sales.map((sale, i) => (
-                                                            <div key={i} className="flex items-center justify-between text-[11px]">
-                                                                <span className="truncate" style={{ color: textPrimary }}>
-                                                                    {sale.planName}
-                                                                </span>
-                                                                <span className="flex items-center gap-2 flex-shrink-0">
-                                                                    <span style={{ color: textSecondary }}>
-                                                                        {new Date(sale.date).toLocaleDateString('pt-BR')}
-                                                                    </span>
-                                                                    <span className="font-bold" style={{ color: '#22c55e' }}>
-                                                                        +{formatCurrency(sale.amount)}
-                                                                    </span>
-                                                                </span>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )
-                                    })}
-                                </div>
-                            )}
-
-                            {/* Árvore da rede: quem eles indicaram, com a graduação de cada um */}
-                            {graduation.data && (
-                                <div className="flex flex-col gap-3 pt-2">
-                                    <div>
-                                        <h4 className="text-sm font-black" style={{ color: textPrimary }}>Árvore da rede</h4>
-                                        <p className="text-[11px]" style={{ color: textSecondary }}>Quem você indicou, a graduação de cada um e quem eles indicaram</p>
-                                    </div>
-                                    <GraduationTree />
-                                </div>
-                            )}
-                            </>
-                            )}
-
-                            {/* ===== MEU STATUS (antes na aba Minha Rede) ===== */}
-                            {activePane === 'status' && (
-                                <div style={subCardStyle} className="space-y-4">
-                                    {status ? (
-                                        <>
-                                            <div>
-                                                <p className="text-[10px] font-black uppercase tracking-wider" style={{ color: textSecondary }}>Meu status</p>
-                                                <p className="text-xl font-black" style={{ color: textPrimary }}>{status.name}</p>
-                                                {status.description && <p className="text-xs" style={{ color: textSecondary }}>{status.description}</p>}
-                                            </div>
-                                            <div>
-                                                <p className="text-[10px] font-black uppercase tracking-wider" style={{ color: textSecondary }}>Nível</p>
-                                                <p className="text-base font-black" style={{ color: textPrimary }}>{status.level}</p>
-                                            </div>
-                                            <div>
-                                                <p className="text-[10px] font-black uppercase tracking-wider mb-1.5" style={{ color: textSecondary }}>Permissões</p>
-                                                {status.permissions.length === 0 ? (
-                                                    <p className="text-xs" style={{ color: textSecondary }}>Nenhuma permissão de gestão.</p>
-                                                ) : (
-                                                    <ul className="space-y-1.5">
-                                                        {status.permissions.map((p) => (
-                                                            <li key={p.slug} className="flex items-start gap-2 text-sm" style={{ color: textPrimary }}>
-                                                                <Check size={14} className="mt-0.5 flex-shrink-0" style={{ color: '#22c55e' }} />
-                                                                <span>
-                                                                    <span className="font-semibold">{p.name}</span>
-                                                                    <span className="block text-[11px]" style={{ color: textSecondary }}>Escopo: {SCOPE_LABEL[p.scope]}</span>
-                                                                </span>
-                                                            </li>
-                                                        ))}
-                                                    </ul>
-                                                )}
-                                            </div>
-                                        </>
-                                    ) : (
-                                        <div className="flex justify-center py-6"><Spinner size={24} color={accentColor} /></div>
-                                    )}
-                                </div>
-                            )}
-
-                            {/* ===== CONCEDER BENEFÍCIO ===== */}
-                            {activePane === 'grant' && canManage && (
-                                plans.length === 0 ? (
-                                    <div className="text-sm" style={{ ...subCardStyle, color: textSecondary }}>
-                                        Você não tem permissão para conceder nenhum plano no momento.
-                                    </div>
-                                ) : (
-                                    <div style={subCardStyle} className="space-y-4">
-                                        <div>
-                                            <p className="text-[10px] font-black uppercase tracking-wider mb-1.5" style={{ color: textSecondary }}>Buscar usuário</p>
-                                            {grantTarget ? (
-                                                <div className="flex items-center gap-3 px-3 py-2 rounded-xl" style={{ background: `${accentColor}15`, border: `1px solid ${accentColor}55` }}>
-                                                    <span className="flex-1 min-w-0 text-sm font-bold truncate" style={{ color: textPrimary }}>
-                                                        {grantTarget.name || `@${grantTarget.profile_slug}`}
-                                                        {grantTarget.profile_slug && <span className="font-medium" style={{ color: textSecondary }}> @{grantTarget.profile_slug}</span>}
-                                                    </span>
-                                                    <button onClick={() => { setGrantTarget(null); setGrantQuery('') }} style={{ color: textSecondary }}>
-                                                        <X size={16} />
-                                                    </button>
-                                                </div>
-                                            ) : (
-                                                <>
-                                                    <div className="relative">
-                                                        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: textSecondary }} />
-                                                        <input
-                                                            value={grantQuery}
-                                                            onChange={(e) => setGrantQuery(e.target.value)}
-                                                            placeholder="Nome ou @slug"
-                                                            style={{ ...grantInputStyle, paddingLeft: 32 }}
-                                                        />
-                                                    </div>
-                                                    {grantSearching && <p className="text-[11px] mt-1.5" style={{ color: textSecondary }}>Buscando...</p>}
-                                                    {!grantSearching && grantQuery.trim().length >= 2 && grantResults.length === 0 && (
-                                                        <p className="text-[11px] mt-1.5" style={{ color: textSecondary }}>Ninguém encontrado dentro do seu escopo.</p>
-                                                    )}
-                                                    {grantResults.length > 0 && (
-                                                        <div className="mt-2 rounded-xl overflow-hidden" style={{ border: `1px solid ${borderColor}` }}>
-                                                            {grantResults.map((r) => {
-                                                                const avatar = getAvatarUrl(supabase, r.avatar_url)
-                                                                return (
-                                                                    <button
-                                                                        key={r.id}
-                                                                        onClick={() => { setGrantTarget(r); setGrantResults([]) }}
-                                                                        className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-black/5"
-                                                                        style={{ borderBottom: `1px solid ${borderColor}` }}
-                                                                    >
-                                                                        <PlanAvatarRing userId={r.id}>
-                                                                        <span className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0" style={{ background: `${borderColor}40` }}>
-                                                                            {avatar && <img src={avatar} alt="" className="w-full h-full object-cover" />}
-                                                                        </span>
-                                                                        </PlanAvatarRing>
-                                                                        <span className="min-w-0">
-                                                                            <span className="block text-sm font-bold truncate" style={{ color: textPrimary }}>{r.name || `@${r.profile_slug}`}</span>
-                                                                            {r.profile_slug && <span className="block text-[11px]" style={{ color: textSecondary }}>@{r.profile_slug}</span>}
-                                                                        </span>
-                                                                    </button>
-                                                                )
-                                                            })}
-                                                        </div>
-                                                    )}
-                                                </>
-                                            )}
-                                        </div>
-
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                            <div>
-                                                <p className="text-[10px] font-black uppercase tracking-wider mb-1.5" style={{ color: textSecondary }}>Plano</p>
-                                                <select value={grantPlanId} onChange={(e) => setGrantPlanId(e.target.value)} style={grantInputStyle}>
-                                                    {plans.map((p) => (
-                                                        <option key={p.id} value={p.id}>{p.name}</option>
-                                                    ))}
-                                                </select>
-                                            </div>
-                                            <div>
-                                                <p className="text-[10px] font-black uppercase tracking-wider mb-1.5" style={{ color: textSecondary }}>Duração</p>
-                                                <select value={grantDuration} onChange={(e) => setGrantDuration(e.target.value)} style={grantInputStyle}>
-                                                    {GRANT_DURATIONS.map((d) => (
-                                                        <option key={d.value} value={d.value}>{d.label}</option>
-                                                    ))}
-                                                </select>
-                                            </div>
-                                        </div>
-
-                                        <div>
-                                            <p className="text-[10px] font-black uppercase tracking-wider mb-1.5" style={{ color: textSecondary }}>Início (opcional — vazio = agora)</p>
-                                            <input
-                                                type="date"
-                                                value={grantStartsAt}
-                                                min={new Date().toISOString().slice(0, 10)}
-                                                onChange={(e) => setGrantStartsAt(e.target.value)}
-                                                style={grantInputStyle}
-                                            />
-                                        </div>
-
-                                        <div>
-                                            <p className="text-[10px] font-black uppercase tracking-wider mb-1.5" style={{ color: textSecondary }}>Motivo (opcional)</p>
-                                            <input value={grantReason} onChange={(e) => setGrantReason(e.target.value)} maxLength={300} placeholder="Ex: parceiro do bairro" style={grantInputStyle} />
-                                        </div>
-
-                                        {selectedGrantPlan && (
-                                            <p className="text-[11px]" style={{ color: textSecondary }}>
-                                                {selectedGrantPlan.description || selectedGrantPlan.name} · escopo: {SCOPE_LABEL[selectedGrantPlan.scope]}
-                                            </p>
-                                        )}
-
-                                        <button
-                                            onClick={handleGrant}
-                                            disabled={granting || !grantTarget || !grantPlanId}
-                                            className="w-full py-3 rounded-full text-sm font-black text-white disabled:opacity-50 flex items-center justify-center gap-2"
-                                            style={{ background: GRADIENT }}
-                                        >
-                                            {granting ? <Spinner size={14} color="#ffffff" /> : <Check size={16} />}
-                                            Conceder benefício
-                                        </button>
-                                    </div>
-                                )
-                            )}
-
-                            {/* ===== HISTÓRICO DE BENEFÍCIOS ===== */}
-                            {activePane === 'history' && canManage && (
-                                <div className="space-y-2">
-                                    <p className="text-xs font-black uppercase tracking-wider" style={{ color: textSecondary }}>Histórico de benefícios</p>
-                                    {loadingHistory ? (
-                                        <div className="flex justify-center py-8"><Spinner size={24} color={accentColor} /></div>
-                                    ) : history.length === 0 ? (
-                                        <div className="text-sm" style={{ ...subCardStyle, color: textSecondary }}>Nenhum benefício concedido ainda.</div>
-                                    ) : (
-                                        <div style={{ ...subCardStyle, padding: 0 }} className="overflow-hidden">
-                                            {history.map((h, i) => (
-                                                <div
-                                                    key={h.id}
-                                                    className="flex items-center gap-3 px-4 py-3"
-                                                    style={{ borderTop: i === 0 ? undefined : `1px solid ${borderColor}` }}
-                                                >
-                                                    <div className="min-w-0 flex-1">
-                                                        <p className="text-sm font-bold truncate" style={{ color: textPrimary }}>
-                                                            {h.target_name || (h.target_slug ? `@${h.target_slug}` : 'Pessoa removida')} · {h.plan_name || h.plan_code}
-                                                        </p>
-                                                        <p className="text-[11px]" style={{ color: textSecondary }}>
-                                                            Concedido em {formatBenefitDate(h.created_at)} · {h.is_scheduled ? `começa em ${formatBenefitDate(h.starts_at)} · ` : ''}expira em {formatBenefitDate(h.expires_at)}
-                                                            {h.actor_name ? ` · por ${h.actor_name}` : ''}
-                                                        </p>
-                                                        {h.reason && <p className="text-[11px] italic" style={{ color: textSecondary }}>{h.reason}</p>}
-                                                    </div>
-                                                    <span
-                                                        className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full flex-shrink-0"
-                                                        style={h.is_active
-                                                            ? { background: '#22c55e20', color: '#22c55e' }
-                                                            : h.is_scheduled
-                                                                ? { background: '#f9731620', color: '#f97316' }
-                                                                : { background: `${borderColor}40`, color: textSecondary }}
-                                                    >
-                                                        {h.is_active ? 'Ativo' : h.is_scheduled ? 'Agendado' : 'Expirado'}
-                                                    </span>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-                        </div>
-                    )}
-                </div>
-            </div>
-
             {/* ============================================
             MODAL DE COMPARTILHAMENTO - PILL
             ============================================ */}
@@ -1497,6 +865,739 @@ export default function Commission({ userId, profileSlug, onLatestUpdate }: Comm
                     animation: slideUp 0.3s ease-out;
                 }
             `}</style>
+        </>
+    )
+
+    // ===== VISÃO "MINHA REDE": a carteira — saldo, sacar, convidar e quem está na rede =====
+    const redeContent = (
+        <>
+
+                            {/* ===== MINHA REDE: resumo do que a rede rende ===== */}
+                            {!loading && members.length > 0 && (
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div className="rounded-2xl p-3" style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`, border: `1px solid ${borderColor}` }}>
+                                        <p className="flex items-center gap-1 text-[10px] font-black uppercase tracking-wider" style={{ color: textSecondary }}>
+                                            <Check size={11} /> Planos pagos (rede)
+                                        </p>
+                                        <p className="text-lg font-black mt-1" style={{ color: textPrimary }}>{formatCurrency(networkPaidValue)}</p>
+                                        <p className="text-[10px] mt-0.5" style={{ color: textSecondary }}>Mensalidade do pré-pago de quem está ativo</p>
+                                    </div>
+                                    <div className="rounded-2xl p-3" style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`, border: `1px solid ${borderColor}` }}>
+                                        <p className="flex items-center gap-1 text-[10px] font-black uppercase tracking-wider" style={{ color: textSecondary }}>
+                                            <Clock size={11} /> Prometido (pós-pago)
+                                        </p>
+                                        <p className="text-lg font-black mt-1" style={{ color: '#f97316' }}>{formatCurrency(networkPromisedValue)}</p>
+                                        <p className="text-[10px] mt-0.5" style={{ color: textSecondary }}>Dívida acumulada, ainda não quitada</p>
+                                    </div>
+                                </div>
+                            )}
+
+                            {!showWithdrawForm ? null : (
+                                <div className="w-full rounded-2xl p-4 flex flex-col gap-3" style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.4)`, border: `1px solid ${borderColor}` }}>
+                                    <p className="text-[11px]" style={{ color: textSecondary }}>
+                                        O PIX é enviado automaticamente pra chave abaixo assim que você confirmar. Valor mínimo: R$ {MIN_WITHDRAWAL_AMOUNT.toFixed(2)}.
+                                    </p>
+                                    <label className="text-[10px] font-bold uppercase" style={{ color: textSecondary }}>Valor (máx. R$ {walletBalance.toFixed(2)})</label>
+                                    <input
+                                        type="text"
+                                        inputMode="decimal"
+                                        value={withdrawAmount}
+                                        onChange={(e) => setWithdrawAmount(e.target.value)}
+                                        placeholder="0,00"
+                                        className="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none"
+                                        style={{ background: colors.background, borderColor: borderColor, color: textPrimary }}
+                                    />
+                                    <label className="text-[10px] font-bold uppercase" style={{ color: textSecondary }}>Tipo da chave</label>
+                                    <select
+                                        value={pixKeyType}
+                                        onChange={(e) => setPixKeyType(e.target.value)}
+                                        className="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none"
+                                        style={{ background: colors.background, borderColor: borderColor, color: textPrimary }}
+                                    >
+                                        <option value="cpf">CPF</option>
+                                        <option value="cnpj">CNPJ</option>
+                                        <option value="email">E-mail</option>
+                                        <option value="phone">Telefone</option>
+                                        <option value="random">Aleatória</option>
+                                    </select>
+                                    <label className="text-[10px] font-bold uppercase" style={{ color: textSecondary }}>Chave PIX</label>
+                                    <input
+                                        type="text"
+                                        value={pixKey}
+                                        onChange={(e) => setPixKey(e.target.value)}
+                                        placeholder="CPF, email, telefone ou chave aleatória"
+                                        className="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none"
+                                        style={{ background: colors.background, borderColor: borderColor, color: textPrimary }}
+                                    />
+                                    <div className="flex gap-2 mt-1">
+                                        <button
+                                            onClick={() => setShowWithdrawForm(false)}
+                                            className="flex-1 py-2.5 rounded-xl text-sm font-bold"
+                                            style={{ background: `${borderColor}30`, color: textPrimary }}
+                                        >
+                                            Cancelar
+                                        </button>
+                                        <button
+                                            onClick={handleWithdraw}
+                                            disabled={submittingWithdraw}
+                                            className="flex-1 py-2.5 rounded-xl text-sm font-bold disabled:opacity-60"
+                                            style={{ background: GRADIENT, color: '#fff' }}
+                                        >
+                                            {submittingWithdraw ? <Spinner size={14} color="#ffffff" /> : 'Confirmar'}
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {!walletLoading && withdrawalRequests.length > 0 && (
+                                <div className="flex flex-col gap-2">
+                                    <h2 className="text-xs font-black uppercase tracking-widest" style={{ color: textPrimary }}>
+                                        Pedidos de saque
+                                    </h2>
+                                    {withdrawalRequests.map((w) => (
+                                        <div
+                                            key={w.id}
+                                            className="flex flex-col gap-1 p-3 rounded-xl"
+                                            style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`, border: `1px solid ${borderColor}` }}
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <Send size={16} style={{ color: textSecondary }} className="flex-shrink-0" />
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-xs font-bold truncate" style={{ color: textPrimary }}>
+                                                        {w.pix_key}
+                                                    </p>
+                                                    <p className="text-[10px]" style={{ color: textSecondary }}>
+                                                        {formatWalletDate(w.requested_at)}
+                                                    </p>
+                                                </div>
+                                                <span className="text-sm font-black flex-shrink-0" style={{ color: textPrimary }}>
+                                                    R$ {Number(w.amount).toFixed(2)}
+                                                </span>
+                                                <span
+                                                    className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full flex-shrink-0"
+                                                    style={{ background: `${WITHDRAWAL_STATUS_COLOR[w.status]}20`, color: WITHDRAWAL_STATUS_COLOR[w.status] }}
+                                                >
+                                                    {WITHDRAWAL_STATUS_LABEL[w.status]}
+                                                </span>
+                                            </div>
+                                            {w.failure_reason && (
+                                                <p className="text-[10px]" style={{ color: '#ef4444' }}>
+                                                    {w.failure_reason}
+                                                </p>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {!walletLoading && walletTransactions.length > 0 && (
+                                <div className="flex flex-col gap-2">
+                                    <h2 className="text-xs font-black uppercase tracking-widest" style={{ color: textPrimary }}>
+                                        Lançamentos
+                                    </h2>
+                                    {walletTransactions.map((t) => (
+                                        <div
+                                            key={t.id}
+                                            className="flex items-center gap-3 p-3 rounded-xl"
+                                            style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`, border: `1px solid ${borderColor}` }}
+                                        >
+                                            {t.amount >= 0 ? (
+                                                <ArrowDownCircle size={20} color="#22c55e" />
+                                            ) : (
+                                                <ArrowUpCircle size={20} color="#ef4444" />
+                                            )}
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-xs font-bold truncate" style={{ color: textPrimary }}>
+                                                    {t.description || (t.amount >= 0 ? 'Crédito' : 'Débito')}
+                                                </p>
+                                                <p className="text-[10px]" style={{ color: textSecondary }}>
+                                                    {formatWalletDate(t.created_at)}
+                                                </p>
+                                            </div>
+                                            <span className="text-sm font-black flex-shrink-0" style={{ color: t.amount >= 0 ? '#22c55e' : '#ef4444' }}>
+                                                {t.amount >= 0 ? '+' : ''}R$ {Number(t.amount).toFixed(2)}
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {loading ? (
+                                <div
+                                    className="rounded-2xl p-8 text-center"
+                                    style={{
+                                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
+                                        border: `1px solid ${borderColor}`,
+                                    }}
+                                >
+                                    <div className="w-6 h-6 border-2 border-orange-200 border-t-orange-500 rounded-full animate-spin mx-auto" />
+                                    <p className="mt-3 text-xs" style={{ color: textSecondary }}>
+                                        Carregando...
+                                    </p>
+                                </div>
+                            ) : members.length === 0 ? (
+                                <div
+                                    className="rounded-2xl p-6 text-center flex flex-col items-center gap-4"
+                                    style={{
+                                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
+                                        border: `1px dashed ${borderColor}`,
+                                    }}
+                                >
+                                    <div
+                                        className="w-16 h-16 rounded-full flex items-center justify-center"
+                                        style={{ background: GRADIENT, color: '#ffffff' }}
+                                    >
+                                        <UserPlus size={28} />
+                                    </div>
+                                    <div>
+                                        <p className="text-sm font-bold" style={{ color: textPrimary }}>
+                                            Você ainda não indicou ninguém
+                                        </p>
+                                        <p className="text-xs mt-1" style={{ color: textSecondary }}>
+                                            Convide pessoas para começar a construir sua rede
+                                        </p>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="flex flex-col gap-3">
+                                    {members.map(member => {
+                                        const avatarUrl = getImageUrl(member.avatar_url)
+                                        const hasSales = member.sales.length > 0
+
+                                        return (
+                                            <div
+                                                key={member.id}
+                                                className="rounded-2xl border overflow-hidden"
+                                                style={{
+                                                    background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
+                                                    borderColor: borderColor,
+                                                }}
+                                            >
+                                                <div
+                                                    className="flex items-center gap-3 p-3 cursor-pointer hover:opacity-80 transition-opacity"
+                                                    onClick={() => {
+                                                        if (member.profileSlug) {
+                                                            router.push(`/${member.profileSlug}`)
+                                                        }
+                                                    }}
+                                                >
+                                                    <PlanAvatarRing userId={member.id}>
+                                                    <div
+                                                        className="w-12 h-12 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0"
+                                                        style={{ background: `${accentColor}15` }}
+                                                    >
+                                                        {avatarUrl ? (
+                                                            <img
+                                                                src={avatarUrl}
+                                                                className="w-full h-full object-cover"
+                                                                alt={member.name}
+                                                            />
+                                                        ) : (
+                                                            <User size={22} style={{ color: '#f97316' }} />
+                                                        )}
+                                                    </div>
+                                                    </PlanAvatarRing>
+
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex items-center gap-1.5 min-w-0">
+                                                            <p className="text-sm font-bold truncate" style={{ color: textPrimary }}>
+                                                                {member.name}
+                                                            </p>
+                                                            {memberLevels.get(member.id) && <LevelBadge level={memberLevels.get(member.id)!} size="sm" />}
+                                                        </div>
+                                                        <p className="text-[10px] mt-0.5" style={{ color: textSecondary }}>
+                                                            Entrou {formatDistanceToNow(new Date(member.created_at), {
+                                                                addSuffix: true,
+                                                                locale: ptBRLocale,
+                                                            })}
+                                                        </p>
+                                                        {member.activePlans ? (
+                                                            <span
+                                                                className="inline-block mt-1.5 text-[9px] font-bold px-2 py-0.5 rounded-full truncate max-w-full"
+                                                                style={{ background: '#22c55e20', color: '#22c55e' }}
+                                                                title={member.activePlans}
+                                                            >
+                                                                {member.activePlans}
+                                                            </span>
+                                                        ) : (
+                                                            <span className="inline-block mt-1.5 text-[9px]" style={{ color: textSecondary }}>
+                                                                Sem plano ativo
+                                                            </span>
+                                                        )}
+                                                        {(member.planPrice > 0 || member.postpaidDebt > 0) && (
+                                                            <p className="text-[9px] font-bold mt-1">
+                                                                {member.planPrice > 0 && <span style={{ color: textPrimary }}>{formatCurrency(member.planPrice)}/mês</span>}
+                                                                {member.planPrice > 0 && member.postpaidDebt > 0 && <span style={{ color: textSecondary }}> · </span>}
+                                                                {member.postpaidDebt > 0 && <span style={{ color: '#f97316' }}>Deve {formatCurrency(member.postpaidDebt)}</span>}
+                                                            </p>
+                                                        )}
+                                                    </div>
+
+                                                    <div className="flex flex-col items-end gap-0.5 flex-shrink-0 text-right">
+                                                        <span className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider" style={{ color: textSecondary }}>
+                                                            <Wallet size={10} />
+                                                            Comissão
+                                                        </span>
+                                                        <span className="text-base font-black" style={{ color: member.commissionTotal > 0 ? '#f97316' : textSecondary }}>
+                                                            {formatCurrency(member.commissionTotal)}
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                {hasSales && (
+                                                    <div
+                                                        className="px-3 py-2.5 space-y-1.5 border-t"
+                                                        style={{
+                                                            borderColor,
+                                                            background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.25)`,
+                                                        }}
+                                                    >
+                                                        <p className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wider mb-1" style={{ color: textSecondary }}>
+                                                            <Receipt size={11} />
+                                                            Extrato de vendas
+                                                        </p>
+                                                        {member.sales.map((sale, i) => (
+                                                            <div key={i} className="flex items-center justify-between text-[11px]">
+                                                                <span className="truncate" style={{ color: textPrimary }}>
+                                                                    {sale.planName}
+                                                                </span>
+                                                                <span className="flex items-center gap-2 flex-shrink-0">
+                                                                    <span style={{ color: textSecondary }}>
+                                                                        {new Date(sale.date).toLocaleDateString('pt-BR')}
+                                                                    </span>
+                                                                    <span className="font-bold" style={{ color: '#22c55e' }}>
+                                                                        +{formatCurrency(sale.amount)}
+                                                                    </span>
+                                                                </span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            )}
+
+                            {/* Árvore da rede: quem eles indicaram, com a graduação de cada um */}
+                            {graduation.data && (
+                                <div className="flex flex-col gap-3 pt-2">
+                                    <div>
+                                        <h4 className="text-sm font-black" style={{ color: textPrimary }}>Árvore da rede</h4>
+                                        <p className="text-[11px]" style={{ color: textSecondary }}>Quem você indicou, a graduação de cada um e quem eles indicaram</p>
+                                    </div>
+                                    <GraduationTree />
+                                </div>
+                            )}
+        </>
+    )
+
+    if (view === 'rede') {
+        const faces = members.slice(0, 5)
+        const canWithdraw = walletBalance >= MIN_WITHDRAWAL_AMOUNT
+        return (
+            <>
+                <div className="mb-6 mt-4">
+                    {/* Carteira: cartão em degradê, com o saldo, a rede e as ações */}
+                    <div
+                        className="relative overflow-hidden rounded-3xl p-5 text-white"
+                        style={{ background: 'linear-gradient(135deg, #f97316 0%, #ea580c 45%, #b91c1c 100%)', boxShadow: '0 14px 34px rgba(220,38,38,0.28)' }}
+                    >
+                        <span aria-hidden className="absolute -right-10 -top-12 w-44 h-44 rounded-full" style={{ background: 'rgba(255,255,255,0.10)' }} />
+                        <span aria-hidden className="absolute -right-2 top-16 w-28 h-28 rounded-full" style={{ background: 'rgba(255,255,255,0.08)' }} />
+
+                        <div className="relative flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-2">
+                                <span className="w-9 h-7 rounded-md" style={{ background: 'linear-gradient(135deg, #fde68a, #f59e0b)', boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.12)' }} aria-hidden />
+                                <span className="text-[11px] font-black uppercase tracking-[0.18em] opacity-90">Minha rede</span>
+                            </div>
+                            {graduation.data && <LevelBadge level={graduation.data.level} size="sm" />}
+                        </div>
+
+                        <div className="relative mt-4">
+                            <p className="text-[11px] font-bold uppercase tracking-wider opacity-85">Saldo disponível</p>
+                            <p className="text-4xl font-black leading-tight">R$ {walletBalance.toFixed(2)}</p>
+                        </div>
+
+                        <div className="relative mt-4 flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                                {faces.length > 0 && (
+                                    <span className="flex -space-x-2 flex-shrink-0">
+                                        {faces.map((m) => {
+                                            const img = getImageUrl(m.avatar_url)
+                                            return (
+                                                <span key={m.id} className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center text-xs font-black flex-shrink-0" style={{ boxShadow: '0 0 0 2px #dc2626', background: img ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.35)' }}>
+                                                    {img ? <img src={img} alt="" className="w-full h-full object-cover" /> : (m.name || '?').charAt(0).toUpperCase()}
+                                                </span>
+                                            )
+                                        })}
+                                    </span>
+                                )}
+                                <span className="text-xs leading-tight min-w-0">
+                                    <b className="text-sm">{members.length}</b> {members.length === 1 ? 'pessoa' : 'pessoas'} na rede
+                                    {totalCommission > 0 && <span className="block opacity-85">{formatCurrency(totalCommission)} em comissão</span>}
+                                </span>
+                            </div>
+                        </div>
+
+                        <div className="relative mt-4 grid grid-cols-2 gap-2">
+                            <button
+                                onClick={() => { setShowWithdrawForm(true); setIsExpanded(true) }}
+                                disabled={!canWithdraw}
+                                className="py-2.5 rounded-full text-sm font-black flex items-center justify-center gap-1.5 bg-white transition hover:scale-[1.03] active:scale-95 disabled:opacity-60"
+                                style={{ color: '#b91c1c' }}
+                            >
+                                <Send size={15} /> Sacar via PIX
+                            </button>
+                            <button
+                                onClick={handleInvite}
+                                className="py-2.5 rounded-full text-sm font-black flex items-center justify-center gap-1.5 transition hover:scale-[1.03] active:scale-95"
+                                style={{ background: 'rgba(255,255,255,0.20)', border: '1px solid rgba(255,255,255,0.55)', color: '#fff' }}
+                            >
+                                <UserPlus size={15} /> Convidar
+                            </button>
+                        </div>
+                        {!canWithdraw && (
+                            <p className="relative mt-2 text-[10px] text-center opacity-85">
+                                Saque mínimo de R$ {MIN_WITHDRAWAL_AMOUNT.toFixed(2)} — faltam R$ {(MIN_WITHDRAWAL_AMOUNT - walletBalance).toFixed(2)}.
+                            </p>
+                        )}
+                    </div>
+
+                    {/* Detalhes da rede: abre/fecha */}
+                    <div
+                        className="mt-3 rounded-2xl flex flex-col"
+                        style={{
+                            background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
+                            backdropFilter: 'blur(12px)',
+                            border: `1px solid ${borderColor}`,
+                            boxShadow: colors.shadow,
+                        }}
+                    >
+                        <button
+                            onClick={() => setIsExpanded(!isExpanded)}
+                            className="w-full p-4 flex items-center justify-between gap-3 text-left"
+                            style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}
+                        >
+                            <div>
+                                <h3 className="text-sm font-black" style={{ color: textPrimary }}>Detalhes da rede</h3>
+                                <p className="text-[11px] mt-0.5" style={{ color: textSecondary }}>Quem você indicou, extrato de vendas, saques e lançamentos</p>
+                            </div>
+                            {isExpanded ? <ChevronUp size={18} style={{ color: textSecondary }} /> : <ChevronDown size={18} style={{ color: textSecondary }} />}
+                        </button>
+                        {isExpanded && (
+                            <div className="px-4 pb-4 pt-3 flex flex-col gap-5 border-t" style={{ borderColor }}>
+                                {redeContent}
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {shareModalNode}
+            </>
+        )
+    }
+
+    return (
+        <>
+            <div className="mb-6 mt-4">
+                <div
+                    className={`rounded-2xl relative flex flex-col ${isExpanded ? 'p-6 pt-7 gap-5' : 'p-4'}`}
+                    style={{
+                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
+                        backdropFilter: 'blur(12px)',
+                        WebkitBackdropFilter: 'blur(12px)',
+                        border: `1px solid ${borderColor}`,
+                        boxShadow: colors.shadow,
+                    }}
+                >
+                    {/* Cabeçalho com toggle - PILL */}
+                    <button
+                        onClick={() => setIsExpanded(!isExpanded)}
+                        className="w-full flex items-center justify-between text-left"
+                        style={{
+                            padding: isExpanded ? '0.5rem 0.75rem' : 0,
+                            borderRadius: '9999px',
+                            background: 'transparent',
+                            border: 'none',
+                            cursor: 'pointer',
+                        }}
+                    >
+                        <div className="flex items-center gap-3">
+                            <div>
+                                <h3 className={`${isExpanded ? 'text-lg' : 'text-sm'} font-black`} style={{ color: textPrimary }}>
+                                    Minha pontuação e graduação
+                                </h3>
+                                <p className="text-xs mt-1 flex items-center gap-1.5" style={{ color: textSecondary }}>
+                                    {myRank === undefined ? (
+                                        <span>Calculando sua posição…</span>
+                                    ) : myRank === null ? (
+                                        <span>Ainda sem posição em Melhores perfis</span>
+                                    ) : (
+                                        <>
+                                            <span className="px-2 py-0.5 rounded-full text-[11px] font-black" style={rankStyle(myRank)}>#{myRank + 1}</span>
+                                            <span>em Melhores perfis</span>
+                                        </>
+                                    )}
+                                </p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            {graduation.data && <LevelBadge level={graduation.data.level} size="sm" />}
+                            {members.length > 0 && (
+                                <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: '#f9731620', color: '#f97316' }}>
+                                    {members.length}
+                                </span>
+                            )}
+                            {isExpanded ? (
+                                <ChevronUp size={isExpanded ? 22 : 18} style={{ color: textSecondary }} />
+                            ) : (
+                                <ChevronDown size={isExpanded ? 22 : 18} style={{ color: textSecondary }} />
+                            )}
+                        </div>
+                    </button>
+
+                    {isExpanded && (
+                        <div className="flex flex-col gap-5">
+                            {/* Abas internas — o que antes era a aba "Minha Rede" do cabeçalho */}
+                            <div className="flex gap-2 overflow-x-auto pb-1">
+                                {panes.map((t) => {
+                                    const Icon = t.icon
+                                    const active = activePane === t.id
+                                    return (
+                                        <button
+                                            key={t.id}
+                                            onClick={() => setPane(t.id)}
+                                            className="flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-all"
+                                            style={active
+                                                ? { background: GRADIENT, color: '#fff', border: '1px solid transparent' }
+                                                : { background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`, color: textPrimary, border: `1px solid ${borderColor}` }}
+                                        >
+                                            <Icon size={14} />
+                                            {t.label}
+                                        </button>
+                                    )
+                                })}
+                            </div>
+
+                            {activePane === 'pontuacao' && points && <MyPointsBody data={points} />}
+
+                            {activePane === 'graduacao' && (
+                                graduation.data
+                                    ? <GraduationOverview data={graduation.data} />
+                                    : <div className="flex justify-center py-6"><Spinner size={24} color={accentColor} /></div>
+                            )}
+
+                            {activePane === 'comissoes' && graduation.data && (
+                                <GraduationCommissions commissions={graduation.commissions} />
+                            )}
+
+
+                            {/* ===== MEU STATUS (antes na aba Minha Rede) ===== */}
+                            {activePane === 'status' && (
+                                <div style={subCardStyle} className="space-y-4">
+                                    {status ? (
+                                        <>
+                                            <div>
+                                                <p className="text-[10px] font-black uppercase tracking-wider" style={{ color: textSecondary }}>Meu status</p>
+                                                <p className="text-xl font-black" style={{ color: textPrimary }}>{status.name}</p>
+                                                {status.description && <p className="text-xs" style={{ color: textSecondary }}>{status.description}</p>}
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] font-black uppercase tracking-wider" style={{ color: textSecondary }}>Nível</p>
+                                                <p className="text-base font-black" style={{ color: textPrimary }}>{status.level}</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] font-black uppercase tracking-wider mb-1.5" style={{ color: textSecondary }}>Permissões</p>
+                                                {status.permissions.length === 0 ? (
+                                                    <p className="text-xs" style={{ color: textSecondary }}>Nenhuma permissão de gestão.</p>
+                                                ) : (
+                                                    <ul className="space-y-1.5">
+                                                        {status.permissions.map((p) => (
+                                                            <li key={p.slug} className="flex items-start gap-2 text-sm" style={{ color: textPrimary }}>
+                                                                <Check size={14} className="mt-0.5 flex-shrink-0" style={{ color: '#22c55e' }} />
+                                                                <span>
+                                                                    <span className="font-semibold">{p.name}</span>
+                                                                    <span className="block text-[11px]" style={{ color: textSecondary }}>Escopo: {SCOPE_LABEL[p.scope]}</span>
+                                                                </span>
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                )}
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <div className="flex justify-center py-6"><Spinner size={24} color={accentColor} /></div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* ===== CONCEDER BENEFÍCIO ===== */}
+                            {activePane === 'grant' && canManage && (
+                                plans.length === 0 ? (
+                                    <div className="text-sm" style={{ ...subCardStyle, color: textSecondary }}>
+                                        Você não tem permissão para conceder nenhum plano no momento.
+                                    </div>
+                                ) : (
+                                    <div style={subCardStyle} className="space-y-4">
+                                        <div>
+                                            <p className="text-[10px] font-black uppercase tracking-wider mb-1.5" style={{ color: textSecondary }}>Buscar usuário</p>
+                                            {grantTarget ? (
+                                                <div className="flex items-center gap-3 px-3 py-2 rounded-xl" style={{ background: `${accentColor}15`, border: `1px solid ${accentColor}55` }}>
+                                                    <span className="flex-1 min-w-0 text-sm font-bold truncate" style={{ color: textPrimary }}>
+                                                        {grantTarget.name || `@${grantTarget.profile_slug}`}
+                                                        {grantTarget.profile_slug && <span className="font-medium" style={{ color: textSecondary }}> @{grantTarget.profile_slug}</span>}
+                                                    </span>
+                                                    <button onClick={() => { setGrantTarget(null); setGrantQuery('') }} style={{ color: textSecondary }}>
+                                                        <X size={16} />
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <>
+                                                    <div className="relative">
+                                                        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: textSecondary }} />
+                                                        <input
+                                                            value={grantQuery}
+                                                            onChange={(e) => setGrantQuery(e.target.value)}
+                                                            placeholder="Nome ou @slug"
+                                                            style={{ ...grantInputStyle, paddingLeft: 32 }}
+                                                        />
+                                                    </div>
+                                                    {grantSearching && <p className="text-[11px] mt-1.5" style={{ color: textSecondary }}>Buscando...</p>}
+                                                    {!grantSearching && grantQuery.trim().length >= 2 && grantResults.length === 0 && (
+                                                        <p className="text-[11px] mt-1.5" style={{ color: textSecondary }}>Ninguém encontrado dentro do seu escopo.</p>
+                                                    )}
+                                                    {grantResults.length > 0 && (
+                                                        <div className="mt-2 rounded-xl overflow-hidden" style={{ border: `1px solid ${borderColor}` }}>
+                                                            {grantResults.map((r) => {
+                                                                const avatar = getAvatarUrl(supabase, r.avatar_url)
+                                                                return (
+                                                                    <button
+                                                                        key={r.id}
+                                                                        onClick={() => { setGrantTarget(r); setGrantResults([]) }}
+                                                                        className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-black/5"
+                                                                        style={{ borderBottom: `1px solid ${borderColor}` }}
+                                                                    >
+                                                                        <PlanAvatarRing userId={r.id}>
+                                                                        <span className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0" style={{ background: `${borderColor}40` }}>
+                                                                            {avatar && <img src={avatar} alt="" className="w-full h-full object-cover" />}
+                                                                        </span>
+                                                                        </PlanAvatarRing>
+                                                                        <span className="min-w-0">
+                                                                            <span className="block text-sm font-bold truncate" style={{ color: textPrimary }}>{r.name || `@${r.profile_slug}`}</span>
+                                                                            {r.profile_slug && <span className="block text-[11px]" style={{ color: textSecondary }}>@{r.profile_slug}</span>}
+                                                                        </span>
+                                                                    </button>
+                                                                )
+                                                            })}
+                                                        </div>
+                                                    )}
+                                                </>
+                                            )}
+                                        </div>
+
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                            <div>
+                                                <p className="text-[10px] font-black uppercase tracking-wider mb-1.5" style={{ color: textSecondary }}>Plano</p>
+                                                <select value={grantPlanId} onChange={(e) => setGrantPlanId(e.target.value)} style={grantInputStyle}>
+                                                    {plans.map((p) => (
+                                                        <option key={p.id} value={p.id}>{p.name}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] font-black uppercase tracking-wider mb-1.5" style={{ color: textSecondary }}>Duração</p>
+                                                <select value={grantDuration} onChange={(e) => setGrantDuration(e.target.value)} style={grantInputStyle}>
+                                                    {GRANT_DURATIONS.map((d) => (
+                                                        <option key={d.value} value={d.value}>{d.label}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            <p className="text-[10px] font-black uppercase tracking-wider mb-1.5" style={{ color: textSecondary }}>Início (opcional — vazio = agora)</p>
+                                            <input
+                                                type="date"
+                                                value={grantStartsAt}
+                                                min={new Date().toISOString().slice(0, 10)}
+                                                onChange={(e) => setGrantStartsAt(e.target.value)}
+                                                style={grantInputStyle}
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <p className="text-[10px] font-black uppercase tracking-wider mb-1.5" style={{ color: textSecondary }}>Motivo (opcional)</p>
+                                            <input value={grantReason} onChange={(e) => setGrantReason(e.target.value)} maxLength={300} placeholder="Ex: parceiro do bairro" style={grantInputStyle} />
+                                        </div>
+
+                                        {selectedGrantPlan && (
+                                            <p className="text-[11px]" style={{ color: textSecondary }}>
+                                                {selectedGrantPlan.description || selectedGrantPlan.name} · escopo: {SCOPE_LABEL[selectedGrantPlan.scope]}
+                                            </p>
+                                        )}
+
+                                        <button
+                                            onClick={handleGrant}
+                                            disabled={granting || !grantTarget || !grantPlanId}
+                                            className="w-full py-3 rounded-full text-sm font-black text-white disabled:opacity-50 flex items-center justify-center gap-2"
+                                            style={{ background: GRADIENT }}
+                                        >
+                                            {granting ? <Spinner size={14} color="#ffffff" /> : <Check size={16} />}
+                                            Conceder benefício
+                                        </button>
+                                    </div>
+                                )
+                            )}
+
+                            {/* ===== HISTÓRICO DE BENEFÍCIOS ===== */}
+                            {activePane === 'history' && canManage && (
+                                <div className="space-y-2">
+                                    <p className="text-xs font-black uppercase tracking-wider" style={{ color: textSecondary }}>Histórico de benefícios</p>
+                                    {loadingHistory ? (
+                                        <div className="flex justify-center py-8"><Spinner size={24} color={accentColor} /></div>
+                                    ) : history.length === 0 ? (
+                                        <div className="text-sm" style={{ ...subCardStyle, color: textSecondary }}>Nenhum benefício concedido ainda.</div>
+                                    ) : (
+                                        <div style={{ ...subCardStyle, padding: 0 }} className="overflow-hidden">
+                                            {history.map((h, i) => (
+                                                <div
+                                                    key={h.id}
+                                                    className="flex items-center gap-3 px-4 py-3"
+                                                    style={{ borderTop: i === 0 ? undefined : `1px solid ${borderColor}` }}
+                                                >
+                                                    <div className="min-w-0 flex-1">
+                                                        <p className="text-sm font-bold truncate" style={{ color: textPrimary }}>
+                                                            {h.target_name || (h.target_slug ? `@${h.target_slug}` : 'Pessoa removida')} · {h.plan_name || h.plan_code}
+                                                        </p>
+                                                        <p className="text-[11px]" style={{ color: textSecondary }}>
+                                                            Concedido em {formatBenefitDate(h.created_at)} · {h.is_scheduled ? `começa em ${formatBenefitDate(h.starts_at)} · ` : ''}expira em {formatBenefitDate(h.expires_at)}
+                                                            {h.actor_name ? ` · por ${h.actor_name}` : ''}
+                                                        </p>
+                                                        {h.reason && <p className="text-[11px] italic" style={{ color: textSecondary }}>{h.reason}</p>}
+                                                    </div>
+                                                    <span
+                                                        className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full flex-shrink-0"
+                                                        style={h.is_active
+                                                            ? { background: '#22c55e20', color: '#22c55e' }
+                                                            : h.is_scheduled
+                                                                ? { background: '#f9731620', color: '#f97316' }
+                                                                : { background: `${borderColor}40`, color: textSecondary }}
+                                                    >
+                                                        {h.is_active ? 'Ativo' : h.is_scheduled ? 'Agendado' : 'Expirado'}
+                                                    </span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {shareModalNode}
         </>
     )
 }

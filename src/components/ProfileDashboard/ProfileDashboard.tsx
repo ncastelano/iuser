@@ -1364,7 +1364,8 @@ export default function ProfileDashboard({
     )
     const indicacoesNode = (
         <div className="mb-6 flex flex-col gap-4">
-            <Commission userId={profile.id} onLatestUpdate={onIndicacoesUpdate} />
+            <Commission userId={profile.id} view="graduacao" />
+            <Commission userId={profile.id} view="rede" onLatestUpdate={onIndicacoesUpdate} />
         </div>
     )
     const visitantesNode = <ProfileVisitors key={profile.id} profileId={profile.id} onLatestUpdate={onVisitantesUpdate} />
