@@ -370,7 +370,7 @@ function NavTab({ selected, selectedColor, colorDelay = 0, label, onClick, badge
         >
             {children}
             {badge > 0 && (
-                <span className="absolute top-1.5 right-1 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black text-white flex items-center justify-center" style={{ background: badgeColor, boxShadow: '0 0 0 2px #ea580c' }}>
+                <span className="absolute top-1.5 right-1 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black text-white flex items-center justify-center" style={{ background: badgeColor, boxShadow: '0 0 0 2px #fff' }}>
                     {badge > 99 ? '99+' : badge}
                 </span>
             )}

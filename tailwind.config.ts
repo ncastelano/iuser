@@ -5,6 +5,11 @@ export default {
     "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
+    // Interfaces por versão e módulos de negócio (ModeShell, telas compartilhadas, chat...): sem isso as classes que
+    // só existem lá não são geradas e o visual quebra em silêncio
+    "./src/versions/**/*.{js,ts,jsx,tsx,mdx}",
+    "./src/modules/**/*.{js,ts,jsx,tsx,mdx}",
+    "./src/lib/**/*.{js,ts,jsx,tsx,mdx}",
   ],
   // darkMode: "class",
   theme: {
