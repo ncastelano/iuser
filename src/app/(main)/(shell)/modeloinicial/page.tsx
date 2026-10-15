@@ -682,8 +682,8 @@ export default function ModeloInicialPage() {
                                                             <button
                                                                 key={c.slug}
                                                                 onClick={() => go(`/lojas/${c.slug}`)}
-                                                                className="text-left rounded-2xl p-3 flex items-center gap-3 border transition hover:-translate-y-0.5 hover:shadow-lg active:scale-[0.98]"
-                                                                style={{ background: `linear-gradient(135deg, ${c.color}26, ${c.color}0d)`, borderColor: `${c.color}66` }}
+                                                                className="text-left rounded-2xl p-3 flex items-center gap-3 transition hover:-translate-y-0.5 active:scale-[0.98]"
+                                                                style={{ background: `${c.color}14` }}
                                                             >
                                                                 <span className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 text-white" style={{ background: c.color }}>
                                                                     <Icon size={24} />
@@ -698,27 +698,23 @@ export default function ModeloInicialPage() {
                                                 </div>
                                             )}
 
-                                            {empty.length > 0 && (
-                                                <div className="mt-4 rounded-3xl p-3.5 border" style={{ background: colors.surface, borderColor: colors.border }}>
-                                                    <p className="text-sm font-black" style={{ color: colors.textPrimary }}>Estas categorias ainda não têm loja</p>
-                                                    <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>Seja a primeira: cadastre a sua loja na categoria que combina com ela.</p>
-                                                    <div className="grid grid-cols-2 gap-2.5 mt-3">
+                                            {/* Só pra quem ainda não entrou: um convite curto pra abrir a primeira loja de cada categoria vazia */}
+                                            {!userId && empty.length > 0 && (
+                                                <div className="mt-4">
+                                                    <p className="text-xs" style={{ color: colors.textSecondary }}>Sem loja ainda — seja a primeira:</p>
+                                                    <div className="flex flex-wrap gap-1.5 mt-2">
                                                         {empty.map((c) => {
                                                             const Icon = iconOf(c)
                                                             return (
                                                                 <button
                                                                     key={c.slug}
                                                                     onClick={() => createIn(c.slug)}
-                                                                    className="text-left rounded-2xl p-2.5 flex items-center gap-2.5 transition active:scale-[0.98] hover:-translate-y-0.5"
-                                                                    style={{ border: `1.5px dashed ${c.color}88`, background: `${c.color}0d` }}
+                                                                    className="flex items-center gap-1.5 pl-2 pr-3 py-1.5 rounded-full text-[11px] font-bold transition active:scale-95"
+                                                                    style={{ background: `${c.color}14`, color: colors.textPrimary }}
                                                                 >
-                                                                    <span className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${c.color}22`, color: c.color }}>
-                                                                        <Icon size={18} />
-                                                                    </span>
-                                                                    <span className="min-w-0 flex-1">
-                                                                        <span className="block text-xs font-black leading-tight" style={{ color: colors.textPrimary }}>{nameOf(c)}</span>
-                                                                        <span className="block text-[10px] font-bold mt-0.5" style={{ color: c.color }}>+ Cadastrar minha loja</span>
-                                                                    </span>
+                                                                    <Icon size={14} style={{ color: c.color }} />
+                                                                    {nameOf(c)}
+                                                                    <span style={{ color: c.color }}>+</span>
                                                                 </button>
                                                             )
                                                         })}
