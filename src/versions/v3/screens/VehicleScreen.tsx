@@ -348,11 +348,18 @@ export default function VehicleScreen() {
             {(() => {
                 const svcs = vehicle.services || []
                 const facts: { icon: React.ReactNode; text: string }[] = []
-                if (vehicle.car_color) facts.push({ icon: <Palette size={13} />, text: vehicle.car_color })
                 if (vehicle.passenger_capacity != null) facts.push({ icon: <Users size={13} />, text: `${vehicle.passenger_capacity} ${vehicle.passenger_capacity === 1 ? 'passageiro' : 'passageiros'}` })
                 if (ownerView && vehicle.car_plate) facts.push({ icon: <Hash size={13} />, text: vehicle.car_plate })
                 if (vehicle.vehicle_kind === 'carro' && vehicle.has_baby_seat) facts.push({ icon: <Baby size={13} />, text: 'Cadeirinha' })
-                if (luggage[0] > 0 || luggage[1] > 0) facts.push({ icon: <Luggage size={13} />, text: `${luggage[0]} bolsas · ${luggage[1]} malas` })
+                // porta-malas por tamanho (a soma engana: cada número é quantos cabem daquele tamanho)
+                const sizes = (label: string, p: number | null, m: number | null, g: number | null) => {
+                    const parts = [p ? `${p} P` : null, m ? `${m} M` : null, g ? `${g} G` : null].filter(Boolean)
+                    return parts.length ? `${label} ${parts.join(' · ')}` : null
+                }
+                const bags = sizes('Bolsas', vehicle.trunk_bags_pequena, vehicle.trunk_bags_media, vehicle.trunk_bags_grande)
+                const cases = sizes('Malas', vehicle.trunk_suitcases_pequena, vehicle.trunk_suitcases_media, vehicle.trunk_suitcases_grande)
+                if (bags) facts.push({ icon: <Luggage size={13} />, text: bags })
+                if (cases) facts.push({ icon: <Luggage size={13} />, text: cases })
                 if (svcs.length === 0 && facts.length === 0) return null
                 return (
                     <section className="mt-2.5 rounded-2xl p-3" style={soft}>
