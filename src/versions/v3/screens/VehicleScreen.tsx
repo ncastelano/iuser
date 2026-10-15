@@ -11,7 +11,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import {
     Baby, Bike, Camera, Car, ChevronRight, Copy, Hash, Luggage, MapPin, Palette, Pencil, Route, Star, Store as StoreIcon,
-    Users, X, Check, Gauge, Calendar, Clock, CheckCircle2, ArrowRight, Wallet, Share2, Radio, PhoneCall,
+    Users, X, Check, Gauge, Calendar, Clock, CheckCircle2, ArrowRight, Wallet, Share2, Radio, PhoneCall, Maximize2,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase/client'
@@ -72,6 +72,7 @@ export default function VehicleScreen() {
     const [live, setLive] = useState<{ sync: boolean; lat: number | null; lng: number | null; at: string | null }>({ sync: false, lat: null, lng: null, at: null })
     const [recent, setRecent] = useState<{ at: string; km: number | null; price: number | null }[]>([])
     const [shareOpen, setShareOpen] = useState(false)
+    const [zoom, setZoom] = useState(false)
     const touchedTab = useRef(false)
     const [editing, setEditing] = useState(false)
 
@@ -233,64 +234,112 @@ export default function VehicleScreen() {
             {isOwner && (tab === 'clientes' || tab === 'historico') ? (
                 <RidesPanel mode={tab} me={vehicle.driver_id} onCount={setActiveCount} />
             ) : (<>
-            {/* Foto + nome */}
-            <section className="relative rounded-3xl overflow-hidden" style={{ background: `${ORANGE}22` }}>
-                <div className="relative h-60 w-full">
+            {/* Onde ele está agora: em cima de tudo (cliente) */}
+            {!ownerView && (
+                <div className={isOwner ? '' : '-mt-6'}>
+                    <LiveMap live={live} kind={vehicle.vehicle_kind} colors={colors} soft={soft} />
+                </div>
+            )}
+
+            {/* A tela dividida: o carro à esquerda; o motorista e o botão de chamar à direita */}
+            <section className={`${!ownerView ? 'mt-5' : ''} grid grid-cols-[1.12fr_1fr] gap-2.5`}>
+                <div className="relative rounded-3xl overflow-hidden min-h-[250px]" style={{ background: `${ORANGE}22` }}>
                     {photo
-                        ? <img src={photo} alt="" className="w-full h-full object-cover" />
-                        : <span className="w-full h-full flex items-center justify-center" style={{ color: ORANGE }}><KindIcon size={64} /></span>}
-                    <span aria-hidden className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0) 35%, rgba(0,0,0,0) 50%, rgba(0,0,0,0.75) 100%)' }} />
-                    <span className="absolute left-3 top-3 text-[11px] font-black uppercase tracking-wide px-2.5 py-1 rounded-full text-white" style={{ background: ORANGE }}>
+                        ? <img src={photo} alt="" className="absolute inset-0 w-full h-full object-cover" />
+                        : <span className="absolute inset-0 flex items-center justify-center" style={{ color: ORANGE }}><KindIcon size={56} /></span>}
+                    <span aria-hidden className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0) 30%, rgba(0,0,0,0) 52%, rgba(0,0,0,0.78) 100%)' }} />
+                    <span className="absolute left-2.5 top-2.5 text-[10px] font-black uppercase tracking-wide px-2 py-1 rounded-full text-white" style={{ background: ORANGE }}>
                         {KIND_LABEL[vehicle.vehicle_kind] || 'Veículo'}
                     </span>
-                    {driverActive != null && (
-                        <span className="absolute right-3 top-3 text-[11px] font-black uppercase tracking-wide px-2.5 py-1 rounded-full text-white" style={{ background: driverActive ? '#16a34a' : '#6b7280' }}>
-                            {driverActive ? 'Disponível' : 'Indisponível'}
-                        </span>
-                    )}
-                    <div className="absolute left-4 right-4 bottom-3 flex items-end justify-between gap-3">
-                        <div className="min-w-0">
-                            <h1 className="text-2xl font-black leading-tight text-white truncate">{title}</h1>
-                            <p className="text-sm font-bold text-white/85 truncate">
-                                {[vehicle.car_color, ownerView ? vehicle.car_plate : null].filter(Boolean).join(' · ')}
-                            </p>
-                        </div>
-                        <button onClick={shareLink} aria-label="Copiar link do veículo" className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition active:scale-95" style={{ background: 'rgba(255,255,255,0.22)', color: '#fff', backdropFilter: 'blur(8px)' }}>
-                            <Copy size={17} />
+                    {photo && (
+                        <button onClick={() => setZoom(true)} aria-label="Ampliar a foto do veículo" className="absolute right-2.5 top-2.5 w-9 h-9 rounded-full flex items-center justify-center transition active:scale-95" style={{ background: 'rgba(0,0,0,0.45)', color: '#fff', backdropFilter: 'blur(8px)' }}>
+                            <Maximize2 size={16} />
                         </button>
+                    )}
+                    <div className="absolute left-3 right-3 bottom-2.5">
+                        {driverActive != null && (
+                            <span className="inline-flex items-center gap-1 mb-1.5 text-[10px] font-black uppercase tracking-wide px-2 py-0.5 rounded-full text-white" style={{ background: driverActive ? '#16a34a' : '#6b7280' }}>
+                                {driverActive ? 'Disponível' : 'Indisponível'}
+                            </span>
+                        )}
+                        <h1 className="text-xl font-black leading-tight text-white line-clamp-2">{title}</h1>
+                        <p className="text-xs font-bold text-white/85 truncate">
+                            {[vehicle.car_color, ownerView ? vehicle.car_plate : null].filter(Boolean).join(' · ')}
+                        </p>
+                    </div>
+                </div>
+
+                <div className="rounded-3xl p-3 flex flex-col" style={soft}>
+                    {driver && (
+                        <button onClick={() => router.push(`/${driver.slug}`)} className="flex flex-col items-start gap-1.5 text-left min-w-0">
+                            <PlanAvatarRing userId={driver.id} width={2}>
+                                <span className="block w-12 h-12 rounded-full overflow-hidden" style={{ background: GRADIENT }}>
+                                    {driver.avatar
+                                        ? <img src={driver.avatar} alt="" className="w-full h-full object-cover" />
+                                        : <span className="w-full h-full flex items-center justify-center text-white font-black">{driver.slug.charAt(0).toUpperCase()}</span>}
+                                </span>
+                            </PlanAvatarRing>
+                            <span className="min-w-0 w-full">
+                                <span className="block text-[11px]" style={{ color: colors.textSecondary }}>{isOwner ? 'Você' : 'Motorista'}</span>
+                                <span className="block text-sm font-black leading-tight line-clamp-2" style={{ color: colors.textPrimary }}>{driver.name || `@${driver.slug}`}</span>
+                                <span className="block text-xs truncate" style={{ color: colors.textSecondary }}>@{driver.slug}</span>
+                            </span>
+                        </button>
+                    )}
+                    <div className="mt-auto pt-3">
+                        {ownerView ? (
+                            <button onClick={() => setEditing(true)} className="w-full h-14 rounded-2xl text-white flex flex-col items-center justify-center leading-tight transition active:scale-[0.98]" style={{ background: GRADIENT }}>
+                                <span className="text-sm font-black flex items-center gap-1.5"><Pencil size={15} /> Editar</span>
+                                <span className="text-[11px] opacity-90">dados e fotos</span>
+                            </button>
+                        ) : driver ? (
+                            <button
+                                onClick={() => router.push(`/pedir-motorista?motorista=${driver.id}`)}
+                                className="w-full h-14 rounded-2xl text-white flex flex-col items-center justify-center leading-tight transition active:scale-[0.98]"
+                                style={{ background: GRADIENT, boxShadow: '0 8px 20px #f9731640' }}
+                            >
+                                <span className="text-sm font-black flex items-center gap-1.5"><PhoneCall size={15} /> Chamar</span>
+                                <span className="text-[11px] opacity-90">{pricing ? `a partir de ${brl(pricing.baseFee)}` : 'ele é avisado na hora'}</span>
+                            </button>
+                        ) : null}
                     </div>
                 </div>
             </section>
 
-            {/* Motorista */}
-            {driver && (
-                <button onClick={() => router.push(`/${driver.slug}`)} className="mt-3 w-full rounded-2xl p-3 flex items-center gap-3 text-left transition active:scale-[0.99]" style={soft}>
-                    <PlanAvatarRing userId={driver.id} width={2}>
-                        <span className="block w-12 h-12 rounded-full overflow-hidden" style={{ background: GRADIENT }}>
-                            {driver.avatar
-                                ? <img src={driver.avatar} alt="" className="w-full h-full object-cover" />
-                                : <span className="w-full h-full flex items-center justify-center text-white font-black">{driver.slug.charAt(0).toUpperCase()}</span>}
-                        </span>
-                    </PlanAvatarRing>
-                    <span className="min-w-0 flex-1">
-                        <span className="block text-[11px]" style={{ color: colors.textSecondary }}>{isOwner ? 'Você' : 'Motorista'}</span>
-                        <span className="block text-sm font-black truncate" style={{ color: colors.textPrimary }}>{driver.name || `@${driver.slug}`}</span>
-                        <span className="block text-xs truncate" style={{ color: colors.textSecondary }}>@{driver.slug}</span>
-                    </span>
-                    <ChevronRight size={18} style={{ color: colors.textSecondary }} className="flex-shrink-0" />
-                </button>
-            )}
-
-            {/* Números do motorista */}
-            <section className="mt-3 grid grid-cols-3 gap-2.5">
-                <Stat
-                    icon={<Star size={18} className="fill-current" />}
-                    value={stats && stats.rating != null ? stats.rating.toFixed(1) : 'Novo'}
-                    label={stats && stats.ratingCount > 0 ? `${stats.ratingCount} ${stats.ratingCount === 1 ? 'avaliação' : 'avaliações'}` : 'Sem avaliações'}
-                />
-                <Stat icon={<Route size={18} />} value={String(stats?.rides ?? 0)} label={(stats?.rides ?? 0) === 1 ? 'corrida feita' : 'corridas feitas'} />
-                <Stat icon={<Calendar size={18} />} value={since || '—'} label="no iUser desde" />
-            </section>
+            {/* Números do motorista (esquerda) e o que o carro oferece (direita) */}
+            {(() => {
+                const svcs = vehicle.services || []
+                const stats3 = (
+                    <>
+                        <Stat
+                            icon={<Star size={18} className="fill-current" />}
+                            value={stats && stats.rating != null ? stats.rating.toFixed(1) : 'Novo'}
+                            label={stats && stats.ratingCount > 0 ? `${stats.ratingCount} ${stats.ratingCount === 1 ? 'avaliação' : 'avaliações'}` : 'Sem avaliações'}
+                        />
+                        <Stat icon={<Route size={18} />} value={String(stats?.rides ?? 0)} label={(stats?.rides ?? 0) === 1 ? 'corrida feita' : 'corridas feitas'} />
+                        <Stat icon={<Calendar size={18} />} value={since || '—'} label="no iUser desde" />
+                    </>
+                )
+                if (svcs.length === 0) return <section className="mt-3 grid grid-cols-3 gap-2.5">{stats3}</section>
+                return (
+                    <section className="mt-3 grid grid-cols-[1fr_1fr] gap-2.5">
+                        <div className="flex flex-col gap-2.5">{stats3}</div>
+                        <div className="rounded-2xl p-3" style={soft}>
+                            <p className="text-[11px] font-black uppercase tracking-wide mb-2" style={{ color: colors.textSecondary }}>O carro tem</p>
+                            <div className="flex flex-col gap-1.5">
+                                {svcs.map((sv) => {
+                                    const Icon = DRIVER_SERVICE_OPTIONS.find((o) => o.id === sv)?.icon
+                                    return (
+                                        <span key={sv} className="px-3 py-2 rounded-full text-xs font-bold flex items-center gap-1.5" style={{ background: `${ORANGE}1a`, color: ORANGE }}>
+                                            {Icon && <Icon size={14} className="flex-shrink-0" />}{driverServiceLabel(sv)}
+                                        </span>
+                                    )
+                                })}
+                            </div>
+                        </div>
+                    </section>
+                )
+            })()}
 
             {/* Dono: painel */}
             {ownerView && (
@@ -303,9 +352,6 @@ export default function VehicleScreen() {
                         </span>
                         <button onClick={() => router.push('/painel-motorista')} className="h-9 px-4 rounded-full text-xs font-black flex-shrink-0" style={{ background: `${colors.border}60`, color: colors.textPrimary }}>Abrir</button>
                     </div>
-                    <button onClick={() => setEditing(true)} className="h-12 rounded-full text-sm font-black text-white flex items-center justify-center gap-2 transition active:scale-[0.98]" style={{ background: GRADIENT }}>
-                        <Pencil size={17} /> Editar veículo
-                    </button>
                     <div className="grid grid-cols-2 gap-2.5">
                         <button onClick={() => router.push('/aceitar-corridas')} className="h-12 rounded-2xl text-xs font-black flex items-center justify-center gap-2" style={{ ...soft, color: colors.textPrimary }}>
                             <Route size={16} style={{ color: ORANGE }} /> Aceitar corridas
@@ -353,11 +399,6 @@ export default function VehicleScreen() {
                 )}
             </section>
 
-            {/* Onde ele está agora */}
-            {!ownerView && (
-                <LiveMap live={live} kind={vehicle.vehicle_kind} colors={colors} soft={soft} />
-            )}
-
             {/* Corridas recentes (sem endereço nem nome de quem pediu) */}
             {recent.length > 0 && (
                 <section className="mt-6">
@@ -391,13 +432,6 @@ export default function VehicleScreen() {
                     {vehicle.vehicle_kind === 'carro' && <Fact icon={<Baby size={17} />} label="Cadeirinha" value={vehicle.has_baby_seat ? 'Tem' : 'Não tem'} />}
                     {(luggage[0] > 0 || luggage[1] > 0) && <Fact icon={<Luggage size={17} />} label="Porta-malas" value={`${luggage[0]} bolsas · ${luggage[1]} malas`} />}
                 </div>
-                {vehicle.services && vehicle.services.length > 0 && (
-                    <div className="mt-3 flex flex-wrap gap-2">
-                        {vehicle.services.map((sv) => (
-                            <span key={sv} className="px-3 py-1.5 rounded-full text-xs font-bold" style={{ background: `${ORANGE}1a`, color: ORANGE }}>{driverServiceLabel(sv)}</span>
-                        ))}
-                    </div>
-                )}
             </section>
 
             {/* Loja do motorista */}
@@ -415,21 +449,6 @@ export default function VehicleScreen() {
             )}
 
             {/* Cliente: pedir corrida */}
-            {!ownerView && driver && (
-                <div className="mt-6 flex flex-col gap-2.5">
-                    <button
-                        onClick={() => router.push(`/pedir-motorista?motorista=${driver.id}`)}
-                        className="w-full h-14 rounded-full text-base font-black text-white flex items-center justify-center gap-2 transition active:scale-[0.98]"
-                        style={{ background: GRADIENT, boxShadow: '0 8px 20px #f9731640' }}
-                    >
-                        <PhoneCall size={19} /> Chamar {driver.slug ? `@${driver.slug}` : 'o motorista'} agora
-                    </button>
-                    <p className="text-[11px] text-center" style={{ color: colors.textSecondary }}>
-                        Ele é avisado na hora, com a sua origem e o seu destino. Você escolhe entre quem aceitar.
-                    </p>
-                </div>
-            )}
-
             {/* Dono: divulgar a página */}
             {ownerView && (
                 <section className="mt-6 rounded-3xl p-4" style={{ background: `${ORANGE}14` }}>
@@ -454,6 +473,17 @@ export default function VehicleScreen() {
             />
 
             </>)}
+
+            {zoom && photo && (
+                <div className="fixed inset-0 z-[95] flex items-center justify-center p-3" role="dialog" aria-modal="true" aria-label="Foto do veículo">
+                    <button aria-label="Fechar" onClick={() => setZoom(false)} className="absolute inset-0 bg-black/90" />
+                    <img src={photo} alt={title} className="relative max-w-full max-h-[88dvh] rounded-2xl object-contain shadow-2xl" />
+                    <button onClick={() => setZoom(false)} aria-label="Fechar" className="absolute right-4 w-11 h-11 rounded-full flex items-center justify-center text-white" style={{ top: 'calc(16px + env(safe-area-inset-top))', background: 'rgba(255,255,255,0.18)' }}>
+                        <X size={22} />
+                    </button>
+                    <p className="absolute left-0 right-0 bottom-5 text-center text-sm font-black text-white">{title}{vehicle.car_color ? ` · ${vehicle.car_color}` : ''}</p>
+                </div>
+            )}
 
             {editing && vehicle && (
                 <EditSheet
