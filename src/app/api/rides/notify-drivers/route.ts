@@ -13,7 +13,7 @@ export async function POST(req: Request) {
 
     const { data: ride } = await supabaseAdmin
         .from('ride_requests')
-        .select('id, requester_id, vehicle_type, origin_address, destination_address, offered_price, status')
+        .select('id, requester_id, vehicle_type, origin_address, destination_address, offered_price, status, preferred_driver_id')
         .eq('id', rideRequestId)
         .maybeSingle()
 

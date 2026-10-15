@@ -7,11 +7,11 @@
 //    como o cliente vê".
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import {
     Baby, Bike, Camera, Car, ChevronRight, Copy, Hash, Luggage, MapPin, Palette, Pencil, Route, Star, Store as StoreIcon,
-    Users, X, Check, Gauge, Calendar, Clock, CheckCircle2, ArrowRight, Wallet,
+    Users, X, Check, Gauge, Calendar, Clock, CheckCircle2, ArrowRight, Wallet, Share2, Radio, PhoneCall,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase/client'
@@ -19,12 +19,17 @@ import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { getAvatarUrl } from '@/lib/avatar'
 import { Spinner } from '@/components/Spinner'
+import ShareLinkDialog from '@/components/ShareLinkDialog'
+import mapboxgl from 'mapbox-gl'
+import 'mapbox-gl/dist/mapbox-gl.css'
+import { vehicleMarkerHtml } from '@/lib/vehicleMarkerIcon'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
 import { DRIVER_SERVICE_OPTIONS, driverServiceLabel } from '@/lib/driverServices'
 import { loadPlatformTariffs } from '@/lib/platformTariffs'
 import { computeSuggestedPrice, getEffectivePricing, type DriverPricingRow } from '@/lib/driverPricing'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
+mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
 const ORANGE = '#ea580c'
 const KIND_LABEL: Record<string, string> = { carro: 'Carro', moto: 'Moto', bicicleta: 'Bicicleta' }
 
@@ -60,9 +65,14 @@ export default function VehicleScreen() {
     const [tariffsReady, setTariffsReady] = useState(false)
     const [stats, setStats] = useState<Stats | null>(null)
     // Dono: Veículo, Clientes (pedidos acontecendo), Histórico (corridas feitas) ou a prévia do que o cliente vê
-    const [tab, setTab] = useState<'veiculo' | 'clientes' | 'historico' | 'cliente'>('veiculo')
+    const [tab, setTabState] = useState<'veiculo' | 'clientes' | 'historico' | 'cliente'>('veiculo')
+    const setTab = (t: typeof tab) => { touchedTab.current = true; setTabState(t) }
     const viewAsClient = tab === 'cliente'
     const [activeCount, setActiveCount] = useState(0)
+    const [live, setLive] = useState<{ sync: boolean; lat: number | null; lng: number | null; at: string | null }>({ sync: false, lat: null, lng: null, at: null })
+    const [recent, setRecent] = useState<{ at: string; km: number | null; price: number | null }[]>([])
+    const [shareOpen, setShareOpen] = useState(false)
+    const touchedTab = useRef(false)
     const [editing, setEditing] = useState(false)
 
     const load = useCallback(async () => {
@@ -72,12 +82,17 @@ export default function VehicleScreen() {
         setVehicle(v)
         const [{ data: prof }, { data: pricing }, { data: st }] = await Promise.all([
             supabase.from('profiles').select('id, profileSlug, name, avatar_url').eq('id', v.driver_id).maybeSingle(),
-            supabase.from('driver_pricing').select('pricing_mode, base_distance_km, base_fee, price_per_km_after_base, extra_fee_pessoa, extra_fee_animal, extra_fee_objeto, extra_fee_condominio, extra_fee_compras, extra_fee_necessidade_especial, extra_fee_pet_sem_caixa, extra_fee_entrega_interna, extra_fee_ar_condicionado, driver_mode_active').eq('driver_id', v.driver_id).maybeSingle(),
+            supabase.from('driver_pricing').select('pricing_mode, base_distance_km, base_fee, price_per_km_after_base, extra_fee_pessoa, extra_fee_animal, extra_fee_objeto, extra_fee_condominio, extra_fee_compras, extra_fee_necessidade_especial, extra_fee_pet_sem_caixa, extra_fee_entrega_interna, extra_fee_ar_condicionado, driver_mode_active, live_location_sync, live_lat, live_lng, live_updated_at').eq('driver_id', v.driver_id).maybeSingle(),
             supabase.rpc('get_driver_public_stats', { p_driver: v.driver_id }),
             loadPlatformTariffs(supabase), // a tarifa da plataforma vem do banco: sempre carregar antes de calcular preço
         ]).then((r) => { setTariffsReady(true); return r as any })
         if (prof) setDriver({ id: (prof as any).id, slug: (prof as any).profileSlug, name: (prof as any).name, avatar: getAvatarUrl(supabase, (prof as any).avatar_url) || null })
         setDriverActive(!!(pricing as any)?.driver_mode_active)
+        const pr = pricing as any
+        setLive({ sync: !!pr?.live_location_sync, lat: pr?.live_lat != null ? Number(pr.live_lat) : null, lng: pr?.live_lng != null ? Number(pr.live_lng) : null, at: pr?.live_updated_at || null })
+        supabase.rpc('get_driver_recent_rides', { p_driver: v.driver_id, p_limit: 5 }).then(({ data: rr }) => {
+            setRecent(((rr as any[]) || []).map((r) => ({ at: r.rode_at, km: r.distance_km != null ? Number(r.distance_km) : null, price: r.price != null ? Number(r.price) : null })))
+        })
         setPricingRow((pricing as DriverPricingRow) || { pricing_mode: 'platform', base_distance_km: null, base_fee: null, price_per_km_after_base: null })
         const row = Array.isArray(st) ? st[0] : st
         if (row) {
@@ -96,6 +111,11 @@ export default function VehicleScreen() {
 
     useEffect(() => { load() }, [load])
 
+    // Chegou cliente pedindo corrida: abre direto em "Clientes" (a menos que o motorista já tenha escolhido outra aba)
+    useEffect(() => {
+        if (activeCount > 0 && !touchedTab.current) setTabState('clientes')
+    }, [activeCount])
+
     // Quantos pedidos acontecendo agora (selo da aba Clientes), mesmo antes de abrir a aba
     useEffect(() => {
         if (!userId || !vehicle || vehicle.driver_id !== userId) return
@@ -109,6 +129,19 @@ export default function VehicleScreen() {
         })()
         return () => { cancelled = true }
     }, [userId, vehicle])
+
+    // Posição ao vivo: o cliente vê onde o motorista está (se ele deixa a localização ligada); atualiza sozinha
+    useEffect(() => {
+        if (!vehicle) return
+        const id = setInterval(async () => {
+            const { data } = await supabase.from('driver_pricing').select('driver_mode_active, live_location_sync, live_lat, live_lng, live_updated_at').eq('driver_id', vehicle.driver_id).maybeSingle()
+            const pr = data as any
+            if (!pr) return
+            setDriverActive(!!pr.driver_mode_active)
+            setLive({ sync: !!pr.live_location_sync, lat: pr.live_lat != null ? Number(pr.live_lat) : null, lng: pr.live_lng != null ? Number(pr.live_lng) : null, at: pr.live_updated_at || null })
+        }, 12000)
+        return () => clearInterval(id)
+    }, [vehicle])
 
     const isOwner = !!userId && !!vehicle && vehicle.driver_id === userId
     const ownerView = isOwner && !viewAsClient
@@ -175,12 +208,15 @@ export default function VehicleScreen() {
             {/* Dono: o veículo, os clientes (pedidos acontecendo), o histórico e a prévia do que o cliente enxerga */}
             {isOwner && (
                 <div className="flex gap-1.5 mb-3 -mx-4 px-4 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
-                    {([
+                    {(([
                         { id: 'veiculo', label: 'Meu veículo' },
                         { id: 'clientes', label: 'Clientes', count: activeCount },
                         { id: 'historico', label: 'Histórico' },
                         { id: 'cliente', label: 'Como o cliente vê' },
-                    ] as { id: typeof tab; label: string; count?: number }[]).map((t) => (
+                    ] as { id: typeof tab; label: string; count?: number }[])
+                        // com cliente pedindo corrida, "Clientes" vai para o começo da fila
+                        .sort((a, b) => (activeCount > 0 ? Number(b.id === 'clientes') - Number(a.id === 'clientes') : 0))
+                    ).map((t) => (
                         <button
                             key={t.id}
                             onClick={() => setTab(t.id)}
@@ -317,6 +353,34 @@ export default function VehicleScreen() {
                 )}
             </section>
 
+            {/* Onde ele está agora */}
+            {!ownerView && (
+                <LiveMap live={live} kind={vehicle.vehicle_kind} colors={colors} soft={soft} />
+            )}
+
+            {/* Corridas recentes (sem endereço nem nome de quem pediu) */}
+            {recent.length > 0 && (
+                <section className="mt-6">
+                    <h2 className="text-lg font-black" style={{ color: colors.textPrimary }}>Corridas recentes</h2>
+                    <div className="mt-3 flex flex-col gap-2">
+                        {recent.map((r, i) => (
+                            <div key={i} className="rounded-2xl px-3.5 py-2.5 flex items-center gap-3" style={soft}>
+                                <span className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#16a34a1f', color: '#16a34a' }}><CheckCircle2 size={17} /></span>
+                                <span className="min-w-0 flex-1">
+                                    <span className="block text-sm font-black" style={{ color: colors.textPrimary }}>
+                                        {new Date(r.at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' })}
+                                    </span>
+                                    <span className="block text-[11px]" style={{ color: colors.textSecondary }}>
+                                        Corrida concluída{r.km != null ? ` · ${r.km.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} km` : ''}
+                                    </span>
+                                </span>
+                                {r.price != null && <span className="text-sm font-black flex-shrink-0" style={{ color: colors.textPrimary }}>{brl(r.price)}</span>}
+                            </div>
+                        ))}
+                    </div>
+                </section>
+            )}
+
             {/* O veículo */}
             <section className="mt-6">
                 <h2 className="text-lg font-black" style={{ color: colors.textPrimary }}>O veículo</h2>
@@ -351,11 +415,43 @@ export default function VehicleScreen() {
             )}
 
             {/* Cliente: pedir corrida */}
-            {!ownerView && (
-                <button onClick={() => router.push('/pedir-motorista')} className="mt-6 w-full h-12 rounded-full text-sm font-black text-white flex items-center justify-center gap-2 transition active:scale-[0.98]" style={{ background: GRADIENT, boxShadow: '0 8px 20px #f9731640' }}>
-                    <MapPin size={17} /> Pedir corrida
-                </button>
+            {!ownerView && driver && (
+                <div className="mt-6 flex flex-col gap-2.5">
+                    <button
+                        onClick={() => router.push(`/pedir-motorista?motorista=${driver.id}`)}
+                        className="w-full h-14 rounded-full text-base font-black text-white flex items-center justify-center gap-2 transition active:scale-[0.98]"
+                        style={{ background: GRADIENT, boxShadow: '0 8px 20px #f9731640' }}
+                    >
+                        <PhoneCall size={19} /> Chamar {driver.slug ? `@${driver.slug}` : 'o motorista'} agora
+                    </button>
+                    <p className="text-[11px] text-center" style={{ color: colors.textSecondary }}>
+                        Ele é avisado na hora, com a sua origem e o seu destino. Você escolhe entre quem aceitar.
+                    </p>
+                </div>
             )}
+
+            {/* Dono: divulgar a página */}
+            {ownerView && (
+                <section className="mt-6 rounded-3xl p-4" style={{ background: `${ORANGE}14` }}>
+                    <h2 className="text-base font-black flex items-center gap-2" style={{ color: colors.textPrimary }}><Radio size={18} style={{ color: ORANGE }} /> Divulgue a sua página</h2>
+                    <p className="text-xs mt-1" style={{ color: colors.textSecondary }}>
+                        Cole o link onde seus clientes estão: quem abrir vê onde você está, o quanto custa e pode te chamar na hora.
+                    </p>
+                    <div className="mt-3 flex items-center gap-2 px-3.5 h-11 rounded-2xl" style={{ background: colors.background }}>
+                        <span className="text-xs font-bold truncate flex-1" style={{ color: colors.textPrimary }}>iuser.com.br/{vehicleSlug}</span>
+                    </div>
+                    <button onClick={() => setShareOpen(true)} className="mt-3 w-full h-12 rounded-full text-sm font-black text-white flex items-center justify-center gap-2 transition active:scale-[0.98]" style={{ background: GRADIENT }}>
+                        <Share2 size={17} /> Compartilhar minha página
+                    </button>
+                </section>
+            )}
+            <ShareLinkDialog
+                open={shareOpen}
+                onClose={() => setShareOpen(false)}
+                url={typeof window !== 'undefined' ? `${window.location.origin}/${vehicleSlug}` : `/${vehicleSlug}`}
+                title="Compartilhar minha página de motorista"
+                text={`Preciso de corrida? Me chame na hora pelo iUser: veja onde eu estou, o quanto custa e peça direto comigo.`}
+            />
 
             </>)}
 
@@ -704,5 +800,64 @@ function RidesPanel({ mode, me, onCount }: { mode: 'clientes' | 'historico'; me:
             </div>
             <div className="flex flex-col gap-2.5">{feitas.map(card)}</div>
         </div>
+    )
+}
+
+// ===== Onde o motorista está agora =====
+function LiveMap({ live, kind, colors, soft }: {
+    live: { sync: boolean; lat: number | null; lng: number | null; at: string | null }
+    kind: 'carro' | 'moto' | 'bicicleta'
+    colors: any
+    soft: { background: string }
+}) {
+    const containerRef = useRef<HTMLDivElement>(null)
+    const mapRef = useRef<mapboxgl.Map | null>(null)
+    const markerRef = useRef<mapboxgl.Marker | null>(null)
+
+    const has = live.sync && live.lat != null && live.lng != null
+    const ageMin = live.at ? Math.max(0, Math.round((Date.now() - new Date(live.at).getTime()) / 60000)) : null
+    const isLive = has && ageMin != null && ageMin <= 3
+
+    useEffect(() => {
+        if (!has || !containerRef.current) return
+        if (!mapRef.current) {
+            mapRef.current = new mapboxgl.Map({
+                container: containerRef.current,
+                style: 'mapbox://styles/mapbox/streets-v12',
+                center: [live.lng!, live.lat!],
+                zoom: 14,
+                interactive: false,
+                attributionControl: false,
+            })
+            markerRef.current = new mapboxgl.Marker({ element: (() => { const el = document.createElement('div'); el.innerHTML = vehicleMarkerHtml(kind, '#ea580c'); return el })() })
+                .setLngLat([live.lng!, live.lat!])
+                .addTo(mapRef.current)
+        } else {
+            markerRef.current?.setLngLat([live.lng!, live.lat!])
+            mapRef.current.easeTo({ center: [live.lng!, live.lat!], duration: 800 })
+        }
+    }, [has, live.lat, live.lng, kind])
+    useEffect(() => () => { mapRef.current?.remove(); mapRef.current = null }, [])
+
+    return (
+        <section className="mt-6">
+            <div className="flex items-center justify-between gap-2">
+                <h2 className="text-lg font-black" style={{ color: colors.textPrimary }}>Onde está agora</h2>
+                {has && (
+                    <span className="text-[11px] font-black px-2.5 py-1 rounded-full flex items-center gap-1.5" style={{ background: isLive ? '#16a34a1f' : '#6b72801f', color: isLive ? '#16a34a' : '#6b7280' }}>
+                        <span className="w-1.5 h-1.5 rounded-full" style={{ background: isLive ? '#16a34a' : '#6b7280' }} />
+                        {isLive ? 'Ao vivo' : ageMin != null && ageMin < 60 ? `há ${ageMin} min` : 'Posição antiga'}
+                    </span>
+                )}
+            </div>
+            {has ? (
+                <div ref={containerRef} className="mt-3 h-44 rounded-3xl overflow-hidden" style={soft} />
+            ) : (
+                <div className="mt-3 rounded-2xl p-4 flex items-center gap-3" style={soft}>
+                    <span className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${ORANGE}1f`, color: ORANGE }}><MapPin size={18} /></span>
+                    <p className="text-xs" style={{ color: colors.textSecondary }}>O motorista não está compartilhando a localização agora. Chame mesmo assim: ele recebe o aviso na hora.</p>
+                </div>
+            )}
+        </section>
     )
 }

@@ -21,6 +21,8 @@ export async function notifyDriversOfRide(ride: {
     origin_address: string
     destination_address: string
     offered_price?: number | null
+    /** Cliente chamou um motorista específico (abriu a página dele): ele recebe um aviso direto, além do geral */
+    preferred_driver_id?: string | null
 }): Promise<number> {
     const { data: drivers } = await supabaseAdmin
         .from('driver_pricing')
@@ -52,6 +54,13 @@ export async function notifyDriversOfRide(ride: {
         return canServe && (debtByDriver.get(id) || 0) < 50
     })
 
+    // Cliente chamou um motorista específico: o aviso dele diz isso (e é o mesmo aviso, com os botões de valor)
+    let callerLabel = ''
+    if (ride.preferred_driver_id && eligible.includes(ride.preferred_driver_id)) {
+        const { data: caller } = await supabaseAdmin.from('profiles').select('profileSlug, name').eq('id', ride.requester_id).maybeSingle()
+        callerLabel = caller?.profileSlug ? `@${caller.profileSlug}` : caller?.name || 'Um cliente'
+    }
+
     // Cada motorista tem a própria "Minha tarifa": busca a linha completa da
     // corrida (condições que somam extras) e o preço de cada elegível pra
     // mandar os valores já prontos na notificação.
@@ -76,7 +85,7 @@ export async function notifyDriversOfRide(ride: {
             const pricing = pricingByDriver.get(id)
             const tariffs = fullRide && pricing ? computeRideTariffs(fullRide as Parameters<typeof computeRideTariffs>[0], pricing as Parameters<typeof computeRideTariffs>[1]) : null
             return sendPushToUser(id, {
-                title: 'Nova corrida disponível!',
+                title: callerLabel && id === ride.preferred_driver_id ? `${callerLabel} chamou você!` : 'Nova corrida disponível!',
                 body: `${short(ride.origin_address)} → ${short(ride.destination_address)}${priceText}`,
                 url: `/aceitar-corridas/mapa?ride=${ride.id}`,
                 tag: `new-ride-${ride.id}`,

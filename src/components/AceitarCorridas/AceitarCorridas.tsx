@@ -134,6 +134,8 @@ function relativeTime(iso: string): string {
 }
 
 interface RideRow {
+    /** Cliente chamou um motorista específico (abriu a página dele) */
+    preferred_driver_id?: string | null
     id: string
     requester_id: string
     ride_type: 'pessoa' | 'objeto' | 'animal'
@@ -618,7 +620,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
 
         let openRidesQuery = supabase
             .from('ride_requests')
-            .select('id, requester_id, ride_type, origin_address, destination_address, origin_complement, destination_complement, notes, passenger_count, vehicle_type, object_description, object_is_sensitive, pet_description, has_child, children_count, child_age, child_needs_car_seat, has_shopping, bag_count, has_extra_object, extra_object_description, has_pet, pet_weight_range, pet_has_carrier, has_special_needs, special_needs_description, special_needs_wheelchair, special_needs_wheelchair_type, special_needs_visual_impairment, has_guide_dog, delivery_location, payment_method, cash_change_for, card_is_contactless, origin_needs_access, origin_access_notes, destination_needs_access, destination_access_notes, grocery_bag_size, wants_air_conditioning, distance_km, duration_min, scheduled_for, created_at, origin_lat, origin_lng, destination_lat, destination_lng, stop1_address, stop1_complement, stop1_lat, stop1_lng, stop2_address, stop2_complement, stop2_lat, stop2_lng, offered_price, order_id, store_id')
+            .select('id, requester_id, ride_type, origin_address, destination_address, origin_complement, destination_complement, notes, passenger_count, vehicle_type, object_description, object_is_sensitive, pet_description, has_child, children_count, child_age, child_needs_car_seat, has_shopping, bag_count, has_extra_object, extra_object_description, has_pet, pet_weight_range, pet_has_carrier, has_special_needs, special_needs_description, special_needs_wheelchair, special_needs_wheelchair_type, special_needs_visual_impairment, has_guide_dog, delivery_location, payment_method, cash_change_for, card_is_contactless, origin_needs_access, origin_access_notes, destination_needs_access, destination_access_notes, grocery_bag_size, wants_air_conditioning, distance_km, duration_min, scheduled_for, created_at, origin_lat, origin_lng, destination_lat, destination_lng, stop1_address, stop1_complement, stop1_lat, stop1_lng, stop2_address, stop2_complement, stop2_lat, stop2_lng, offered_price, order_id, store_id, preferred_driver_id')
             .eq('status', 'pending')
         if (contextUserId) openRidesQuery = openRidesQuery.neq('requester_id', contextUserId)
         const { data: openRides } = await openRidesQuery
@@ -642,6 +644,8 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
         const openList = candidateRides
             .filter((r) => (countById.get(r.id) ?? 0) < MAX_CANDIDATES)
             .map((r) => ({ ...r, applicant_count: countById.get(r.id) ?? 0 }))
+            // quem chamou você vem primeiro (a ordenação do banco é mantida entre os demais)
+            .sort((a, b) => Number(b.preferred_driver_id === contextUserId) - Number(a.preferred_driver_id === contextUserId))
 
         // Minhas candidaturas em aberto — some daqui assim que a corrida deixa
         // de estar pendente (seja porque eu fui aceito, outro motorista foi
@@ -1439,8 +1443,13 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                                         key={ride.id}
                                         id={`ride-card-${ride.id}`}
                                         className="rounded-2xl p-3.5 overflow-hidden relative transition-shadow duration-500"
-                                        style={{ background: colors.surface, border: `1px solid ${highlightRideId === ride.id ? '#f97316' : colors.border}`, boxShadow: highlightRideId === ride.id ? '0 0 0 3px #f9731655' : colors.shadow }}
+                                        style={{ background: colors.surface, border: `1px solid ${highlightRideId === ride.id || (ride.preferred_driver_id && ride.preferred_driver_id === contextUserId) ? '#f97316' : colors.border}`, boxShadow: highlightRideId === ride.id ? '0 0 0 3px #f9731655' : colors.shadow }}
                                     >
+                                        {ride.preferred_driver_id && ride.preferred_driver_id === contextUserId && (
+                                            <span className="inline-flex items-center gap-1 mb-2 text-[11px] font-black uppercase tracking-wide px-2.5 py-1 rounded-full text-white" style={{ background: 'linear-gradient(135deg, #f97316, #dc2626)' }}>
+                                                Chamou você
+                                            </span>
+                                        )}
                                         <RideOfferCard
                                             ride={ride}
                                             requester={{ id: ride.requester_id, name: ride.requesterName, slug: ride.requesterSlug, avatarUrl: ride.requesterAvatarUrl, rating: ride.requesterRating }}

@@ -904,6 +904,18 @@ export default function PedirMotoristaPage() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [mapReady, useMyLocationAsOrigin])
 
+    // ===== CHAMAR UM MOTORISTA (?motorista=<id>): o pedido vai com ele como preferido =====
+    const [calledDriver, setCalledDriver] = useState<{ id: string; slug: string | null; name: string | null } | null>(null)
+    useEffect(() => {
+        const id = new URLSearchParams(window.location.search).get('motorista')
+        if (!id || !/^[0-9a-f-]{36}$/i.test(id)) return
+        let cancelled = false
+        supabase.from('profiles').select('id, profileSlug, name').eq('id', id).maybeSingle().then(({ data }) => {
+            if (!cancelled && data) setCalledDriver({ id: (data as any).id, slug: (data as any).profileSlug, name: (data as any).name })
+        })
+        return () => { cancelled = true }
+    }, [])
+
     // ===== TIPO E DESTINO VINDOS DE UM ATALHO (?tipo=, ?destino=, ?lat=, ?lng=) =====
     useEffect(() => {
         const params = new URLSearchParams(window.location.search)
@@ -1420,6 +1432,7 @@ export default function PedirMotoristaPage() {
 
             const { data: insertedRide, error } = await supabase.from('ride_requests').insert({
                 requester_id: user.id,
+                preferred_driver_id: calledDriver && calledDriver.id !== user.id ? calledDriver.id : null,
                 ride_type: requestFor,
                 origin_address: origin.address.trim(),
                 destination_address: destination.address.trim(),
@@ -1726,6 +1739,12 @@ export default function PedirMotoristaPage() {
                     {/* ===== ETAPA 1: PESSOA OU OBJETO ===== */}
                     {step === 'type' && (
                         <>
+                            {calledDriver && (
+                                <div className="mb-3 rounded-2xl px-3.5 py-2.5 flex items-center gap-2 text-sm font-bold" style={{ background: '#ea580c1a', color: '#ea580c' }}>
+                                    <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
+                                    <span className="min-w-0 truncate">Chamando {calledDriver.slug ? `@${calledDriver.slug}` : calledDriver.name || 'o motorista'} — ele será avisado na hora</span>
+                                </div>
+                            )}
                             <h2 className="text-lg font-black mb-1" style={{ color: colors.textPrimary }}>Motorista para:</h2>
                             <p className="text-xs mb-4" style={{ color: colors.textSecondary }}>Escolha uma opção pra começar</p>
 
