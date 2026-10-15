@@ -11,7 +11,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import {
     Baby, Bike, Camera, Car, ChevronRight, Copy, Hash, Luggage, MapPin, Palette, Pencil, Route, Star, Store as StoreIcon,
-    Users, X, Check, Gauge, Calendar,
+    Users, X, Check, Gauge, Calendar, Clock, CheckCircle2, ArrowRight, Wallet,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase/client'
@@ -59,7 +59,10 @@ export default function VehicleScreen() {
     const [pricingRow, setPricingRow] = useState<DriverPricingRow | null>(null)
     const [tariffsReady, setTariffsReady] = useState(false)
     const [stats, setStats] = useState<Stats | null>(null)
-    const [viewAsClient, setViewAsClient] = useState(false)
+    // Dono: Veículo, Clientes (pedidos acontecendo), Histórico (corridas feitas) ou a prévia do que o cliente vê
+    const [tab, setTab] = useState<'veiculo' | 'clientes' | 'historico' | 'cliente'>('veiculo')
+    const viewAsClient = tab === 'cliente'
+    const [activeCount, setActiveCount] = useState(0)
     const [editing, setEditing] = useState(false)
 
     const load = useCallback(async () => {
@@ -92,6 +95,20 @@ export default function VehicleScreen() {
     }, [vehicleSlug])
 
     useEffect(() => { load() }, [load])
+
+    // Quantos pedidos acontecendo agora (selo da aba Clientes), mesmo antes de abrir a aba
+    useEffect(() => {
+        if (!userId || !vehicle || vehicle.driver_id !== userId) return
+        let cancelled = false
+        ;(async () => {
+            const [{ count: accepted }, { count: pending }] = await Promise.all([
+                supabase.from('ride_requests').select('id', { count: 'exact', head: true }).eq('driver_id', userId).eq('status', 'accepted'),
+                supabase.from('ride_applications').select('id', { count: 'exact', head: true }).eq('applicant_id', userId).eq('status', 'pending'),
+            ])
+            if (!cancelled) setActiveCount((accepted || 0) + (pending || 0))
+        })()
+        return () => { cancelled = true }
+    }, [userId, vehicle])
 
     const isOwner = !!userId && !!vehicle && vehicle.driver_id === userId
     const ownerView = isOwner && !viewAsClient
@@ -155,22 +172,31 @@ export default function VehicleScreen() {
 
     return (
         <div className="pb-6">
-            {/* Dono: alterna entre o painel dele e o que o cliente enxerga */}
+            {/* Dono: o veículo, os clientes (pedidos acontecendo), o histórico e a prévia do que o cliente enxerga */}
             {isOwner && (
-                <div className="flex p-1 rounded-full mb-3" style={{ background: `${colors.border}40` }}>
-                    {[{ id: false, label: 'Meu veículo' }, { id: true, label: 'Como o cliente vê' }].map((t) => (
+                <div className="flex gap-1.5 mb-3 -mx-4 px-4 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+                    {([
+                        { id: 'veiculo', label: 'Meu veículo' },
+                        { id: 'clientes', label: 'Clientes', count: activeCount },
+                        { id: 'historico', label: 'Histórico' },
+                        { id: 'cliente', label: 'Como o cliente vê' },
+                    ] as { id: typeof tab; label: string; count?: number }[]).map((t) => (
                         <button
-                            key={String(t.id)}
-                            onClick={() => setViewAsClient(t.id)}
-                            className="flex-1 h-9 rounded-full text-xs font-black transition"
-                            style={viewAsClient === t.id ? { background: GRADIENT, color: '#fff' } : { color: colors.textPrimary }}
+                            key={t.id}
+                            onClick={() => setTab(t.id)}
+                            className="flex-shrink-0 h-10 px-4 rounded-full text-xs font-black flex items-center gap-1.5 transition active:scale-95"
+                            style={tab === t.id ? { background: GRADIENT, color: '#fff' } : { background: `${colors.border}40`, color: colors.textPrimary }}
                         >
                             {t.label}
+                            {!!t.count && <span className="min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black flex items-center justify-center" style={{ background: tab === t.id ? '#fff' : '#16a34a', color: tab === t.id ? '#dc2626' : '#fff' }}>{t.count}</span>}
                         </button>
                     ))}
                 </div>
             )}
 
+            {isOwner && (tab === 'clientes' || tab === 'historico') ? (
+                <RidesPanel mode={tab} me={vehicle.driver_id} onCount={setActiveCount} />
+            ) : (<>
             {/* Foto + nome */}
             <section className="relative rounded-3xl overflow-hidden" style={{ background: `${ORANGE}22` }}>
                 <div className="relative h-60 w-full">
@@ -330,6 +356,8 @@ export default function VehicleScreen() {
                     <MapPin size={17} /> Pedir corrida
                 </button>
             )}
+
+            </>)}
 
             {editing && vehicle && (
                 <EditSheet
@@ -505,6 +533,176 @@ function EditSheet({ vehicle, onClose, onSaved }: { vehicle: Vehicle; onClose: (
                     </button>
                 </div>
             </div>
+        </div>
+    )
+}
+
+// ===== Clientes (pedidos acontecendo) e Histórico (corridas feitas) — só o dono =====
+interface RideRow {
+    id: string
+    status: string
+    created_at: string
+    ride_started_at: string | null
+    driver_arrived_at: string | null
+    driver_en_route: boolean | null
+    origin_address: string | null
+    destination_address: string | null
+    requester_id: string
+    price: number | null
+    kind: 'andamento' | 'aguardando' | 'feita'
+}
+interface Person { slug: string | null; name: string | null; avatar: string | null }
+
+const shortAddress = (a: string | null) => (a ? a.split(',').slice(0, 2).join(',').trim() : '—')
+
+function RidesPanel({ mode, me, onCount }: { mode: 'clientes' | 'historico'; me: string; onCount: (n: number) => void }) {
+    const router = useRouter()
+    const { colors } = useTheme()
+    const [rows, setRows] = useState<RideRow[] | null>(null)
+    const [people, setPeople] = useState<Record<string, Person>>({})
+
+    useEffect(() => {
+        let cancelled = false
+        ;(async () => {
+            const cols = 'id, requester_id, status, created_at, ride_started_at, driver_arrived_at, driver_en_route, origin_address, destination_address, offered_price'
+            const [{ data: mine }, { data: apps }] = await Promise.all([
+                supabase.from('ride_requests').select(cols).eq('driver_id', me).in('status', ['accepted', 'completed']).order('created_at', { ascending: false }).limit(80),
+                supabase.from('ride_applications').select('ride_request_id, proposed_price, status').eq('applicant_id', me).limit(200),
+            ])
+            const priceByRide = new Map(((apps as any[]) || []).map((a) => [a.ride_request_id as string, a.proposed_price != null ? Number(a.proposed_price) : null]))
+            const out: RideRow[] = ((mine as any[]) || []).map((r) => ({
+                id: r.id, status: r.status, created_at: r.created_at, ride_started_at: r.ride_started_at,
+                driver_arrived_at: r.driver_arrived_at, driver_en_route: r.driver_en_route,
+                origin_address: r.origin_address, destination_address: r.destination_address, requester_id: r.requester_id,
+                price: priceByRide.get(r.id) ?? (r.offered_price != null ? Number(r.offered_price) : null),
+                kind: r.status === 'completed' ? 'feita' : 'andamento',
+            }))
+            // candidaturas que ainda esperam o cliente escolher
+            const pendingIds = ((apps as any[]) || []).filter((a) => a.status === 'pending').map((a) => a.ride_request_id as string)
+            if (pendingIds.length) {
+                const { data: waiting } = await supabase.from('ride_requests').select(cols).in('id', pendingIds).eq('status', 'pending')
+                for (const r of ((waiting as any[]) || [])) {
+                    out.push({
+                        id: r.id, status: r.status, created_at: r.created_at, ride_started_at: null, driver_arrived_at: null, driver_en_route: null,
+                        origin_address: r.origin_address, destination_address: r.destination_address, requester_id: r.requester_id,
+                        price: priceByRide.get(r.id) ?? null, kind: 'aguardando',
+                    })
+                }
+            }
+            const ids = Array.from(new Set(out.map((r) => r.requester_id)))
+            const { data: profs } = ids.length ? await supabase.from('profiles').select('id, profileSlug, name, avatar_url').in('id', ids) : { data: [] as any[] }
+            if (cancelled) return
+            setPeople(Object.fromEntries(((profs as any[]) || []).map((p) => [p.id, { slug: p.profileSlug, name: p.name, avatar: getAvatarUrl(supabase, p.avatar_url) || null }])))
+            setRows(out)
+            onCount(out.filter((r) => r.kind !== 'feita').length)
+        })().catch(() => { if (!cancelled) setRows([]) })
+        return () => { cancelled = true }
+    }, [me, onCount])
+
+    const soft = { background: `${colors.border}30` }
+    const statusOf = (r: RideRow) => {
+        if (r.kind === 'aguardando') return { label: 'Aguardando o cliente escolher', color: '#6b7280' }
+        if (r.ride_started_at) return { label: 'Em corrida', color: '#16a34a' }
+        if (r.driver_arrived_at) return { label: 'Você chegou ao ponto', color: '#0891b2' }
+        if (r.driver_en_route) return { label: 'A caminho do cliente', color: '#ea580c' }
+        return { label: 'Corrida aceita', color: '#2563eb' }
+    }
+
+    if (rows === null) return <div className="flex justify-center py-12"><Spinner size={24} color={colors.accent} /></div>
+
+    const card = (r: RideRow) => {
+        const p = people[r.requester_id]
+        const st = statusOf(r)
+        return (
+            <button
+                key={`${r.kind}-${r.id}`}
+                onClick={() => router.push(r.kind === 'feita' ? '/minhas-corridas' : r.kind === 'aguardando' ? '/aceitar-corridas' : '/minhas-corridas')}
+                className="w-full rounded-2xl p-3 flex flex-col gap-2.5 text-left transition active:scale-[0.99]"
+                style={soft}
+            >
+                <span className="flex items-center gap-2.5">
+                    <span className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center text-white font-black flex-shrink-0" style={{ background: GRADIENT }}>
+                        {p?.avatar ? <img src={p.avatar} alt="" className="w-full h-full object-cover" /> : (p?.slug || p?.name || '?').charAt(0).toUpperCase()}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-black truncate" style={{ color: colors.textPrimary }}>{p?.name || (p?.slug ? `@${p.slug}` : 'Cliente')}</span>
+                        <span className="block text-[11px]" style={{ color: colors.textSecondary }}>
+                            {new Date(r.ride_started_at || r.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).replace('.', '')}
+                            {' · '}
+                            {new Date(r.ride_started_at || r.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                    </span>
+                    {r.price != null && <span className="text-sm font-black flex-shrink-0" style={{ color: r.kind === 'feita' ? '#16a34a' : colors.textPrimary }}>{brl(r.price)}</span>}
+                </span>
+                <span className="flex items-center gap-1.5 text-xs" style={{ color: colors.textSecondary }}>
+                    <span className="truncate min-w-0">{shortAddress(r.origin_address)}</span>
+                    <ArrowRight size={12} className="flex-shrink-0" />
+                    <span className="truncate min-w-0">{shortAddress(r.destination_address)}</span>
+                </span>
+                {r.kind !== 'feita' && (
+                    <span className="self-start text-[11px] font-black px-2.5 py-1 rounded-full text-white" style={{ background: st.color }}>{st.label}</span>
+                )}
+            </button>
+        )
+    }
+
+    if (mode === 'clientes') {
+        const andamento = rows.filter((r) => r.kind === 'andamento')
+        const aguardando = rows.filter((r) => r.kind === 'aguardando')
+        if (andamento.length === 0 && aguardando.length === 0) {
+            return (
+                <div className="rounded-3xl p-8 text-center flex flex-col items-center gap-2" style={soft}>
+                    <span className="w-14 h-14 rounded-full flex items-center justify-center text-white" style={{ background: GRADIENT }}><Users size={26} /></span>
+                    <p className="text-sm font-black" style={{ color: colors.textPrimary }}>Nenhum cliente agora</p>
+                    <p className="text-xs" style={{ color: colors.textSecondary }}>Os pedidos de corrida que você aceitar ou em que se candidatar aparecem aqui.</p>
+                    <button onClick={() => router.push('/aceitar-corridas')} className="mt-2 h-11 px-5 rounded-full text-sm font-black text-white" style={{ background: GRADIENT }}>Ver pedidos abertos</button>
+                </div>
+            )
+        }
+        return (
+            <div className="flex flex-col gap-4">
+                {andamento.length > 0 && (
+                    <section>
+                        <h2 className="text-sm font-black mb-2 flex items-center gap-1.5" style={{ color: colors.textPrimary }}><Clock size={15} style={{ color: ORANGE }} /> Acontecendo agora ({andamento.length})</h2>
+                        <div className="flex flex-col gap-2.5">{andamento.map(card)}</div>
+                    </section>
+                )}
+                {aguardando.length > 0 && (
+                    <section>
+                        <h2 className="text-sm font-black mb-2" style={{ color: colors.textPrimary }}>Candidaturas aguardando ({aguardando.length})</h2>
+                        <div className="flex flex-col gap-2.5">{aguardando.map(card)}</div>
+                    </section>
+                )}
+            </div>
+        )
+    }
+
+    const feitas = rows.filter((r) => r.kind === 'feita')
+    const total = feitas.reduce((a, r) => a + (r.price || 0), 0)
+    if (feitas.length === 0) {
+        return (
+            <div className="rounded-3xl p-8 text-center flex flex-col items-center gap-2" style={soft}>
+                <span className="w-14 h-14 rounded-full flex items-center justify-center text-white" style={{ background: GRADIENT }}><CheckCircle2 size={26} /></span>
+                <p className="text-sm font-black" style={{ color: colors.textPrimary }}>Nenhuma corrida concluída ainda</p>
+                <p className="text-xs" style={{ color: colors.textSecondary }}>As corridas que você terminar ficam guardadas aqui.</p>
+            </div>
+        )
+    }
+    return (
+        <div className="flex flex-col gap-3">
+            <div className="grid grid-cols-2 gap-2.5">
+                <div className="rounded-2xl p-3" style={soft}>
+                    <span style={{ color: ORANGE }}><Route size={18} /></span>
+                    <span className="block text-base font-black mt-1" style={{ color: colors.textPrimary }}>{feitas.length}</span>
+                    <span className="block text-[11px]" style={{ color: colors.textSecondary }}>{feitas.length === 1 ? 'corrida feita' : 'corridas feitas'}</span>
+                </div>
+                <div className="rounded-2xl p-3" style={soft}>
+                    <span style={{ color: '#16a34a' }}><Wallet size={18} /></span>
+                    <span className="block text-base font-black mt-1" style={{ color: colors.textPrimary }}>{brl(Math.round(total * 100) / 100)}</span>
+                    <span className="block text-[11px]" style={{ color: colors.textSecondary }}>combinado nas corridas</span>
+                </div>
+            </div>
+            <div className="flex flex-col gap-2.5">{feitas.map(card)}</div>
         </div>
     )
 }
