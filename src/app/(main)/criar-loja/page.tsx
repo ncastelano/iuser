@@ -179,7 +179,12 @@ export default function CriarLoja() {
   const [name, setName] = useState("");
   const [storeSlug, setStoreSlug] = useState("");
   const [description, setDescription] = useState("");
-  const [selectedCategorySlug, setSelectedCategorySlug] = useState("");
+  // ?categoria=<slug> (vindo de "Explore lojas por categoria"): já chega com a categoria escolhida
+  const [selectedCategorySlug, setSelectedCategorySlug] = useState(() => {
+    if (typeof window === 'undefined') return "";
+    const wanted = new URLSearchParams(window.location.search).get('categoria') || "";
+    return CATEGORIAS_LOJAS.some(c => c.slug === wanted) ? wanted : "";
+  });
   const [whatsapp, setWhatsapp] = useState("");
   const [whatsappError, setWhatsappError] = useState("");
   const [whatsappOrders, setWhatsappOrders] = useState(false);

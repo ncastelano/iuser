@@ -17,7 +17,7 @@ import {
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
-import { categorias } from '@/lib/categorias'
+import { categorias, resolveCategoria } from '@/lib/categorias'
 import { isStoreOpenNow, type BusinessHours } from '@/lib/storeHours'
 import { getAvatarUrl } from '@/lib/avatar'
 import { loadProductCards, type ProductCard } from '../../inicio/sections/ProductShowcase'
@@ -249,7 +249,11 @@ type TypeKey = keyof typeof TYPE
 const money = (v: number | null | undefined) => (v != null && v > 0 ? `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : null)
 
 // ---------- dados das vitrines ----------
-interface StoreItem { id: string; name: string; slug: string; logo: string | null; category: string | null; rating: number | null; open: boolean }
+interface StoreItem {
+    id: string; name: string; slug: string; logo: string | null; category: string | null; rating: number | null; open: boolean
+    /** Dono da loja (aparece ao lado do nome no card) */
+    ownerSlug: string | null; ownerAvatar: string | null
+}
 interface ServiceItem {
     id: string; title: string; href: string; image: string | null; provider: string; price: number | null
     /** A loja que oferece está aberta agora? (null = serviço de perfil, sem loja) */
@@ -321,6 +325,57 @@ function Tile({ type, onClick, image, fallback, children, colors, round = false,
     )
 }
 
+// Card de loja: a imagem da loja ocupa o card todo; por cima, à esquerda o tipo (ex.: Eletrônicos e Tecnologia) e à
+// direita se está aberta ou fechada; embaixo, a foto do dono ao lado do nome.
+function StoreCard({ s, onClick }: { s: StoreItem; onClick: () => void }) {
+    const cat = resolveCategoria(s.category)
+    const catLabel = cat?.nome || s.category
+    const catColor = cat?.color || TYPE.loja.color
+    return (
+        <button
+            onClick={onClick}
+            className="snap-start flex-shrink-0 w-[208px] sm:w-[232px] h-[268px] relative text-left rounded-3xl overflow-hidden transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl active:scale-[0.98]"
+            style={{ background: `linear-gradient(135deg, ${catColor}, ${catColor}99)` }}
+        >
+            {s.logo ? (
+                <img src={s.logo} alt="" className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
+            ) : (
+                <span className="absolute inset-0 flex items-center justify-center text-white/90"><StoreIcon size={56} /></span>
+            )}
+            {/* escurece em cima e embaixo pra os selos e o nome ficarem legíveis em qualquer imagem */}
+            <span aria-hidden className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0) 32%, rgba(0,0,0,0) 48%, rgba(0,0,0,0.82) 100%)' }} />
+
+            <span className="absolute left-2.5 right-2.5 top-2.5 flex items-start justify-between gap-2">
+                {catLabel ? (
+                    <span className="max-w-[64%] text-[10px] font-black leading-tight px-2 py-1 rounded-xl text-white" style={{ background: catColor }}>
+                        {catLabel}
+                    </span>
+                ) : <span />}
+                <span className="flex-shrink-0 text-[10px] font-black uppercase tracking-wide px-2 py-1 rounded-full text-white" style={{ background: s.open ? '#16a34a' : '#dc2626' }}>
+                    {s.open ? 'Aberto' : 'Fechado'}
+                </span>
+            </span>
+
+            <span className="absolute left-3 right-3 bottom-3 flex items-center gap-2.5">
+                {s.ownerAvatar ? (
+                    <img src={s.ownerAvatar} alt="" className="w-9 h-9 rounded-full object-cover flex-shrink-0" style={{ border: '2px solid #fff' }} loading="lazy" />
+                ) : (
+                    <span className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 text-white text-sm font-black" style={{ background: GRADIENT, border: '2px solid #fff' }}>
+                        {(s.ownerSlug || s.name).charAt(0).toUpperCase()}
+                    </span>
+                )}
+                <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-black leading-tight truncate text-white">{s.name}</span>
+                    <span className="flex items-center gap-1.5 text-[11px] text-white/85 truncate">
+                        {s.ownerSlug && <span className="truncate">@{s.ownerSlug}</span>}
+                        {s.rating != null && <span className="flex items-center gap-0.5 flex-shrink-0"><Star size={10} className="text-yellow-400 fill-yellow-400" />{s.rating.toFixed(1)}</span>}
+                    </span>
+                </span>
+            </span>
+        </button>
+    )
+}
+
 function Skeleton({ colors }: { colors: any }) {
     return (
         <Strip>
@@ -339,6 +394,8 @@ export default function ModeloInicialPage() {
     // A lupa da barra do topo (que vive no layout) abre o campo de busca desta página
     useShellSearch({ value: query, onChange: setQuery, placeholder: 'O que você procura? Lojas, serviços, pessoas...' })
     const [stores, setStores] = useState<StoreItem[] | null>(null)
+    // Quantas lojas ativas cada categoria tem (null = carregando)
+    const [catCounts, setCatCounts] = useState<Record<string, number> | null>(null)
     const [products, setProducts] = useState<(ProductCard & { storeOpen: boolean | null })[] | null>(null)
     const [services, setServices] = useState<ServiceItem[] | null>(null)
     const [requests, setRequests] = useState<BoardItem[] | null>(null)
@@ -353,10 +410,15 @@ export default function ModeloInicialPage() {
         safe(async () => {
             const { data } = await supabase
                 .from('stores')
-                .select('id, name, "storeSlug", logo_url, category, ratings_avg, business_hours, created_at')
+                .select('id, name, "storeSlug", logo_url, category, ratings_avg, business_hours, created_at, owner_id')
                 .eq('is_active', true)
                 .order('created_at', { ascending: false })
                 .limit(40)
+            const ownerIds = Array.from(new Set((data || []).map((s: any) => s.owner_id).filter(Boolean)))
+            const { data: owners } = ownerIds.length
+                ? await supabase.from('profiles').select('id, "profileSlug", avatar_url').in('id', ownerIds)
+                : { data: [] as any[] }
+            const ownerById = new Map((owners || []).map((o: any) => [o.id, o]))
             // As abertas agora vão sempre na frente; dentro de cada grupo, das mais novas para as mais antigas
             const all = (data || []).map((s: any) => ({
                 id: s.id, name: s.name, slug: s.storeSlug,
@@ -364,9 +426,22 @@ export default function ModeloInicialPage() {
                 category: s.category || null,
                 rating: s.ratings_avg ? Number(s.ratings_avg) : null,
                 open: isStoreOpenNow(s.business_hours as BusinessHours | null),
+                ownerSlug: (ownerById.get(s.owner_id) as any)?.profileSlug || null,
+                ownerAvatar: getAvatarUrl(supabase, (ownerById.get(s.owner_id) as any)?.avatar_url) || null,
             })) as StoreItem[]
             return [...all.filter((x) => x.open), ...all.filter((x) => !x.open)].slice(0, 10)
         }, setStores, [])
+
+        // Quais categorias já têm loja (a coluna category ora vem como slug, ora como nome: resolveCategoria unifica)
+        safe(async () => {
+            const { data } = await supabase.from('stores').select('category').eq('is_active', true).limit(5000)
+            const counts: Record<string, number> = {}
+            for (const r of (data || []) as { category: string | null }[]) {
+                const slug = resolveCategoria(r.category)?.slug
+                if (slug) counts[slug] = (counts[slug] || 0) + 1
+            }
+            return counts
+        }, setCatCounts, {})
 
         // Do mais novo para o mais velho: loadProductCards (compartilhada com a home) ordena por visitas, então a ordem
         // por data de criação é aplicada aqui, em cima dos mesmos cartões.
@@ -580,46 +655,88 @@ export default function ModeloInicialPage() {
                             <SocialCard people={people} communities={communities} colors={colors} go={go} />
                         </section>
 
-                        {/* ===== 2. CATEGORIAS ===== */}
-                        <section className="mt-8">
-                            <h2 className="text-lg font-black" style={{ color: colors.textPrimary }}>Explore lojas por categoria</h2>
-                            <div className="grid grid-cols-4 md:grid-cols-8 gap-x-2 gap-y-4 mt-3">
-                                {categorias.filter((c) => c.slug !== 'comunidades' && c.slug !== 'social').map((c) => {
-                                    // Só nesta página: "Transporte e Logística" aparece como "Frete" e "Serviços" ganha a tesourinha
-                                    const Icon = c.slug === 'servicos' ? Scissors : c.icone
-                                    const label = c.slug === 'transporte' ? 'Frete' : c.nome
-                                    return (
-                                        <button
-                                            key={c.slug}
-                                            onClick={() => go(`/lojas/${c.slug}`)}
-                                            className="flex flex-col items-center gap-1.5 text-center transition hover:scale-105 active:scale-95"
-                                        >
-                                            <span className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{ background: `${c.color}1f`, color: c.color }}>
-                                                <Icon size={26} />
-                                            </span>
-                                            <span className="text-[11px] font-bold leading-tight" style={{ color: colors.textPrimary }}>{label}</span>
-                                        </button>
-                                    )
-                                })}
-                            </div>
-                        </section>
+                        {/* ===== 2. CATEGORIAS — as que já têm loja em destaque; as vazias convidam a abrir a primeira ===== */}
+                        {(() => {
+                            const list = categorias.filter((c) => c.slug !== 'comunidades' && c.slug !== 'social')
+                            const nameOf = (c: (typeof list)[number]) => (c.slug === 'transporte' ? 'Frete' : c.nome)
+                            const iconOf = (c: (typeof list)[number]) => (c.slug === 'servicos' ? Scissors : c.icone)
+                            const withStores = catCounts ? list.filter((c) => (catCounts[c.slug] || 0) > 0).sort((a, b) => (catCounts[b.slug] || 0) - (catCounts[a.slug] || 0)) : []
+                            const empty = catCounts ? list.filter((c) => !(catCounts[c.slug] || 0)) : []
+                            const createIn = (slug: string) => go(userId ? `/criar-loja?categoria=${slug}` : `/login?redirect=${encodeURIComponent(`/criar-loja?categoria=${slug}`)}`)
+                            return (
+                                <section className="mt-8">
+                                    <h2 className="text-lg font-black" style={{ color: colors.textPrimary }}>Explore lojas por categoria</h2>
+
+                                    {catCounts === null ? (
+                                        <div className="grid grid-cols-2 gap-3 mt-3">
+                                            {[0, 1, 2, 3].map((i) => <div key={i} className="h-[76px] rounded-2xl animate-pulse" style={{ background: `${colors.border}40` }} />)}
+                                        </div>
+                                    ) : (
+                                        <>
+                                            {withStores.length > 0 && (
+                                                <div className="grid grid-cols-2 gap-3 mt-3">
+                                                    {withStores.map((c) => {
+                                                        const Icon = iconOf(c)
+                                                        const n = catCounts[c.slug] || 0
+                                                        return (
+                                                            <button
+                                                                key={c.slug}
+                                                                onClick={() => go(`/lojas/${c.slug}`)}
+                                                                className="text-left rounded-2xl p-3 flex items-center gap-3 border transition hover:-translate-y-0.5 hover:shadow-lg active:scale-[0.98]"
+                                                                style={{ background: `linear-gradient(135deg, ${c.color}26, ${c.color}0d)`, borderColor: `${c.color}66` }}
+                                                            >
+                                                                <span className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 text-white" style={{ background: c.color }}>
+                                                                    <Icon size={24} />
+                                                                </span>
+                                                                <span className="min-w-0 flex-1">
+                                                                    <span className="block text-sm font-black leading-tight" style={{ color: colors.textPrimary }}>{nameOf(c)}</span>
+                                                                    <span className="block text-[11px] font-bold mt-0.5" style={{ color: c.color }}>{n} {n === 1 ? 'loja' : 'lojas'}</span>
+                                                                </span>
+                                                            </button>
+                                                        )
+                                                    })}
+                                                </div>
+                                            )}
+
+                                            {empty.length > 0 && (
+                                                <div className="mt-4 rounded-3xl p-3.5 border" style={{ background: colors.surface, borderColor: colors.border }}>
+                                                    <p className="text-sm font-black" style={{ color: colors.textPrimary }}>Estas categorias ainda não têm loja</p>
+                                                    <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>Seja a primeira: cadastre a sua loja na categoria que combina com ela.</p>
+                                                    <div className="grid grid-cols-2 gap-2.5 mt-3">
+                                                        {empty.map((c) => {
+                                                            const Icon = iconOf(c)
+                                                            return (
+                                                                <button
+                                                                    key={c.slug}
+                                                                    onClick={() => createIn(c.slug)}
+                                                                    className="text-left rounded-2xl p-2.5 flex items-center gap-2.5 transition active:scale-[0.98] hover:-translate-y-0.5"
+                                                                    style={{ border: `1.5px dashed ${c.color}88`, background: `${c.color}0d` }}
+                                                                >
+                                                                    <span className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${c.color}22`, color: c.color }}>
+                                                                        <Icon size={18} />
+                                                                    </span>
+                                                                    <span className="min-w-0 flex-1">
+                                                                        <span className="block text-xs font-black leading-tight" style={{ color: colors.textPrimary }}>{nameOf(c)}</span>
+                                                                        <span className="block text-[10px] font-bold mt-0.5" style={{ color: c.color }}>+ Cadastrar minha loja</span>
+                                                                    </span>
+                                                                </button>
+                                                            )
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </>
+                                    )}
+                                </section>
+                            )
+                        })()}
 
                         {/* ===== 3. VITRINES — uma por tipo, cada uma com a sua cor ===== */}
                         <section className="mt-9">
-                            <SectionHeader type="loja" title="Lojas para conhecer" subtitle="Veja o nome das lojas" onSeeAll={() => go('/lojas')} colors={colors} />
+                            <SectionHeader type="loja" title="Lojas para conhecer" subtitle="Quem vende perto de você" onSeeAll={() => go('/lojas')} colors={colors} />
                             {stores === null ? <Skeleton colors={colors} /> : stores.length === 0 ? null : (
                                 <Strip>
-                                    {stores.map((s) => (
-                                        <Tile key={s.id} type="loja" colors={colors} image={s.logo} fallback={<StoreIcon size={36} />} badge={{ label: s.open ? 'Aberto' : 'Fechado', color: s.open ? '#16a34a' : '#dc2626' }} onClick={() => go(`/${s.slug}`)}>
-                                            <span className="block text-sm font-black leading-tight truncate" style={{ color: colors.textPrimary }}>{s.name}</span>
-                                            {s.category && <span className="block text-[11px] truncate mt-0.5" style={{ color: colors.textSecondary }}>{s.category}</span>}
-                                            {s.rating != null && (
-                                                <span className="flex items-center gap-0.5 mt-2 text-[11px] font-bold" style={{ color: colors.textPrimary }}>
-                                                    <Star size={11} className="text-yellow-400 fill-yellow-400" />{s.rating.toFixed(1)}
-                                                </span>
-                                            )}
-                                        </Tile>
-                                    ))}
+                                    {stores.map((s) => <StoreCard key={s.id} s={s} onClick={() => go(`/${s.slug}`)} />)}
                                 </Strip>
                             )}
                         </section>
