@@ -677,7 +677,6 @@ export default function ModeloInicialPage() {
                                                 <div className="grid grid-cols-2 gap-3 mt-3">
                                                     {withStores.map((c) => {
                                                         const Icon = iconOf(c)
-                                                        const n = catCounts[c.slug] || 0
                                                         return (
                                                             <button
                                                                 key={c.slug}
@@ -690,7 +689,6 @@ export default function ModeloInicialPage() {
                                                                 </span>
                                                                 <span className="min-w-0 flex-1">
                                                                     <span className="block text-sm font-black leading-tight" style={{ color: colors.textPrimary }}>{nameOf(c)}</span>
-                                                                    <span className="block text-[11px] font-bold mt-0.5" style={{ color: c.color }}>{n} {n === 1 ? 'loja' : 'lojas'}</span>
                                                                 </span>
                                                             </button>
                                                         )
