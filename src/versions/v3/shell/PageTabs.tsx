@@ -1,4 +1,4 @@
-// src/components/PageTabs.tsx
+// src/versions/v3/shell/PageTabs.tsx
 //
 // Fileira de abas (chips) que fica no começo do conteúdo das páginas dentro do ModeShell — o que antes eram as abas do
 // Header antigo (salas de conversa, seções do carrinho...). Mesma forma de dados do `Tab` do Header.

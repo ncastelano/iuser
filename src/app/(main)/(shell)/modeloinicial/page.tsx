@@ -29,7 +29,7 @@ import SearchResultsSection from '../../inicio/SearchResultsSection'
 import { rankStyle } from '../../social/SocialProfileCard'
 import ShareLinkDialog, { copyText } from '@/components/ShareLinkDialog'
 import { toast } from 'sonner'
-import { useShellSearch } from '@/components/ShellFrame'
+import { useShellSearch } from '@/versions/v3/shell/ShellFrame'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 

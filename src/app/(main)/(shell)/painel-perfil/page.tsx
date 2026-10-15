@@ -32,7 +32,7 @@ export default function PainelPerfilPage() {
                     {/* Tudo do painel do perfil (informações, notificações, comentários, agenda, publicações, indicações,
                         visitantes e configurações). O -mx cancela o recuo duplicado do painel dentro da casca. */}
                     <div className="-mx-4">
-                        <ProfileDashboard profileSlug={profileSlug} avatarUrl={avatarUrl} />
+                        <ProfileDashboard profileSlug={profileSlug} avatarUrl={avatarUrl} hideVersionSwitch />
                     </div>
                 </>
             )}

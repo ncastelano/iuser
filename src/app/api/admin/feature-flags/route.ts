@@ -4,7 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase/admin'
 import { requireSuperAdmin } from '@/lib/adminAuth'
 
 // Liga/desliga recursos da plataforma (Admin). Só as chaves conhecidas, só o administrador.
-const KNOWN_KEYS = ['store_whatsapp_bot']
+const KNOWN_KEYS = ['store_whatsapp_bot', 'ui_v3']
 
 export async function POST(req: Request) {
     const admin = await requireSuperAdmin(req)

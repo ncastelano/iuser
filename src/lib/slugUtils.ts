@@ -9,6 +9,7 @@ export const RESERVED_SLUGS = new Set([
     'painel-perfil',
     'painel-loja',
     'veiculo',
+    'v3',
     'admin',
     'api',
     'auth',

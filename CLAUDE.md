@@ -2,6 +2,39 @@
 
 Marketplace multi-serviço (lojas, perfis pessoais, motoristas, prestadores de serviço, recrutamento) em Next.js + Supabase.
 
+## Arquitetura e versões da interface (2.0 / 3.0) — leia antes de criar arquivos
+
+Detalhes e justificativas: `docs/ARCHITECTURE.md` e `docs/decisions/`. Resumo operacional:
+
+- **Monólito modular, feature-based, camadas pragmáticas.** `app/` (rotas finas) → `versions/<v>` (apresentação e
+  navegação de uma versão) → `modules/<dominio>` (regra de negócio, sem React quando possível) → `lib` (infra/utilitários).
+  Código antigo plano (`components/`, `lib/`, `hooks/`) **fica onde está**; migra só quando for tocado e houver ganho.
+- **Onde criar o quê:** página nova = arquivo fino em `src/app/...` que compõe uma tela; tela/layout/navbar/drawer de
+  uma versão = `src/versions/<v>/...`; tela com a MESMA lógica nas duas versões = `src/versions/shared/screens/`
+  (recebe `ui` e só troca a moldura); regra de negócio de um domínio = `src/modules/<dominio>/`; migration =
+  `supabase/migrations/`; teste de regra pura = `scripts/test-*.mjs` + script `npm run test:*`.
+- **Importações:** `modules` nunca importa `versions`/`app`; uma versão nunca importa outra versão; sem dependência
+  circular; módulos só expõem `index.ts`. Antes de fechar uma mudança estrutural:
+  `npx madge --circular --extensions ts,tsx --ts-config tsconfig.json src/versions` (a única conhecida é
+  `lib/supabase/client.ts` ↔ `lib/usageTelemetry.ts`).
+- **A versão da interface decide SÓ apresentação.** Nunca use a versão para liberar permissão, dado, plano ou saldo,
+  nem espalhe `if (version === ...)` pelas páginas. A decisão é única: `src/proxy.ts` + `src/versions/{registry,resolve}.ts`.
+  - Escolha: cookie `iuser_ui` + `profiles.preferred_version` (RPC `set_my_ui_version`). Oferta: `feature_flags.ui_v3`
+    (Admin → Interface 3.0). Padrão: `v2`.
+  - URLs compartilhadas (`/`, `/carrinho`, `/conversas`) mantêm o endereço; a 3.0 é servida por *rewrite* para
+    `/modeloinicial`, `/v3/carrinho`, `/v3/conversas`. **Nova URL que existirá nas duas versões** → entrada em
+    `VERSION_ROUTES` (`registry.ts`) e teste em `scripts/test-versions.mjs`. Página só da 3.0 → fica em
+    `app/(main)/(shell)/` (herda a casca persistente: navbar + drawer) e entra em `IGNORED_ROUTES`/`IGNORED_PREFIXES`.
+  - Páginas ainda não migradas continuam abrindo na v2 para quem usa a 3.0. Não é bug.
+  - Seletor de versão: UM mecanismo (`switchVersion` em `src/versions/client.tsx`), exibido só em dois lugares —
+    `ProfileDashboard` (2.0) e drawer (3.0). Não crie outro.
+- **Não mexa sem justificativa:** a casca da 3.0 (`src/versions/v3/shell/ModeShell.tsx`: navbar, drawer, aba que
+  desliza e encaixa no cartão), `src/proxy.ts`, a lógica de `CarrinhoScreen`/`ConversasScreen`, e a telemetria de
+  `lib/supabase/client.ts`. Preserve o comportamento visual/interativo existente ao refatorar.
+- **Testar:** `npx tsc --noEmit`, `npm run test:versions` (e `test:graduation`/`test:fare` se tocar nessas áreas),
+  `npx next build` (pare o `next dev` antes: os dois usam `.next`), e conferir no navegador as duas versões
+  (v2 e v3: troca nos dois sentidos, sessão preservada, preferência salva, URL antiga funcionando).
+
 ## Serviços externos pagos — manter a aba Financeiro atualizada
 
 O admin (`/administrador` — aba "Administrador" do Header → **Financeiro**, componente `src/components/AdminDashboard/FinanceSection.tsx`, tabela `service_expenses`) rastreia todo serviço externo pago que o iUser depende pra continuar no ar (Supabase, Asaas, Mapbox, Firebase, hospedagem, domínio etc), pra saber quanto se gasta por mês e não deixar nenhuma conta vencer sem perceber.

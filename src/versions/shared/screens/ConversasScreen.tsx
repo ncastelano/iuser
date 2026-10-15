@@ -12,7 +12,10 @@ import { ArrowLeft, MessageCircle, Send, Store as StoreIcon, User } from 'lucide
 import { supabase } from '@/lib/supabase/client'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { useTheme } from '@/app/contexts/theme'
-import PageTabs from '@/components/PageTabs'
+import PageTabs from '@/versions/v3/shell/PageTabs'
+import Header from '@/components/Header'
+import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
+import type { UiVersion } from '@/versions/registry'
 import PlanAvatarRing, { PlanRingInset } from '@/components/PlanAvatarRing'
 import { Spinner } from '@/components/Spinner'
 import { getAvatarUrl } from '@/lib/avatar'
@@ -258,7 +261,8 @@ function Avatar({ url, name, isStore, userId, size }: { url: string | null; name
 }
 
 // ====================== PÁGINA ======================
-function ConversasInner() {
+function ConversasInner({ ui }: { ui: UiVersion }) {
+    const v3 = ui === 'v3'
     const router = useRouter()
     const search = useSearchParams()
     const { colors } = useTheme()
@@ -350,11 +354,29 @@ function ConversasInner() {
     const active = rows?.find((r) => r.id === activeId) || null
 
     return (
-        <>
-            <main className="relative pb-8">
-                <PageTabs tabs={tabs} />
+        <div className={v3 ? undefined : 'relative min-h-dvh'} style={v3 ? undefined : { background: colors.background }}>
+            {!v3 && (
+                <div className="fixed inset-0 z-0">
+                    <AnimatedBackgroundiUser bgMode={bgMode} customBgUrl={customBgUrl} />
+                </div>
+            )}
 
-                <section className="mt-3">
+            <main className={v3 ? 'relative pb-8' : 'relative z-10 min-h-dvh pb-8'}>
+                {v3 ? (
+                    <PageTabs tabs={tabs} />
+                ) : (
+                    <Header
+                        title="Conversas"
+                        showBack
+                        onBack={() => router.push('/')}
+                        greeting={`Olá, ${profileLoading ? '...' : profileSlug ? `@${profileSlug}` : 'Visitante'}`}
+                        avatarUrl={avatarUrl}
+                        loading={profileLoading}
+                        tabs={tabs}
+                    />
+                )}
+
+                <section className={v3 ? 'mt-3' : 'px-4 md:px-6 mt-3'}>
                     {!profileLoading && !userId ? (
                         <div className="rounded-3xl p-8 text-center flex flex-col items-center gap-3" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
                             <MessageCircle size={36} style={{ color: colors.accent }} />
@@ -366,7 +388,7 @@ function ConversasInner() {
                             <Link href="/login?redirect=/conversas" className="px-6 py-3 rounded-full text-sm font-black text-white" style={{ background: GRADIENT }}>Entrar</Link>
                         </div>
                     ) : (
-                        <div className="grid md:grid-cols-[360px_1fr] gap-4 md:h-[calc(100dvh-230px)]">
+                        <div className={`grid md:grid-cols-[360px_1fr] gap-4 ${v3 ? 'md:h-[calc(100dvh-230px)]' : 'md:h-[calc(100dvh-260px)]'}`}>
                             {/* Lista: o título sozinho em cima e os cartões (quadrados) embaixo */}
                             <div className={`${active ? 'hidden md:flex' : 'flex'} flex-col min-h-0`}>
                                 <div className="pb-3 flex-shrink-0">
@@ -456,14 +478,15 @@ function ConversasInner() {
                     )}
                 </section>
             </main>
-        </>
+        </div>
     )
 }
 
-export default function ConversasPage() {
+/** Sala de conversas. Uma implementação só para as duas versões (muda só a moldura, ver CarrinhoScreen). */
+export default function ConversasScreen({ ui = 'v3' }: { ui?: UiVersion }) {
     return (
         <Suspense fallback={null}>
-            <ConversasInner />
+            <ConversasInner ui={ui} />
         </Suspense>
     )
 }

@@ -38,9 +38,12 @@ import { ReviewModal } from '@/components/ratings/ReviewModal'
 import { Spinner } from '@/components/Spinner'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
-import PageTabs from '@/components/PageTabs'
+import PageTabs from '@/versions/v3/shell/PageTabs'
+import Header from '@/components/Header'
+import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
+import type { UiVersion } from '@/versions/registry'
 import { isStoreOpenNow, getStoreStatusText, getNextOpeningInfo, type BusinessHours } from '@/lib/storeHours'
-import CatalogBag from '../../[ownerSlug]/catalogo/CatalogBag'
+import CatalogBag from '@/app/(main)/[ownerSlug]/catalogo/CatalogBag'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -88,7 +91,12 @@ async function geocodeAddress(query: string): Promise<{ lat: number; lng: number
     }
 }
 
-export default function CarrinhoPage() {
+/**
+ * Carrinho / pedidos. UMA implementação para as duas versões: o conteúdo (carrinho, pedidos, avaliações) é o mesmo,
+ * só a moldura muda — v2: Header + fundo animado próprios; v3: o cartão do app já vem do layout (ShellFrame).
+ */
+export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
+    const v3 = ui === 'v3'
     const {
         itemsByStore,
         storeDetails,
@@ -1468,33 +1476,61 @@ export default function CarrinhoPage() {
         )
     }
 
-    // A barra do topo vem do layout (ShellFrame): ela não some enquanto carrega
-    if (!mounted || globalLoading) return (
-        <>
-            <div className="flex items-center justify-center py-24">
-                <div className="text-center">
-                    <Spinner size={48} color={colors.accent} className="mx-auto mb-4" />
-                    <p className="text-sm font-bold" style={{ color: colors.textSecondary }}>Carregando carrinho...</p>
-                </div>
+    // v3: a barra do topo vem do layout (ShellFrame) e não some enquanto carrega
+    if (!mounted || globalLoading) return v3 ? (
+        <div className="flex items-center justify-center py-24">
+            <div className="text-center">
+                <Spinner size={48} color={colors.accent} className="mx-auto mb-4" />
+                <p className="text-sm font-bold" style={{ color: colors.textSecondary }}>Carregando carrinho...</p>
             </div>
-        </>
+        </div>
+    ) : (
+        <div className="min-h-screen flex items-center justify-center" style={{ background: colors.background }}>
+            <div className="text-center">
+                <Spinner size={48} color={colors.accent} className="mx-auto mb-4" />
+                <p className="text-sm font-bold" style={{ color: colors.textSecondary }}>Carregando carrinho...</p>
+            </div>
+        </div>
     )
 
     return (
-        <>
-        <div className="relative">
-            <main className="relative" style={{ overscrollBehavior: 'none' }}>
-                <PageTabs tabs={tabs} />
-                <input
-                    type="search"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Buscar pedido, produto ou loja..."
-                    className="w-full mt-3 px-4 py-2.5 rounded-full text-sm focus:outline-none"
-                    style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
-                />
+        <div className={v3 ? 'relative' : 'relative min-h-dvh'} style={v3 ? undefined : { background: colors.background }}>
+            {!v3 && (
+                <div className="fixed inset-0 z-0">
+                    <AnimatedBackgroundiUser bgMode={bgMode} customBgUrl={customBgUrl} />
+                </div>
+            )}
 
-                <div className="pt-4 pb-24 space-y-10">
+            <main className={v3 ? 'relative' : 'relative z-10 min-h-dvh'} style={{ overscrollBehavior: 'none' }}>
+                {v3 ? (
+                    <>
+                        <PageTabs tabs={tabs} />
+                        <input
+                            type="search"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            placeholder="Buscar pedido, produto ou loja..."
+                            className="w-full mt-3 px-4 py-2.5 rounded-full text-sm focus:outline-none"
+                            style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                        />
+                    </>
+                ) : (
+                    <Header
+                        title="iUser"
+                        showBack={false}
+                        greeting={`Olá, ${currentUserSlug ? `@${currentUserSlug}` : 'Visitante'}`}
+                        avatarUrl={currentUserAvatar}
+                        loading={false}
+                        tabs={tabs}
+                        showSearch={true}
+                        searchPlaceholder="Buscar pedido, produto ou loja..."
+                        onSearch={setSearchQuery}
+                        profileSlug={currentUserSlug}
+                        onHomeClick={() => router.push('/')}
+                    />
+                )}
+
+                <div className={v3 ? 'pt-4 pb-24 space-y-10' : 'px-4 pt-4 pb-24 space-y-10'}>
                     {/* Seção Carrinho - visível apenas quando activeTab === 'carrinho' */}
                     {activeTab === 'carrinho' && (
                         <section id="section-carrinho" className="scroll-mt-24">
@@ -2384,6 +2420,5 @@ export default function CarrinhoPage() {
                 storeId={reviewOrder.storeId}
             />
         </div>
-        </>
     )
 }

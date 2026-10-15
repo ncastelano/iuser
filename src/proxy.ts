@@ -2,6 +2,8 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { VERSION_COOKIE, VERSION_FLAG_KEY } from '@/versions/registry'
+import { canonicalFromInternal, internalPathFor, resolveVersion, versionOfInternalPath } from '@/versions/resolve'
 
 const supabaseAdmin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -63,6 +65,7 @@ const IGNORED_PREFIXES = [
     '/compromisso/', // link de um agendamento compartilhado (iuser.com.br/compromisso/<id>)
     '/painel-loja/', // painel de uma loja (iuser.com.br/painel-loja/<storeSlug>) — o 1º segmento não é slug de perfil/loja
     '/veiculo/', // página de um veículo (rota interna; o endereço público é iuser.com.br/<vehicleSlug>)
+    '/v3/', // implementações internas da interface 3.0 (iuser.com.br/carrinho é servido por /v3/carrinho) — não é slug
 ]
 
 // ===== EXTENSÕES IGNORADAS =====
@@ -119,6 +122,50 @@ const PUBLIC_ROUTE_PREFIXES = [
     '/comunidade/',  // Todas as rotas que começam com /comunidade/
 ]
 
+// ===== VERSÃO DA INTERFACE (2.0 / 3.0) =====
+// Se a oferta da 3.0 está ligada (feature_flags.ui_v3). Guardado por 30 s: o proxy roda em toda navegação.
+let offerCache: { value: boolean; at: number } | null = null
+async function isV3Offered(): Promise<boolean> {
+    if (offerCache && Date.now() - offerCache.at < 30_000) return offerCache.value
+    let value = true
+    try {
+        const { data } = await supabaseAdmin.from('feature_flags').select('enabled').eq('key', VERSION_FLAG_KEY).maybeSingle()
+        // Sem a chave (migração ainda não rodou), a oferta fica ligada: a pessoa que escolheu a 3.0 não perde a escolha
+        value = data ? !!(data as { enabled?: boolean }).enabled : true
+    } catch {
+        value = true
+    }
+    offerCache = { value, at: Date.now() }
+    return value
+}
+
+/**
+ * Resolve a versão e, quando preciso, reescreve (ou devolve ao endereço canônico). Retorna null quando não há nada a
+ * fazer. Centralizado aqui: nenhuma página decide versão por conta própria.
+ */
+async function resolveUiVersion(request: NextRequest, pathname: string): Promise<NextResponse | null> {
+    const internalVersion = versionOfInternalPath(pathname)
+    const isShared = internalPathFor('v3', pathname) !== null
+    if (!internalVersion && !isShared) return null
+
+    const offerEnabled = await isV3Offered()
+    const version = resolveVersion({ cookie: request.cookies.get(VERSION_COOKIE)?.value, offerEnabled })
+
+    // Endereço interno digitado direto (/v3/carrinho): só abre se for mesmo a versão da pessoa; senão, volta ao canônico
+    if (internalVersion) {
+        if (version === internalVersion) return NextResponse.next()
+        const back = request.nextUrl.clone()
+        back.pathname = canonicalFromInternal(pathname) || '/'
+        return NextResponse.redirect(back)
+    }
+
+    const target = internalPathFor(version, pathname)
+    if (!target) return null
+    const rewritten = request.nextUrl.clone()
+    rewritten.pathname = target
+    return NextResponse.rewrite(rewritten)
+}
+
 // ===== CACHE EM MEMÓRIA =====
 const cache = new Map<string, { type: 'profile' | 'store' | 'category' | 'product' | 'vehicle'; slug: string; timestamp: number }>()
 const CACHE_TTL = 60 * 1000 // 60 segundos
@@ -140,6 +187,10 @@ export async function proxy(request: NextRequest) {
     const pathname = url.pathname
 
     console.log(`[Proxy] Processando: ${pathname}`)
+
+    // --- 0. Versão da interface (2.0 / 3.0): mesma URL, implementação escolhida pela pessoa ---
+    const versioned = await resolveUiVersion(request, pathname)
+    if (versioned) return versioned
 
     // --- 1. Verificar se é uma rota ignorada exata ---
     if (IGNORED_ROUTES.includes(pathname)) {

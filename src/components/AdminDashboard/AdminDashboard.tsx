@@ -19,7 +19,7 @@ import GraduationSection from './GraduationSection'
 import PointsSection from './PointsSection'
 import { callAdminApi } from '@/lib/callAdminApi'
 
-type Section = 'pagamentos' | 'concedidos' | 'graduacao' | 'saques' | 'planos' | 'tarifas' | 'brinde' | 'bordas' | 'pontuacao' | 'hierarquia' | 'whatsapp' | 'atividade' | 'financeiro'
+type Section = 'pagamentos' | 'concedidos' | 'graduacao' | 'saques' | 'planos' | 'tarifas' | 'brinde' | 'bordas' | 'pontuacao' | 'hierarquia' | 'whatsapp' | 'interface' | 'atividade' | 'financeiro'
 
 const SECTIONS: { id: Section; label: string; icon: typeof Send }[] = [
     { id: 'atividade', label: 'Atividade', icon: Activity },
@@ -34,6 +34,7 @@ const SECTIONS: { id: Section; label: string; icon: typeof Send }[] = [
     { id: 'pontuacao', label: 'Pontuação', icon: Trophy },
     { id: 'hierarquia', label: 'Hierarquia', icon: ShieldCheck },
     { id: 'whatsapp', label: 'WhatsApp Bot', icon: MessageCircle },
+    { id: 'interface', label: 'Interface 3.0', icon: Sparkles },
     { id: 'saques', label: 'Saques', icon: Send },
 ]
 
@@ -115,6 +116,7 @@ export default function AdminDashboard() {
             {section === 'pontuacao' && <PointsSection cardStyle={cardStyle} colors={colors} />}
             {section === 'hierarquia' && <HierarchyAdmin cardStyle={cardStyle} colors={colors} />}
             {section === 'whatsapp' && <WhatsAppBotSection cardStyle={cardStyle} colors={colors} />}
+            {section === 'interface' && <UiVersionOfferSection cardStyle={cardStyle} colors={colors} />}
             {section === 'planos' && (
                 <div className="space-y-5">
                     <PlanManageSection cardStyle={cardStyle} colors={colors} />
@@ -304,6 +306,52 @@ interface WhatsAppBotStoreRow {
     whatsapp_bot_display_number: string | null
     whatsapp_bot_requested_number: string | null
     whatsapp_bot_status: WhatsAppBotStatus
+}
+
+// Oferta da interface 3.0 (feature_flags.ui_v3). Ligada, quem está na 2.0 vê "Experimentar o iUser 3.0" no painel do
+// perfil. Desligada, ninguém vê a opção e TODOS voltam para a 2.0 (a escolha de cada pessoa fica guardada).
+function UiVersionOfferSection({ cardStyle, colors }: SectionProps) {
+    const [offered, setOffered] = useState<boolean | null>(null)
+    const [toggling, setToggling] = useState(false)
+    useEffect(() => {
+        supabase.from('feature_flags').select('enabled').eq('key', 'ui_v3').maybeSingle()
+            .then(({ data }) => setOffered(data ? !!(data as { enabled?: boolean }).enabled : true))
+    }, [])
+    const toggle = async () => {
+        if (offered === null) return
+        setToggling(true)
+        try {
+            await callAdminApi('/api/admin/feature-flags', { key: 'ui_v3', enabled: !offered })
+            setOffered(!offered)
+            toast.success(!offered ? 'Interface 3.0 disponível para todos' : 'Interface 3.0 desligada: todos voltam para a 2.0')
+        } catch (err: any) {
+            toast.error(err.message || 'Erro ao salvar')
+        } finally {
+            setToggling(false)
+        }
+    }
+    return (
+        <div style={cardStyle} className="flex items-center justify-between gap-4">
+            <div className="min-w-0">
+                <p className="text-sm font-black" style={{ color: colors.textPrimary }}>Oferecer a interface 3.0</p>
+                <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>
+                    {offered
+                        ? 'Ligada: quem está na 2.0 vê "Experimentar o iUser 3.0" no painel do perfil e pode trocar (e voltar) quando quiser.'
+                        : 'Desligada: ninguém vê a opção e todos usam a 2.0. A escolha de cada pessoa continua guardada.'}
+                </p>
+            </div>
+            <button
+                onClick={toggle}
+                disabled={offered === null || toggling}
+                role="switch"
+                aria-checked={!!offered}
+                className="relative w-12 h-7 rounded-full flex-shrink-0 transition-colors disabled:opacity-60"
+                style={{ background: offered ? '#22c55e' : `${colors.border}` }}
+            >
+                <span className="absolute top-0.5 w-6 h-6 rounded-full bg-white transition-all" style={{ left: offered ? 22 : 2 }} />
+            </button>
+        </div>
+    )
 }
 
 // Lojas que pediram o atendimento automático (whatsapp_bot_opt_in) —

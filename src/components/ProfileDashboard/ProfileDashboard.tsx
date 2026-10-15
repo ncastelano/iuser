@@ -53,6 +53,7 @@ import ProfileNotification from './ProfileNotification'
 import MyComments from './MyComments'
 import ProfileLocationSettings from './ProfileLocationSettings'
 import ProfileLinkButtons from './ProfileLinkButtons'
+import UiVersionCard from './UiVersionCard'
 import MyTasks from './MyTasks'
 import DeleteConfirmDialog from '@/components/DeleteConfirmDialog'
 import { callAdminApi } from '@/lib/callAdminApi'
@@ -89,9 +90,12 @@ const pillButtonFullStyle = {
 export default function ProfileDashboard({
     profileSlug,
     avatarUrl,
+    hideVersionSwitch = false,
 }: {
     profileSlug: string | null
     avatarUrl?: string | null
+    /** Na interface 3.0 o seletor de versão fica no menu lateral, não aqui */
+    hideVersionSwitch?: boolean
 }) {
     const router = useRouter()
     const { colors, current: currentTheme, setTheme } = useTheme()
@@ -1397,6 +1401,13 @@ export default function ProfileDashboard({
             <div className="mb-6 flex flex-col gap-4">
                 <ProfileLinkButtons profileSlug={profile.profileSlug || profileSlug || ''} />
             </div>
+
+            {/* ===== Convite pra interface 3.0 — só na 2.0 (na 3.0 a troca fica no menu lateral) ===== */}
+            {!hideVersionSwitch && (
+                <div className="mb-6">
+                    <UiVersionCard />
+                </div>
+            )}
 
             {/* ===== VISITANTES DO PERFIL — logo abaixo dos botões ===== */}
             {visitantesNode}

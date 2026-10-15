@@ -1,4 +1,4 @@
-// src/components/ModeShell.tsx
+// src/versions/v3/shell/ModeShell.tsx
 //
 // Casca das páginas "de modo" (/modeloinicial, /modoprestador...): o topo com selo (logo/foto), cumprimento do modo,
 // atalhos de conversas e carrinho, e o menu lateral (drawer) em que a pessoa escolhe o modo — Meu perfil/prestador,
@@ -8,7 +8,7 @@
 import { ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import {
-    Store as StoreIcon, Car, Wrench, MessageCircle, ShoppingCart, User, LogIn, LogOut, ChevronRight, X, Check, Search,
+    Store as StoreIcon, Car, Wrench, MessageCircle, ShoppingCart, User, LogIn, LogOut, ChevronRight, X, Check, Search, RotateCcw,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
@@ -19,6 +19,7 @@ import { useChatUnread } from '@/hooks/useChatUnread'
 import { useCartStore } from '@/store/useCartStore'
 import { hexToRgb } from '@/lib/color'
 import { getRecentClicks, type RecentClickItem } from '@/components/LastSearched'
+import { switchVersion, versionLabel } from '@/versions/client'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -133,7 +134,8 @@ function DrawerLabel({ children }: { children: ReactNode }) {
     return <p className="px-3 pt-2 pb-1 text-[11px] font-black uppercase tracking-widest text-white/80">{children}</p>
 }
 
-function MenuDrawerContent({ slug, avatarUrl, data, active, recent, onSelect, onGo, onClose }: {
+function MenuDrawerContent({ slug, avatarUrl, data, active, recent, onSelect, onGo, onClose, onSwitchVersion }: {
+    onSwitchVersion: () => Promise<void>
     slug: string | null; avatarUrl: string | null | undefined; data: DrawerData
     /** Modo selecionado: 'perfil' | 'prestador' | 'loja:<slug>' | 'motorista:<vehicle_slug>' */
     active: string
@@ -223,6 +225,7 @@ function MenuDrawerContent({ slug, avatarUrl, data, active, recent, onSelect, on
             </Panel>
 
             <DrawerExplorar recent={recent} onGo={onGo} />
+            <DrawerVersionSwitch onSwitch={onSwitchVersion} />
         </div>
     )
 }
@@ -258,8 +261,30 @@ function DrawerExplorar({ recent, onGo }: { recent: RecentClickItem[]; onGo: (pa
     )
 }
 
+// Trocar para a interface 2.0: o único seletor de versão da 3.0 (a troca em si é o mesmo mecanismo central)
+function DrawerVersionSwitch({ onSwitch }: { onSwitch: () => Promise<void> }) {
+    const [busy, setBusy] = useState(false)
+    return (
+        <button
+            type="button"
+            disabled={busy}
+            onClick={async () => { setBusy(true); try { await onSwitch() } finally { /* a página recarrega */ } }}
+            className="mt-4 w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-left text-white transition active:scale-[0.98] disabled:opacity-70 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+            style={{ background: 'rgba(0,0,0,0.18)', border: '1px solid rgba(255,255,255,0.28)' }}
+        >
+            <span className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(255,255,255,0.18)' }}>
+                <RotateCcw size={18} />
+            </span>
+            <span className="min-w-0 flex-1">
+                <span className="block text-sm font-black leading-tight">{busy ? 'Trocando…' : `Voltar para a versão ${versionLabel('v2').replace('iUser ', '')}`}</span>
+                <span className="block text-xs opacity-90">Só muda a interface: conta, dados e plano continuam iguais</span>
+            </span>
+        </button>
+    )
+}
+
 // Menu de quem não tem conta: o "modo" é o de visitante (já selecionado), mais entrar/criar conta e o Explorar
-function VisitorDrawerContent({ recent, onGo, onClose }: { recent: RecentClickItem[]; onGo: (path: string) => void; onClose: () => void }) {
+function VisitorDrawerContent({ recent, onGo, onClose, onSwitchVersion }: { recent: RecentClickItem[]; onGo: (path: string) => void; onClose: () => void; onSwitchVersion: () => Promise<void> }) {
     return (
         <div className="h-full w-full flex flex-col px-4 pb-8 overflow-y-auto" style={{ paddingTop: 'calc(66px + env(safe-area-inset-top) + 8px)' }}>
             <div className="flex justify-end">
@@ -292,6 +317,8 @@ function VisitorDrawerContent({ recent, onGo, onClose }: { recent: RecentClickIt
             </section>
 
             <DrawerExplorar recent={recent} onGo={onGo} />
+            <DrawerVersionSwitch onSwitch={onSwitchVersion} />
+            <DrawerVersionSwitch onSwitch={onSwitchVersion} />
         </div>
     )
 }
@@ -549,8 +576,10 @@ export default function ModeShell({ children, search }: {
     // Fica em CIMA (e não embaixo) pra o teclado não cobrir a barra quando a busca está aberta.
     const NAV_H = 'calc(66px + env(safe-area-inset-top))'
     // Qual ícone da barra é o da página atual (o "selecionado")
+    // (a 3.0 serve /carrinho por /v3/carrinho e a home por /modeloinicial; o endereço visível é o canônico)
+    const shellPath = (pathname || '').replace(/^\/v3(?=\/|$)/, '') || '/'
     const activeTab: 'cart' | 'chat' | 'search' | null =
-        pathname?.startsWith('/carrinho') ? 'cart' : pathname?.startsWith('/conversas') ? 'chat' : pathname === '/modeloinicial' ? 'search' : null
+        shellPath.startsWith('/carrinho') ? 'cart' : shellPath.startsWith('/conversas') ? 'chat' : (shellPath === '/modeloinicial' || shellPath === '/') ? 'search' : null
     // Na página do modo escolhido (painel do perfil, loja, veículo...), o botão do menu (selo + nome) também é uma aba
     const modeSelected = !!userId && dataLoaded && !!pathname && modePath(activeMode, drawerData) === pathname
     // Qual aba está selecionada: ao tocar num ícone ela já sai andando (antes da página nova abrir). O layout é o mesmo
@@ -653,6 +682,13 @@ export default function ModeShell({ children, search }: {
         if (pathname !== target) router.push(target)
     }
     const goAndClose = (path: string) => { setDrawerOpen(false); router.push(path) }
+    // Seletor de versão (o único da 3.0): mesmo mecanismo central da 2.0
+    // Só a home, o carrinho e as conversas existem nas duas; qualquer outra página do shell é só da 3.0 → home da 2.0
+    const onSwitchVersion = () => switchVersion('v2', {
+        pathname: pathname || '/',
+        loggedIn: !!userId,
+        destination: ['/', '/carrinho', '/conversas'].includes(shellPath) ? shellPath : '/',
+    })
 
     return (
         <>
@@ -673,7 +709,7 @@ export default function ModeShell({ children, search }: {
             }}
         >
             {!userId && (
-                <VisitorDrawerContent recent={recent} onGo={goAndClose} onClose={() => setDrawerOpen(false)} />
+                <VisitorDrawerContent recent={recent} onGo={goAndClose} onClose={() => setDrawerOpen(false)} onSwitchVersion={onSwitchVersion} />
             )}
             {userId && (
                 <MenuDrawerContent
@@ -685,6 +721,7 @@ export default function ModeShell({ children, search }: {
                     onSelect={selectMode}
                     onGo={goAndClose}
                     onClose={() => setDrawerOpen(false)}
+                    onSwitchVersion={onSwitchVersion}
                 />
             )}
         </div>

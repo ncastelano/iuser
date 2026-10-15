@@ -18,6 +18,7 @@ import { DriverLiveLocationBroadcaster } from '@/components/DriverLiveLocationBr
 import { DriverRideAlertListener } from '@/components/DriverRideAlertListener'
 import { Toaster } from 'sonner'
 import { ProfileProvider } from './contexts/ProfileContext'
+import { VersionSync } from '@/versions/client'
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => new QueryClient())
@@ -46,6 +47,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <ProfileProvider>
+        <VersionSync />
         <PageViewTracker />
         <ThemeColorSync />
         <NavigationProgressBar />

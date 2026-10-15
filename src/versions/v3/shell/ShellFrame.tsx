@@ -1,4 +1,4 @@
-// src/components/ShellFrame.tsx
+// src/versions/v3/shell/ShellFrame.tsx
 //
 // Casca única das páginas do app (/modeloinicial, /carrinho, /conversas, /painel-perfil, /modoprestador, /painel-loja,
 // veículo): vive no layout `(main)/(shell)`, então a barra do topo, o menu e a aba clara NÃO são recriados a cada
@@ -6,7 +6,7 @@
 'use client'
 
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import ModeShell from '@/components/ModeShell'
+import ModeShell from './ModeShell'
 
 interface ShellSearch { value: string; onChange: (v: string) => void; placeholder?: string }
 
