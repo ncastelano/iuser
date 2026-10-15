@@ -50,13 +50,12 @@ test('troca de versão: página equivalente ou home válida, sem 404', () => {
     assert.equal(equivalentPath('v2', '/veiculo/abc'), '/')
 })
 
-test('casca da 3.0: todas as páginas na v3, exceto as de tela cheia', () => {
+test('casca da 3.0: todas as páginas na v3, exceto o link público do entregador', () => {
     assert.equal(usesShell('v3', '/social'), true)
     assert.equal(usesShell('v3', '/lojas/moda/minha-loja'), true)
-    assert.equal(usesShell('v3', '/aceitar-corridas/mapa'), false)
-    assert.equal(usesShell('v3', '/pedir-motorista/escolher-local'), false)
-    assert.equal(usesShell('v3', '/acompanhar-corrida/123'), false)
-    assert.equal(usesShell('v3', '/radar'), false)
+    assert.equal(usesShell('v3', '/entregador/abc123'), false)
+    assert.equal(usesShell('v3', '/aceitar-corridas/mapa'), true)
+    assert.equal(usesShell('v3', '/radar'), true)
     assert.equal(usesShell('v3', '/aceitar-corridas'), true)
 })
 test('na v2 só as páginas exclusivas da 3.0 usam a casca', () => {

@@ -154,7 +154,7 @@ export default function EscolherLocalPage() {
     }
 
     return (
-        <div className="fixed inset-0" style={{ zIndex: 0 }}>
+        <div className="fixed inset-x-0 bottom-0 top-[var(--shell-top,0px)]" style={{ zIndex: 0 }}>
             <div ref={mapContainerRef} className="absolute inset-0 w-full h-full" style={{ background: '#111' }} />
 
             <div className="absolute top-6 left-4 right-4 z-10 flex items-center gap-3">

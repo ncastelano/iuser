@@ -784,7 +784,7 @@ function AceitarCorridasMapaContent() {
     if (loading || !acceptedRide) {
         return (
             <>
-                <div className="fixed inset-0 flex items-center justify-center" style={{ background: colors.background }}>
+                <div className="fixed inset-x-0 bottom-0 top-[var(--shell-top,0px)] flex items-center justify-center" style={{ background: colors.background }}>
                     {!splashUrl && <Spinner size={24} color={colors.textSecondary} />}
                 </div>
                 {splash}
@@ -815,7 +815,7 @@ function AceitarCorridasMapaContent() {
     const shownTripMin = acceptedRide.duration_min ?? tripMin
 
     return (
-        <div className="fixed inset-0 flex flex-col" style={{ zIndex: 0, background: colors.background }}>
+        <div className="fixed inset-x-0 bottom-0 top-[var(--shell-top,0px)] flex flex-col" style={{ zIndex: 0, background: colors.background }}>
             {/* MAPA — ocupa sempre o espaço que sobra em cima, nunca é tampado
                 pelo card (que vive embaixo, na mesma tela), igual ao /pedir-motorista */}
             <div className="relative flex-1 min-h-0">

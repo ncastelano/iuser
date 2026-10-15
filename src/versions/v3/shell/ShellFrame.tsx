@@ -34,7 +34,10 @@ export default function ShellFrame({ children }: { children: ReactNode }) {
     return (
         <ShellSearchContext.Provider value={setter}>
             <InsideShellContext.Provider value>
-                <ModeShell search={search || undefined}>{children}</ModeShell>
+                {/* --shell-top: onde termina a navbar. Telas cheias (mapas) começam aqui em vez de no topo da janela. */}
+                <div style={{ display: 'contents', ['--shell-top' as string]: 'calc(66px + env(safe-area-inset-top))' }}>
+                    <ModeShell search={search || undefined}>{children}</ModeShell>
+                </div>
             </InsideShellContext.Provider>
         </ShellSearchContext.Provider>
     )

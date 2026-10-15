@@ -23,7 +23,7 @@ Detalhes e justificativas: `docs/ARCHITECTURE.md` e `docs/decisions/`. Resumo op
     pelo admin por perfil (`ui_v3_access`) ou para todos (`feature_flags.ui_v3`, desligada); o admin geral sempre
     tem (botão flutuante **v3** na home 2.0). Sem permissão, a 3.0 não aparece em lugar nenhum. Padrão: `v2`.
   - Na 3.0 **toda** página abre dentro da casca (`VersionFrame`); o `Header` da 2.0 vira compacto via `InsideShell`.
-    Tela cheia (mapas) → `SHELL_EXCLUDED` em `registry.ts`. Ao migrar uma página, ajuste só o que ficar estranho na casca.
+    Tela cheia (mapa) → posicione com `top-[var(--shell-top,0px)]` em vez de `inset-0`; fora da casca → `SHELL_EXCLUDED`. Ao migrar uma página, ajuste só o que ficar estranho na casca.
   - URLs compartilhadas (`/`, `/carrinho`, `/conversas`) mantêm o endereço; a 3.0 é servida por *rewrite* para
     `/modeloinicial`, `/v3/carrinho`, `/v3/conversas`. **Nova URL que existirá nas duas versões** → entrada em
     `VERSION_ROUTES` (`registry.ts`) e teste em `scripts/test-versions.mjs`. Página só da 3.0 → fica em

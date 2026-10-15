@@ -96,7 +96,9 @@ Seleção de versão **não** concede nada: segurança continua no servidor e no
    interno (`/` → `/modeloinicial`, `/carrinho` → `/v3/carrinho`...). `registry.ts › VERSION_ROUTES` é o mapa.
 5. **Moldura da 3.0 para TODAS as páginas.** Na 3.0, `VersionFrame` (em `app/(main)/layout.tsx`) abre qualquer página
    dentro da casca persistente (navbar + drawer). O componente `Header` da 2.0 detecta a casca (`InsideShell`) e se
-   apresenta compacto (voltar/título + abas + busca). Exceções de tela cheia: `registry.ts › SHELL_EXCLUDED`.
+   apresenta compacto (voltar/título + abas + busca). Telas cheias (mapas) abrem na casca e começam abaixo da navbar
+   usando a variável CSS `--shell-top` (`top-[var(--shell-top,0px)]`). Única exceção hoje: o link público do
+   entregador (`registry.ts › SHELL_EXCLUDED`).
    Páginas só da 3.0 (`V3_ONLY_*`) sempre usam a casca.
 6. **Endereços internos** (`/v3/...`): digitar direto sem ter a 3.0 redireciona ao canônico (sem loop).
 7. **Trocar**: `switchVersion(target, ...)` (`versions/client.tsx`) grava cookie + perfil e faz um carregamento
