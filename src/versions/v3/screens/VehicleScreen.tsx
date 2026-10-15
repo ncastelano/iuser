@@ -49,6 +49,13 @@ interface Stats {
 const SELECT = 'id, driver_id, vehicle_kind, vehicle_slug, car_model, car_color, car_plate, car_photo_url, services, passenger_capacity, has_baby_seat, trunk_bags_pequena, trunk_bags_media, trunk_bags_grande, trunk_suitcases_pequena, trunk_suitcases_media, trunk_suitcases_grande'
 
 const brl = (n: number) => `R$ ${n.toLocaleString('pt-BR', { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 })}`
+// Trajeto sem expor o endereço exato: só o bairro (tira rua, número e CEP)
+const coarseAddress = (a: string | null): string => {
+    if (!a) return 'um local'
+    const parts = a.split(',').map((x) => x.trim()).filter((x) => x && !/^\d+([-\s]\d+)?$/.test(x))
+    if (parts.length >= 3) return parts[1]
+    return (parts[0] || '').replace(/\d+/g, '').replace(/\s+/g, ' ').trim() || 'um local'
+}
 const photoUrl = (p: string | null) => (p ? (p.startsWith('http') ? p : supabase.storage.from('driver-car-photos').getPublicUrl(p).data.publicUrl) : null)
 
 export default function VehicleScreen() {
@@ -70,11 +77,10 @@ export default function VehicleScreen() {
     const viewAsClient = tab === 'cliente'
     const [activeCount, setActiveCount] = useState(0)
     const [live, setLive] = useState<{ sync: boolean; lat: number | null; lng: number | null; at: string | null }>({ sync: false, lat: null, lng: null, at: null })
-    const [recent, setRecent] = useState<{ at: string; km: number | null; price: number | null }[]>([])
+    const [recent, setRecent] = useState<{ at: string; km: number | null; from: string; to: string; rating: number | null; comment: string | null; who: string | null }[]>([])
     const [shareOpen, setShareOpen] = useState(false)
     const [zoom, setZoom] = useState(false)
     const [feeOpen, setFeeOpen] = useState(false)
-    const [comments, setComments] = useState<{ rating: number; comment: string; at: string; who: string }[]>([])
     const touchedTab = useRef(false)
     const [editing, setEditing] = useState(false)
 
@@ -93,20 +99,16 @@ export default function VehicleScreen() {
         setDriverActive(!!(pricing as any)?.driver_mode_active)
         const pr = pricing as any
         setLive({ sync: !!pr?.live_location_sync, lat: pr?.live_lat != null ? Number(pr.live_lat) : null, lng: pr?.live_lng != null ? Number(pr.live_lng) : null, at: pr?.live_updated_at || null })
-        // comentários de quem já andou com o motorista (só os que escreveram algo)
-        supabase.from('ride_reviews').select('rating, comment, created_at, reviewer_id').eq('reviewee_id', v.driver_id).not('comment', 'is', null).order('created_at', { ascending: false }).limit(8).then(async ({ data: rv }) => {
-            const rows = ((rv as any[]) || []).filter((r) => String(r.comment || '').trim().length > 0)
-            if (rows.length === 0) { setComments([]); return }
-            const ids = Array.from(new Set(rows.map((r) => r.reviewer_id as string)))
-            const { data: ps } = await supabase.from('profiles').select('id, profileSlug, name').in('id', ids)
-            const byId = new Map(((ps as any[]) || []).map((x) => [x.id, x]))
-            setComments(rows.slice(0, 5).map((r) => {
-                const pr = byId.get(r.reviewer_id) as any
-                return { rating: Number(r.rating) || 0, comment: String(r.comment).trim(), at: r.created_at, who: pr?.name || (pr?.profileSlug ? `@${pr.profileSlug}` : 'Cliente') }
-            }))
-        })
-        supabase.rpc('get_driver_recent_rides', { p_driver: v.driver_id, p_limit: 5 }).then(({ data: rr }) => {
-            setRecent(((rr as any[]) || []).map((r) => ({ at: r.rode_at, km: r.distance_km != null ? Number(r.distance_km) : null, price: r.price != null ? Number(r.price) : null })))
+        supabase.rpc('get_driver_recent_rides', { p_driver: v.driver_id, p_limit: 6 }).then(({ data: rr }) => {
+            setRecent(((rr as any[]) || []).map((r) => ({
+                at: r.rode_at,
+                km: r.distance_km != null ? Number(r.distance_km) : null,
+                from: coarseAddress(r.origin_address),
+                to: coarseAddress(r.destination_address),
+                rating: r.rating != null ? Number(r.rating) : null,
+                comment: r.comment || null,
+                who: r.reviewer_name || (r.reviewer_slug ? `@${r.reviewer_slug}` : null),
+            })))
         })
         setPricingRow((pricing as DriverPricingRow) || { pricing_mode: 'platform', base_distance_km: null, base_fee: null, price_per_km_after_base: null })
         const row = Array.isArray(st) ? st[0] : st
@@ -214,7 +216,7 @@ export default function VehicleScreen() {
 
     const title = vehicle.car_model || KIND_LABEL[vehicle.vehicle_kind] || 'Veículo'
     const since = stats?.since
-        ? `${new Date(stats.since).toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '')}/${new Date(stats.since).getFullYear()}`
+        ? `${new Date(stats.since).toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '')}/${String(new Date(stats.since).getFullYear()).slice(2)}`
         : null
     const examples = pricing ? [3, 5, 10, 20].map((km) => ({ km, price: computeSuggestedPrice(km, pricing) })) : []
 
@@ -318,20 +320,28 @@ export default function VehicleScreen() {
                 </div>
             </section>
 
-            {/* Números do motorista, compactos */}
-            <section className="mt-2.5 grid grid-cols-3 gap-2">
+            {/* Números e o botão de compartilhar, tudo na mesma linha */}
+            <section className="mt-2.5 flex items-stretch gap-2">
                 {[
-                    { icon: <Star size={14} className="fill-current" />, value: stats && stats.rating != null ? stats.rating.toFixed(1) : 'Novo', label: stats && stats.ratingCount > 0 ? `${stats.ratingCount} ${stats.ratingCount === 1 ? 'avaliação' : 'avaliações'}` : 'sem avaliações' },
-                    { icon: <Route size={14} />, value: String(stats?.rides ?? 0), label: (stats?.rides ?? 0) === 1 ? 'corrida' : 'corridas' },
-                    { icon: <Calendar size={14} />, value: since || '—', label: 'no iUser desde' },
+                    { icon: <Star size={13} className="fill-current" />, value: stats && stats.rating != null ? stats.rating.toFixed(1) : 'Novo', label: stats && stats.ratingCount > 0 ? `${stats.ratingCount} ${stats.ratingCount === 1 ? 'avaliação' : 'avaliações'}` : 'sem avaliações' },
+                    { icon: <Route size={13} />, value: String(stats?.rides ?? 0), label: (stats?.rides ?? 0) === 1 ? 'corrida' : 'corridas' },
+                    { icon: <Calendar size={13} />, value: since || '—', label: 'no iUser' },
                 ].map((x, i) => (
-                    <div key={i} className="rounded-2xl px-3 py-2" style={soft}>
-                        <span className="flex items-center gap-1.5 text-sm font-black leading-tight" style={{ color: colors.textPrimary }}>
-                            <span style={{ color: ORANGE }} className="flex-shrink-0">{x.icon}</span>{x.value}
+                    <div key={i} className="flex-1 min-w-0 rounded-2xl px-2.5 py-2 flex flex-col justify-center" style={soft}>
+                        <span className="flex items-center gap-1 text-[13px] font-black leading-tight" style={{ color: colors.textPrimary }}>
+                            <span style={{ color: ORANGE }} className="flex-shrink-0">{x.icon}</span><span className="truncate">{x.value}</span>
                         </span>
-                        <span className="block text-[10px] leading-tight mt-0.5" style={{ color: colors.textSecondary }}>{x.label}</span>
+                        <span className="block text-[9.5px] leading-tight mt-0.5 truncate" style={{ color: colors.textSecondary }}>{x.label}</span>
                     </div>
                 ))}
+                <button
+                    onClick={() => setShareOpen(true)}
+                    className="flex-shrink-0 w-[100px] rounded-2xl text-white flex flex-col items-center justify-center leading-tight transition active:scale-[0.97]"
+                    style={{ background: GRADIENT, boxShadow: '0 6px 16px #f9731640' }}
+                >
+                    <span className="flex items-center gap-1 text-[11px] font-black whitespace-nowrap"><Share2 size={12} className="flex-shrink-0" /> Compartilhar</span>
+                    <span className="text-[10px] opacity-90">página</span>
+                </button>
             </section>
 
             {/* O carro tem + dados do veículo, num cartão só */}
@@ -346,12 +356,7 @@ export default function VehicleScreen() {
                 if (svcs.length === 0 && facts.length === 0) return null
                 return (
                     <section className="mt-2.5 rounded-2xl p-3" style={soft}>
-                        <div className="flex items-center justify-between gap-2">
-                            <p className="text-[11px] font-black uppercase tracking-wide" style={{ color: colors.textSecondary }}>O carro tem</p>
-                            <button onClick={() => setShareOpen(true)} className="h-8 pl-2.5 pr-3 rounded-full text-[11px] font-black flex items-center gap-1.5 transition active:scale-95" style={{ background: `${ORANGE}1a`, color: ORANGE }}>
-                                <Share2 size={13} /> Compartilhar página
-                            </button>
-                        </div>
+                        <p className="text-[11px] font-black uppercase tracking-wide" style={{ color: colors.textSecondary }}>O carro tem</p>
                         <div className="mt-2 flex flex-wrap gap-1.5">
                             {svcs.map((sv) => {
                                 const Icon = DRIVER_SERVICE_OPTIONS.find((o) => o.id === sv)?.icon
@@ -403,37 +408,33 @@ export default function VehicleScreen() {
                 <span className="text-xs font-black flex-shrink-0 flex items-center gap-0.5" style={{ color: ORANGE }}>Ver como é cobrado <ChevronRight size={14} /></span>
             </button>
 
-            {/* Comentários de quem já andou (só aparece se houver) */}
-            {comments.length > 0 && (
+            {/* Corridas, cada uma com o que disseram dela: mostra se as pessoas estão falando ou não */}
+            {(stats?.rides ?? 0) > 0 && (
                 <section className="mt-4">
-                    <h2 className="text-sm font-black" style={{ color: colors.textPrimary }}>O que dizem</h2>
+                    <h2 className="text-sm font-black" style={{ color: colors.textPrimary }}>Corridas ({stats?.rides ?? 0})</h2>
                     <div className="mt-2 flex flex-col gap-2">
-                        {comments.map((c, i) => (
+                        {recent.map((r, i) => (
                             <div key={i} className="rounded-2xl px-3.5 py-2.5" style={soft}>
-                                <div className="flex items-center justify-between gap-2">
-                                    <span className="text-xs font-black truncate" style={{ color: colors.textPrimary }}>{c.who}</span>
-                                    <span className="text-[11px] font-black flex items-center gap-0.5 flex-shrink-0" style={{ color: '#ca8a04' }}>
-                                        <Star size={11} className="fill-current" /> {c.rating}
+                                <div className="flex items-start justify-between gap-2">
+                                    <p className="text-xs font-black min-w-0" style={{ color: colors.textPrimary }}>
+                                        Corrida de {r.from} <span style={{ color: colors.textSecondary }}>para</span> {r.to}
+                                    </p>
+                                    <span className="text-[10px] flex-shrink-0" style={{ color: colors.textSecondary }}>
+                                        {new Date(r.at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).replace('.', '')}
+                                        {r.km != null ? ` · ${r.km.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} km` : ''}
                                     </span>
                                 </div>
-                                <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>“{c.comment}”</p>
+                                {r.comment ? (
+                                    <p className="text-xs mt-1" style={{ color: colors.textSecondary }}>
+                                        <span className="font-black inline-flex items-center gap-0.5" style={{ color: '#ca8a04' }}><Star size={11} className="fill-current" />{r.rating}</span>
+                                        {' '}“{r.comment}”{r.who ? <span className="font-bold"> — {r.who}</span> : null}
+                                    </p>
+                                ) : (
+                                    <p className="text-[11px] mt-1" style={{ color: colors.textSecondary }}>
+                                        {r.rating != null ? <><span className="font-black" style={{ color: '#ca8a04' }}>★ {r.rating}</span> · sem comentário</> : 'Ainda sem avaliação'}
+                                    </p>
+                                )}
                             </div>
-                        ))}
-                    </div>
-                </section>
-            )}
-
-            {/* Corridas recentes: só data e distância (sem endereço, nome nem valor) */}
-            {recent.length > 0 && (
-                <section className="mt-4">
-                    <h2 className="text-sm font-black" style={{ color: colors.textPrimary }}>Corridas recentes</h2>
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                        {recent.slice(0, 4).map((r, i) => (
-                            <span key={i} className="px-2.5 py-1.5 rounded-full text-[11px] font-bold flex items-center gap-1.5" style={{ ...soft, color: colors.textPrimary }}>
-                                <CheckCircle2 size={12} style={{ color: '#16a34a' }} className="flex-shrink-0" />
-                                {new Date(r.at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).replace('.', '')}
-                                {r.km != null ? ` · ${r.km.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} km` : ''}
-                            </span>
                         ))}
                     </div>
                 </section>
