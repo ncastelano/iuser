@@ -13,7 +13,7 @@ import { useRouter } from 'next/navigation'
 import {
     Search, ShoppingBag, Store as StoreIcon, Car, Wrench, Megaphone, Briefcase, Users, MessageCircle,
     ChevronRight, Star, MapPin, Eye, User, LogIn, LogOut, Radar, UserPlus, X, Package, ShoppingCart, Scissors, Check,
-    UtensilsCrossed, Shirt, Smartphone, Hand, Sparkles, Bike, PawPrint, type LucideIcon,
+    UtensilsCrossed, Shirt, Smartphone, Hand, Sparkles, Bike, Motorbike, type LucideIcon,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
@@ -570,7 +570,7 @@ export default function ModeloInicialPage() {
     const needs: Action[] = [
         { title: 'Comprar', desc: 'Lojas e produtos perto de você', icon: ShoppingBag, icons: [ShoppingBag, UtensilsCrossed, Shirt, Smartphone], color: TYPE.loja.color, onClick: () => go('/lojas') },
         { title: 'Contratar serviço', desc: 'Descreva o que você precisa', icon: Wrench, icons: [Wrench, Scissors, Hand, Sparkles], color: TYPE.servico.color, onClick: () => go('/solicitar-servico') },
-        { title: 'Pedir motorista', desc: 'Corrida rápida, preço combinado', icon: Car, icons: [Car, Bike, PawPrint, Package], color: '#ea580c', onClick: () => go('/pedir-motorista') },
+        { title: 'Pedir motorista', desc: 'Corrida rápida, preço combinado', icon: Car, icons: [Car, Bike, Motorbike, Package], color: '#ea580c', onClick: () => go('/pedir-motorista') },
         { title: 'Ver ao redor', desc: 'Mapa com lojas, serviços e pessoas', icon: Radar, icons: [Radar, MapPin, StoreIcon, Users], color: '#0891b2', onClick: () => go('/radar') },
     ]
     // Quem QUER GANHAR com o iUser
