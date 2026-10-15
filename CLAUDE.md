@@ -24,8 +24,8 @@ Detalhes e justificativas: `docs/ARCHITECTURE.md` e `docs/decisions/`. Resumo op
     tem (botão flutuante **v3** na home 2.0). Sem permissão, a 3.0 não aparece em lugar nenhum. Padrão: `v2`.
   - Na 3.0 **toda** página abre dentro da casca (`VersionFrame`); o `Header` da 2.0 vira compacto via `InsideShell`.
     Tela cheia (mapa) → posicione com `top-[var(--shell-top,0px)]` em vez de `inset-0`; fora da casca → `SHELL_EXCLUDED`. Ao migrar uma página, ajuste só o que ficar estranho na casca.
-  - URLs compartilhadas (`/`, `/carrinho`, `/conversas`) mantêm o endereço; a 3.0 é servida por *rewrite* para
-    `/modeloinicial`, `/v3/carrinho`, `/v3/conversas`. **Nova URL que existirá nas duas versões** → entrada em
+  - URLs compartilhadas (`/`, `/carrinho`, `/conversas`, `/lojas`) mantêm o endereço; a 3.0 é servida por *rewrite* para
+    `/modeloinicial`, `/v3/carrinho`, `/v3/conversas`, `/v3/lojas`. **Nova URL que existirá nas duas versões** → entrada em
     `VERSION_ROUTES` (`registry.ts`) e teste em `scripts/test-versions.mjs`. Página só da 3.0 → fica em
     `app/(main)/(shell)/` e entra em `IGNORED_ROUTES`/`IGNORED_PREFIXES` + `V3_ONLY_*` em `registry.ts`.
   - Seletor de versão: UM mecanismo (`switchVersion` em `src/versions/client.tsx`), exibido só em dois lugares —

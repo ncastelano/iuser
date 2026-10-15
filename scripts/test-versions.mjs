@@ -26,6 +26,8 @@ test('rewrite só nas rotas compartilhadas', () => {
     assert.equal(internalPathFor('v3', '/'), '/modeloinicial')
     assert.equal(internalPathFor('v3', '/carrinho'), '/v3/carrinho')
     assert.equal(internalPathFor('v3', '/conversas/'), '/v3/conversas')
+    assert.equal(internalPathFor('v3', '/lojas'), '/v3/lojas')
+    assert.equal(internalPathFor('v3', '/lojas/alimentacao'), null)
     assert.equal(internalPathFor('v3', '/social'), null)
     assert.equal(internalPathFor('v2', '/carrinho'), null)
 })

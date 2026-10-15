@@ -39,6 +39,7 @@ export const VERSION_ROUTES: Record<string, Partial<Record<UiVersion, string>>> 
     '/': { v3: '/modeloinicial' },
     '/carrinho': { v3: '/v3/carrinho' },
     '/conversas': { v3: '/v3/conversas' },
+    '/lojas': { v3: '/v3/lojas' },
 }
 
 /** Prefixo interno das implementações alternativas (nunca é o endereço "oficial": o proxy devolve ao canônico) */
