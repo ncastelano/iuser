@@ -60,6 +60,12 @@ scripts/                     # Testes `node --test` das regras puras
 - **Banco (Supabase)** — a **fonte da verdade** das regras críticas (comissão, graduação, pontos, tarifa) e das
   permissões (RLS). A interface nunca decide permissão.
 
+### Módulos existentes
+
+- **`modules/chat`** — salas 1 a 1 e grupos: `api.ts` (chama as funções do banco: `start_conversation`,
+  `create_group_conversation`, `invite_to_group`, `respond_group_invite`, `leave_group`...) e `ui/` (seletor de
+  pessoas, nova conversa, dados do grupo). Regras (convite com aceitar/recusar, limite de 30, admin) vivem no banco.
+
 ## 4. Regras de dependência
 
 ```

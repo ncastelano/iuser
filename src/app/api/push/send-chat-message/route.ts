@@ -22,10 +22,51 @@ export async function POST(req: Request) {
 
         const { data: conv } = await supabaseAdmin
             .from('conversations')
-            .select('id, customer_id, owner_profile_id, store_id')
+            .select('id, kind, title, customer_id, owner_profile_id, store_id')
             .eq('id', conversationId)
             .maybeSingle()
         if (!conv) return NextResponse.json({ error: 'Conversa não encontrada' }, { status: 404 })
+
+        // Grupo: avisa todos os membros ativos (menos quem mandou e quem silenciou)
+        if (conv.kind === 'group') {
+            const { data: me } = await supabaseAdmin
+                .from('conversation_members').select('profile_id')
+                .eq('conversation_id', conv.id).eq('profile_id', user.id).eq('status', 'active').maybeSingle()
+            if (!me) return NextResponse.json({ error: 'Sem permissão' }, { status: 403 })
+
+            const { data: gmsg } = await supabaseAdmin
+                .from('direct_messages')
+                .select('id, content, created_at, push_notified_at')
+                .eq('conversation_id', conv.id).eq('sender_id', user.id)
+                .order('created_at', { ascending: false }).limit(1).maybeSingle()
+            if (!gmsg || gmsg.push_notified_at) return NextResponse.json({ success: true, skipped: true })
+            if (Date.now() - new Date(gmsg.created_at).getTime() > 2 * 60 * 1000) return NextResponse.json({ success: true, skipped: true })
+            await supabaseAdmin.from('direct_messages').update({ push_notified_at: new Date().toISOString() }).eq('id', gmsg.id)
+
+            const { data: members } = await supabaseAdmin
+                .from('conversation_members').select('profile_id')
+                .eq('conversation_id', conv.id).eq('status', 'active').eq('muted', false).neq('profile_id', user.id)
+            const { data: gsender } = await supabaseAdmin.from('profiles').select('name, profileSlug, avatar_url').eq('id', user.id).maybeSingle()
+            const who = gsender?.profileSlug ? `@${gsender.profileSlug}` : gsender?.name || 'Alguém'
+            const gicon = gsender?.avatar_url
+                ? (gsender.avatar_url.startsWith('http') ? gsender.avatar_url : supabaseAdmin.storage.from('avatars').getPublicUrl(gsender.avatar_url).data.publicUrl)
+                : undefined
+            let gbody = `${who}: ${String(gmsg.content || '').replace(/\s+/g, ' ').trim()}`
+            if (gbody.length > MAX_BODY) gbody = gbody.slice(0, MAX_BODY - 1) + '…'
+            let gsent = 0
+            await Promise.all((members || []).map(async (m) => {
+                const r = await sendPushToUser(m.profile_id, {
+                    title: conv.title || 'Grupo',
+                    body: gbody,
+                    url: `/conversas?c=${conv.id}`,
+                    tag: `chat-${conv.id}`,
+                    icon: gicon,
+                    chat: true,
+                })
+                gsent += r.sent
+            }))
+            return NextResponse.json({ success: true, sent: gsent })
+        }
 
         // Dono da loja (quando a conversa é com uma loja)
         type StoreRow = { id: string; name: string; storeSlug: string; logo_url: string | null; owner_id: string }

@@ -10,7 +10,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
     Bell, Heart, MessageCircle, UserPlus, Eye, Link2, PartyPopper, CornerDownRight, CheckCheck, User,
-    Briefcase, CheckCircle2, Star, Car, CalendarDays, CalendarCheck, CalendarX, CalendarClock,
+    Briefcase, CheckCircle2, Star, Car, CalendarDays, CalendarCheck, CalendarX, CalendarClock, Users,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
@@ -56,6 +56,7 @@ const FILTERS: { id: Filter; label: string; kinds: string[] | null }[] = [
 const KIND_ICON: Record<string, { icon: typeof Bell; color: string }> = {
     follow: { icon: UserPlus, color: '#3b82f6' },
     invite_signup: { icon: PartyPopper, color: '#f97316' },
+    group_invite: { icon: Users, color: '#8b5cf6' },
     profile_view: { icon: Eye, color: '#64748b' },
     link_visit: { icon: Link2, color: '#14b8a6' },
     publication_like: { icon: Heart, color: '#ef4444' },
@@ -165,6 +166,7 @@ export default function ProfileNotification({ userId }: { userId: string }) {
             case 'appointment_new': return n.meta?.flow === 'booking'
                 ? `${who} agendou ${apptWhat(n)}${n.meta?.store ? ` em ${n.meta.store}` : ''}`
                 : `${who} convidou você para ${apptWhat(n)}`
+            case 'group_invite': return `${who} convidou você para o grupo ${title}`.trim()
             case 'appointment_confirmed': return `${who} confirmou ${apptWhat(n)}`
             case 'appointment_cancelled': return `${who} cancelou ${apptWhat(n)}`
             case 'appointment_changed': return `${who} mudou o horário de ${apptWhat(n)}`
@@ -177,6 +179,7 @@ export default function ProfileNotification({ userId }: { userId: string }) {
             return `/${n.meta.owner_slug}/${n.meta.slug}`
         }
         if (n.kind === 'link_visit' && n.meta?.path) return n.meta.path
+        if (n.kind === 'group_invite') return '/conversas'
         if (n.kind === 'service_application') return '/solicitar-servico'
         if (n.kind === 'service_selected' || n.kind === 'service_completed') return '/procurar-servico?aba=inscrevi'
         if (n.kind === 'service_review') return n.meta?.role === 'owner' ? '/solicitar-servico' : '/procurar-servico?aba=inscrevi'

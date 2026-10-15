@@ -8,14 +8,19 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, MessageCircle, Send, Store as StoreIcon, User } from 'lucide-react'
+import { ArrowLeft, MessageCircle, Plus, Send, Store as StoreIcon, User, Users } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
+import { toast } from 'sonner'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { useTheme } from '@/app/contexts/theme'
 import PageTabs from '@/components/PageTabs'
 import Header from '@/components/Header'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import type { UiVersion } from '@/versions/registry'
+import GroupAvatar from '@/modules/chat/ui/GroupAvatar'
+import NewConversationSheet from '@/modules/chat/ui/NewConversationSheet'
+import GroupInfoSheet from '@/modules/chat/ui/GroupInfoSheet'
+import { getMyGroupInvites, respondGroupInvite, type GroupInvite } from '@/modules/chat/api'
 import PlanAvatarRing, { PlanRingInset } from '@/components/PlanAvatarRing'
 import { Spinner } from '@/components/Spinner'
 import { getAvatarUrl } from '@/lib/avatar'
@@ -37,6 +42,9 @@ interface ConversationRow {
     other_slug: string | null
     other_avatar: string | null
     other_is_store: boolean
+    /** Grupo: other_name é o nome do grupo e member_count quantas pessoas estão nele */
+    is_group?: boolean
+    member_count?: number
 }
 
 function otherLabel(r: { other_name: string | null; other_slug: string | null; other_is_store: boolean }, fallback = 'Conversa') {
@@ -70,7 +78,7 @@ function otherAvatarUrl(row: { other_avatar: string | null; other_is_store: bool
 
 
 // ====================== FIO DE MENSAGENS ======================
-function Thread({ conversation, userId, onBack, onRead, colors, modern = false }: {
+function Thread({ conversation, userId, onBack, onRead, colors, modern = false, onOpenInfo, infoVersion = 0 }: {
     conversation: ConversationRow
     userId: string
     onBack: () => void
@@ -78,6 +86,10 @@ function Thread({ conversation, userId, onBack, onRead, colors, modern = false }
     colors: any
     /** 3.0: sem bordas, avatares redondos, balões e campo em pílula */
     modern?: boolean
+    /** Grupo: abre os dados do grupo (membros, convidar, sair) */
+    onOpenInfo?: () => void
+    /** Sobe quando os dados do grupo mudam (nome de quem escreve é recarregado) */
+    infoVersion?: number
 }) {
     const [messages, setMessages] = useState<Message[]>([])
     // Postagens (serviços) citadas nas mensagens: viram um cartão que abre a página do serviço
@@ -85,6 +97,8 @@ function Thread({ conversation, userId, onBack, onRead, colors, modern = false }
     // Pedidos de serviço citados: viram um cartão próprio (outro desenho do que o da postagem)
     const [requestRefs, setRequestRefs] = useState<Record<string, RequestRef>>({})
     const [loading, setLoading] = useState(true)
+    // Grupo: nome de quem escreveu cada mensagem
+    const [senderNames, setSenderNames] = useState<Record<string, string>>({})
     const [text, setText] = useState('')
     const [sending, setSending] = useState(false)
     const endRef = useRef<HTMLDivElement>(null)
@@ -137,6 +151,21 @@ function Thread({ conversation, userId, onBack, onRead, colors, modern = false }
 
     useEffect(() => { endRef.current?.scrollIntoView({ block: 'end' }) }, [messages])
 
+    // Grupo: busca o nome de quem escreveu (inclusive de quem já saiu do grupo)
+    useEffect(() => {
+        if (!conversation.is_group) return
+        const ids = Array.from(new Set(messages.map((m) => m.sender_id))).filter((id) => id !== userId && !senderNames[id])
+        if (ids.length === 0) return
+        supabase.from('profiles').select('id, name, "profileSlug"').in('id', ids).then(({ data }) => {
+            setSenderNames((prev) => {
+                const next = { ...prev }
+                for (const p of (data || []) as any[]) next[p.id] = p.profileSlug ? `@${p.profileSlug}` : p.name || 'Alguém'
+                return next
+            })
+        })
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [messages, conversation.is_group, userId, infoVersion])
+
     const send = async () => {
         const content = text.trim()
         if (!content || sending) return
@@ -163,7 +192,15 @@ function Thread({ conversation, userId, onBack, onRead, colors, modern = false }
                 <button onClick={onBack} className="md:hidden w-9 h-9 rounded-full flex items-center justify-center" style={{ color: colors.textPrimary }} aria-label="Voltar para as conversas">
                     <ArrowLeft size={20} />
                 </button>
-                {profileHref ? (
+                {conversation.is_group ? (
+                    <button onClick={onOpenInfo} className="flex items-center gap-3 min-w-0 flex-1 text-left">
+                        <GroupAvatar size={40} />
+                        <div className="min-w-0">
+                            <p className="text-sm font-black truncate" style={{ color: colors.textPrimary }}>{conversation.other_name}</p>
+                            <p className="text-[11px] truncate" style={{ color: colors.textSecondary }}>{conversation.member_count || 0} pessoas · toque para ver o grupo</p>
+                        </div>
+                    </button>
+                ) : profileHref ? (
                     <Link href={profileHref} className="flex items-center gap-3 min-w-0 flex-1">
                         <Avatar url={avatar} name={conversation.other_name} isStore={conversation.other_is_store} userId={conversation.other_is_store ? undefined : conversation.other_id} size={40} round={modern} />
                         <div className="min-w-0">
@@ -198,6 +235,9 @@ function Thread({ conversation, userId, onBack, onRead, colors, modern = false }
                                     : modern
                                         ? { background: `${colors.border}55`, color: colors.textPrimary }
                                         : { background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}>
+                                {conversation.is_group && !mine && (
+                                    <span className="block text-[11px] font-black mb-0.5" style={{ color: colors.accent }}>{senderNames[m.sender_id] || 'Alguém'}</span>
+                                )}
                                 {m.ref_product_id && refs[m.ref_product_id] && (() => {
                                     const r = refs[m.ref_product_id!]
                                     const img = r.image_url ? (r.image_url.startsWith('http') ? r.image_url : supabase.storage.from('product-images').getPublicUrl(r.image_url).data.publicUrl) : null
@@ -284,6 +324,11 @@ function ConversasInner({ ui }: { ui: UiVersion }) {
     const [rows, setRows] = useState<ConversationRow[] | null>(null)
     // Não lidas por sala, pra mostrar o selo em cada aba
     const [unreadByRoom, setUnreadByRoom] = useState<Record<string, number>>({})
+    // Grupos: convites pendentes, folha de nova conversa e dados do grupo aberto
+    const [invites, setInvites] = useState<GroupInvite[]>([])
+    const [showNew, setShowNew] = useState(false)
+    const [showInfo, setShowInfo] = useState(false)
+    const [infoVersion, setInfoVersion] = useState(0)
 
     const room = search.get('sala') || 'perfil'          // 'perfil' ou o slug da loja
     const activeId = search.get('c')
@@ -329,6 +374,12 @@ function ConversasInner({ ui }: { ui: UiVersion }) {
     }, [userId, stores])
 
     useEffect(() => { setRows(null); load() }, [load])
+
+    const loadInvites = useCallback(async () => {
+        if (!userId) return
+        try { setInvites(await getMyGroupInvites()) } catch { setInvites([]) }
+    }, [userId])
+    useEffect(() => { loadInvites() }, [loadInvites])
     useEffect(() => { loadUnread() }, [loadUnread])
 
     // Conversa nova ou mensagem nova: recarrega a lista
@@ -337,9 +388,10 @@ function ConversasInner({ ui }: { ui: UiVersion }) {
         const channel = supabase
             .channel(`conversas-page-${userId}`)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'conversations' }, () => { load(); loadUnread() })
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'conversation_members' }, () => { load(); loadUnread(); loadInvites() })
             .subscribe()
         return () => { supabase.removeChannel(channel) }
-    }, [userId, load, loadUnread])
+    }, [userId, load, loadUnread, loadInvites])
 
     const tabs = useMemo(() => {
         const list: any[] = [{
@@ -404,9 +456,20 @@ function ConversasInner({ ui }: { ui: UiVersion }) {
                             {/* Lista: o título sozinho em cima e os cartões (quadrados) embaixo */}
                             <div className={`${active ? 'hidden md:flex' : 'flex'} flex-col min-h-0 min-w-0`}>
                                 <div className="pb-3 flex-shrink-0">
+                                    <div className="flex items-center justify-between gap-3">
                                     <p className="text-lg font-black" style={{ color: colors.textPrimary }}>
                                         {activeStore ? `Conversas de ${activeStore.name}` : 'Minhas conversas'}
                                     </p>
+                                    {v3 && !activeStore && (
+                                        <button
+                                            onClick={() => setShowNew(true)}
+                                            className="flex items-center gap-1.5 pl-3 pr-3.5 h-9 rounded-full text-xs font-black text-white flex-shrink-0 transition active:scale-95"
+                                            style={{ background: GRADIENT }}
+                                        >
+                                            <Plus size={15} strokeWidth={3} /> Nova conversa
+                                        </button>
+                                    )}
+                                    </div>
                                     {!v3 && (
                                         <p className="text-xs" style={{ color: colors.textSecondary }}>
                                             {activeStore ? 'Só as conversas desta loja' : 'Pessoas que falaram com você e conversas que você começou'}
@@ -414,6 +477,46 @@ function ConversasInner({ ui }: { ui: UiVersion }) {
                                     )}
                                 </div>
                                 <div className={`flex-1 min-h-0 overflow-y-auto flex flex-col ${v3 ? 'gap-0.5' : 'gap-3'}`}>
+                                    {v3 && !activeStore && invites.length > 0 && (
+                                        <div className="mb-2 flex flex-col gap-2">
+                                            <p className="px-1 text-[11px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>Convites ({invites.length})</p>
+                                            {invites.map((inv) => (
+                                                <div key={inv.conversation_id} className="rounded-2xl p-3 flex flex-col gap-2.5" style={{ background: '#8b5cf61a' }}>
+                                                    <div className="flex items-center gap-3">
+                                                        <GroupAvatar size={44} />
+                                                        <div className="min-w-0 flex-1">
+                                                            <p className="text-sm font-black truncate" style={{ color: colors.textPrimary }}>{inv.title}</p>
+                                                            <p className="text-xs truncate" style={{ color: colors.textSecondary }}>
+                                                                {inv.inviter_slug ? `@${inv.inviter_slug}` : inv.inviter_name || 'Alguém'} convidou você · {inv.member_count} {inv.member_count === 1 ? 'pessoa' : 'pessoas'}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex gap-2">
+                                                        <button
+                                                            onClick={async () => {
+                                                                try { await respondGroupInvite(inv.conversation_id, true); await Promise.all([loadInvites(), load(), loadUnread()]); setParams({ sala: 'perfil', c: inv.conversation_id }) }
+                                                                catch (err: any) { toast.error(err.message || 'Não foi possível entrar') }
+                                                            }}
+                                                            className="flex-1 h-10 rounded-full text-xs font-black text-white"
+                                                            style={{ background: GRADIENT }}
+                                                        >
+                                                            Entrar no grupo
+                                                        </button>
+                                                        <button
+                                                            onClick={async () => {
+                                                                try { await respondGroupInvite(inv.conversation_id, false); await loadInvites() }
+                                                                catch (err: any) { toast.error(err.message || 'Não foi possível recusar') }
+                                                            }}
+                                                            className="h-10 px-5 rounded-full text-xs font-black"
+                                                            style={{ background: `${colors.border}50`, color: colors.textPrimary }}
+                                                        >
+                                                            Recusar
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
                                     {rows === null ? (
                                         <div className="flex justify-center py-10"><Spinner size={22} color={colors.accent} /></div>
                                     ) : rows.length === 0 ? (
@@ -439,7 +542,9 @@ function ConversasInner({ ui }: { ui: UiVersion }) {
                                                     className="w-full flex items-center gap-3 text-left rounded-2xl px-2.5 py-2.5 transition active:scale-[0.99]"
                                                     style={{ background: selected ? `${colors.border}40` : unread ? '#16a34a14' : 'transparent' }}
                                                 >
-                                                    <Avatar url={img} name={r.other_name || r.other_slug} isStore={r.other_is_store} userId={r.other_is_store ? undefined : r.other_id} size={52} round />
+                                                    {r.is_group
+                                                        ? <GroupAvatar size={52} />
+                                                        : <Avatar url={img} name={r.other_name || r.other_slug} isStore={r.other_is_store} userId={r.other_is_store ? undefined : r.other_id} size={52} round />}
                                                     <span className="min-w-0 flex-1">
                                                         <span className="flex items-baseline justify-between gap-2">
                                                             <span className="text-[15px] truncate" style={{ color: colors.textPrimary, fontWeight: unread ? 900 : 700 }}>{otherLabel(r)}</span>
@@ -507,6 +612,7 @@ function ConversasInner({ ui }: { ui: UiVersion }) {
                             <div className={`${active ? 'flex' : 'hidden md:flex'} flex-col min-h-0 overflow-hidden`} style={{ height: active ? 'calc(100dvh - 250px)' : undefined, minHeight: 360, ...(v3 ? { background: `${colors.border}18`, borderRadius: 28 } : { background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }) }}>
                                 {active && userId ? (
                                     <Thread key={active.id} conversation={active} userId={userId} colors={colors} modern={v3}
+                                        onOpenInfo={() => setShowInfo(true)} infoVersion={infoVersion}
                                         onBack={() => setParams({ c: null })}
                                         onRead={() => { load(); loadUnread() }} />
                                 ) : (
@@ -520,6 +626,28 @@ function ConversasInner({ ui }: { ui: UiVersion }) {
                     )}
                 </section>
             </main>
+
+            {showNew && userId && (
+                <NewConversationSheet
+                    me={userId}
+                    onClose={() => setShowNew(false)}
+                    onOpenConversation={async (id) => {
+                        setShowNew(false)
+                        await Promise.all([load(), loadUnread()])
+                        setParams({ sala: 'perfil', c: id })
+                    }}
+                />
+            )}
+            {showInfo && active?.is_group && userId && (
+                <GroupInfoSheet
+                    conversationId={active.id}
+                    title={active.other_name || 'Grupo'}
+                    me={userId}
+                    onClose={() => setShowInfo(false)}
+                    onChanged={() => { setInfoVersion((v) => v + 1); load() }}
+                    onLeft={() => { setShowInfo(false); setParams({ c: null }); load(); loadUnread() }}
+                />
+            )}
         </div>
     )
 }
