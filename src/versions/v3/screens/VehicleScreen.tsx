@@ -914,6 +914,8 @@ function LiveMap({ live, kind, colors, soft }: {
                 interactive: false,
                 attributionControl: false,
             })
+            // crédito dos dados do mapa (OpenStreetMap/Mapbox): o ícone "i" compacto, no canto de baixo à direita
+            mapRef.current.addControl(new mapboxgl.AttributionControl({ compact: true }), 'bottom-right')
             markerRef.current = new mapboxgl.Marker({ element: (() => { const el = document.createElement('div'); el.innerHTML = vehicleMarkerHtml(kind, '#ea580c'); return el })() })
                 .setLngLat([live.lng!, live.lat!])
                 .addTo(mapRef.current)
@@ -930,10 +932,10 @@ function LiveMap({ live, kind, colors, soft }: {
             {has ? (
                 <div className="relative mt-3 h-44 rounded-3xl overflow-hidden" style={soft}>
                     <div ref={containerRef} className="w-full h-full" />
-                    {/* situação por cima do mapa (no canto de cima: a marca do Mapbox embaixo precisa continuar à mostra) */}
+                    {/* situação no canto inferior esquerdo do mapa, cobrindo a marca do Mapbox (decisão do produto) */}
                     <span
-                        className="absolute left-2.5 top-2.5 z-10 text-[11px] font-black px-2.5 py-1 rounded-full flex items-center gap-1.5 shadow"
-                        style={{ background: isLive ? '#16a34a' : 'rgba(17,24,39,0.78)', color: '#fff', backdropFilter: 'blur(6px)' }}
+                        className="absolute left-1.5 bottom-1.5 z-10 min-w-[104px] h-[30px] text-[11px] font-black px-3 rounded-full flex items-center justify-center gap-1.5 shadow"
+                        style={{ background: isLive ? '#16a34a' : '#374151', color: '#fff' }}
                     >
                         <span className="w-1.5 h-1.5 rounded-full bg-white" />
                         {isLive ? 'Ao vivo' : ageMin != null && ageMin < 60 ? `há ${ageMin} min` : 'Posição antiga'}
