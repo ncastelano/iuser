@@ -12,7 +12,8 @@ import { ReactNode, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
     Search, ShoppingBag, Store as StoreIcon, Car, Wrench, Megaphone, Briefcase, Users, MessageCircle,
-    ChevronRight, Star, MapPin, Eye, User, LogIn, LogOut, Radar, UserPlus, X, Package, ShoppingCart, Scissors, Check, type LucideIcon,
+    ChevronRight, Star, MapPin, Eye, User, LogIn, LogOut, Radar, UserPlus, X, Package, ShoppingCart, Scissors, Check,
+    UtensilsCrossed, Shirt, Smartphone, Hand, Sparkles, Bike, PawPrint, type LucideIcon,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
@@ -563,13 +564,14 @@ export default function ModeloInicialPage() {
     const [inviteOpen, setInviteOpen] = useState(false)
     const inviteUrl = typeof window !== 'undefined' && profileSlug ? `${window.location.origin}/convite?ref=${profileSlug}` : ''
 
-    type Action = { title: string; desc: string; icon: LucideIcon; color: string; onClick: () => void }
+    // `icons`: quatro ícones (quadrado 2x2) no lugar do ícone único — dão uma ideia do que cabe naquele cartão
+    type Action = { title: string; desc: string; icon: LucideIcon; icons?: LucideIcon[]; color: string; onClick: () => void }
     // Quem PRECISA de algo (o visitante chega por aqui)
     const needs: Action[] = [
-        { title: 'Comprar', desc: 'Lojas e produtos perto de você', icon: ShoppingBag, color: TYPE.loja.color, onClick: () => go('/lojas') },
-        { title: 'Contratar serviço', desc: 'Descreva o que você precisa', icon: Wrench, color: TYPE.servico.color, onClick: () => go('/solicitar-servico') },
-        { title: 'Pedir motorista', desc: 'Corrida rápida, preço combinado', icon: Car, color: '#ea580c', onClick: () => go('/pedir-motorista') },
-        { title: 'Ver ao redor', desc: 'Mapa com lojas, serviços e pessoas', icon: Radar, color: '#0891b2', onClick: () => go('/radar') },
+        { title: 'Comprar', desc: 'Lojas e produtos perto de você', icon: ShoppingBag, icons: [ShoppingBag, UtensilsCrossed, Shirt, Smartphone], color: TYPE.loja.color, onClick: () => go('/lojas') },
+        { title: 'Contratar serviço', desc: 'Descreva o que você precisa', icon: Wrench, icons: [Wrench, Scissors, Hand, Sparkles], color: TYPE.servico.color, onClick: () => go('/solicitar-servico') },
+        { title: 'Pedir motorista', desc: 'Corrida rápida, preço combinado', icon: Car, icons: [Car, Bike, PawPrint, Package], color: '#ea580c', onClick: () => go('/pedir-motorista') },
+        { title: 'Ver ao redor', desc: 'Mapa com lojas, serviços e pessoas', icon: Radar, icons: [Radar, MapPin, StoreIcon, Users], color: '#0891b2', onClick: () => go('/radar') },
     ]
     // Quem QUER GANHAR com o iUser
     const earns: Action[] = [
@@ -615,9 +617,15 @@ export default function ModeloInicialPage() {
                                             className="text-left rounded-3xl p-4 border flex flex-col gap-3 transition-all hover:-translate-y-0.5 hover:shadow-xl active:scale-[0.98]"
                                             style={{ background: colors.surface, borderColor: colors.border, boxShadow: colors.shadow }}
                                         >
-                                            <span className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: `${a.color}1f`, color: a.color }}>
-                                                <Icon size={24} />
-                                            </span>
+                                            {a.icons && a.icons.length === 4 ? (
+                                                <span className="w-14 h-14 rounded-2xl grid grid-cols-2 grid-rows-2 gap-1 p-1.5 place-items-center" style={{ background: `${a.color}1f`, color: a.color }}>
+                                                    {a.icons.map((Ic, i) => <Ic key={i} size={18} />)}
+                                                </span>
+                                            ) : (
+                                                <span className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: `${a.color}1f`, color: a.color }}>
+                                                    <Icon size={24} />
+                                                </span>
+                                            )}
                                             <span>
                                                 <span className="block text-[15px] font-black leading-tight" style={{ color: colors.textPrimary }}>{a.title}</span>
                                                 <span className="block text-xs mt-0.5 leading-snug" style={{ color: colors.textSecondary }}>{a.desc}</span>
