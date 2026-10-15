@@ -73,6 +73,8 @@ export default function VehicleScreen() {
     const [recent, setRecent] = useState<{ at: string; km: number | null; price: number | null }[]>([])
     const [shareOpen, setShareOpen] = useState(false)
     const [zoom, setZoom] = useState(false)
+    const [feeOpen, setFeeOpen] = useState(false)
+    const [comments, setComments] = useState<{ rating: number; comment: string; at: string; who: string }[]>([])
     const touchedTab = useRef(false)
     const [editing, setEditing] = useState(false)
 
@@ -91,6 +93,18 @@ export default function VehicleScreen() {
         setDriverActive(!!(pricing as any)?.driver_mode_active)
         const pr = pricing as any
         setLive({ sync: !!pr?.live_location_sync, lat: pr?.live_lat != null ? Number(pr.live_lat) : null, lng: pr?.live_lng != null ? Number(pr.live_lng) : null, at: pr?.live_updated_at || null })
+        // comentários de quem já andou com o motorista (só os que escreveram algo)
+        supabase.from('ride_reviews').select('rating, comment, created_at, reviewer_id').eq('reviewee_id', v.driver_id).not('comment', 'is', null).order('created_at', { ascending: false }).limit(8).then(async ({ data: rv }) => {
+            const rows = ((rv as any[]) || []).filter((r) => String(r.comment || '').trim().length > 0)
+            if (rows.length === 0) { setComments([]); return }
+            const ids = Array.from(new Set(rows.map((r) => r.reviewer_id as string)))
+            const { data: ps } = await supabase.from('profiles').select('id, profileSlug, name').in('id', ids)
+            const byId = new Map(((ps as any[]) || []).map((x) => [x.id, x]))
+            setComments(rows.slice(0, 5).map((r) => {
+                const pr = byId.get(r.reviewer_id) as any
+                return { rating: Number(r.rating) || 0, comment: String(r.comment).trim(), at: r.created_at, who: pr?.name || (pr?.profileSlug ? `@${pr.profileSlug}` : 'Cliente') }
+            }))
+        })
         supabase.rpc('get_driver_recent_rides', { p_driver: v.driver_id, p_limit: 5 }).then(({ data: rr }) => {
             setRecent(((rr as any[]) || []).map((r) => ({ at: r.rode_at, km: r.distance_km != null ? Number(r.distance_km) : null, price: r.price != null ? Number(r.price) : null })))
         })
@@ -304,45 +318,54 @@ export default function VehicleScreen() {
                 </div>
             </section>
 
-            {/* Números do motorista (esquerda) e o que o carro oferece (direita) */}
+            {/* Números do motorista, compactos */}
+            <section className="mt-2.5 grid grid-cols-3 gap-2">
+                {[
+                    { icon: <Star size={14} className="fill-current" />, value: stats && stats.rating != null ? stats.rating.toFixed(1) : 'Novo', label: stats && stats.ratingCount > 0 ? `${stats.ratingCount} ${stats.ratingCount === 1 ? 'avaliação' : 'avaliações'}` : 'sem avaliações' },
+                    { icon: <Route size={14} />, value: String(stats?.rides ?? 0), label: (stats?.rides ?? 0) === 1 ? 'corrida' : 'corridas' },
+                    { icon: <Calendar size={14} />, value: since || '—', label: 'no iUser desde' },
+                ].map((x, i) => (
+                    <div key={i} className="rounded-2xl px-3 py-2" style={soft}>
+                        <span className="flex items-center gap-1.5 text-sm font-black leading-tight" style={{ color: colors.textPrimary }}>
+                            <span style={{ color: ORANGE }} className="flex-shrink-0">{x.icon}</span>{x.value}
+                        </span>
+                        <span className="block text-[10px] leading-tight mt-0.5" style={{ color: colors.textSecondary }}>{x.label}</span>
+                    </div>
+                ))}
+            </section>
+
+            {/* O carro tem + dados do veículo, num cartão só */}
             {(() => {
                 const svcs = vehicle.services || []
-                const stats3 = (
-                    <>
-                        <Stat
-                            icon={<Star size={18} className="fill-current" />}
-                            value={stats && stats.rating != null ? stats.rating.toFixed(1) : 'Novo'}
-                            label={stats && stats.ratingCount > 0 ? `${stats.ratingCount} ${stats.ratingCount === 1 ? 'avaliação' : 'avaliações'}` : 'Sem avaliações'}
-                        />
-                        <Stat icon={<Route size={18} />} value={String(stats?.rides ?? 0)} label={(stats?.rides ?? 0) === 1 ? 'corrida feita' : 'corridas feitas'} />
-                        <Stat icon={<Calendar size={18} />} value={since || '—'} label="no iUser desde" />
-                    </>
-                )
-                const shareBtn = (
-                    <button onClick={() => setShareOpen(true)} className="h-11 rounded-2xl text-xs font-black flex items-center justify-center gap-2 transition active:scale-[0.98]" style={{ background: `${ORANGE}1a`, color: ORANGE }}>
-                        <Share2 size={15} /> Compartilhar página
-                    </button>
-                )
+                const facts: { icon: React.ReactNode; text: string }[] = []
+                if (vehicle.car_color) facts.push({ icon: <Palette size={13} />, text: vehicle.car_color })
+                if (vehicle.passenger_capacity != null) facts.push({ icon: <Users size={13} />, text: `${vehicle.passenger_capacity} ${vehicle.passenger_capacity === 1 ? 'passageiro' : 'passageiros'}` })
+                if (ownerView && vehicle.car_plate) facts.push({ icon: <Hash size={13} />, text: vehicle.car_plate })
+                if (vehicle.vehicle_kind === 'carro' && vehicle.has_baby_seat) facts.push({ icon: <Baby size={13} />, text: 'Cadeirinha' })
+                if (luggage[0] > 0 || luggage[1] > 0) facts.push({ icon: <Luggage size={13} />, text: `${luggage[0]} bolsas · ${luggage[1]} malas` })
+                if (svcs.length === 0 && facts.length === 0) return null
                 return (
-                    <section className="mt-3 grid grid-cols-[1fr_1fr] gap-2.5">
-                        <div className="flex flex-col gap-2.5">{stats3}</div>
-                        <div className="flex flex-col gap-2.5">
-                            {shareBtn}
-                            {svcs.length > 0 && (
-                                <div className="rounded-2xl p-3" style={soft}>
-                                    <p className="text-[11px] font-black uppercase tracking-wide mb-2" style={{ color: colors.textSecondary }}>O carro tem</p>
-                                    <div className="flex flex-col gap-1.5">
-                                        {svcs.map((sv) => {
-                                            const Icon = DRIVER_SERVICE_OPTIONS.find((o) => o.id === sv)?.icon
-                                            return (
-                                                <span key={sv} className="px-3 py-2 rounded-full text-xs font-bold flex items-center gap-1.5" style={{ background: `${ORANGE}1a`, color: ORANGE }}>
-                                                    {Icon && <Icon size={14} className="flex-shrink-0" />}{driverServiceLabel(sv)}
-                                                </span>
-                                            )
-                                        })}
-                                    </div>
-                                </div>
-                            )}
+                    <section className="mt-2.5 rounded-2xl p-3" style={soft}>
+                        <div className="flex items-center justify-between gap-2">
+                            <p className="text-[11px] font-black uppercase tracking-wide" style={{ color: colors.textSecondary }}>O carro tem</p>
+                            <button onClick={() => setShareOpen(true)} className="h-8 pl-2.5 pr-3 rounded-full text-[11px] font-black flex items-center gap-1.5 transition active:scale-95" style={{ background: `${ORANGE}1a`, color: ORANGE }}>
+                                <Share2 size={13} /> Compartilhar página
+                            </button>
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                            {svcs.map((sv) => {
+                                const Icon = DRIVER_SERVICE_OPTIONS.find((o) => o.id === sv)?.icon
+                                return (
+                                    <span key={sv} className="px-2.5 py-1 rounded-full text-[11px] font-bold flex items-center gap-1" style={{ background: `${ORANGE}1a`, color: ORANGE }}>
+                                        {Icon && <Icon size={12} className="flex-shrink-0" />}{driverServiceLabel(sv)}
+                                    </span>
+                                )
+                            })}
+                            {facts.map((f, i) => (
+                                <span key={i} className="px-2.5 py-1 rounded-full text-[11px] font-bold flex items-center gap-1" style={{ background: `${colors.border}55`, color: colors.textPrimary }}>
+                                    <span className="flex-shrink-0" style={{ color: colors.textSecondary }}>{f.icon}</span>{f.text}
+                                </span>
+                            ))}
                         </div>
                     </section>
                 )
@@ -370,80 +393,55 @@ export default function VehicleScreen() {
                 </section>
             )}
 
-            {/* Quanto custa */}
-            <section className="mt-6">
-                <div className="flex items-baseline justify-between gap-2">
-                    <h2 className="text-lg font-black" style={{ color: colors.textPrimary }}>Quanto custa a corrida</h2>
-                    <span className="text-[11px] font-bold" style={{ color: colors.textSecondary }}>
-                        {pricingRow?.pricing_mode === 'custom' ? 'Tarifa do motorista' : 'Tarifa iUser'}
-                    </span>
-                </div>
-                {!pricing ? (
-                    <div className="mt-3 flex justify-center py-6"><Spinner size={20} color={colors.accent} /></div>
-                ) : (
-                    <>
-                        <p className="text-sm mt-1" style={{ color: colors.textSecondary }}>
-                            A partir de <b style={{ color: colors.textPrimary }}>{brl(pricing.baseFee)}</b> até {pricing.baseDistanceKm} km
-                            {pricing.pricePerKmAfterBase > 0 && <>, depois <b style={{ color: colors.textPrimary }}>{brl(pricing.pricePerKmAfterBase)}</b> por km</>}.
-                        </p>
-                        <div className="mt-3 grid grid-cols-4 gap-2">
-                            {examples.map((e) => (
-                                <div key={e.km} className="rounded-2xl py-2.5 text-center" style={soft}>
-                                    <span className="block text-sm font-black" style={{ color: colors.textPrimary }}>{brl(Math.round(e.price * 100) / 100)}</span>
-                                    <span className="block text-[11px]" style={{ color: colors.textSecondary }}>{e.km} km</span>
-                                </div>
-                            ))}
-                        </div>
-                        {(pricing.extraFees.animal > 0 || pricing.extraFees.objeto > 0) && (
-                            <p className="text-xs mt-2.5" style={{ color: colors.textSecondary }}>
-                                Extras: {[
-                                    pricing.extraFees.animal > 0 ? `animal +${brl(pricing.extraFees.animal)}` : null,
-                                    pricing.extraFees.objeto > 0 ? `objeto +${brl(pricing.extraFees.objeto)}` : null,
-                                ].filter(Boolean).join(' · ')}. Valores de referência: o preço final é combinado no pedido.
-                            </p>
-                        )}
-                    </>
-                )}
-            </section>
+            {/* Quanto custa: uma linha; o detalhe vem numa mensagem */}
+            <button onClick={() => setFeeOpen(true)} className="mt-2.5 w-full rounded-2xl px-3.5 py-3 flex items-center gap-3 text-left transition active:scale-[0.99]" style={soft}>
+                <span className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#16a34a1f', color: '#16a34a' }}><Wallet size={17} /></span>
+                <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-black leading-tight" style={{ color: colors.textPrimary }}>Quanto custa a corrida</span>
+                    <span className="block text-[11px]" style={{ color: colors.textSecondary }}>{pricing ? `a partir de ${brl(pricing.baseFee)}` : 'ver a tarifa'}</span>
+                </span>
+                <span className="text-xs font-black flex-shrink-0 flex items-center gap-0.5" style={{ color: ORANGE }}>Ver como é cobrado <ChevronRight size={14} /></span>
+            </button>
 
-            {/* Corridas recentes (sem endereço nem nome de quem pediu) */}
-            {recent.length > 0 && (
-                <section className="mt-6">
-                    <h2 className="text-lg font-black" style={{ color: colors.textPrimary }}>Corridas recentes</h2>
-                    <div className="mt-3 flex flex-col gap-2">
-                        {recent.map((r, i) => (
-                            <div key={i} className="rounded-2xl px-3.5 py-2.5 flex items-center gap-3" style={soft}>
-                                <span className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#16a34a1f', color: '#16a34a' }}><CheckCircle2 size={17} /></span>
-                                <span className="min-w-0 flex-1">
-                                    <span className="block text-sm font-black" style={{ color: colors.textPrimary }}>
-                                        {new Date(r.at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' })}
+            {/* Comentários de quem já andou (só aparece se houver) */}
+            {comments.length > 0 && (
+                <section className="mt-4">
+                    <h2 className="text-sm font-black" style={{ color: colors.textPrimary }}>O que dizem</h2>
+                    <div className="mt-2 flex flex-col gap-2">
+                        {comments.map((c, i) => (
+                            <div key={i} className="rounded-2xl px-3.5 py-2.5" style={soft}>
+                                <div className="flex items-center justify-between gap-2">
+                                    <span className="text-xs font-black truncate" style={{ color: colors.textPrimary }}>{c.who}</span>
+                                    <span className="text-[11px] font-black flex items-center gap-0.5 flex-shrink-0" style={{ color: '#ca8a04' }}>
+                                        <Star size={11} className="fill-current" /> {c.rating}
                                     </span>
-                                    <span className="block text-[11px]" style={{ color: colors.textSecondary }}>
-                                        Corrida concluída{r.km != null ? ` · ${r.km.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} km` : ''}
-                                    </span>
-                                </span>
-                                {r.price != null && <span className="text-sm font-black flex-shrink-0" style={{ color: colors.textPrimary }}>{brl(r.price)}</span>}
+                                </div>
+                                <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>“{c.comment}”</p>
                             </div>
                         ))}
                     </div>
                 </section>
             )}
 
-            {/* O veículo */}
-            <section className="mt-6">
-                <h2 className="text-lg font-black" style={{ color: colors.textPrimary }}>O veículo</h2>
-                <div className="mt-3 grid grid-cols-2 gap-2.5">
-                    {vehicle.car_color && <Fact icon={<Palette size={17} />} label="Cor" value={vehicle.car_color} />}
-                    {ownerView && vehicle.car_plate && <Fact icon={<Hash size={17} />} label="Placa" value={vehicle.car_plate} />}
-                    {vehicle.passenger_capacity != null && <Fact icon={<Users size={17} />} label="Passageiros" value={String(vehicle.passenger_capacity)} />}
-                    {vehicle.vehicle_kind === 'carro' && <Fact icon={<Baby size={17} />} label="Cadeirinha" value={vehicle.has_baby_seat ? 'Tem' : 'Não tem'} />}
-                    {(luggage[0] > 0 || luggage[1] > 0) && <Fact icon={<Luggage size={17} />} label="Porta-malas" value={`${luggage[0]} bolsas · ${luggage[1]} malas`} />}
-                </div>
-            </section>
+            {/* Corridas recentes: só data e distância (sem endereço, nome nem valor) */}
+            {recent.length > 0 && (
+                <section className="mt-4">
+                    <h2 className="text-sm font-black" style={{ color: colors.textPrimary }}>Corridas recentes</h2>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                        {recent.slice(0, 4).map((r, i) => (
+                            <span key={i} className="px-2.5 py-1.5 rounded-full text-[11px] font-bold flex items-center gap-1.5" style={{ ...soft, color: colors.textPrimary }}>
+                                <CheckCircle2 size={12} style={{ color: '#16a34a' }} className="flex-shrink-0" />
+                                {new Date(r.at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).replace('.', '')}
+                                {r.km != null ? ` · ${r.km.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} km` : ''}
+                            </span>
+                        ))}
+                    </div>
+                </section>
+            )}
 
             {/* Loja do motorista */}
             {stats?.store && (
-                <button onClick={() => router.push(`/${stats.store!.slug}`)} className="mt-6 w-full rounded-2xl p-3 flex items-center gap-3 text-left transition active:scale-[0.99]" style={soft}>
+                <button onClick={() => router.push(`/${stats.store!.slug}`)} className="mt-4 w-full rounded-2xl p-2.5 flex items-center gap-3 text-left transition active:scale-[0.99]" style={soft}>
                     <span className="w-12 h-12 rounded-2xl overflow-hidden flex items-center justify-center flex-shrink-0 text-white" style={{ background: GRADIENT }}>
                         {stats.store.logo ? <img src={stats.store.logo} alt="" className="w-full h-full object-cover" /> : <StoreIcon size={22} />}
                     </span>
@@ -480,6 +478,48 @@ export default function VehicleScreen() {
             />
 
             </>)}
+
+            {feeOpen && (
+                <div className="fixed inset-0 z-[90] flex items-end md:items-center justify-center" role="dialog" aria-modal="true" aria-label="Como é cobrado">
+                    <button aria-label="Fechar" onClick={() => setFeeOpen(false)} className="absolute inset-0 bg-black/45" />
+                    <div className="relative w-full md:max-w-md rounded-t-[28px] md:rounded-[28px] px-5 pt-5 pb-6" style={{ background: colors.background, boxShadow: '0 -12px 40px rgba(0,0,0,0.25)' }}>
+                        <div className="flex items-center gap-2">
+                            <h2 className="flex-1 text-lg font-black" style={{ color: colors.textPrimary }}>Como é cobrado</h2>
+                            <button onClick={() => setFeeOpen(false)} aria-label="Fechar" className="w-9 h-9 rounded-full flex items-center justify-center" style={{ background: `${colors.border}40`, color: colors.textPrimary }}><X size={18} /></button>
+                        </div>
+                        {pricing ? (
+                            <div className="mt-3 flex flex-col gap-3">
+                                <p className="text-sm" style={{ color: colors.textPrimary }}>
+                                    {pricingRow?.pricing_mode === 'custom' ? 'O motorista usa a própria tarifa.' : 'A corrida segue a Tarifa iUser.'}{' '}
+                                    O valor é <b>{brl(pricing.baseFee)}</b> até <b>{pricing.baseDistanceKm} km</b>
+                                    {pricing.pricePerKmAfterBase > 0 && <>, e depois <b>{brl(pricing.pricePerKmAfterBase)}</b> a cada km</>}.
+                                </p>
+                                <div className="grid grid-cols-4 gap-2">
+                                    {examples.map((e) => (
+                                        <div key={e.km} className="rounded-2xl py-2 text-center" style={soft}>
+                                            <span className="block text-sm font-black" style={{ color: colors.textPrimary }}>{brl(Math.round(e.price * 100) / 100)}</span>
+                                            <span className="block text-[11px]" style={{ color: colors.textSecondary }}>{e.km} km</span>
+                                        </div>
+                                    ))}
+                                </div>
+                                {(pricing.extraFees.animal > 0 || pricing.extraFees.objeto > 0) && (
+                                    <p className="text-xs" style={{ color: colors.textSecondary }}>
+                                        Extras: {[
+                                            pricing.extraFees.animal > 0 ? `animal +${brl(pricing.extraFees.animal)}` : null,
+                                            pricing.extraFees.objeto > 0 ? `objeto +${brl(pricing.extraFees.objeto)}` : null,
+                                        ].filter(Boolean).join(' · ')}.
+                                    </p>
+                                )}
+                                <p className="text-xs" style={{ color: colors.textSecondary }}>
+                                    São valores de referência. O preço final é combinado no pedido: você vê as propostas e escolhe quem aceitar.
+                                </p>
+                            </div>
+                        ) : (
+                            <div className="flex justify-center py-6"><Spinner size={20} color={colors.accent} /></div>
+                        )}
+                    </div>
+                </div>
+            )}
 
             {zoom && photo && (
                 <div className="fixed inset-0 z-[95] flex items-center justify-center p-3" role="dialog" aria-modal="true" aria-label="Foto do veículo">
