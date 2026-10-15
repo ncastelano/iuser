@@ -152,7 +152,7 @@ function MenuDrawerContent({ slug, avatarUrl, data, active, recent, onSelect, on
     )
 
     return (
-        <div className="h-full w-full flex flex-col px-4 pb-8 overflow-y-auto" style={{ paddingTop: 'calc(66px + env(safe-area-inset-top) + 8px)' }}>
+        <div className="h-full w-full flex flex-col px-4 pb-8 overflow-y-auto" style={{ paddingTop: 'calc(74px + env(safe-area-inset-top) + 8px)' }}>
             {/* Só o fechar: a foto e o @ aparecem uma vez só, no cartão "Meu perfil" logo abaixo */}
             <div className="flex justify-end">
                 <button onClick={onClose} aria-label="Fechar menu" className="w-9 h-9 rounded-full flex items-center justify-center text-white hover:bg-white/15 flex-shrink-0">
@@ -286,7 +286,7 @@ function DrawerVersionSwitch({ onSwitch }: { onSwitch: () => Promise<void> }) {
 // Menu de quem não tem conta: o "modo" é o de visitante (já selecionado), mais entrar/criar conta e o Explorar
 function VisitorDrawerContent({ recent, onGo, onClose, onSwitchVersion }: { recent: RecentClickItem[]; onGo: (path: string) => void; onClose: () => void; onSwitchVersion: () => Promise<void> }) {
     return (
-        <div className="h-full w-full flex flex-col px-4 pb-8 overflow-y-auto" style={{ paddingTop: 'calc(66px + env(safe-area-inset-top) + 8px)' }}>
+        <div className="h-full w-full flex flex-col px-4 pb-8 overflow-y-auto" style={{ paddingTop: 'calc(74px + env(safe-area-inset-top) + 8px)' }}>
             <div className="flex justify-end">
                 <button onClick={onClose} aria-label="Fechar menu" className="w-9 h-9 rounded-full flex items-center justify-center text-white hover:bg-white/15 flex-shrink-0">
                     <X size={20} />
@@ -334,7 +334,7 @@ const LOGO_RING = { border: '2px solid #fff', background: '#fff', boxShadow: '0 
 // Distância do ícone da direita até a borda da tela (px-4 da barra + a sobra quando a página é mais larga que 5xl)
 const EDGE_GAP = 'calc(16px + max(0px, (100vw - 1024px) / 2))'
 // Altura da aba (ícone selecionado): do alto da barra até o pé dela, onde encontra o cartão do app
-const TAB_H = 58
+const TAB_H = 66
 const FILLET = 12
 // Ícone da barra do topo. A aba clara (selecionado) é UM indicador só, que desliza entre os três (`indicator`, dentro da barra)
 function NavTab({ selected, selectedColor, colorDelay = 0, label, onClick, badge = 0, badgeColor = '#ef4444', pulse = false, toEdge = false, btnRef, children }: {
@@ -586,7 +586,7 @@ export default function ModeShell({ children, search }: {
     const DRAWER_W = 'min(78vw, 300px)'
     // Altura da barra do topo: o cartão do app (tudo que está abaixo dela) começa nela, e a barra fica de fora do cartão.
     // Fica em CIMA (e não embaixo) pra o teclado não cobrir a barra quando a busca está aberta.
-    const NAV_H = 'calc(66px + env(safe-area-inset-top))'
+    const NAV_H = 'calc(74px + env(safe-area-inset-top))'
     // Qual ícone da barra é o da página atual (o "selecionado")
     // (a 3.0 serve /carrinho por /v3/carrinho e a home por /modeloinicial; o endereço visível é o canônico)
     const shellPath = (pathname || '').replace(/^\/v3(?=\/|$)/, '') || '/'
