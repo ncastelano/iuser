@@ -4,10 +4,8 @@
 // e à direita se está aberta ou fechada; embaixo, a foto do dono ao lado do nome. Usado na home e em /lojas.
 'use client'
 
-import { Star, Store as StoreIcon } from 'lucide-react'
+import { Clock, Star, Store as StoreIcon, Tag, Truck } from 'lucide-react'
 import { resolveCategoria } from '@/lib/categorias'
-
-const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
 export interface StoreCardItem {
     id: string
@@ -15,20 +13,23 @@ export interface StoreCardItem {
     slug: string
     logo: string | null
     category: string | null
+    /** Só existe quando a loja já foi avaliada */
     rating: number | null
+    ratingsCount?: number
     open: boolean
-    /** Dono da loja (aparece ao lado do nome) */
-    ownerSlug: string | null
-    ownerAvatar: string | null
+    /** "Entrega R$ 10", "Entrega grátis", "Só retirada"... (vazio = não informa) */
+    delivery?: string | null
+    /** Menor e maior tempo ("20–35 min"; "~" quando é estimativa) */
+    time?: string | null
+    /** Menor e maior preço dos itens ("R$ 7 – R$ 20") */
+    price?: string | null
 }
 
-export default function StoreImageCard({ s, onClick, fluid = false, meta }: {
+export default function StoreImageCard({ s, onClick, fluid = false }: {
     s: StoreCardItem
     onClick: () => void
     /** Ocupa a coluna inteira (grade) em vez da largura fixa de carrossel */
     fluid?: boolean
-    /** Texto curto no lugar da nota (ex.: "94 visitas", "12 pedidos") */
-    meta?: string | null
 }) {
     const cat = resolveCategoria(s.category)
     const catLabel = cat?.nome || s.category
@@ -36,7 +37,7 @@ export default function StoreImageCard({ s, onClick, fluid = false, meta }: {
     return (
         <button
             onClick={onClick}
-            className={`${fluid ? 'w-full h-[236px]' : 'snap-start flex-shrink-0 w-[208px] sm:w-[232px] h-[268px]'} relative text-left rounded-3xl overflow-hidden transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl active:scale-[0.98]`}
+            className={`${fluid ? 'w-full h-[270px]' : 'snap-start flex-shrink-0 w-[208px] sm:w-[232px] h-[280px]'} relative text-left rounded-3xl overflow-hidden transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl active:scale-[0.98]`}
             style={{ background: `linear-gradient(135deg, ${catColor}, ${catColor}99)` }}
         >
             {s.logo ? (
@@ -58,25 +59,24 @@ export default function StoreImageCard({ s, onClick, fluid = false, meta }: {
                 </span>
             </span>
 
-            <span className="absolute left-3 right-3 bottom-3 flex items-center gap-2.5">
-                {s.ownerAvatar ? (
-                    <img src={s.ownerAvatar} alt="" className="w-9 h-9 rounded-full object-cover flex-shrink-0" style={{ border: '2px solid #fff' }} loading="lazy" />
-                ) : (
-                    <span className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 text-white text-sm font-black" style={{ background: GRADIENT, border: '2px solid #fff' }}>
-                        {(s.ownerSlug || s.name).charAt(0).toUpperCase()}
+            <span className="absolute left-3 right-3 bottom-3 flex flex-col gap-1.5">
+                <span className="flex items-start justify-between gap-2">
+                    <span className="text-sm font-black leading-tight text-white line-clamp-2">{s.name}</span>
+                    {s.rating != null && (
+                        <span className="flex items-center gap-0.5 flex-shrink-0 text-[11px] font-black text-white">
+                            <Star size={11} className="text-yellow-400 fill-yellow-400" />{s.rating.toFixed(1)}
+                        </span>
+                    )}
+                </span>
+                {s.price && (
+                    <span className="flex items-center gap-1 text-[11px] font-bold text-white/90"><Tag size={11} className="flex-shrink-0" /><span className="truncate">{s.price}</span></span>
+                )}
+                {(s.delivery || s.time) && (
+                    <span className="flex items-center gap-x-2.5 gap-y-0.5 flex-wrap text-[11px] font-bold text-white/90">
+                        {s.delivery && <span className="flex items-center gap-1"><Truck size={11} className="flex-shrink-0" />{s.delivery}</span>}
+                        {s.time && <span className="flex items-center gap-1"><Clock size={11} className="flex-shrink-0" />{s.time}</span>}
                     </span>
                 )}
-                <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-black leading-tight truncate text-white">{s.name}</span>
-                    <span className="flex items-center gap-1.5 text-[11px] text-white/85 truncate">
-                        {s.ownerSlug && <span className="truncate">@{s.ownerSlug}</span>}
-                        {meta ? (
-                            <span className="flex-shrink-0">· {meta}</span>
-                        ) : s.rating != null ? (
-                            <span className="flex items-center gap-0.5 flex-shrink-0"><Star size={10} className="text-yellow-400 fill-yellow-400" />{s.rating.toFixed(1)}</span>
-                        ) : null}
-                    </span>
-                </span>
             </span>
         </button>
     )

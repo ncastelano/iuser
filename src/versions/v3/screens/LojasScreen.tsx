@@ -8,21 +8,18 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Check, ChevronDown, Clock, Eye, LayoutGrid, Plus, Scissors, Search, ShoppingBag, Star, X } from 'lucide-react'
-import { formatDistanceToNow } from 'date-fns'
-import { ptBR } from 'date-fns/locale'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { categorias, resolveCategoria } from '@/lib/categorias'
-import { getAvatarUrl } from '@/lib/avatar'
-import { isStoreOpenNow, type BusinessHours } from '@/lib/storeHours'
-import StoreImageCard, { type StoreCardItem } from '@/components/StoreImageCard'
+import StoreImageCard from '@/components/StoreImageCard'
+import { fetchStoreCards, type StoreCardData } from '@/lib/storeCards'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 const PAGE = 24
 
 type Sort = 'vistos' | 'comprados' | 'recentes' | 'avaliadas'
-interface Item extends StoreCardItem { views: number; orders: number; ratingsCount: number; createdAt: string; categorySlug: string | null }
+type Item = StoreCardData
 
 const SORTS: { id: Sort; label: string; short: string; icon: typeof Eye }[] = [
     { id: 'vistos', label: 'Mais vistas', short: 'Vistas', icon: Eye },
@@ -37,8 +34,8 @@ const catName = (slug: string) => (slug === 'transporte' ? 'Frete' : catList.fin
 export default function LojasScreen() {
     const router = useRouter()
     const { colors } = useTheme()
-    const { userId } = useProfile()
-    const [items, setItems] = useState<Item[] | null>(null)
+    const { userId, loading: profileLoading } = useProfile()
+    const [items, setItems] = useState<StoreCardData[] | null>(null)
     const [query, setQuery] = useState('')
     const [category, setCategory] = useState<string>('todas')
     const [sort, setSort] = useState<Sort>('vistos')
@@ -65,43 +62,28 @@ export default function LojasScreen() {
         } catch { /* ignora */ }
     }
 
+    // Onde a pessoa está (endereço salvo no perfil): serve pro valor da entrega e o tempo estimado de cada loja
+    const [me, setMe] = useState<{ lat: number; lng: number } | null>(null)
+    const [meLoaded, setMeLoaded] = useState(false)
     useEffect(() => {
+        if (profileLoading) return
+        if (!userId) { setMeLoaded(true); return }
         let cancelled = false
-        ;(async () => {
-            const { data } = await supabase
-                .from('stores')
-                .select('id, name, "storeSlug", logo_url, category, ratings_avg, ratings_count, view_count, business_hours, created_at, owner_id')
-                .eq('is_active', true)
-                .limit(400)
-            const rows = (data || []) as any[]
-            const ownerIds = Array.from(new Set(rows.map((r) => r.owner_id).filter(Boolean)))
-            const [{ data: owners }, { data: counts }] = await Promise.all([
-                ownerIds.length ? supabase.from('profiles').select('id, "profileSlug", avatar_url').in('id', ownerIds) : Promise.resolve({ data: [] as any[] }),
-                supabase.rpc('get_store_order_counts'),
-            ])
-            const ownerById = new Map((owners || []).map((o: any) => [o.id, o]))
-            const ordersById = new Map(((counts as { store_id: string; orders_count: number }[]) || []).map((c) => [c.store_id, Number(c.orders_count) || 0]))
-            const list: Item[] = rows.map((s) => {
-                const o = ownerById.get(s.owner_id) as any
-                const logo = s.logo_url ? (s.logo_url.startsWith('http') ? s.logo_url : supabase.storage.from('store-logos').getPublicUrl(s.logo_url).data.publicUrl) : null
-                return {
-                    id: s.id, name: s.name, slug: s.storeSlug, logo,
-                    category: s.category || null,
-                    categorySlug: resolveCategoria(s.category)?.slug || null,
-                    rating: s.ratings_avg ? Number(s.ratings_avg) : null,
-                    ratingsCount: Number(s.ratings_count) || 0,
-                    open: isStoreOpenNow(s.business_hours as BusinessHours | null),
-                    ownerSlug: o?.profileSlug || null,
-                    ownerAvatar: getAvatarUrl(supabase, o?.avatar_url) || null,
-                    views: Number(s.view_count) || 0,
-                    orders: ordersById.get(s.id) || 0,
-                    createdAt: s.created_at,
-                }
-            })
-            if (!cancelled) setItems(list)
-        })().catch(() => { if (!cancelled) setItems([]) })
+        supabase.from('profiles').select('store_lat, store_lng').eq('id', userId).maybeSingle().then(({ data }) => {
+            if (cancelled) return
+            const d = data as { store_lat: number | null; store_lng: number | null } | null
+            if (d?.store_lat != null && d?.store_lng != null) setMe({ lat: Number(d.store_lat), lng: Number(d.store_lng) })
+            setMeLoaded(true)
+        })
         return () => { cancelled = true }
-    }, [])
+    }, [userId, profileLoading])
+
+    useEffect(() => {
+        if (!meLoaded) return
+        let cancelled = false
+        fetchStoreCards({ me }).then((list) => { if (!cancelled) setItems(list) }).catch(() => { if (!cancelled) setItems([]) })
+        return () => { cancelled = true }
+    }, [meLoaded, me])
 
     // quantas lojas cada categoria tem: as com loja vêm primeiro no seletor
     const countBySlug = useMemo(() => {
@@ -120,7 +102,7 @@ export default function LojasScreen() {
             if (category !== 'todas' && s.categorySlug !== category) return false
             if (onlyOpen && !s.open) return false
             if (q) {
-                const hay = `${s.name} ${s.ownerSlug || ''} ${resolveCategoria(s.category)?.nome || s.category || ''}`.toLowerCase()
+                const hay = `${s.name} ${resolveCategoria(s.category)?.nome || s.category || ''}`.toLowerCase()
                 if (!hay.includes(q)) return false
             }
             return true
@@ -135,13 +117,6 @@ export default function LojasScreen() {
         list = [...list].sort(sorters[sort])
         return list
     }, [items, query, category, onlyOpen, sort])
-
-    const metaOf = (s: Item): string | null => {
-        if (sort === 'vistos') return `${s.views} ${s.views === 1 ? 'visita' : 'visitas'}`
-        if (sort === 'comprados') return `${s.orders} ${s.orders === 1 ? 'pedido' : 'pedidos'}`
-        if (sort === 'recentes') return formatDistanceToNow(new Date(s.createdAt), { addSuffix: true, locale: ptBR })
-        return null
-    }
 
     const createHere = () => {
         const target = `/criar-loja${category !== 'todas' ? `?categoria=${category}` : ''}`
@@ -170,7 +145,7 @@ export default function LojasScreen() {
                 <input
                     value={query}
                     onChange={(e) => { setQuery(e.target.value); setLimit(PAGE) }}
-                    placeholder="Buscar loja, dono ou categoria"
+                    placeholder="Buscar loja ou categoria"
                     className="flex-1 min-w-0 bg-transparent text-sm focus:outline-none"
                     style={{ color: colors.textPrimary }}
                 />
@@ -278,7 +253,7 @@ export default function LojasScreen() {
             <div className="mt-4">
                 {items === null ? (
                     <div className="grid grid-cols-2 gap-3">
-                        {[0, 1, 2, 3].map((i) => <div key={i} className="h-[236px] rounded-3xl animate-pulse" style={{ background: `${colors.border}40` }} />)}
+                        {[0, 1, 2, 3].map((i) => <div key={i} className="h-[270px] rounded-3xl animate-pulse" style={{ background: `${colors.border}40` }} />)}
                     </div>
                 ) : filtered.length === 0 ? (
                     <div className="rounded-3xl p-8 text-center flex flex-col items-center gap-2" style={{ background: `${colors.border}30` }}>
@@ -309,7 +284,7 @@ export default function LojasScreen() {
                     <>
                         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                             {filtered.slice(0, limit).map((s) => (
-                                <StoreImageCard key={s.id} s={s} fluid meta={metaOf(s)} onClick={() => router.push(`/${s.slug}`)} />
+                                <StoreImageCard key={s.id} s={s} fluid onClick={() => router.push(`/${s.slug}`)} />
                             ))}
                         </div>
                         {filtered.length > limit && (

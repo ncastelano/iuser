@@ -20,6 +20,7 @@ import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { categorias, resolveCategoria } from '@/lib/categorias'
 import StoreImageCard, { type StoreCardItem } from '@/components/StoreImageCard'
+import { fetchStoreCards } from '@/lib/storeCards'
 import { isStoreOpenNow, type BusinessHours } from '@/lib/storeHours'
 import { getAvatarUrl } from '@/lib/avatar'
 import { loadProductCards, type ProductCard } from '../../inicio/sections/ProductShowcase'
@@ -354,28 +355,9 @@ export default function ModeloInicialPage() {
         const safe = <T,>(fn: () => Promise<T>, set: (v: T) => void, empty: T) =>
             fn().then((v) => { if (!cancelled) set(v) }).catch(() => { if (!cancelled) set(empty) })
 
+        // As abertas agora vão sempre na frente; dentro de cada grupo, das mais novas para as mais antigas
         safe(async () => {
-            const { data } = await supabase
-                .from('stores')
-                .select('id, name, "storeSlug", logo_url, category, ratings_avg, business_hours, created_at, owner_id')
-                .eq('is_active', true)
-                .order('created_at', { ascending: false })
-                .limit(40)
-            const ownerIds = Array.from(new Set((data || []).map((s: any) => s.owner_id).filter(Boolean)))
-            const { data: owners } = ownerIds.length
-                ? await supabase.from('profiles').select('id, "profileSlug", avatar_url').in('id', ownerIds)
-                : { data: [] as any[] }
-            const ownerById = new Map((owners || []).map((o: any) => [o.id, o]))
-            // As abertas agora vão sempre na frente; dentro de cada grupo, das mais novas para as mais antigas
-            const all = (data || []).map((s: any) => ({
-                id: s.id, name: s.name, slug: s.storeSlug,
-                logo: toPublicImage('store-logos', s.logo_url),
-                category: s.category || null,
-                rating: s.ratings_avg ? Number(s.ratings_avg) : null,
-                open: isStoreOpenNow(s.business_hours as BusinessHours | null),
-                ownerSlug: (ownerById.get(s.owner_id) as any)?.profileSlug || null,
-                ownerAvatar: getAvatarUrl(supabase, (ownerById.get(s.owner_id) as any)?.avatar_url) || null,
-            })) as StoreItem[]
+            const all = (await fetchStoreCards({ limit: 60 })).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
             return [...all.filter((x) => x.open), ...all.filter((x) => !x.open)].slice(0, 10)
         }, setStores, [])
 
