@@ -926,17 +926,19 @@ function LiveMap({ live, kind, colors, soft }: {
 
     return (
         <section className="mt-6">
-            <div className="flex items-center justify-between gap-2">
-                <h2 className="text-lg font-black" style={{ color: colors.textPrimary }}>Onde está agora</h2>
-                {has && (
-                    <span className="text-[11px] font-black px-2.5 py-1 rounded-full flex items-center gap-1.5" style={{ background: isLive ? '#16a34a1f' : '#6b72801f', color: isLive ? '#16a34a' : '#6b7280' }}>
-                        <span className="w-1.5 h-1.5 rounded-full" style={{ background: isLive ? '#16a34a' : '#6b7280' }} />
+            <h2 className="text-lg font-black" style={{ color: colors.textPrimary }}>Onde está agora</h2>
+            {has ? (
+                <div className="relative mt-3 h-44 rounded-3xl overflow-hidden" style={soft}>
+                    <div ref={containerRef} className="w-full h-full" />
+                    {/* situação por cima do mapa (no canto de cima: a marca do Mapbox embaixo precisa continuar à mostra) */}
+                    <span
+                        className="absolute left-2.5 top-2.5 z-10 text-[11px] font-black px-2.5 py-1 rounded-full flex items-center gap-1.5 shadow"
+                        style={{ background: isLive ? '#16a34a' : 'rgba(17,24,39,0.78)', color: '#fff', backdropFilter: 'blur(6px)' }}
+                    >
+                        <span className="w-1.5 h-1.5 rounded-full bg-white" />
                         {isLive ? 'Ao vivo' : ageMin != null && ageMin < 60 ? `há ${ageMin} min` : 'Posição antiga'}
                     </span>
-                )}
-            </div>
-            {has ? (
-                <div ref={containerRef} className="mt-3 h-44 rounded-3xl overflow-hidden" style={soft} />
+                </div>
             ) : (
                 <div className="mt-3 rounded-2xl p-4 flex items-center gap-3" style={soft}>
                     <span className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${ORANGE}1f`, color: ORANGE }}><MapPin size={18} /></span>
