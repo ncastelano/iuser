@@ -337,9 +337,11 @@ const EDGE_GAP = 'calc(16px + max(0px, (100vw - 1024px) / 2))'
 const TAB_H = 58
 const FILLET = 12
 // Ícone da barra do topo. A aba clara (selecionado) é UM indicador só, que desliza entre os três (`indicator`, dentro da barra)
-function NavTab({ selected, selectedColor, label, onClick, badge = 0, badgeColor = '#ef4444', pulse = false, toEdge = false, btnRef, children }: {
+function NavTab({ selected, selectedColor, colorDelay = 0, label, onClick, badge = 0, badgeColor = '#ef4444', pulse = false, toEdge = false, btnRef, children }: {
     /** Cor do ícone quando selecionado (fica sobre a aba clara: precisa ser escura) */
     selectedColor: string
+    /** Espera (ms) antes de trocar a cor: o ícone só escurece quando a aba clara já chegou nele */
+    colorDelay?: number
     btnRef?: React.Ref<HTMLButtonElement>
     /** Aba do canto direito: estica até a borda da tela pra aba clara se fundir ao canto do cartão */
     toEdge?: boolean
@@ -357,8 +359,13 @@ function NavTab({ selected, selectedColor, label, onClick, badge = 0, badgeColor
                 paddingRight: toEdge ? EDGE_GAP : undefined,
                 marginRight: toEdge ? `calc(-1 * ${EDGE_GAP})` : undefined,
                 height: '100%', paddingBottom: 8,
-                // troca na hora (sem transição): o ícone branco nunca fica sobre a aba clara que está chegando
+                // A cor só troca quando a aba clara já está em volta do ícone (e volta a branco depois que ela saiu)
                 color: selected ? selectedColor : '#fff',
+                transitionProperty: 'color',
+                transitionDuration: '0ms',
+                transitionTimingFunction: 'linear',
+                // chegando: espera a aba envolver o ícone; saindo: volta a branco assim que a aba se afasta
+                transitionDelay: `${selected ? colorDelay : Math.min(colorDelay, TAB_LEAVE_DELAY)}ms`,
             }}
         >
             {children}
@@ -373,6 +380,9 @@ function NavTab({ selected, selectedColor, label, onClick, badge = 0, badgeColor
 
 // Largura de cada ícone da barra (px)
 const TAB_W = 48
+// Tempo (ms) até a aba clara estar em volta do ícone: só então o ícone/texto troca de cor
+const TAB_COLOR_DELAY = 200
+const TAB_LEAVE_DELAY = 50
 // Raio dos cantos côncavos da barra do topo (px)
 const CORNER = 24
 const MENU_GRADIENT = 'linear-gradient(160deg, #f97316 0%, #dc2626 100%)'
@@ -814,15 +824,15 @@ export default function ModeShell({ children, search }: {
                             aria-expanded={drawerOpen}
                             className="relative min-w-0 flex-1 text-left rounded-xl py-1 transition active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]"
                         >
-                            <span className="block text-xs truncate" style={{ color: leftTabOn ? colors.textSecondary : 'rgba(255,255,255,0.85)', }}>{headerView.line1}</span>
+                            <span className="block text-xs truncate" style={{ color: leftTabOn ? colors.textSecondary : 'rgba(255,255,255,0.85)', transition: `color 0ms linear ${indicatorOn ? (leftTabOn ? TAB_COLOR_DELAY : TAB_LEAVE_DELAY) : 0}ms` }}>{headerView.line1}</span>
                             <span className="flex items-center gap-1.5 min-w-0">
-                                <span className="text-base font-black truncate" style={{ color: leftTabOn ? colors.textPrimary : '#fff', }}>{headerView.line2}</span>
+                                <span className="text-base font-black truncate" style={{ color: leftTabOn ? colors.textPrimary : '#fff', transition: `color 0ms linear ${indicatorOn ? (leftTabOn ? TAB_COLOR_DELAY : TAB_LEAVE_DELAY) : 0}ms` }}>{headerView.line2}</span>
                                 <span className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center" style={{ background: leftTabOn ? `${colors.border}66` : 'rgba(255,255,255,0.22)', transition: 'background 300ms ease' }}>
                                     <svg
                                         width="10" height="9" viewBox="0 0 10 9" aria-hidden
                                         style={{ transition: 'transform 350ms cubic-bezier(0.22, 1, 0.36, 1)', transform: drawerOpen ? 'rotate(-90deg)' : 'rotate(0deg)' }}
                                     >
-                                        <polygon points="5,0 10,9 0,9" fill={leftTabOn ? colors.textPrimary : '#fff'} />
+                                        <polygon points="5,0 10,9 0,9" fill={leftTabOn ? colors.textPrimary : '#fff'} style={{ transition: `fill 0ms linear ${indicatorOn ? (leftTabOn ? TAB_COLOR_DELAY : TAB_LEAVE_DELAY) : 0}ms` }} />
                                     </svg>
                                 </span>
                             </span>
@@ -853,10 +863,10 @@ export default function ModeShell({ children, search }: {
                             transition: 'max-width 320ms cubic-bezier(0.22, 1, 0.36, 1), opacity 200ms ease',
                         }}
                     >
-                        <NavTab btnRef={cartRef} selectedColor={colors.textPrimary} selected={indicatorOn && target === 'cart'} label="Carrinho" onClick={() => pickTab('cart', () => go('/carrinho'))} badge={topCart}>
+                        <NavTab btnRef={cartRef} selectedColor={colors.textPrimary} colorDelay={indicatorOn ? TAB_COLOR_DELAY : 0} selected={indicatorOn && target === 'cart'} label="Carrinho" onClick={() => pickTab('cart', () => go('/carrinho'))} badge={topCart}>
                             <ShoppingCart size={20} />
                         </NavTab>
-                        <NavTab btnRef={chatRef} selectedColor={colors.textPrimary} selected={indicatorOn && target === 'chat'} label="Conversas" onClick={() => pickTab('chat', () => go(userId ? '/conversas' : '/login'))} badge={topUnread} badgeColor="#16a34a" pulse={topUnread > 0}>
+                        <NavTab btnRef={chatRef} selectedColor={colors.textPrimary} colorDelay={indicatorOn ? TAB_COLOR_DELAY : 0} selected={indicatorOn && target === 'chat'} label="Conversas" onClick={() => pickTab('chat', () => go(userId ? '/conversas' : '/login'))} badge={topUnread} badgeColor="#16a34a" pulse={topUnread > 0}>
                             <MessageCircle size={20} />
                         </NavTab>
                     </div>
@@ -883,7 +893,7 @@ export default function ModeShell({ children, search }: {
                             </button>
                         </>
                     ) : (
-                        <NavTab btnRef={lupaRef} toEdge selectedColor={colors.textPrimary} selected={indicatorOn && target === 'search'} label="Buscar" onClick={() => pickTab('search', () => (search ? setSearchOpen(true) : go('/modeloinicial')))}>
+                        <NavTab btnRef={lupaRef} toEdge selectedColor={colors.textPrimary} colorDelay={indicatorOn ? TAB_COLOR_DELAY : 0} selected={indicatorOn && target === 'search'} label="Buscar" onClick={() => pickTab('search', () => (search ? setSearchOpen(true) : go('/modeloinicial')))}>
                             <Search size={20} />
                         </NavTab>
                     )}
