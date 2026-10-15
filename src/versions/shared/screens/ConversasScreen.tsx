@@ -70,12 +70,14 @@ function otherAvatarUrl(row: { other_avatar: string | null; other_is_store: bool
 
 
 // ====================== FIO DE MENSAGENS ======================
-function Thread({ conversation, userId, onBack, onRead, colors }: {
+function Thread({ conversation, userId, onBack, onRead, colors, modern = false }: {
     conversation: ConversationRow
     userId: string
     onBack: () => void
     onRead: () => void
     colors: any
+    /** 3.0: sem bordas, avatares redondos, balões e campo em pílula */
+    modern?: boolean
 }) {
     const [messages, setMessages] = useState<Message[]>([])
     // Postagens (serviços) citadas nas mensagens: viram um cartão que abre a página do serviço
@@ -157,13 +159,13 @@ function Thread({ conversation, userId, onBack, onRead, colors }: {
 
     return (
         <div className="flex flex-col h-full min-h-0">
-            <div className="flex items-center gap-3 px-3 py-3 border-b flex-shrink-0" style={{ borderColor: colors.border }}>
+            <div className={`flex items-center gap-3 px-3 py-3 flex-shrink-0 ${modern ? '' : 'border-b'}`} style={modern ? { background: `${colors.border}30` } : { borderColor: colors.border }}>
                 <button onClick={onBack} className="md:hidden w-9 h-9 rounded-full flex items-center justify-center" style={{ color: colors.textPrimary }} aria-label="Voltar para as conversas">
                     <ArrowLeft size={20} />
                 </button>
                 {profileHref ? (
                     <Link href={profileHref} className="flex items-center gap-3 min-w-0 flex-1">
-                        <Avatar url={avatar} name={conversation.other_name} isStore={conversation.other_is_store} userId={conversation.other_is_store ? undefined : conversation.other_id} size={40} />
+                        <Avatar url={avatar} name={conversation.other_name} isStore={conversation.other_is_store} userId={conversation.other_is_store ? undefined : conversation.other_id} size={40} round={modern} />
                         <div className="min-w-0">
                             <p className="text-sm font-black truncate" style={{ color: colors.textPrimary }}>{otherLabel(conversation)}</p>
                             <p className="text-[11px] truncate" style={{ color: colors.textSecondary }}>{conversation.other_is_store ? `@${conversation.other_slug} · ver loja` : 'ver perfil'}</p>
@@ -191,7 +193,11 @@ function Thread({ conversation, userId, onBack, onRead, colors }: {
                                 </p>
                             )}
                             <div className={`max-w-[80%] px-3.5 py-2 rounded-2xl text-sm break-words whitespace-pre-wrap ${mine ? 'self-end rounded-br-md text-white' : 'self-start rounded-bl-md'}`}
-                                style={mine ? { background: GRADIENT } : { background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}>
+                                style={mine
+                                    ? { background: GRADIENT }
+                                    : modern
+                                        ? { background: `${colors.border}55`, color: colors.textPrimary }
+                                        : { background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}>
                                 {m.ref_product_id && refs[m.ref_product_id] && (() => {
                                     const r = refs[m.ref_product_id!]
                                     const img = r.image_url ? (r.image_url.startsWith('http') ? r.image_url : supabase.storage.from('product-images').getPublicUrl(r.image_url).data.publicUrl) : null
@@ -224,7 +230,7 @@ function Thread({ conversation, userId, onBack, onRead, colors }: {
                 <div ref={endRef} />
             </div>
 
-            <div className="flex items-end gap-2 px-3 py-3 border-t flex-shrink-0" style={{ borderColor: colors.border }}>
+            <div className={`flex items-end gap-2 px-3 py-3 flex-shrink-0 ${modern ? '' : 'border-t'}`} style={modern ? undefined : { borderColor: colors.border }}>
                 <textarea
                     value={text}
                     onChange={(e) => setText(e.target.value)}
@@ -233,7 +239,9 @@ function Thread({ conversation, userId, onBack, onRead, colors }: {
                     maxLength={2000}
                     placeholder="Escreva uma mensagem..."
                     className="flex-1 resize-none rounded-3xl px-4 py-2.5 text-sm outline-none max-h-32"
-                    style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                    style={modern
+                        ? { background: `${colors.border}40`, color: colors.textPrimary }
+                        : { background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
                 />
                 <button
                     onClick={send}
@@ -249,7 +257,7 @@ function Thread({ conversation, userId, onBack, onRead, colors }: {
     )
 }
 
-function Avatar({ url, name, isStore, userId, size }: { url: string | null; name: string | null; isStore: boolean; userId?: string; size: number }) {
+function Avatar({ url, name, isStore, userId, size, round = false }: { url: string | null; name: string | null; isStore: boolean; userId?: string; size: number; round?: boolean }) {
     const inner = url ? (
         <img src={url} alt="" className="object-cover" style={{ width: size, height: size }} />
     ) : (
@@ -257,6 +265,10 @@ function Avatar({ url, name, isStore, userId, size }: { url: string | null; name
             {isStore ? <StoreIcon size={size * 0.45} /> : (name || '?').charAt(0).toUpperCase() || <User size={size * 0.45} />}
         </span>
     )
+    if (round) {
+        const circle = <span className="block rounded-full overflow-hidden" style={{ width: size, height: size }}>{inner}</span>
+        return <span className="flex-shrink-0">{userId ? <PlanAvatarRing userId={userId} width={2}>{circle}</PlanAvatarRing> : circle}</span>
+    }
     return <span className="flex-shrink-0">{userId ? <PlanAvatarRing userId={userId} radius="0px">{inner}</PlanAvatarRing> : inner}</span>
 }
 
@@ -388,22 +400,24 @@ function ConversasInner({ ui }: { ui: UiVersion }) {
                             <Link href="/login?redirect=/conversas" className="px-6 py-3 rounded-full text-sm font-black text-white" style={{ background: GRADIENT }}>Entrar</Link>
                         </div>
                     ) : (
-                        <div className={`grid md:grid-cols-[360px_1fr] gap-4 ${v3 ? 'md:h-[calc(100dvh-230px)]' : 'md:h-[calc(100dvh-260px)]'}`}>
+                        <div className={`grid grid-cols-[minmax(0,1fr)] md:grid-cols-[360px_minmax(0,1fr)] gap-4 ${v3 ? 'md:h-[calc(100dvh-230px)]' : 'md:h-[calc(100dvh-260px)]'}`}>
                             {/* Lista: o título sozinho em cima e os cartões (quadrados) embaixo */}
-                            <div className={`${active ? 'hidden md:flex' : 'flex'} flex-col min-h-0`}>
+                            <div className={`${active ? 'hidden md:flex' : 'flex'} flex-col min-h-0 min-w-0`}>
                                 <div className="pb-3 flex-shrink-0">
                                     <p className="text-lg font-black" style={{ color: colors.textPrimary }}>
                                         {activeStore ? `Conversas de ${activeStore.name}` : 'Minhas conversas'}
                                     </p>
-                                    <p className="text-xs" style={{ color: colors.textSecondary }}>
-                                        {activeStore ? 'Só as conversas desta loja' : 'Pessoas que falaram com você e conversas que você começou'}
-                                    </p>
+                                    {!v3 && (
+                                        <p className="text-xs" style={{ color: colors.textSecondary }}>
+                                            {activeStore ? 'Só as conversas desta loja' : 'Pessoas que falaram com você e conversas que você começou'}
+                                        </p>
+                                    )}
                                 </div>
-                                <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-3">
+                                <div className={`flex-1 min-h-0 overflow-y-auto flex flex-col ${v3 ? 'gap-0.5' : 'gap-3'}`}>
                                     {rows === null ? (
                                         <div className="flex justify-center py-10"><Spinner size={22} color={colors.accent} /></div>
                                     ) : rows.length === 0 ? (
-                                        <div className="p-8 text-center flex flex-col items-center gap-2" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
+                                        <div className="p-8 text-center flex flex-col items-center gap-2 rounded-3xl" style={v3 ? { background: `${colors.border}30` } : { background: colors.surface, border: `1px solid ${colors.border}` }}>
                                             <span className="w-14 h-14 rounded-full flex items-center justify-center text-white" style={{ background: GRADIENT }}><MessageCircle size={26} /></span>
                                             <p className="text-sm font-black" style={{ color: colors.textPrimary }}>Nenhuma conversa ainda</p>
                                             <p className="text-xs" style={{ color: colors.textSecondary }}>
@@ -415,6 +429,34 @@ function ConversasInner({ ui }: { ui: UiVersion }) {
                                     ) : rows.map((r) => {
                                         const unread = r.unread > 0
                                         const img = otherAvatarUrl(r)
+                                        if (v3) {
+                                            // 3.0: linha limpa — avatar redondo, nome, última mensagem numa linha, hora e o contador
+                                            const selected = r.id === activeId
+                                            return (
+                                                <button
+                                                    key={r.id}
+                                                    onClick={() => setParams({ c: r.id })}
+                                                    className="w-full flex items-center gap-3 text-left rounded-2xl px-2.5 py-2.5 transition active:scale-[0.99]"
+                                                    style={{ background: selected ? `${colors.border}40` : unread ? '#16a34a14' : 'transparent' }}
+                                                >
+                                                    <Avatar url={img} name={r.other_name || r.other_slug} isStore={r.other_is_store} userId={r.other_is_store ? undefined : r.other_id} size={52} round />
+                                                    <span className="min-w-0 flex-1">
+                                                        <span className="flex items-baseline justify-between gap-2">
+                                                            <span className="text-[15px] truncate" style={{ color: colors.textPrimary, fontWeight: unread ? 900 : 700 }}>{otherLabel(r)}</span>
+                                                            <span className="text-[11px] flex-shrink-0" style={{ color: unread ? '#16a34a' : colors.textSecondary, fontWeight: unread ? 800 : 500 }}>{timeLabel(r.last_message_at)}</span>
+                                                        </span>
+                                                        <span className="flex items-center justify-between gap-2 mt-0.5">
+                                                            <span className="text-[13px] truncate" style={{ color: unread ? colors.textPrimary : colors.textSecondary, fontWeight: unread ? 700 : 400 }}>
+                                                                {r.last_message ? `${r.last_sender_id === userId ? 'Você: ' : ''}${r.last_message}` : 'Conversa iniciada'}
+                                                            </span>
+                                                            {unread && (
+                                                                <span className="min-w-5 h-5 px-1.5 rounded-full text-[11px] font-black flex items-center justify-center flex-shrink-0 text-white" style={{ background: '#16a34a' }}>{r.unread}</span>
+                                                            )}
+                                                        </span>
+                                                    </span>
+                                                </button>
+                                            )
+                                        }
                                         // Não lida: o cartão inteiro fica verde e o texto, branco
                                         const fg = unread ? '#ffffff' : colors.textPrimary
                                         const fg2 = unread ? 'rgba(255,255,255,0.85)' : colors.textSecondary
@@ -462,9 +504,9 @@ function ConversasInner({ ui }: { ui: UiVersion }) {
                             </div>
 
                             {/* Conversa aberta */}
-                            <div className={`${active ? 'flex' : 'hidden md:flex'} flex-col min-h-0 overflow-hidden`} style={{ height: active ? 'calc(100dvh - 250px)' : undefined, minHeight: 360, background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}>
+                            <div className={`${active ? 'flex' : 'hidden md:flex'} flex-col min-h-0 overflow-hidden`} style={{ height: active ? 'calc(100dvh - 250px)' : undefined, minHeight: 360, ...(v3 ? { background: `${colors.border}18`, borderRadius: 28 } : { background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }) }}>
                                 {active && userId ? (
-                                    <Thread key={active.id} conversation={active} userId={userId} colors={colors}
+                                    <Thread key={active.id} conversation={active} userId={userId} colors={colors} modern={v3}
                                         onBack={() => setParams({ c: null })}
                                         onRead={() => { load(); loadUnread() }} />
                                 ) : (
