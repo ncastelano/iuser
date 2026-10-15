@@ -243,7 +243,7 @@ export default function VehicleScreen() {
 
             {/* A tela dividida: o carro à esquerda; o motorista e o botão de chamar à direita */}
             <section className={`${!ownerView ? 'mt-5' : ''} grid grid-cols-[1.12fr_1fr] gap-2.5`}>
-                <div className="relative rounded-3xl overflow-hidden min-h-[250px]" style={{ background: `${ORANGE}22` }}>
+                <div className="relative rounded-3xl overflow-hidden min-h-[196px]" style={{ background: `${ORANGE}22` }}>
                     {photo
                         ? <img src={photo} alt="" className="absolute inset-0 w-full h-full object-cover" />
                         : <span className="absolute inset-0 flex items-center justify-center" style={{ color: ORANGE }}><KindIcon size={56} /></span>}
@@ -269,40 +269,38 @@ export default function VehicleScreen() {
                     </div>
                 </div>
 
-                <div className="rounded-3xl p-3 flex flex-col" style={soft}>
+                <div className="rounded-3xl p-3 flex flex-col justify-center gap-2.5" style={soft}>
                     {driver && (
-                        <button onClick={() => router.push(`/${driver.slug}`)} className="flex flex-col items-start gap-1.5 text-left min-w-0">
+                        <button onClick={() => router.push(`/${driver.slug}`)} className="flex items-center gap-2.5 text-left min-w-0">
                             <PlanAvatarRing userId={driver.id} width={2}>
-                                <span className="block w-12 h-12 rounded-full overflow-hidden" style={{ background: GRADIENT }}>
+                                <span className="block w-11 h-11 rounded-full overflow-hidden" style={{ background: GRADIENT }}>
                                     {driver.avatar
                                         ? <img src={driver.avatar} alt="" className="w-full h-full object-cover" />
                                         : <span className="w-full h-full flex items-center justify-center text-white font-black">{driver.slug.charAt(0).toUpperCase()}</span>}
                                 </span>
                             </PlanAvatarRing>
-                            <span className="min-w-0 w-full">
-                                <span className="block text-[11px]" style={{ color: colors.textSecondary }}>{isOwner ? 'Você' : 'Motorista'}</span>
-                                <span className="block text-sm font-black leading-tight line-clamp-2" style={{ color: colors.textPrimary }}>{driver.name || `@${driver.slug}`}</span>
-                                <span className="block text-xs truncate" style={{ color: colors.textSecondary }}>@{driver.slug}</span>
+                            <span className="min-w-0 flex-1">
+                                <span className="block text-[10px] leading-none" style={{ color: colors.textSecondary }}>{isOwner ? 'Você' : 'Motorista'}</span>
+                                <span className="block text-[13px] font-black leading-tight truncate" style={{ color: colors.textPrimary }}>{driver.name || `@${driver.slug}`}</span>
+                                <span className="block text-[11px] leading-tight truncate" style={{ color: colors.textSecondary }}>@{driver.slug}</span>
                             </span>
                         </button>
                     )}
-                    <div className="mt-auto pt-3">
-                        {ownerView ? (
-                            <button onClick={() => setEditing(true)} className="w-full h-14 rounded-2xl text-white flex flex-col items-center justify-center leading-tight transition active:scale-[0.98]" style={{ background: GRADIENT }}>
-                                <span className="text-sm font-black flex items-center gap-1.5"><Pencil size={15} /> Editar</span>
-                                <span className="text-[11px] opacity-90">dados e fotos</span>
-                            </button>
-                        ) : driver ? (
-                            <button
-                                onClick={() => router.push(`/pedir-motorista?motorista=${driver.id}`)}
-                                className="w-full h-14 rounded-2xl text-white flex flex-col items-center justify-center leading-tight transition active:scale-[0.98]"
-                                style={{ background: GRADIENT, boxShadow: '0 8px 20px #f9731640' }}
-                            >
-                                <span className="text-sm font-black flex items-center gap-1.5"><PhoneCall size={15} /> Chamar</span>
-                                <span className="text-[11px] opacity-90">{pricing ? `a partir de ${brl(pricing.baseFee)}` : 'ele é avisado na hora'}</span>
-                            </button>
-                        ) : null}
-                    </div>
+                    {ownerView ? (
+                        <button onClick={() => setEditing(true)} className="w-full h-12 rounded-2xl text-white flex flex-col items-center justify-center leading-tight transition active:scale-[0.98]" style={{ background: GRADIENT }}>
+                            <span className="text-sm font-black flex items-center gap-1.5"><Pencil size={14} /> Editar</span>
+                            <span className="text-[10px] opacity-90">dados e fotos</span>
+                        </button>
+                    ) : driver ? (
+                        <button
+                            onClick={() => router.push(`/pedir-motorista?motorista=${driver.id}`)}
+                            className="w-full h-12 rounded-2xl text-white flex flex-col items-center justify-center leading-tight transition active:scale-[0.98]"
+                            style={{ background: GRADIENT, boxShadow: '0 6px 16px #f9731640' }}
+                        >
+                            <span className="text-sm font-black flex items-center gap-1.5"><PhoneCall size={14} /> Chamar</span>
+                            <span className="text-[10px] opacity-90">{pricing ? `a partir de ${brl(pricing.baseFee)}` : 'ele é avisado na hora'}</span>
+                        </button>
+                    ) : null}
                 </div>
             </section>
 
@@ -320,22 +318,31 @@ export default function VehicleScreen() {
                         <Stat icon={<Calendar size={18} />} value={since || '—'} label="no iUser desde" />
                     </>
                 )
-                if (svcs.length === 0) return <section className="mt-3 grid grid-cols-3 gap-2.5">{stats3}</section>
+                const shareBtn = (
+                    <button onClick={() => setShareOpen(true)} className="h-11 rounded-2xl text-xs font-black flex items-center justify-center gap-2 transition active:scale-[0.98]" style={{ background: `${ORANGE}1a`, color: ORANGE }}>
+                        <Share2 size={15} /> Compartilhar página
+                    </button>
+                )
                 return (
                     <section className="mt-3 grid grid-cols-[1fr_1fr] gap-2.5">
                         <div className="flex flex-col gap-2.5">{stats3}</div>
-                        <div className="rounded-2xl p-3" style={soft}>
-                            <p className="text-[11px] font-black uppercase tracking-wide mb-2" style={{ color: colors.textSecondary }}>O carro tem</p>
-                            <div className="flex flex-col gap-1.5">
-                                {svcs.map((sv) => {
-                                    const Icon = DRIVER_SERVICE_OPTIONS.find((o) => o.id === sv)?.icon
-                                    return (
-                                        <span key={sv} className="px-3 py-2 rounded-full text-xs font-bold flex items-center gap-1.5" style={{ background: `${ORANGE}1a`, color: ORANGE }}>
-                                            {Icon && <Icon size={14} className="flex-shrink-0" />}{driverServiceLabel(sv)}
-                                        </span>
-                                    )
-                                })}
-                            </div>
+                        <div className="flex flex-col gap-2.5">
+                            {shareBtn}
+                            {svcs.length > 0 && (
+                                <div className="rounded-2xl p-3" style={soft}>
+                                    <p className="text-[11px] font-black uppercase tracking-wide mb-2" style={{ color: colors.textSecondary }}>O carro tem</p>
+                                    <div className="flex flex-col gap-1.5">
+                                        {svcs.map((sv) => {
+                                            const Icon = DRIVER_SERVICE_OPTIONS.find((o) => o.id === sv)?.icon
+                                            return (
+                                                <span key={sv} className="px-3 py-2 rounded-full text-xs font-bold flex items-center gap-1.5" style={{ background: `${ORANGE}1a`, color: ORANGE }}>
+                                                    {Icon && <Icon size={14} className="flex-shrink-0" />}{driverServiceLabel(sv)}
+                                                </span>
+                                            )
+                                        })}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </section>
                 )
