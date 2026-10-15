@@ -28,7 +28,7 @@ export const DEFAULT_VERSION: UiVersion = 'v2'
 export const VERSION_COOKIE = 'iuser_ui'
 export const VERSION_COOKIE_MAX_AGE = 60 * 60 * 24 * 365
 
-/** Chave em `feature_flags` que liga/desliga a oferta da versão 3.0 (o admin controla). Desligada = todos na v2. */
+/** Chave em `feature_flags`: 3.0 liberada para TODOS (o admin controla). Desligada, só quem o admin liberou (tabela ui_v3_access) a vê. */
 export const VERSION_FLAG_KEY = 'ui_v3'
 
 /**
@@ -43,6 +43,9 @@ export const VERSION_ROUTES: Record<string, Partial<Record<UiVersion, string>>> 
 
 /** Prefixo interno das implementações alternativas (nunca é o endereço "oficial": o proxy devolve ao canônico) */
 export const INTERNAL_PREFIX: Partial<Record<UiVersion, string>> = { v3: '/v3' }
+
+/** Telas cheias (mapas, rastreio) que mantêm a moldura própria mesmo na 3.0 */
+export const SHELL_EXCLUDED = ['/aceitar-corridas/mapa', '/pedir-motorista/escolher-local', '/entregador', '/acompanhar-corrida', '/radar']
 
 /** Páginas que só existem na v3 (não há equivalente na v2: voltar para a v2 leva à home da v2) */
 export const V3_ONLY_ROUTES = ['/modeloinicial', '/painel-perfil', '/modoprestador']

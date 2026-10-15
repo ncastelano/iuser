@@ -34,6 +34,8 @@ src/
     client.tsx               # troca de versão, hooks, sincronização perfil↔cookie
     v3/shell/                # casca da 3.0: ModeShell (navbar + drawer), ShellFrame, PageTabs
     shared/screens/          # telas com a MESMA lógica nas duas versões; só a moldura muda
+    access.ts                # (servidor) quem pode usar a 3.0
+    VersionFrame.tsx         # moldura por versão (3.0 → casca)
   modules/                   # Domínios de negócio (nasce quando um domínio é tocado; ver §4)
   components/ lib/ hooks/ store/   # Código compartilhado existente (permanece)
 docs/
@@ -81,25 +83,34 @@ Seleção de versão **não** concede nada: segurança continua no servidor e no
 
 ### Mecanismo
 
-1. **Escolha**: cookie `iuser_ui` (`v2`|`v3`) — vale para visitantes e é lido pelo proxy. Logado: também salva em
-   `profiles.preferred_version` (via RPC `set_my_ui_version`, que só altera essa coluna da própria pessoa).
-2. **Resolução**: `src/proxy.ts` (único ponto). Prioridade: cookie > preferência do perfil > padrão (`v2`).
-   Oferta desligada pelo admin (`feature_flags.ui_v3`) = todos na `v2`.
-3. **Rotas compartilhadas** (`/`, `/carrinho`, `/conversas`): o endereço **não muda**. Para a v3 o proxy faz *rewrite*
+1. **Acesso (escondida até o admin liberar).** A 3.0 só existe para quem tem permissão: o **administrador geral**, os
+   **perfis liberados** em `ui_v3_access` (Admin → Interface 3.0) ou todos, se a chave `feature_flags.ui_v3` estiver
+   ligada ("liberar para todos", desligada por padrão). A regra mora no servidor (`versions/access.ts`) e vale no
+   proxy, no layout e em `GET /api/ui-version/access`. Sem permissão, nada na interface menciona a 3.0 e qualquer
+   cookie `v3` é ignorado (e limpo pelo cliente).
+2. **Escolha**: cookie `iuser_ui` (`v2`|`v3`) + `profiles.preferred_version` (RPC `set_my_ui_version`, que só altera
+   essa coluna da própria pessoa).
+3. **Resolução**: `src/proxy.ts` (URLs compartilhadas) e `app/(main)/layout.tsx` (moldura), pela mesma função
+   `resolveRequestVersion`. Prioridade: cookie + permissão > padrão (`v2`).
+4. **Rotas compartilhadas** (`/`, `/carrinho`, `/conversas`): o endereço **não muda**. Para a v3 o proxy faz *rewrite*
    interno (`/` → `/modeloinicial`, `/carrinho` → `/v3/carrinho`...). `registry.ts › VERSION_ROUTES` é o mapa.
-4. **Endereços internos** (`/v3/...`): digitar direto com outra versão ativa redireciona ao canônico (sem loop: é
-   *rewrite* de ida e *redirect* de volta, em sentidos opostos e só quando a versão difere).
-5. **Páginas sem equivalente na v3** (loja, comunidade, social...) continuam abrindo como estão (v2). Nada quebra.
-6. **Trocar**: `switchVersion(target, ...)` (`versions/client.tsx`) grava cookie + perfil e faz um carregamento
+5. **Moldura da 3.0 para TODAS as páginas.** Na 3.0, `VersionFrame` (em `app/(main)/layout.tsx`) abre qualquer página
+   dentro da casca persistente (navbar + drawer). O componente `Header` da 2.0 detecta a casca (`InsideShell`) e se
+   apresenta compacto (voltar/título + abas + busca). Exceções de tela cheia: `registry.ts › SHELL_EXCLUDED`.
+   Páginas só da 3.0 (`V3_ONLY_*`) sempre usam a casca.
+6. **Endereços internos** (`/v3/...`): digitar direto sem ter a 3.0 redireciona ao canônico (sem loop).
+7. **Trocar**: `switchVersion(target, ...)` (`versions/client.tsx`) grava cookie + perfil e faz um carregamento
    completo na página equivalente (ou na home da versão de destino). Sessão (cookies do Supabase) não é tocada.
-7. **Sincronia**: `VersionSync` (em `app/providers.tsx`) — sem cookie neste aparelho, adota a preferência salva; com
-   cookie e sem preferência salva, salva.
+8. **Sincronia**: `VersionSync` (em `app/providers.tsx`) — com permissão e sem cookie neste aparelho, adota a
+   preferência salva; com cookie e sem preferência salva, salva; sem permissão, remove o cookie `v3`.
 
-### Onde fica o seletor (um mecanismo, dois lugares)
+### Onde fica o seletor (um mecanismo, três lugares)
 
-- **2.0**: `components/ProfileDashboard/UiVersionCard.tsx` ("Experimentar o iUser 3.0"), dentro do `ProfileDashboard`.
+- **2.0**: `components/ProfileDashboard/UiVersionCard.tsx` ("Experimentar o iUser 3.0"), dentro do `ProfileDashboard` —
+  só para quem tem permissão.
+- **2.0, administrador**: botão flutuante **v3** no canto superior esquerdo da homepage (`components/AdminV3Button.tsx`).
 - **3.0**: item "Voltar para a versão 2.0" no fim do drawer (`versions/v3/shell/ModeShell.tsx`).
-- Admin liga/desliga a oferta em **Admin → Interface 3.0**.
+- Admin libera/remove perfis e liga "para todos" em **Admin → Interface 3.0** (`/api/admin/ui-access`).
 
 ### Adicionar uma versão nova (ex.: `v4`)
 

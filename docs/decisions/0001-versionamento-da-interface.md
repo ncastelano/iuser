@@ -8,7 +8,9 @@ da pessoa, sem duplicar o app, sem quebrar links existentes e sem tocar em dados
 
 ## Decisão
 - Versões internas `v2` (atual, preservada) e `v3`, registradas em `src/versions/registry.ts`.
-- Escolha em **cookie** (`iuser_ui`) + `profiles.preferred_version` (logado). Oferta controlada por `feature_flags.ui_v3`.
+- Escolha em **cookie** (`iuser_ui`) + `profiles.preferred_version` (logado).
+- **Acesso liberado pelo administrador** (ver 0003): a 3.0 fica escondida de todos até o admin liberar por perfil
+  (`ui_v3_access`) ou para todos (`feature_flags.ui_v3`).
 - Resolução **centralizada no `proxy.ts`**, por *rewrite* das URLs compartilhadas (`/`, `/carrinho`, `/conversas`).
   URL pública não muda. Implementações 3.0 vivem em `/v3/*` (internas).
 - Telas com a mesma lógica nas duas versões vivem em `versions/shared/screens` e recebem `ui` (muda só a moldura).

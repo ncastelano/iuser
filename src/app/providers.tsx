@@ -19,6 +19,7 @@ import { DriverRideAlertListener } from '@/components/DriverRideAlertListener'
 import { Toaster } from 'sonner'
 import { ProfileProvider } from './contexts/ProfileContext'
 import { VersionSync } from '@/versions/client'
+import AdminV3Button from '@/components/AdminV3Button'
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => new QueryClient())
@@ -48,6 +49,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <QueryClientProvider client={queryClient}>
       <ProfileProvider>
         <VersionSync />
+        <AdminV3Button />
         <PageViewTracker />
         <ThemeColorSync />
         <NavigationProgressBar />

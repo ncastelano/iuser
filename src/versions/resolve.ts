@@ -3,7 +3,7 @@
 // Regras PURAS de resolução de versão (sem React, sem rede): fáceis de testar (`npm run test:versions`) e usadas
 // pelo proxy (servidor) e pelo seletor (cliente), pra os dois decidirem sempre do mesmo jeito.
 import {
-    DEFAULT_VERSION, INTERNAL_PREFIX, UI_VERSIONS, V3_ONLY_PREFIXES, V3_ONLY_ROUTES, VERSION_ROUTES,
+    DEFAULT_VERSION, INTERNAL_PREFIX, SHELL_EXCLUDED, UI_VERSIONS, V3_ONLY_PREFIXES, V3_ONLY_ROUTES, VERSION_ROUTES,
     type UiVersion,
 } from './registry.ts'
 
@@ -13,11 +13,11 @@ export function parseVersion(raw: unknown): UiVersion | null {
 
 /**
  * Qual versão a pessoa vê. Prioridade: escolha deste aparelho (cookie) > preferência salva no perfil > padrão.
- * Com a oferta da 3.0 desligada pelo admin, todo mundo cai na versão padrão (nenhuma outra é servida).
+ * Sem permissão (a 3.0 é liberada pelo admin), a pessoa cai na versão padrão: nenhuma outra é servida.
  */
-export function resolveVersion(input: { cookie?: unknown; profilePref?: unknown; offerEnabled: boolean }): UiVersion {
+export function resolveVersion(input: { cookie?: unknown; profilePref?: unknown; hasAccess: boolean }): UiVersion {
     const chosen = parseVersion(input.cookie) ?? parseVersion(input.profilePref) ?? DEFAULT_VERSION
-    if (!input.offerEnabled && chosen !== DEFAULT_VERSION) return DEFAULT_VERSION
+    if (!input.hasAccess && chosen !== DEFAULT_VERSION) return DEFAULT_VERSION
     return chosen
 }
 
@@ -59,6 +59,22 @@ export function equivalentPath(target: UiVersion, pathname: string): string {
     // Indo para a v3: páginas da v2 sem versão 3.0 continuam abrindo como estão; a home vira a home da 3.0
     if (path === '/' || path === '') return UI_VERSIONS.v3.home
     return path
+}
+
+/** `pathname` só existe na versão 3.0 (sem equivalente na 2.0)? */
+export function isV3OnlyPath(pathname: string): boolean {
+    const path = normalize(canonicalFromInternal(pathname) ?? pathname)
+    return V3_ONLY_ROUTES.includes(path) || V3_ONLY_PREFIXES.some((p) => path.startsWith(p))
+}
+
+/**
+ * A página abre dentro da casca da 3.0 (navbar + drawer)? Na 3.0, todas — menos as de tela cheia (mapas). As páginas
+ * que só existem na 3.0 sempre usam a casca, mesmo que a pessoa esteja na 2.0 (elas dependem dela).
+ */
+export function usesShell(version: UiVersion, pathname: string): boolean {
+    const path = normalize(canonicalFromInternal(pathname) ?? pathname)
+    if (SHELL_EXCLUDED.some((p) => path === p || path.startsWith(p.endsWith('/') ? p : p + '/'))) return false
+    return version === 'v3' || isV3OnlyPath(pathname)
 }
 
 function normalize(p: string): string {

@@ -2,25 +2,25 @@
 // Rodar: npm run test:versions
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { resolveVersion, internalPathFor, canonicalFromInternal, equivalentPath, parseVersion, versionOfInternalPath } from '../src/versions/resolve.ts'
+import { resolveVersion, internalPathFor, canonicalFromInternal, equivalentPath, parseVersion, versionOfInternalPath, usesShell, isV3OnlyPath } from '../src/versions/resolve.ts'
 
 test('quem nunca escolheu fica na v2', () => {
-    assert.equal(resolveVersion({ offerEnabled: true }), 'v2')
+    assert.equal(resolveVersion({ hasAccess: true }), 'v2')
 })
 test('cookie vale mais que a preferência do perfil', () => {
-    assert.equal(resolveVersion({ cookie: 'v3', profilePref: 'v2', offerEnabled: true }), 'v3')
-    assert.equal(resolveVersion({ cookie: 'v2', profilePref: 'v3', offerEnabled: true }), 'v2')
+    assert.equal(resolveVersion({ cookie: 'v3', profilePref: 'v2', hasAccess: true }), 'v3')
+    assert.equal(resolveVersion({ cookie: 'v2', profilePref: 'v3', hasAccess: true }), 'v2')
 })
 test('sem cookie, vale a preferência do perfil', () => {
-    assert.equal(resolveVersion({ profilePref: 'v3', offerEnabled: true }), 'v3')
+    assert.equal(resolveVersion({ profilePref: 'v3', hasAccess: true }), 'v3')
 })
 test('valor inválido é ignorado', () => {
-    assert.equal(resolveVersion({ cookie: 'v9', profilePref: 'xx', offerEnabled: true }), 'v2')
+    assert.equal(resolveVersion({ cookie: 'v9', profilePref: 'xx', hasAccess: true }), 'v2')
     assert.equal(parseVersion('v3'), 'v3')
     assert.equal(parseVersion(undefined), null)
 })
-test('oferta da 3.0 desligada: todos na v2, mesmo com cookie v3', () => {
-    assert.equal(resolveVersion({ cookie: 'v3', profilePref: 'v3', offerEnabled: false }), 'v2')
+test('sem permissão para a 3.0: v2, mesmo com cookie v3', () => {
+    assert.equal(resolveVersion({ cookie: 'v3', profilePref: 'v3', hasAccess: false }), 'v2')
 })
 test('rewrite só nas rotas compartilhadas', () => {
     assert.equal(internalPathFor('v3', '/'), '/modeloinicial')
@@ -48,4 +48,21 @@ test('troca de versão: página equivalente ou home válida, sem 404', () => {
     assert.equal(equivalentPath('v2', '/modeloinicial'), '/')
     assert.equal(equivalentPath('v2', '/painel-loja/minha-loja'), '/')
     assert.equal(equivalentPath('v2', '/veiculo/abc'), '/')
+})
+
+test('casca da 3.0: todas as páginas na v3, exceto as de tela cheia', () => {
+    assert.equal(usesShell('v3', '/social'), true)
+    assert.equal(usesShell('v3', '/lojas/moda/minha-loja'), true)
+    assert.equal(usesShell('v3', '/aceitar-corridas/mapa'), false)
+    assert.equal(usesShell('v3', '/pedir-motorista/escolher-local'), false)
+    assert.equal(usesShell('v3', '/acompanhar-corrida/123'), false)
+    assert.equal(usesShell('v3', '/radar'), false)
+    assert.equal(usesShell('v3', '/aceitar-corridas'), true)
+})
+test('na v2 só as páginas exclusivas da 3.0 usam a casca', () => {
+    assert.equal(usesShell('v2', '/social'), false)
+    assert.equal(usesShell('v2', '/'), false)
+    assert.equal(usesShell('v2', '/painel-perfil'), true)
+    assert.equal(usesShell('v2', '/veiculo/abc'), true)
+    assert.equal(isV3OnlyPath('/v3/carrinho'), false)
 })

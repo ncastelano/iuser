@@ -2,11 +2,13 @@
 // O banco conta em todos os papéis (perfil e lojas); aqui só se escuta o Realtime pra recontar quando chega algo.
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useId, useState } from 'react'
 import { supabase } from '@/lib/supabase/client'
 
 export function useChatUnread(userId: string | null | undefined) {
     const [count, setCount] = useState(0)
+    // Nome único por instância: dois lugares da tela contando as não lidas não podem disputar o mesmo canal Realtime
+    const instance = useId()
 
     const refresh = useCallback(async () => {
         if (!userId) { setCount(0); return }
@@ -19,7 +21,7 @@ export function useChatUnread(userId: string | null | undefined) {
         if (!userId) return
         // O Realtime só entrega as mensagens das conversas de que eu participo (policies do banco)
         const channel = supabase
-            .channel(`chat-unread-${userId}`)
+            .channel(`chat-unread-${userId}-${instance}`)
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'direct_messages' }, () => refresh())
             .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'conversations' }, () => refresh())
             .subscribe()
@@ -29,7 +31,7 @@ export function useChatUnread(userId: string | null | undefined) {
             window.removeEventListener('focus', onFocus)
             supabase.removeChannel(channel)
         }
-    }, [userId, refresh])
+    }, [userId, refresh, instance])
 
     return count
 }

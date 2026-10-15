@@ -2,8 +2,9 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { VERSION_COOKIE, VERSION_FLAG_KEY } from '@/versions/registry'
-import { canonicalFromInternal, internalPathFor, resolveVersion, versionOfInternalPath } from '@/versions/resolve'
+import { VERSION_COOKIE } from '@/versions/registry'
+import { canonicalFromInternal, internalPathFor, versionOfInternalPath } from '@/versions/resolve'
+import { resolveRequestVersion } from '@/versions/access'
 
 const supabaseAdmin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -123,22 +124,6 @@ const PUBLIC_ROUTE_PREFIXES = [
 ]
 
 // ===== VERSÃO DA INTERFACE (2.0 / 3.0) =====
-// Se a oferta da 3.0 está ligada (feature_flags.ui_v3). Guardado por 30 s: o proxy roda em toda navegação.
-let offerCache: { value: boolean; at: number } | null = null
-async function isV3Offered(): Promise<boolean> {
-    if (offerCache && Date.now() - offerCache.at < 30_000) return offerCache.value
-    let value = true
-    try {
-        const { data } = await supabaseAdmin.from('feature_flags').select('enabled').eq('key', VERSION_FLAG_KEY).maybeSingle()
-        // Sem a chave (migração ainda não rodou), a oferta fica ligada: a pessoa que escolheu a 3.0 não perde a escolha
-        value = data ? !!(data as { enabled?: boolean }).enabled : true
-    } catch {
-        value = true
-    }
-    offerCache = { value, at: Date.now() }
-    return value
-}
-
 /**
  * Resolve a versão e, quando preciso, reescreve (ou devolve ao endereço canônico). Retorna null quando não há nada a
  * fazer. Centralizado aqui: nenhuma página decide versão por conta própria.
@@ -148,8 +133,8 @@ async function resolveUiVersion(request: NextRequest, pathname: string): Promise
     const isShared = internalPathFor('v3', pathname) !== null
     if (!internalVersion && !isShared) return null
 
-    const offerEnabled = await isV3Offered()
-    const version = resolveVersion({ cookie: request.cookies.get(VERSION_COOKIE)?.value, offerEnabled })
+    // A 3.0 só é servida a quem o admin liberou (ou ao admin): sem permissão, a versão é sempre a 2.0
+    const version = await resolveRequestVersion(request.cookies.getAll(), request.cookies.get(VERSION_COOKIE)?.value)
 
     // Endereço interno digitado direto (/v3/carrinho): só abre se for mesmo a versão da pessoa; senão, volta ao canônico
     if (internalVersion) {

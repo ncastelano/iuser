@@ -1,11 +1,33 @@
-// src/versions/v3/shell/PageTabs.tsx
+// src/components/PageTabs.tsx
 //
 // Fileira de abas (chips) que fica no começo do conteúdo das páginas dentro do ModeShell — o que antes eram as abas do
 // Header antigo (salas de conversa, seções do carrinho...). Mesma forma de dados do `Tab` do Header.
 'use client'
 
 import { useTheme } from '@/app/contexts/theme'
-import type { Tab } from '@/components/Header'
+import type { LucideIcon } from 'lucide-react'
+
+/** Uma aba: chip em uma fileira de abas (o Header antigo e a casca da 3.0 usam o mesmo formato) */
+export interface Tab {
+    id: string
+    label: string
+    icon: LucideIcon
+    imageUrl?: string | null
+    onClick: () => void
+    isActive: boolean
+    indicator?: {
+        pending: number
+        preparing: number
+        ready: number
+    } | null
+    badge?: {
+        count: number
+        color?: string
+    } | null
+    statusColor?: string
+    // Borda laranja brilhante igual à da barra de busca (chamadas à ação do visitante)
+    glow?: boolean
+}
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 

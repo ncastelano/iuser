@@ -2,7 +2,7 @@
 'use client'
 
 import { usePathname, useRouter } from 'next/navigation'
-import { ArrowLeft, MessageCircle, Search, ShoppingCart, X, type LucideIcon } from 'lucide-react'
+import { ArrowLeft, MessageCircle, Search, ShoppingCart, X } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { hexToRgb } from '@/lib/color'
@@ -10,31 +10,14 @@ import { useCartStore } from '@/store/useCartStore'
 import { useChatUnread } from '@/hooks/useChatUnread'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import PlanAvatarRing, { PlanRingFrame } from '@/components/PlanAvatarRing'
+import { useInsideShell } from '@/components/InsideShell'
+import PageTabs, { type Tab } from '@/components/PageTabs'
 
 // Cores da borda giratória das chamadas do visitante (laranja → amarelo → vermelho)
 const GLOW_COLORS = ['#f97316', '#facc15', '#ef4444', '#f97316']
 const GLOW_STOPS = [...GLOW_COLORS, GLOW_COLORS[0]].map((c, i) => `${c} ${Math.round((i / GLOW_COLORS.length) * 360)}deg`).join(', ')
 
-export interface Tab {
-    id: string
-    label: string
-    icon: LucideIcon
-    imageUrl?: string | null
-    onClick: () => void
-    isActive: boolean
-    indicator?: {
-        pending: number
-        preparing: number
-        ready: number
-    } | null
-    badge?: {
-        count: number
-        color?: string
-    } | null
-    statusColor?: string
-    // Borda laranja brilhante igual à da barra de busca (chamadas à ação do visitante)
-    glow?: boolean
-}
+export type { Tab }
 
 interface HeaderProps {
     title?: string
@@ -77,9 +60,11 @@ export default function Header({
 }: HeaderProps) {
     const router = useRouter()
     const pathname = usePathname()
+    const insideShell = useInsideShell()
     const { colors } = useTheme()
     const { userId: myUserId } = useProfile()
-    const chatUnread = useChatUnread(myUserId)
+    // Dentro da casca da 3.0 a navbar já conta as conversas não lidas
+    const chatUnread = useChatUnread(insideShell ? null : myUserId)
 
     const cartItemsByStore = useCartStore((state) => state.itemsByStore)
     const cartCount = useMemo(
@@ -258,6 +243,63 @@ export default function Header({
 
     const getTabBorder = (tab: Tab): string => {
         return tab.isActive ? '#f97316' : '#ffffff'
+    }
+
+    // Dentro da casca da 3.0 a navbar e o menu já existem: aqui sobram só o voltar/título, as abas e a busca da página
+    if (insideShell) {
+        return (
+            <div className="relative z-10 flex flex-col gap-2.5 pb-3" style={{ color: colors.textPrimary }}>
+                {(showBack || (title && title !== 'iUser') || locationElement) && (
+                    <div className="flex items-center gap-2">
+                        {showBack && (
+                            <button
+                                onClick={handleBack}
+                                aria-label="Voltar"
+                                className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 transition active:scale-95"
+                                style={{ background: `${colors.border}50` }}
+                            >
+                                <ArrowLeft size={18} color={colors.textPrimary} />
+                            </button>
+                        )}
+                        {title && title !== 'iUser' && (
+                            <span className="text-lg font-black truncate" style={{ color: colors.textPrimary }}>{title}</span>
+                        )}
+                        {locationElement && <div className="ml-auto flex-shrink-0">{locationElement}</div>}
+                    </div>
+                )}
+
+                {enhancedTabs.length > 0 && <PageTabs tabs={enhancedTabs} />}
+
+                {showSearch && (
+                    <div
+                        className="flex items-center gap-2 px-3 rounded-full"
+                        style={{ height: 46, background: colors.surface, border: `1.5px solid ${isExpanded ? '#f97316' : colors.border}` }}
+                        onClick={() => inputRef.current?.focus()}
+                    >
+                        <Search size={18} style={{ color: colors.accent }} className="flex-shrink-0" />
+                        <input
+                            ref={inputRef}
+                            type="search"
+                            inputMode="search"
+                            enterKeyHint="done"
+                            placeholder={searchPlaceholder}
+                            value={currentSearchValue}
+                            onChange={(e) => handleSearch(e.target.value)}
+                            onFocus={handleFocus}
+                            onBlur={handleBlur}
+                            onKeyDown={handleKeyDown}
+                            className="flex-1 min-w-0 bg-transparent text-sm font-medium focus:outline-none"
+                            style={{ color: colors.textPrimary }}
+                        />
+                        {isSearching && (
+                            <button onClick={handleClear} aria-label="Limpar busca" className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0" style={{ color: colors.accent }}>
+                                <X size={16} />
+                            </button>
+                        )}
+                    </div>
+                )}
+            </div>
+        )
     }
 
     return (

@@ -1,7 +1,7 @@
 // src/components/ProfileDashboard/UiVersionCard.tsx
 //
-// Convite para experimentar a interface 3.0. Só aparece para quem está na 2.0 e só se o admin deixou a 3.0
-// disponível. A troca usa o mesmo mecanismo central de versões (src/versions): mantém a sessão, salva a preferência
+// Convite para experimentar a interface 3.0. Só aparece para quem está na 2.0 e o administrador liberou a 3.0 para
+// este perfil (ou para todos). A troca usa o mesmo mecanismo central de versões (src/versions): mantém a sessão, salva a preferência
 // e não mexe em dados, plano ou permissões.
 'use client'
 
@@ -10,7 +10,7 @@ import { Sparkles } from 'lucide-react'
 import { usePathname } from 'next/navigation'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
-import { switchVersion, useUiVersion, useV3Offered, versionLabel } from '@/versions/client'
+import { switchVersion, useUiVersion, useV3Access, versionLabel } from '@/versions/client'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -19,10 +19,11 @@ export default function UiVersionCard() {
     const { userId } = useProfile()
     const pathname = usePathname()
     const version = useUiVersion()
-    const offered = useV3Offered()
+    const access = useV3Access()
     const [busy, setBusy] = useState(false)
 
-    if (version !== 'v2' || !offered) return null
+    // Escondido até o administrador liberar a 3.0 para este perfil
+    if (version !== 'v2' || !access.allowed) return null
 
     return (
         <div

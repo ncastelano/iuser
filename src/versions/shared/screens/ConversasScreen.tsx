@@ -12,7 +12,7 @@ import { ArrowLeft, MessageCircle, Send, Store as StoreIcon, User } from 'lucide
 import { supabase } from '@/lib/supabase/client'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { useTheme } from '@/app/contexts/theme'
-import PageTabs from '@/versions/v3/shell/PageTabs'
+import PageTabs from '@/components/PageTabs'
 import Header from '@/components/Header'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import type { UiVersion } from '@/versions/registry'

@@ -308,48 +308,163 @@ interface WhatsAppBotStoreRow {
     whatsapp_bot_status: WhatsAppBotStatus
 }
 
-// Oferta da interface 3.0 (feature_flags.ui_v3). Ligada, quem está na 2.0 vê "Experimentar o iUser 3.0" no painel do
-// perfil. Desligada, ninguém vê a opção e TODOS voltam para a 2.0 (a escolha de cada pessoa fica guardada).
+// Acesso à interface 3.0. Escondida de todos até o administrador liberar: perfil a perfil (cada um então vê
+// "Experimentar o iUser 3.0" no painel do perfil) ou para todos de uma vez (chave feature_flags.ui_v3).
+// O administrador geral sempre tem acesso (botão "v3" flutuante na homepage dele).
+interface V3Granted { profile_id: string; granted_at: string; profileSlug: string | null; name: string | null; avatar_url: string | null }
+interface ProfileHit { id: string; profileSlug: string | null; name: string | null; avatar_url: string | null }
+
 function UiVersionOfferSection({ cardStyle, colors }: SectionProps) {
-    const [offered, setOffered] = useState<boolean | null>(null)
+    const [forAll, setForAll] = useState<boolean | null>(null)
     const [toggling, setToggling] = useState(false)
+    const [granted, setGranted] = useState<V3Granted[]>([])
+    const [query, setQuery] = useState('')
+    const [hits, setHits] = useState<ProfileHit[]>([])
+    const [busyId, setBusyId] = useState<string | null>(null)
+
+    const loadGranted = useCallback(async () => {
+        try {
+            const r = await callAdminApi<{ granted: V3Granted[] }>('/api/admin/ui-access', { action: 'list' })
+            setGranted(r.granted || [])
+        } catch (err: any) {
+            toast.error(err.message || 'Erro ao carregar')
+        }
+    }, [])
+
     useEffect(() => {
         supabase.from('feature_flags').select('enabled').eq('key', 'ui_v3').maybeSingle()
-            .then(({ data }) => setOffered(data ? !!(data as { enabled?: boolean }).enabled : true))
-    }, [])
-    const toggle = async () => {
-        if (offered === null) return
+            .then(({ data }) => setForAll(!!(data as { enabled?: boolean } | null)?.enabled))
+        loadGranted()
+    }, [loadGranted])
+
+    useEffect(() => {
+        const q = query.trim().replace(/^@/, '')
+        if (q.length < 2) { setHits([]); return }
+        const t = setTimeout(async () => {
+            const { data } = await supabase
+                .from('profiles')
+                .select('id, profileSlug, name, avatar_url')
+                .or(`profileSlug.ilike.%${q}%,name.ilike.%${q}%`)
+                .limit(8)
+            setHits((data as ProfileHit[]) || [])
+        }, 250)
+        return () => clearTimeout(t)
+    }, [query])
+
+    const toggleAll = async () => {
+        if (forAll === null) return
         setToggling(true)
         try {
-            await callAdminApi('/api/admin/feature-flags', { key: 'ui_v3', enabled: !offered })
-            setOffered(!offered)
-            toast.success(!offered ? 'Interface 3.0 disponível para todos' : 'Interface 3.0 desligada: todos voltam para a 2.0')
+            await callAdminApi('/api/admin/feature-flags', { key: 'ui_v3', enabled: !forAll })
+            setForAll(!forAll)
+            toast.success(!forAll ? 'Interface 3.0 liberada para todos' : 'Interface 3.0 voltou a ser só de quem você liberou')
         } catch (err: any) {
             toast.error(err.message || 'Erro ao salvar')
         } finally {
             setToggling(false)
         }
     }
+
+    const setAccess = async (profileId: string, grant: boolean) => {
+        setBusyId(profileId)
+        try {
+            await callAdminApi('/api/admin/ui-access', { action: grant ? 'grant' : 'revoke', profileId })
+            toast.success(grant ? 'Acesso à 3.0 liberado' : 'Acesso à 3.0 removido')
+            await loadGranted()
+        } catch (err: any) {
+            toast.error(err.message || 'Erro ao salvar')
+        } finally {
+            setBusyId(null)
+        }
+    }
+
+    const grantedIds = new Set(granted.map((g) => g.profile_id))
+    const person = (p: { profileSlug: string | null; name: string | null; avatar_url: string | null }) => (
+        <span className="flex items-center gap-2 min-w-0">
+            <span className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center text-xs font-black" style={{ background: `${colors.border}60`, color: colors.textSecondary }}>
+                {p.avatar_url ? <img src={p.avatar_url} alt="" className="w-full h-full object-cover" /> : (p.profileSlug || p.name || '?').charAt(0).toUpperCase()}
+            </span>
+            <span className="min-w-0">
+                <span className="block text-sm font-bold truncate" style={{ color: colors.textPrimary }}>{p.name || p.profileSlug}</span>
+                {p.profileSlug && <span className="block text-[11px] truncate" style={{ color: colors.textSecondary }}>@{p.profileSlug}</span>}
+            </span>
+        </span>
+    )
+
     return (
-        <div style={cardStyle} className="flex items-center justify-between gap-4">
-            <div className="min-w-0">
-                <p className="text-sm font-black" style={{ color: colors.textPrimary }}>Oferecer a interface 3.0</p>
-                <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>
-                    {offered
-                        ? 'Ligada: quem está na 2.0 vê "Experimentar o iUser 3.0" no painel do perfil e pode trocar (e voltar) quando quiser.'
-                        : 'Desligada: ninguém vê a opção e todos usam a 2.0. A escolha de cada pessoa continua guardada.'}
-                </p>
+        <div className="space-y-3">
+            <div style={cardStyle} className="flex items-center justify-between gap-4">
+                <div className="min-w-0">
+                    <p className="text-sm font-black" style={{ color: colors.textPrimary }}>Liberar a interface 3.0 para todos</p>
+                    <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>
+                        {forAll
+                            ? 'Liberada para todos: qualquer perfil vê "Experimentar o iUser 3.0" no painel do perfil.'
+                            : 'Desligada: ninguém vê a 3.0 — só você e os perfis que liberar abaixo.'}
+                    </p>
+                </div>
+                <button
+                    onClick={toggleAll}
+                    disabled={forAll === null || toggling}
+                    role="switch"
+                    aria-checked={!!forAll}
+                    className="relative w-12 h-7 rounded-full flex-shrink-0 transition-colors disabled:opacity-60"
+                    style={{ background: forAll ? '#22c55e' : `${colors.border}` }}
+                >
+                    <span className="absolute top-0.5 w-6 h-6 rounded-full bg-white transition-all" style={{ left: forAll ? 22 : 2 }} />
+                </button>
             </div>
-            <button
-                onClick={toggle}
-                disabled={offered === null || toggling}
-                role="switch"
-                aria-checked={!!offered}
-                className="relative w-12 h-7 rounded-full flex-shrink-0 transition-colors disabled:opacity-60"
-                style={{ background: offered ? '#22c55e' : `${colors.border}` }}
-            >
-                <span className="absolute top-0.5 w-6 h-6 rounded-full bg-white transition-all" style={{ left: offered ? 22 : 2 }} />
-            </button>
+
+            <div style={cardStyle} className="space-y-3">
+                <p className="text-xs font-black uppercase tracking-wider flex items-center gap-1.5" style={{ color: colors.textSecondary }}>
+                    <Search size={12} /> Liberar para um perfil
+                </p>
+                <input
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="Buscar por nome ou @usuário..."
+                    className="w-full px-4 py-2.5 rounded-full text-sm focus:outline-none"
+                    style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                />
+                {hits.map((h) => (
+                    <div key={h.id} className="flex items-center justify-between gap-3">
+                        {person(h)}
+                        {grantedIds.has(h.id) ? (
+                            <span className="text-[11px] font-black px-3 py-1.5 rounded-full" style={{ background: '#22c55e22', color: '#16a34a' }}>Já liberado</span>
+                        ) : (
+                            <button
+                                onClick={() => setAccess(h.id, true)}
+                                disabled={busyId === h.id}
+                                className="text-[11px] font-black px-3 py-1.5 rounded-full text-white disabled:opacity-60"
+                                style={{ background: 'linear-gradient(135deg, #f97316, #dc2626)' }}
+                            >
+                                Liberar
+                            </button>
+                        )}
+                    </div>
+                ))}
+            </div>
+
+            <div style={cardStyle} className="space-y-3">
+                <p className="text-xs font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>
+                    Perfis com acesso ({granted.length})
+                </p>
+                {granted.length === 0 && (
+                    <p className="text-xs" style={{ color: colors.textSecondary }}>Nenhum perfil liberado ainda.</p>
+                )}
+                {granted.map((g) => (
+                    <div key={g.profile_id} className="flex items-center justify-between gap-3">
+                        {person(g)}
+                        <button
+                            onClick={() => setAccess(g.profile_id, false)}
+                            disabled={busyId === g.profile_id}
+                            className="text-[11px] font-black px-3 py-1.5 rounded-full disabled:opacity-60"
+                            style={{ background: `${colors.border}60`, color: colors.textPrimary }}
+                        >
+                            Remover
+                        </button>
+                    </div>
+                ))}
+            </div>
         </div>
     )
 }

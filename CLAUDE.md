@@ -19,15 +19,17 @@ Detalhes e justificativas: `docs/ARCHITECTURE.md` e `docs/decisions/`. Resumo op
   `lib/supabase/client.ts` ↔ `lib/usageTelemetry.ts`).
 - **A versão da interface decide SÓ apresentação.** Nunca use a versão para liberar permissão, dado, plano ou saldo,
   nem espalhe `if (version === ...)` pelas páginas. A decisão é única: `src/proxy.ts` + `src/versions/{registry,resolve}.ts`.
-  - Escolha: cookie `iuser_ui` + `profiles.preferred_version` (RPC `set_my_ui_version`). Oferta: `feature_flags.ui_v3`
-    (Admin → Interface 3.0). Padrão: `v2`.
+  - Escolha: cookie `iuser_ui` + `profiles.preferred_version` (RPC `set_my_ui_version`). **Acesso**: a 3.0 é liberada
+    pelo admin por perfil (`ui_v3_access`) ou para todos (`feature_flags.ui_v3`, desligada); o admin geral sempre
+    tem (botão flutuante **v3** na home 2.0). Sem permissão, a 3.0 não aparece em lugar nenhum. Padrão: `v2`.
+  - Na 3.0 **toda** página abre dentro da casca (`VersionFrame`); o `Header` da 2.0 vira compacto via `InsideShell`.
+    Tela cheia (mapas) → `SHELL_EXCLUDED` em `registry.ts`. Ao migrar uma página, ajuste só o que ficar estranho na casca.
   - URLs compartilhadas (`/`, `/carrinho`, `/conversas`) mantêm o endereço; a 3.0 é servida por *rewrite* para
     `/modeloinicial`, `/v3/carrinho`, `/v3/conversas`. **Nova URL que existirá nas duas versões** → entrada em
     `VERSION_ROUTES` (`registry.ts`) e teste em `scripts/test-versions.mjs`. Página só da 3.0 → fica em
-    `app/(main)/(shell)/` (herda a casca persistente: navbar + drawer) e entra em `IGNORED_ROUTES`/`IGNORED_PREFIXES`.
-  - Páginas ainda não migradas continuam abrindo na v2 para quem usa a 3.0. Não é bug.
+    `app/(main)/(shell)/` e entra em `IGNORED_ROUTES`/`IGNORED_PREFIXES` + `V3_ONLY_*` em `registry.ts`.
   - Seletor de versão: UM mecanismo (`switchVersion` em `src/versions/client.tsx`), exibido só em dois lugares —
-    `ProfileDashboard` (2.0) e drawer (3.0). Não crie outro.
+    `ProfileDashboard` (2.0, com permissão), botão **v3** do admin na home 2.0 e drawer (3.0). Não crie outro.
 - **Não mexa sem justificativa:** a casca da 3.0 (`src/versions/v3/shell/ModeShell.tsx`: navbar, drawer, aba que
   desliza e encaixa no cartão), `src/proxy.ts`, a lógica de `CarrinhoScreen`/`ConversasScreen`, e a telemetria de
   `lib/supabase/client.ts`. Preserve o comportamento visual/interativo existente ao refatorar.

@@ -7,6 +7,7 @@
 
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import ModeShell from './ModeShell'
+import { InsideShellContext } from '@/components/InsideShell'
 
 interface ShellSearch { value: string; onChange: (v: string) => void; placeholder?: string }
 
@@ -32,7 +33,9 @@ export default function ShellFrame({ children }: { children: ReactNode }) {
     const setter = useMemo(() => setSearch, [])
     return (
         <ShellSearchContext.Provider value={setter}>
-            <ModeShell search={search || undefined}>{children}</ModeShell>
+            <InsideShellContext.Provider value>
+                <ModeShell search={search || undefined}>{children}</ModeShell>
+            </InsideShellContext.Provider>
         </ShellSearchContext.Provider>
     )
 }
