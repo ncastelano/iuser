@@ -337,7 +337,9 @@ const EDGE_GAP = 'calc(16px + max(0px, (100vw - 1024px) / 2))'
 const TAB_H = 58
 const FILLET = 12
 // Ícone da barra do topo. A aba clara (selecionado) é UM indicador só, que desliza entre os três (`indicator`, dentro da barra)
-function NavTab({ selected, label, onClick, badge = 0, badgeColor = '#ef4444', pulse = false, toEdge = false, btnRef, children }: {
+function NavTab({ selected, selectedColor, label, onClick, badge = 0, badgeColor = '#ef4444', pulse = false, toEdge = false, btnRef, children }: {
+    /** Cor do ícone quando selecionado (fica sobre a aba clara: precisa ser escura) */
+    selectedColor: string
     btnRef?: React.Ref<HTMLButtonElement>
     /** Aba do canto direito: estica até a borda da tela pra aba clara se fundir ao canto do cartão */
     toEdge?: boolean
@@ -355,8 +357,8 @@ function NavTab({ selected, label, onClick, badge = 0, badgeColor = '#ef4444', p
                 paddingRight: toEdge ? EDGE_GAP : undefined,
                 marginRight: toEdge ? `calc(-1 * ${EDGE_GAP})` : undefined,
                 height: '100%', paddingBottom: 8,
-                color: selected ? '#ea580c' : '#fff',
-                transition: 'color 300ms ease',
+                // troca na hora (sem transição): o ícone branco nunca fica sobre a aba clara que está chegando
+                color: selected ? selectedColor : '#fff',
             }}
         >
             {children}
@@ -812,9 +814,9 @@ export default function ModeShell({ children, search }: {
                             aria-expanded={drawerOpen}
                             className="relative min-w-0 flex-1 text-left rounded-xl py-1 transition active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f97316]"
                         >
-                            <span className="block text-xs truncate" style={{ color: leftTabOn ? colors.textSecondary : 'rgba(255,255,255,0.85)', transition: 'color 120ms ease' }}>{headerView.line1}</span>
+                            <span className="block text-xs truncate" style={{ color: leftTabOn ? colors.textSecondary : 'rgba(255,255,255,0.85)', }}>{headerView.line1}</span>
                             <span className="flex items-center gap-1.5 min-w-0">
-                                <span className="text-base font-black truncate" style={{ color: leftTabOn ? colors.textPrimary : '#fff', transition: 'color 120ms ease' }}>{headerView.line2}</span>
+                                <span className="text-base font-black truncate" style={{ color: leftTabOn ? colors.textPrimary : '#fff', }}>{headerView.line2}</span>
                                 <span className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center" style={{ background: leftTabOn ? `${colors.border}66` : 'rgba(255,255,255,0.22)', transition: 'background 300ms ease' }}>
                                     <svg
                                         width="10" height="9" viewBox="0 0 10 9" aria-hidden
@@ -851,10 +853,10 @@ export default function ModeShell({ children, search }: {
                             transition: 'max-width 320ms cubic-bezier(0.22, 1, 0.36, 1), opacity 200ms ease',
                         }}
                     >
-                        <NavTab btnRef={cartRef} selected={indicatorOn && target === 'cart'} label="Carrinho" onClick={() => pickTab('cart', () => go('/carrinho'))} badge={topCart}>
+                        <NavTab btnRef={cartRef} selectedColor={colors.textPrimary} selected={indicatorOn && target === 'cart'} label="Carrinho" onClick={() => pickTab('cart', () => go('/carrinho'))} badge={topCart}>
                             <ShoppingCart size={20} />
                         </NavTab>
-                        <NavTab btnRef={chatRef} selected={indicatorOn && target === 'chat'} label="Conversas" onClick={() => pickTab('chat', () => go(userId ? '/conversas' : '/login'))} badge={topUnread} badgeColor="#16a34a" pulse={topUnread > 0}>
+                        <NavTab btnRef={chatRef} selectedColor={colors.textPrimary} selected={indicatorOn && target === 'chat'} label="Conversas" onClick={() => pickTab('chat', () => go(userId ? '/conversas' : '/login'))} badge={topUnread} badgeColor="#16a34a" pulse={topUnread > 0}>
                             <MessageCircle size={20} />
                         </NavTab>
                     </div>
@@ -881,7 +883,7 @@ export default function ModeShell({ children, search }: {
                             </button>
                         </>
                     ) : (
-                        <NavTab btnRef={lupaRef} toEdge selected={indicatorOn && target === 'search'} label="Buscar" onClick={() => pickTab('search', () => (search ? setSearchOpen(true) : go('/modeloinicial')))}>
+                        <NavTab btnRef={lupaRef} toEdge selectedColor={colors.textPrimary} selected={indicatorOn && target === 'search'} label="Buscar" onClick={() => pickTab('search', () => (search ? setSearchOpen(true) : go('/modeloinicial')))}>
                             <Search size={20} />
                         </NavTab>
                     )}
