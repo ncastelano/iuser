@@ -496,7 +496,7 @@ export default function ModeloInicialPage() {
     type Action = { title: string; desc: string; icon: LucideIcon; icons?: LucideIcon[]; color: string; onClick: () => void }
     // Quem PRECISA de algo (o visitante chega por aqui)
     const needs: Action[] = [
-        { title: 'Comprar', desc: 'Lojas e produtos perto de você', icon: ShoppingBag, icons: [ShoppingBag, UtensilsCrossed, Shirt, Smartphone], color: TYPE.loja.color, onClick: () => go('/lojas') },
+        { title: 'Comprar', desc: 'Lojas e produtos perto de você', icon: ShoppingBag, icons: [ShoppingBag, UtensilsCrossed, Shirt, Smartphone], color: TYPE.loja.color, onClick: () => go('/comprar') },
         { title: 'Contratar serviço', desc: 'Descreva o que você precisa', icon: Wrench, icons: [Wrench, Scissors, Hand, Sparkles], color: TYPE.servico.color, onClick: () => go('/solicitar-servico') },
         { title: 'Pedir motorista', desc: 'Corrida rápida, preço combinado', icon: Car, icons: [Car, Bike, Motorbike, Package], color: '#ea580c', onClick: () => go('/pedir-motorista') },
         { title: 'Ver ao redor', desc: 'Mapa com lojas, serviços e pessoas', icon: Radar, icons: [Radar, MapPin, StoreIcon, Users], color: '#0891b2', onClick: () => go('/radar') },

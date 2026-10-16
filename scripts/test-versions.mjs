@@ -69,3 +69,7 @@ test('na v2 só as páginas exclusivas da 3.0 usam a casca', () => {
     assert.equal(usesShell('v2', '/veiculo/abc'), true)
     assert.equal(isV3OnlyPath('/v3/carrinho'), false)
 })
+
+test('/comprar existe só na 3.0', () => {
+    assert.equal(isV3OnlyPath('/comprar'), true)
+})

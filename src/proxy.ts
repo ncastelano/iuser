@@ -53,6 +53,7 @@ const IGNORED_ROUTES = [
     '/modeloinicial',
     '/modoprestador',
     '/painel-perfil',
+    '/comprar',
 ]
 
 // ===== PREFIXOS IGNORADOS =====
