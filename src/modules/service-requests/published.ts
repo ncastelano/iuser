@@ -13,6 +13,10 @@ export interface PublishedService {
     name: string
     imageUrl: string | null
     serviceType: string | null
+    description: string | null
+    address: string | null
+    lat: number | null
+    lng: number | null
     ownerName: string | null
     avatarUrl: string | undefined
     targetSlug: string | null
@@ -21,8 +25,8 @@ export interface PublishedService {
 
 export async function loadPublishedServices(client: SupabaseClient): Promise<PublishedService[]> {
     const [{ data: profileRows }, { data: storeRows }] = await Promise.all([
-        client.from('products').select('id, name, image_url, service_type, owner_id, view_count').eq('listing_type', 'service_offer').order('view_count', { ascending: false }).limit(60),
-        client.from('products').select('id, name, image_url, store_id, view_count').eq('type', 'service').eq('listing_type', 'sale').order('view_count', { ascending: false }).limit(60),
+        client.from('products').select('id, name, description, image_url, service_type, address, lat, lng, owner_id, view_count').eq('listing_type', 'service_offer').order('view_count', { ascending: false }).limit(60),
+        client.from('products').select('id, name, description, image_url, store_id, view_count').eq('type', 'service').eq('listing_type', 'sale').order('view_count', { ascending: false }).limit(60),
     ])
 
     const hidden = await getProfilesHiddenFromMap((profileRows || []).map((r: any) => r.owner_id))
@@ -32,7 +36,7 @@ export async function loadPublishedServices(client: SupabaseClient): Promise<Pub
 
     const [profiles, stores] = await Promise.all([
         ownerIds.length ? client.from('profiles').select('id, name, profileSlug, avatar_url').in('id', ownerIds) : Promise.resolve({ data: [] as any[] }),
-        storeIds.length ? client.from('stores').select('id, name, storeSlug, logo_url').in('id', storeIds) : Promise.resolve({ data: [] as any[] }),
+        storeIds.length ? client.from('stores').select('id, name, storeSlug, logo_url, store_lat, store_lng, address').in('id', storeIds) : Promise.resolve({ data: [] as any[] }),
     ])
     const profileById = new Map((profiles.data || []).map((p: any) => [p.id, p]))
     const storeById = new Map((stores.data || []).map((s: any) => [s.id, s]))
@@ -42,6 +46,7 @@ export async function loadPublishedServices(client: SupabaseClient): Promise<Pub
         const p: any = profileById.get(r.owner_id)
         return {
             id: r.id, kind: 'profile', name: r.name, imageUrl: productImage(r.image_url), serviceType: r.service_type,
+            description: r.description, address: r.address, lat: r.lat, lng: r.lng,
             ownerName: p?.name || null, avatarUrl: getAvatarUrl(client, p?.avatar_url), targetSlug: p?.profileSlug || null, viewCount: r.view_count || 0,
         }
     })
@@ -51,6 +56,7 @@ export async function loadPublishedServices(client: SupabaseClient): Promise<Pub
             const s: any = storeById.get(r.store_id)
             return {
                 id: r.id, kind: 'store', name: r.name, imageUrl: productImage(r.image_url), serviceType: null,
+                description: r.description, address: s.address, lat: s.store_lat, lng: s.store_lng,
                 ownerName: s.name, avatarUrl: s.logo_url ? client.storage.from('store-logos').getPublicUrl(s.logo_url).data.publicUrl : undefined,
                 targetSlug: s.storeSlug, viewCount: r.view_count || 0,
             }

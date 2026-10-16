@@ -1,6 +1,6 @@
 // src/modules/service-requests/index.ts — API pública do domínio "pedido de serviço"
-export { MAX_PHOTOS, missingFields, splitAddress, shortAddress } from './domain'
-export type { ServiceRequestInput } from './domain'
+export { MAX_PHOTOS, missingFields, splitAddress, shortAddress, RADIUS_OPTIONS, DEFAULT_RADIUS_KM, distanceKm, formatDistance, aroundMe, countBy } from './domain'
+export type { ServiceRequestInput, GeoPoint } from './domain'
 export { reverseGeocode, searchAddress } from './geocoding'
 export type { AddressHit } from './geocoding'
 export { saveDraft, loadDraft, clearDraft } from './draft'
