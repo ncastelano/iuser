@@ -29,6 +29,8 @@ export async function notifyDriversOfRide(ride: {
     offered_price?: number | null
     /** Entrega de loja: só motoristas com localização conhecida dentro deste raio (km) a partir da origem são avisados */
     radiusKm?: number | null
+    /** Só avisa quem está além deste raio (anel novo, quando o raio é ampliado: o resto já foi avisado) */
+    innerRadiusKm?: number | null
     originLat?: number | null
     originLng?: number | null
     /** Cliente chamou um motorista específico (abriu a página dele): ele recebe um aviso direto, além do geral */
@@ -36,16 +38,20 @@ export async function notifyDriversOfRide(ride: {
 }): Promise<number> {
     const { data: drivers } = await supabaseAdmin
         .from('driver_pricing')
-        .select('driver_id, live_lat, live_lng, live_updated_at')
+        .select('driver_id, live_lat, live_lng, live_updated_at, delivery_radius_km')
         .eq('driver_mode_active', true)
         .neq('driver_id', ride.requester_id)
         .limit(MAX_DRIVERS)
     // Entrega de loja: ninguém é chamado fora da própria cidade — vale o raio a partir da loja
-    const withinRadius = (d: { live_lat: number | null; live_lng: number | null; live_updated_at: string | null }) => {
+    // (vale o MENOR entre o raio da oferta e o raio que o próprio motorista escolheu)
+    const withinRadius = (d: { live_lat: number | null; live_lng: number | null; live_updated_at: string | null; delivery_radius_km: number | null }) => {
         if (ride.radiusKm == null || ride.originLat == null || ride.originLng == null) return true
         if (d.live_lat == null || d.live_lng == null) return false
         if (d.live_updated_at && Date.now() - new Date(d.live_updated_at).getTime() > 30 * 60_000) return false
-        return haversineKm(ride.originLat, ride.originLng, d.live_lat, d.live_lng) <= ride.radiusKm
+        const km = haversineKm(ride.originLat, ride.originLng, d.live_lat, d.live_lng)
+        const limit = Math.min(ride.radiusKm, d.delivery_radius_km != null ? Number(d.delivery_radius_km) : ride.radiusKm)
+        if (ride.innerRadiusKm != null && km <= ride.innerRadiusKm) return false
+        return km <= limit
     }
     const ids = (drivers || []).filter(withinRadius).map((d) => d.driver_id as string)
     if (ids.length === 0) return 0

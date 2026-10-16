@@ -53,6 +53,16 @@ export default function PedidosPage() {
             deliveryStatusByCheckoutId = new Map((assignments || []).map((a: any) => [a.checkout_id, a.status]))
         }
 
+        // Entregador do iUser: a etapa da entrega vem da corrida (in_transit = a caminho, delivered = entregue)
+        const iuserStageByOrderId = new Map<string, string>()
+        const orderIds = (ordersData || []).map((o: any) => o.id)
+        if (orderIds.length > 0) {
+            const { data: dispatches } = await supabase.from('order_delivery_dispatches').select('order_id, stage').in('order_id', orderIds)
+            for (const dsp of dispatches || []) {
+                if (dsp.stage === 'in_transit' || dsp.stage === 'delivered') iuserStageByOrderId.set(dsp.order_id as string, dsp.stage === 'delivered' ? 'delivered' : 'in_transit')
+            }
+        }
+
         let allPurchases: any[] = []
 
         if (ordersData) {
@@ -65,7 +75,7 @@ export default function PedidosPage() {
                     price: item.total_price,
                     created_at: order.created_at,
                     status: order.status,
-                    delivery_status: deliveryStatusByCheckoutId.get(order.checkout_id) || null,
+                    delivery_status: deliveryStatusByCheckoutId.get(order.checkout_id) || iuserStageByOrderId.get(order.id) || null,
                     checkout_id: order.checkout_id,
                     order_id: order.id,
                     buyer_id: order.buyer_id,

@@ -131,7 +131,7 @@ export default function StoreOrders({
     const [iuserDeliveryEnabled, setIuserDeliveryEnabled] = useState(false)
     const [dispatchedOrderIds, setDispatchedOrderIds] = useState<Set<string>>(new Set())
     const [acceptedDispatchIds, setAcceptedDispatchIds] = useState<Set<string>>(new Set())
-    const [dispatchInfo, setDispatchInfo] = useState<Map<string, { freight: number; radius: number }>>(new Map())
+    const [dispatchInfo, setDispatchInfo] = useState<Map<string, { freight: number; radius: number; stage: string }>>(new Map())
     const [callDriverOrder, setCallDriverOrder] = useState<any>(null)
     const [store, setStore] = useState<any>(null)
 
@@ -144,11 +144,11 @@ export default function StoreOrders({
     useEffect(() => {
         const ids = groupedOrders.map((o) => o.id).filter(Boolean)
         if (ids.length === 0) return
-        supabase.from('order_delivery_dispatches').select('order_id, status, final_freight, radius_km').in('order_id', ids).in('status', ['searching', 'accepted'])
+        supabase.from('order_delivery_dispatches').select('order_id, status, stage, final_freight, radius_km').in('order_id', ids).in('status', ['searching', 'accepted'])
             .then(({ data }) => {
                 setDispatchedOrderIds(new Set((data || []).map((r) => r.order_id as string)))
                 setAcceptedDispatchIds(new Set((data || []).filter((r) => r.status === 'accepted').map((r) => r.order_id as string)))
-                setDispatchInfo(new Map((data || []).map((r) => [r.order_id as string, { freight: Number(r.final_freight), radius: Number(r.radius_km) }])))
+                setDispatchInfo(new Map((data || []).map((r) => [r.order_id as string, { freight: Number(r.final_freight), radius: Number(r.radius_km), stage: r.stage as string }])))
             })
     }, [groupedOrders])
 
@@ -1384,7 +1384,7 @@ function OrderButton({
                         {orderTime && <span className="text-[11px] font-bold tabular-nums" style={{ color: themeColors.textSecondary }}>{orderTime}</span>}
                         {!isInPerson && !isPaid && iuserDelivery?.enabled && order.delivery_address && (iuserDelivery.dispatchedIds.has(order.id) || ['preparing', 'ready'].includes(order.status)) && (
                             iuserDelivery.dispatchedIds.has(order.id) ? (
-                                <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full" style={{ background: `${statusColor}1f`, color: statusColor }}>{iuserDelivery.acceptedIds?.has(order.id) ? 'Motorista aceitou' : `Buscando motorista${iuserDelivery.info?.get(order.id) ? ` · R$ ${iuserDelivery.info.get(order.id).freight.toFixed(2)} · ${iuserDelivery.info.get(order.id).radius} km` : ''}`}</span>
+                                <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full" style={{ background: `${statusColor}1f`, color: statusColor }}>{iuserDelivery.acceptedIds?.has(order.id) ? ({ to_store: 'Motorista indo à loja', at_store: 'Motorista na loja', in_transit: 'A caminho do cliente' } as Record<string, string>)[iuserDelivery.info?.get(order.id)?.stage] || 'Motorista aceitou' : `Buscando motorista${iuserDelivery.info?.get(order.id) ? ` · R$ ${iuserDelivery.info.get(order.id).freight.toFixed(2)} · ${iuserDelivery.info.get(order.id).radius} km` : ''}`}</span>
                             ) : (
                                 <button onClick={(e) => { e.stopPropagation(); e.preventDefault(); iuserDelivery.onCall(order) }} className="w-8 h-8 rounded-full flex items-center justify-center transition active:scale-90" style={{ background: `${themeColors.border}50` }} title="Chamar motorista iUser" type="button">
                                     <Truck size={14} style={{ color: themeColors.textPrimary }} />
@@ -1474,7 +1474,7 @@ function OrderButton({
                     {!isInPerson && !isPaid && iuserDelivery?.enabled && order.delivery_address && (iuserDelivery.dispatchedIds.has(order.id) || ['preparing', 'ready'].includes(order.status)) && (
                         iuserDelivery.dispatchedIds.has(order.id) ? (
                             <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-md flex-shrink-0" style={{ background: `${statusColor}1a`, color: `${statusColor}b3` }}>
-                                {iuserDelivery.acceptedIds?.has(order.id) ? 'Motorista aceitou' : `Buscando motorista${iuserDelivery.info?.get(order.id) ? ` · R$ ${iuserDelivery.info.get(order.id).freight.toFixed(2)} · ${iuserDelivery.info.get(order.id).radius} km` : ''}`}
+                                {iuserDelivery.acceptedIds?.has(order.id) ? ({ to_store: 'Motorista indo à loja', at_store: 'Motorista na loja', in_transit: 'A caminho do cliente' } as Record<string, string>)[iuserDelivery.info?.get(order.id)?.stage] || 'Motorista aceitou' : `Buscando motorista${iuserDelivery.info?.get(order.id) ? ` · R$ ${iuserDelivery.info.get(order.id).freight.toFixed(2)} · ${iuserDelivery.info.get(order.id).radius} km` : ''}`}
                             </span>
                         ) : (
                             <button

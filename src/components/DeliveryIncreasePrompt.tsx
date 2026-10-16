@@ -15,6 +15,8 @@ type Round = { id: string; status: string; final_freight: number; extra: number;
 type Counter = { id: string; status: string; amount: number; driver_id: string }
 type Dispatch = {
     id: string
+    status: string
+    stage: string
     final_freight: number
     radius_km: number
     order_delivery_rounds: Round[]
@@ -34,9 +36,9 @@ export default function DeliveryIncreasePrompt({ userId, className = '' }: { use
         if (!userId) return
         const { data } = await supabase
             .from('order_delivery_dispatches')
-            .select('id, final_freight, radius_km, order_delivery_rounds(id, status, final_freight, extra, round), order_delivery_counters(id, status, amount, driver_id), orders(stores(name))')
+            .select('id, status, stage, final_freight, radius_km, order_delivery_rounds(id, status, final_freight, extra, round), order_delivery_counters(id, status, amount, driver_id), orders(stores(name))')
             .eq('customer_id', userId)
-            .eq('status', 'searching')
+            .in('status', ['searching', 'accepted'])
         const list = (data as unknown as Dispatch[]) || []
         setItems(list)
         const ids = Array.from(new Set(list.flatMap((d) => d.order_delivery_counters.filter((c) => c.status === 'pending_customer').map((c) => c.driver_id))))
@@ -92,9 +94,27 @@ export default function DeliveryIncreasePrompt({ userId, className = '' }: { use
 
     if (items.length === 0) return null
 
+    const STAGE_TEXT: Record<string, string> = {
+        assigned: 'Um entregador aceitou a sua entrega',
+        to_store: 'O entregador está indo buscar o pedido na loja',
+        at_store: 'O entregador chegou na loja',
+        in_transit: 'O entregador está a caminho com o seu pedido',
+    }
+
     return (
         <div className={`flex flex-col gap-3 ${className}`}>
             {items.map((d) => {
+                if (d.status === 'accepted') {
+                    const store = d.orders?.stores?.name
+                    return (
+                        <div key={d.id} className="rounded-2xl p-4" style={{ background: '#16a34a12', border: '1.5px solid #16a34a' }}>
+                            <p className="text-sm font-black" style={{ color: '#15803d' }}>{STAGE_TEXT[d.stage] || 'Entrega em andamento'}</p>
+                            <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>
+                                {store ? `Pedido de ${store} · ` : ''}frete de {brl(d.final_freight)}
+                            </p>
+                        </div>
+                    )
+                }
                 const proposal = d.order_delivery_rounds.find((r) => r.status === 'pending_customer')
                 const counters = d.order_delivery_counters.filter((c) => c.status === 'pending_customer')
                 const store = d.orders?.stores?.name

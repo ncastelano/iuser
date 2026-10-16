@@ -98,6 +98,7 @@ function PainelMotoristaContent() {
     // ===== MODO MOTORISTA (liga/desliga) =====
     const [driverModeActive, setDriverModeActive] = useState(false)
     const [alertSoundEnabled, setAlertSoundEnabled] = useState(true)
+    const [deliveryRadius, setDeliveryRadius] = useState<number | null>(null)
     const [voiceNavEnabled, setVoiceNavEnabled] = useState(true)
     const [togglingMode, setTogglingMode] = useState(false)
 
@@ -246,7 +247,7 @@ function PainelMotoristaContent() {
 
         const { data } = await supabase
             .from('driver_pricing')
-            .select('pricing_mode, base_distance_km, base_fee, price_per_km_after_base, extra_fee_pessoa, extra_fee_animal, extra_fee_objeto, extra_fee_condominio, extra_fee_compras, extra_fee_necessidade_especial, extra_fee_pet_sem_caixa, extra_fee_entrega_interna, extra_fee_ar_condicionado, driver_mode_active, alert_sound_enabled, voice_navigation_enabled')
+            .select('pricing_mode, base_distance_km, base_fee, price_per_km_after_base, extra_fee_pessoa, extra_fee_animal, extra_fee_objeto, extra_fee_condominio, extra_fee_compras, extra_fee_necessidade_especial, extra_fee_pet_sem_caixa, extra_fee_entrega_interna, extra_fee_ar_condicionado, driver_mode_active, alert_sound_enabled, voice_navigation_enabled, delivery_radius_km')
             .eq('driver_id', userId)
             .maybeSingle()
 
@@ -267,6 +268,7 @@ function PainelMotoristaContent() {
             if (data.extra_fee_ar_condicionado != null) setExtraFeeArCondicionado(String(data.extra_fee_ar_condicionado))
             setDriverModeActive(!!data.driver_mode_active)
             setAlertSoundEnabled(data.alert_sound_enabled !== false)
+            setDeliveryRadius(data.delivery_radius_km != null ? Number(data.delivery_radius_km) : null)
             setVoiceNavEnabled(data.voice_navigation_enabled !== false)
         }
 
@@ -581,6 +583,16 @@ function PainelMotoristaContent() {
         toast.success(next ? 'Som do alerta ligado' : 'Som do alerta desligado')
     }
 
+    // Raio das entregas de loja: o motorista só vê/recebe entregas dentro dele (vale o menor entre este e o da oferta)
+    const handleDeliveryRadius = async (km: number | null) => {
+        setDeliveryRadius(km)
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) return
+        const { error } = await supabase.from('driver_pricing').update({ delivery_radius_km: km }).eq('driver_id', user.id)
+        if (error) toast.error('Não foi possível salvar o raio')
+        else toast.success(km == null ? 'Sem limite de raio' : `Raio de ${km} km salvo`)
+    }
+
     const handleToggleVoiceNav = async () => {
         const next = !voiceNavEnabled
         setVoiceNavEnabled(next)
@@ -818,6 +830,29 @@ function PainelMotoristaContent() {
                                     </span>
                                 </span>
                             </button>
+                            <div className="w-full px-4 py-3 rounded-2xl flex flex-col gap-2" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
+                                <span>
+                                    <span className="block text-sm font-black" style={{ color: colors.textPrimary }}>Raio das entregas de loja</span>
+                                    <span className="block text-[11px]" style={{ color: colors.textSecondary }}>
+                                        Você só vê e recebe aviso de entregas até essa distância de você. Assim ninguém te chama fora da sua cidade.
+                                    </span>
+                                </span>
+                                <div className="flex gap-1.5 flex-wrap">
+                                    {([null, 3, 5, 10, 20] as (number | null)[]).map((km) => {
+                                        const on = deliveryRadius === km
+                                        return (
+                                            <button
+                                                key={km ?? 'none'}
+                                                onClick={() => handleDeliveryRadius(km)}
+                                                className="px-3.5 py-1.5 rounded-full text-xs font-black transition-all"
+                                                style={on ? { background: GRADIENT, color: '#fff' } : { background: `${colors.border}40`, color: colors.textSecondary }}
+                                            >
+                                                {km == null ? 'Sem limite' : `${km} km`}
+                                            </button>
+                                        )
+                                    })}
+                                </div>
+                            </div>
                             <button
                                 onClick={handleToggleVoiceNav}
                                 className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all"

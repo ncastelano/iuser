@@ -1,0 +1,91 @@
+// app/api/internal/delivery-events/route.ts
+//
+// Fila de avisos da entrega iUser. O banco (pg_net) chama esta rota depois de gravar um evento;
+// ela NÃO usa nada do corpo da chamada: só reivindica os eventos pendentes da tabela
+// order_delivery_events (atomicamente) e manda os pushes. Chamar à toa não faz mal: sem evento
+// pendente não acontece nada.
+import { NextResponse } from 'next/server'
+import { supabaseAdmin } from '@/lib/supabase/admin'
+import { sendPushToUser } from '@/lib/serverPush'
+import { notifyDriversOfRide } from '@/lib/notifyDrivers'
+
+const brl = (v: number) => `R$ ${Number(v).toFixed(2).replace('.', ',')}`
+
+export async function POST() {
+    const { data: events } = await supabaseAdmin
+        .from('order_delivery_events')
+        .update({ processed_at: new Date().toISOString() })
+        .is('processed_at', null)
+        .select('id, dispatch_id, kind, old_radius, new_radius, round_id')
+        .limit(50)
+    if (!events || events.length === 0) return NextResponse.json({ processed: 0 })
+
+    for (const ev of events) {
+        try {
+            const { data: d } = await supabaseAdmin
+                .from('order_delivery_dispatches')
+                .select('id, customer_id, store_id, order_id, ride_request_id, final_freight, status')
+                .eq('id', ev.dispatch_id)
+                .maybeSingle()
+            if (!d) continue
+
+            if (ev.kind === 'delivered') {
+                const { data: store } = await supabaseAdmin.from('stores').select('owner_id, name').eq('id', d.store_id).maybeSingle()
+                if (d.customer_id) {
+                    await sendPushToUser(d.customer_id, {
+                        title: 'Seu pedido foi entregue!',
+                        body: store?.name ? `A entrega do pedido de ${store.name} foi concluída.` : 'A entrega foi concluída.',
+                        url: '/carrinho?aba=pedidos',
+                        tag: `delivery-done-${d.id}`,
+                    })
+                }
+                if (store?.owner_id) {
+                    await sendPushToUser(store.owner_id, {
+                        title: 'Entrega concluída',
+                        body: 'O motorista entregou o pedido e ele foi finalizado.',
+                        tag: `delivery-done-store-${d.id}`,
+                    })
+                }
+                continue
+            }
+
+            if (d.status !== 'searching' || !d.ride_request_id) continue
+
+            // Proposta de aumento: o cliente decide
+            if (ev.kind === 'tick' && ev.round_id && d.customer_id) {
+                const { data: round } = await supabaseAdmin.from('order_delivery_rounds').select('final_freight, status').eq('id', ev.round_id).maybeSingle()
+                if (round?.status === 'pending_customer') {
+                    await sendPushToUser(d.customer_id, {
+                        title: 'Ainda não encontramos um entregador',
+                        body: `Podemos aumentar a entrega de ${brl(d.final_freight)} para ${brl(round.final_freight)} para ampliar a busca? Toque para decidir.`,
+                        url: '/carrinho?aba=pedidos',
+                        tag: `delivery-increase-${d.id}`,
+                        urgent: true,
+                    })
+                }
+            }
+
+            // Motoristas: raio ampliado (só o anel novo) ou valor aumentado (todo o raio, valor novo)
+            const [{ data: ride }, { data: store }] = await Promise.all([
+                supabaseAdmin.from('ride_requests').select('id, requester_id, vehicle_type, origin_address, destination_address, offered_price, origin_lat, origin_lng, visible_radius_km, status').eq('id', d.ride_request_id).maybeSingle(),
+                supabaseAdmin.from('stores').select('store_lat, store_lng').eq('id', d.store_id).maybeSingle(),
+            ])
+            if (!ride || ride.status !== 'pending' || store?.store_lat == null || store?.store_lng == null) continue
+            await notifyDriversOfRide({
+                id: ride.id,
+                requester_id: ride.requester_id,
+                vehicle_type: ride.vehicle_type,
+                origin_address: ride.origin_address,
+                destination_address: ride.destination_address,
+                offered_price: ride.offered_price,
+                radiusKm: Number(ride.visible_radius_km),
+                originLat: store.store_lat,
+                originLng: store.store_lng,
+                innerRadiusKm: ev.kind === 'tick' && ev.old_radius != null ? Number(ev.old_radius) : null,
+            })
+        } catch (err) {
+            console.error('[delivery-events] falha no evento', ev.id, err)
+        }
+    }
+    return NextResponse.json({ processed: events.length })
+}

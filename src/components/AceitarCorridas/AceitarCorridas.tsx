@@ -334,6 +334,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
     const [customPriceFor, setCustomPriceFor] = useState<string | null>(null)
     const [customPriceValue, setCustomPriceValue] = useState('')
     const [driverCoords, setDriverCoords] = useState<[number, number] | null>(null)
+    const [myDeliveryRadius, setMyDeliveryRadius] = useState<number | null>(null)
     const [liveLocationSync, setLiveLocationSync] = useState(false)
     const [liveLocationLabel, setLiveLocationLabel] = useState<string | null>(null)
     const liveLocationDebounceRef = useRef<NodeJS.Timeout | null>(null)
@@ -527,7 +528,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
         const [{ data: pricingRow }, { data: profile }, { data: vehicleRows }] = await Promise.all([
             !contextUserId ? noRow : supabase
                 .from('driver_pricing')
-                .select('pricing_mode, base_distance_km, base_fee, price_per_km_after_base, extra_fee_pessoa, extra_fee_animal, extra_fee_objeto, extra_fee_condominio, extra_fee_compras, extra_fee_necessidade_especial, extra_fee_pet_sem_caixa, extra_fee_entrega_interna, extra_fee_ar_condicionado, alert_sound_enabled, voice_navigation_enabled')
+                .select('pricing_mode, base_distance_km, base_fee, price_per_km_after_base, extra_fee_pessoa, extra_fee_animal, extra_fee_objeto, extra_fee_condominio, extra_fee_compras, extra_fee_necessidade_especial, extra_fee_pet_sem_caixa, extra_fee_entrega_interna, extra_fee_ar_condicionado, alert_sound_enabled, voice_navigation_enabled, delivery_radius_km')
                 .eq('driver_id', contextUserId)
                 .maybeSingle(),
             !contextUserId ? noRow : supabase
@@ -544,6 +545,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
         // Qualquer pessoa vê as corridas disponíveis, mesmo sem ter completado o
         // cadastro de motorista: sem tarifa própria o valor sai pela Tarifa iUser,
         // e sem veículo cadastrado aparecem as corridas de todos os tipos.
+        setMyDeliveryRadius(pricingRow?.delivery_radius_km != null ? Number((pricingRow as any).delivery_radius_km) : null)
         const pricing = pricingRow || {
             pricing_mode: 'platform' as const,
             base_distance_km: null, base_fee: null, price_per_km_after_base: null,
@@ -870,9 +872,9 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
         () => rides.filter((r) => {
             if (!r.order_id || r.visible_radius_km == null || r.origin_lat == null || r.origin_lng == null) return true
             if (!driverCoords) return false
-            return haversineKm(driverCoords, [r.origin_lng, r.origin_lat]) <= Number(r.visible_radius_km)
+            return haversineKm(driverCoords, [r.origin_lng, r.origin_lat]) <= Math.min(Number(r.visible_radius_km), myDeliveryRadius ?? Number(r.visible_radius_km))
         }),
-        [rides, driverCoords]
+        [rides, driverCoords, myDeliveryRadius]
     )
     const visibleRides = useMemo(
         () => radiusRides.filter((r) => !skippedIds.has(r.id)),
