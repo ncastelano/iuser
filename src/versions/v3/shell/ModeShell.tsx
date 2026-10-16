@@ -16,6 +16,7 @@ import { useProfile } from '@/app/contexts/ProfileContext'
 import { isStoreOpenNow, type BusinessHours } from '@/lib/storeHours'
 import PlanAvatarRing, { usePlanRing } from '@/components/PlanAvatarRing'
 import { useChatUnread } from '@/hooks/useChatUnread'
+import { useOrderStatusCounts, type OrderStatusCounts } from '@/hooks/useOrderStatusCounts'
 import { useCartStore } from '@/store/useCartStore'
 import { hexToRgb } from '@/lib/color'
 import { getRecentClicks, type RecentClickItem } from '@/components/LastSearched'
@@ -337,7 +338,7 @@ const EDGE_GAP = 'calc(16px + max(0px, (100vw - 1024px) / 2))'
 const TAB_H = 66
 const FILLET = 12
 // Ícone da barra do topo. A aba clara (selecionado) é UM indicador só, que desliza entre os três (`indicator`, dentro da barra)
-function NavTab({ selected, selectedColor, colorDelay = 0, label, onClick, badge = 0, badgeColor = '#ef4444', pulse = false, toEdge = false, btnRef, children }: {
+function NavTab({ selected, selectedColor, colorDelay = 0, label, onClick, badge = 0, badgeColor = '#ef4444', pulse = false, toEdge = false, btnRef, orders, children }: {
     /** Cor do ícone quando selecionado (fica sobre a aba clara: precisa ser escura) */
     selectedColor: string
     /** Espera (ms) antes de trocar a cor: o ícone só escurece quando a aba clara já chegou nele */
@@ -345,6 +346,8 @@ function NavTab({ selected, selectedColor, colorDelay = 0, label, onClick, badge
     btnRef?: React.Ref<HTMLButtonElement>
     /** Aba do canto direito: estica até a borda da tela pra aba clara se fundir ao canto do cartão */
     toEdge?: boolean
+    /** Pedidos em andamento por etapa: bolinhas coloridas embaixo do ícone (só as que têm algum) */
+    orders?: OrderStatusCounts
     selected: boolean; label: string; onClick: () => void; badge?: number; badgeColor?: string; pulse?: boolean; children: ReactNode
 }) {
     return (
@@ -369,6 +372,17 @@ function NavTab({ selected, selectedColor, colorDelay = 0, label, onClick, badge
             }}
         >
             {children}
+            {orders && (orders.pending > 0 || orders.preparing > 0 || orders.ready > 0) && (
+                <span className="absolute left-1/2 -translate-x-1/2 flex items-center gap-[3px] pointer-events-none" style={{ bottom: 6 }} aria-label="Pedidos em andamento">
+                    {([['pending', '#3b82f6'], ['preparing', '#eab308'], ['ready', '#a855f7']] as const).map(([k, color]) => (
+                        orders[k] > 0 ? (
+                            <span key={k} className="min-w-[15px] h-[15px] px-[3px] rounded-full text-[9px] font-black text-white flex items-center justify-center" style={{ background: color, boxShadow: '0 0 0 1.5px #fff' }}>
+                                {orders[k] > 9 ? '9+' : orders[k]}
+                            </span>
+                        ) : null
+                    ))}
+                </span>
+            )}
             {badge > 0 && (
                 <span className="absolute top-1.5 right-1 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black text-white flex items-center justify-center" style={{ background: badgeColor, boxShadow: '0 0 0 2px #fff' }}>
                     {badge > 99 ? '99+' : badge}
@@ -489,6 +503,8 @@ export default function ModeShell({ children, search }: {
 
     // Selos do topo: não lidas do chat e itens do carrinho
     const topUnread = useChatUnread(userId)
+    const orderCounts = useOrderStatusCounts(userId)
+    const ordersActive = orderCounts.pending + orderCounts.preparing + orderCounts.ready
     const cartMap = useCartStore((st) => st.itemsByStore)
     const [cartReady, setCartReady] = useState(false)
     useEffect(() => setCartReady(true), [])
@@ -881,7 +897,7 @@ export default function ModeShell({ children, search }: {
                             transition: 'max-width 320ms cubic-bezier(0.22, 1, 0.36, 1), opacity 200ms ease',
                         }}
                     >
-                        <NavTab btnRef={cartRef} selectedColor={colors.textPrimary} colorDelay={indicatorOn ? TAB_COLOR_DELAY : 0} selected={indicatorOn && target === 'cart'} label="Carrinho" onClick={() => pickTab('cart', () => go('/carrinho'))} badge={topCart}>
+                        <NavTab btnRef={cartRef} selectedColor={colors.textPrimary} colorDelay={indicatorOn ? TAB_COLOR_DELAY : 0} selected={indicatorOn && target === 'cart'} label="Carrinho" onClick={() => pickTab('cart', () => go(topCart === 0 && ordersActive > 0 ? '/carrinho?aba=pedidos' : '/carrinho'))} badge={topCart} orders={orderCounts}>
                             <ShoppingCart size={20} />
                         </NavTab>
                         <NavTab btnRef={chatRef} selectedColor={colors.textPrimary} colorDelay={indicatorOn ? TAB_COLOR_DELAY : 0} selected={indicatorOn && target === 'chat'} label="Conversas" onClick={() => pickTab('chat', () => go(userId ? '/conversas' : '/login'))} badge={topUnread} badgeColor="#16a34a" pulse={topUnread > 0}>

@@ -249,6 +249,13 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
 
     // ===== ESTADO DA TAB ATIVA =====
     const [activeTab, setActiveTab] = useState<string>('carrinho')
+    // ?aba=pedidos|avaliacoes abre direto nessa aba (a barra do topo leva pros pedidos quando o carrinho está vazio)
+    useEffect(() => {
+        try {
+            const aba = new URLSearchParams(window.location.search).get('aba')
+            if (aba === 'pedidos' || aba === 'avaliacoes') setActiveTab(aba)
+        } catch { /* sem window */ }
+    }, [])
 
     // ===== FUNÇÃO PARA SALVAR LOCALIZAÇÃO NO LOCALSTORAGE =====
     const saveDeliveryLocationToStorage = useCallback((slug: string, location: {
