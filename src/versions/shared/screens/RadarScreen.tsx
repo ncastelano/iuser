@@ -810,6 +810,8 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
     // com uma seta apontando a direção e a distância até ela.
     useEffect(() => {
         if (!mapReady || !mapRef.current) return
+        // 3.0: sem as setas/indicadores dos 3 primeiros no mapa (a distância vai na lista, no canto de cada item)
+        if (v3) { setEdgeIndicators([]); return }
         const map = mapRef.current
 
         const top3 = filtered.slice(0, 3).map((item, i) => ({
@@ -1465,6 +1467,14 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                                             <CrownBadge rank={rank} size={30} />
                                         </span>
                                     )}
+                                    {v3 && (() => {
+                                        const c = resolveItemCoords(item, mode, stores)
+                                        const km = c && referenceLocation ? haversineKm([referenceLocation.lng, referenceLocation.lat], c) : null
+                                        const label = formatDistance(km)
+                                        return label ? (
+                                            <span className="absolute z-10 right-0.5 bottom-0.5 rounded-full px-1.5 py-px text-[9px] font-black text-white leading-tight" style={{ background: 'rgba(0,0,0,0.72)' }}>{label}</span>
+                                        ) : null
+                                    })()}
                                     <div
                                         className={`w-full h-full rounded-2xl overflow-hidden shadow-md bg-white ${rank ? '' : `border-2 ${mode === 'lojas'
                                             ? (item.is_open ? 'border-green-500' : 'border-red-500')
