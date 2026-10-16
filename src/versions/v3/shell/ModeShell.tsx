@@ -330,7 +330,10 @@ function VisitorDrawerContent({ recent, onGo, onClose, onSwitchVersion }: { rece
 const BADGE = 48
 // Degradê do menu: o fundo atrás do cartão do app e a cor da navbar do topo
 // Borda branca em volta da logo do selo: ela aparece bem em cima do degradê laranja da barra
-const LOGO_RING = { border: '2px solid #fff', background: '#fff', boxShadow: '0 1px 6px rgba(0,0,0,0.18)' } as const
+// A logo (logo.png) tem uma margem transparente em volta do círculo; com fundo branco ela virava uma borda grossa.
+// Sem fundo e com a imagem ampliada até o círculo encher o ícone, sobra só o anel de 2px (a mesma grossura do avatar).
+const LOGO_RING = { border: '2px solid #fff', overflow: 'hidden', boxShadow: '0 1px 6px rgba(0,0,0,0.18)' } as const
+const LOGO_IMG_SCALE = 1.15
 // Distância do ícone da direita até a borda da tela (px-4 da barra + a sobra quando a página é mais larga que 5xl)
 const EDGE_GAP = 'calc(16px + max(0px, (100vw - 1024px) / 2))'
 // Altura da aba (ícone selecionado): do alto da barra até o pé dela, onde encontra o cartão do app
@@ -473,13 +476,13 @@ function HeaderBadge({ userId, avatarUrl, onProfile, onHome, colors, noRing = fa
                     </button>
                 ) : (
                     <button onClick={onHome} aria-label="iUser" className="flex items-center justify-center rounded-full" style={{ ...face, ...LOGO_RING }}>
-                        <img src="/logo.png" alt="iUser" className="w-full h-full object-contain rounded-full" />
+                        <img src="/logo.png" alt="iUser" className="w-full h-full object-contain rounded-full" style={{ transform: `scale(${LOGO_IMG_SCALE})` }} />
                     </button>
                 )}
                 {/* Verso: a logo (só existe pra quem está logado) */}
                 {userId && (
                     <button onClick={onHome} aria-label="iUser" className="flex items-center justify-center rounded-full" style={{ ...face, ...LOGO_RING, transform: 'rotateY(180deg)' }}>
-                        <img src="/logo.png" alt="iUser" className="w-full h-full object-contain rounded-full" />
+                        <img src="/logo.png" alt="iUser" className="w-full h-full object-contain rounded-full" style={{ transform: `scale(${LOGO_IMG_SCALE})` }} />
                     </button>
                 )}
             </div>
@@ -537,6 +540,8 @@ export default function ModeShell({ children, search }: {
     const [dataLoaded, setDataLoaded] = useState(false)
     // Modo selecionado (guardado no aparelho, por conta): 'perfil' | 'prestador' | 'loja:<slug>' | 'motorista:<vehicle_slug>'
     const [activeMode, setActiveMode] = useState('perfil')
+    // Com uma loja escolhida no menu, as conversas já abrem na sala dessa loja (?sala=<slug>)
+    const chatPath = activeMode.startsWith('loja:') ? `/conversas?sala=${encodeURIComponent(activeMode.slice(5))}` : '/conversas'
     const [modeTick, setModeTick] = useState(0)
     // Resumo do topo da última visita: desenha o cabeçalho na hora (sem esperar o banco) e depois confere
     const [snap, setSnap] = useState<HeaderSnap | null>(null)
@@ -917,7 +922,7 @@ export default function ModeShell({ children, search }: {
                         <NavTab btnRef={cartRef} selectedColor={colors.textPrimary} colorDelay={indicatorOn ? TAB_COLOR_DELAY : 0} selected={indicatorOn && target === 'cart'} label="Carrinho" onClick={() => pickTab('cart', () => go(topCart === 0 && ordersActive > 0 ? '/carrinho?aba=pedidos' : '/carrinho'))} badge={indicatorOn && target === 'cart' ? 0 : topCart} orders={indicatorOn && target === 'cart' ? undefined : orderCounts}>
                             <ShoppingCart size={20} />
                         </NavTab>
-                        <NavTab btnRef={chatRef} selectedColor={colors.textPrimary} colorDelay={indicatorOn ? TAB_COLOR_DELAY : 0} selected={indicatorOn && target === 'chat'} label="Conversas" onClick={() => pickTab('chat', () => go(userId ? '/conversas' : '/login'))} badge={topUnread} badgeColor="#16a34a" pulse={topUnread > 0}>
+                        <NavTab btnRef={chatRef} selectedColor={colors.textPrimary} colorDelay={indicatorOn ? TAB_COLOR_DELAY : 0} selected={indicatorOn && target === 'chat'} label="Conversas" onClick={() => pickTab('chat', () => go(userId ? chatPath : '/login'))} badge={topUnread} badgeColor="#16a34a" pulse={topUnread > 0}>
                             <MessageCircle size={20} />
                         </NavTab>
                     </div>
