@@ -542,7 +542,7 @@ function SerParceiroContent() {
                                                         <CheckCircle2 size={16} color="#22c55e" className="flex-shrink-0" />
                                                         <span className="text-sm font-bold" style={{ color: '#16a34a' }}>
                                                             {app.completedAt
-                                                                ? 'Serviço feito! Avalie como foi.'
+                                                                ? 'Serviço feito! Avalie quem te contratou.'
                                                                 : `Você foi escolhido! Combine os detalhes com ${app.requesterSlug ? `@${app.requesterSlug}` : 'quem pediu'}.`}
                                                         </span>
                                                     </div>

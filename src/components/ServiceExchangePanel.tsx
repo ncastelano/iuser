@@ -3,7 +3,9 @@
 // Tudo o que acontece DEPOIS que alguém foi escolhido pra um pedido de serviço, pros dois lados:
 //   • falar com a outra pessoa (WhatsApp e chat do iUser — o chat abre mesmo que a pessoa não tenha ligado conversas)
 //   • quem pediu marca "Serviço feito" (o escolhido recebe aviso)
-//   • depois de feito, os dois se avaliam (1 a 5 estrelas + comentário) e cada um vê a avaliação do outro
+//   • depois de feito, os dois se avaliam (1 a 5 estrelas + comentário) e cada um vê a avaliação do outro.
+//     Cada lado avalia uma coisa: quem pediu avalia o SERVIÇO feito; o profissional avalia o CONTRATANTE (educação,
+//     pagamento, negociação...) — isso aparece pros próximos profissionais que ele for contratar.
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
@@ -153,7 +155,7 @@ export default function ServiceExchangePanel({ applicationId, role, counterpartI
 
                     {theirs && (
                         <div>
-                            <p className="text-[11px] font-bold" style={{ color: colors.textSecondary }}>{who} avaliou você</p>
+                            <p className="text-[11px] font-bold" style={{ color: colors.textSecondary }}>{role === 'provider' ? `${who} avaliou o seu serviço` : `${who} avaliou você como contratante`}</p>
                             <Stars value={theirs.rating} />
                             {theirs.comment && <p className="text-xs mt-0.5 break-words" style={{ color: colors.textPrimary }}>“{theirs.comment}”</p>}
                         </div>
@@ -161,13 +163,22 @@ export default function ServiceExchangePanel({ applicationId, role, counterpartI
 
                     {mine ? (
                         <div>
-                            <p className="text-[11px] font-bold" style={{ color: colors.textSecondary }}>Sua avaliação para {who}</p>
+                            <p className="text-[11px] font-bold" style={{ color: colors.textSecondary }}>{role === 'provider' ? `Sua avaliação de ${who} como contratante` : `Sua avaliação do serviço de ${who}`}</p>
                             <Stars value={mine.rating} />
                             {mine.comment && <p className="text-xs mt-0.5 break-words" style={{ color: colors.textPrimary }}>“{mine.comment}”</p>}
                         </div>
                     ) : (
                         <div className="flex flex-col gap-2">
-                            <p className="text-xs font-black" style={{ color: colors.textPrimary }}>Avalie {who}</p>
+                            <div>
+                                <p className="text-xs font-black" style={{ color: colors.textPrimary }}>
+                                    {role === 'provider' ? `Avalie ${who} como contratante` : `Avalie o serviço de ${who}`}
+                                </p>
+                                <p className="text-[11px] mt-0.5" style={{ color: colors.textSecondary }}>
+                                    {role === 'provider'
+                                        ? 'Foi educado? Pagou direitinho? Foi bom de negociar? Sua avaliação ajuda outros profissionais a decidir.'
+                                        : 'Como foi o serviço? Qualidade, pontualidade e atendimento ajudam outras pessoas a escolher.'}
+                                </p>
+                            </div>
                             <div className="flex items-center gap-1">
                                 {[1, 2, 3, 4, 5].map((n) => (
                                     <button key={n} onClick={() => setRating(n)} aria-label={`${n} estrela${n > 1 ? 's' : ''}`}>
@@ -180,7 +191,7 @@ export default function ServiceExchangePanel({ applicationId, role, counterpartI
                                 onChange={(e) => setComment(e.target.value)}
                                 rows={2}
                                 maxLength={500}
-                                placeholder="Conte como foi (opcional)"
+                                placeholder={role === 'provider' ? 'Conte como foi trabalhar com essa pessoa (opcional)' : 'Conte como foi o serviço (opcional)'}
                                 className="w-full resize-none rounded-xl px-3 py-2 text-sm focus:outline-none"
                                 style={{ background: `${colors.border}25`, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
                             />

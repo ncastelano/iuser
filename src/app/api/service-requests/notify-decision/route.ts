@@ -39,7 +39,7 @@ export async function POST(req: Request) {
 
     const payload = kind === 'selected'
         ? { title: 'Você foi escolhido!', body: `${who} escolheu você para: “${title}”. Combinem os detalhes pelo iUser.`, url: '/procurar-servico?aba=inscrevi', tag: `service-selected-${app.id}`, urgent: true }
-        : { title: 'Serviço concluído', body: `${who} marcou “${title}” como feito. Avalie como foi!`, url: '/procurar-servico?aba=inscrevi', tag: `service-done-${app.id}` }
+        : { title: 'Serviço concluído', body: `${who} marcou “${title}” como feito. Avalie como foi trabalhar com essa pessoa!`, url: '/procurar-servico?aba=inscrevi', tag: `service-done-${app.id}` }
 
     const { sent } = await sendPushToUser(app.applicant_id, payload)
     return NextResponse.json({ success: true, sent })
