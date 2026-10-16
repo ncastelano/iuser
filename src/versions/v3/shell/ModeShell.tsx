@@ -633,6 +633,8 @@ export default function ModeShell({ children, search }: {
     const lastTarget = useRef<TabKey | null>(null)
     if (target) lastTarget.current = target
     const measureKey = lastTarget.current
+    // A medida mais recente (usada também quando a barra muda de tamanho SEM re-renderizar: transições do CSS)
+    const measureRef = useRef<() => void>(() => {})
     useLayoutEffect(() => {
         const measure = () => {
             const key = lastTarget.current
@@ -653,10 +655,25 @@ export default function ModeShell({ children, search }: {
             const width = key === 'mode' ? rl + rw : key === 'search' ? W - rl : rw
             setInd((p) => (p && Math.abs(p.left - left) < 0.5 && Math.abs(p.width - width) < 0.5 ? p : { left, width }))
         }
+        measureRef.current = measure
         measure()
         window.addEventListener('resize', measure)
         return () => window.removeEventListener('resize', measure)
     })
+
+    // Quando a busca abre/fecha, o menu da esquerda e os ícones encolhem/crescem numa transição de CSS (sem render).
+    // Medir só no render deixava a aba clara com a medida do MEIO da animação (ela ficava esticada na barra toda);
+    // então remedimos enquanto a barra muda de tamanho e quando a animação termina.
+    useEffect(() => {
+        const remeasure = () => measureRef.current()
+        const nav = navRef.current
+        const els = [modeRef.current, cartRef.current, chatRef.current, lupaRef.current, cartRef.current?.parentElement, lupaRef.current?.parentElement]
+        const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(remeasure) : null
+        els.forEach((el) => el && ro?.observe(el))
+        nav?.addEventListener('transitionend', remeasure)
+        const t = setTimeout(remeasure, 450)
+        return () => { ro?.disconnect(); nav?.removeEventListener('transitionend', remeasure); clearTimeout(t) }
+    }, [searchOpen, drawerOpen, userId])
 
     // O topo responde ao modo escolhido no menu: loja (logo + nome), motorista (foto do carro + modelo e placa),
     // prestador (foto do perfil + "Modo prestador") ou o perfil de sempre.
