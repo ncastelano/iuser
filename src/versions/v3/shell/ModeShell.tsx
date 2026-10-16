@@ -745,7 +745,9 @@ export default function ModeShell({ children, search }: {
                 background: colors.background, zIndex: 2,
                 marginTop: NAV_H,
                 minHeight: `calc(100dvh - ${NAV_H})`,
-                transformOrigin: 'left center',
+                // origem no TOPO: o cartão encolhe pra baixo e a borda de cima continua colada na barra (antes, com a
+                // origem no centro, ele "descolava" da barra e abria uma faixa entre os dois)
+                transformOrigin: 'left top',
                 // vira um cartão abaixo da barra do topo: desliza pra direita e encolhe um pouco, mostrando o menu atrás
                 transform: drawerOpen ? `translateX(${DRAWER_W}) scale(0.9)` : 'none',
                 // aberto: cartão com os 4 cantos; fechado: só os de cima, que se encaixam nos cantos côncavos da barra
