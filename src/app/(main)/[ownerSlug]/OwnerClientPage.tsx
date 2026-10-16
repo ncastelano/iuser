@@ -24,6 +24,7 @@ import { isProfileOpenNow } from '@/lib/profileHours'
 import { captureReferral } from '@/lib/referralCapture'
 import { useMyVehicles, buildVehicleTabs } from '@/lib/vehicleHeaderTabs'
 import { useAdminHeaderTab } from '@/lib/adminHeaderTab'
+import { useInsideShell } from '@/components/InsideShell'
 
 type OwnerType = 'profile' | 'store'
 
@@ -53,6 +54,8 @@ export default function OwnerClientPage() {
         loading: profileLoading
     } = useProfile()
     const adminTab = useAdminHeaderTab(userId)
+    // Dentro da casca da 3.0 o painel do perfil, o das lojas e os veículos moram no menu lateral: aqui as abas saem e entra o voltar
+    const insideShell = useInsideShell()
     const { vehicles: myVehicles } = useMyVehicles(userId)
     const publicationsStore = usePublicationsStore()
 
@@ -388,11 +391,14 @@ export default function OwnerClientPage() {
             <main className="relative z-10 min-h-dvh pb-28" style={{ overscrollBehavior: 'none' }}>
                 <Header
                     title="iUser"
-                    showBack={false}
+                    showBack={insideShell}
+                    onBack={insideShell
+                        ? ((showProfile || showStoreDashboard || showPublications) ? showMainContent : () => (window.history.length > 1 ? router.back() : router.push('/')))
+                        : undefined}
                     greeting={greeting}
                     avatarUrl={loggedUserAvatarUrl || null}
                     loading={loading || profileLoading || loadingStores}
-                    tabs={tabs}
+                    tabs={insideShell ? [] : tabs}
                     showSearch={false}
                     searchPlaceholder="Buscar..."
                     onSearch={() => { }}
@@ -474,7 +480,7 @@ export default function OwnerClientPage() {
                 )}
 
                 {/* Botão de voltar/Home */}
-                {!storeDialogOpen && (
+                {!storeDialogOpen && !insideShell && (
                     <div style={{ position: 'fixed', bottom: 32, right: 24, display: 'flex', gap: 12, zIndex: 998 }}>
                         <button
                             onClick={(showProfile || showStoreDashboard || showPublications) ? showMainContent : () => router.push('/')}
