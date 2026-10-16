@@ -897,7 +897,8 @@ export default function ModeShell({ children, search }: {
                             transition: 'max-width 320ms cubic-bezier(0.22, 1, 0.36, 1), opacity 200ms ease',
                         }}
                     >
-                        <NavTab btnRef={cartRef} selectedColor={colors.textPrimary} colorDelay={indicatorOn ? TAB_COLOR_DELAY : 0} selected={indicatorOn && target === 'cart'} label="Carrinho" onClick={() => pickTab('cart', () => go(topCart === 0 && ordersActive > 0 ? '/carrinho?aba=pedidos' : '/carrinho'))} badge={topCart} orders={orderCounts}>
+                        {/* Na página do carrinho os selos saem da barra: as abas Carrinho/Pedidos da página já os mostram (seria repetido) */}
+                        <NavTab btnRef={cartRef} selectedColor={colors.textPrimary} colorDelay={indicatorOn ? TAB_COLOR_DELAY : 0} selected={indicatorOn && target === 'cart'} label="Carrinho" onClick={() => pickTab('cart', () => go(topCart === 0 && ordersActive > 0 ? '/carrinho?aba=pedidos' : '/carrinho'))} badge={indicatorOn && target === 'cart' ? 0 : topCart} orders={indicatorOn && target === 'cart' ? undefined : orderCounts}>
                             <ShoppingCart size={20} />
                         </NavTab>
                         <NavTab btnRef={chatRef} selectedColor={colors.textPrimary} colorDelay={indicatorOn ? TAB_COLOR_DELAY : 0} selected={indicatorOn && target === 'chat'} label="Conversas" onClick={() => pickTab('chat', () => go(userId ? '/conversas' : '/login'))} badge={topUnread} badgeColor="#16a34a" pulse={topUnread > 0}>

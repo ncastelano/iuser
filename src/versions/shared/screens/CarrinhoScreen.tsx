@@ -1361,6 +1361,7 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
             icon: any
             sectionId: string
             indicator: any
+            badge?: { count: number; color?: string } | null
             isActive: boolean
             onClick: () => void
         }> = [
@@ -1370,6 +1371,8 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                     icon: ShoppingCart,
                     sectionId: 'section-carrinho',
                     indicator: null,
+                    // quantos itens há no carrinho (o mesmo número que a barra do topo mostra nas outras páginas)
+                    badge: cartItemCount > 0 ? { count: cartItemCount } : null,
                     isActive: activeTab === 'carrinho',
                     onClick: () => setActiveTab('carrinho'),
                 },
@@ -1403,7 +1406,7 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
             ]
 
         return tabList
-    }, [currentUserId, activeOrderCounts, pendingReviews.length, activeTab])
+    }, [currentUserId, activeOrderCounts, pendingReviews.length, activeTab, cartItemCount])
 
     const OrderCard = ({ order }: { order: any }) => {
         const statusStyle = getStatusStyles(order.status)
