@@ -6,10 +6,12 @@
 //   • depois de feito, os dois se avaliam (1 a 5 estrelas + comentário) e cada um vê a avaliação do outro.
 //     Cada lado avalia uma coisa: quem pediu avalia o SERVIÇO feito; o profissional avalia o CONTRATANTE (educação,
 //     pagamento, negociação...) — isso aparece pros próximos profissionais que ele for contratar.
+//     O profissional também pode registrar que RECEBEU uma gorjeta e se ela pode ser mostrada. Gorjeta é um agrado,
+//     nunca uma obrigação: não marcar nada não muda nada pra ninguém (e ninguém vê "não deu").
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { CheckCircle2, MessageCircle, Star } from 'lucide-react'
+import { CheckCircle2, Gift, MessageCircle, Star } from 'lucide-react'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
@@ -55,14 +57,19 @@ export default function ServiceExchangePanel({ applicationId, role, counterpartI
     const [busy, setBusy] = useState(false)
     const [rating, setRating] = useState(0)
     const [comment, setComment] = useState('')
+    const [tipReceived, setTipReceived] = useState(false)
+    const [tipVisible, setTipVisible] = useState(false)
+    const [tip, setTip] = useState<{ tip_visible: boolean } | null>(null)
 
     const load = useCallback(async () => {
-        const [{ data: userRes }, appRes, revRes, profRes] = await Promise.all([
+        const [{ data: userRes }, appRes, revRes, profRes, tipRes] = await Promise.all([
             supabase.auth.getUser(),
             supabase.from('service_applications').select('completed_at').eq('id', applicationId).maybeSingle(),
             supabase.from('service_reviews').select('reviewer_id, rating, comment').eq('application_id', applicationId),
             supabase.from('profiles').select('whatsapp').eq('id', counterpartId).maybeSingle(),
+            supabase.from('service_tips').select('tip_visible').eq('application_id', applicationId).maybeSingle(),
         ])
+        setTip((tipRes.data as any) || null)
         setMyId(userRes.user?.id || null)
         setCompletedAt((appRes.data as any)?.completed_at || null)
         setReviews((revRes.data as ReviewRow[]) || [])
@@ -87,7 +94,7 @@ export default function ServiceExchangePanel({ applicationId, role, counterpartI
     const sendReview = async () => {
         if (rating < 1) { toast.error('Escolha de 1 a 5 estrelas'); return }
         setBusy(true)
-        const { error } = await supabase.rpc('submit_service_review', { p_application: applicationId, p_rating: rating, p_comment: comment.trim() || null })
+        const { error } = await supabase.rpc('submit_service_review', { p_application: applicationId, p_rating: rating, p_comment: comment.trim() || null, p_tip_received: role === 'provider' && tipReceived, p_tip_visible: role === 'provider' && tipReceived && tipVisible })
         setBusy(false)
         if (error) { toast.error(error.message); return }
         toast.success('Avaliação enviada')
@@ -158,6 +165,11 @@ export default function ServiceExchangePanel({ applicationId, role, counterpartI
                             <p className="text-[11px] font-bold" style={{ color: colors.textSecondary }}>{role === 'provider' ? `${who} avaliou o seu serviço` : `${who} avaliou você como contratante`}</p>
                             <Stars value={theirs.rating} />
                             {theirs.comment && <p className="text-xs mt-0.5 break-words" style={{ color: colors.textPrimary }}>“{theirs.comment}”</p>}
+                            {role === 'owner' && tip && (
+                                <p className="text-[11px] font-bold mt-1 flex items-center gap-1" style={{ color: '#d97706' }}>
+                                    <Gift size={12} /> {who} agradece a gorjeta
+                                </p>
+                            )}
                         </div>
                     )}
 
@@ -166,6 +178,11 @@ export default function ServiceExchangePanel({ applicationId, role, counterpartI
                             <p className="text-[11px] font-bold" style={{ color: colors.textSecondary }}>{role === 'provider' ? `Sua avaliação de ${who} como contratante` : `Sua avaliação do serviço de ${who}`}</p>
                             <Stars value={mine.rating} />
                             {mine.comment && <p className="text-xs mt-0.5 break-words" style={{ color: colors.textPrimary }}>“{mine.comment}”</p>}
+                            {role === 'provider' && tip && (
+                                <p className="text-[11px] font-bold mt-1 flex items-center gap-1" style={{ color: '#d97706' }}>
+                                    <Gift size={12} /> Você recebeu gorjeta · {tip.tip_visible ? 'pode ser mostrada' : 'só você vê'}
+                                </p>
+                            )}
                         </div>
                     ) : (
                         <div className="flex flex-col gap-2">
@@ -195,6 +212,30 @@ export default function ServiceExchangePanel({ applicationId, role, counterpartI
                                 className="w-full resize-none rounded-xl px-3 py-2 text-sm focus:outline-none"
                                 style={{ background: `${colors.border}25`, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
                             />
+                            {role === 'provider' && (
+                                <div className="rounded-xl p-2.5" style={{ background: `${colors.border}25`, border: `1px solid ${colors.border}` }}>
+                                    <button type="button" onClick={() => { setTipReceived((v) => !v); if (tipReceived) setTipVisible(false) }} className="w-full flex items-center gap-2 text-left">
+                                        <Gift size={15} style={{ color: '#d97706' }} className="flex-shrink-0" />
+                                        <span className="flex-1 text-xs font-black" style={{ color: colors.textPrimary }}>Recebi uma gorjeta</span>
+                                        <span className="w-10 h-6 rounded-full p-0.5 transition-colors flex-shrink-0" style={{ background: tipReceived ? '#16a34a' : colors.border }}>
+                                            <span className="block w-5 h-5 rounded-full bg-white transition-transform shadow" style={{ transform: tipReceived ? 'translateX(16px)' : 'none' }} />
+                                        </span>
+                                    </button>
+                                    {tipReceived && (
+                                        <button type="button" onClick={() => setTipVisible((v) => !v)} className="w-full flex items-center gap-2 text-left mt-2 pt-2" style={{ borderTop: `1px solid ${colors.border}` }}>
+                                            <span className="flex-1 text-[11px]" style={{ color: colors.textPrimary }}>
+                                                Mostrar pros outros profissionais que {who} reconhece o trabalho com gorjeta
+                                            </span>
+                                            <span className="w-10 h-6 rounded-full p-0.5 transition-colors flex-shrink-0" style={{ background: tipVisible ? '#16a34a' : colors.border }}>
+                                                <span className="block w-5 h-5 rounded-full bg-white transition-transform shadow" style={{ transform: tipVisible ? 'translateX(16px)' : 'none' }} />
+                                            </span>
+                                        </button>
+                                    )}
+                                    <p className="text-[10px] mt-1.5" style={{ color: colors.textSecondary }}>
+                                        Gorjeta é um agrado, não uma obrigação. Não marcar nada não afeta ninguém.
+                                    </p>
+                                </div>
+                            )}
                             <button
                                 onClick={sendReview}
                                 disabled={busy || rating < 1}

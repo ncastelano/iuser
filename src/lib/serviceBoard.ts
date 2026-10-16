@@ -23,6 +23,8 @@ export interface BoardRequester {
     name: string | null
     profileSlug: string | null
     avatarUrl: string | undefined
+    /** Gorjetas que essa pessoa já deu e o profissional deixou mostrar (só aparece quando > 0; "não deu" nunca é exibido) */
+    tipsGiven?: number
 }
 
 export type BoardItem = { kind: 'service'; requester: BoardRequester | null } & ServiceRequestRow
@@ -99,9 +101,11 @@ export async function fetchOpenBoardItems(limit?: number): Promise<BoardItem[]> 
             .from('profiles')
             .select('id, name, profileSlug, avatar_url')
             .in('id', requesterIds)
+        const { data: tips } = await supabase.rpc('get_requester_tip_counts', { p_ids: requesterIds })
+        const tipsBy = new Map<string, number>(((tips as { profile_id: string; tips: number }[]) || []).map((t) => [t.profile_id, t.tips]))
         requestersById = new Map((profiles || []).map((p) => [
             p.id,
-            { name: p.name, profileSlug: p.profileSlug, avatarUrl: getAvatarUrl(supabase, p.avatar_url) },
+            { name: p.name, profileSlug: p.profileSlug, avatarUrl: getAvatarUrl(supabase, p.avatar_url), tipsGiven: tipsBy.get(p.id) || 0 },
         ]))
     }
 

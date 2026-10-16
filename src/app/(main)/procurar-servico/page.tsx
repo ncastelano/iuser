@@ -11,7 +11,7 @@ import Header, { type Tab } from '@/components/Header'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import LoginAndRegister from '@/components/LoginAndRegister/LoginAndRegister'
 import { toast } from 'sonner'
-import { Briefcase, MapPin, Plus, Building2, Eye, Trash2, Pencil, X, ClipboardCheck, CheckCircle2, Clock, HeartCrack } from 'lucide-react'
+import { Gift, Briefcase, MapPin, Plus, Building2, Eye, Trash2, Pencil, X, ClipboardCheck, CheckCircle2, Clock, HeartCrack } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import DriverDebtBanner from '@/components/DriverDebtBanner'
 import { notifyServiceApplication } from '@/lib/notifyRideStatus'
@@ -398,6 +398,11 @@ function SerParceiroContent() {
                                                     )}
                                                 </PlanAvatarRing>
                                                 <span className="text-[11px] font-bold truncate" style={{ color: colors.textSecondary }}>{requesterName}</span>
+                                                {(job.requester?.tipsGiven || 0) > 0 && (
+                                                    <span className="flex-shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-black" style={{ background: '#f59e0b22', color: '#b45309' }} title="Já reconheceu o trabalho de profissionais com gorjeta">
+                                                        <Gift size={9} /> Dá gorjeta
+                                                    </span>
+                                                )}
                                                 <span className="flex items-center gap-1.5 flex-shrink-0 ml-auto text-[10px]" style={{ color: colors.textSecondary }}>
                                                     <Eye size={10} />{job.view_count}
                                                     <span>· {relativeTime(job.created_at)}</span>
