@@ -138,11 +138,19 @@ export default function VehicleScreen() {
         if (!userId || !vehicle || vehicle.driver_id !== userId) return
         let cancelled = false
         ;(async () => {
-            const [{ count: accepted }, { count: pending }] = await Promise.all([
+            // Mesma conta do painel "Clientes": corridas aceitas + candidaturas cuja corrida ainda espera escolha
+            // (candidatura 'pending' de uma corrida já cancelada/escolhida não conta — senão o selo aparece e some)
+            const [{ count: accepted }, { data: apps }] = await Promise.all([
                 supabase.from('ride_requests').select('id', { count: 'exact', head: true }).eq('driver_id', userId).eq('status', 'accepted'),
-                supabase.from('ride_applications').select('id', { count: 'exact', head: true }).eq('applicant_id', userId).eq('status', 'pending'),
+                supabase.from('ride_applications').select('ride_request_id').eq('applicant_id', userId).eq('status', 'pending').limit(200),
             ])
-            if (!cancelled) setActiveCount((accepted || 0) + (pending || 0))
+            const ids = ((apps as any[]) || []).map((a) => a.ride_request_id as string)
+            let waiting = 0
+            if (ids.length) {
+                const { count } = await supabase.from('ride_requests').select('id', { count: 'exact', head: true }).in('id', ids).eq('status', 'pending')
+                waiting = count || 0
+            }
+            if (!cancelled) setActiveCount((accepted || 0) + waiting)
         })()
         return () => { cancelled = true }
     }, [userId, vehicle])
