@@ -1404,11 +1404,12 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
 
         // ===== 3.0: cartão claro com linha do tempo =====
         if (v3) {
+            // cada etapa tem a sua cor; as linhas entre elas são laranjas (a cor do iUser)
             const STEPS = [
-                { key: 'pending', label: 'Recebido' },
-                { key: 'preparing', label: 'Preparando' },
-                { key: 'ready', label: 'Pronto' },
-                { key: 'paid', label: 'Finalizado' },
+                { key: 'pending', label: 'Recebido', color: '#3b82f6' },
+                { key: 'preparing', label: 'Preparando', color: '#eab308' },
+                { key: 'ready', label: 'Pronto', color: '#a855f7' },
+                { key: 'paid', label: 'Finalizado', color: '#10b981' },
             ]
             const rejected = order.status === 'rejected'
             const stepIndex = Math.max(0, STEPS.findIndex((st) => st.key === order.status))
@@ -1430,16 +1431,22 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                             <div className="flex items-center">
                                 {STEPS.map((st, i) => (
                                     <div key={st.key} className="flex items-center flex-1 last:flex-none">
-                                        <span className="w-4 h-4 rounded-full flex-shrink-0 flex items-center justify-center" style={{ background: i <= stepIndex ? accent : soft }}>
-                                            {i <= stepIndex && <CheckCircle2 size={10} color="#fff" />}
+                                        <span
+                                            className="w-5 h-5 rounded-full flex-shrink-0 flex items-center justify-center"
+                                            style={{
+                                                background: i <= stepIndex ? st.color : soft,
+                                                boxShadow: i === stepIndex ? `0 0 0 4px ${st.color}33` : 'none',
+                                            }}
+                                        >
+                                            {i <= stepIndex && <CheckCircle2 size={12} color="#fff" />}
                                         </span>
-                                        {i < STEPS.length - 1 && <span className="flex-1 h-0.5 mx-1 rounded-full" style={{ background: i < stepIndex ? accent : soft }} />}
+                                        {i < STEPS.length - 1 && <span className="flex-1 h-1 mx-1.5 rounded-full" style={{ background: i < stepIndex ? '#f97316' : soft }} />}
                                     </div>
                                 ))}
                             </div>
                             <div className="flex justify-between mt-1">
                                 {STEPS.map((st, i) => (
-                                    <span key={st.key} className="text-[9px] font-bold" style={{ color: i === stepIndex ? accent : colors.textSecondary }}>{st.label}</span>
+                                    <span key={st.key} className="text-[9px] font-black" style={{ color: i <= stepIndex ? st.color : colors.textSecondary, opacity: i <= stepIndex ? 1 : 0.7 }}>{st.label}</span>
                                 ))}
                             </div>
                             <p className="mt-2 text-xs font-bold" style={{ color: colors.textPrimary }}>{statusStyle.message}</p>
