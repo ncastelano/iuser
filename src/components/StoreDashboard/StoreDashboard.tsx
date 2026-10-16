@@ -611,6 +611,18 @@ export default function StoreDashboard({
         </>
     )
 
+    // 3.0: Ver minha loja / Compartilhar link ficam logo abaixo de "Informações da loja"
+    const storeButtonsV3 = (
+        <div className="mb-6 grid grid-cols-2 gap-2">
+                    <button onClick={goToPublicStore} className="h-12 rounded-full text-sm font-black text-white transition active:scale-95" style={{ background: GRADIENT, boxShadow: '0 4px 12px #f9731640' }}>
+                        Ver minha loja
+                    </button>
+                    <button onClick={shareStoreLink} className="h-12 rounded-full text-sm font-black transition active:scale-95" style={{ background: `${colors.border}50`, color: colors.textPrimary }}>
+                        Compartilhar link
+                    </button>
+                </div>
+    )
+
     const salesBody = (
                     <>
                     <div className="grid grid-cols-3 gap-2">
@@ -687,6 +699,7 @@ export default function StoreDashboard({
             )}
 
             {infoFirst && descriptionNode}
+            {infoFirst && insideShell && storeButtonsV3}
 
             {showDebtBanner && <DriverDebtBanner userId={userId} />}
 
@@ -723,18 +736,9 @@ export default function StoreDashboard({
             </div>
 
             {!infoFirst && descriptionNode}
+            {!infoFirst && insideShell && storeButtonsV3}
 
-            {/* ===== Botões da Loja ===== */}
-            {insideShell ? (
-                <div className="mb-6 grid grid-cols-2 gap-2">
-                    <button onClick={goToPublicStore} className="h-12 rounded-full text-sm font-black text-white transition active:scale-95" style={{ background: GRADIENT, boxShadow: '0 4px 12px #f9731640' }}>
-                        Ver minha loja
-                    </button>
-                    <button onClick={shareStoreLink} className="h-12 rounded-full text-sm font-black transition active:scale-95" style={{ background: `${colors.border}50`, color: colors.textPrimary }}>
-                        Compartilhar link
-                    </button>
-                </div>
-            ) : (
+            {!insideShell && (
                 <>
             <div className="mb-6">
                 <div className="flex flex-wrap gap-2">

@@ -47,6 +47,7 @@ export default function StoreDeliverySettings({ storeId, onRefresh }: StoreDeliv
     const [acceptsPickup, setAcceptsPickup] = useState(true)
     const [iuserDelivery, setIuserDelivery] = useState(false)
     const [whatsappOrders, setWhatsappOrders] = useState(true)
+    const [hasStoreLocation, setHasStoreLocation] = useState(true)
     const [deliveryMode, setDeliveryMode] = useState<'free' | 'fixed' | 'distance'>('fixed')
     const [fixedDeliveryFee, setFixedDeliveryFee] = useState('')
     const [deliveryBaseDistance, setDeliveryBaseDistance] = useState('5')
@@ -59,7 +60,7 @@ export default function StoreDeliverySettings({ storeId, onRefresh }: StoreDeliv
 
         const { data: store, error } = await supabase
             .from('stores')
-            .select('accepts_delivery, accepts_pickup, iuser_delivery_enabled, whatsapp_orders_enabled, delivery_type, delivery_fee, delivery_base_distance, delivery_base_fee, delivery_fee_per_km')
+            .select('accepts_delivery, accepts_pickup, iuser_delivery_enabled, whatsapp_orders_enabled, delivery_type, delivery_fee, delivery_base_distance, delivery_base_fee, delivery_fee_per_km, address, store_lat, store_lng')
             .eq('id', storeId)
             .single()
 
@@ -74,6 +75,7 @@ export default function StoreDeliverySettings({ storeId, onRefresh }: StoreDeliv
             setAcceptsPickup(store.accepts_pickup ?? true)
             setIuserDelivery(!!store.iuser_delivery_enabled)
             setWhatsappOrders(store.whatsapp_orders_enabled ?? true)
+            setHasStoreLocation(!!store.address && store.store_lat != null && store.store_lng != null)
 
             if (store.delivery_type === 'free') {
                 setDeliveryMode('free')
@@ -149,6 +151,13 @@ export default function StoreDeliverySettings({ storeId, onRefresh }: StoreDeliv
         if (onRefresh) onRefresh()
     }
 
+    // 3.0: quem faz a entrega — uma escolha só (por baixo continua nas duas colunas do banco)
+    const deliveryWho: 'none' | 'own' | 'iuser' = !acceptsDelivery ? 'none' : iuserDelivery ? 'iuser' : 'own'
+    const chooseWho = (who: 'none' | 'own' | 'iuser') => {
+        setAcceptsDelivery(who !== 'none')
+        setIuserDelivery(who === 'iuser')
+    }
+
     const cancelEditing = () => {
         loadConfig()
     }
@@ -199,6 +208,41 @@ export default function StoreDeliverySettings({ storeId, onRefresh }: StoreDeliv
     const body = (
                 <>
                     <div className="space-y-4">
+                        {v3 ? (
+                            <div className="flex flex-col gap-2">
+                                <p className="text-xs font-black" style={{ color: colors.textPrimary }}>Quem leva o pedido até o cliente?</p>
+                                {([
+                                    { id: 'own', title: 'Eu entrego', text: 'Você ou seus funcionários levam. Em cada pedido você escolhe quem vai entregar.', color: '#16a34a' },
+                                    { id: 'iuser', title: 'Entregador do iUser', short: 'Você chama um motorista da plataforma em cada pedido, sem precisar de entregador próprio.', text: 'Você não precisa de entregador. Em cada pedido com entrega, toque no botão de chamar motorista: ele vai para a lista de corridas dos motoristas do iUser com o endereço, o que levar e o frete. O primeiro que aceitar fica com a entrega.', color: '#f97316' },
+                                    { id: 'none', title: 'Não faço entrega', text: 'Os clientes só podem retirar no local.', color: '#6b7280' },
+                                ] as const).map((o) => {
+                                    const on = deliveryWho === o.id
+                                    return (
+                                        <button
+                                            key={o.id}
+                                            type="button"
+                                            onClick={() => chooseWho(o.id)}
+                                            className="text-left rounded-2xl p-3 flex items-start gap-3 transition active:scale-[0.99]"
+                                            style={{ background: on ? `${o.color}12` : 'transparent', border: `${on ? 1.5 : 1}px solid ${on ? o.color : colors.border}` }}
+                                        >
+                                            <span className="mt-0.5 w-4 h-4 rounded-full flex-shrink-0 flex items-center justify-center" style={{ border: `2px solid ${on ? o.color : colors.border}` }}>
+                                                {on && <span className="w-2 h-2 rounded-full" style={{ background: o.color }} />}
+                                            </span>
+                                            <span className="min-w-0">
+                                                <span className="block text-sm font-black" style={{ color: on ? o.color : colors.textPrimary }}>{o.title}</span>
+                                                <span className="block text-[11px] mt-0.5" style={{ color: colors.textSecondary }}>{on || !('short' in o) ? o.text : o.short}</span>
+                                            </span>
+                                        </button>
+                                    )
+                                })}
+                                {deliveryWho === 'iuser' && !hasStoreLocation && (
+                                    <p className="text-[11px] font-bold rounded-xl p-3" style={{ background: '#f9731612', color: '#c2410c', border: '1px solid #f9731640' }}>
+                                        Para chamar motorista, defina o endereço e a localização da loja em &quot;Informações da loja&quot;: é de lá que o motorista busca o pedido.
+                                    </p>
+                                )}
+                            </div>
+                        ) : (
+                        <>
                         {/* Toggle Faz entrega */}
                         <div
                             className="flex items-center justify-between p-3 rounded-full"
@@ -218,10 +262,12 @@ export default function StoreDeliverySettings({ storeId, onRefresh }: StoreDeliv
                                 <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm transition-all ${acceptsDelivery ? 'right-1' : 'left-1'}`} />
                             </button>
                         </div>
+                        </>
+                        )}
 
                         {acceptsDelivery && (
                             <div className="ml-3 space-y-3">
-                                <p className="text-[10px] font-bold" style={{ color: colors.textSecondary }}>Tipo de entrega</p>
+                                <p className="text-[10px] font-bold" style={{ color: colors.textSecondary }}>{v3 ? 'Quanto o cliente paga pela entrega' : 'Tipo de entrega'}</p>
                                 <div className="flex gap-2 flex-wrap">
                                     <button
                                         onClick={() => setDeliveryMode('free')}
@@ -366,11 +412,16 @@ export default function StoreDeliverySettings({ storeId, onRefresh }: StoreDeliv
                                         </p>
                                     </div>
                                 )}
+                                {v3 && deliveryWho === 'iuser' && (
+                                    <p className="text-[11px]" style={{ color: colors.textSecondary }}>
+                                        O cliente paga essa taxa a você. O frete do motorista você define ao chamar: ele já vem igual à taxa cobrada, e você pode mudar (se a entrega for grátis, o frete é por sua conta).
+                                    </p>
+                                )}
                             </div>
                         )}
 
-                        {/* Entrega iUser: chamar motorista da plataforma */}
-                        {acceptsDelivery && (
+                        {/* Entrega iUser: chamar motorista da plataforma (na 3.0 é a escolha lá em cima) */}
+                        {!v3 && acceptsDelivery && (
                             <div
                                 className="p-3 rounded-2xl flex flex-col gap-2"
                                 style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`, border: `1px solid ${colors.border}` }}
@@ -474,7 +525,7 @@ export default function StoreDeliverySettings({ storeId, onRefresh }: StoreDeliv
         return (
             <V3Section
                 title="Configurações de entrega"
-                subtitle={<>{acceptsDelivery ? 'Entrega ativa' : 'Entrega desativada'} · {acceptsPickup ? 'Retirada ativa' : 'Retirada desativada'}{acceptsDelivery && <span style={{ color: '#f97316', fontWeight: 700 }}> · {getDeliverySummary()}</span>}</>}
+                subtitle={<>{deliveryWho === 'iuser' ? 'Entregador do iUser' : deliveryWho === 'own' ? 'Eu entrego' : 'Sem entrega'} · {acceptsPickup ? 'Retirada ativa' : 'Retirada desativada'}{acceptsDelivery && <span style={{ color: '#f97316', fontWeight: 700 }}> · {getDeliverySummary()}</span>}</>}
                 expanded={isExpanded}
                 onToggle={() => setIsExpanded(!isExpanded)}
                 className="mb-0"

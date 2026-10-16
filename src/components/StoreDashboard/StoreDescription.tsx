@@ -474,11 +474,15 @@ export function StoreDescription({
                                 </div>
                                 <div className="flex items-center justify-between gap-3 p-3 rounded-2xl" style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`, border: `1px solid ${colors.border}` }}>
                                     <div className="min-w-0">
-                                        <p className="text-xs font-bold" style={{ color: colors.textPrimary }}>Troca de avaliações com os clientes</p>
+                                        <p className="text-xs font-bold" style={{ color: colors.textPrimary }}>{v3 ? 'Avaliar também os clientes' : 'Troca de avaliações com os clientes'}</p>
                                         <p className="text-[11px]" style={{ color: colors.textSecondary }}>
-                                            {location.mutualReviews
-                                                ? 'Depois que o pedido é concluído você avalia o cliente, e os dois veem a avaliação um do outro.'
-                                                : 'Ligue para avaliar os clientes nos pedidos concluídos e mostrar a troca de avaliações.'}
+                                            {v3
+                                                ? (location.mutualReviews
+                                                    ? 'Ligado: em cada pedido concluído você dá uma nota ao cliente, e os dois veem a avaliação um do outro.'
+                                                    : 'Desligado: só o cliente avalia a sua loja. Ligue para você também avaliar o cliente em cada pedido concluído, e os dois verem a nota um do outro.')
+                                                : (location.mutualReviews
+                                                    ? 'Depois que o pedido é concluído você avalia o cliente, e os dois veem a avaliação um do outro.'
+                                                    : 'Ligue para avaliar os clientes nos pedidos concluídos e mostrar a troca de avaliações.')}
                                         </p>
                                     </div>
                                     <button

@@ -402,26 +402,28 @@ export default function StoreOperatingDays({ storeId, onSaved }: StoreOperatingD
                     </div>
                 </button>
 
-                {/* Botão de refresh */}
-                <button
-                    onClick={handleRefresh}
-                    className="ml-2 p-1 rounded-full hover:bg-white/10 transition-colors flex-shrink-0"
-                    title="Atualizar"
-                    style={{
-                        background: 'transparent',
-                        border: 'none',
-                        cursor: 'pointer',
-                    }}
-                >
-                    <RefreshCw
-                        size={16}
-                        className={isRefreshing ? 'animate-spin-smooth' : ''}
+                {/* Botão de refresh (só na 2.0) */}
+                {!v3 && (
+                    <button
+                        onClick={handleRefresh}
+                        className="ml-2 p-1 rounded-full hover:bg-white/10 transition-colors flex-shrink-0"
+                        title="Atualizar"
                         style={{
-                            color: isRefreshing ? statusColor.text : textSecondary,
-                            transition: 'color 0.3s ease'
+                            background: 'transparent',
+                            border: 'none',
+                            cursor: 'pointer',
                         }}
-                    />
-                </button>
+                    >
+                        <RefreshCw
+                            size={16}
+                            className={isRefreshing ? 'animate-spin-smooth' : ''}
+                            style={{
+                                color: isRefreshing ? statusColor.text : textSecondary,
+                                transition: 'color 0.3s ease'
+                            }}
+                        />
+                    </button>
+                )}
             </div>
 
             {isExpanded && (

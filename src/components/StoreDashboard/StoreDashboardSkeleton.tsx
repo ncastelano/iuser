@@ -66,6 +66,12 @@ export default function StoreDashboardSkeleton({ logo, name, slug }: { logo?: st
                 </div>
             </Card>
 
+            {/* Ver minha loja / Compartilhar link */}
+            <div className="mb-6 grid grid-cols-2 gap-2">
+                <Shimmer className="h-12 rounded-full" color="#f97316" />
+                <Shimmer className="h-12 rounded-full" />
+            </div>
+
             {/* Pedidos na loja: realce laranja e os quatro tons */}
             <Card highlight>
                 <div className="flex flex-col gap-4 p-4">
@@ -90,12 +96,6 @@ export default function StoreDashboardSkeleton({ logo, name, slug }: { logo?: st
             <SectionRow title="w-1/2" sub="w-2/3" />
             <SectionRow title="w-1/3" sub="w-1/2" accent="#16a34a" />
             <SectionRow title="w-1/2" sub="w-2/5" accent="#22c55e" />
-
-            {/* Ver minha loja / Compartilhar link */}
-            <div className="mb-6 grid grid-cols-2 gap-2">
-                <Shimmer className="h-12 rounded-full" color="#f97316" />
-                <Shimmer className="h-12 rounded-full" />
-            </div>
 
             <SectionRow title="w-1/4" sub="w-1/2" accent="#f97316" />
             <SectionRow title="w-2/5" sub="w-1/4" badge />

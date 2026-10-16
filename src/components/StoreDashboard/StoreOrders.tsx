@@ -129,6 +129,7 @@ export default function StoreOrders({
     const [singleAssignOpen, setSingleAssignOpen] = useState<{ order: any } | null>(null)
     const [iuserDeliveryEnabled, setIuserDeliveryEnabled] = useState(false)
     const [dispatchedOrderIds, setDispatchedOrderIds] = useState<Set<string>>(new Set())
+    const [acceptedDispatchIds, setAcceptedDispatchIds] = useState<Set<string>>(new Set())
     const [callDriverOrder, setCallDriverOrder] = useState<any>(null)
     const [store, setStore] = useState<any>(null)
 
@@ -141,13 +142,17 @@ export default function StoreOrders({
     useEffect(() => {
         const ids = groupedOrders.map((o) => o.id).filter(Boolean)
         if (ids.length === 0) return
-        supabase.from('ride_requests').select('order_id').in('order_id', ids).in('status', ['pending', 'accepted'])
-            .then(({ data }) => setDispatchedOrderIds(new Set((data || []).map((r) => r.order_id as string))))
+        supabase.from('ride_requests').select('order_id, status').in('order_id', ids).in('status', ['pending', 'accepted'])
+            .then(({ data }) => {
+                setDispatchedOrderIds(new Set((data || []).map((r) => r.order_id as string)))
+                setAcceptedDispatchIds(new Set((data || []).filter((r) => r.status === 'accepted').map((r) => r.order_id as string)))
+            })
     }, [groupedOrders])
 
     const iuserDelivery = {
         enabled: iuserDeliveryEnabled,
         dispatchedIds: dispatchedOrderIds,
+        acceptedIds: acceptedDispatchIds,
         onCall: (order: any) => setCallDriverOrder(order),
     }
     const [isOrdersExpanded, setIsOrdersExpanded] = usePersistedExpanded('storeOrders', true)
@@ -1370,7 +1375,7 @@ function OrderButton({
                         {orderTime && <span className="text-[11px] font-bold tabular-nums" style={{ color: themeColors.textSecondary }}>{orderTime}</span>}
                         {!isInPerson && !isPaid && iuserDelivery?.enabled && order.delivery_address && (
                             iuserDelivery.dispatchedIds.has(order.id) ? (
-                                <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full" style={{ background: `${statusColor}1f`, color: statusColor }}>Motorista chamado</span>
+                                <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full" style={{ background: `${statusColor}1f`, color: statusColor }}>{v3 ? (iuserDelivery.acceptedIds?.has(order.id) ? 'Motorista aceitou' : 'Aguardando motorista') : 'Motorista chamado'}</span>
                             ) : (
                                 <button onClick={(e) => { e.stopPropagation(); e.preventDefault(); iuserDelivery.onCall(order) }} className="w-8 h-8 rounded-full flex items-center justify-center transition active:scale-90" style={{ background: `${themeColors.border}50` }} title="Chamar motorista iUser" type="button">
                                     <Truck size={14} style={{ color: themeColors.textPrimary }} />
@@ -1460,7 +1465,7 @@ function OrderButton({
                     {!isInPerson && !isPaid && iuserDelivery?.enabled && order.delivery_address && (
                         iuserDelivery.dispatchedIds.has(order.id) ? (
                             <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-md flex-shrink-0" style={{ background: `${statusColor}1a`, color: `${statusColor}b3` }}>
-                                Motorista chamado
+                                {v3 ? (iuserDelivery.acceptedIds?.has(order.id) ? 'Motorista aceitou' : 'Aguardando motorista') : 'Motorista chamado'}
                             </span>
                         ) : (
                             <button
