@@ -13,8 +13,8 @@ import type { Tab } from '@/components/Header'
 
 export const ADMIN_PANEL_URL = '/administrador'
 
-export function useAdminHeaderTab(userId: string | null | undefined): Tab | null {
-    const router = useRouter()
+/** O administrador geral? (a rota /api/admin/whoami decide no servidor; ninguém mais chega a ver nada de admin). */
+export function useIsSuperAdmin(userId: string | null | undefined): boolean {
     const [isSuperAdmin, setIsSuperAdmin] = useState(false)
 
     useEffect(() => {
@@ -28,6 +28,13 @@ export function useAdminHeaderTab(userId: string | null | undefined): Tab | null
             .catch(() => { if (!cancelled) setIsSuperAdmin(false) })
         return () => { cancelled = true }
     }, [userId])
+
+    return isSuperAdmin
+}
+
+export function useAdminHeaderTab(userId: string | null | undefined): Tab | null {
+    const router = useRouter()
+    const isSuperAdmin = useIsSuperAdmin(userId)
 
     return useMemo(() => (
         isSuperAdmin
