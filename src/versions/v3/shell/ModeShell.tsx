@@ -492,7 +492,7 @@ function HeaderBadge({ userId, avatarUrl, onProfile, onHome, colors, noRing = fa
 export default function ModeShell({ children, search }: {
     children: ReactNode
     /** Busca da página: vira uma lupa na navegação de baixo e abre o campo ao tocar */
-    search?: { value: string; onChange: (v: string) => void; placeholder?: string }
+    search?: { value: string; onChange: (v: string) => void; placeholder?: string; inline?: boolean; focus?: () => void }
 }) {
     const router = useRouter()
     const pathname = usePathname()
@@ -945,7 +945,12 @@ export default function ModeShell({ children, search }: {
                             </button>
                         </>
                     ) : (
-                        <NavTab btnRef={lupaRef} toEdge selectedColor={colors.textPrimary} colorDelay={indicatorOn ? TAB_COLOR_DELAY : 0} selected={indicatorOn && target === 'search'} label="Buscar" onClick={() => pickTab('search', () => (search ? setSearchOpen(true) : go('/modeloinicial')))}>
+                        <NavTab btnRef={lupaRef} toEdge selectedColor={colors.textPrimary} colorDelay={indicatorOn ? TAB_COLOR_DELAY : 0} selected={indicatorOn && target === 'search'} label="Buscar" onClick={() => pickTab('search', () => {
+                            if (!search) return go('/modeloinicial')
+                            // a página já mostra o campo de busca: a lupa só leva o foco pra ele
+                            if (search.inline) { window.scrollTo({ top: 0, behavior: 'smooth' }); search.focus?.(); return }
+                            setSearchOpen(true)
+                        })}>
                             <Search size={20} />
                         </NavTab>
                     )}

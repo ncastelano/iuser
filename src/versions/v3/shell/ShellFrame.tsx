@@ -9,7 +9,14 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState, type R
 import ModeShell from './ModeShell'
 import { InsideShellContext } from '@/components/InsideShell'
 
-interface ShellSearch { value: string; onChange: (v: string) => void; placeholder?: string }
+interface ShellSearch {
+    value: string
+    onChange: (v: string) => void
+    placeholder?: string
+    /** A página já tem o campo de busca na tela: a lupa da barra só leva o foco pra ele (não expande o campo da barra) */
+    inline?: boolean
+    focus?: () => void
+}
 
 const ShellSearchContext = createContext<((s: ShellSearch | null) => void) | null>(null)
 
@@ -18,10 +25,12 @@ export function useShellSearch(cfg: ShellSearch) {
     const setSearch = useContext(ShellSearchContext)
     const onChangeRef = useRef(cfg.onChange)
     onChangeRef.current = cfg.onChange
+    const focusRef = useRef(cfg.focus)
+    focusRef.current = cfg.focus
     useEffect(() => {
         if (!setSearch) return
-        setSearch({ value: cfg.value, placeholder: cfg.placeholder, onChange: (v) => onChangeRef.current(v) })
-    }, [setSearch, cfg.value, cfg.placeholder])
+        setSearch({ value: cfg.value, placeholder: cfg.placeholder, inline: cfg.inline, onChange: (v) => onChangeRef.current(v), focus: () => focusRef.current?.() })
+    }, [setSearch, cfg.value, cfg.placeholder, cfg.inline])
     useEffect(() => {
         if (!setSearch) return
         return () => setSearch(null)

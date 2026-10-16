@@ -8,7 +8,7 @@
 // Todos os cartões das vitrines têm o mesmo tamanho (nem miúdos, nem gigantes) pra a página ter ritmo.
 'use client'
 
-import { ReactNode, useEffect, useMemo, useState } from 'react'
+import { ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
     Search, ShoppingBag, Store as StoreIcon, Car, Wrench, Megaphone, Briefcase, Users, MessageCircle,
@@ -340,7 +340,8 @@ export default function ModeloInicialPage() {
     const { userId, profileSlug, avatarUrl } = useProfile()
     const [query, setQuery] = useState('')
     // A lupa da barra do topo (que vive no layout) abre o campo de busca desta página
-    useShellSearch({ value: query, onChange: setQuery, placeholder: 'O que você procura? Lojas, serviços, pessoas...' })
+    const searchInputRef = useRef<HTMLInputElement>(null)
+    useShellSearch({ value: query, onChange: setQuery, placeholder: 'O que você procura? Lojas, serviços, pessoas...', inline: true, focus: () => searchInputRef.current?.focus() })
     const [stores, setStores] = useState<StoreItem[] | null>(null)
     // Quantas lojas ativas cada categoria tem (null = carregando)
     const [catCounts, setCatCounts] = useState<Record<string, number> | null>(null)
@@ -528,6 +529,23 @@ export default function ModeloInicialPage() {
                     title="Convidar para o iUser"
                     text={`@${profileSlug} te chama pro iUser — compre, venda, preste serviço ou dirija, tudo numa plataforma só, sem taxa escondida.\n\nEntre pelo meu link e comece agora:`}
                 />
+
+                {/* Busca sempre à mão, em cima de Comprar / Contratar serviço (a lupa da barra leva o foco pra cá) */}
+                <div className="mt-2 mb-3 flex items-center gap-2 px-4 rounded-full" style={{ height: 48, background: colors.surface, border: `1.5px solid ${colors.border}` }}>
+                    <Search size={18} className="flex-shrink-0" style={{ color: colors.accent }} />
+                    <input
+                        ref={searchInputRef}
+                        type="search"
+                        inputMode="search"
+                        enterKeyHint="search"
+                        value={query}
+                        onChange={(e) => setQuery(e.target.value)}
+                        placeholder="O que você procura? Lojas, serviços, pessoas..."
+                        className="flex-1 min-w-0 bg-transparent text-sm focus:outline-none appearance-none [&::-webkit-search-cancel-button]:hidden"
+                        style={{ color: colors.textPrimary }}
+                    />
+                    {query && <button onClick={() => setQuery('')} aria-label="Limpar busca" style={{ color: colors.textSecondary }}><X size={17} /></button>}
+                </div>
 
                 {searching ? (
                     <div className="mt-6"><SearchResultsSection searchQuery={query} /></div>
