@@ -7,7 +7,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Check, ChevronDown, Clock, Eye, LayoutGrid, Plus, Scissors, Search, ShoppingBag, Star, X } from 'lucide-react'
+import { ArrowLeft, Check, ChevronDown, Clock, Eye, LayoutGrid, Plus, Scissors, Search, ShoppingBag, Star, X } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
@@ -130,28 +130,29 @@ export default function LojasScreen() {
 
     return (
         <div className="pb-6">
-            <div className="flex items-end justify-between gap-3">
-                <div>
-                    <h1 className="text-2xl font-black" style={{ color: colors.textPrimary }}>Lojas</h1>
-                    <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>
-                        {items === null ? 'Carregando...' : `${filtered.length} ${filtered.length === 1 ? 'loja' : 'lojas'}${onlyOpen ? (filtered.length === 1 ? ' aberta' : ' abertas') : ''}${category !== 'todas' ? ` em ${catName(category)}` : ''}`}
-                    </p>
+            {/* Voltar + busca na mesma linha, no mesmo estilo (cápsulas cinza-claras) */}
+            <div className="flex items-center gap-2">
+                <button
+                    onClick={() => (typeof window !== 'undefined' && window.history.length > 1 ? router.back() : router.push('/'))}
+                    aria-label="Voltar"
+                    className="flex-shrink-0 rounded-full flex items-center justify-center transition active:scale-95"
+                    style={{ width: 46, height: 46, background: `${colors.border}40`, color: colors.textPrimary }}
+                >
+                    <ArrowLeft size={20} />
+                </button>
+                <div className="flex-1 min-w-0 flex items-center gap-2 px-4 rounded-full" style={{ height: 46, background: `${colors.border}40` }}>
+                    <Search size={18} style={{ color: colors.textSecondary }} className="flex-shrink-0" />
+                    <input
+                        value={query}
+                        onChange={(e) => { setQuery(e.target.value); setLimit(PAGE) }}
+                        placeholder="Buscar loja ou categoria"
+                        className="flex-1 min-w-0 bg-transparent text-sm focus:outline-none"
+                        style={{ color: colors.textPrimary }}
+                    />
+                    {query && (
+                        <button onClick={() => setQuery('')} aria-label="Limpar busca" style={{ color: colors.textSecondary }}><X size={16} /></button>
+                    )}
                 </div>
-            </div>
-
-            {/* Busca */}
-            <div className="mt-4 flex items-center gap-2 px-4 rounded-full" style={{ height: 46, background: `${colors.border}40` }}>
-                <Search size={18} style={{ color: colors.textSecondary }} className="flex-shrink-0" />
-                <input
-                    value={query}
-                    onChange={(e) => { setQuery(e.target.value); setLimit(PAGE) }}
-                    placeholder="Buscar loja ou categoria"
-                    className="flex-1 min-w-0 bg-transparent text-sm focus:outline-none"
-                    style={{ color: colors.textPrimary }}
-                />
-                {query && (
-                    <button onClick={() => setQuery('')} aria-label="Limpar busca" style={{ color: colors.textSecondary }}><X size={16} /></button>
-                )}
             </div>
 
             {/* Filtros numa linha só: categoria, ordenação e "abertas agora" */}
