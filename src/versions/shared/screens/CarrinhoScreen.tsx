@@ -48,6 +48,7 @@ import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import type { UiVersion } from '@/versions/registry'
 import { isStoreOpenNow, getStoreStatusText, getNextOpeningInfo, type BusinessHours } from '@/lib/storeHours'
 import CatalogBag from '@/app/(main)/[ownerSlug]/catalogo/CatalogBag'
+import CarrinhoSkeleton from './CarrinhoSkeleton'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -1622,12 +1623,8 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
     }, [confirmClear])
 
     if (!mounted || globalLoading) return v3 ? (
-        <div className="flex items-center justify-center py-24">
-            <div className="text-center">
-                <Spinner size={48} color={colors.accent} className="mx-auto mb-4" />
-                <p className="text-sm font-bold" style={{ color: colors.textSecondary }}>Carregando carrinho...</p>
-            </div>
-        </div>
+        // esqueleto: a página já aparece com a forma do carrinho e os dados entram no lugar
+        <CarrinhoSkeleton />
     ) : (
         <div className="min-h-screen flex items-center justify-center" style={{ background: colors.background }}>
             <div className="text-center">

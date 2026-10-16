@@ -292,3 +292,23 @@ svg,
 @media (prefers-reduced-motion: reduce) {
     .hired-pulse-border { animation: none; border-color: #16a34a; }
 }
+
+/* ===== Esqueleto de carregamento (components/Skeleton.tsx) ===== */
+@keyframes iuser-shimmer {
+    0% { background-position: 110% 0; }
+    100% { background-position: -110% 0; }
+}
+@keyframes iuser-skeleton-in {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: none; }
+}
+.iuser-shimmer {
+    animation: iuser-shimmer 1.5s ease-in-out infinite;
+}
+.iuser-skeleton-in {
+    animation: iuser-skeleton-in 220ms ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+    .iuser-shimmer { animation: none; }
+    .iuser-skeleton-in { animation: none; }
+}
