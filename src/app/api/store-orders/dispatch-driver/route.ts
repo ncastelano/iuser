@@ -4,8 +4,6 @@ import { supabaseAdmin } from '@/lib/supabase/admin'
 import { getAuthedUser } from '@/lib/adminAuth'
 import { notifyDriversOfRide } from '@/lib/notifyDrivers'
 
-const VEHICLES = ['carro', 'moto', 'bicicleta']
-
 function haversineKm(a: [number, number], b: [number, number]): number {
     const R = 6371
     const dLat = (b[1] - a[1]) * Math.PI / 180
@@ -14,14 +12,15 @@ function haversineKm(a: [number, number], b: [number, number]): number {
     return R * 2 * Math.asin(Math.sqrt(h))
 }
 
-// Entrega iUser: a loja transforma um pedido em corrida de objeto, com o
-// frete já definido, pra qualquer motorista da plataforma aceitar.
+// Entrega iUser: a loja transforma um pedido em corrida de objeto pra qualquer
+// motorista (de moto) da plataforma aceitar. O frete NÃO vem da loja: é a taxa de
+// entrega que o cliente pagou no pedido, que o banco mantém igual à Tarifa iUser.
 export async function POST(req: Request) {
     const user = await getAuthedUser(req)
     if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
 
-    const { orderId, vehicleType, freight } = await req.json().catch(() => ({}))
-    if (!orderId || !VEHICLES.includes(vehicleType)) {
+    const { orderId } = await req.json().catch(() => ({}))
+    if (!orderId) {
         return NextResponse.json({ error: 'Parâmetros inválidos' }, { status: 400 })
     }
 
@@ -48,8 +47,8 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: 'Defina o endereço e a localização da loja pra chamar motorista.' }, { status: 409 })
     }
 
-    const price = Number(freight ?? order.delivery_fee)
-    if (!(price > 0)) return NextResponse.json({ error: 'Informe o valor do frete.' }, { status: 400 })
+    const price = Number(order.delivery_fee)
+    if (!(price > 0)) return NextResponse.json({ error: 'Esse pedido não tem taxa de entrega para pagar o motorista.' }, { status: 409 })
 
     const items = (order.order_items || []) as { product_name: string; quantity: number }[]
     const itemsText = items.map((i) => `${i.quantity}x ${i.product_name}`).join(', ')
@@ -65,7 +64,7 @@ export async function POST(req: Request) {
         .insert({
             requester_id: user.id,
             ride_type: 'objeto',
-            vehicle_type: vehicleType,
+            vehicle_type: 'moto',
             origin_address: store.address,
             origin_lat: store.store_lat,
             origin_lng: store.store_lng,
