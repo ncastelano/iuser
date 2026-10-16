@@ -243,8 +243,15 @@ export default function ComprarScreen() {
                 </div>
             </div>
 
-            {/* Categorias */}
-            <div className="mt-3 flex gap-2 overflow-x-auto scrollbar-hide -mx-4 px-4">
+            {/* Filtros e categorias numa linha só (rola pro lado): "Aberto agora" e "Entrega grátis" primeiro, pra ficarem à mão */}
+            <div className="mt-3 flex items-center gap-2 overflow-x-auto scrollbar-hide -mx-4 px-4" style={{ overflowAnchor: 'none' }}>
+                <button onClick={() => setOnlyOpen((v) => !v)} className="flex-shrink-0 h-10 px-3.5 rounded-full text-[13px] font-black flex items-center gap-1.5 whitespace-nowrap transition active:scale-95" style={onlyOpen ? { background: '#16a34a', color: '#fff' } : { background: soft, color: colors.textPrimary }}>
+                    <span className="w-1.5 h-1.5 rounded-full" style={{ background: onlyOpen ? '#fff' : '#16a34a' }} /> Aberto agora
+                </button>
+                <button onClick={() => setFreeDelivery((v) => !v)} className="flex-shrink-0 h-10 px-3.5 rounded-full text-[13px] font-black flex items-center gap-1.5 whitespace-nowrap transition active:scale-95" style={freeDelivery ? { background: '#16a34a', color: '#fff' } : { background: soft, color: colors.textPrimary }}>
+                    <Truck size={14} /> Entrega grátis
+                </button>
+                <span aria-hidden className="flex-shrink-0 w-px h-6" style={{ background: colors.border }} />
                 <button onClick={() => pickCategory('todas')} className="flex-shrink-0 h-10 pl-3 pr-4 rounded-full flex items-center gap-1.5 text-[13px] font-black whitespace-nowrap transition active:scale-95" style={chip(category === 'todas')}>
                     <LayoutGrid size={14} /> Tudo
                 </button>
@@ -257,16 +264,6 @@ export default function ComprarScreen() {
                         </button>
                     )
                 })}
-            </div>
-
-            {/* Filtros rápidos */}
-            <div className="mt-2 flex gap-2">
-                <button onClick={() => setOnlyOpen((v) => !v)} className="h-8 px-3 rounded-full text-xs font-black flex items-center gap-1.5 transition active:scale-95" style={onlyOpen ? { background: '#16a34a', color: '#fff' } : { background: soft, color: colors.textPrimary }}>
-                    <span className="w-1.5 h-1.5 rounded-full" style={{ background: onlyOpen ? '#fff' : '#16a34a' }} /> Aberto agora
-                </button>
-                <button onClick={() => setFreeDelivery((v) => !v)} className="h-8 px-3 rounded-full text-xs font-black flex items-center gap-1.5 transition active:scale-95" style={freeDelivery ? { background: '#16a34a', color: '#fff' } : { background: soft, color: colors.textPrimary }}>
-                    <Truck size={13} /> Entrega grátis
-                </button>
             </div>
 
             {/* Conteúdo */}
