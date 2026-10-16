@@ -11,14 +11,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { ArrowLeft, CheckCircle2, ChevronRight, Clock, Eye, MapPin, Plus, Radar, Star, Users } from 'lucide-react'
+import { ArrowLeft, Check, CheckCircle2, ChevronDown, ChevronRight, Clock, Eye, MapPin, Plus, Radar, Star, Users, X } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { getCurrentPosition as getNativeCurrentPosition } from '@/lib/nativeGeolocation'
-import { askedAgo, shortAddress, SERVICE_REQUESTS_CHANGED } from '@/lib/serviceBoard'
+import { askedAgo, shortAddress, notifyServiceRequestsChanged, SERVICE_REQUESTS_CHANGED } from '@/lib/serviceBoard'
+import { notifyServiceDecision } from '@/lib/notifyRideStatus'
 import { SERVICE_TYPES, getServiceIcon, type ServiceType } from '@/lib/serviceTypes'
 import ServiceRequestDetailsDialog from '@/components/ServiceRequestDetailsDialog'
+import ChatContactButton from '@/components/ChatContactButton'
 import { Spinner } from '@/components/Spinner'
 import { loadMyRequests, loadDraft, reverseGeocode, type MyRequest, type RequestStage } from '@/modules/service-requests'
 import RequestSheet, { type Place } from './solicitar-servico/RequestSheet'
@@ -40,6 +42,9 @@ export default function SolicitarServicoScreen() {
     const [requests, setRequests] = useState<MyRequest[] | null>(null)
     const [stage, setStage] = useState<RequestStage>('buscando')
     const [openId, setOpenId] = useState<string | null>(null)
+    // Pedido com a lista de quem quer fazer aberta, e a candidatura que está sendo decidida agora
+    const [expandedId, setExpandedId] = useState<string | null>(null)
+    const [decidingId, setDecidingId] = useState<string | null>(null)
 
     // ----- pedido novo -----
     const [composerOpen, setComposerOpen] = useState(false)
@@ -123,6 +128,25 @@ export default function SolicitarServicoScreen() {
     const needsAttention = (r: MyRequest) =>
         (r.stage === 'buscando' && r.candidates.some((c) => c.status === 'pending')) || r.needsReview
 
+    const decide = async (applicationId: string, status: 'accepted' | 'rejected') => {
+        setDecidingId(applicationId)
+        try {
+            const { error } = await supabase.from('service_applications').update({ status }).eq('id', applicationId)
+            if (error) throw error
+            toast.success(status === 'accepted' ? 'Profissional escolhido!' : 'Profissional recusado.')
+            if (status === 'accepted') {
+                notifyServiceDecision(applicationId, 'selected')
+                setExpandedId(null)
+                setStage('contratado')
+            }
+            notifyServiceRequestsChanged() // recarrega a lista (o evento volta pra cá)
+        } catch (err: any) {
+            toast.error('Erro ao atualizar: ' + (err?.message || 'tente novamente'))
+        } finally {
+            setDecidingId(null)
+        }
+    }
+
     const renderCard = (r: MyRequest) => {
         const Icon = getServiceIcon(r.serviceType, r.customIcon)
         const waiting = r.candidates.filter((c) => c.status === 'pending')
@@ -130,13 +154,12 @@ export default function SolicitarServicoScreen() {
         const highlight = needsAttention(r)
 
         return (
-            <button
+            <div
                 key={r.id}
-                onClick={() => setOpenId(r.id)}
-                className="w-full rounded-3xl overflow-hidden text-left transition active:scale-[0.99]"
+                className="w-full rounded-3xl overflow-hidden text-left"
                 style={{ background: colors.surface, border: `1.5px solid ${highlight ? '#f97316' : colors.border}`, boxShadow: highlight ? '0 4px 16px #f9731630' : colors.shadow }}
             >
-                <div className="p-3 flex gap-3">
+                <button onClick={() => setOpenId(r.id)} className="w-full p-3 flex gap-3 text-left transition active:opacity-80">
                     <span className="w-16 h-16 rounded-2xl overflow-hidden flex-shrink-0 flex items-center justify-center text-white" style={{ background: GRADIENT }}>
                         {r.photoUrl ? <img src={r.photoUrl} alt="" className="w-full h-full object-cover" /> : <Icon size={26} />}
                     </span>
@@ -148,31 +171,86 @@ export default function SolicitarServicoScreen() {
                             <span className="flex items-center gap-1 flex-shrink-0"><Clock size={10} />{askedAgo(r.createdAt).replace('pediu ', '')}</span>
                         </span>
                     </span>
-                </div>
+                </button>
 
                 {/* Como está, em palavras */}
                 <div className="px-3 pb-3">
                     {r.stage === 'buscando' && (waiting.length > 0 ? (
-                        <div className="flex items-center gap-2 rounded-2xl px-3 py-2" style={{ background: `${colors.accent}15` }}>
-                            <span className="flex -space-x-2 flex-shrink-0">
-                                {waiting.slice(0, 3).map((c) => c.avatarUrl
-                                    ? <img key={c.applicationId} src={c.avatarUrl} alt="" className="w-6 h-6 rounded-full object-cover" style={{ border: `2px solid ${colors.surface}` }} />
-                                    : <span key={c.applicationId} className="w-6 h-6 rounded-full flex items-center justify-center" style={{ background: GRADIENT, border: `2px solid ${colors.surface}` }}><Users size={11} color="#fff" /></span>)}
-                            </span>
-                            <span className="flex-1 text-xs font-black leading-tight" style={{ color: colors.accent }}>
-                                {waiting.length} {waiting.length === 1 ? 'profissional quer' : 'profissionais querem'} fazer. Escolha!
-                            </span>
-                            <ChevronRight size={16} style={{ color: colors.accent }} />
-                        </div>
+                        <>
+                            <button
+                                onClick={() => setExpandedId(expandedId === r.id ? null : r.id)}
+                                aria-expanded={expandedId === r.id}
+                                className="w-full flex items-center gap-2 rounded-2xl px-3 py-2 text-left transition active:scale-[0.99]"
+                                style={{ background: `${colors.accent}15` }}
+                            >
+                                <span className="flex -space-x-2 flex-shrink-0">
+                                    {waiting.slice(0, 3).map((c) => c.avatarUrl
+                                        ? <img key={c.applicationId} src={c.avatarUrl} alt="" className="w-6 h-6 rounded-full object-cover" style={{ border: `2px solid ${colors.surface}` }} />
+                                        : <span key={c.applicationId} className="w-6 h-6 rounded-full flex items-center justify-center" style={{ background: GRADIENT, border: `2px solid ${colors.surface}` }}><Users size={11} color="#fff" /></span>)}
+                                </span>
+                                <span className="flex-1 text-xs font-black leading-tight" style={{ color: colors.accent }}>
+                                    {waiting.length} {waiting.length === 1 ? 'profissional quer' : 'profissionais querem'} fazer. Escolha!
+                                </span>
+                                <ChevronDown size={16} style={{ color: colors.accent, transition: 'transform .2s', transform: expandedId === r.id ? 'rotate(180deg)' : 'none' }} />
+                            </button>
+
+                            {expandedId === r.id && (
+                                <div className="mt-2 flex flex-col gap-2">
+                                    {waiting.map((c) => {
+                                        const busy = decidingId === c.applicationId
+                                        const who = c.slug ? `@${c.slug}` : c.name || 'Profissional'
+                                        return (
+                                            <div key={c.applicationId} className="rounded-2xl p-2.5" style={{ background: soft }}>
+                                                <button
+                                                    onClick={() => c.slug && router.push(`/${c.slug}`)}
+                                                    disabled={!c.slug}
+                                                    className="w-full flex items-center gap-2.5 text-left"
+                                                >
+                                                    {c.avatarUrl
+                                                        ? <img src={c.avatarUrl} alt="" className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
+                                                        : <span className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT }}><Users size={16} color="#fff" /></span>}
+                                                    <span className="min-w-0 flex-1">
+                                                        <span className="block text-sm font-black truncate" style={{ color: colors.textPrimary }}>{c.name || who}</span>
+                                                        {c.name && c.slug && <span className="block text-[11px] truncate" style={{ color: colors.textSecondary }}>@{c.slug}</span>}
+                                                    </span>
+                                                    {c.slug && <span className="text-[11px] font-black flex-shrink-0" style={{ color: colors.accent }}>Ver perfil</span>}
+                                                </button>
+                                                <div className="mt-2 grid grid-cols-3 gap-1.5">
+                                                    <button
+                                                        onClick={() => decide(c.applicationId, 'accepted')}
+                                                        disabled={busy}
+                                                        className="h-9 rounded-full flex items-center justify-center gap-1 text-[11px] font-black text-white disabled:opacity-60"
+                                                        style={{ background: '#22c55e' }}
+                                                    >
+                                                        {busy ? <Spinner size={13} color="#fff" /> : <><Check size={13} strokeWidth={3} /> Aceitar</>}
+                                                    </button>
+                                                    <button
+                                                        onClick={() => decide(c.applicationId, 'rejected')}
+                                                        disabled={busy}
+                                                        className="h-9 rounded-full flex items-center justify-center gap-1 text-[11px] font-black text-white disabled:opacity-60"
+                                                        style={{ background: '#ef4444' }}
+                                                    >
+                                                        <X size={13} strokeWidth={3} /> Recusar
+                                                    </button>
+                                                    <div className="[&>button]:!py-0 [&>button]:h-9 [&>button]:text-[11px] [&>button]:gap-1 [&>button]:hover:!scale-100 [&_svg]:w-[14px] [&_svg]:h-[14px]">
+                                                        <ChatContactButton profileId={c.applicantId} requestApplicationId={c.applicationId} colors={colors} variant="pill" label="Chat iUser" />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            )}
+                        </>
                     ) : (
-                        <div className="flex items-center gap-2 rounded-2xl px-3 py-2 text-xs" style={{ background: soft, color: colors.textSecondary }}>
+                        <button onClick={() => setOpenId(r.id)} className="w-full flex items-center gap-2 rounded-2xl px-3 py-2 text-xs text-left" style={{ background: soft, color: colors.textSecondary }}>
                             <Eye size={13} className="flex-shrink-0" />
                             Esperando profissionais{r.viewCount > 0 ? ` · ${r.viewCount} ${r.viewCount === 1 ? 'viu' : 'viram'}` : ''}. Avisamos quando alguém quiser.
-                        </div>
+                        </button>
                     ))}
 
                     {r.stage === 'contratado' && (
-                        <div className="flex items-center gap-2 rounded-2xl px-3 py-2" style={{ background: '#22c55e18' }}>
+                        <button onClick={() => setOpenId(r.id)} className="w-full flex items-center gap-2 rounded-2xl px-3 py-2 text-left" style={{ background: '#22c55e18' }}>
                             {firstHired?.avatarUrl
                                 ? <img src={firstHired.avatarUrl} alt="" className="w-6 h-6 rounded-full object-cover flex-shrink-0" />
                                 : <CheckCircle2 size={16} color="#22c55e" className="flex-shrink-0" />}
@@ -180,11 +258,11 @@ export default function SolicitarServicoScreen() {
                                 {firstHired?.name ? `${firstHired.name.split(' ')[0]} vai fazer` : 'Profissional contratado'} · combine e marque como feito
                             </span>
                             <ChevronRight size={16} style={{ color: '#16a34a' }} />
-                        </div>
+                        </button>
                     )}
 
                     {r.stage === 'concluido' && (
-                        <div className="flex items-center gap-2 rounded-2xl px-3 py-2" style={r.needsReview ? { background: '#f59e0b22' } : { background: soft }}>
+                        <button onClick={() => setOpenId(r.id)} className="w-full flex items-center gap-2 rounded-2xl px-3 py-2 text-left" style={r.needsReview ? { background: '#f59e0b22' } : { background: soft }}>
                             {r.needsReview ? <Star size={15} className="flex-shrink-0 text-amber-500 fill-amber-400" /> : <CheckCircle2 size={15} color="#22c55e" className="flex-shrink-0" />}
                             <span className="flex-1 text-xs font-black leading-tight" style={{ color: r.needsReview ? '#b45309' : colors.textSecondary }}>
                                 {r.needsReview
@@ -192,10 +270,10 @@ export default function SolicitarServicoScreen() {
                                     : `Feito${firstHired?.name ? ` por ${firstHired.name.split(' ')[0]}` : ''}`}
                             </span>
                             <ChevronRight size={16} style={{ color: colors.textSecondary }} />
-                        </div>
+                        </button>
                     )}
                 </div>
-            </button>
+            </div>
         )
     }
 
