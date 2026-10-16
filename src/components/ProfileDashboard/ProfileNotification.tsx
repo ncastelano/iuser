@@ -180,9 +180,11 @@ export default function ProfileNotification({ userId }: { userId: string }) {
         }
         if (n.kind === 'link_visit' && n.meta?.path) return n.meta.path
         if (n.kind === 'group_invite') return '/conversas'
-        if (n.kind === 'service_application') return '/solicitar-servico'
+        // Quem pediu o serviço: abre direto o pedido (a tela "Contratar serviço" lê ?pedido=)
+        const myRequest = n.ref_id ? `/solicitar-servico?pedido=${n.ref_id}` : '/solicitar-servico'
+        if (n.kind === 'service_application') return myRequest
         if (n.kind === 'service_selected' || n.kind === 'service_completed') return '/procurar-servico?aba=inscrevi'
-        if (n.kind === 'service_review') return n.meta?.role === 'owner' ? '/solicitar-servico' : '/procurar-servico?aba=inscrevi'
+        if (n.kind === 'service_review') return n.meta?.role === 'owner' ? myRequest : '/procurar-servico?aba=inscrevi'
         if (n.kind === 'ride_application') return '/pedir-motorista'
         if (n.kind === 'ride_selected') return '/aceitar-corridas'
         if (n.kind === 'ride_review') return '/minhas-corridas'

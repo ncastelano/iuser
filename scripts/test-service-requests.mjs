@@ -2,7 +2,7 @@
 // Rodar: npm run test:service-requests
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { missingFields, splitAddress, shortAddress, distanceKm, formatDistance, aroundMe, countBy } from '../src/modules/service-requests/domain.ts'
+import { missingFields, splitAddress, shortAddress, stageOf } from '../src/modules/service-requests/domain.ts'
 
 const ok = { serviceType: 'pintor', customService: '', address: 'Rua A, 10, Centro', description: 'Pintar a sala', photoCount: 1 }
 
@@ -26,38 +26,19 @@ test('endereço curto é cortado', () => {
     assert.equal(shortAddress('Avenida Presidente Dutra Muito Comprida, 1', 20), 'Avenida Presidente...')
 })
 
-const PV = { lat: -8.7612, lng: -63.9039 } // Porto Velho
-test('distância: mesmo ponto = 0; ~1 km de latitude ≈ 0,009°', () => {
-    assert.equal(distanceKm(PV, PV), 0)
-    const d = distanceKm(PV, { lat: PV.lat + 0.009, lng: PV.lng })
-    assert.ok(d > 0.95 && d < 1.05)
+test('etapa do pedido: buscando, contratado, concluído', () => {
+    assert.equal(stageOf({ status: 'pending', applications: [] }), 'buscando')
+    assert.equal(stageOf({ status: 'pending', applications: [{ status: 'pending', completedAt: null }] }), 'buscando')
+    assert.equal(stageOf({ status: 'accepted', applications: [{ status: 'accepted', completedAt: null }] }), 'contratado')
+    assert.equal(stageOf({ status: 'pending', applications: [{ status: 'accepted', completedAt: null }] }), 'contratado')
+    assert.equal(stageOf({ status: 'completed', applications: [{ status: 'accepted', completedAt: '2026-01-01' }] }), 'concluido')
+    assert.equal(stageOf({ status: 'accepted', applications: [{ status: 'accepted', completedAt: '2026-01-01' }] }), 'concluido')
 })
-test('distância: sem coordenada = null', () => {
-    assert.equal(distanceKm(PV, { lat: null, lng: null }), null)
-    assert.equal(distanceKm(null, PV), null)
+test('etapa do pedido: dois escolhidos, só um fez = ainda contratado', () => {
+    assert.equal(stageOf({ status: 'accepted', applications: [
+        { status: 'accepted', completedAt: '2026-01-01' }, { status: 'accepted', completedAt: null },
+    ] }), 'contratado')
 })
-test('formato da distância', () => {
-    assert.equal(formatDistance(0.85), '850 m')
-    assert.equal(formatDistance(2.34), '2,3 km')
-    assert.equal(formatDistance(14.6), '15 km')
-    assert.equal(formatDistance(null), '')
-})
-test('ao redor: raio filtra e ordena por distância; sem coordenada sai com raio ativo', () => {
-    const items = [
-        { id: 'longe', lat: PV.lat + 0.2, lng: PV.lng },
-        { id: 'perto', lat: PV.lat + 0.005, lng: PV.lng },
-        { id: 'sem', lat: null, lng: null },
-        { id: 'meio', lat: PV.lat + 0.05, lng: PV.lng },
-    ]
-    assert.deepEqual(aroundMe(items, PV, 10).map((i) => i.id), ['perto', 'meio'])
-    assert.deepEqual(aroundMe(items, PV, null).map((i) => i.id), ['perto', 'meio', 'longe', 'sem'])
-})
-test('ao redor: sem a posição da pessoa, não filtra nem reordena', () => {
-    const items = [{ id: 'a', lat: 1, lng: 1 }, { id: 'b', lat: null, lng: null }]
-    assert.deepEqual(aroundMe(items, null, 5).map((i) => i.id), ['a', 'b'])
-})
-test('contagem por tipo, do maior pro menor', () => {
-    assert.deepEqual(countBy(['pintor', 'loja', 'pintor', 'eletricista'], (x) => x), [
-        { key: 'pintor', count: 2 }, { key: 'eletricista', count: 1 }, { key: 'loja', count: 1 },
-    ])
+test('etapa do pedido: cancelado/expirado não entra', () => {
+    assert.equal(stageOf({ status: 'cancelled', applications: [] }), null)
 })

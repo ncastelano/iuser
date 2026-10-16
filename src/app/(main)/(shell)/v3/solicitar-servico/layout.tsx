@@ -2,8 +2,8 @@ import type { Metadata } from 'next'
 import { pageMetadata } from '@/lib/pageMetadata'
 
 export const metadata: Metadata = pageMetadata({
-    title: 'Precisa de um profissional?',
-    description: 'Conte o que você precisa (pintura, elétrica, hidráulica, limpeza...) e receba propostas de profissionais da sua região.',
+    title: 'Contratar serviço',
+    description: 'Peça um serviço, escolha quem vai fazer e acompanhe o que você contratou e já concluiu.',
     path: '/solicitar-servico',
 })
 

@@ -1,7 +1,7 @@
 // src/versions/v3/screens/solicitar-servico/RequestSheet.tsx
 //
-// "Não achou? Peça um serviço": o pedido compacto, numa folha por cima do mapa — serviço (com "Outro" pra o que não
-// está na lista), local, descrição e fotos, e um botão fixo que diz o que falta. A regra (o que falta, rascunho,
+// "Pedir um serviço": o pedido compacto, numa folha por cima da tela — serviço (com "Outro" pra o que não está na
+// lista), local, descrição e fotos, e um botão fixo que diz o que falta. A regra (o que falta, rascunho,
 // envio, geocodificação) mora em modules/service-requests.
 'use client'
 
@@ -27,13 +27,15 @@ const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 export interface Place { address: string; coords: [number, number] | null }
 interface PhotoItem { file: File; preview: string }
 
-export default function RequestSheet({ initialType, initialPlace, locating, onLocate, onClose }: {
+export default function RequestSheet({ initialType, initialPlace, locating, onLocate, onClose, onSent }: {
     initialType: ServiceType | null
     /** Onde a pessoa está (ou o endereço vindo de um atalho) — vira o local do pedido */
     initialPlace: Place | null
     locating: boolean
     onLocate: () => void
     onClose: () => void
+    /** Depois de enviado: a pessoa foi pro "Acompanhar meus pedidos" */
+    onSent: () => void
 }) {
     const router = useRouter()
     const { colors } = useTheme()
@@ -180,11 +182,8 @@ export default function RequestSheet({ initialType, initialPlace, locating, onLo
                     Assim que um profissional se candidatar, você recebe uma notificação e escolhe com quem fechar.
                 </p>
                 <div className="w-full max-w-xs flex flex-col gap-2 mt-3">
-                    <button onClick={() => router.push('/meus-servicos')} className="h-12 rounded-full font-black text-sm text-white flex items-center justify-center gap-2" style={{ background: GRADIENT }}>
+                    <button onClick={onSent} className="h-12 rounded-full font-black text-sm text-white flex items-center justify-center gap-2" style={{ background: GRADIENT }}>
                         Acompanhar meus pedidos <ChevronRight size={18} />
-                    </button>
-                    <button onClick={onClose} className="h-12 rounded-full font-black text-sm" style={{ background: soft, color: colors.textPrimary }}>
-                        Voltar ao mapa
                     </button>
                 </div>
             </div>
@@ -253,7 +252,7 @@ export default function RequestSheet({ initialType, initialPlace, locating, onLo
     return (
         <div className={frame} style={frameStyle}>
             <div className="flex items-center gap-3 px-4 pt-4 pb-3">
-                <button onClick={onClose} aria-label="Voltar ao mapa" className="flex-shrink-0 rounded-full flex items-center justify-center transition active:scale-95" style={{ width: 46, height: 46, background: soft, color: colors.textPrimary }}>
+                <button onClick={onClose} aria-label="Voltar" className="flex-shrink-0 rounded-full flex items-center justify-center transition active:scale-95" style={{ width: 46, height: 46, background: soft, color: colors.textPrimary }}>
                     <ArrowLeft size={20} />
                 </button>
                 <div className="min-w-0">
