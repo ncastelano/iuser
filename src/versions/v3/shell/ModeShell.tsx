@@ -216,7 +216,7 @@ function MenuDrawerContent({ slug, avatarUrl, data, active, recent, onSelect, on
                     dot={data.providerOn ? '#4ade80' : undefined}
                     actions={(
                         <>
-                            {slug && <DrawerPill onClick={() => onGo(`/${slug}`)}>Ver perfil</DrawerPill>}
+                            <DrawerPill onClick={() => onGo('/')}>Início</DrawerPill>
                             <DrawerPill solid onClick={() => onGo('/painel-perfil')}>Painel</DrawerPill>
                             {data.providerOn && <DrawerPill onClick={() => onGo('/modoprestador')}>Serviços</DrawerPill>}
                         </>

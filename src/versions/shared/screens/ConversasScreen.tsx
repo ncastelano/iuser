@@ -334,7 +334,12 @@ function ConversasInner({ ui }: { ui: UiVersion }) {
     const activeId = search.get('c')
     const activeStore = room !== 'perfil' ? stores.find((s) => s.storeSlug === room) || null : null
 
+    // Chegou já numa conversa (ex.: "Conversar" de um pedido de serviço): o voltar da conversa leva de volta pra
+    // página de onde veio, não pra lista. Qualquer navegação feita aqui dentro desliga isso.
+    const cameFromOutside = useRef<boolean>(!!search.get('c'))
+
     const setParams = useCallback((next: { sala?: string; c?: string | null }) => {
+        cameFromOutside.current = false
         const p = new URLSearchParams(search.toString())
         if (next.sala !== undefined) { if (next.sala === 'perfil') p.delete('sala'); else p.set('sala', next.sala) }
         if (next.c !== undefined) { if (next.c) p.set('c', next.c); else p.delete('c') }
@@ -613,7 +618,10 @@ function ConversasInner({ ui }: { ui: UiVersion }) {
                                 {active && userId ? (
                                     <Thread key={active.id} conversation={active} userId={userId} colors={colors} modern={v3}
                                         onOpenInfo={() => setShowInfo(true)} infoVersion={infoVersion}
-                                        onBack={() => setParams({ c: null })}
+                                        onBack={() => {
+                                            if (cameFromOutside.current && window.history.length > 1) { router.back(); return }
+                                            setParams({ c: null })
+                                        }}
                                         onRead={() => { load(); loadUnread() }} />
                                 ) : (
                                     <div className="m-auto p-8 text-center flex flex-col items-center gap-2">

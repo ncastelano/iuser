@@ -216,6 +216,9 @@ export default function SolicitarServicoScreen() {
                                                     {c.slug && <span className="text-[11px] font-black flex-shrink-0" style={{ color: colors.accent }}>Ver perfil</span>}
                                                 </button>
                                                 <div className="mt-2 grid grid-cols-3 gap-1.5">
+                                                    <div className="[&>button]:!py-0 [&>button]:h-9 [&>button]:text-[11px] [&>button]:gap-1 [&>button]:hover:!scale-100 [&_svg]:w-[14px] [&_svg]:h-[14px]">
+                                                        <ChatContactButton profileId={c.applicantId} requestApplicationId={c.applicationId} colors={colors} variant="pill" label="Conversar" />
+                                                    </div>
                                                     <button
                                                         onClick={() => decide(c.applicationId, 'accepted')}
                                                         disabled={busy}
@@ -232,9 +235,6 @@ export default function SolicitarServicoScreen() {
                                                     >
                                                         <X size={13} strokeWidth={3} /> Recusar
                                                     </button>
-                                                    <div className="[&>button]:!py-0 [&>button]:h-9 [&>button]:text-[11px] [&>button]:gap-1 [&>button]:hover:!scale-100 [&_svg]:w-[14px] [&_svg]:h-[14px]">
-                                                        <ChatContactButton profileId={c.applicantId} requestApplicationId={c.applicationId} colors={colors} variant="pill" label="Chat iUser" />
-                                                    </div>
                                                 </div>
                                             </div>
                                         )
