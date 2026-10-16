@@ -4,6 +4,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { usePersistedExpanded } from '@/hooks/usePersistedExpanded'
 import { supabase } from '@/lib/supabase/client'
+import { useInsideShell } from '@/components/InsideShell'
 import { useTheme } from '@/app/contexts/theme'
 import { toast } from 'sonner'
 import { hexToRgb } from '@/lib/color'
@@ -113,6 +114,7 @@ export default function StoreOrders({
 }: StoreOrdersProps) {
     const { colors } = useTheme()
     const surfaceRgb = hexToRgb(colors.surface)
+    const v3 = useInsideShell()
 
     const [groupedOrders, setGroupedOrders] = useState<any[]>([])
     const [selectedOrder, setSelectedOrder] = useState<any>(null)
@@ -862,8 +864,13 @@ export default function StoreOrders({
     return (
         <>
             <div
-                className={`rounded-2xl relative overflow-hidden flex flex-col ${isOrdersExpanded ? 'p-6 pt-7 gap-5' : 'p-4'}`}
-                style={{
+                className={v3 ? 'rounded-3xl relative overflow-hidden flex flex-col p-4 gap-4' : `rounded-2xl relative overflow-hidden flex flex-col ${isOrdersExpanded ? 'p-6 pt-7 gap-5' : 'p-4'}`}
+                style={v3 ? {
+                    // 3.0: cartão limpo (sem brilho nem borda animada); só ganha o realce laranja quando há pedido novo esperando
+                    background: colors.surface,
+                    border: newOrders.length > 0 ? '1.5px solid #f97316' : `1px solid ${colors.border}`,
+                    boxShadow: newOrders.length > 0 ? '0 6px 20px #f9731626' : 'none',
+                } : {
                     background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
                     backdropFilter: 'blur(12px)',
                     WebkitBackdropFilter: 'blur(12px)',
@@ -897,7 +904,7 @@ export default function StoreOrders({
                 `}</style>
 
                 {/* ===== SHIMMER BORDER ===== */}
-                {cardState.hasAnimation && (
+                {cardState.hasAnimation && !v3 && (
                     <div className="absolute inset-[-2px] rounded-2xl overflow-hidden pointer-events-none shimmer-border">
                         <div className="absolute inset-[-2px] rounded-2xl" style={{
                             background: `linear-gradient(
@@ -934,6 +941,23 @@ export default function StoreOrders({
                             transition: 'all 0.2s ease',
                         }}
                     >
+                        {v3 ? (
+                            <div className="flex items-center gap-3 min-w-0">
+                                <span className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-white" style={{ background: GRADIENT }}>
+                                    <Package size={18} />
+                                </span>
+                                <div className="min-w-0">
+                                    <h3 className="text-base font-black leading-tight" style={{ color: colors.textPrimary }}>Pedidos na loja</h3>
+                                    <p className="text-[11px] mt-0.5" style={{ color: newOrders.length > 0 ? '#ea580c' : colors.textSecondary }}>
+                                        {newOrders.length > 0
+                                            ? `${newOrders.length} ${newOrders.length === 1 ? 'pedido novo esperando' : 'pedidos novos esperando'}`
+                                            : preparing.length + ready.length > 0
+                                                ? `${preparing.length + ready.length} em andamento`
+                                                : 'Nada esperando agora'}
+                                    </p>
+                                </div>
+                            </div>
+                        ) : (
                         <div className="flex items-center gap-3">
                             <div>
                                 <h3 className={`${isOrdersExpanded ? 'text-lg' : 'text-sm'} font-black`} style={{ color: colors.textPrimary }}>
@@ -1004,6 +1028,7 @@ export default function StoreOrders({
                                 </div>
                             </div>
                         </div>
+                        )}
                         <div className="flex items-center gap-2">
                             {isOrdersExpanded ? (
                                 <ChevronUp size={22} style={{ color: colors.textSecondary }} />
@@ -1013,6 +1038,28 @@ export default function StoreOrders({
                         </div>
                     </button>
                 </div>
+
+                {/* 3.0: os quatro números sempre à vista, cada um na sua cor */}
+                {v3 && (
+                    <div className="grid grid-cols-4 gap-2 relative z-10">
+                        {([
+                            { label: 'Novos', n: newOrders.length, color: '#2563eb' },
+                            { label: 'Preparando', n: preparing.length, color: '#d97706' },
+                            { label: 'Prontos', n: ready.length, color: '#7c3aed' },
+                            { label: 'Finalizados', n: finished.length, color: '#16a34a' },
+                        ]).map((t) => (
+                            <button
+                                key={t.label}
+                                onClick={() => setIsOrdersExpanded(true)}
+                                className="rounded-2xl py-2.5 px-1 flex flex-col items-center gap-0.5 transition active:scale-95"
+                                style={{ background: `${t.color}${t.n > 0 ? '1f' : '10'}`, border: `1px solid ${t.color}${t.n > 0 ? '40' : '20'}` }}
+                            >
+                                <span className="text-xl font-black leading-none" style={{ color: t.n > 0 ? t.color : colors.textSecondary }}>{t.n}</span>
+                                <span className="text-[9px] font-black uppercase tracking-wide" style={{ color: t.n > 0 ? t.color : colors.textSecondary }}>{t.label}</span>
+                            </button>
+                        ))}
+                    </div>
+                )}
 
                 {isOrdersExpanded && (
                     <>
@@ -1274,6 +1321,8 @@ function OrderButton({
     isPaid = false,
     iuserDelivery,
 }: any) {
+    const v3 = useInsideShell()
+    const { colors: themeColors } = useTheme()
     const channelLabel = isInPerson ? 'Presencial' : 'Online'
     const statusColor = getStatusColor(order.status)
     const isAssigned = assignmentMap.has(order.checkout_id)
@@ -1289,6 +1338,57 @@ function OrderButton({
         e.stopPropagation()
         e.preventDefault()
         setSingleAssignOpen({ order })
+    }
+
+    // ===== 3.0: cartão claro (nome, canal, valor e hora), com a cor do status só na barra da esquerda =====
+    if (v3) {
+        return (
+            <div
+                className={`w-full rounded-2xl relative overflow-hidden transition active:scale-[0.99] ${isPaid ? 'opacity-70' : 'cursor-pointer'}`}
+                style={{ background: themeColors.surface, border: `1px solid ${themeColors.border}`, borderLeft: `4px solid ${statusColor}` }}
+                onClick={() => setSelectedOrder(order)}
+            >
+                <div className="flex items-center gap-3 px-3.5 py-3">
+                    <div className="flex flex-col min-w-0 flex-1 gap-1">
+                        <div className="flex items-center gap-2 min-w-0">
+                            {isInPerson ? (
+                                <>
+                                    <Store size={14} className="flex-shrink-0" style={{ color: themeColors.textSecondary }} />
+                                    <span className="text-sm font-black truncate" style={{ color: themeColors.textPrimary }}>{order.buyer_name || 'Presencial'}</span>
+                                </>
+                            ) : (
+                                <span className="text-sm font-black truncate" style={{ color: themeColors.textPrimary }}>@{order.buyer_profile_slug}</span>
+                            )}
+                            <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wide flex-shrink-0" style={{ background: `${statusColor}1f`, color: statusColor }}>
+                                {channelLabel}
+                            </span>
+                        </div>
+                        <div className="flex items-center gap-x-3 gap-y-0.5 flex-wrap text-xs">
+                            <span className="font-black text-sm" style={{ color: themeColors.textPrimary }}>R$ {order.totalPrice.toFixed(2)}</span>
+                            {order.deliveryFee > 0 && <span style={{ color: themeColors.textSecondary }}>frete R$ {order.deliveryFee.toFixed(2)}</span>}
+                            {isAssigned && <span className="text-[10px] font-bold" style={{ color: themeColors.textSecondary }}>🚚 {assignment?.employeeName}</span>}
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                        {orderTime && <span className="text-[11px] font-bold tabular-nums" style={{ color: themeColors.textSecondary }}>{orderTime}</span>}
+                        {!isInPerson && !isPaid && iuserDelivery?.enabled && order.delivery_address && (
+                            iuserDelivery.dispatchedIds.has(order.id) ? (
+                                <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full" style={{ background: `${statusColor}1f`, color: statusColor }}>Motorista chamado</span>
+                            ) : (
+                                <button onClick={(e) => { e.stopPropagation(); e.preventDefault(); iuserDelivery.onCall(order) }} className="w-8 h-8 rounded-full flex items-center justify-center transition active:scale-90" style={{ background: `${themeColors.border}50` }} title="Chamar motorista iUser" type="button">
+                                    <Truck size={14} style={{ color: themeColors.textPrimary }} />
+                                </button>
+                            )
+                        )}
+                        {!isInPerson && !isPaid && (
+                            <button onClick={handleAssignClick} className="w-8 h-8 rounded-full flex items-center justify-center transition active:scale-90" style={{ background: `${themeColors.border}50` }} title="Atribuir entregador" type="button">
+                                <Send size={14} style={{ color: themeColors.textPrimary }} />
+                            </button>
+                        )}
+                    </div>
+                </div>
+            </div>
+        )
     }
 
     return (

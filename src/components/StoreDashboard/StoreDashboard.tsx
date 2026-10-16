@@ -35,6 +35,7 @@ import { callAdminApi } from '@/lib/callAdminApi'
 import StoreClubVip from './StoreClubVip'
 import StoreSalesExtractDialog, { type ExtractPeriod } from './StoreSalesExtractDialog'
 import StoreVisitors from './StoreVisitors'
+import { useInsideShell } from '@/components/InsideShell'
 import StoreOperatingDays from './StoreOperatingDays'
 import AtalhoCompromissosDaLoja from '@/app/(main)/compromissos/AtalhoCompromissosDaLoja'
 import StoreOrders from './StoreOrders'
@@ -126,6 +127,8 @@ export default function StoreDashboard({
 }) {
     const router = useRouter()
     const { colors } = useTheme()
+    // Dentro da casca da 3.0 a ordem das seções muda um pouco (Visitantes sobe) e os cartões ganham o desenho novo
+    const insideShell = useInsideShell()
     const surfaceRgb = hexToRgb(colors.surface)
 
     const { userId } = useProfile()
@@ -646,6 +649,13 @@ export default function StoreDashboard({
                 />
             </div>
 
+            {/* ===== Visitantes: na 3.0 ficam logo abaixo da Venda presencial (na 2.0 seguem no fim da página) ===== */}
+            {insideShell && (
+                <div className="mb-6">
+                    <StoreVisitors storeId={store.id} />
+                </div>
+            )}
+
             {/* ===== STORE OPERATING DAYS ===== */}
             <div className="mb-4">
                 <StoreOperatingDays storeId={store.id} />
@@ -820,8 +830,8 @@ export default function StoreDashboard({
             {/* ===== Club VIP ===== */}
             <StoreClubVip storeId={store.id} />
 
-            {/* ===== Visitantes ===== */}
-            <StoreVisitors storeId={store.id} />
+            {/* ===== Visitantes (2.0) ===== */}
+            {!insideShell && <StoreVisitors storeId={store.id} />}
 
             {/* ===== Excluir loja (no final, mesmo design do Excluir conta) ===== */}
             <button
