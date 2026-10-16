@@ -1155,8 +1155,13 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
     ]
 
     return (
-        <div className="fixed inset-x-0 bottom-0 top-[var(--shell-top,0px)]" style={{ zIndex: 0 }}>
+        <div className={`fixed inset-x-0 bottom-0 top-[var(--shell-top,0px)] ${v3 ? 'radar-v3' : ''}`} style={{ zIndex: 0 }}>
             <style>{`
+                /* 3.0: a busca e os modos ficam no rodapé; os controles do mapa e a logo sobem acima deles */
+                .radar-v3 .mapboxgl-ctrl-bottom-right,
+                .radar-v3 .mapboxgl-ctrl-bottom-left {
+                    margin-bottom: 136px !important;
+                }
                 .mapboxgl-ctrl-bottom-right,
                 .mapboxgl-ctrl-bottom-left {
                     margin-bottom: 85px !important;
@@ -1253,8 +1258,26 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                 empurraria um Header "sticky" pra fora da tela se ele viesse depois
                 dele no DOM. */}
             {v3 ? (
-                <div className="absolute top-3 inset-x-3 z-[60] pointer-events-none">
-                    {/* Linha 1: voltar, busca e o local salvo */}
+                <div className="absolute bottom-3 inset-x-3 z-[60] pointer-events-none flex flex-col gap-2">
+                    {/* Filtros de modo (lojas, serviços, produtos, pessoas), em cima da busca */}
+                    <div className="flex items-center pointer-events-auto">
+                        <div className="flex-1 min-w-0 flex gap-2 overflow-x-auto scrollbar-hide -mx-3 px-3 pb-0.5" style={{ overflowAnchor: 'none' }}>
+                            {radarTabs.map((t) => {
+                                const Icon = t.icon
+                                return (
+                                    <button
+                                        key={t.id}
+                                        onClick={t.onClick}
+                                        className="flex-shrink-0 h-9 pl-3 pr-3.5 rounded-full flex items-center gap-1.5 text-xs font-black whitespace-nowrap transition active:scale-95"
+                                        style={t.isActive ? { background: 'linear-gradient(135deg, #f97316, #dc2626)', color: '#fff', boxShadow: '0 4px 12px #f9731655' } : { background: '#fff', color: '#111827', boxShadow: '0 2px 8px rgba(0,0,0,0.18)' }}
+                                    >
+                                        <Icon size={14} /> {t.label}
+                                    </button>
+                                )
+                            })}
+                        </div>
+                    </div>
+                    {/* Busca no rodapé: voltar, campo e o local salvo */}
                     <div className="flex items-center gap-2 pointer-events-auto">
                         <button onClick={() => (window.history.length > 1 ? router.back() : router.push('/'))} aria-label="Voltar" className="flex-shrink-0 rounded-full flex items-center justify-center transition active:scale-95" style={{ width: 46, height: 46, background: '#fff', color: '#111827', boxShadow: '0 2px 10px rgba(0,0,0,0.2)' }}>
                             <ArrowLeft size={20} />
@@ -1282,38 +1305,6 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                         </button>
                     </div>
 
-                    {/* Linha 2 (a única de filtros): modos + o filtro de ordem */}
-                    <div className="mt-2 flex items-center gap-2 pointer-events-auto">
-                        <div className="flex-1 min-w-0 flex gap-2 overflow-x-auto scrollbar-hide -mx-3 px-3 pb-0.5" style={{ overflowAnchor: 'none' }}>
-                            {radarTabs.map((t) => {
-                                const Icon = t.icon
-                                return (
-                                    <button
-                                        key={t.id}
-                                        onClick={t.onClick}
-                                        className="flex-shrink-0 h-9 pl-3 pr-3.5 rounded-full flex items-center gap-1.5 text-xs font-black whitespace-nowrap transition active:scale-95"
-                                        style={t.isActive ? { background: 'linear-gradient(135deg, #f97316, #dc2626)', color: '#fff', boxShadow: '0 4px 12px #f9731655' } : { background: '#fff', color: '#111827', boxShadow: '0 2px 8px rgba(0,0,0,0.18)' }}
-                                    >
-                                        <Icon size={14} /> {t.label}
-                                    </button>
-                                )
-                            })}
-                        </div>
-                        <div className="relative flex-shrink-0">
-                            <button
-                                onClick={() => setShowRankMenu((v) => !v)}
-                                aria-expanded={showRankMenu}
-                                aria-label={`Filtro: ${rankLabel(rankKey)}`}
-                                title={`Filtro: ${rankLabel(rankKey)}`}
-                                className="h-9 px-3 rounded-full flex items-center gap-1.5 text-xs font-black transition active:scale-95"
-                                style={{ background: showRankMenu ? 'linear-gradient(135deg, #f97316, #dc2626)' : '#fff', color: showRankMenu ? '#fff' : '#111827', boxShadow: '0 2px 8px rgba(0,0,0,0.18)' }}
-                            >
-                                <Flame size={14} style={{ color: showRankMenu ? '#fff' : '#f97316' }} />
-                                <span className="max-w-[78px] truncate">{rankLabel(rankKey)}</span>
-                            </button>
-                            {rankMenuNode}
-                        </div>
-                    </div>
                 </div>
             ) : (
             <div className="absolute top-0 left-0 right-0 z-20">
@@ -1368,7 +1359,7 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
 
             {/* Cluster Header */}
             {clusterItems && clusterLocation && (
-                <div className={`absolute ${v3 ? 'top-[128px]' : 'top-[210px]'} left-1/2 -translate-x-1/2 w-[95%] max-w-2xl z-30`}>
+                <div className={`absolute ${v3 ? 'top-[158px]' : 'top-[210px]'} left-1/2 -translate-x-1/2 w-[95%] max-w-2xl z-30`}>
                     <div className="bg-yellow-500 rounded-2xl px-4 py-3 shadow-lg flex items-center justify-between">
                         <div className="flex items-center gap-2">
                             <Building2 className="w-5 h-5 text-white" />
@@ -1434,7 +1425,7 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
 
             {/* Horizontal List — do mais visto ao menos visto (esquerda → direita) */}
             {filtered.length > 0 && !clusterItems && !selectedItem && (
-                <div className={`absolute ${v3 ? 'top-[112px]' : 'top-[190px]'} left-1/2 -translate-x-1/2 w-[95%] max-w-2xl z-20`}>
+                <div className={`absolute ${v3 ? 'top-1 z-[55]' : 'top-[190px] z-20'} left-1/2 -translate-x-1/2 w-[95%] max-w-2xl`}>
                     <div className="flex gap-2.5 overflow-x-auto pt-6 pb-3 scrollbar-hide snap-x items-end">
                         {filtered.map((item, idx) => {
                             const rank = idx < 3 ? idx + 1 : 0
@@ -1494,8 +1485,8 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                         })}
                     </div>
 
-                    {/* Filtro (embaixo da lista, no canto direito): sempre em pares mais/menos. Na 3.0 ele mora na barra de cima. */}
-                    {!v3 && <div className="flex justify-end relative -mt-1">
+                    {/* Filtro (embaixo da lista, no canto direito): sempre em pares mais/menos */}
+                    <div className="flex justify-end relative -mt-1">
                         <button
                             onClick={() => setShowRankMenu(v => !v)}
                             className="flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[11px] font-black text-white shadow-lg"
@@ -1507,7 +1498,7 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                             <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showRankMenu ? 'rotate-180' : ''}`} />
                         </button>
                         {rankMenuNode}
-                    </div>}
+                    </div>
                 </div>
             )}
 
@@ -1556,7 +1547,7 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
 
             {/* Selected Item Card */}
             {selectedItem && !clusterItems && (
-                <div className={`absolute ${v3 ? 'bottom-4' : 'bottom-24'} left-1/2 -translate-x-1/2 w-[92%] max-w-sm z-30 animate-in slide-in-from-bottom-5 duration-500`}>
+                <div className={`absolute ${v3 ? 'bottom-[136px]' : 'bottom-24'} left-1/2 -translate-x-1/2 w-[92%] max-w-sm z-30 animate-in slide-in-from-bottom-5 duration-500`}>
                     <div className="bg-white rounded-2xl shadow-2xl overflow-hidden border-2 border-orange-200 flex flex-col max-h-[72vh]">
                         <button onClick={() => setSelectedItem(null)} className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-orange-100 hover:bg-orange-500 hover:text-white transition-all z-10 shadow-md">
                             <X className="w-4 h-4" />
