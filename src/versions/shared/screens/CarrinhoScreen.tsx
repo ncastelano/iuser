@@ -29,6 +29,10 @@ import {
     AlertCircle,
     User,
     Camera,
+    Plus,
+    Minus,
+    Trash2,
+    PackageCheck,
 } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useState, useRef, useMemo, useCallback } from 'react'
@@ -101,6 +105,7 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
         itemsByStore,
         storeDetails,
         updateQuantity,
+        addItem,
         removeItem,
         clearStoreCart,
         loadFromSupabase,
@@ -114,6 +119,9 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
     const [mounted, setMounted] = useState(false)
     const [globalLoading, setGlobalLoading] = useState(true)
     const [searchQuery, setSearchQuery] = useState('')
+    // 3.0: "Esvaziar" pede uma confirmação (toque duas vezes) e cada loja sugere o que completar o pedido
+    const [confirmClear, setConfirmClear] = useState(false)
+    const [suggestionsByStore, setSuggestionsByStore] = useState<Record<string, { id: string; name: string; slug: string; price: number; image: string | null }[]>>({})
 
     const [currentUserId, setCurrentUserId] = useState<string | null>(null)
     const [currentUserSlug, setCurrentUserSlug] = useState<string | null>(null)
@@ -1242,6 +1250,8 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
     }
 
     const storeSlugs = Object.keys(itemsByStore)
+    const cartItemCount = storeSlugs.reduce((n, slug) => n + (itemsByStore[slug] || []).reduce((a, i) => a + i.quantity, 0), 0)
+    const cartGrandTotal = storeSlugs.reduce((n, slug) => n + (itemsByStore[slug] || []).reduce((a, i) => a + cartItemLineTotal(i), 0), 0)
     const filteredCartSlugs = useMemo(() => {
         if (!searchQuery.trim()) return storeSlugs
         const q = searchQuery.toLowerCase()
@@ -1391,6 +1401,82 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
     const OrderCard = ({ order }: { order: any }) => {
         const statusStyle = getStatusStyles(order.status)
         const bgColor = getStatusColor(order.status)
+
+        // ===== 3.0: cartão claro com linha do tempo =====
+        if (v3) {
+            const STEPS = [
+                { key: 'pending', label: 'Recebido' },
+                { key: 'preparing', label: 'Preparando' },
+                { key: 'ready', label: 'Pronto' },
+                { key: 'paid', label: 'Finalizado' },
+            ]
+            const rejected = order.status === 'rejected'
+            const stepIndex = Math.max(0, STEPS.findIndex((st) => st.key === order.status))
+            const accent = rejected ? '#ef4444' : ({ pending: '#3b82f6', preparing: '#eab308', ready: '#a855f7', paid: '#10b981' } as Record<string, string>)[order.status] || '#3b82f6'
+            const soft = `${colors.border}40`
+            return (
+                <div className="rounded-3xl overflow-hidden" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
+                    <div className="p-3.5 flex items-center justify-between gap-3">
+                        <h3 className="text-sm font-black truncate" style={{ color: colors.textPrimary }}>{order.storeName || order.store_name}</h3>
+                        <span className="flex-shrink-0 text-[11px] font-black px-2.5 py-1 rounded-full" style={{ background: `${accent}22`, color: accent }}>
+                            {statusStyle.icon} {statusStyle.label}
+                        </span>
+                    </div>
+
+                    {rejected ? (
+                        <div className="mx-3.5 mb-3 rounded-2xl px-3 py-2 text-xs font-bold" style={{ background: '#ef444418', color: '#dc2626' }}>{statusStyle.message}</div>
+                    ) : (
+                        <div className="px-3.5 pb-3">
+                            <div className="flex items-center">
+                                {STEPS.map((st, i) => (
+                                    <div key={st.key} className="flex items-center flex-1 last:flex-none">
+                                        <span className="w-4 h-4 rounded-full flex-shrink-0 flex items-center justify-center" style={{ background: i <= stepIndex ? accent : soft }}>
+                                            {i <= stepIndex && <CheckCircle2 size={10} color="#fff" />}
+                                        </span>
+                                        {i < STEPS.length - 1 && <span className="flex-1 h-0.5 mx-1 rounded-full" style={{ background: i < stepIndex ? accent : soft }} />}
+                                    </div>
+                                ))}
+                            </div>
+                            <div className="flex justify-between mt-1">
+                                {STEPS.map((st, i) => (
+                                    <span key={st.key} className="text-[9px] font-bold" style={{ color: i === stepIndex ? accent : colors.textSecondary }}>{st.label}</span>
+                                ))}
+                            </div>
+                            <p className="mt-2 text-xs font-bold" style={{ color: colors.textPrimary }}>{statusStyle.message}</p>
+                        </div>
+                    )}
+
+                    <div className="px-3.5 py-2.5 flex flex-col gap-1.5" style={{ borderTop: `1px solid ${colors.border}` }}>
+                        {order.items.map((item: any, idx: number) => (
+                            <div key={idx} className="flex items-center justify-between gap-2 text-[13px]">
+                                <span className="font-bold min-w-0 truncate" style={{ color: colors.textPrimary }}>{item.quantity}× {item.product_name}</span>
+                                <span className="flex items-center gap-2 flex-shrink-0">
+                                    <span className="font-black" style={{ color: colors.textPrimary }}>R$ {Number(item.price).toFixed(2)}</span>
+                                    {order.status === 'paid' && (
+                                        <button
+                                            onClick={() => setReviewOrder({ isOpen: true, orderId: order.id, productId: item.product_id, productName: item.product_name, storeId: order.store_id })}
+                                            className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase"
+                                            style={{ background: '#f9731620', color: '#f97316' }}
+                                        >
+                                            Avaliar
+                                        </button>
+                                    )}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="px-3.5 py-3 flex items-center justify-between" style={{ borderTop: `1px solid ${colors.border}`, background: `${colors.border}20` }}>
+                        <span className="text-[11px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>Total</span>
+                        <span className="text-right">
+                            <span className="block text-lg font-black leading-tight" style={{ color: colors.textPrimary }}>R$ {Number(order.total_amount).toFixed(2)}</span>
+                            {Number(order.deliveryFee) > 0 && <span className="block text-[10px]" style={{ color: colors.textSecondary }}>frete R$ {Number(order.deliveryFee).toFixed(2)}</span>}
+                        </span>
+                    </div>
+                </div>
+            )
+        }
+
         return (
             <div
                 className="rounded-2xl p-4 shadow-sm"
@@ -1477,6 +1563,47 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
     }
 
     // v3: a barra do topo vem do layout (ShellFrame) e não some enquanto carrega
+    // ===== 3.0: SUGESTÕES DA MESMA LOJA ("complete seu pedido") =====
+    const cartSlugsKey = Object.keys(itemsByStore).sort().join('|')
+    useEffect(() => {
+        if (!v3 || !cartSlugsKey) { setSuggestionsByStore({}); return }
+        let cancelled = false
+        ;(async () => {
+            const slugs = cartSlugsKey.split('|')
+            const { data: stores } = await supabase.from('stores').select('id, "storeSlug"').in('storeSlug', slugs)
+            const idBySlug = new Map((stores || []).map((st: any) => [st.id as string, st.storeSlug as string]))
+            if (idBySlug.size === 0) return
+            const { data: prods } = await supabase
+                .from('products')
+                .select('id, name, slug, price, image_url, store_id, has_addons, stock_quantity')
+                .in('store_id', Array.from(idBySlug.keys()))
+                .eq('listing_type', 'sale')
+                .neq('type', 'service')
+                .eq('has_addons', false)
+                .order('view_count', { ascending: false })
+                .limit(120)
+            if (cancelled) return
+            const out: Record<string, { id: string; name: string; slug: string; price: number; image: string | null }[]> = {}
+            for (const r of (prods as any[]) || []) {
+                const slug = idBySlug.get(r.store_id)
+                if (!slug || r.price == null || Number(r.price) <= 0) continue
+                if (r.stock_quantity != null && Number(r.stock_quantity) <= 0) continue
+                ;(out[slug] ||= []).push({
+                    id: r.id, name: r.name, slug: r.slug, price: Number(r.price),
+                    image: r.image_url ? supabase.storage.from('product-images').getPublicUrl(r.image_url).data.publicUrl : null,
+                })
+            }
+            setSuggestionsByStore(out)
+        })()
+        return () => { cancelled = true }
+    }, [v3, cartSlugsKey])
+
+    useEffect(() => {
+        if (!confirmClear) return
+        const t = setTimeout(() => setConfirmClear(false), 3500)
+        return () => clearTimeout(t)
+    }, [confirmClear])
+
     if (!mounted || globalLoading) return v3 ? (
         <div className="flex items-center justify-center py-24">
             <div className="text-center">
@@ -1505,14 +1632,26 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                 {v3 ? (
                     <>
                         <PageTabs tabs={tabs} />
-                        <input
-                            type="search"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            placeholder="Buscar pedido, produto ou loja..."
-                            className="w-full mt-3 px-4 py-2.5 rounded-full text-sm focus:outline-none"
-                            style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
-                        />
+                        {activeTab === 'carrinho' && storeSlugs.length > 0 && (
+                            <div className="mt-3 flex items-center justify-between gap-3 px-1">
+                                <p className="text-xs font-bold" style={{ color: colors.textSecondary }}>
+                                    {storeSlugs.length} {storeSlugs.length === 1 ? 'loja' : 'lojas'} · {cartItemCount} {cartItemCount === 1 ? 'item' : 'itens'} ·{' '}
+                                    <span className="font-black" style={{ color: colors.textPrimary }}>R$ {cartGrandTotal.toFixed(2)}</span>
+                                </p>
+                                <button
+                                    onClick={() => {
+                                        if (!confirmClear) { setConfirmClear(true); return }
+                                        storeSlugs.forEach((slug) => clearStoreCart(slug))
+                                        setConfirmClear(false)
+                                        toast.success('Carrinho esvaziado')
+                                    }}
+                                    className="text-xs font-black flex items-center gap-1 px-2.5 py-1.5 rounded-full transition active:scale-95"
+                                    style={confirmClear ? { background: '#ef4444', color: '#fff' } : { color: colors.textSecondary }}
+                                >
+                                    <Trash2 size={12} /> {confirmClear ? 'Toque de novo pra esvaziar' : 'Esvaziar'}
+                                </button>
+                            </div>
+                        )}
                     </>
                 ) : (
                     <Header
@@ -1984,6 +2123,180 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                                             </>
                                         ) : null
 
+                                        // ===== 3.0: cartão da loja (nome, status, itens, sugestões e finalizar) + checkout em folha =====
+                                        if (v3) {
+                                            const soft = `${colors.border}40`
+                                            const suggestions = (suggestionsByStore[slug] || [])
+                                                .filter((sg) => !items.some((it) => it.product.id === sg.id))
+                                                .slice(0, 8)
+                                            const startCheckout = () => {
+                                                if (!currentUserId) {
+                                                    setPendingReferralStoreSlug(slug)
+                                                    toast.info('Identifique-se para continuar')
+                                                    return
+                                                }
+                                                setCheckoutStepByStore(prev => ({ ...prev, [slug]: 'delivery' }))
+                                            }
+                                            const shipping = canDelivery
+                                                ? (bagDeliveryEstimate.isCalculating ? 'Entrega: frete a calcular' : bagDeliveryEstimate.fee === 0 ? 'Entrega grátis' : `Entrega a partir de R$ ${bagDeliveryEstimate.fee.toFixed(2)}`)
+                                                : canPickup ? 'Só retirada no local' : ''
+                                            const itemCount = items.reduce((n, i) => n + i.quantity, 0)
+
+                                            return (
+                                                <div key={slug}>
+                                                    <div className="rounded-3xl mb-4 overflow-hidden" style={{ background: colors.surface, border: `1px solid ${colors.border}`, opacity: isStoreOpen ? 1 : 0.92 }}>
+                                                        {/* Loja: logo, nome e como está */}
+                                                        <div className="p-3.5 flex items-center gap-3">
+                                                            <button onClick={() => router.push(`/${slug}`)} className="flex items-center gap-3 min-w-0 flex-1 text-left">
+                                                                <span className="w-11 h-11 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center" style={{ background: GRADIENT }}>
+                                                                    {details?.logo_url ? <img src={details.logo_url} alt="" className="w-full h-full object-cover" /> : <Store size={18} color="#fff" />}
+                                                                </span>
+                                                                <span className="min-w-0">
+                                                                    <span className="block text-sm font-black truncate" style={{ color: colors.textPrimary }}>{details?.name || slug}</span>
+                                                                    <span className="flex items-center gap-1.5 text-[11px] font-bold" style={{ color: statusColor }}>
+                                                                        <span className="w-1.5 h-1.5 rounded-full" style={{ background: statusColor }} />
+                                                                        {isStoreOpen ? 'Aberta agora' : nextOpening ? `Fechada · abre ${nextOpening.dayLabel} às ${nextOpening.time}` : 'Fechada agora'}
+                                                                    </span>
+                                                                </span>
+                                                            </button>
+                                                            <span className="text-[11px] font-black px-2.5 py-1 rounded-full flex-shrink-0" style={{ background: soft, color: colors.textSecondary }}>
+                                                                {itemCount} {itemCount === 1 ? 'item' : 'itens'}
+                                                            </span>
+                                                        </div>
+
+                                                        {/* Itens */}
+                                                        <div className="px-3.5 flex flex-col">
+                                                            {items.map((item) => {
+                                                                const k = `${item.product.id}::${item.comment || ''}::${(item.addons || []).map((a) => a.id).sort().join(',')}`
+                                                                return (
+                                                                    <div key={k} className="py-2.5 flex items-center gap-3" style={{ borderTop: `1px solid ${colors.border}` }}>
+                                                                        <span className="w-12 h-12 rounded-xl overflow-hidden flex-shrink-0 flex items-center justify-center" style={{ background: soft }}>
+                                                                            {item.product.image_url ? <img src={item.product.image_url} alt="" className="w-full h-full object-cover" /> : <Package size={18} style={{ color: colors.textSecondary }} />}
+                                                                        </span>
+                                                                        <span className="flex-1 min-w-0">
+                                                                            <span className="block text-[13px] font-black leading-snug" style={{ color: colors.textPrimary, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{item.product.name}</span>
+                                                                            {item.addons && item.addons.length > 0 && (
+                                                                                <span className="block text-[10px] truncate" style={{ color: colors.textSecondary }}>+ {item.addons.map((a) => a.name).join(', ')}</span>
+                                                                            )}
+                                                                            {item.comment && <span className="block text-[10px] truncate italic" style={{ color: colors.textSecondary }}>“{item.comment}”</span>}
+                                                                            <span className="block text-xs font-black mt-0.5" style={{ color: '#f97316' }}>R$ {cartItemLineTotal(item).toFixed(2)}</span>
+                                                                        </span>
+                                                                        <span className="flex items-center gap-1.5 flex-shrink-0">
+                                                                            <button
+                                                                                onClick={() => item.quantity <= 1
+                                                                                    ? removeItem(slug, item.product.id, item.comment, item.addons)
+                                                                                    : updateQuantity(slug, item.product.id, -1, item.comment, item.addons)}
+                                                                                aria-label={item.quantity <= 1 ? 'Remover' : 'Diminuir'}
+                                                                                className="w-8 h-8 rounded-full flex items-center justify-center transition active:scale-90"
+                                                                                style={{ background: soft, color: item.quantity <= 1 ? '#ef4444' : colors.textPrimary }}
+                                                                            >
+                                                                                {item.quantity <= 1 ? <Trash2 size={14} /> : <Minus size={14} />}
+                                                                            </button>
+                                                                            <span className="w-5 text-center text-sm font-black" style={{ color: colors.textPrimary }}>{item.quantity}</span>
+                                                                            <button
+                                                                                onClick={() => updateQuantity(slug, item.product.id, 1, item.comment, item.addons)}
+                                                                                aria-label="Aumentar"
+                                                                                className="w-8 h-8 rounded-full flex items-center justify-center text-white transition active:scale-90"
+                                                                                style={{ background: GRADIENT }}
+                                                                            >
+                                                                                <Plus size={14} strokeWidth={3} />
+                                                                            </button>
+                                                                        </span>
+                                                                    </div>
+                                                                )
+                                                            })}
+                                                        </div>
+
+                                                        {/* Complete o pedido: o que mais dessa loja sai */}
+                                                        {suggestions.length > 0 && (
+                                                            <div className="pt-1 pb-3" style={{ borderTop: `1px solid ${colors.border}` }}>
+                                                                <p className="px-3.5 pt-2.5 pb-1.5 text-[11px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>Complete seu pedido</p>
+                                                                <div className="flex gap-2 overflow-x-auto scrollbar-hide px-3.5">
+                                                                    {suggestions.map((sg) => (
+                                                                        <div key={sg.id} className="flex-shrink-0 w-32 rounded-2xl overflow-hidden" style={{ background: soft }}>
+                                                                            <button onClick={() => router.push(`/${slug}/${sg.slug}`)} className="block w-full h-20" style={{ background: sg.image ? undefined : GRADIENT }}>
+                                                                                {sg.image && <img src={sg.image} alt="" className="w-full h-full object-cover" loading="lazy" />}
+                                                                            </button>
+                                                                            <div className="p-2">
+                                                                                <p className="text-[11px] font-black leading-tight truncate" style={{ color: colors.textPrimary }}>{sg.name}</p>
+                                                                                <div className="mt-1 flex items-center justify-between gap-1">
+                                                                                    <span className="text-[11px] font-black" style={{ color: colors.textPrimary }}>R$ {sg.price.toFixed(2)}</span>
+                                                                                    <button
+                                                                                        onClick={() => {
+                                                                                            addItem(slug, { name: details?.name || slug, logo_url: details?.logo_url ?? null }, { id: sg.id, name: sg.name, price: sg.price, image_url: sg.image, slug: sg.slug })
+                                                                                            toast.success(`${sg.name} no carrinho`)
+                                                                                        }}
+                                                                                        aria-label={`Adicionar ${sg.name}`}
+                                                                                        className="w-7 h-7 rounded-full flex items-center justify-center text-white transition active:scale-90"
+                                                                                        style={{ background: GRADIENT }}
+                                                                                    >
+                                                                                        <Plus size={13} strokeWidth={3} />
+                                                                                    </button>
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        )}
+
+                                                        {/* Resumo e finalizar */}
+                                                        <div className="p-3.5" style={{ borderTop: `1px solid ${colors.border}`, background: `${colors.border}20` }}>
+                                                            <div className="flex items-center justify-between text-xs" style={{ color: colors.textSecondary }}>
+                                                                <span>Subtotal</span>
+                                                                <span className="font-black" style={{ color: colors.textPrimary }}>R$ {itemsTotal.toFixed(2)}</span>
+                                                            </div>
+                                                            {shipping && (
+                                                                <p className="mt-0.5 text-[11px] flex items-center gap-1" style={{ color: bagDeliveryEstimate.fee === 0 && canDelivery ? '#16a34a' : colors.textSecondary }}>
+                                                                    <Truck size={11} /> {shipping}
+                                                                </p>
+                                                            )}
+                                                            <button
+                                                                onClick={startCheckout}
+                                                                disabled={!isStoreOpen}
+                                                                className="mt-3 w-full h-12 rounded-full font-black text-sm text-white flex items-center justify-center gap-2 transition active:scale-[0.98] disabled:opacity-60"
+                                                                style={{ background: isStoreOpen ? GRADIENT : colors.border, color: isStoreOpen ? '#fff' : colors.textSecondary, boxShadow: isStoreOpen ? '0 6px 18px #f9731655' : 'none' }}
+                                                            >
+                                                                {isStoreOpen ? <>Finalizar pedido · R$ {itemsTotal.toFixed(2)}</> : <>Loja fechada{nextOpening ? ` · abre ${nextOpening.time}` : ''}</>}
+                                                            </button>
+                                                            <button onClick={() => router.push(`/${slug}`)} className="mt-2 w-full text-xs font-black py-1.5" style={{ color: colors.accent }}>
+                                                                Mais de {details?.name || 'essa loja'}
+                                                            </button>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Finalizar: folha por cima (receber → pagar → confirmar), mesma regra de sempre */}
+                                                    {checkoutContent && (
+                                                        <div className="fixed inset-0 z-[90]">
+                                                            <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={() => setCheckoutStepByStore(prev => ({ ...prev, [slug]: null }))} />
+                                                            <div className="absolute inset-x-0 bottom-0 max-h-[90dvh] overflow-y-auto rounded-t-3xl px-5 pt-3 pb-6 max-w-lg mx-auto" style={{ background: colors.surface, boxShadow: '0 -10px 40px rgba(0,0,0,0.35)' }}>
+                                                                <div className="w-10 h-1 rounded-full mx-auto mb-3" style={{ background: colors.border }} />
+                                                                <div className="flex items-center gap-3 mb-3">
+                                                                    <span className="w-9 h-9 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center" style={{ background: GRADIENT }}>
+                                                                        {details?.logo_url ? <img src={details.logo_url} alt="" className="w-full h-full object-cover" /> : <Store size={16} color="#fff" />}
+                                                                    </span>
+                                                                    <div className="min-w-0 flex-1">
+                                                                        <p className="text-sm font-black truncate" style={{ color: colors.textPrimary }}>{details?.name || slug}</p>
+                                                                        <p className="text-[11px]" style={{ color: colors.textSecondary }}>{itemCount} {itemCount === 1 ? 'item' : 'itens'}</p>
+                                                                    </div>
+                                                                    <div className="text-right">
+                                                                        <p className="text-[10px]" style={{ color: colors.textSecondary }}>
+                                                                            {deliveryOpt === 'entrega' ? (isCalculating ? 'frete a calcular' : `inclui frete R$ ${deliveryFee.toFixed(2)}`) : 'retirada'}
+                                                                            {discountAmount > 0 ? ` · desconto −R$ ${discountAmount.toFixed(2)}` : ''}
+                                                                        </p>
+                                                                        <p className="text-lg font-black" style={{ color: '#f97316' }}>R$ {finalTotal.toFixed(2)}</p>
+                                                                    </div>
+                                                                </div>
+                                                                <div className="rounded-2xl p-3.5" style={{ background: `${colors.border}20`, border: `1px solid ${colors.border}` }}>
+                                                                    {checkoutContent}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )
+                                        }
+
                                         return (
                                             <div key={slug} className="rounded-2xl p-5 mb-4 border" style={{ borderColor: colors.border, background: colors.surface }}>
                                                 {/* O nome da loja já aparece do lado da logo, dentro do CatalogBag -
@@ -2303,7 +2616,7 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                     )}
                 </div>
 
-                <div style={{ position: 'fixed', bottom: 32, right: 24, display: 'flex', gap: 12, zIndex: 998 }}>
+                {!v3 && <div style={{ position: 'fixed', bottom: 32, right: 24, display: 'flex', gap: 12, zIndex: 998 }}>
                     <button
                         onClick={() => router.back()}
                         className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95"
@@ -2330,7 +2643,7 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                     >
                         <Home size={24} />
                     </button>
-                </div>
+                </div>}
             </main>
 
             {/* ===== MODAL DE LOCALIZAÇÃO ===== */}

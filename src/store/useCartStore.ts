@@ -73,6 +73,51 @@ const addonsKey = (addons?: CartAddon[]) =>
         .join(',')
 export const lineKey = (comment?: string, addons?: CartAddon[]) => `${commentKey(comment)}::${addonsKey(addons)}`
 
+// Fila do sync do carrinho (ver syncToSupabase)
+let syncQueue: Promise<void> = Promise.resolve()
+
+async function runSync(userId: string, get: () => CartState): Promise<void> {
+    const { itemsByStore, storeDetails } = get()
+
+    // 1. Deletar registros existentes
+    const { error: deleteError } = await supabase
+        .from('carts')
+        .delete()
+        .eq('user_id', userId)
+
+    if (deleteError) {
+        console.error('Erro ao deletar carrinho existente:', JSON.stringify(deleteError, null, 2))
+        // Se o delete falhar (ex.: RLS), podemos tentar usar upsert em vez de delete+insert
+        // Mas por enquanto apenas logamos; você pode implementar upsert depois
+    }
+
+    const rows: any[] = []
+    for (const slug of Object.keys(itemsByStore)) {
+        const items = itemsByStore[slug]
+        const store = storeDetails[slug]
+        for (const item of items) {
+            rows.push({
+                user_id: userId,
+                store_slug: slug,
+                product_id: item.product.id,
+                product_data: item.product,
+                quantity: item.quantity,
+                comment: item.comment || null,
+                addons: item.addons && item.addons.length > 0 ? item.addons : null,
+                store_data: store || { name: '', logo_url: null },
+            })
+        }
+    }
+
+    if (rows.length > 0) {
+        const { error: insertError } = await supabase.from('carts').insert(rows)
+        if (insertError) {
+            // Log detalhado do erro
+            console.error('Erro ao sincronizar carrinho:', JSON.stringify(insertError, null, 2))
+        }
+    }
+}
+
 const useCartStore = create<CartState>()(
     persist(
         (set, get) => ({
@@ -178,14 +223,15 @@ const useCartStore = create<CartState>()(
                     const rowAddons = (row.addons as CartAddon[] | null) || undefined
 
                     // Uma linha por produto+observação+adicionais por loja é o
-                    // esperado, mas se o banco tiver duas (ex.: sync concorrente),
-                    // soma em vez de duplicar a entrada — senão a mesma chave vira
-                    // React key repetida.
+                    // esperado. Se o banco tiver duas, elas vieram de syncs que
+                    // correram ao mesmo tempo (cada um gravando o MESMO carrinho),
+                    // não de compras diferentes: fica a maior quantidade, não a
+                    // soma — somar dobrava o carrinho a cada carregamento.
                     const existing = itemsByStore[slug].find(
                         (item) => item.product.id === row.product_id && lineKey(item.comment, item.addons) === lineKey(row.comment, rowAddons)
                     )
                     if (existing) {
-                        existing.quantity += row.quantity
+                        existing.quantity = Math.max(existing.quantity, row.quantity)
                     } else {
                         itemsByStore[slug].push({
                             product: row.product_data as CartProduct,
@@ -203,47 +249,12 @@ const useCartStore = create<CartState>()(
                 set({ itemsByStore, storeDetails })
             },
 
-            syncToSupabase: async (userId: string) => {
-                if (!userId) return
-                const { itemsByStore, storeDetails } = get()
-
-                // 1. Deletar registros existentes
-                const { error: deleteError } = await supabase
-                    .from('carts')
-                    .delete()
-                    .eq('user_id', userId)
-
-                if (deleteError) {
-                    console.error('Erro ao deletar carrinho existente:', JSON.stringify(deleteError, null, 2))
-                    // Se o delete falhar (ex.: RLS), podemos tentar usar upsert em vez de delete+insert
-                    // Mas por enquanto apenas logamos; você pode implementar upsert depois
-                }
-
-                const rows: any[] = []
-                for (const slug of Object.keys(itemsByStore)) {
-                    const items = itemsByStore[slug]
-                    const store = storeDetails[slug]
-                    for (const item of items) {
-                        rows.push({
-                            user_id: userId,
-                            store_slug: slug,
-                            product_id: item.product.id,
-                            product_data: item.product,
-                            quantity: item.quantity,
-                            comment: item.comment || null,
-                            addons: item.addons && item.addons.length > 0 ? item.addons : null,
-                            store_data: store || { name: '', logo_url: null },
-                        })
-                    }
-                }
-
-                if (rows.length > 0) {
-                    const { error: insertError } = await supabase.from('carts').insert(rows)
-                    if (insertError) {
-                        // Log detalhado do erro
-                        console.error('Erro ao sincronizar carrinho:', JSON.stringify(insertError, null, 2))
-                    }
-                }
+            // Um sync por vez: dois "apagar tudo + inserir" ao mesmo tempo (duas abas, ou o React
+            // montando o efeito duas vezes em desenvolvimento) deixavam linhas duplicadas no banco.
+            syncToSupabase: (userId: string) => {
+                if (!userId) return Promise.resolve()
+                syncQueue = syncQueue.catch(() => undefined).then(() => runSync(userId, get))
+                return syncQueue
             },
         }),
         {
