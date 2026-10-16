@@ -11,7 +11,8 @@
     "cap:ios": "cap open ios",
     "cap:android": "cap open android",
     "test:graduation": "node --test scripts/test-graduation.mjs",
-    "test:versions": "node --test scripts/test-versions.mjs"
+    "test:versions": "node --test scripts/test-versions.mjs",
+    "test:service-requests": "node --test scripts/test-service-requests.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",

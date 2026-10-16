@@ -1,0 +1,10 @@
+// src/modules/service-requests/index.ts — API pública do domínio "pedido de serviço"
+export { MAX_PHOTOS, missingFields, splitAddress, shortAddress } from './domain'
+export type { ServiceRequestInput } from './domain'
+export { reverseGeocode, searchAddress } from './geocoding'
+export type { AddressHit } from './geocoding'
+export { saveDraft, loadDraft, clearDraft } from './draft'
+export { submitServiceRequest } from './submit'
+export type { SubmitServiceRequest } from './submit'
+export { loadPublishedServices } from './published'
+export type { PublishedService } from './published'
