@@ -152,7 +152,7 @@ function MenuDrawerContent({ slug, avatarUrl, data, active, recent, onSelect, on
     )
 
     return (
-        <div className="h-full w-full flex flex-col px-4 pb-8 overflow-y-auto" style={{ paddingTop: 'calc(74px + env(safe-area-inset-top) + 8px)' }}>
+        <div className="h-full w-full flex flex-col px-4 pb-8 overflow-y-auto" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 12px)' }}>
             {/* Só o fechar: a foto e o @ aparecem uma vez só, no cartão "Meu perfil" logo abaixo */}
             <div className="flex justify-end">
                 <button onClick={onClose} aria-label="Fechar menu" className="w-9 h-9 rounded-full flex items-center justify-center text-white hover:bg-white/15 flex-shrink-0">
@@ -286,7 +286,7 @@ function DrawerVersionSwitch({ onSwitch }: { onSwitch: () => Promise<void> }) {
 // Menu de quem não tem conta: o "modo" é o de visitante (já selecionado), mais entrar/criar conta e o Explorar
 function VisitorDrawerContent({ recent, onGo, onClose, onSwitchVersion }: { recent: RecentClickItem[]; onGo: (path: string) => void; onClose: () => void; onSwitchVersion: () => Promise<void> }) {
     return (
-        <div className="h-full w-full flex flex-col px-4 pb-8 overflow-y-auto" style={{ paddingTop: 'calc(74px + env(safe-area-inset-top) + 8px)' }}>
+        <div className="h-full w-full flex flex-col px-4 pb-8 overflow-y-auto" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 12px)' }}>
             <div className="flex justify-end">
                 <button onClick={onClose} aria-label="Fechar menu" className="w-9 h-9 rounded-full flex items-center justify-center text-white hover:bg-white/15 flex-shrink-0">
                     <X size={20} />
@@ -745,13 +745,13 @@ export default function ModeShell({ children, search }: {
                 background: colors.background, zIndex: 2,
                 marginTop: NAV_H,
                 minHeight: `calc(100dvh - ${NAV_H})`,
-                // origem no TOPO: o cartão encolhe pra baixo e a borda de cima continua colada na barra (antes, com a
-                // origem no centro, ele "descolava" da barra e abria uma faixa entre os dois)
-                transformOrigin: 'left top',
-                // vira um cartão abaixo da barra do topo: desliza pra direita e encolhe um pouco, mostrando o menu atrás
+                // a barra do topo é parte do app: com o menu aberto, barra + cartão deslizam e encolhem JUNTOS, a partir do
+                // canto de cima da tela (a origem do cartão fica na altura da barra, acima dele), e continuam colados
+                transformOrigin: `0 calc(-1 * ${NAV_H})`,
+                // vira um cartão: desliza pra direita e encolhe um pouco, mostrando o menu atrás
                 transform: drawerOpen ? `translateX(${DRAWER_W}) scale(0.9)` : 'none',
                 // aberto: cartão com os 4 cantos; fechado: só os de cima, que se encaixam nos cantos côncavos da barra
-                borderRadius: drawerOpen ? '32px' : `${target === 'mode' ? 0 : CORNER}px ${target === 'search' ? 0 : CORNER}px 0px 0px`,
+                borderRadius: drawerOpen ? '0px 0px 32px 32px' : `${target === 'mode' ? 0 : CORNER}px ${target === 'search' ? 0 : CORNER}px 0px 0px`,
                 boxShadow: drawerOpen ? '-12px 0 40px rgba(0,0,0,0.35)' : 'none',
                 height: cardClipped ? `calc(100dvh - ${NAV_H})` : undefined,
                 overflow: cardClipped ? 'hidden' : undefined,
@@ -781,6 +781,12 @@ export default function ModeShell({ children, search }: {
                 paddingTop: 'env(safe-area-inset-top)',
                 boxSizing: 'border-box',
                 height: NAV_H,
+                // com o menu aberto a barra acompanha o cartão (o menu não mostra carrinho/conversas/busca)
+                transformOrigin: 'left top',
+                transform: drawerOpen ? `translateX(${DRAWER_W}) scale(0.9)` : 'none',
+                borderRadius: drawerOpen ? '32px 32px 0 0' : 0,
+                boxShadow: drawerOpen ? '-12px 0 40px rgba(0,0,0,0.35)' : 'none',
+                transition: 'transform 450ms cubic-bezier(0.22, 1, 0.36, 1), border-radius 420ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 450ms ease',
             }}
         >
             <div className="relative z-[1] max-w-5xl mx-auto px-4 h-full flex items-center">
