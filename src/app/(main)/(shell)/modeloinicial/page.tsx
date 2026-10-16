@@ -290,7 +290,7 @@ function SectionHeader({ type, title, subtitle, onSeeAll, colors }: { type: Type
 // Faixa que rola de lado; os cartões encaixam (snap) pra ficar fácil de passar com o dedo
 function Strip({ children }: { children: ReactNode }) {
     return (
-        <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory pb-2 -mx-4 px-4" style={{ scrollbarWidth: 'none' }}>
+        <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory scroll-pl-4 scroll-pr-4 pb-2 -mx-4 px-4" style={{ scrollbarWidth: 'none' }}>
             {children}
         </div>
     )

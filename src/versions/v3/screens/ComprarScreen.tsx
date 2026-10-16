@@ -211,12 +211,12 @@ export default function ComprarScreen() {
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">{items.map((p) => renderTile(p))}</div>
     )
     const storeRow = (stores: ShopData['stores']) => (
-        <div className="flex gap-3 overflow-x-auto scrollbar-hide snap-x -mx-4 px-4 pb-1">
+        <div className="flex gap-3 overflow-x-auto scrollbar-hide snap-x scroll-pl-4 scroll-pr-4 -mx-4 px-4 pb-1">
             {stores.slice(0, 12).map((s) => <StoreImageCard key={s.id} s={s} onClick={() => router.push(`/${s.slug}`)} />)}
         </div>
     )
     const productRow = (items: ShopProduct[]) => (
-        <div className="flex gap-3 overflow-x-auto scrollbar-hide snap-x -mx-4 px-4 pb-1">
+        <div className="flex gap-3 overflow-x-auto scrollbar-hide snap-x scroll-pl-4 scroll-pr-4 -mx-4 px-4 pb-1">
             {items.map((p) => <div key={p.id} className="flex-shrink-0 w-40 snap-start">{renderTile(p)}</div>)}
         </div>
     )

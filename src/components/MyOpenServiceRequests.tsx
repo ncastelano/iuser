@@ -132,7 +132,7 @@ export default function MyOpenServiceRequests({ limit = 5, title, onCountChange 
             )}
             {/* O padding (com margem negativa pra não mexer no layout) dá folga pro brilho da borda, pra sombra e pro
                 zoom do hover — sem isso o overflow da rolagem cortava as bordas do card nos quatro lados */}
-            <div className="flex gap-3 overflow-x-auto px-2 -mx-2 pt-3 pb-4 -mt-3 -mb-3 snap-x">
+            <div className="flex gap-3 overflow-x-auto px-2 -mx-2 pt-3 pb-4 -mt-3 -mb-3 snap-x scroll-pl-2 scroll-pr-2">
                 {requests.map((r) => {
                     const Icon = getServiceIcon(r.serviceType, r.customIcon)
                     const hired = r.candidates.find((c) => c.status === 'accepted')
