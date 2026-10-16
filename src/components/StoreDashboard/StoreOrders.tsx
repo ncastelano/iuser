@@ -1379,12 +1379,19 @@ function OrderButton({
                             {order.deliveryFee > 0 && <span style={{ color: themeColors.textSecondary }}>frete R$ {order.deliveryFee.toFixed(2)}</span>}
                             {isAssigned && <span className="text-[10px] font-bold" style={{ color: themeColors.textSecondary }}>Entregador: {assignment?.employeeName}</span>}
                         </div>
+                        {!isInPerson && !isPaid && iuserDelivery?.enabled && order.delivery_address && iuserDelivery.dispatchedIds.has(order.id) && (
+                            <span className="self-start text-[10px] font-black px-2.5 py-1 rounded-full" style={{ background: `${statusColor}1f`, color: statusColor }}>
+                                {iuserDelivery.acceptedIds?.has(order.id)
+                                    ? ({ to_store: 'Motorista indo à loja', at_store: 'Motorista na loja', in_transit: 'A caminho do cliente' } as Record<string, string>)[iuserDelivery.info?.get(order.id)?.stage] || 'Motorista aceitou'
+                                    : `Buscando motorista${iuserDelivery.info?.get(order.id) ? ` · R$ ${iuserDelivery.info.get(order.id).freight.toFixed(2)} · até ${iuserDelivery.info.get(order.id).radius} km` : ''}`}
+                            </span>
+                        )}
                     </div>
                     <div className="flex items-center gap-1 flex-shrink-0">
                         {orderTime && <span className="text-[11px] font-bold tabular-nums" style={{ color: themeColors.textSecondary }}>{orderTime}</span>}
                         {!isInPerson && !isPaid && iuserDelivery?.enabled && order.delivery_address && (iuserDelivery.dispatchedIds.has(order.id) || ['preparing', 'ready'].includes(order.status)) && (
                             iuserDelivery.dispatchedIds.has(order.id) ? (
-                                <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full" style={{ background: `${statusColor}1f`, color: statusColor }}>{iuserDelivery.acceptedIds?.has(order.id) ? ({ to_store: 'Motorista indo à loja', at_store: 'Motorista na loja', in_transit: 'A caminho do cliente' } as Record<string, string>)[iuserDelivery.info?.get(order.id)?.stage] || 'Motorista aceitou' : `Buscando motorista${iuserDelivery.info?.get(order.id) ? ` · R$ ${iuserDelivery.info.get(order.id).freight.toFixed(2)} · ${iuserDelivery.info.get(order.id).radius} km` : ''}`}</span>
+                                null
                             ) : (
                                 <button onClick={(e) => { e.stopPropagation(); e.preventDefault(); iuserDelivery.onCall(order) }} className="w-8 h-8 rounded-full flex items-center justify-center transition active:scale-90" style={{ background: `${themeColors.border}50` }} title="Chamar motorista iUser" type="button">
                                     <Truck size={14} style={{ color: themeColors.textPrimary }} />
