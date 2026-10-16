@@ -194,7 +194,7 @@ function MenuDrawerContent({ slug, avatarUrl, data, active, recent, onSelect, on
                         actions={(
                             <>
                                 <DrawerPill onClick={() => onGo(`/${st.slug}`)}>Ver loja</DrawerPill>
-                                <DrawerPill solid onClick={() => onGo(`/painel-loja/${encodeURIComponent(st.slug)}`)}>Painel</DrawerPill>
+                                <DrawerPill solid onClick={() => onGo(`/painel-loja/${encodeURIComponent(st.slug)}`)}>Editar</DrawerPill>
                             </>
                         )}
                     />
@@ -217,9 +217,8 @@ function MenuDrawerContent({ slug, avatarUrl, data, active, recent, onSelect, on
                     dot={data.providerOn ? '#4ade80' : undefined}
                     actions={(
                         <>
-                            <DrawerPill onClick={() => onGo('/')}>Início</DrawerPill>
-                            <DrawerPill solid onClick={() => onGo('/painel-perfil')}>Painel</DrawerPill>
-                            {data.providerOn && <DrawerPill onClick={() => onGo('/modoprestador')}>Serviços</DrawerPill>}
+                            {slug && <DrawerPill onClick={() => onGo(`/${slug}`)}>Ver perfil</DrawerPill>}
+                            <DrawerPill solid onClick={() => onGo('/painel-perfil')}>Editar</DrawerPill>
                         </>
                     )}
                 />
