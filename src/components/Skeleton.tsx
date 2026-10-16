@@ -8,11 +8,12 @@ import type { CSSProperties, ReactNode } from 'react'
 import { useTheme } from '@/app/contexts/theme'
 
 /** Um bloco com o brilho passando. Defina o tamanho/forma por className ou style. */
-export function Shimmer({ className = '', style }: { className?: string; style?: CSSProperties }) {
+export function Shimmer({ className = '', style, color }: { className?: string; style?: CSSProperties; color?: string }) {
     const { colors } = useTheme()
-    // o cinza da borda do tema (visível no claro e no escuro); o brilho é o mesmo cinza mais cheio
-    const base = `${colors.border}b3`
-    const glow = colors.border
+    // o cinza da borda do tema (visível no claro e no escuro); o brilho é o mesmo cinza mais cheio.
+    // Com `color` (hex) o bloco ganha a cor da coisa que vai chegar (ex.: o azul dos pedidos novos).
+    const base = color ? `${color}2e` : `${colors.border}b3`
+    const glow = color ? `${color}55` : colors.border
     return (
         <span
             aria-hidden

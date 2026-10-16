@@ -37,6 +37,7 @@ import StoreSalesExtractDialog, { type ExtractPeriod } from './StoreSalesExtract
 import StoreVisitors from './StoreVisitors'
 import { useInsideShell } from '@/components/InsideShell'
 import V3Section from './V3Section'
+import StoreDashboardSkeleton from './StoreDashboardSkeleton'
 import StoreOperatingDays from './StoreOperatingDays'
 import AtalhoCompromissosDaLoja from '@/app/(main)/compromissos/AtalhoCompromissosDaLoja'
 import StoreOrders from './StoreOrders'
@@ -114,6 +115,8 @@ export default function StoreDashboard({
     onDialogOpenChange,
     infoFirst = false,
     showDebtBanner = true,
+    previewLogo,
+    previewName,
 }: {
     profileSlug: string
     storeSlug: string
@@ -125,6 +128,9 @@ export default function StoreDashboard({
     infoFirst?: boolean
     /** Aviso do pós-pago (valor acumulado) no topo */
     showDebtBanner?: boolean
+    /** Logo e nome que a página já conhece: o esqueleto de carregamento (3.0) já mostra em "Informações da loja" */
+    previewLogo?: string | null
+    previewName?: string | null
 }) {
     const router = useRouter()
     const { colors } = useTheme()
@@ -540,6 +546,8 @@ export default function StoreDashboard({
         })
     }
 
+    // 3.0: esqueleto com a forma do painel (e a logo da loja, quando a página já sabe); 2.0 mantém o "Carregando"
+    if (loading && insideShell) return <StoreDashboardSkeleton logo={previewLogo} name={previewName} slug={storeSlug} />
     if (loading) return (
         <div className="min-h-screen flex items-center justify-center" style={{ background: colors.background }}>
             <div className="text-center">

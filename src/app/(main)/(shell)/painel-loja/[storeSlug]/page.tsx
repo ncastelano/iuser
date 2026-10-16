@@ -12,6 +12,7 @@ import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { Spinner } from '@/components/Spinner'
 import StoreDashboard from '@/components/StoreDashboard/StoreDashboard'
+import StoreDashboardSkeleton from '@/components/StoreDashboard/StoreDashboardSkeleton'
 import { isStoreOpenNow, type BusinessHours } from '@/lib/storeHours'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -50,7 +51,7 @@ export default function PainelLojaPage() {
     return (
         <>
             {loading || store === undefined ? (
-                <div className="flex justify-center py-16"><Spinner size={28} color={colors.accent} /></div>
+                <div className="-mx-4"><StoreDashboardSkeleton slug={storeSlug} /></div>
             ) : !userId ? (
                 <div className="mt-6 rounded-3xl border p-6 text-center" style={{ background: colors.surface, borderColor: colors.border }}>
                     <p className="text-sm font-bold mb-3" style={{ color: colors.textPrimary }}>Entre na sua conta para ver o painel da loja.</p>
@@ -65,7 +66,7 @@ export default function PainelLojaPage() {
             ) : (
                 <>
                     <div className="-mx-4">
-                        <StoreDashboard profileSlug={profileSlug || ''} storeSlug={storeSlug} infoFirst showDebtBanner={false} />
+                        <StoreDashboard profileSlug={profileSlug || ''} storeSlug={storeSlug} infoFirst showDebtBanner={false} previewLogo={store.logo} previewName={store.name} />
                     </div>
                 </>
             )}
