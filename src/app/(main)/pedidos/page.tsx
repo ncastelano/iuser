@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import OrderReviewPanel from '@/components/OrderReviewPanel'
+import DeliveryIncreasePrompt from '@/components/DeliveryIncreasePrompt'
 
 export default function PedidosPage() {
     const router = useRouter()
@@ -197,6 +198,7 @@ export default function PedidosPage() {
                     </div>
                 ) : (
                     <div className="space-y-4">
+                        <DeliveryIncreasePrompt userId={currentUserId} />
                         <div className="flex items-center gap-3 p-3 border border-border bg-secondary/10 mb-6">
                             <div className="w-10 h-10 bg-background border border-border flex-shrink-0">
                                 {currentUserAvatar ? (

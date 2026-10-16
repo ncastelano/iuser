@@ -49,6 +49,7 @@ import type { UiVersion } from '@/versions/registry'
 import { isStoreOpenNow, getStoreStatusText, getNextOpeningInfo, type BusinessHours } from '@/lib/storeHours'
 import CatalogBag from '@/app/(main)/[ownerSlug]/catalogo/CatalogBag'
 import CarrinhoSkeleton from './CarrinhoSkeleton'
+import DeliveryIncreasePrompt from '@/components/DeliveryIncreasePrompt'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -2445,6 +2446,7 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                                     {filteredGroupedOrders.length}
                                 </span>
                             </div>
+                            <DeliveryIncreasePrompt userId={currentUserId} className="mb-4" />
                             {filteredGroupedOrders.length === 0 ? (
                                 <div className="flex items-center gap-4 p-4 rounded-2xl" style={cardStyle}>
                                     <div className="w-14 h-14 rounded-full flex items-center justify-center shrink-0" style={{ background: '#f9731620' }}>

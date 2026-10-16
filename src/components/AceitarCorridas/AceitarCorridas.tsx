@@ -194,6 +194,7 @@ interface RideRow {
     offered_price: number | null
     order_id: string | null
     store_id: string | null
+    visible_radius_km?: number | null
     applicant_count: number
 }
 
@@ -620,7 +621,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
 
         let openRidesQuery = supabase
             .from('ride_requests')
-            .select('id, requester_id, ride_type, origin_address, destination_address, origin_complement, destination_complement, notes, passenger_count, vehicle_type, object_description, object_is_sensitive, pet_description, has_child, children_count, child_age, child_needs_car_seat, has_shopping, bag_count, has_extra_object, extra_object_description, has_pet, pet_weight_range, pet_has_carrier, has_special_needs, special_needs_description, special_needs_wheelchair, special_needs_wheelchair_type, special_needs_visual_impairment, has_guide_dog, delivery_location, payment_method, cash_change_for, card_is_contactless, origin_needs_access, origin_access_notes, destination_needs_access, destination_access_notes, grocery_bag_size, wants_air_conditioning, distance_km, duration_min, scheduled_for, created_at, origin_lat, origin_lng, destination_lat, destination_lng, stop1_address, stop1_complement, stop1_lat, stop1_lng, stop2_address, stop2_complement, stop2_lat, stop2_lng, offered_price, order_id, store_id, preferred_driver_id')
+            .select('id, requester_id, ride_type, origin_address, destination_address, origin_complement, destination_complement, notes, passenger_count, vehicle_type, object_description, object_is_sensitive, pet_description, has_child, children_count, child_age, child_needs_car_seat, has_shopping, bag_count, has_extra_object, extra_object_description, has_pet, pet_weight_range, pet_has_carrier, has_special_needs, special_needs_description, special_needs_wheelchair, special_needs_wheelchair_type, special_needs_visual_impairment, has_guide_dog, delivery_location, payment_method, cash_change_for, card_is_contactless, origin_needs_access, origin_access_notes, destination_needs_access, destination_access_notes, grocery_bag_size, wants_air_conditioning, distance_km, duration_min, scheduled_for, created_at, origin_lat, origin_lng, destination_lat, destination_lng, stop1_address, stop1_complement, stop1_lat, stop1_lng, stop2_address, stop2_complement, stop2_lat, stop2_lng, offered_price, order_id, store_id, visible_radius_km, preferred_driver_id')
             .eq('status', 'pending')
         if (contextUserId) openRidesQuery = openRidesQuery.neq('requester_id', contextUserId)
         const { data: openRides } = await openRidesQuery
@@ -863,9 +864,19 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
         load()
     }
 
+    // Entrega de loja (entregador iUser): o motorista só vê a oferta dentro do raio atual a partir da loja,
+    // medido pela posição dele. Sem posição conhecida, não dá pra saber se é da cidade dele: não aparece.
+    const radiusRides = useMemo(
+        () => rides.filter((r) => {
+            if (!r.order_id || r.visible_radius_km == null || r.origin_lat == null || r.origin_lng == null) return true
+            if (!driverCoords) return false
+            return haversineKm(driverCoords, [r.origin_lng, r.origin_lat]) <= Number(r.visible_radius_km)
+        }),
+        [rides, driverCoords]
+    )
     const visibleRides = useMemo(
-        () => rides.filter((r) => !skippedIds.has(r.id)),
-        [rides, skippedIds]
+        () => radiusRides.filter((r) => !skippedIds.has(r.id)),
+        [radiusRides, skippedIds]
     )
 
     const headerTabs: Tab[] = useMemo((): any[] => {
@@ -891,7 +902,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                 icon: Car,
                 onClick: () => setActiveTab('servicos'),
                 isActive: activeTab === 'servicos',
-                badge: rides.length > 0 ? { count: rides.length } : null,
+                badge: radiusRides.length > 0 ? { count: radiusRides.length } : null,
             },
             {
                 id: 'candidatos',
@@ -904,13 +915,13 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
         )
 
         return tabs
-    }, [activeTab, rides.length, candidacies.length, acceptedRide, setActiveTab])
+    }, [activeTab, radiusRides.length, candidacies.length, acceptedRide, setActiveTab])
 
     // Avisa o painel (quando embutido) pra ele montar as mesmas abas com os badges.
     useEffect(() => {
-        onSummaryChange?.({ rides: rides.length, candidacies: candidacies.length, hasAccepted: !!acceptedRide })
+        onSummaryChange?.({ rides: radiusRides.length, candidacies: candidacies.length, hasAccepted: !!acceptedRide })
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [rides.length, candidacies.length, !!acceptedRide])
+    }, [radiusRides.length, candidacies.length, !!acceptedRide])
 
     const applyToRide = async (ride: RideCardData, price: number) => {
         if (price <= 0) {

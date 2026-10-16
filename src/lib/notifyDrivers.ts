@@ -8,6 +8,12 @@ import { loadPlatformTariffs } from '@/lib/platformTariffs'
 
 const MAX_DRIVERS = 200
 
+function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+    const toRad = (v: number) => (v * Math.PI) / 180
+    const a = Math.sin(toRad(lat2 - lat1) / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(toRad(lng2 - lng1) / 2) ** 2
+    return 6371 * 2 * Math.asin(Math.sqrt(a))
+}
+
 const ACCEPTABLE: Record<string, string[]> = {
     carro: ['carro', 'van', 'van-grande'],
     moto: ['moto'],
@@ -21,16 +27,27 @@ export async function notifyDriversOfRide(ride: {
     origin_address: string
     destination_address: string
     offered_price?: number | null
+    /** Entrega de loja: só motoristas com localização conhecida dentro deste raio (km) a partir da origem são avisados */
+    radiusKm?: number | null
+    originLat?: number | null
+    originLng?: number | null
     /** Cliente chamou um motorista específico (abriu a página dele): ele recebe um aviso direto, além do geral */
     preferred_driver_id?: string | null
 }): Promise<number> {
     const { data: drivers } = await supabaseAdmin
         .from('driver_pricing')
-        .select('driver_id')
+        .select('driver_id, live_lat, live_lng, live_updated_at')
         .eq('driver_mode_active', true)
         .neq('driver_id', ride.requester_id)
         .limit(MAX_DRIVERS)
-    const ids = (drivers || []).map((d) => d.driver_id as string)
+    // Entrega de loja: ninguém é chamado fora da própria cidade — vale o raio a partir da loja
+    const withinRadius = (d: { live_lat: number | null; live_lng: number | null; live_updated_at: string | null }) => {
+        if (ride.radiusKm == null || ride.originLat == null || ride.originLng == null) return true
+        if (d.live_lat == null || d.live_lng == null) return false
+        if (d.live_updated_at && Date.now() - new Date(d.live_updated_at).getTime() > 30 * 60_000) return false
+        return haversineKm(ride.originLat, ride.originLng, d.live_lat, d.live_lng) <= ride.radiusKm
+    }
+    const ids = (drivers || []).filter(withinRadius).map((d) => d.driver_id as string)
     if (ids.length === 0) return 0
 
     const [{ data: vehicles }, { data: charges }] = await Promise.all([

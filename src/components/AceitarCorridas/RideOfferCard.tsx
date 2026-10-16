@@ -228,6 +228,7 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
             {footer}
 
             {!footer && onApply && (ride.offered_price != null ? (
+                <>
                 <button
                     onClick={() => onApply(Number(ride.offered_price))}
                     disabled={applying}
@@ -236,6 +237,13 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
                 >
                     {applying ? <Spinner size={14} /> : `Aceitar frete de ${brl(Number(ride.offered_price))}`}
                 </button>
+                    {ride.order_id && (
+                        <p className="text-[11px] text-center" style={{ color: colors.textSecondary }}>
+                            Frete fixo desta entrega: você aceita ou não, o valor não muda.
+                            {' '}Pela sua tarifa seria {customPrice != null ? brl(customPrice) : '—'}; pela Tarifa iUser, {brl(platformPrice)}.
+                        </p>
+                    )}
+                </>
             ) : (
                 <>
                     <div className="flex items-stretch gap-1.5">
