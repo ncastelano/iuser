@@ -72,6 +72,8 @@ interface RideOfferCardProps {
     customPrice?: number | null
     applying?: boolean
     onApply?: (price: number) => void
+    // Entrega de loja: propor a Minha tarifa (o cliente decide). O valor é recalculado no servidor.
+    onCounter?: () => void
     toPickup: { km: number | null; min: number | null; hasGps: boolean }
     trip: { km: number | null; min: number | null }
     // Mini mapa (lista) entra entre os chips e o trajeto.
@@ -104,7 +106,7 @@ const kmText = (v: number) => `${v.toFixed(1).replace('.', ',')} km`
 
 // Card compacto e em linguagem simples: quem pediu, de onde pra onde, quanto
 // falta pra cada trecho e quanto cobrar — sem rótulos em caixa-alta.
-export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, customPrice = null, toPickup, trip, applying = false, onApply, miniMap, footer, onBack, onSkip, compact = false, pickup }: RideOfferCardProps) {
+export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, customPrice = null, toPickup, trip, applying = false, onApply, onCounter, miniMap, footer, onBack, onSkip, compact = false, pickup }: RideOfferCardProps) {
     const { colors } = useTheme()
     const [editing, setEditing] = useState(false)
     const [value, setValue] = useState('')
@@ -238,10 +240,23 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
                     {applying ? <Spinner size={14} /> : `Aceitar frete de ${brl(Number(ride.offered_price))}`}
                 </button>
                     {ride.order_id && (
-                        <p className="text-[11px] text-center" style={{ color: colors.textSecondary }}>
-                            Frete fixo desta entrega: você aceita ou não, o valor não muda.
-                            {' '}Pela sua tarifa seria {customPrice != null ? brl(customPrice) : '—'}; pela Tarifa iUser, {brl(platformPrice)}.
-                        </p>
+                        <>
+                            {onCounter && customPrice != null && customPrice > Number(ride.offered_price) ? (
+                                <button
+                                    onClick={onCounter}
+                                    disabled={applying}
+                                    className="w-full rounded-2xl px-3 py-2 text-center transition-all active:scale-95 disabled:opacity-70"
+                                    style={{ background: 'transparent', border: `1.5px solid ${colors.border}` }}
+                                >
+                                    <span className="block text-[13px] font-black" style={{ color: colors.textPrimary }}>Propor a minha tarifa · {brl(customPrice)}</span>
+                                    <span className="block text-[10px] font-semibold" style={{ color: colors.textSecondary }}>O cliente decide se autoriza esse valor</span>
+                                </button>
+                            ) : (
+                                <p className="text-[11px] text-center" style={{ color: colors.textSecondary }}>
+                                    Frete desta entrega: você aceita ou não.
+                                </p>
+                            )}
+                        </>
                     )}
                 </>
             ) : (

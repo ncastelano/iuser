@@ -970,6 +970,27 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
         }
     }
 
+    // Entrega de loja: propõe a Minha tarifa. O valor é calculado no servidor e o cliente decide.
+    const counterToRide = async (ride: RideCardData) => {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session) return
+        setApplyingId(ride.id)
+        try {
+            const res = await fetch('/api/rides/delivery-counter', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+                body: JSON.stringify({ rideId: ride.id }),
+            })
+            const json = await res.json().catch(() => ({}))
+            if (!res.ok) throw new Error(json.error || 'Erro ao enviar a proposta')
+            toast.success(`Proposta de R$ ${Number(json.amount).toFixed(2).replace('.', ',')} enviada ao cliente`)
+        } catch (err: any) {
+            toast.error(err.message || 'Erro ao enviar a proposta')
+        } finally {
+            setApplyingId(null)
+        }
+    }
+
     // Rola até o card da corrida clicada na home (uma vez, quando ela aparecer na lista).
     useEffect(() => {
         if (!focusRideId || focusedRef.current || loading) return
@@ -1470,6 +1491,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                                             customPrice={ride.customPrice}
                                             applying={applyingId === ride.id}
                                             onApply={(price) => applyToRide(ride, price)}
+                                            onCounter={ride.order_id ? () => counterToRide(ride) : undefined}
                                             toPickup={{ km: info?.toPickupKm ?? null, min: info?.toPickupMin ?? null, hasGps: driverCoords != null }}
                                             trip={{ km: info?.tripKm ?? ride.distance_km, min: info?.tripMin ?? ride.duration_min }}
                                             onSkip={() => skipRide(ride.id)}
