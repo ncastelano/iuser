@@ -600,13 +600,15 @@ export default function ModeShell({ children, search }: {
     const [pendingTab, setPendingTab] = useState<TabKey | null>(null)
     useEffect(() => { setPendingTab(null) }, [pathname])
     const target: TabKey | null = pendingTab ?? (modeSelected ? 'mode' : activeTab)
-    const indicatorOn = target !== null && !drawerOpen && !searchOpen
+    // (com o menu aberto a aba clara continua: a barra vai junto com o cartão, e a última aba escolhida fica fundida a ele)
+    const indicatorOn = target !== null && !searchOpen
     const leftTabOn = indicatorOn && target === 'mode'
     const pickTab = (tab: 'cart' | 'chat' | 'search', then: () => void) => {
         setPendingTab(tab)
         then()
     }
     // Posição da aba clara: medida nos próprios botões (o grupo do menu esquerdo, o carrinho, as conversas e a lupa)
+    const navRef = useRef<HTMLElement>(null)
     const modeRef = useRef<HTMLDivElement>(null)
     const cartRef = useRef<HTMLButtonElement>(null)
     const chatRef = useRef<HTMLButtonElement>(null)
@@ -623,10 +625,16 @@ export default function ModeShell({ children, search }: {
             if (!el) return
             const r = el.getBoundingClientRect()
             if (r.width === 0) return
-            const W = window.innerWidth
+            // a barra pode estar deslocada/encolhida (menu aberto): mede nas coordenadas DELA, desfazendo a escala
+            const navEl = navRef.current
+            const nr = navEl?.getBoundingClientRect()
+            const scale = navEl && nr && navEl.offsetWidth ? nr.width / navEl.offsetWidth : 1
+            const W = navEl?.offsetWidth || window.innerWidth
+            const rl = (r.left - (nr?.left || 0)) / scale
+            const rw = r.width / scale
             // o menu esquerdo e a lupa esticam até a borda da tela; o carrinho e as conversas ficam do tamanho do ícone
-            const left = key === 'mode' ? 0 : r.left
-            const width = key === 'mode' ? r.right : key === 'search' ? W - r.left : r.width
+            const left = key === 'mode' ? 0 : rl
+            const width = key === 'mode' ? rl + rw : key === 'search' ? W - rl : rw
             setInd((p) => (p && Math.abs(p.left - left) < 0.5 && Math.abs(p.width - width) < 0.5 ? p : { left, width }))
         }
         measure()
@@ -770,6 +778,7 @@ export default function ModeShell({ children, search }: {
         {/* Navegação no TOPO, FORA do cartão do app (fica fixa na tela; o cartão desliza por cima do menu e termina nela): o botão do menu (selo + nome), o carrinho, as mensagens e a lupa. Na página com busca,
             a lupa se EXPANDE no lugar e vira o campo; nas outras, leva ao /modeloinicial. */}
         <nav
+            ref={navRef}
             className="fixed top-0 left-0 right-0 z-40"
             style={{
                 // Sempre da cor do menu (o mesmo degradê do fundo, preso à tela): parece que a barra vem de fora do app
@@ -785,7 +794,8 @@ export default function ModeShell({ children, search }: {
                 transformOrigin: 'left top',
                 transform: drawerOpen ? `translateX(${DRAWER_W}) scale(0.9)` : 'none',
                 borderRadius: drawerOpen ? '32px 32px 0 0' : 0,
-                boxShadow: drawerOpen ? '-12px 0 40px rgba(0,0,0,0.35)' : 'none',
+                // sombra deslocada pra cima: não vaza pra dentro do cartão (a aba clara é fundida a ele)
+                boxShadow: drawerOpen ? '-12px -12px 24px rgba(0,0,0,0.3)' : 'none',
                 transition: 'transform 450ms cubic-bezier(0.22, 1, 0.36, 1), border-radius 420ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 450ms ease',
             }}
         >
