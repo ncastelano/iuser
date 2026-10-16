@@ -36,6 +36,7 @@ import StoreClubVip from './StoreClubVip'
 import StoreSalesExtractDialog, { type ExtractPeriod } from './StoreSalesExtractDialog'
 import StoreVisitors from './StoreVisitors'
 import { useInsideShell } from '@/components/InsideShell'
+import V3Section from './V3Section'
 import StoreOperatingDays from './StoreOperatingDays'
 import AtalhoCompromissosDaLoja from '@/app/(main)/compromissos/AtalhoCompromissosDaLoja'
 import StoreOrders from './StoreOrders'
@@ -602,6 +603,58 @@ export default function StoreDashboard({
         </>
     )
 
+    const salesBody = (
+                    <>
+                    <div className="grid grid-cols-3 gap-2">
+                        {([
+                            { label: 'Hoje', period: 'daily' as const, data: metrics.daily },
+                            { label: 'Semana', period: 'weekly' as const, data: metrics.weekly },
+                            { label: CURRENT_MONTH_LABEL(), period: 'monthly' as const, data: metrics.monthly },
+                        ]).map(({ label, period, data }) => (
+                            <button
+                                key={label}
+                                onClick={() => setExtractPeriod(period)}
+                                className="rounded-xl p-3 text-center transition-transform hover:scale-[1.03] active:scale-95"
+                                style={{ background: `${colors.border}20` }}
+                            >
+                                <p className="text-lg font-black" style={{ color: '#f97316' }}>R$ {data.revenue.toFixed(2)}</p>
+                                <p className="text-[10px]" style={{ color: colors.textSecondary }}>
+                                    <span className="font-bold" style={{ color: '#10b981' }}>{data.orders}</span> pedido{data.orders !== 1 ? 's' : ''}
+                                </p>
+                                <p className="text-[9px] uppercase font-bold mt-1" style={{ color: colors.textSecondary }}>{label}</p>
+                            </button>
+                        ))}
+                    </div>
+
+                    {products.length > 0 && (() => {
+                        const withSales = products.filter(p => p.salesCount > 0)
+                        const best = withSales.length > 0 ? [...withSales].sort((a, b) => b.salesCount - a.salesCount)[0] : null
+                        const worst = withSales.length > 1 ? [...withSales].sort((a, b) => a.salesCount - b.salesCount)[0] : null
+                        if (!best) return null
+                        return (
+                            <div className="grid grid-cols-2 gap-2">
+                                <div className="rounded-xl p-3" style={{ background: '#22c55e15', border: '1px solid #22c55e40' }}>
+                                    <p className="text-[9px] uppercase font-bold flex items-center gap-1" style={{ color: '#22c55e' }}>
+                                        <TrendingUp size={11} /> Mais vendido
+                                    </p>
+                                    <p className="text-xs font-bold truncate mt-1" style={{ color: colors.textPrimary }}>{best.name}</p>
+                                    <p className="text-[10px]" style={{ color: colors.textSecondary }}>{best.salesCount} vendido{best.salesCount !== 1 ? 's' : ''}</p>
+                                </div>
+                                {worst && (
+                                    <div className="rounded-xl p-3" style={{ background: '#ef444415', border: '1px solid #ef444440' }}>
+                                        <p className="text-[9px] uppercase font-bold flex items-center gap-1" style={{ color: '#ef4444' }}>
+                                            <TrendingDown size={11} /> Menos vendido
+                                        </p>
+                                        <p className="text-xs font-bold truncate mt-1" style={{ color: colors.textPrimary }}>{worst.name}</p>
+                                        <p className="text-[10px]" style={{ color: colors.textSecondary }}>{worst.salesCount} vendido{worst.salesCount !== 1 ? 's' : ''}</p>
+                                    </div>
+                                )}
+                            </div>
+                        )
+                    })()}
+                    </>
+    )
+
     return (
         <div className="w-full px-4 md:px-6 pb-28">
             {/* ===== MODAL DE HORÁRIOS ===== */}
@@ -664,6 +717,17 @@ export default function StoreDashboard({
             {!infoFirst && descriptionNode}
 
             {/* ===== Botões da Loja ===== */}
+            {insideShell ? (
+                <div className="mb-6 grid grid-cols-2 gap-2">
+                    <button onClick={goToPublicStore} className="h-12 rounded-full text-sm font-black text-white transition active:scale-95" style={{ background: GRADIENT, boxShadow: '0 4px 12px #f9731640' }}>
+                        Ver minha loja
+                    </button>
+                    <button onClick={shareStoreLink} className="h-12 rounded-full text-sm font-black transition active:scale-95" style={{ background: `${colors.border}50`, color: colors.textPrimary }}>
+                        Compartilhar link
+                    </button>
+                </div>
+            ) : (
+                <>
             <div className="mb-6">
                 <div className="flex flex-wrap gap-2">
                     <button
@@ -696,7 +760,23 @@ export default function StoreDashboard({
                 </div>
             </div>
 
+                </>
+            )}
+
             {/* ===== Vendas do dia ===== */}
+            {insideShell ? (
+                <div className="mb-6">
+                    <V3Section
+                        title="Vendas"
+                        subtitle={<><span style={{ color: '#f97316', fontWeight: 800 }}>R$ {metrics.daily.revenue.toFixed(2)}</span> hoje · {metrics.daily.orders} pedido{metrics.daily.orders !== 1 ? 's' : ''}</>}
+                        expanded={isSalesExpanded}
+                        onToggle={() => setIsSalesExpanded(!isSalesExpanded)}
+                        className="mb-0"
+                    >
+                        {salesBody}
+                    </V3Section>
+                </div>
+            ) : (
             <div className="mb-6">
                 <div
                     className={`rounded-2xl relative flex flex-col ${isSalesExpanded ? 'p-6 pt-7 gap-5' : 'p-4'}`}
@@ -726,58 +806,11 @@ export default function StoreDashboard({
                     </button>
 
                     {isSalesExpanded && (
-                    <>
-                    <div className="grid grid-cols-3 gap-2">
-                        {([
-                            { label: 'Hoje', period: 'daily' as const, data: metrics.daily },
-                            { label: 'Semana', period: 'weekly' as const, data: metrics.weekly },
-                            { label: CURRENT_MONTH_LABEL(), period: 'monthly' as const, data: metrics.monthly },
-                        ]).map(({ label, period, data }) => (
-                            <button
-                                key={label}
-                                onClick={() => setExtractPeriod(period)}
-                                className="rounded-xl p-3 text-center transition-transform hover:scale-[1.03] active:scale-95"
-                                style={{ background: `${colors.border}20` }}
-                            >
-                                <p className="text-lg font-black" style={{ color: '#f97316' }}>R$ {data.revenue.toFixed(2)}</p>
-                                <p className="text-[10px]" style={{ color: colors.textSecondary }}>
-                                    <span className="font-bold" style={{ color: '#10b981' }}>{data.orders}</span> pedido{data.orders !== 1 ? 's' : ''}
-                                </p>
-                                <p className="text-[9px] uppercase font-bold mt-1" style={{ color: colors.textSecondary }}>{label}</p>
-                            </button>
-                        ))}
-                    </div>
-
-                    {products.length > 0 && (() => {
-                        const withSales = products.filter(p => p.salesCount > 0)
-                        const best = withSales.length > 0 ? [...withSales].sort((a, b) => b.salesCount - a.salesCount)[0] : null
-                        const worst = withSales.length > 1 ? [...withSales].sort((a, b) => a.salesCount - b.salesCount)[0] : null
-                        if (!best) return null
-                        return (
-                            <div className="grid grid-cols-2 gap-2">
-                                <div className="rounded-xl p-3" style={{ background: '#22c55e15', border: '1px solid #22c55e40' }}>
-                                    <p className="text-[9px] uppercase font-bold flex items-center gap-1" style={{ color: '#22c55e' }}>
-                                        <TrendingUp size={11} /> Mais vendido
-                                    </p>
-                                    <p className="text-xs font-bold truncate mt-1" style={{ color: colors.textPrimary }}>{best.name}</p>
-                                    <p className="text-[10px]" style={{ color: colors.textSecondary }}>{best.salesCount} vendido{best.salesCount !== 1 ? 's' : ''}</p>
-                                </div>
-                                {worst && (
-                                    <div className="rounded-xl p-3" style={{ background: '#ef444415', border: '1px solid #ef444440' }}>
-                                        <p className="text-[9px] uppercase font-bold flex items-center gap-1" style={{ color: '#ef4444' }}>
-                                            <TrendingDown size={11} /> Menos vendido
-                                        </p>
-                                        <p className="text-xs font-bold truncate mt-1" style={{ color: colors.textPrimary }}>{worst.name}</p>
-                                        <p className="text-[10px]" style={{ color: colors.textSecondary }}>{worst.salesCount} vendido{worst.salesCount !== 1 ? 's' : ''}</p>
-                                    </div>
-                                )}
-                            </div>
-                        )
-                    })()}
-                    </>
+                    salesBody
                     )}
                 </div>
             </div>
+            )}
 
             {/* ===== Produtos e Serviços da Loja ===== */}
             <StoreCatalog storeId={store.id} storeSlug={storeSlug} kind="product" />

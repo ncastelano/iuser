@@ -14,6 +14,8 @@ import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { hexToRgb } from '@/lib/color'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
+import { useInsideShell } from '@/components/InsideShell'
+import V3Section, { V3_GRADIENT } from '@/components/StoreDashboard/V3Section'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -106,6 +108,7 @@ export default function AtalhoCompromissosDaLoja({
     onHasItemsChange,
 }: AtalhoCompromissosDaLojaProps) {
     const { colors } = useTheme()
+    const v3 = useInsideShell()
     const { appointments, loading, refetch } = useAppointments()
     const { deleteAppointment } = useDeleteAppointment()
     const { userId } = useProfile()
@@ -220,64 +223,7 @@ export default function AtalhoCompromissosDaLoja({
         )
     }
 
-    return (
-        <div className="mt-6 mb-6">
-            <div
-                className={`rounded-3xl w-full flex flex-col ${isExpanded ? 'p-4 gap-4' : 'p-4'}`}
-                style={{
-                    background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
-                    backdropFilter: 'blur(12px)',
-                    WebkitBackdropFilter: 'blur(12px)',
-                    border: `1px solid ${borderColor}`,
-                    boxShadow: colors.shadow,
-                }}
-            >
-                {/* Cabeçalho com toggle - PILL */}
-                <button
-                    onClick={() => setIsExpanded(!isExpanded)}
-                    className="w-full flex items-center justify-between text-left"
-                    style={{
-                        padding: isExpanded ? '0.5rem 0.75rem' : 0,
-                        borderRadius: '9999px',
-                        background: 'transparent',
-                        border: 'none',
-                        cursor: 'pointer',
-                    }}
-                >
-                    <div className="flex items-center gap-3">
-                        {dragHandle}
-                        <div>
-                            <h2 className={`${isExpanded ? 'text-lg' : 'text-sm'} font-black`} style={{ color: textPrimary }}>
-                                Agenda da Loja
-                            </h2>
-                            {!isExpanded && (
-                            <div className="flex items-center gap-3 text-xs mt-0.5" style={{ color: textSecondary }}>
-                                <span>
-                                    <span className="font-bold" style={{ color: '#f97316' }}>{pendingCount}</span> pendente{pendingCount !== 1 ? 's' : ''}
-                                </span>
-                                <span>•</span>
-                                <span>
-                                    <span className="font-bold" style={{ color: '#10b981' }}>{confirmedCount}</span> confirmado{confirmedCount !== 1 ? 's' : ''}
-                                </span>
-                            </div>
-                            )}
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        {storeAppointments.length > 0 && (
-                            <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: '#f9731620', color: '#f97316' }}>
-                                {storeAppointments.length}
-                            </span>
-                        )}
-                        {isExpanded ? (
-                            <ChevronUp size={isExpanded ? 22 : 18} style={{ color: textSecondary }} />
-                        ) : (
-                            <ChevronDown size={isExpanded ? 22 : 18} style={{ color: textSecondary }} />
-                        )}
-                    </div>
-                </button>
-
-                {isExpanded && (
+    const body = (
                     <>
                         {/* Resumo em números */}
                         <div className="grid grid-cols-3 gap-2.5">
@@ -314,7 +260,7 @@ export default function AtalhoCompromissosDaLoja({
                                     className="flex items-center justify-center gap-2 px-5 py-3 rounded-full font-black text-sm transition-all hover:scale-[1.02] active:scale-95"
                                     style={{ border: `2px solid ${colors.accent}`, color: colors.accent, background: 'transparent', textDecoration: 'none' }}
                                 >
-                                    <Calendar size={16} />
+                                    {!v3 && <Calendar size={16} />}
                                     Ver agenda
                                 </Link>
                             )}
@@ -604,6 +550,106 @@ export default function AtalhoCompromissosDaLoja({
                             )}
                         </div>
                     </>
+    )
+
+    // 3.0: o mesmo cartão de seção das outras partes do painel
+    if (v3) {
+        return (
+            <>
+            <V3Section
+                title="Agenda da loja"
+                subtitle={<><span style={{ color: '#f97316', fontWeight: 800 }}>{pendingCount}</span> pendente{pendingCount !== 1 ? 's' : ''} · <span style={{ color: '#10b981', fontWeight: 800 }}>{confirmedCount}</span> confirmado{confirmedCount !== 1 ? 's' : ''}</>}
+                badge={storeAppointments.length > 0 ? <span className="text-xs font-black px-2.5 py-1 rounded-full text-white flex-shrink-0" style={{ background: V3_GRADIENT }}>{storeAppointments.length}</span> : undefined}
+                expanded={isExpanded}
+                onToggle={() => setIsExpanded(!isExpanded)}
+                className="mb-6"
+            >
+                {body}
+            </V3Section>
+
+            {/* Estilos do scroll */}
+            <style jsx>{`
+                .scroll-container::-webkit-scrollbar {
+                    height: 6px;
+                }
+                .scroll-container::-webkit-scrollbar-track {
+                    background: transparent;
+                }
+                .scroll-container::-webkit-scrollbar-thumb {
+                    background-color: #f9731640;
+                    border-radius: 9999px;
+                }
+                .scroll-container::-webkit-scrollbar-thumb:hover {
+                    background-color: #f97316;
+                }
+                .scroll-container {
+                    scrollbar-width: thin;
+                    scrollbar-color: #f9731640 transparent;
+                }
+            `}</style>
+            </>
+        )
+    }
+
+    return (
+        <div className="mt-6 mb-6">
+            <div
+                className={`rounded-3xl w-full flex flex-col ${isExpanded ? 'p-4 gap-4' : 'p-4'}`}
+                style={{
+                    background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
+                    backdropFilter: 'blur(12px)',
+                    WebkitBackdropFilter: 'blur(12px)',
+                    border: `1px solid ${borderColor}`,
+                    boxShadow: colors.shadow,
+                }}
+            >
+                {/* Cabeçalho com toggle - PILL */}
+                <button
+                    onClick={() => setIsExpanded(!isExpanded)}
+                    className="w-full flex items-center justify-between text-left"
+                    style={{
+                        padding: isExpanded ? '0.5rem 0.75rem' : 0,
+                        borderRadius: '9999px',
+                        background: 'transparent',
+                        border: 'none',
+                        cursor: 'pointer',
+                    }}
+                >
+                    <div className="flex items-center gap-3">
+                        {dragHandle}
+                        <div>
+                            <h2 className={`${isExpanded ? 'text-lg' : 'text-sm'} font-black`} style={{ color: textPrimary }}>
+                                Agenda da Loja
+                            </h2>
+                            {!isExpanded && (
+                            <div className="flex items-center gap-3 text-xs mt-0.5" style={{ color: textSecondary }}>
+                                <span>
+                                    <span className="font-bold" style={{ color: '#f97316' }}>{pendingCount}</span> pendente{pendingCount !== 1 ? 's' : ''}
+                                </span>
+                                <span>•</span>
+                                <span>
+                                    <span className="font-bold" style={{ color: '#10b981' }}>{confirmedCount}</span> confirmado{confirmedCount !== 1 ? 's' : ''}
+                                </span>
+                            </div>
+                            )}
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        {storeAppointments.length > 0 && (
+                            <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: '#f9731620', color: '#f97316' }}>
+                                {storeAppointments.length}
+                            </span>
+                        )}
+                        {isExpanded ? (
+                            <ChevronUp size={isExpanded ? 22 : 18} style={{ color: textSecondary }} />
+                        ) : (
+                            <ChevronDown size={isExpanded ? 22 : 18} style={{ color: textSecondary }} />
+                        )}
+                    </div>
+                </button>
+
+                {isExpanded && (
+                    body
                 )}
             </div>
 

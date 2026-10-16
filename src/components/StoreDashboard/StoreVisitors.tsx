@@ -24,6 +24,8 @@ import {
 import { format, formatDistanceToNow, subDays, startOfDay, eachDayOfInterval } from 'date-fns'
 import { ptBR as ptBRLocale } from 'date-fns/locale'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
+import { useInsideShell } from '@/components/InsideShell'
+import V3Section, { V3_GRADIENT } from './V3Section'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -52,6 +54,7 @@ type Period = 'today' | '7days' | '30days'
 
 export default function StoreVisitors({ storeId }: StoreVisitorsProps) {
     const { colors } = useTheme()
+    const v3 = useInsideShell()
     const surfaceRgb = hexToRgb(colors.surface)
 
     const [isExpanded, setIsExpanded] = usePersistedExpanded('storeVisitors', true)
@@ -249,63 +252,24 @@ export default function StoreVisitors({ storeId }: StoreVisitorsProps) {
 
     const maxCount = Math.max(...dailyData.map(d => d.count), 1)
 
-    return (
-        <div className="mb-6 mt-4">
-            <div
-                className={`rounded-2xl relative flex flex-col ${isExpanded ? 'p-6 pt-7 gap-5' : 'p-4'}`}
-                style={{
-                    background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
-                    backdropFilter: 'blur(12px)',
-                    WebkitBackdropFilter: 'blur(12px)',
-                    border: `1px solid ${colors.border}`,
-                    boxShadow: colors.shadow,
-                }}
-            >
-                {/* Cabeçalho com ícone arredondado — clicável, lembra aberto/fechado */}
-                <button
-                    onClick={() => setIsExpanded(!isExpanded)}
-                    className="w-full flex items-center justify-between gap-3 text-left"
-                    style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}
-                >
-                    <div className="flex items-center gap-3">
-                        <div>
-                            <h3 className={`${isExpanded ? 'text-lg' : 'text-sm'} font-black`} style={{ color: textPrimary }}>
-                                Visitantes
-                            </h3>
-                            <div className="flex items-center gap-3 text-xs mt-0.5" style={{ color: textSecondary }}>
-                                <span>
-                                    <span className="font-bold" style={{ color: '#f97316' }}>
-                                        {totalUnique}
-                                    </span>{' '}
-                                    únicos
-                                </span>
-                                <span>•</span>
-                                <span>
-                                    <span className="font-bold" style={{ color: '#10b981' }}>
-                                        {todayVisitors}
-                                    </span>{' '}
-                                    hoje
-                                </span>
-                                <span>•</span>
-                                <span>
-                                    <span className="font-bold" style={{ color: '#f59e0b' }}>
-                                        {onlineNow}
-                                    </span>{' '}
-                                    online
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                    {isExpanded ? (
-                        <ChevronUp size={isExpanded ? 22 : 18} style={{ color: textSecondary }} className="flex-shrink-0" />
-                    ) : (
-                        <ChevronDown size={isExpanded ? 22 : 18} style={{ color: textSecondary }} className="flex-shrink-0" />
-                    )}
-                </button>
-
-                {isExpanded && (
+    const body = (
                 <>
                 {/* Métricas principais - PILL */}
+                {v3 ? (
+                    <div className="grid grid-cols-4 gap-2">
+                        {([
+                            { label: 'Online', value: onlineNow, color: '#f59e0b' },
+                            { label: 'Hoje', value: todayVisitors, color: '#10b981' },
+                            { label: 'Visitas', value: totalVisits, color: '#2563eb' },
+                            { label: 'Únicos', value: totalUnique, color: '#f97316' },
+                        ]).map((t) => (
+                            <div key={t.label} className="rounded-2xl py-2.5 px-1 flex flex-col items-center gap-0.5" style={{ background: `${t.color}14`, border: `1px solid ${t.color}30` }}>
+                                <span className="text-xl font-black leading-none" style={{ color: t.color }}>{t.value}</span>
+                                <span className="text-[9px] font-black uppercase tracking-wide" style={{ color: t.color }}>{t.label}</span>
+                            </div>
+                        ))}
+                    </div>
+                ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     <div className="p-3 rounded-full border" style={{ borderColor: colors.border, background: cardStyle.background }}>
                         <div className="flex items-center gap-2 text-xs" style={{ color: textSecondary }}>
@@ -336,12 +300,13 @@ export default function StoreVisitors({ storeId }: StoreVisitorsProps) {
                         <p className="text-2xl font-black" style={{ color: textPrimary }}>{totalUnique}</p>
                     </div>
                 </div>
+                )}
 
                 {/* Gráfico */}
                 <div>
                     <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-2 text-sm font-bold" style={{ color: textPrimary }}>
-                            <BarChart3 size={16} style={{ color: '#f97316' }} />
+                            {!v3 && <BarChart3 size={16} style={{ color: '#f97316' }} />}
                             Visitas por dia
                         </div>
                         <div className="flex gap-1">
@@ -494,6 +459,79 @@ export default function StoreVisitors({ storeId }: StoreVisitorsProps) {
                     </div>
                 )}
                 </>
+    )
+
+    // 3.0: o mesmo cartão de seção das outras partes do painel
+    if (v3) {
+        return (
+            <V3Section
+                title="Visitantes"
+                subtitle={<><span style={{ color: '#f97316', fontWeight: 800 }}>{totalUnique}</span> únicos · <span style={{ color: '#10b981', fontWeight: 800 }}>{todayVisitors}</span> hoje · <span style={{ color: '#f59e0b', fontWeight: 800 }}>{onlineNow}</span> online</>}
+                expanded={isExpanded}
+                onToggle={() => setIsExpanded(!isExpanded)}
+                className="mb-0"
+            >
+                {body}
+            </V3Section>
+        )
+    }
+
+    return (
+        <div className="mb-6 mt-4">
+            <div
+                className={`rounded-2xl relative flex flex-col ${isExpanded ? 'p-6 pt-7 gap-5' : 'p-4'}`}
+                style={{
+                    background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
+                    backdropFilter: 'blur(12px)',
+                    WebkitBackdropFilter: 'blur(12px)',
+                    border: `1px solid ${colors.border}`,
+                    boxShadow: colors.shadow,
+                }}
+            >
+                {/* Cabeçalho com ícone arredondado — clicável, lembra aberto/fechado */}
+                <button
+                    onClick={() => setIsExpanded(!isExpanded)}
+                    className="w-full flex items-center justify-between gap-3 text-left"
+                    style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}
+                >
+                    <div className="flex items-center gap-3">
+                        <div>
+                            <h3 className={`${isExpanded ? 'text-lg' : 'text-sm'} font-black`} style={{ color: textPrimary }}>
+                                Visitantes
+                            </h3>
+                            <div className="flex items-center gap-3 text-xs mt-0.5" style={{ color: textSecondary }}>
+                                <span>
+                                    <span className="font-bold" style={{ color: '#f97316' }}>
+                                        {totalUnique}
+                                    </span>{' '}
+                                    únicos
+                                </span>
+                                <span>•</span>
+                                <span>
+                                    <span className="font-bold" style={{ color: '#10b981' }}>
+                                        {todayVisitors}
+                                    </span>{' '}
+                                    hoje
+                                </span>
+                                <span>•</span>
+                                <span>
+                                    <span className="font-bold" style={{ color: '#f59e0b' }}>
+                                        {onlineNow}
+                                    </span>{' '}
+                                    online
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                    {isExpanded ? (
+                        <ChevronUp size={isExpanded ? 22 : 18} style={{ color: textSecondary }} className="flex-shrink-0" />
+                    ) : (
+                        <ChevronDown size={isExpanded ? 22 : 18} style={{ color: textSecondary }} className="flex-shrink-0" />
+                    )}
+                </button>
+
+                {isExpanded && (
+                    body
                 )}
             </div>
         </div>

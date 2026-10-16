@@ -8,6 +8,8 @@ import { toast } from 'sonner'
 import { Truck, ChevronDown, ChevronUp, TrendingUp } from 'lucide-react'
 import { usePersistedExpanded } from '@/hooks/usePersistedExpanded'
 import { hexToRgb } from '@/lib/color'
+import { useInsideShell } from '@/components/InsideShell'
+import V3Section, { V3_GRADIENT } from './V3Section'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -34,6 +36,7 @@ interface StoreDeliverySettingsProps {
 
 export default function StoreDeliverySettings({ storeId, onRefresh }: StoreDeliverySettingsProps) {
     const { colors } = useTheme()
+    const v3 = useInsideShell()
     const surfaceRgb = hexToRgb(colors.surface)
 
     const [loading, setLoading] = useState(true)
@@ -193,58 +196,7 @@ export default function StoreDeliverySettings({ storeId, onRefresh }: StoreDeliv
         )
     }
 
-    return (
-        <div
-            className={`rounded-2xl relative flex flex-col ${isExpanded ? 'p-6 gap-5' : 'p-4'}`}
-            style={{
-                background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
-                backdropFilter: 'blur(12px)',
-                WebkitBackdropFilter: 'blur(12px)',
-                border: `1px solid ${colors.border}`,
-                boxShadow: colors.shadow,
-            }}
-        >
-            {/* Cabeçalho com toggle - PILL */}
-            <button
-                onClick={() => setIsExpanded(!isExpanded)}
-                className="w-full flex items-center justify-between text-left"
-                style={{
-                    padding: isExpanded ? '0.5rem 0.75rem' : 0,
-                    borderRadius: '9999px',
-                    background: 'transparent',
-                    border: 'none',
-                    cursor: 'pointer',
-                }}
-            >
-                <div className="flex items-center gap-3">
-                    <div>
-                        <h3 className={`${isExpanded ? 'text-lg' : 'text-sm'} font-black`} style={{ color: colors.textPrimary }}>
-                            Configurações de Entrega
-                        </h3>
-                        <div className="flex flex-col gap-0.5 mt-0.5">
-                            <div className="flex items-center gap-2 text-xs" style={{ color: colors.textSecondary }}>
-                                <span>{acceptsDelivery ? 'Entrega ativa' : 'Entrega desativada'}</span>
-                                <span>•</span>
-                                <span>{acceptsPickup ? 'Retirada ativa' : 'Retirada desativada'}</span>
-                            </div>
-                            {acceptsDelivery && (
-                                <div className="text-[10px] font-medium" style={{ color: '#f97316' }}>
-                                    {getDeliverySummary()}
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                </div>
-                <div className="flex items-center gap-2">
-                    {isExpanded ? (
-                        <ChevronUp size={isExpanded ? 22 : 18} style={{ color: colors.textSecondary }} />
-                    ) : (
-                        <ChevronDown size={isExpanded ? 22 : 18} style={{ color: colors.textSecondary }} />
-                    )}
-                </div>
-            </button>
-
-            {isExpanded && (
+    const body = (
                 <>
                     <div className="space-y-4">
                         {/* Toggle Faz entrega */}
@@ -256,7 +208,7 @@ export default function StoreDeliverySettings({ storeId, onRefresh }: StoreDeliv
                             }}
                         >
                             <div className="flex items-center gap-2">
-                                <Truck size={16} style={{ color: colors.textSecondary }} />
+                                {!v3 && <Truck size={16} style={{ color: colors.textSecondary }} />}
                                 <span className="text-xs font-bold" style={{ color: colors.textPrimary }}>Faz entrega</span>
                             </div>
                             <button
@@ -351,7 +303,7 @@ export default function StoreDeliverySettings({ storeId, onRefresh }: StoreDeliv
                                         }}
                                     >
                                         <div className="flex items-center gap-2 mb-3">
-                                            <TrendingUp size={16} style={{ color: '#f97316' }} />
+                                            {!v3 && <TrendingUp size={16} style={{ color: '#f97316' }} />}
                                             <p className="text-[10px] font-black" style={{ color: '#f97316' }}>
                                                 Tarifa com valor base
                                             </p>
@@ -425,7 +377,7 @@ export default function StoreDeliverySettings({ storeId, onRefresh }: StoreDeliv
                             >
                                 <div className="flex items-center justify-between gap-3">
                                     <span className="flex items-center gap-2 text-xs font-bold" style={{ color: colors.textPrimary }}>
-                                        <Truck size={14} style={{ color: '#f97316' }} />
+                                        {!v3 && <Truck size={14} style={{ color: '#f97316' }} />}
                                         Entrega iUser
                                     </span>
                                     <button
@@ -515,6 +467,76 @@ export default function StoreDeliverySettings({ storeId, onRefresh }: StoreDeliv
                         </button>
                     </div>
                 </>
+    )
+
+    // 3.0: o mesmo cartão de seção das outras partes do painel
+    if (v3) {
+        return (
+            <V3Section
+                title="Configurações de entrega"
+                subtitle={<>{acceptsDelivery ? 'Entrega ativa' : 'Entrega desativada'} · {acceptsPickup ? 'Retirada ativa' : 'Retirada desativada'}{acceptsDelivery && <span style={{ color: '#f97316', fontWeight: 700 }}> · {getDeliverySummary()}</span>}</>}
+                expanded={isExpanded}
+                onToggle={() => setIsExpanded(!isExpanded)}
+                className="mb-0"
+            >
+                {body}
+            </V3Section>
+        )
+    }
+
+    return (
+        <div
+            className={`rounded-2xl relative flex flex-col ${isExpanded ? 'p-6 gap-5' : 'p-4'}`}
+            style={{
+                background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
+                backdropFilter: 'blur(12px)',
+                WebkitBackdropFilter: 'blur(12px)',
+                border: `1px solid ${colors.border}`,
+                boxShadow: colors.shadow,
+            }}
+        >
+            {/* Cabeçalho com toggle - PILL */}
+            <button
+                onClick={() => setIsExpanded(!isExpanded)}
+                className="w-full flex items-center justify-between text-left"
+                style={{
+                    padding: isExpanded ? '0.5rem 0.75rem' : 0,
+                    borderRadius: '9999px',
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                }}
+            >
+                <div className="flex items-center gap-3">
+                    <div>
+                        <h3 className={`${isExpanded ? 'text-lg' : 'text-sm'} font-black`} style={{ color: colors.textPrimary }}>
+                            Configurações de Entrega
+                        </h3>
+                        <div className="flex flex-col gap-0.5 mt-0.5">
+                            <div className="flex items-center gap-2 text-xs" style={{ color: colors.textSecondary }}>
+                                <span>{acceptsDelivery ? 'Entrega ativa' : 'Entrega desativada'}</span>
+                                <span>•</span>
+                                <span>{acceptsPickup ? 'Retirada ativa' : 'Retirada desativada'}</span>
+                            </div>
+                            {acceptsDelivery && (
+                                <div className="text-[10px] font-medium" style={{ color: '#f97316' }}>
+                                    {getDeliverySummary()}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+                <div className="flex items-center gap-2">
+                    {isExpanded ? (
+                        <ChevronUp size={isExpanded ? 22 : 18} style={{ color: colors.textSecondary }} />
+                    ) : (
+                        <ChevronDown size={isExpanded ? 22 : 18} style={{ color: colors.textSecondary }} />
+                    )}
+                </div>
+            </button>
+
+            {isExpanded && (
+                body
             )}
         </div>
     )

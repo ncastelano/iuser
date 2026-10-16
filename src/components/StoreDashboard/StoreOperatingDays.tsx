@@ -361,9 +361,6 @@ export default function StoreOperatingDays({ storeId, onSaved }: StoreOperatingD
                 >
                     {v3 ? (
                         <div className="flex items-center gap-3 min-w-0">
-                            <span className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-white" style={{ background: GRADIENT }}>
-                                <Clock size={18} />
-                            </span>
                             <div className="min-w-0">
                                 <h3 className="text-base font-black leading-tight" style={{ color: textPrimary }}>Dias de funcionamento</h3>
                                 <p className="flex items-center gap-1.5 text-[11px] font-black mt-0.5 min-w-0" style={{ color: statusColor.text }}>
@@ -438,7 +435,7 @@ export default function StoreOperatingDays({ storeId, onSaved }: StoreOperatingD
                                 border: `1px solid ${statusColor.text}30`,
                             }}
                         >
-                            <Clock size={16} style={{ color: statusColor.text }} />
+                            {!v3 && <Clock size={16} style={{ color: statusColor.text }} />}
                             <div className="flex flex-col">
                                 <span className="text-xs font-bold" style={{ color: statusColor.text }}>
                                     {todayName} • {todaySchedule.start.slice(0, 5)} - {todaySchedule.end.slice(0, 5)}
@@ -459,7 +456,7 @@ export default function StoreOperatingDays({ storeId, onSaved }: StoreOperatingD
                                 border: '1px solid #ef444430',
                             }}
                         >
-                            <AlertCircle size={16} style={{ color: '#ef4444' }} />
+                            {!v3 && <AlertCircle size={16} style={{ color: '#ef4444' }} />}
                             <div className="flex flex-col">
                                 <span className="text-xs font-bold" style={{ color: '#ef4444' }}>
                                     Fechado hoje

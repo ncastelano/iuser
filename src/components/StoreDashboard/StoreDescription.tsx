@@ -10,6 +10,8 @@ import { categorias } from '@/lib/categorias'
 import { hexToRgb } from '@/lib/color'
 import { supabase } from '@/lib/supabase/client'
 import LocationPicker from '@/components/LocationPicker'
+import { useInsideShell } from '@/components/InsideShell'
+import V3Section, { V3_GRADIENT } from './V3Section'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -95,6 +97,7 @@ export function StoreDescription({
     saving = false,
 }: StoreDescriptionProps) {
     const { colors } = useTheme()
+    const v3 = useInsideShell()
     const fileInputRef = useRef<HTMLInputElement>(null)
     const surfaceRgb = hexToRgb(colors.surface)
 
@@ -240,73 +243,7 @@ export function StoreDescription({
     const status = getSlugStatusText()
     const selectedCategory = CATEGORIAS_LOJAS.find(c => c.slug === selectedCategorySlug)
 
-    return (
-        <div
-            className={`rounded-2xl relative flex flex-col ${isExpanded ? 'p-6 gap-5' : 'p-4'}`}
-            style={{
-                background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
-                backdropFilter: 'blur(12px)',
-                WebkitBackdropFilter: 'blur(12px)',
-                border: `1px solid ${colors.border}`,
-                boxShadow: colors.shadow,
-            }}
-        >
-            {/* Cabeçalho com toggle - PILL */}
-            <button
-                onClick={handleToggle}
-                className="w-full flex items-center justify-between text-left"
-                style={{
-                    padding: isExpanded ? '0.5rem 0.75rem' : 0,
-                    borderRadius: '9999px',
-                    background: 'transparent',
-                    border: 'none',
-                    cursor: 'pointer',
-                }}
-            >
-                <div className="flex items-center gap-3">
-                    <div>
-                        <h3 className={`${isExpanded ? 'text-lg' : 'text-sm'} font-black`} style={{ color: colors.textPrimary }}>
-                            Informações da Loja
-                        </h3>
-                        {/* ===== INFORMAÇÕES EM COLUNA COM MINIATURA DA LOGO ===== */}
-                        <div className="flex items-start gap-2 text-xs mt-1" style={{ color: colors.textSecondary }}>
-                            {/* Mini logo */}
-                            {preview ? (
-                                <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 border border-orange-200">
-                                    <img src={preview} className="w-full h-full object-cover" alt="Logo" />
-                                </div>
-                            ) : (
-                                <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 bg-orange-100">
-                                    <Store size={14} className="text-orange-400" />
-                                </div>
-                            )}
-                            <div className="flex flex-col gap-0.5">
-                                <span className="font-bold text-sm" style={{ color: colors.textPrimary }}>
-                                    {name ? name : 'Sem nome'}
-                                </span>
-                                <span className="text-[10px]">
-                                    @{storeSlug || 'sem-slug'}
-                                </span>
-                                {selectedCategory && (
-                                    <span className="text-[10px] flex items-center gap-1" style={{ color: colors.textSecondary }}>
-                                        <Tag size={10} style={{ color: selectedCategory.color }} />
-                                        {selectedCategory.nome}
-                                    </span>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div className="flex items-center gap-2">
-                    {isExpanded ? (
-                        <ChevronUp size={isExpanded ? 22 : 18} style={{ color: colors.textSecondary }} />
-                    ) : (
-                        <ChevronDown size={isExpanded ? 22 : 18} style={{ color: colors.textSecondary }} />
-                    )}
-                </div>
-            </button>
-
-            {isExpanded && (
+    const body = (
                 <>
                     <div className="space-y-4">
                         {/* Logo */}
@@ -354,7 +291,7 @@ export function StoreDescription({
                                     border: `2px solid ${colors.border}`,
                                 }}
                             >
-                                <Store size={16} className="text-orange-400 flex-shrink-0" />
+                                {!v3 && <Store size={16} className="text-orange-400 flex-shrink-0" />}
                                 <input
                                     type="text"
                                     placeholder="Minha Loja iUser"
@@ -386,7 +323,7 @@ export function StoreDescription({
                                         color: colors.textSecondary,
                                     }}
                                 >
-                                    <Link size={12} className="mr-1.5" />
+                                    {!v3 && <Link size={12} className="mr-1.5" />}
                                     iuser.com.br/
                                 </span>
                                 <input
@@ -416,7 +353,7 @@ export function StoreDescription({
                         {/* ===== CATEGORIA ===== */}
                         <div className="space-y-2">
                             <label className="block text-[10px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>
-                                <Tag size={12} className="inline mr-1.5" />
+                                {!v3 && <Tag size={12} className="inline mr-1.5" />}
                                 Categoria *
                             </label>
                             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -630,6 +567,91 @@ export function StoreDescription({
                         </button>
                     </div>
                 </>
+    )
+
+    // 3.0: o mesmo cartão de seção das outras partes do painel
+    if (v3) {
+        return (
+            <V3Section
+                title="Informações da loja"
+                subtitle={<>{name || 'Sem nome'} · @{storeSlug || 'sem-slug'}{selectedCategory ? ` · ${selectedCategory.nome}` : ''}</>}
+                expanded={isExpanded}
+                onToggle={() => handleToggle()}
+                className="mb-0"
+            >
+                {body}
+            </V3Section>
+        )
+    }
+
+    return (
+        <div
+            className={`rounded-2xl relative flex flex-col ${isExpanded ? 'p-6 gap-5' : 'p-4'}`}
+            style={{
+                background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
+                backdropFilter: 'blur(12px)',
+                WebkitBackdropFilter: 'blur(12px)',
+                border: `1px solid ${colors.border}`,
+                boxShadow: colors.shadow,
+            }}
+        >
+            {/* Cabeçalho com toggle - PILL */}
+            <button
+                onClick={handleToggle}
+                className="w-full flex items-center justify-between text-left"
+                style={{
+                    padding: isExpanded ? '0.5rem 0.75rem' : 0,
+                    borderRadius: '9999px',
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                }}
+            >
+                <div className="flex items-center gap-3">
+                    <div>
+                        <h3 className={`${isExpanded ? 'text-lg' : 'text-sm'} font-black`} style={{ color: colors.textPrimary }}>
+                            Informações da Loja
+                        </h3>
+                        {/* ===== INFORMAÇÕES EM COLUNA COM MINIATURA DA LOGO ===== */}
+                        <div className="flex items-start gap-2 text-xs mt-1" style={{ color: colors.textSecondary }}>
+                            {/* Mini logo */}
+                            {preview ? (
+                                <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 border border-orange-200">
+                                    <img src={preview} className="w-full h-full object-cover" alt="Logo" />
+                                </div>
+                            ) : (
+                                <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 bg-orange-100">
+                                    <Store size={14} className="text-orange-400" />
+                                </div>
+                            )}
+                            <div className="flex flex-col gap-0.5">
+                                <span className="font-bold text-sm" style={{ color: colors.textPrimary }}>
+                                    {name ? name : 'Sem nome'}
+                                </span>
+                                <span className="text-[10px]">
+                                    @{storeSlug || 'sem-slug'}
+                                </span>
+                                {selectedCategory && (
+                                    <span className="text-[10px] flex items-center gap-1" style={{ color: colors.textSecondary }}>
+                                        {!v3 && <Tag size={10} style={{ color: selectedCategory.color }} />}
+                                        {selectedCategory.nome}
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div className="flex items-center gap-2">
+                    {isExpanded ? (
+                        <ChevronUp size={isExpanded ? 22 : 18} style={{ color: colors.textSecondary }} />
+                    ) : (
+                        <ChevronDown size={isExpanded ? 22 : 18} style={{ color: colors.textSecondary }} />
+                    )}
+                </div>
+            </button>
+
+            {isExpanded && (
+                body
             )}
 
             {showLocationPicker && location && typeof document !== 'undefined' && createPortal(

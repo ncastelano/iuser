@@ -15,6 +15,8 @@ import { hexToRgb } from '@/lib/color'
 import { Package, Wrench, ChevronDown, ChevronUp, Plus, Pencil, ArrowUpDown } from 'lucide-react'
 import { usePersistedExpanded } from '@/hooks/usePersistedExpanded'
 import { startOfDay } from 'date-fns'
+import { useInsideShell } from '@/components/InsideShell'
+import V3Section, { V3_GRADIENT } from './V3Section'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -52,6 +54,7 @@ interface StoreCatalogProps {
 
 export default function StoreCatalog({ storeId, storeSlug, kind }: StoreCatalogProps) {
     const { colors } = useTheme()
+    const v3 = useInsideShell()
     const router = useRouter()
     const surfaceRgb = hexToRgb(colors.surface)
 
@@ -137,42 +140,7 @@ export default function StoreCatalog({ storeId, storeSlug, kind }: StoreCatalogP
     const createLabel = isService ? 'Criar primeiro serviço' : 'Criar primeiro produto'
     const createHref = `/${storeSlug}/criar-produto${isService ? '?type=service' : ''}`
 
-    return (
-        <div className="mb-6">
-            <div
-                className={`rounded-2xl relative flex flex-col ${isExpanded ? 'p-6 pt-7 gap-5' : 'p-4'}`}
-                style={{
-                    background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
-                    backdropFilter: 'blur(12px)',
-                    WebkitBackdropFilter: 'blur(12px)',
-                    border: `1px solid ${colors.border}`,
-                    boxShadow: colors.shadow,
-                }}
-            >
-                <button
-                    onClick={() => setIsExpanded(!isExpanded)}
-                    className="w-full flex items-center justify-between text-left"
-                    style={{ padding: isExpanded ? '0.5rem 0.75rem' : 0, borderRadius: '9999px', background: 'transparent', border: 'none', cursor: 'pointer' }}
-                >
-                    <div className="flex items-center gap-3">
-                        <div>
-                            <h3 className={`${isExpanded ? 'text-lg' : 'text-sm'} font-black`} style={{ color: colors.textPrimary }}>{title}</h3>
-                            <div className="flex items-center gap-3 text-xs mt-0.5" style={{ color: colors.textSecondary }}>
-                                <span>{items.length} cadastrado{items.length === 1 ? '' : 's'}</span>
-                            </div>
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        {items.length > 0 && (
-                            <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: '#f9731620', color: '#f97316' }}>
-                                {items.length}
-                            </span>
-                        )}
-                        {isExpanded ? <ChevronUp size={isExpanded ? 22 : 18} style={{ color: colors.textSecondary }} /> : <ChevronDown size={isExpanded ? 22 : 18} style={{ color: colors.textSecondary }} />}
-                    </div>
-                </button>
-
-                {isExpanded && (
+    const body = (
                     loading ? (
                         <div className="flex justify-center py-8">
                             <div className="w-6 h-6 border-2 border-orange-200 border-t-orange-500 rounded-full animate-spin" />
@@ -263,6 +231,61 @@ export default function StoreCatalog({ storeId, storeSlug, kind }: StoreCatalogP
                             )}
                         </>
                     )
+    )
+
+    // 3.0: o mesmo cartão de seção das outras partes do painel
+    if (v3) {
+        return (
+            <V3Section
+                title={title}
+                subtitle={<>{items.length} cadastrado{items.length === 1 ? '' : 's'}</>}
+                badge={items.length > 0 ? <span className="text-xs font-black px-2.5 py-1 rounded-full text-white flex-shrink-0" style={{ background: V3_GRADIENT }}>{items.length}</span> : undefined}
+                expanded={isExpanded}
+                onToggle={() => setIsExpanded(!isExpanded)}
+                className="mb-6"
+            >
+                {body}
+            </V3Section>
+        )
+    }
+
+    return (
+        <div className="mb-6">
+            <div
+                className={`rounded-2xl relative flex flex-col ${isExpanded ? 'p-6 pt-7 gap-5' : 'p-4'}`}
+                style={{
+                    background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
+                    backdropFilter: 'blur(12px)',
+                    WebkitBackdropFilter: 'blur(12px)',
+                    border: `1px solid ${colors.border}`,
+                    boxShadow: colors.shadow,
+                }}
+            >
+                <button
+                    onClick={() => setIsExpanded(!isExpanded)}
+                    className="w-full flex items-center justify-between text-left"
+                    style={{ padding: isExpanded ? '0.5rem 0.75rem' : 0, borderRadius: '9999px', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                >
+                    <div className="flex items-center gap-3">
+                        <div>
+                            <h3 className={`${isExpanded ? 'text-lg' : 'text-sm'} font-black`} style={{ color: colors.textPrimary }}>{title}</h3>
+                            <div className="flex items-center gap-3 text-xs mt-0.5" style={{ color: colors.textSecondary }}>
+                                <span>{items.length} cadastrado{items.length === 1 ? '' : 's'}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        {items.length > 0 && (
+                            <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: '#f9731620', color: '#f97316' }}>
+                                {items.length}
+                            </span>
+                        )}
+                        {isExpanded ? <ChevronUp size={isExpanded ? 22 : 18} style={{ color: colors.textSecondary }} /> : <ChevronDown size={isExpanded ? 22 : 18} style={{ color: colors.textSecondary }} />}
+                    </div>
+                </button>
+
+                {isExpanded && (
+                    body
                 )}
             </div>
         </div>

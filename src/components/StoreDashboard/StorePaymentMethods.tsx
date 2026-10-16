@@ -8,6 +8,8 @@ import { toast } from 'sonner'
 import { CreditCard, Wallet, ChevronDown, ChevronUp, Banknote } from 'lucide-react'
 import { usePersistedExpanded } from '@/hooks/usePersistedExpanded'
 import { hexToRgb } from '@/lib/color'
+import { useInsideShell } from '@/components/InsideShell'
+import V3Section, { V3_GRADIENT } from './V3Section'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -34,6 +36,7 @@ interface StorePaymentMethodsProps {
 
 export default function StorePaymentMethods({ storeId, onRefresh }: StorePaymentMethodsProps) {
     const { colors } = useTheme()
+    const v3 = useInsideShell()
     const surfaceRgb = hexToRgb(colors.surface)
 
     const [loading, setLoading] = useState(true)
@@ -133,53 +136,7 @@ export default function StorePaymentMethods({ storeId, onRefresh }: StorePayment
         )
     }
 
-    return (
-        <div
-            className={`rounded-2xl relative flex flex-col ${isExpanded ? 'p-6 gap-5' : 'p-4'}`}
-            style={{
-                background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
-                backdropFilter: 'blur(12px)',
-                WebkitBackdropFilter: 'blur(12px)',
-                border: `1px solid ${colors.border}`,
-                boxShadow: colors.shadow,
-            }}
-        >
-            {/* Cabeçalho com toggle - PILL */}
-            <button
-                onClick={() => setIsExpanded(!isExpanded)}
-                className="w-full flex items-center justify-between text-left"
-                style={{
-                    padding: isExpanded ? '0.5rem 0.75rem' : 0,
-                    borderRadius: '9999px',
-                    background: 'transparent',
-                    border: 'none',
-                    cursor: 'pointer',
-                }}
-            >
-                <div className="flex items-center gap-3">
-                    <div>
-                        <h3 className={`${isExpanded ? 'text-lg' : 'text-sm'} font-black`} style={{ color: colors.textPrimary }}>
-                            Formas de Pagamento
-                        </h3>
-                        <div className="flex items-center gap-2 text-xs mt-0.5" style={{ color: colors.textSecondary }}>
-                            <span>{acceptsCard ? 'Cartão' : 'Sem cartão'}</span>
-                            <span>•</span>
-                            <span>{acceptsPix ? 'Pix' : 'Sem Pix'}</span>
-                            <span>•</span>
-                            <span>{acceptsCash ? 'Dinheiro' : 'Sem dinheiro'}</span>
-                        </div>
-                    </div>
-                </div>
-                <div className="flex items-center gap-2">
-                    {isExpanded ? (
-                        <ChevronUp size={isExpanded ? 22 : 18} style={{ color: colors.textSecondary }} />
-                    ) : (
-                        <ChevronDown size={isExpanded ? 22 : 18} style={{ color: colors.textSecondary }} />
-                    )}
-                </div>
-            </button>
-
-            {isExpanded && (
+    const body = (
                 <>
                     <div className="space-y-4">
                         {/* Toggle Cartão */}
@@ -191,7 +148,7 @@ export default function StorePaymentMethods({ storeId, onRefresh }: StorePayment
                             }}
                         >
                             <div className="flex items-center gap-2">
-                                <CreditCard size={16} style={{ color: colors.textSecondary }} />
+                                {!v3 && <CreditCard size={16} style={{ color: colors.textSecondary }} />}
                                 <span className="text-xs font-bold" style={{ color: colors.textPrimary }}>Cartão</span>
                             </div>
                             <button
@@ -211,7 +168,7 @@ export default function StorePaymentMethods({ storeId, onRefresh }: StorePayment
                             }}
                         >
                             <div className="flex items-center gap-2">
-                                <Banknote size={16} style={{ color: colors.textSecondary }} />
+                                {!v3 && <Banknote size={16} style={{ color: colors.textSecondary }} />}
                                 <span className="text-xs font-bold" style={{ color: colors.textPrimary }}>Dinheiro</span>
                             </div>
                             <button
@@ -232,7 +189,7 @@ export default function StorePaymentMethods({ storeId, onRefresh }: StorePayment
                                 }}
                             >
                                 <div className="flex items-center gap-2">
-                                    <Wallet size={16} style={{ color: colors.textSecondary }} />
+                                    {!v3 && <Wallet size={16} style={{ color: colors.textSecondary }} />}
                                     <span className="text-xs font-bold" style={{ color: colors.textPrimary }}>Pix</span>
                                 </div>
                                 <div className="flex items-center gap-2">
@@ -321,6 +278,71 @@ export default function StorePaymentMethods({ storeId, onRefresh }: StorePayment
                         </button>
                     </div>
                 </>
+    )
+
+    // 3.0: o mesmo cartão de seção das outras partes do painel
+    if (v3) {
+        return (
+            <V3Section
+                title="Formas de pagamento"
+                subtitle={<>{acceptsCard ? 'Cartão' : 'Sem cartão'} · {acceptsPix ? 'Pix' : 'Sem Pix'} · {acceptsCash ? 'Dinheiro' : 'Sem dinheiro'}</>}
+                expanded={isExpanded}
+                onToggle={() => setIsExpanded(!isExpanded)}
+                className="mb-0"
+            >
+                {body}
+            </V3Section>
+        )
+    }
+
+    return (
+        <div
+            className={`rounded-2xl relative flex flex-col ${isExpanded ? 'p-6 gap-5' : 'p-4'}`}
+            style={{
+                background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
+                backdropFilter: 'blur(12px)',
+                WebkitBackdropFilter: 'blur(12px)',
+                border: `1px solid ${colors.border}`,
+                boxShadow: colors.shadow,
+            }}
+        >
+            {/* Cabeçalho com toggle - PILL */}
+            <button
+                onClick={() => setIsExpanded(!isExpanded)}
+                className="w-full flex items-center justify-between text-left"
+                style={{
+                    padding: isExpanded ? '0.5rem 0.75rem' : 0,
+                    borderRadius: '9999px',
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                }}
+            >
+                <div className="flex items-center gap-3">
+                    <div>
+                        <h3 className={`${isExpanded ? 'text-lg' : 'text-sm'} font-black`} style={{ color: colors.textPrimary }}>
+                            Formas de Pagamento
+                        </h3>
+                        <div className="flex items-center gap-2 text-xs mt-0.5" style={{ color: colors.textSecondary }}>
+                            <span>{acceptsCard ? 'Cartão' : 'Sem cartão'}</span>
+                            <span>•</span>
+                            <span>{acceptsPix ? 'Pix' : 'Sem Pix'}</span>
+                            <span>•</span>
+                            <span>{acceptsCash ? 'Dinheiro' : 'Sem dinheiro'}</span>
+                        </div>
+                    </div>
+                </div>
+                <div className="flex items-center gap-2">
+                    {isExpanded ? (
+                        <ChevronUp size={isExpanded ? 22 : 18} style={{ color: colors.textSecondary }} />
+                    ) : (
+                        <ChevronDown size={isExpanded ? 22 : 18} style={{ color: colors.textSecondary }} />
+                    )}
+                </div>
+            </button>
+
+            {isExpanded && (
+                body
             )}
         </div>
     )

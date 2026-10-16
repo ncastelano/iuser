@@ -943,9 +943,6 @@ export default function StoreOrders({
                     >
                         {v3 ? (
                             <div className="flex items-center gap-3 min-w-0">
-                                <span className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-white" style={{ background: GRADIENT }}>
-                                    <Package size={18} />
-                                </span>
                                 <div className="min-w-0">
                                     <h3 className="text-base font-black leading-tight" style={{ color: colors.textPrimary }}>Pedidos na loja</h3>
                                     <p className="text-[11px] mt-0.5" style={{ color: newOrders.length > 0 ? '#ea580c' : colors.textSecondary }}>
@@ -1098,7 +1095,7 @@ export default function StoreOrders({
                                 {newOrders.length > 0 && (
                                     <div>
                                         <h4 className="text-xs font-black uppercase mb-3 flex items-center gap-2" style={{ color: '#2563eb' }}>
-                                            <Clock size={12} />
+                                            {!v3 && <Clock size={12} />}
                                             Novos ({newOrders.length})
                                         </h4>
                                         <div className="space-y-3">
@@ -1125,7 +1122,7 @@ export default function StoreOrders({
                                 {preparing.length > 0 && (
                                     <div>
                                         <h4 className="text-xs font-black uppercase mb-3 flex items-center gap-2" style={{ color: '#d97706' }}>
-                                            <Package size={12} />
+                                            {!v3 && <Package size={12} />}
                                             Em Preparo ({preparing.length})
                                         </h4>
                                         <div className="space-y-3">
@@ -1152,7 +1149,7 @@ export default function StoreOrders({
                                 {ready.length > 0 && (
                                     <div>
                                         <h4 className="text-xs font-black uppercase mb-3 flex items-center gap-2" style={{ color: '#7c3aed' }}>
-                                            <CheckCircle size={12} />
+                                            {!v3 && <CheckCircle size={12} />}
                                             Prontos ({ready.length})
                                         </h4>
                                         <div className="space-y-3">
@@ -1179,7 +1176,7 @@ export default function StoreOrders({
                                 {finished.length > 0 && (
                                     <div>
                                         <h4 className="text-xs font-black uppercase mb-3 flex items-center gap-2" style={{ color: '#16a34a' }}>
-                                            <CheckCircle size={12} />
+                                            {!v3 && <CheckCircle size={12} />}
                                             Finalizados ({finished.length})
                                         </h4>
                                         <div className="space-y-3">
@@ -1366,7 +1363,7 @@ function OrderButton({
                         <div className="flex items-center gap-x-3 gap-y-0.5 flex-wrap text-xs">
                             <span className="font-black text-sm" style={{ color: themeColors.textPrimary }}>R$ {order.totalPrice.toFixed(2)}</span>
                             {order.deliveryFee > 0 && <span style={{ color: themeColors.textSecondary }}>frete R$ {order.deliveryFee.toFixed(2)}</span>}
-                            {isAssigned && <span className="text-[10px] font-bold" style={{ color: themeColors.textSecondary }}>🚚 {assignment?.employeeName}</span>}
+                            {isAssigned && <span className="text-[10px] font-bold" style={{ color: themeColors.textSecondary }}>Entregador: {assignment?.employeeName}</span>}
                         </div>
                     </div>
                     <div className="flex items-center gap-1 flex-shrink-0">

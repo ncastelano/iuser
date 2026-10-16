@@ -4,6 +4,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
+import { useInsideShell } from '@/components/InsideShell'
+import V3Section from './V3Section'
 import { toast } from 'sonner'
 import {
     ShoppingCart,
@@ -61,6 +63,7 @@ export default function ButtonInPersonSale({
     onSaleCompleted,
 }: ButtonInPersonSaleProps) {
     const { colors } = useTheme()
+    const v3 = useInsideShell()
     const [isExpanded, setIsExpanded] = usePersistedExpanded('buttonInPersonSale', true)
     const [products, setProducts] = useState<Product[]>([])
     const [searchQuery, setSearchQuery] = useState('')
@@ -215,38 +218,8 @@ export default function ButtonInPersonSale({
     const itemsCount = cart.reduce((sum, i) => sum + i.quantity, 0)
     const inputStyle = { background: `${colors.surface}88`, borderColor: colors.border, color: colors.textPrimary }
 
-    return (
-        <div
-            className="mb-6 rounded-3xl border overflow-hidden"
-            style={{ background: colors.surface, borderColor: colors.border, boxShadow: colors.shadow }}
-        >
-            {/* Cabeçalho — clicável, lembra se a pessoa deixou aberto ou fechado */}
-            <button
-                onClick={() => setIsExpanded(!isExpanded)}
-                className="w-full flex items-center gap-3 px-4 py-3.5 text-left"
-                style={{ background: GRADIENT, border: 'none', cursor: 'pointer' }}
-            >
-                <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0">
-                    <ShoppingCart size={20} color="#ffffff" />
-                </div>
-                <div className="min-w-0 flex-1">
-                    <h3 className="text-sm font-black uppercase tracking-wider text-white">Venda presencial</h3>
-                    <p className="text-[11px] text-white/80">Toque nos produtos para montar a venda do balcão</p>
-                </div>
-                {itemsCount > 0 && (
-                    <span className="px-2.5 py-1 rounded-full bg-white text-xs font-black flex-shrink-0" style={{ color: '#dc2626' }}>
-                        {itemsCount} {itemsCount === 1 ? 'item' : 'itens'}
-                    </span>
-                )}
-                {isExpanded ? (
-                    <ChevronUp size={20} className="text-white flex-shrink-0" />
-                ) : (
-                    <ChevronDown size={20} className="text-white flex-shrink-0" />
-                )}
-            </button>
-
-            {isExpanded && (
-            <div className="p-4 space-y-4">
+    const body = (
+        <>
                 {/* Busca */}
                 <div className="relative">
                     <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: colors.textSecondary }} />
@@ -453,6 +426,58 @@ export default function ButtonInPersonSale({
                         </button>
                     </>
                 )}
+        </>
+    )
+
+    // 3.0: mesmo cartão das outras seções do painel
+    if (v3) {
+        return (
+            <V3Section
+                title="Venda presencial"
+                subtitle="Toque nos produtos para montar a venda do balcão"
+                badge={itemsCount > 0 ? <span className="px-2.5 py-1 rounded-full text-xs font-black text-white flex-shrink-0" style={{ background: GRADIENT }}>{itemsCount} {itemsCount === 1 ? 'item' : 'itens'}</span> : undefined}
+                expanded={isExpanded}
+                onToggle={() => setIsExpanded(!isExpanded)}
+                className="mb-0"
+            >
+                {body}
+            </V3Section>
+        )
+    }
+
+    return (
+        <div
+            className="mb-6 rounded-3xl border overflow-hidden"
+            style={{ background: colors.surface, borderColor: colors.border, boxShadow: colors.shadow }}
+        >
+            {/* Cabeçalho — clicável, lembra se a pessoa deixou aberto ou fechado */}
+            <button
+                onClick={() => setIsExpanded(!isExpanded)}
+                className="w-full flex items-center gap-3 px-4 py-3.5 text-left"
+                style={{ background: GRADIENT, border: 'none', cursor: 'pointer' }}
+            >
+                <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0">
+                    <ShoppingCart size={20} color="#ffffff" />
+                </div>
+                <div className="min-w-0 flex-1">
+                    <h3 className="text-sm font-black uppercase tracking-wider text-white">Venda presencial</h3>
+                    <p className="text-[11px] text-white/80">Toque nos produtos para montar a venda do balcão</p>
+                </div>
+                {itemsCount > 0 && (
+                    <span className="px-2.5 py-1 rounded-full bg-white text-xs font-black flex-shrink-0" style={{ color: '#dc2626' }}>
+                        {itemsCount} {itemsCount === 1 ? 'item' : 'itens'}
+                    </span>
+                )}
+                {isExpanded ? (
+                    <ChevronUp size={20} className="text-white flex-shrink-0" />
+                ) : (
+                    <ChevronDown size={20} className="text-white flex-shrink-0" />
+                )}
+            </button>
+
+            {isExpanded && (
+            <div className="p-4 space-y-4">
+                {body}
             </div>
             )}
         </div>

@@ -33,6 +33,8 @@ import {
     UserX,
 } from 'lucide-react'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
+import { useInsideShell } from '@/components/InsideShell'
+import V3Section, { V3_GRADIENT } from './V3Section'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -126,6 +128,7 @@ export default function Employee({
     onRefresh,
 }: EmployeeProps) {
     const { colors } = useTheme()
+    const v3 = useInsideShell()
     const surfaceRgb = hexToRgb(colors.surface)
 
     const [dialogOpen, setDialogOpen] = useState(false)
@@ -305,55 +308,7 @@ export default function Employee({
     const textSecondary = colors.textSecondary
     const borderColor = colors.border
 
-    return (
-        <>
-            <div
-                className={`mb-6 rounded-2xl relative flex flex-col ${isExpanded ? 'p-6 pt-7 gap-5' : 'p-4'}`}
-                style={{
-                    background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
-                    backdropFilter: 'blur(12px)',
-                    WebkitBackdropFilter: 'blur(12px)',
-                    border: `1px solid ${borderColor}`,
-                    boxShadow: colors.shadow,
-                }}
-            >
-                {/* Cabeçalho com toggle */}
-                <button
-                    onClick={() => setIsExpanded(!isExpanded)}
-                    className="w-full flex items-center justify-between text-left"
-                    style={{
-                        padding: isExpanded ? '0.5rem 0.75rem' : 0,
-                        borderRadius: '9999px',
-                        background: 'transparent',
-                        border: 'none',
-                        cursor: 'pointer',
-                    }}
-                >
-                    <div className="flex items-center gap-3">
-                        <div>
-                            <h3 className={`${isExpanded ? 'text-lg' : 'text-sm'} font-black`} style={{ color: textPrimary }}>
-                                Funcionários
-                            </h3>
-                            <p className="text-xs mt-0.5" style={{ color: textSecondary }}>
-                                {employees.length} funcionário{employees.length !== 1 ? 's' : ''} cadastrado{employees.length !== 1 ? 's' : ''}
-                            </p>
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        {employees.length > 0 && (
-                            <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: '#f9731620', color: '#f97316' }}>
-                                {employees.length}
-                            </span>
-                        )}
-                        {isExpanded ? (
-                            <ChevronUp size={isExpanded ? 22 : 18} style={{ color: textSecondary }} />
-                        ) : (
-                            <ChevronDown size={isExpanded ? 22 : 18} style={{ color: textSecondary }} />
-                        )}
-                    </div>
-                </button>
-
-                {isExpanded && (
+    const body = (
                     <>
                         <div className="flex justify-between items-center">
                             <button
@@ -411,7 +366,7 @@ export default function Employee({
                                                             {emp.name}
                                                             {emp.user_id && (
                                                                 <span title="Conta iUser vinculada">
-                                                                    <UserCheck size={12} style={{ color: '#22c55e' }} />
+                                                                    {!v3 && <UserCheck size={12} style={{ color: '#22c55e' }} />}
                                                                 </span>
                                                             )}
                                                         </p>
@@ -513,7 +468,7 @@ export default function Employee({
                                                                                     {stop.label}
                                                                                 </span>
                                                                                 <div className="flex items-center gap-1 min-w-0">
-                                                                                    <MapPin size={11} className="flex-shrink-0" style={{ color: textSecondary }} />
+                                                                                    {!v3 && <MapPin size={11} className="flex-shrink-0" style={{ color: textSecondary }} />}
                                                                                     <span className="font-medium truncate" style={{ color: textPrimary }}>
                                                                                         {stop.address || 'Sem endereço'}
                                                                                     </span>
@@ -562,6 +517,74 @@ export default function Employee({
                             </div>
                         )}
                     </>
+    )
+
+    // 3.0: o mesmo cartão de seção das outras partes do painel
+    if (v3) {
+        return (
+            <V3Section
+                title="Funcionários"
+                subtitle={<>{employees.length} funcionário{employees.length !== 1 ? 's' : ''} cadastrado{employees.length !== 1 ? 's' : ''}</>}
+                badge={employees.length > 0 ? <span className="text-xs font-black px-2.5 py-1 rounded-full text-white flex-shrink-0" style={{ background: V3_GRADIENT }}>{employees.length}</span> : undefined}
+                expanded={isExpanded}
+                onToggle={() => setIsExpanded(!isExpanded)}
+                className="mb-0"
+            >
+                {body}
+            </V3Section>
+        )
+    }
+
+    return (
+        <>
+            <div
+                className={`mb-6 rounded-2xl relative flex flex-col ${isExpanded ? 'p-6 pt-7 gap-5' : 'p-4'}`}
+                style={{
+                    background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
+                    backdropFilter: 'blur(12px)',
+                    WebkitBackdropFilter: 'blur(12px)',
+                    border: `1px solid ${borderColor}`,
+                    boxShadow: colors.shadow,
+                }}
+            >
+                {/* Cabeçalho com toggle */}
+                <button
+                    onClick={() => setIsExpanded(!isExpanded)}
+                    className="w-full flex items-center justify-between text-left"
+                    style={{
+                        padding: isExpanded ? '0.5rem 0.75rem' : 0,
+                        borderRadius: '9999px',
+                        background: 'transparent',
+                        border: 'none',
+                        cursor: 'pointer',
+                    }}
+                >
+                    <div className="flex items-center gap-3">
+                        <div>
+                            <h3 className={`${isExpanded ? 'text-lg' : 'text-sm'} font-black`} style={{ color: textPrimary }}>
+                                Funcionários
+                            </h3>
+                            <p className="text-xs mt-0.5" style={{ color: textSecondary }}>
+                                {employees.length} funcionário{employees.length !== 1 ? 's' : ''} cadastrado{employees.length !== 1 ? 's' : ''}
+                            </p>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        {employees.length > 0 && (
+                            <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: '#f9731620', color: '#f97316' }}>
+                                {employees.length}
+                            </span>
+                        )}
+                        {isExpanded ? (
+                            <ChevronUp size={isExpanded ? 22 : 18} style={{ color: textSecondary }} />
+                        ) : (
+                            <ChevronDown size={isExpanded ? 22 : 18} style={{ color: textSecondary }} />
+                        )}
+                    </div>
+                </button>
+
+                {isExpanded && (
+                    body
                 )}
             </div>
 
