@@ -37,7 +37,10 @@ import {
 import Link from 'next/link'
 import { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import { supabase } from '@/lib/supabase/client'
-import { createStoreOrder } from '@/lib/createStoreOrder'
+import { createStoreOrder, CreateStoreOrderError } from '@/lib/createStoreOrder'
+import { useCheckoutFlows } from '@/lib/useCheckoutFlow'
+import { isEstimateRejection } from '@/modules/delivery-estimate'
+import { V2CheckoutReview } from '@/components/DeliveryEstimate/V2CheckoutReview'
 import { toast } from 'sonner'
 import { ReviewModal } from '@/components/ratings/ReviewModal'
 import { Spinner } from '@/components/Spinner'
@@ -211,6 +214,7 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
 
     // Configurações individuais por loja
     const [storeConfigs, setStoreConfigs] = useState<Record<string, {
+        id?: string
         accepts_delivery: boolean
         accepts_pickup: boolean
         accepts_pix: boolean
@@ -249,6 +253,14 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
 
     // Cache dos dados de entrega da loja
     const [storeDeliveryInfo, setStoreDeliveryInfo] = useState<Record<string, StoreDeliveryInfo>>({})
+
+    // Caminho de checkout por loja, decidido pelo SERVIDOR ('v2' = entrega iUser com estimativa oficial; desligado em produção).
+    // Em 'v2' nenhuma conta de frete acontece aqui: o valor vem da revisão (V2CheckoutReview), igual à página de produto e ao catálogo.
+    const checkoutFlowByStoreId = useCheckoutFlows(Object.values(storeConfigs).map((c) => c.id), currentUserId)
+    const isV2Flow = (slug: string) => {
+        const id = storeConfigs[slug]?.id
+        return !!id && checkoutFlowByStoreId[id] === 'v2'
+    }
 
     // ===== ESTADO DA TAB ATIVA =====
     const [activeTab, setActiveTab] = useState<string>('carrinho')
@@ -596,7 +608,7 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
         const fetchConfigs = async () => {
             const { data } = await supabase
                 .from('stores')
-                .select('storeSlug, accepts_delivery, accepts_pickup, accepts_pix, accepts_card, accepts_cash, delivery_type, delivery_fee, delivery_fee_per_km, delivery_base_distance, delivery_base_fee, store_lat, store_lng, business_hours')
+                .select('id, storeSlug, accepts_delivery, accepts_pickup, accepts_pix, accepts_card, accepts_cash, delivery_type, delivery_fee, delivery_fee_per_km, delivery_base_distance, delivery_base_fee, store_lat, store_lng, business_hours')
                 .in('storeSlug', storeSlugs)
 
             if (data) {
@@ -607,6 +619,7 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
 
                 data.forEach(s => {
                     configs[s.storeSlug] = {
+                        id: s.id,
                         accepts_delivery: s.accepts_delivery,
                         accepts_pickup: s.accepts_pickup,
                         accepts_pix: s.accepts_pix,
@@ -690,6 +703,7 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
         if (!info || !deliveryLoc) {
             return { fee: 0, isCalculating: true }
         }
+        if (isV2Flow(slug)) return { fee: 0, isCalculating: true }      // V2: frete só na revisão, vindo da estimativa do servidor
         if (info.delivery_type === 'fixed') {
             return { fee: Number(info.delivery_fee) || 0, isCalculating: false }
         }
@@ -858,7 +872,7 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
         }
     }
 
-    const handleFinalizarLoja = async (slug: string) => {
+    const handleFinalizarLoja = async (slug: string, estimateId?: string): Promise<{ estimateRejected?: boolean } | void> => {
         if (!currentUserId) return
 
         // VERIFICA SE A LOJA ESTÁ ABERTA
@@ -911,6 +925,7 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
 
             const deliveryOpt = deliveryOptionByStore[slug] || 'retirada'
             const paymentOpt = paymentMethodByStore[slug] || 'pix'
+            const isV2Order = !!estimateId && deliveryOpt === 'entrega'     // V2: createStoreOrder força 'entrega' + 'combinar'
 
             if (deliveryOpt === 'entrega') {
                 if (!deliveryLoc) {
@@ -935,7 +950,7 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
             }
 
             let deliveryFee = 0
-            if (deliveryOpt === 'entrega' && deliveryLoc) {
+            if (deliveryOpt === 'entrega' && deliveryLoc && !isV2Order) {
                 const dtype = deliveryInfo.delivery_type
                 if (dtype === 'fixed') {
                     deliveryFee = Number(deliveryInfo.delivery_fee) || 0
@@ -987,6 +1002,7 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                     items,
                     deliveryOption: deliveryOpt as 'entrega' | 'retirada',
                     paymentMethod: paymentOpt,
+                    estimateId: isV2Order ? estimateId : null,
                     address,
                     lat: deliveryLat,
                     lng: deliveryLng,
@@ -998,7 +1014,8 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                 console.error('[Checkout] Erro ao criar pedido:', err)
                 toast.error(err?.message || 'Erro ao criar pedido')
                 setCheckoutLoading(null)
-                return
+                // estimativa recusada (expirou, endereço mudou…): a revisão busca outra e MOSTRA o valor antes de confirmar de novo
+                return { estimateRejected: err instanceof CreateStoreOrderError && isEstimateRejection(err.hint) }
             }
             const orderData = { id: created.orderId, created_at: new Date().toISOString() }
             finalTotal = created.totalAmount
@@ -1036,7 +1053,7 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                         whatsapp = owner?.whatsapp
                     }
                     if (whatsapp && storeForWa?.whatsapp_orders_enabled !== false) {
-                        const paymentLabel = paymentOpt === 'pix' ? 'PIX' : paymentOpt === 'cartao' ? 'Cartão' : 'Dinheiro'
+                        const paymentLabel = isV2Order ? 'A combinar após a loja aceitar' : paymentOpt === 'pix' ? 'PIX' : paymentOpt === 'cartao' ? 'Cartão' : 'Dinheiro'
                         const deliveryLabel = deliveryOpt === 'entrega'
                             ? `Entrega (${address})${deliveryFee > 0 ? ` - Taxa: R$ ${deliveryFee.toFixed(2)}` : ' - Grátis'}`
                             : 'Retirada no Balcão'
@@ -1076,7 +1093,7 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                 })),
             }])
 
-            toast.success('Pedido realizado com sucesso! 🎉')
+            toast.success(isV2Order ? 'Pedido enviado! Aguarde a loja aceitar.' : 'Pedido realizado com sucesso! 🎉')
         } catch (err: any) {
             console.error('[Checkout] Erro inesperado:', err)
             toast.error(`Erro inesperado: ${err?.message ?? 'Tente novamente.'}`)
@@ -1894,6 +1911,31 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                                                         {(deliveryOpt === 'entrega' && !deliveryLoc) ? 'Selecione o endereço' : 'Continuar'}
                                                     </button>
                                                 </div>
+                                            </>
+                                        ) : checkoutStep === 'payment' && isV2Flow(slug) && deliveryOpt === 'entrega' && config.id ? (
+                                            <>
+                                                <div className="flex items-center justify-between mb-3">
+                                                    <p className="text-[10px] font-black uppercase tracking-wider" style={{ color: '#f97316' }}>
+                                                        Etapa 2 de 2 · Revisão
+                                                    </p>
+                                                    <button
+                                                        onClick={() => setCheckoutStepByStore(prev => ({ ...prev, [slug]: null }))}
+                                                        className="p-1 rounded-full hover:bg-black/5 transition"
+                                                        style={{ color: colors.textSecondary }}
+                                                    >
+                                                        <X size={16} />
+                                                    </button>
+                                                </div>
+                                                <V2CheckoutReview
+                                                    storeId={config.id}
+                                                    itemsTotal={itemsTotal}
+                                                    address={deliveryLoc?.address || ''}
+                                                    lat={deliveryLoc?.lat ?? null}
+                                                    lng={deliveryLoc?.lng ?? null}
+                                                    submitting={checkoutLoading === slug}
+                                                    onBack={() => setCheckoutStepByStore(prev => ({ ...prev, [slug]: 'delivery' }))}
+                                                    onSubmit={(estimateId) => handleFinalizarLoja(slug, estimateId)}
+                                                />
                                             </>
                                         ) : checkoutStep === 'payment' ? (
                                             <>

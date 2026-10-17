@@ -4,7 +4,10 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
-import { createStoreOrder } from '@/lib/createStoreOrder'
+import { createStoreOrder, CreateStoreOrderError } from '@/lib/createStoreOrder'
+import { useCheckoutFlow } from '@/lib/useCheckoutFlow'
+import { isEstimateRejection } from '@/modules/delivery-estimate'
+import { V2CheckoutReview } from '@/components/DeliveryEstimate/V2CheckoutReview'
 import { Spinner } from '@/components/Spinner'
 import { useTheme } from '@/app/contexts/theme'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
@@ -698,6 +701,11 @@ export default function CatalogoClientPage() {
         setAuthLoading(false)
     }
 
+    // ===== CAMINHO V2 (entrega iUser com estimativa oficial) — desligado em produção =====
+    // O servidor decide (chave global E da loja); aqui só se escolhe a tela. Estimativa/validade: V2CheckoutReview (compartilhado).
+    const checkoutFlow = useCheckoutFlow(storeInfo?.id, currentUserId)
+    const isV2Delivery = checkoutFlow === 'v2' && deliveryOption === 'entrega'
+
     // ===== FUNÇÃO DE FINALIZAR COMPRA =====
     const calculateDeliveryFee = useCallback((): { fee: number; isCalculating: boolean } => {
         if (deliveryOption !== 'entrega' || !storeConfig) {
@@ -707,6 +715,8 @@ export default function CatalogoClientPage() {
         if (!deliveryLat || !deliveryLng) {
             return { fee: 0, isCalculating: true }
         }
+        // V2: o frete é a ESTIMATIVA oficial do servidor (etapa de revisão); nenhuma conta de frete no navegador
+        if (isV2Delivery) return { fee: 0, isCalculating: true }
 
         const dtype = storeConfig.delivery_type
         if (dtype === 'fixed') {
@@ -740,7 +750,7 @@ export default function CatalogoClientPage() {
             return { fee: dist * feePerKm, isCalculating: false }
         }
         return { fee: 0, isCalculating: false }
-    }, [deliveryOption, storeConfig, deliveryLat, deliveryLng])
+    }, [deliveryOption, storeConfig, deliveryLat, deliveryLng, isV2Delivery])
 
     const getStoreTotals = useCallback(() => {
         const items = cartItems
@@ -764,6 +774,10 @@ export default function CatalogoClientPage() {
     } => {
         if (!storeConfig || !storeConfig.accepts_delivery) {
             return { type: 'none', fee: 0, isEstimate: false, distanceKm: null, originAddress: null, destinationAddress: null, baseDistanceKm: null, baseFee: null, feePerKm: null }
+        }
+        // V2: o frete só aparece na etapa de revisão, vindo da estimativa oficial do servidor
+        if (checkoutFlow === 'v2') {
+            return { type: 'distance', fee: 0, isEstimate: true, distanceKm: null, originAddress: null, destinationAddress: null, baseDistanceKm: null, baseFee: null, feePerKm: null }
         }
 
         // Endereço de destino: o já escolhido no checkout, senão o salvo no perfil
@@ -802,9 +816,9 @@ export default function CatalogoClientPage() {
             return { type: 'distance', fee, isEstimate: false, distanceKm, originAddress, destinationAddress, baseDistanceKm: baseDist, baseFee, feePerKm }
         }
         return { type: 'none', fee: 0, isEstimate: false, distanceKm: null, originAddress: null, destinationAddress: null, baseDistanceKm: null, baseFee: null, feePerKm: null }
-    }, [storeConfig, deliveryLat, deliveryLng, userLocation, deliveryAddress, userAddress])
+    }, [storeConfig, deliveryLat, deliveryLng, userLocation, deliveryAddress, userAddress, checkoutFlow])
 
-    const handleFinalizeOrder = async () => {
+    const finalizeOrder = async (estimateId?: string): Promise<{ estimateRejected?: boolean } | void> => {
         if (!currentUserId) {
             setCheckoutStep('auth')
             return
@@ -842,9 +856,13 @@ export default function CatalogoClientPage() {
             return
         }
 
-        if (!paymentMethod) {
+        if (!paymentMethod && !isV2Delivery) {
             toast.error('Escolha a forma de pagamento')
             setCheckoutStep('payment')
+            return
+        }
+        if (isV2Delivery && !estimateId) {
+            toast.error('Aguarde o cálculo da entrega para enviar o pedido')
             return
         }
 
@@ -861,7 +879,8 @@ export default function CatalogoClientPage() {
                     storeId: storeInfo.id,
                     items: cartItems,
                     deliveryOption: deliveryOption as 'entrega' | 'retirada',
-                    paymentMethod: paymentMethod,
+                    paymentMethod: (paymentMethod ?? 'combinar') as string,
+                    estimateId: isV2Delivery ? estimateId : null,   // V2: createStoreOrder força 'entrega' + 'combinar'
                     address: address,
                     lat: deliveryOption === 'entrega' ? deliveryLat : null,
                     lng: deliveryOption === 'entrega' ? deliveryLng : null,
@@ -873,7 +892,8 @@ export default function CatalogoClientPage() {
                 console.error('[Checkout] Erro ao criar pedido:', err)
                 toast.error(err?.message || 'Erro ao criar pedido')
                 setCheckoutLoading(false)
-                return
+                // estimativa recusada (expirou, endereço mudou…): a revisão busca outra e MOSTRA o valor antes de confirmar de novo
+                return { estimateRejected: err instanceof CreateStoreOrderError && isEstimateRejection(err.hint) }
             }
             const orderData = { id: created.orderId }
             itemsTotal = created.itemsTotal
@@ -903,7 +923,7 @@ export default function CatalogoClientPage() {
                     whatsapp = owner?.whatsapp
                 }
                 if (whatsapp && storeData?.whatsapp_orders_enabled !== false) {
-                    const paymentLabel = paymentMethod === 'pix' ? 'PIX' : paymentMethod === 'cartao' ? 'Cartão' : 'Dinheiro'
+                    const paymentLabel = isV2Delivery ? 'A combinar após a loja aceitar' : paymentMethod === 'pix' ? 'PIX' : paymentMethod === 'cartao' ? 'Cartão' : 'Dinheiro'
                     const deliveryLabel = deliveryOption === 'entrega'
                         ? `Entrega (${address})${deliveryFee > 0 ? ` - Taxa: R$ ${deliveryFee.toFixed(2)}` : ' - Grátis'}`
                         : 'Retirada no Balcão'
@@ -923,7 +943,7 @@ export default function CatalogoClientPage() {
                 console.warn('[Checkout] Falha ao abrir WhatsApp:', waErr)
             }
 
-            toast.success('Pedido realizado com sucesso! 🎉')
+            toast.success(isV2Delivery ? 'Pedido enviado! Aguarde a loja aceitar.' : 'Pedido realizado com sucesso! 🎉')
             setIsBagExpanded(false)
             setCheckoutStep(null)
             setCheckoutLoading(false)
@@ -934,6 +954,9 @@ export default function CatalogoClientPage() {
             setCheckoutLoading(false)
         }
     }
+    // onClick={handleFinalizeOrder} passa o evento como 1º argumento: o caminho V1 não recebe parâmetros
+    const handleFinalizeOrder = () => finalizeOrder()
+    const submitV2Order = (estimateId: string) => finalizeOrder(estimateId)
 
     const getStoreStatus = useCallback(() => {
         if (!storeConfig || !storeConfig.business_hours) {
@@ -1675,6 +1698,22 @@ export default function CatalogoClientPage() {
                                                 'Continuar'}
                                     </button>
                                 </div>
+                            </>
+                        ) : checkoutStep === 'payment' && isV2Delivery && storeInfo ? (
+                            <>
+                                <p className="mb-3 text-[10px] font-black uppercase tracking-wider" style={{ color: '#f97316' }}>
+                                    Etapa 2 de 2 · Revisão
+                                </p>
+                                <V2CheckoutReview
+                                    storeId={storeInfo.id}
+                                    itemsTotal={getStoreTotals().itemsTotal}
+                                    address={deliveryAddress}
+                                    lat={deliveryLat}
+                                    lng={deliveryLng}
+                                    submitting={checkoutLoading}
+                                    onBack={() => setCheckoutStep('delivery')}
+                                    onSubmit={submitV2Order}
+                                />
                             </>
                         ) : checkoutStep === 'payment' ? (
                             <>

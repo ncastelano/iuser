@@ -39,6 +39,11 @@ export async function createStoreOrder(params: {
     /** Só no caminho V2: id da estimativa oficial já mostrada ao cliente. A versão do fluxo NUNCA é enviada. */
     estimateId?: string | null
 }): Promise<CreatedStoreOrder> {
+    // Caminho V2 (com estimativa): ninguém paga agora, o pedido só vai para a loja decidir. Estas duas regras ficam AQUI para
+    // que os três caminhos de checkout (produto, catálogo, carrinho) enviem exatamente a mesma coisa.
+    const isV2 = !!params.estimateId
+    const deliveryOption = isV2 ? 'entrega' : params.deliveryOption
+    const paymentMethod = isV2 ? 'combinar' : params.paymentMethod
     const { data, error } = await supabase.rpc('create_store_order', {
         p_store_id: params.storeId,
         p_items: params.items.map((i) => ({
@@ -47,8 +52,8 @@ export async function createStoreOrder(params: {
             comment: i.comment || null,
             addons: (i.addons || []).map((a) => ({ id: a.id })),
         })),
-        p_delivery_option: params.deliveryOption,
-        p_payment_method: params.paymentMethod,
+        p_delivery_option: deliveryOption,
+        p_payment_method: paymentMethod,
         p_address: params.address ?? null,
         p_lat: params.lat ?? null,
         p_lng: params.lng ?? null,

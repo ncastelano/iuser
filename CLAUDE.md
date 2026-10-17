@@ -120,7 +120,19 @@ Valor #1 do novo fluxo = **estimativa inicial** (`delivery_estimates` + `order_d
 - **Aceite da loja** (`pending → preparing`, gatilho `orders_start_delivery_on_accept` → `_start_order_delivery_dispatch`): V2 cria a corrida e a entrega (`flow_version=2`, fase `PROCURANDO_ENTREGADOR`, `estimate_id`, `estimated_freight` imutável) e **falha visível** (o aceite não passa sem entrega); V1 segue engolindo erro como antes. **Recusa** (`rejected`) e cancelamento do cliente antes do aceite não criam corrida, obrigação nem pagamento. `dispatch_flow_gate` só permite entrega V2 vinda de pedido V2 com estimativa.
 - Auditoria: `order_delivery_events.estimate_recorded` leva `order_id`, `estimate_id`, `estimated_freight`, `calculation_version` e o snapshot (sem endereço); `phase_change` NULL→PROCURANDO_ENTREGADOR marca o início da busca.
 - **Modo de teste seguro:** `supabase/tests/order_v2_scenarios.sql` roda numa transação desfeita que remove os CHECKs e liga as chaves só ali; nada de flag/URL/cookie no app. Aceite concorrente real: `supabase/tests/concurrent_accept.py`.
-- Telas: o caminho V2 do checkout (`useStoreCheckout` → `v2`, `V2OrderReview` com "Enviar pedido") só aparece quando o servidor responde `v2`. **Antes de ligar o V2 para qualquer loja**, `CatalogoClientPage` e `CarrinhoScreen` (que também chamam `createStoreOrder`) precisam do mesmo caminho: hoje, com a loja em V2, eles falham com `estimate_required`. Rollback: `supabase/rollbacks/etapa_2_4_rollback.sql`.
+- Telas (Etapa 2.4.1): **os três pontos que criam pedido de loja** — `useStoreCheckout` (página de produto), `CatalogoClientPage` e `CarrinhoScreen` — perguntam ao servidor o caminho (`useCheckoutFlow(s)` → `get_checkout_flow`) e, em `v2`, trocam a etapa de pagamento pela revisão compartilhada `V2CheckoutReview` (estimativa, validade, "Enviar pedido"). A regra "V2 = entrega + combinar + estimateId" mora só em `createStoreOrder`. Em V2 nenhuma conta de frete roda no navegador (`fee: 0, isCalculating: true` até a revisão). Endereço mudou → a estimativa cai na hora e outra é pedida e mostrada; venceu → aviso, valor novo na tela e novo toque para enviar; recusa do servidor (`estimate_*`) → idem. `npm run test:checkout-v2` varre o código e falha se um novo ponto de `createStoreOrder` não tiver o caminho V2. Rollback: `supabase/rollbacks/etapa_2_4_rollback.sql`.
+
+## Campos de frete — UMA fonte por conceito (Etapa 2.4.1)
+
+| Conceito | Fonte oficial | Observação |
+|---|---|---|
+| Estimativa inicial | `order_delivery_dispatches.estimated_freight` (+ `estimate_id` + snapshot) | imutável |
+| Oferta atual | `order_delivery_dispatches.final_freight` (valor vigente autorizado pelo cliente) | **nome legado, NÃO é o definitivo**; `ride_requests.offered_price` é só a projeção que o motorista vê (oferta − taxa), `order_delivery_rounds` é o histórico |
+| Frete aceito/congelado | `order_delivery_dispatches.frozen_freight` | NULL até o aceite do motorista; no aceite = oferta vigente; nunca muda (nem a oferta, no V2) |
+| `original_freight` | legado do V1 (âncora de `authorized_extra`) | no V2 só repete a estimativa; **não é fonte** |
+
+O cron de reajuste (`process_order_delivery_dispatches`) e as rodadas `increase/radius_only/driver_counter` só valem para `flow_version = 1`; o V2 só aceita a rodada `initial` até a etapa que reescreve a busca. Rollback: `supabase/rollbacks/etapa_2_4_1_rollback.sql`; teste: `supabase/tests/freight_semantics_scenarios.sql`.
+
 - Dívida técnica: `platform_tariffs` continua legível por usuários logados (o V1 calcula preço no navegador); alteração segue bloqueada. O V2 não depende dessa leitura. Rever quando o V1 for aposentado.
 
 ## Telemetria própria de Egress/Realtime — não mexer sem saber
