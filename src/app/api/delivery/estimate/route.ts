@@ -53,6 +53,7 @@ export async function POST(req: Request) {
         p_distance_m: distanceMeters,
         p_distance_source: source,
         p_destination_check: destinationCheck,
+        p_address: address,
     })
     if (error || !data) {
         const msg = error?.message || 'Não foi possível calcular a entrega'

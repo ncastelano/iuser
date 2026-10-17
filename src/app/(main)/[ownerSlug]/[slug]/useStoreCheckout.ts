@@ -8,7 +8,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase/client'
-import { createStoreOrder } from '@/lib/createStoreOrder'
+import { createStoreOrder, CreateStoreOrderError } from '@/lib/createStoreOrder'
+import { requestDeliveryEstimate } from '@/lib/deliveryEstimate'
+import { estimateKey, isEstimateRejection, isEstimateUsable, type DeliveryEstimate } from '@/modules/delivery-estimate'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { useCartStore, type CartItem, cartItemUnitPrice, cartItemLineTotal } from '@/store/useCartStore'
 import { isStoreOpenNow, getNextOpeningInfo, type BusinessHours } from '@/lib/storeHours'
@@ -289,10 +291,55 @@ export function useStoreCheckout(ownerSlug: string | undefined, cartItems: CartI
         toast.success('Endereço do perfil selecionado!')
     }
 
+    // ===== CAMINHO V2 (entrega iUser com estimativa oficial) — desligado em produção =====
+    // O servidor decide o caminho (chave global E da loja); aqui só se escolhe a tela. Com 'v1' nada abaixo faz nada.
+    const [checkoutFlow, setCheckoutFlow] = useState<'v1' | 'v2'>('v1')
+    useEffect(() => {
+        if (!storeConfig?.id || !currentUserId) { setCheckoutFlow('v1'); return }
+        let active = true
+        supabase.rpc('get_checkout_flow', { p_store: storeConfig.id }).then(({ data, error }) => {
+            if (active) setCheckoutFlow(!error && data === 'v2' ? 'v2' : 'v1')
+        })
+        return () => { active = false }
+    }, [storeConfig?.id, currentUserId])
+
+    const isV2Delivery = checkoutFlow === 'v2' && deliveryOption === 'entrega'
+    const currentEstimateKey = deliveryAddress.trim() && deliveryLat != null && deliveryLng != null
+        ? estimateKey(deliveryAddress, deliveryLat, deliveryLng) : null
+    const [v2Estimate, setV2Estimate] = useState<{ key: string; estimate: DeliveryEstimate } | null>(null)
+    const [v2EstimateLoading, setV2EstimateLoading] = useState(false)
+    const [v2EstimateError, setV2EstimateError] = useState<string | null>(null)
+    // estimativa só vale para o destino atual: mudou o endereço, a antiga deixa de valer na hora (nada é ajustado em silêncio)
+    const activeV2Estimate = isEstimateUsable(v2Estimate?.estimate ?? null, v2Estimate?.key ?? null, currentEstimateKey) ? v2Estimate!.estimate : null
+
+    const refreshV2Estimate = useCallback(async () => {
+        if (!storeConfig?.id || !currentEstimateKey || deliveryLat == null || deliveryLng == null) return
+        setV2EstimateLoading(true)
+        setV2EstimateError(null)
+        try {
+            const estimate = await requestDeliveryEstimate({ storeId: storeConfig.id, lat: deliveryLat, lng: deliveryLng, address: deliveryAddress })
+            setV2Estimate({ key: currentEstimateKey, estimate })
+        } catch (err: any) {
+            setV2Estimate(null)
+            setV2EstimateError(err?.message || 'Não foi possível calcular a entrega')
+        } finally {
+            setV2EstimateLoading(false)
+        }
+    }, [storeConfig?.id, currentEstimateKey, deliveryLat, deliveryLng, deliveryAddress])
+
+    useEffect(() => {
+        if (!isV2Delivery || !currentEstimateKey) return
+        if (v2Estimate?.key === currentEstimateKey && activeV2Estimate) return
+        refreshV2Estimate()
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isV2Delivery, currentEstimateKey])
+
     // ===== PREÇO =====
     const calculateDeliveryFee = useCallback((): { fee: number; isCalculating: boolean } => {
         if (deliveryOption !== 'entrega' || !storeConfig) return { fee: 0, isCalculating: false }
         if (!deliveryLat || !deliveryLng) return { fee: 0, isCalculating: true }
+        // V2: o frete é a ESTIMATIVA oficial do servidor; nenhuma conta de frete acontece no navegador
+        if (isV2Delivery) return { fee: activeV2Estimate?.estimatedFreight ?? 0, isCalculating: !activeV2Estimate }
 
         const dtype = storeConfig.delivery_type
         if (dtype === 'fixed') return { fee: Number(storeConfig.delivery_fee) || 0, isCalculating: false }
@@ -317,7 +364,7 @@ export function useStoreCheckout(ownerSlug: string | undefined, cartItems: CartI
             return { fee: dist * feePerKm, isCalculating: false }
         }
         return { fee: 0, isCalculating: false }
-    }, [deliveryOption, storeConfig, deliveryLat, deliveryLng])
+    }, [deliveryOption, storeConfig, deliveryLat, deliveryLng, isV2Delivery, activeV2Estimate])
 
     const getStoreTotals = useCallback(() => {
         const itemsTotal = cartItems.reduce((acc, item) => acc + cartItemLineTotal(item), 0)
@@ -394,9 +441,15 @@ export function useStoreCheckout(ownerSlug: string | undefined, cartItems: CartI
             setCheckoutStep('delivery')
             return
         }
-        if (!paymentMethod) {
+        if (!paymentMethod && !isV2Delivery) {
             toast.error('Escolha a forma de pagamento')
             setCheckoutStep('payment')
+            return
+        }
+
+        if (isV2Delivery && !activeV2Estimate) {
+            toast.error(v2EstimateError || 'Aguarde o cálculo da entrega para enviar o pedido')
+            if (!v2EstimateLoading) refreshV2Estimate()
             return
         }
 
@@ -412,7 +465,9 @@ export function useStoreCheckout(ownerSlug: string | undefined, cartItems: CartI
                     storeId: storeConfig.id,
                     items: cartItems,
                     deliveryOption: deliveryOption as 'entrega' | 'retirada',
-                    paymentMethod: paymentMethod,
+                    // V2: ninguém paga agora; o servidor grava 'combinar' e o pedido espera a decisão da loja
+                    paymentMethod: isV2Delivery ? 'combinar' : (paymentMethod as string),
+                    estimateId: isV2Delivery ? activeV2Estimate!.estimateId : null,
                     address: address,
                     lat: deliveryOption === 'entrega' ? deliveryLat : null,
                     lng: deliveryOption === 'entrega' ? deliveryLng : null,
@@ -423,6 +478,11 @@ export function useStoreCheckout(ownerSlug: string | undefined, cartItems: CartI
             } catch (err: any) {
                 console.error('[Checkout] Erro ao criar pedido:', err)
                 toast.error(err?.message || 'Erro ao criar pedido')
+                if (err instanceof CreateStoreOrderError && isEstimateRejection(err.hint)) {
+                    // estimativa recusada (expirou, endereço mudou…): busca outra e MOSTRA o valor antes de o cliente confirmar de novo
+                    setV2Estimate(null)
+                    refreshV2Estimate()
+                }
                 setCheckoutLoading(false)
                 return
             }
@@ -444,7 +504,7 @@ export function useStoreCheckout(ownerSlug: string | undefined, cartItems: CartI
                     whatsapp = owner?.whatsapp
                 }
                 if (whatsapp && storeData?.whatsapp_orders_enabled !== false) {
-                    const paymentLabel = paymentMethod === 'pix' ? 'PIX' : paymentMethod === 'cartao' ? 'Cartão' : 'Dinheiro'
+                    const paymentLabel = isV2Delivery ? 'A combinar após a loja aceitar' : paymentMethod === 'pix' ? 'PIX' : paymentMethod === 'cartao' ? 'Cartão' : 'Dinheiro'
                     const deliveryLabel = deliveryOption === 'entrega'
                         ? `Entrega (${address})${deliveryFee > 0 ? ` - Taxa: R$ ${deliveryFee.toFixed(2)}` : ' - Grátis'}`
                         : 'Retirada no Balcão'
@@ -464,7 +524,7 @@ export function useStoreCheckout(ownerSlug: string | undefined, cartItems: CartI
                 // melhor esforço - não bloqueia o pedido já criado
             }
 
-            toast.success('Pedido realizado com sucesso! 🎉')
+            toast.success(isV2Delivery ? 'Pedido enviado! Aguarde a loja aceitar.' : 'Pedido realizado com sucesso! 🎉')
             setCheckoutStep(null)
             setDeliveryOption(null)
             setPaymentMethod(null)
@@ -489,6 +549,7 @@ export function useStoreCheckout(ownerSlug: string | undefined, cartItems: CartI
         locationSearchQuery, setLocationSearchQuery, isSearchingLocation, searchLocation,
         userAddress, userLocation, useSavedAddress,
         getStoreTotals, bagDeliveryEstimate, handleFinalizeOrder,
+        v2: { active: isV2Delivery, estimate: activeV2Estimate, loading: v2EstimateLoading, error: v2EstimateError, refresh: refreshV2Estimate },
         currentUserId,
         authMode, setAuthMode, authEmail, setAuthEmail, authPassword, setAuthPassword,
         authConfirmPassword, setAuthConfirmPassword, authName, setAuthName,

@@ -46,6 +46,7 @@ import EditProductDialog from '@/components/EditProductDialog'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { trackProductView } from '@/lib/trackProductView'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
+import { V2OrderReview } from '@/components/DeliveryEstimate/V2OrderReview'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -775,7 +776,25 @@ export function ProductClientPage({
                 </div>
             )}
 
-            {showStoreCart && checkout.checkoutStep === 'payment' && (
+            {showStoreCart && checkout.checkoutStep === 'payment' && checkout.v2.active && (
+                <div className="px-4 pb-3 max-h-[70vh] overflow-y-auto">
+                    <p className="mb-3 text-[10px] font-black uppercase tracking-wider" style={{ color: '#f97316' }}>
+                        Etapa 2 de 2 · Revisão
+                    </p>
+                    <V2OrderReview
+                        itemsTotal={checkout.getStoreTotals().itemsTotal}
+                        estimate={checkout.v2.estimate}
+                        loading={checkout.v2.loading}
+                        error={checkout.v2.error}
+                        submitting={checkout.checkoutLoading}
+                        onBack={() => checkout.setCheckoutStep('delivery')}
+                        onSubmit={checkout.handleFinalizeOrder}
+                        onRetry={checkout.v2.refresh}
+                    />
+                </div>
+            )}
+
+            {showStoreCart && checkout.checkoutStep === 'payment' && !checkout.v2.active && (
                 <div className="px-4 pb-3 max-h-[70vh] overflow-y-auto">
                     <div className="flex items-center justify-between mb-3">
                         <p className="text-[10px] font-black uppercase tracking-wider" style={{ color: '#f97316' }}>

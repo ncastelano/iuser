@@ -84,3 +84,28 @@ export function estimateTotals(itemsTotal: number, estimatedFreight: number): { 
 export function formatBRLFromCents(cents: number): string {
     return `R$ ${(cents / 100).toFixed(2).replace('.', ',')}`
 }
+
+/** Texto do botão do caminho V2: o pedido só vai para a loja decidir; ninguém paga neste momento. */
+export const V2_SUBMIT_LABEL = 'Enviar pedido'
+
+/** Chave do destino de uma estimativa (mesma normalização do servidor: minúsculas, espaços únicos, coordenadas exatas). */
+export function estimateKey(address: string, lat: number, lng: number): string {
+    return `${address.trim().replace(/\s+/g, ' ').toLowerCase()}|${lat}|${lng}`
+}
+
+/** A estimativa em mãos ainda serve para ESTE destino e não expirou? (o servidor revalida tudo no pedido) */
+export function isEstimateUsable(est: { expiresAt: string } | null, savedKey: string | null, currentKey: string | null, now = Date.now()): boolean {
+    if (!est || !savedKey || !currentKey || savedKey !== currentKey) return false
+    const exp = Date.parse(est.expiresAt)
+    return Number.isFinite(exp) && exp > now
+}
+
+/** Códigos (HINT) que o servidor devolve quando recusa a estimativa; todos pedem uma estimativa NOVA, mostrada ao cliente antes de confirmar. */
+export const ESTIMATE_REJECTION_CODES = [
+    'estimate_required', 'estimate_invalid', 'estimate_used', 'estimate_replaced', 'estimate_expired',
+    'estimate_unverified', 'estimate_address_changed',
+] as const
+
+export function isEstimateRejection(hint: unknown): boolean {
+    return typeof hint === 'string' && (ESTIMATE_REJECTION_CODES as readonly string[]).includes(hint)
+}

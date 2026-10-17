@@ -44,3 +44,30 @@ test('resposta pública traz só o necessário e a mensagem deixa claro que é e
     assert.match(ESTIMATE_MESSAGE, /poderá ser ajustado/)
     assert.match(ESTIMATE_MESSAGE, /valor final antes do pagamento/)
 })
+
+import { estimateKey, isEstimateUsable, isEstimateRejection, V2_SUBMIT_LABEL } from '../src/modules/delivery-estimate/domain.ts'
+
+test('chave do destino ignora caixa e espaços, mas muda com o endereço ou as coordenadas', () => {
+    const k = estimateKey('Rua  Dom Pedro II, 800 ', -8.76, -63.9)
+    assert.equal(k, estimateKey('rua dom pedro ii, 800', -8.76, -63.9))
+    assert.notEqual(k, estimateKey('Rua Dom Pedro II, 801', -8.76, -63.9))
+    assert.notEqual(k, estimateKey('Rua Dom Pedro II, 800', -8.7601, -63.9))
+})
+
+test('estimativa só serve para o mesmo destino e antes de expirar', () => {
+    const now = Date.parse('2026-10-16T12:00:00Z')
+    const est = { expiresAt: '2026-10-16T12:30:00Z' }
+    assert.equal(isEstimateUsable(est, 'a', 'a', now), true)
+    assert.equal(isEstimateUsable(est, 'a', 'b', now), false)                       // endereço mudou
+    assert.equal(isEstimateUsable(est, 'a', 'a', Date.parse('2026-10-16T12:31:00Z')), false)   // expirou
+    assert.equal(isEstimateUsable(null, 'a', 'a', now), false)
+    assert.equal(isEstimateUsable(est, 'a', null, now), false)
+})
+
+test('códigos de recusa pedem estimativa nova; botão não fala em pagamento', () => {
+    for (const c of ['estimate_expired', 'estimate_address_changed', 'estimate_used', 'estimate_invalid']) assert.equal(isEstimateRejection(c), true)
+    assert.equal(isEstimateRejection('outro'), false)
+    assert.equal(isEstimateRejection(undefined), false)
+    assert.equal(V2_SUBMIT_LABEL, 'Enviar pedido')
+    assert.doesNotMatch(V2_SUBMIT_LABEL, /pag|confirm/i)
+})

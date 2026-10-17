@@ -13,6 +13,16 @@ export interface CreatedStoreOrder {
     discount: number
     deliveryFee: number
     totalAmount: number
+    flowVersion: 1 | 2
+}
+
+/** Erro do servidor com o código (hint) que explica a recusa, ex.: estimate_expired. */
+export class CreateStoreOrderError extends Error {
+    hint?: string
+    constructor(message: string, hint?: string) {
+        super(message)
+        this.hint = hint
+    }
 }
 
 export async function createStoreOrder(params: {
@@ -26,6 +36,8 @@ export async function createStoreOrder(params: {
     cashChangeFor?: number | null
     cardIsContactless?: boolean | null
     discountCode?: string | null
+    /** Só no caminho V2: id da estimativa oficial já mostrada ao cliente. A versão do fluxo NUNCA é enviada. */
+    estimateId?: string | null
 }): Promise<CreatedStoreOrder> {
     const { data, error } = await supabase.rpc('create_store_order', {
         p_store_id: params.storeId,
@@ -44,8 +56,9 @@ export async function createStoreOrder(params: {
         p_card_is_contactless: params.cardIsContactless ?? null,
         p_discount_code: params.discountCode || null,
         p_checkout_id: crypto.randomUUID(),
+        ...(params.estimateId ? { p_estimate_id: params.estimateId } : {}),
     })
-    if (error || !data) throw new Error(error?.message || 'Erro ao criar pedido')
+    if (error || !data) throw new CreateStoreOrderError(error?.message || 'Erro ao criar pedido', error?.hint || undefined)
     const d = data as Record<string, any>
     return {
         orderId: d.order_id,
@@ -54,5 +67,6 @@ export async function createStoreOrder(params: {
         discount: Number(d.discount),
         deliveryFee: Number(d.delivery_fee),
         totalAmount: Number(d.total_amount),
+        flowVersion: Number(d.flow_version) === 2 ? 2 : 1,
     }
 }
