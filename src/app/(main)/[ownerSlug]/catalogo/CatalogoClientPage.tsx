@@ -4,6 +4,7 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
+import { createStoreOrder } from '@/lib/createStoreOrder'
 import { Spinner } from '@/components/Spinner'
 import { useTheme } from '@/app/contexts/theme'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
@@ -850,61 +851,34 @@ export default function CatalogoClientPage() {
         setCheckoutLoading(true)
 
         try {
-            const { itemsTotal, deliveryFee, finalTotal } = getStoreTotals()
-            const checkout_id = crypto.randomUUID()
+            let { itemsTotal, deliveryFee, finalTotal } = getStoreTotals()
             const address = deliveryOption === 'entrega' ? deliveryAddress : 'Retirada no local'
 
-            const { data: orderData, error: orderError } = await supabase
-                .from('orders')
-                .insert({
-                    store_id: storeInfo.id,
-                    buyer_id: currentUserId,
-                    buyer_name: (currentUserName || 'Cliente').trim(),
-                    buyer_profile_slug: (currentUserSlug || currentUserId).trim(),
-                    total_amount: finalTotal,
-                    delivery_fee: deliveryFee,
-                    delivery_option: deliveryOption,
-                    payment_method: paymentMethod,
-                    delivery_address: address,
-                    delivery_lat: deliveryOption === 'entrega' ? deliveryLat : null,
-                    delivery_lng: deliveryOption === 'entrega' ? deliveryLng : null,
-                    cash_change_for: paymentMethod === 'dinheiro' && cashChangeFor.trim() ? Number(cashChangeFor.replace(',', '.')) : null,
-                    card_is_contactless: paymentMethod === 'cartao' ? cardIsContactless : null,
-                    status: 'pending',
-                    checkout_id,
+            let created: Awaited<ReturnType<typeof createStoreOrder>>
+            try {
+                // Preços, adicionais, frete, desconto, total e status inicial são calculados pelo servidor
+                created = await createStoreOrder({
+                    storeId: storeInfo.id,
+                    items: cartItems,
+                    deliveryOption: deliveryOption as 'entrega' | 'retirada',
+                    paymentMethod: paymentMethod,
+                    address: address,
+                    lat: deliveryOption === 'entrega' ? deliveryLat : null,
+                    lng: deliveryOption === 'entrega' ? deliveryLng : null,
+                    cashChangeFor: paymentMethod === 'dinheiro' && cashChangeFor.trim() ? Number(cashChangeFor.replace(',', '.')) : null,
+                    cardIsContactless: paymentMethod === 'cartao' ? cardIsContactless : null,
+                    discountCode: null,
                 })
-                .select()
-                .single()
-
-            if (orderError) {
-                console.error('[Checkout] Erro ao inserir order:', orderError)
-                toast.error(`Erro ao criar pedido: ${orderError.message}`)
+            } catch (err: any) {
+                console.error('[Checkout] Erro ao criar pedido:', err)
+                toast.error(err?.message || 'Erro ao criar pedido')
                 setCheckoutLoading(false)
                 return
             }
-
-            const orderItemsToInsert = cartItems.map((item) => ({
-                order_id: orderData.id,
-                product_id: item.product.id,
-                product_name: item.product.name,
-                quantity: item.quantity,
-                unit_price: cartItemUnitPrice(item),
-                total_price: cartItemLineTotal(item),
-                comment: item.comment || null,
-                addons: item.addons && item.addons.length > 0 ? item.addons : null,
-            }))
-
-            const { error: itemsError } = await supabase
-                .from('order_items')
-                .insert(orderItemsToInsert)
-
-            if (itemsError) {
-                console.error('[Checkout] Erro ao inserir order_items:', itemsError)
-                await supabase.from('orders').delete().eq('id', orderData.id)
-                toast.error(`Erro ao salvar itens: ${itemsError.message}`)
-                setCheckoutLoading(false)
-                return
-            }
+            const orderData = { id: created.orderId }
+            itemsTotal = created.itemsTotal
+            deliveryFee = created.deliveryFee
+            finalTotal = created.totalAmount
 
             // Limpa o carrinho - CORREÇÃO: verifica se ownerSlug existe
             if (ownerSlug) {

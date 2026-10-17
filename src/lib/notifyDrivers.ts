@@ -101,7 +101,11 @@ export async function notifyDriversOfRide(ride: {
     await loadPlatformTariffs(supabaseAdmin)
     const pricingByDriver = new Map((pricingRows || []).map((p) => [p.driver_id as string, p]))
 
-    const short = (a: string) => a.split(',')[0]
+    // O aviso a quem ainda não aceitou usa só a região (bairro) de ride_offers, nunca o endereço completo
+    const { data: offer } = await supabaseAdmin.from('ride_offers').select('origin_address, destination_address').eq('id', ride.id).maybeSingle()
+    const short = (a: string | null | undefined) => (a || 'Região aproximada').split(',')[0]
+    const originText = short(offer?.origin_address)
+    const destinationText = short(offer?.destination_address)
     const priceText = ride.offered_price != null ? ` · Frete R$ ${Number(ride.offered_price).toFixed(2)}` : ''
     const results = await Promise.allSettled(
         eligible.map((id) => {
@@ -109,7 +113,7 @@ export async function notifyDriversOfRide(ride: {
             const tariffs = fullRide && pricing ? computeRideTariffs(fullRide as Parameters<typeof computeRideTariffs>[0], pricing as Parameters<typeof computeRideTariffs>[1]) : null
             return sendPushToUser(id, {
                 title: callerLabel && id === ride.preferred_driver_id ? `${callerLabel} chamou você!` : 'Nova corrida disponível!',
-                body: `${short(ride.origin_address)} → ${short(ride.destination_address)}${priceText}`,
+                body: `${originText} → ${destinationText}${priceText}`,
                 url: `/aceitar-corridas/mapa?ride=${ride.id}`,
                 tag: `new-ride-${ride.id}`,
                 urgent: true,

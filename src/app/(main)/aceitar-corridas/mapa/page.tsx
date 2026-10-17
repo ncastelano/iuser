@@ -156,6 +156,8 @@ interface AcceptedRideMapDetail {
     duration_min: number | null
 }
 
+// Só as colunas que a oferta pública tem (sem etapas do motorista, que só existem depois do aceite)
+const PREVIEW_RIDE_SELECT = 'id, vehicle_type, origin_address, destination_address, origin_lat, origin_lng, destination_lat, destination_lng, stop1_address, stop1_lat, stop1_lng, stop2_address, stop2_lat, stop2_lng, distance_km, duration_min'
 const ACCEPTED_RIDE_SELECT = 'id, vehicle_type, origin_address, destination_address, origin_lat, origin_lng, destination_lat, destination_lng, stop1_address, stop1_lat, stop1_lng, stop1_reached_at, stop2_address, stop2_lat, stop2_lng, stop2_reached_at, driver_en_route, driver_arrived_at, ride_started_at, distance_km, duration_min'
 
 // Mesmas colunas do card de /aceitar-corridas (quem pediu, o que leva, pagamento...).
@@ -276,7 +278,8 @@ function AceitarCorridasMapaContent() {
     const load = async () => {
         if (!userId) return
         const rideQuery = isPreview
-            ? supabase.from('ride_requests').select(ACCEPTED_RIDE_SELECT).eq('id', previewRideId as string).maybeSingle()
+            // Prévia de uma corrida ainda aberta: vem de ride_offers (sem dados pessoais e com destino aproximado)
+            ? supabase.from('ride_offers').select(PREVIEW_RIDE_SELECT).eq('id', previewRideId as string).maybeSingle()
             : supabase
                 .from('ride_requests')
                 .select(ACCEPTED_RIDE_SELECT)
@@ -314,12 +317,12 @@ function AceitarCorridasMapaContent() {
         if (!isPreview || !userId || !previewRideId) return
         let cancelled = false
         ;(async () => {
-            const { data: rideRow } = await supabase.from('ride_requests').select(OFFER_SELECT).eq('id', previewRideId).maybeSingle()
+            const { data: rideRow } = await supabase.from('ride_offers').select(OFFER_SELECT + ', requester_first_name').eq('id', previewRideId).maybeSingle()
             if (!rideRow || cancelled) return
-            const r = rideRow as unknown as OfferRide & { requester_id: string; store_id: string | null }
+            const r = rideRow as unknown as OfferRide & { requester_id: string | null; requester_first_name?: string | null; store_id: string | null }
             const [{ data: profile }, ratings, { data: pricing }, storeRes] = await Promise.all([
-                supabase.from('profiles').select('name, profileSlug, avatar_url').eq('id', r.requester_id).maybeSingle(),
-                getProfileRideRatingsBatch(supabase, [r.requester_id]),
+                r.requester_id ? supabase.from('profiles').select('name, profileSlug, avatar_url').eq('id', r.requester_id).maybeSingle() : Promise.resolve({ data: null }),
+                r.requester_id ? getProfileRideRatingsBatch(supabase, [r.requester_id]) : Promise.resolve(new Map()),
                 supabase
                     .from('driver_pricing')
                     .select('pricing_mode, base_distance_km, base_fee, price_per_km_after_base, extra_fee_pessoa, extra_fee_animal, extra_fee_objeto, extra_fee_condominio, extra_fee_compras, extra_fee_necessidade_especial, extra_fee_pet_sem_caixa, extra_fee_entrega_interna, extra_fee_ar_condicionado')
@@ -336,11 +339,11 @@ function AceitarCorridasMapaContent() {
             setOffer({
                 ride: r,
                 requester: {
-                    id: r.requester_id,
-                    name: profile?.name || null,
+                    id: r.requester_id as string,
+                    name: profile?.name || r.requester_first_name || null,
                     slug: profile?.profileSlug || null,
                     avatarUrl: getAvatarUrl(supabase, profile?.avatar_url),
-                    rating: ratings.get(r.requester_id) || { avg: 0, count: 0 },
+                    rating: (r.requester_id && ratings.get(r.requester_id)) || { avg: 0, count: 0 },
                 },
                 storeName: (storeRes.data as { name: string } | null)?.name || null,
                 platformPrice,
@@ -728,7 +731,8 @@ function AceitarCorridasMapaContent() {
                     return
                 }
                 try {
-                    const { error } = await supabase.from('ride_requests').update({ status: 'completed' }).eq('id', acceptedRide.id)
+                    // Concluir é uma operação do servidor (confere motorista, corrida iniciada e chegada ao destino)
+                    const { error } = await supabase.rpc('complete_ride', { p_ride: acceptedRide.id, p_lat: pos.coords.latitude, p_lng: pos.coords.longitude })
                     if (error) throw error
                     notifyRideStatus(acceptedRide.id, 'completed')
                     toast.success('Corrida concluída!')

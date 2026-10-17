@@ -149,11 +149,8 @@ export default function MinhasCorridasPage() {
                 if (!user) { setFinishingId(null); return }
 
                 try {
-                    const { error } = await supabase
-                        .from('ride_requests')
-                        .update({ status: 'completed' })
-                        .eq('id', ride.id)
-                        .eq('driver_id', user.id)
+                    // Concluir é uma operação do servidor (confere motorista, corrida iniciada e chegada ao destino)
+                    const { error } = await supabase.rpc('complete_ride', { p_ride: ride.id, p_lat: pos.coords.latitude, p_lng: pos.coords.longitude })
                     if (error) throw error
                     toast.success('Corrida finalizada!')
                     notifyRideStatus(ride.id, 'completed')

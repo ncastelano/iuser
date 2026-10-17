@@ -22,7 +22,7 @@ import {
     ChevronDown,
     ChevronUp,
 } from 'lucide-react'
-import { validateCampaignCode, calculateCampaignDiscountAmount, consumeCampaignCode, type CampaignDiscount } from '@/lib/campaignRedemption'
+import { validateCampaignCode, calculateCampaignDiscountAmount, type CampaignDiscount } from '@/lib/campaignRedemption'
 import { usePersistedExpanded } from '@/hooks/usePersistedExpanded'
 
 interface Product {
@@ -159,47 +159,20 @@ export default function ButtonInPersonSale({
         }
         setLoading(true)
         try {
-            const checkoutId = crypto.randomUUID()
             const finalBuyerName = buyerName.trim() || 'Cliente presencial'
 
-            const { data: orderData, error: orderError } = await supabase
-                .from('orders')
-                .insert({
-                    checkout_id: checkoutId,
-                    store_id: storeId,
-                    buyer_name: finalBuyerName,
-                    buyer_profile_slug: '',
-                    total_amount: totalAmount,
-                    delivery_fee: 0,
-                    delivery_option: 'pickup',
-                    payment_method: paymentMethod,
-                    delivery_address: '',
-                    delivery_lat: null,
-                    delivery_lng: null,
-                    status: 'paid',
-                })
-                .select('id')
-                .single()
+            // Preço dos produtos, desconto do Club VIP e total são calculados pelo servidor (só o dono da loja registra)
+            const { data: sale, error: saleError } = await supabase.rpc('create_in_person_sale', {
+                p_store_id: storeId,
+                p_items: cart.map((item) => ({ product_id: item.product.id, quantity: item.quantity })),
+                p_buyer_name: finalBuyerName,
+                p_payment_method: paymentMethod,
+                p_discount_code: appliedDiscount ? redemptionCode.trim() : null,
+            })
+            if (saleError) throw saleError
+            const finalTotal = Number((sale as Record<string, any>)?.total_amount ?? totalAmount)
 
-            if (orderError) throw orderError
-
-            const items = cart.map(item => ({
-                order_id: orderData.id,
-                product_id: item.product.id,
-                product_name: item.product.name,
-                quantity: item.quantity,
-                unit_price: item.product.price,
-                total_price: item.product.price * item.quantity,
-            }))
-
-            const { error: itemsError } = await supabase.from('order_items').insert(items)
-            if (itemsError) throw itemsError
-
-            if (appliedDiscount) {
-                await consumeCampaignCode(redemptionCode.trim(), orderData.id, 'in_person')
-            }
-
-            toast.success(`Venda de R$ ${totalAmount.toFixed(2)} finalizada!`)
+            toast.success(`Venda de R$ ${finalTotal.toFixed(2)} finalizada!`)
             setCart([])
             setBuyerName('')
             setPaymentMethod('dinheiro')

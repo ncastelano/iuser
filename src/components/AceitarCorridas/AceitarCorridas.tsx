@@ -622,10 +622,10 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
         const appliedIds = new Set(myApplications.map((a) => a.ride_request_id))
 
         let openRidesQuery = supabase
-            .from('ride_requests')
-            .select('id, requester_id, ride_type, origin_address, destination_address, origin_complement, destination_complement, notes, passenger_count, vehicle_type, object_description, object_is_sensitive, pet_description, has_child, children_count, child_age, child_needs_car_seat, has_shopping, bag_count, has_extra_object, extra_object_description, has_pet, pet_weight_range, pet_has_carrier, has_special_needs, special_needs_description, special_needs_wheelchair, special_needs_wheelchair_type, special_needs_visual_impairment, has_guide_dog, delivery_location, payment_method, cash_change_for, card_is_contactless, origin_needs_access, origin_access_notes, destination_needs_access, destination_access_notes, grocery_bag_size, wants_air_conditioning, distance_km, duration_min, scheduled_for, created_at, origin_lat, origin_lng, destination_lat, destination_lng, stop1_address, stop1_complement, stop1_lat, stop1_lng, stop2_address, stop2_complement, stop2_lat, stop2_lng, offered_price, order_id, store_id, visible_radius_km, preferred_driver_id')
+            .from('ride_offers')
+            .select('id, requester_id, ride_type, origin_address, destination_address, origin_complement, destination_complement, notes, passenger_count, vehicle_type, object_description, object_is_sensitive, pet_description, has_child, children_count, child_age, child_needs_car_seat, has_shopping, bag_count, has_extra_object, extra_object_description, has_pet, pet_weight_range, pet_has_carrier, has_special_needs, special_needs_description, special_needs_wheelchair, special_needs_wheelchair_type, special_needs_visual_impairment, has_guide_dog, delivery_location, payment_method, cash_change_for, card_is_contactless, origin_needs_access, origin_access_notes, destination_needs_access, destination_access_notes, grocery_bag_size, wants_air_conditioning, distance_km, duration_min, scheduled_for, created_at, origin_lat, origin_lng, destination_lat, destination_lng, stop1_address, stop1_complement, stop1_lat, stop1_lng, stop2_address, stop2_complement, stop2_lat, stop2_lng, offered_price, order_id, store_id, visible_radius_km, preferred_driver_id, requester_first_name')
             .eq('status', 'pending')
-        if (contextUserId) openRidesQuery = openRidesQuery.neq('requester_id', contextUserId)
+        // ride_offers já esconde as corridas do próprio motorista (policy) e não mostra quem pediu antes do aceite
         const { data: openRides } = await openRidesQuery
             .order('scheduled_for', { ascending: true, nullsFirst: true })
             .order('created_at', { ascending: false })
@@ -638,7 +638,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
         const countById = new Map<string, number>()
         if (candidateRides.length > 0) {
             const { data: counts } = await supabase
-                .from('ride_requests')
+                .from('ride_offers')
                 .select('id, applicant_count')
                 .in('id', candidateRides.map((r) => r.id))
             for (const c of counts || []) countById.set(c.id, c.applicant_count as number)
@@ -656,14 +656,14 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
         let myRideRows: Omit<RideRow, 'applicant_count'>[] = []
         if (myApplications.length > 0) {
             const { data } = await supabase
-                .from('ride_requests')
-                .select('id, requester_id, ride_type, origin_address, destination_address, origin_complement, destination_complement, notes, passenger_count, vehicle_type, object_description, object_is_sensitive, pet_description, has_child, children_count, child_age, child_needs_car_seat, has_shopping, bag_count, has_extra_object, extra_object_description, has_pet, pet_weight_range, pet_has_carrier, has_special_needs, special_needs_description, special_needs_wheelchair, special_needs_wheelchair_type, special_needs_visual_impairment, has_guide_dog, delivery_location, payment_method, cash_change_for, card_is_contactless, origin_needs_access, origin_access_notes, destination_needs_access, destination_access_notes, grocery_bag_size, wants_air_conditioning, distance_km, duration_min, scheduled_for, created_at, origin_lat, origin_lng, destination_lat, destination_lng, stop1_address, stop1_complement, stop1_lat, stop1_lng, stop2_address, stop2_complement, stop2_lat, stop2_lng, offered_price, order_id, store_id')
+                .from('ride_offers')
+                .select('id, requester_id, ride_type, origin_address, destination_address, origin_complement, destination_complement, notes, passenger_count, vehicle_type, object_description, object_is_sensitive, pet_description, has_child, children_count, child_age, child_needs_car_seat, has_shopping, bag_count, has_extra_object, extra_object_description, has_pet, pet_weight_range, pet_has_carrier, has_special_needs, special_needs_description, special_needs_wheelchair, special_needs_wheelchair_type, special_needs_visual_impairment, has_guide_dog, delivery_location, payment_method, cash_change_for, card_is_contactless, origin_needs_access, origin_access_notes, destination_needs_access, destination_access_notes, grocery_bag_size, wants_air_conditioning, distance_km, duration_min, scheduled_for, created_at, origin_lat, origin_lng, destination_lat, destination_lng, stop1_address, stop1_complement, stop1_lat, stop1_lng, stop2_address, stop2_complement, stop2_lat, stop2_lng, offered_price, order_id, store_id, requester_first_name')
                 .in('id', myApplications.map((a) => a.ride_request_id))
                 .eq('status', 'pending')
             myRideRows = data || []
         }
 
-        const requesterIds = Array.from(new Set([...openList, ...myRideRows].map((r) => r.requester_id)))
+        const requesterIds = Array.from(new Set([...openList, ...myRideRows].map((r) => r.requester_id).filter(Boolean))) as string[]
         const [{ data: profiles }, ratingsMap] = requesterIds.length > 0
             ? await Promise.all([
                 supabase.from('profiles').select('id, name, profileSlug, avatar_url').in('id', requesterIds),
@@ -708,7 +708,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
             const suggestedPrice = r.offered_price != null ? Number(r.offered_price) : priceWith(pricingShape)
             return {
                 ...r,
-                requesterName: p?.name || null,
+                requesterName: p?.name || (r as any).requester_first_name || null,
                 requesterSlug: p?.profileSlug || null,
                 requesterAvatarUrl: getAvatarUrl(supabase, p?.avatar_url),
                 requesterRating: ratingsMap.get(r.requester_id) || { avg: 0, count: 0 },
@@ -728,7 +728,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
             return {
                 ...r,
                 applicant_count: 0,
-                requesterName: p?.name || null,
+                requesterName: p?.name || (r as any).requester_first_name || null,
                 requesterSlug: p?.profileSlug || null,
                 requesterAvatarUrl: getAvatarUrl(supabase, p?.avatar_url),
                 requesterRating: ratingsMap.get(r.requester_id) || { avg: 0, count: 0 },
@@ -855,7 +855,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
     useEffect(() => {
         const channel = supabase
             .channel('aceitar-corridas-new-rides')
-            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'ride_requests' }, () => { load() })
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'ride_offers' }, () => { load() })
             .subscribe()
         return () => { supabase.removeChannel(channel) }
     }, [load])
@@ -1261,11 +1261,8 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                 if (!user) { setFinishing(false); return }
 
                 try {
-                    const { error } = await supabase
-                        .from('ride_requests')
-                        .update({ status: 'completed' })
-                        .eq('id', acceptedRide.id)
-                        .eq('driver_id', user.id)
+                    // Concluir é uma operação do servidor (confere motorista, corrida iniciada e chegada ao destino)
+                    const { error } = await supabase.rpc('complete_ride', { p_ride: acceptedRide.id, p_lat: pos.coords.latitude, p_lng: pos.coords.longitude })
                     if (error) throw error
                     toast.success('Corrida finalizada!')
                     playNotificationSound('completed')

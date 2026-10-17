@@ -4,7 +4,7 @@
 import { useCartStore, cartItemUnitPrice, cartItemLineTotal, lineKey } from '@/store/useCartStore'
 import { useRouter } from 'next/navigation'
 import { hexToRgb } from '@/lib/color'
-import { validateCampaignCode, calculateCampaignDiscountAmount, consumeCampaignCode, type CampaignDiscount } from '@/lib/campaignRedemption'
+import { validateCampaignCode, calculateCampaignDiscountAmount, type CampaignDiscount } from '@/lib/campaignRedemption'
 import { pickImageFile, isNativePlatform } from '@/lib/nativeCamera'
 import {
     Store,
@@ -37,6 +37,7 @@ import {
 import Link from 'next/link'
 import { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import { supabase } from '@/lib/supabase/client'
+import { createStoreOrder } from '@/lib/createStoreOrder'
 import { toast } from 'sonner'
 import { ReviewModal } from '@/components/ratings/ReviewModal'
 import { Spinner } from '@/components/Spinner'
@@ -974,65 +975,37 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                 )
                 : 0
 
-            const finalTotal = Math.max(0, itemsTotal - discountAmount + deliveryFee)
-            const checkout_id = crypto.randomUUID()
+            let finalTotal = Math.max(0, itemsTotal - discountAmount + deliveryFee)
             const cashChangeFor = cashChangeByStore[slug] || ''
             const cardIsContactless = cardContactlessByStore[slug] ?? null
 
-            const { data: orderData, error: orderError } = await supabase
-                .from('orders')
-                .insert({
-                    store_id: storeData.id,
-                    buyer_id: currentUserId,
-                    buyer_name: (currentUserName || authName || 'Cliente').trim(),
-                    buyer_profile_slug: (currentUserSlug || currentUserId).trim(),
-                    total_amount: finalTotal,
-                    delivery_fee: deliveryFee,
-                    delivery_option: deliveryOpt,
-                    payment_method: paymentOpt,
-                    delivery_address: address,
-                    delivery_lat: deliveryLat,
-                    delivery_lng: deliveryLng,
-                    status: 'pending',
-                    checkout_id,
-                    cash_change_for: paymentOpt === 'dinheiro' && cashChangeFor.trim() ? Number(cashChangeFor.replace(',', '.')) : null,
-                    card_is_contactless: paymentOpt === 'cartao' ? cardIsContactless : null,
+            let created: Awaited<ReturnType<typeof createStoreOrder>>
+            try {
+                // Preços, adicionais, frete, desconto do Club VIP, total e status inicial são calculados pelo servidor
+                created = await createStoreOrder({
+                    storeId: storeData.id,
+                    items,
+                    deliveryOption: deliveryOpt as 'entrega' | 'retirada',
+                    paymentMethod: paymentOpt,
+                    address,
+                    lat: deliveryLat,
+                    lng: deliveryLng,
+                    cashChangeFor: paymentOpt === 'dinheiro' && cashChangeFor.trim() ? Number(cashChangeFor.replace(',', '.')) : null,
+                    cardIsContactless: paymentOpt === 'cartao' ? cardIsContactless : null,
+                    discountCode: appliedDiscount ? redemptionInputByStore[slug].trim() : null,
                 })
-                .select()
-                .single()
-
-            if (orderError) {
-                console.error('[Checkout] Erro ao inserir order:', orderError)
-                toast.error(`Erro ao criar pedido: ${orderError.message}`)
+            } catch (err: any) {
+                console.error('[Checkout] Erro ao criar pedido:', err)
+                toast.error(err?.message || 'Erro ao criar pedido')
                 setCheckoutLoading(null)
                 return
             }
-
-            const orderItemsToInsert = items.map((item) => ({
-                order_id: orderData.id,
-                product_id: item.product.id,
-                product_name: item.product.name,
-                quantity: item.quantity,
-                unit_price: cartItemUnitPrice(item),
-                total_price: cartItemLineTotal(item),
-                comment: item.comment || null,
-                addons: item.addons && item.addons.length > 0 ? item.addons : null,
-            }))
-
-            const { error: itemsError } = await supabase
-                .from('order_items')
-                .insert(orderItemsToInsert)
-
-            if (itemsError) {
-                console.error('[Checkout] Erro ao inserir order_items:', itemsError)
-                await supabase.from('orders').delete().eq('id', orderData.id)
-                toast.error(`Erro ao salvar itens: ${itemsError.message}`)
-                setCheckoutLoading(null)
-                return
-            }
+            const orderData = { id: created.orderId, created_at: new Date().toISOString() }
+            finalTotal = created.totalAmount
+            deliveryFee = created.deliveryFee
 
             if (appliedDiscount) {
-                await consumeCampaignCode(redemptionInputByStore[slug].trim(), orderData.id, 'cart')
+                // O código já foi validado e consumido pelo servidor junto com o pedido
                 setAppliedDiscountByStore((prev) => ({ ...prev, [slug]: null }))
                 setRedemptionInputByStore((prev) => ({ ...prev, [slug]: '' }))
             }
@@ -1086,7 +1059,7 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
 
             setFinishedOrders(prev => [...prev, {
                 id: orderData.id,
-                checkout_id,
+                checkout_id: created.checkoutId,
                 store_id: storeData.id,
                 store_name: details?.name || slug,
                 storeName: details?.name || slug,

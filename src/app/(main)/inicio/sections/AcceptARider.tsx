@@ -169,6 +169,12 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
         // quadro de /aceitar-corridas (sem candidatura própria, sem lotadas),
         // só que resumida às 3 mais recentes pra caber na home.
         const loadOpenRides = async () => {
+            // Corridas abertas só para quem está logado (visitante não lê nada: ride_offers não é público)
+            if (!userId) {
+                setOpenRides([])
+                setOpenRidesTotal(0)
+                return
+            }
             await loadPlatformTariffs(supabase)
             // Visitante (sem login) também vê as corridas abertas: assim ele sabe que
             // tem corrida pra pegar. Sem conta não tem driver_pricing nem candidatura
@@ -196,10 +202,9 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
             const pricing = pricingRow || { pricing_mode: 'platform' as const, base_distance_km: null, base_fee: null, price_per_km_after_base: null }
 
             let openQuery = supabase
-                .from('ride_requests')
-                .select('id, requester_id, ride_type, origin_address, destination_address, origin_lat, origin_lng, origin_complement, destination_complement, notes, passenger_count, vehicle_type, object_description, object_is_sensitive, pet_description, has_child, children_count, child_age, child_needs_car_seat, has_shopping, bag_count, has_extra_object, extra_object_description, has_pet, pet_weight_range, pet_has_carrier, has_special_needs, special_needs_description, special_needs_wheelchair, special_needs_wheelchair_type, special_needs_visual_impairment, has_guide_dog, delivery_location, payment_method, cash_change_for, card_is_contactless, origin_needs_access, origin_access_notes, destination_needs_access, destination_access_notes, grocery_bag_size, wants_air_conditioning, distance_km, duration_min, scheduled_for, created_at, offered_price, order_id, applicant_count, stop1_address, stop2_address')
+                .from('ride_offers')
+                .select('id, requester_id, ride_type, origin_address, destination_address, origin_lat, origin_lng, origin_complement, destination_complement, notes, passenger_count, vehicle_type, object_description, object_is_sensitive, pet_description, has_child, children_count, child_age, child_needs_car_seat, has_shopping, bag_count, has_extra_object, extra_object_description, has_pet, pet_weight_range, pet_has_carrier, has_special_needs, special_needs_description, special_needs_wheelchair, special_needs_wheelchair_type, special_needs_visual_impairment, has_guide_dog, delivery_location, payment_method, cash_change_for, card_is_contactless, origin_needs_access, origin_access_notes, destination_needs_access, destination_access_notes, grocery_bag_size, wants_air_conditioning, distance_km, duration_min, scheduled_for, created_at, offered_price, order_id, applicant_count, stop1_address, stop2_address, requester_first_name')
                 .eq('status', 'pending')
-            if (userId) openQuery = openQuery.neq('requester_id', userId)
             const { data: rows } = await openQuery
                 .order('created_at', { ascending: false })
                 .limit(15)
@@ -209,7 +214,7 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
             const top = candidateRows.slice(0, 3)
             setOpenRidesTotal(candidateRows.length)
 
-            const requesterIds = Array.from(new Set(top.map((r) => r.requester_id)))
+            const requesterIds = Array.from(new Set(top.map((r) => r.requester_id).filter(Boolean))) as string[]
             const { data: profiles } = requesterIds.length > 0
                 ? await supabase.from('profiles').select('id, name, profileSlug, avatar_url').in('id', requesterIds)
                 : { data: [] as { id: string; name: string | null; profileSlug: string | null; avatar_url: string | null }[] }
@@ -240,8 +245,8 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
                     return {
                         ride: r as unknown as OfferRide,
                         requester: {
-                            id: r.requester_id,
-                            name: p?.name || null,
+                            id: r.requester_id as string,
+                            name: p?.name || (r as any).requester_first_name || null,
                             slug: p?.profileSlug || null,
                             avatarUrl: getAvatarUrl(supabase, p?.avatar_url),
                             rating: { avg: 0, count: 0 },
@@ -275,13 +280,13 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
 
             const rideIds = applications.map((a) => a.ride_request_id)
             const { data: rides } = await supabase
-                .from('ride_requests')
-                .select('id, requester_id, ride_type, origin_address, destination_address, distance_km, duration_min, passenger_count, object_description, pet_description')
+                .from('ride_offers')
+                .select('id, requester_id, requester_first_name, ride_type, origin_address, destination_address, distance_km, duration_min, passenger_count, object_description, pet_description')
                 .in('id', rideIds)
             if (!active) return
             const ridesById = new Map((rides || []).map((r) => [r.id, r]))
 
-            const requesterIds = Array.from(new Set((rides || []).map((r) => r.requester_id)))
+            const requesterIds = Array.from(new Set((rides || []).map((r) => r.requester_id).filter(Boolean))) as string[]
             const { data: profiles } = requesterIds.length > 0
                 ? await supabase.from('profiles').select('id, name, profileSlug, avatar_url').in('id', requesterIds)
                 : { data: [] as { id: string; name: string | null; profileSlug: string | null; avatar_url: string | null }[] }
@@ -296,8 +301,8 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
                 list.push({
                     id: r.id,
                     ride_type: r.ride_type,
-                    requesterId: r.requester_id,
-                    requesterName: p?.name || null,
+                    requesterId: r.requester_id as string,
+                    requesterName: p?.name || r.requester_first_name || null,
                     requesterSlug: p?.profileSlug || null,
                     requesterAvatarUrl: getAvatarUrl(supabase, p?.avatar_url),
                     proposedPrice: a.proposed_price,

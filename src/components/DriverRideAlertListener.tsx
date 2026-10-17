@@ -45,7 +45,7 @@ export function DriverRideAlertListener() {
 
             channel = supabase
                 .channel(`driver-new-ride-alert-${userId}`)
-                .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'ride_requests' }, (payload) => {
+                .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'ride_offers' }, (payload) => {
                     const ride = payload.new as RideTariffSource & { id: string; requester_id?: string; status?: string; origin_address?: string; destination_address?: string; offered_price?: number | null }
                     if (ride.requester_id === userId) return
                     if (ride.status && ride.status !== 'pending') return

@@ -584,27 +584,16 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
     const acceptCandidate = async (applicationId: string, applicantId: string) => {
         setDecidingId(applicationId)
         try {
-            const { data: updatedRide, error: rideError } = await supabase
-                .from('ride_requests')
-                .update({ status: 'accepted', driver_id: applicantId })
-                .eq('id', rideId)
-                .eq('status', 'pending')
-                .select('id')
-
-            if (rideError) throw rideError
-            if (!updatedRide || updatedRide.length === 0) {
-                toast.error('Este pedido já foi decidido.')
-                load()
-                return
+            // Escolher o motorista é uma operação do servidor: confere dono, candidatura real e corrida pendente
+            const { error: rideError } = await supabase.rpc('select_ride_driver', { p_ride: rideId, p_application: applicationId })
+            if (rideError) {
+                if (/já foi decidido/i.test(rideError.message)) {
+                    toast.error('Este pedido já foi decidido.')
+                    load()
+                    return
+                }
+                throw rideError
             }
-
-            await supabase.from('ride_applications').update({ status: 'accepted' }).eq('id', applicationId)
-            await supabase
-                .from('ride_applications')
-                .update({ status: 'rejected' })
-                .eq('ride_request_id', rideId)
-                .eq('status', 'pending')
-                .neq('id', applicationId)
 
             toast.success('Motorista escolhido!')
             load()

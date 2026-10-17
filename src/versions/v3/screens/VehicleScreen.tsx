@@ -147,7 +147,7 @@ export default function VehicleScreen() {
             const ids = ((apps as any[]) || []).map((a) => a.ride_request_id as string)
             let waiting = 0
             if (ids.length) {
-                const { count } = await supabase.from('ride_requests').select('id', { count: 'exact', head: true }).in('id', ids).eq('status', 'pending')
+                const { count } = await supabase.from('ride_offers').select('id', { count: 'exact', head: true }).in('id', ids).eq('status', 'pending')
                 waiting = count || 0
             }
             if (!cancelled) setActiveCount((accepted || 0) + waiting)
@@ -769,7 +769,8 @@ function RidesPanel({ mode, me, onCount }: { mode: 'clientes' | 'historico'; me:
             // candidaturas que ainda esperam o cliente escolher
             const pendingIds = ((apps as any[]) || []).filter((a) => a.status === 'pending').map((a) => a.ride_request_id as string)
             if (pendingIds.length) {
-                const { data: waiting } = await supabase.from('ride_requests').select(cols).in('id', pendingIds).eq('status', 'pending')
+                // candidaturas ainda sem decisão: a corrida só aparece como oferta pública (sem dados pessoais) até o aceite
+                const { data: waiting } = await supabase.from('ride_offers').select(cols.replace(/, ride_started_at|, driver_arrived_at|, driver_en_route/g, '')).in('id', pendingIds).eq('status', 'pending')
                 for (const r of ((waiting as any[]) || [])) {
                     out.push({
                         id: r.id, status: r.status, created_at: r.created_at, ride_started_at: null, driver_arrived_at: null, driver_en_route: null,
