@@ -10,7 +10,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
-import { reajustQuestion, searchStatusText, SEARCH_END_REASON_TEXT } from '@/modules/delivery-search'
+import { reajustQuestion, searchStatusText, SEARCH_END_REASON_TEXT, definitiveSummary, remainingLabel } from '@/modules/delivery-search'
 
 type Round = { id: string; status: string; final_freight: number; extra: number; round: number }
 type Counter = { id: string; status: string; amount: number; driver_id: string }
@@ -28,9 +28,11 @@ type Dispatch = {
     search_end_reason: string | null
     updated_at: string
     delivery_reajust_authorizations: Reajust[]
+    reserved_until: string | null
+    reservation_released_at: string | null
     order_delivery_rounds: Round[]
     order_delivery_counters: Counter[]
-    orders: { stores: { name: string } | null } | null
+    orders: { total_amount: number; delivery_fee: number; stores: { name: string } | null } | null
 }
 
 const brl = (v: number) => `R$ ${Number(v).toFixed(2).replace('.', ',')}`
@@ -40,12 +42,17 @@ export default function DeliveryIncreasePrompt({ userId, className = '' }: { use
     const [items, setItems] = useState<Dispatch[]>([])
     const [busy, setBusy] = useState<string | null>(null)
     const [drivers, setDrivers] = useState<Record<string, string>>({})
+    const [, setTick] = useState(0)
+    useEffect(() => {
+        const t = setInterval(() => setTick((n) => n + 1), 1000)      // contagem regressiva da reserva
+        return () => clearInterval(t)
+    }, [])
 
     const load = useCallback(async () => {
         if (!userId) return
         const { data } = await supabase
             .from('order_delivery_dispatches')
-            .select('id, status, stage, final_freight, radius_km, flow_version, phase, estimated_freight, frozen_freight, search_end_reason, updated_at, order_delivery_rounds(id, status, final_freight, extra, round), order_delivery_counters(id, status, amount, driver_id), delivery_reajust_authorizations(id, status, estimated_freight, current_offer, requested_limit, expires_at), orders(stores(name))')
+            .select('id, status, stage, final_freight, radius_km, flow_version, phase, estimated_freight, frozen_freight, search_end_reason, updated_at, reserved_until, reservation_released_at, order_delivery_rounds(id, status, final_freight, extra, round), order_delivery_counters(id, status, amount, driver_id), delivery_reajust_authorizations(id, status, estimated_freight, current_offer, requested_limit, expires_at), orders(total_amount, delivery_fee, stores(name))')
             .eq('customer_id', userId)
             // V1: em busca ou aceita. V2 também mostra "sem entregador" por 1 dia (status cancelado + fase SEM_ENTREGADOR)
             .or('status.in.(searching,accepted),and(status.eq.cancelled,phase.eq.SEM_ENTREGADOR)')
@@ -131,7 +138,12 @@ export default function DeliveryIncreasePrompt({ userId, className = '' }: { use
                     const store = d.orders?.stores?.name
                     const pending = d.delivery_reajust_authorizations.find((a) => a.status === 'pending')
                     const asking = d.phase === 'AGUARDANDO_AUTORIZACAO_REAJUSTE' && !!pending
-                    const done = d.phase === 'ENTREGADOR_RESERVADO'
+                    const done = d.phase === 'ENTREGADOR_RESERVADO' || d.phase === 'AGUARDANDO_PAGAMENTO_CLIENTE'
+                    const reserved = done && d.frozen_freight != null && d.orders
+                    const sum = reserved && d.orders
+                        ? definitiveSummary({ itemsTotal: Number(d.orders.total_amount) - Number(d.orders.delivery_fee), deliveryFee: Number(d.orders.delivery_fee), totalAmount: Number(d.orders.total_amount), estimatedFreight: d.estimated_freight })
+                        : null
+                    const left = reserved && !d.reservation_released_at ? remainingLabel(d.reserved_until) : null
                     const q = pending ? reajustQuestion({ estimatedFreight: Number(pending.estimated_freight), currentOffer: Number(pending.current_offer), requestedLimit: Number(pending.requested_limit) }) : null
                     return (
                         <div key={d.id} className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: done ? '#16a34a12' : asking ? '#f9731612' : `${colors.border}20`, border: `1.5px solid ${done ? '#16a34a' : asking ? '#f97316' : colors.border}` }}>
@@ -146,6 +158,16 @@ export default function DeliveryIncreasePrompt({ userId, className = '' }: { use
                                     {d.status === 'cancelled' && d.search_end_reason ? ` · ${SEARCH_END_REASON_TEXT[d.search_end_reason] || ''}` : ''}
                                 </p>
                             </div>
+                            {sum && (
+                                <div className="rounded-xl p-3 flex flex-col gap-1 text-sm" style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}>
+                                    <div className="flex justify-between"><span style={{ color: colors.textSecondary }}>Produtos</span><span>{sum.products}</span></div>
+                                    <div className="flex justify-between"><span style={{ color: colors.textSecondary }}>Entrega</span><span>{sum.delivery}</span></div>
+                                    <div className="flex justify-between font-black border-t pt-1" style={{ borderColor: colors.border }}><span>Total</span><span>{sum.total}</span></div>
+                                    {sum.initialEstimate && <p className="text-[11px]" style={{ color: colors.textSecondary }}>{sum.initialEstimate}</p>}
+                                    {left && <p className="text-[11px]" style={{ color: colors.textSecondary }}>Reserva do entregador: {left}</p>}
+                                    <p className="text-[11px]" style={{ color: colors.textSecondary }}>Próximo passo: pagamento. Você ainda não pagou nada.</p>
+                                </div>
+                            )}
                             {asking && q && pending && (
                                 <>
                                     <p className="text-sm" style={{ color: colors.textPrimary }}>{q.body}</p>
@@ -170,7 +192,7 @@ export default function DeliveryIncreasePrompt({ userId, className = '' }: { use
                                     </div>
                                 </>
                             )}
-                            {d.status === 'searching' && (
+                            {(d.status === 'searching' || reserved) && (
                                 <button onClick={() => cancel(d.id)} disabled={busy === d.id} className="self-start text-xs font-bold underline disabled:opacity-60" style={{ color: colors.textSecondary }}>
                                     Cancelar entrega
                                 </button>

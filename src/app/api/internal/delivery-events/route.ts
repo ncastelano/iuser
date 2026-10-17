@@ -8,7 +8,7 @@ import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { sendPushToUser } from '@/lib/serverPush'
 import { notifyDriversOfRide } from '@/lib/notifyDrivers'
-import { reajustPushBody } from '@/modules/delivery-search'
+import { reajustPushBody, reservationNoticeText } from '@/modules/delivery-search'
 
 const brl = (v: number) => `R$ ${Number(v).toFixed(2).replace('.', ',')}`
 
@@ -29,6 +29,23 @@ export async function POST() {
                 .eq('id', ev.dispatch_id)
                 .maybeSingle()
             if (!d) continue
+
+            // V2 (Etapa 2.6): reserva do motorista, liberações, cancelamentos e "sem entregador". Cada pessoa recebe só o seu texto;
+            // o evento é reivindicado uma única vez (sem duplicar) e nada disto mexe em dinheiro.
+            if (ev.kind === 'reservation_notice') {
+                const data = (ev.data || {}) as { reason?: string; mode?: string; driver_id?: string | null; frozen_freight?: number }
+                const [{ data: order }, { data: store }, { data: cfg }] = await Promise.all([
+                    supabaseAdmin.from('orders').select('total_amount').eq('id', d.order_id).maybeSingle(),
+                    supabaseAdmin.from('stores').select('owner_id').eq('id', d.store_id).maybeSingle(),
+                    supabaseAdmin.from('delivery_dispatch_settings').select('reservation_timeout_minutes').eq('id', true).maybeSingle(),
+                ])
+                const text = reservationNoticeText(data.reason || '', data.mode, { total: order ? Number(order.total_amount) : null, minutes: cfg?.reservation_timeout_minutes ?? null })
+                const tag = `delivery-notice-${ev.id}`
+                if (text.customer && d.customer_id) await sendPushToUser(d.customer_id, { ...text.customer, url: '/carrinho?aba=pedidos', tag: `${tag}-c` })
+                if (text.driver && data.driver_id) await sendPushToUser(data.driver_id, { ...text.driver, url: '/aceitar-corridas', tag: `${tag}-d` })
+                if (text.store && store?.owner_id) await sendPushToUser(store.owner_id, { ...text.store, tag: `${tag}-s` })
+                continue
+            }
 
             if (ev.kind === 'delivered') {
                 const { data: store } = await supabaseAdmin.from('stores').select('owner_id, name').eq('id', d.store_id).maybeSingle()

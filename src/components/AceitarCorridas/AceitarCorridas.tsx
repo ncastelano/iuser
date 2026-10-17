@@ -21,6 +21,7 @@ import { MapPin, Star, Pencil, X, Package, CalendarClock, PawPrint, Car, CheckCi
 import { Spinner } from '@/components/Spinner'
 import { loadPlatformTariffs } from '@/lib/platformTariffs'
 import { shortAddress } from '@/lib/serviceBoard'
+import { DRIVER_RESERVED_TEXT, brl, remainingLabel } from '@/modules/delivery-search'
 import { getAvatarUrl } from '@/lib/avatar'
 import { computeSuggestedPrice, computeConditionExtras, computePickupFee, getEffectivePricing, getCustomPricing, PLATFORM_DEFAULT_PRICING_BY_VEHICLE, DriverPricing, type RideConditionFlags } from '@/lib/driverPricing'
 import { playRideAlertSound, playNotificationSound } from '@/lib/rideAlertSound'
@@ -319,6 +320,9 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
     const [hasVehicle, setHasVehicle] = useState<boolean | null>(null)
     const [showVehicleDialog, setShowVehicleDialog] = useState(false)
     const [departing, setDeparting] = useState(false)
+    // Entrega V2: depois de aceitar, o motorista fica RESERVADO e só anda depois que a entrega é liberada. A tela só esconde os botões;
+    // quem barra de verdade é o banco (gatilho em ride_requests). Falha ao ler = mostra como sempre (o banco continua barrando).
+    const [deliveryGate, setDeliveryGate] = useState<{ v2: boolean; released: boolean; reserved_until?: string | null; frozen_freight?: number | null } | null>(null)
     const [arriving, setArriving] = useState(false)
     const [starting, setStarting] = useState(false)
     const [showExtraTaskForm, setShowExtraTaskForm] = useState(false)
@@ -1078,6 +1082,20 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
         }
     }
 
+    useEffect(() => {
+        const rideId = acceptedRide?.id
+        if (!rideId) { setDeliveryGate(null); return }
+        let alive = true
+        const load = async () => {
+            const { data, error } = await supabase.rpc('get_driver_delivery_gate', { p_ride: rideId })
+            if (alive) setDeliveryGate(error ? null : (data as typeof deliveryGate))
+        }
+        load()
+        const t = setInterval(load, 15_000)
+        return () => { alive = false; clearInterval(t) }
+    }, [acceptedRide?.id])
+    const blockedByReservation = !!deliveryGate?.v2 && !deliveryGate.released
+
     const departToPickup = async () => {
         if (!acceptedRide) return
         setDeparting(true)
@@ -1749,7 +1767,18 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                                 </button>
                             )}
 
-                            {!acceptedRide.driver_en_route && (
+                            {blockedByReservation && (
+                                <div className="mb-3 rounded-xl p-3" style={{ background: '#f9731612', border: '1.5px solid #f97316' }}>
+                                    <p className="text-sm font-black" style={{ color: colors.textPrimary }}>{DRIVER_RESERVED_TEXT.title}</p>
+                                    <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>
+                                        {DRIVER_RESERVED_TEXT.body}
+                                        {deliveryGate?.frozen_freight != null ? ` Frete: ${brl(deliveryGate.frozen_freight)}.` : ''}
+                                        {remainingLabel(deliveryGate?.reserved_until) ? ` Reserva até ${remainingLabel(deliveryGate?.reserved_until)}.` : ''}
+                                    </p>
+                                </div>
+                            )}
+
+                            {!blockedByReservation && !acceptedRide.driver_en_route && (
                                 <button
                                     onClick={departToPickup}
                                     disabled={departing}
@@ -1760,7 +1789,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                                 </button>
                             )}
 
-                            {acceptedRide.driver_en_route && !acceptedRide.driver_arrived_at && (
+                            {!blockedByReservation && acceptedRide.driver_en_route && !acceptedRide.driver_arrived_at && (
                                 <button
                                     onClick={arriveAtPickup}
                                     disabled={arriving}
@@ -1771,7 +1800,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                                 </button>
                             )}
 
-                            {acceptedRide.driver_arrived_at && !acceptedRide.ride_started_at && (
+                            {!blockedByReservation && acceptedRide.driver_arrived_at && !acceptedRide.ride_started_at && (
                                 <button
                                     onClick={startRide}
                                     disabled={starting}
