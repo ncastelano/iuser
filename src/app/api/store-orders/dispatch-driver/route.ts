@@ -52,12 +52,14 @@ export async function POST(req: Request) {
             .eq('id', dispatch.ride_request_id)
             .single()
         if (ride) {
-            await notifyDriversOfRide({
+            const notified = await notifyDriversOfRide({
                 ...ride,
                 radiusKm: Number(dispatch.radius_km),
                 originLat: store.store_lat,
                 originLng: store.store_lng,
-            }).catch(() => {})
+            }).catch(() => 0)
+            // auditoria: quantos motoristas foram avisados nesta rodada (não muda a busca)
+            await supabaseAdmin.rpc('record_delivery_round_notified', { p_dispatch: dispatch.id, p_count: notified || 0 })
         }
     }
     return NextResponse.json({ success: true, dispatchId: dispatch.id, rideId: dispatch.ride_request_id })

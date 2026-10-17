@@ -71,7 +71,7 @@ export async function POST() {
                 supabaseAdmin.from('stores').select('store_lat, store_lng').eq('id', d.store_id).maybeSingle(),
             ])
             if (!ride || ride.status !== 'pending' || store?.store_lat == null || store?.store_lng == null) continue
-            await notifyDriversOfRide({
+            const notified = await notifyDriversOfRide({
                 id: ride.id,
                 requester_id: ride.requester_id,
                 vehicle_type: ride.vehicle_type,
@@ -83,6 +83,8 @@ export async function POST() {
                 originLng: store.store_lng,
                 innerRadiusKm: ev.kind === 'tick' && ev.old_radius != null ? Number(ev.old_radius) : null,
             })
+            // auditoria: quantos motoristas foram avisados nesta rodada (não muda a busca)
+            await supabaseAdmin.rpc('record_delivery_round_notified', { p_dispatch: d.id, p_count: notified || 0 })
         } catch (err) {
             console.error('[delivery-events] falha no evento', ev.id, err)
         }

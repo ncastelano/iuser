@@ -68,6 +68,15 @@ Loja com "Entregador do iUser" não define valor: o banco mantém as colunas `de
 - Candidatura perdedora: ao fechar a corrida (aceita/concluída/cancelada) o banco rejeita as pendentes (`reject_losing_ride_applications`). O motorista não relacionado vê só `ride_offers` (sem nome do passageiro: "Passageiro").
 - Rollback: `supabase/rollbacks/etapa_1_5_rollback.sql` (restaura policies/grants/funções/triggers anteriores).
 
+## Entrega iUser: fundação do novo fluxo (Etapa 2.1) — ainda INATIVA
+
+Estruturas aditivas para o novo fluxo (reserva, pagamento direto cliente→loja→motorista, confirmação), **sem mudar o fluxo atual**:
+- `order_delivery_dispatches.flow_version` (1 = fluxo atual; 2 = novo, nada cria ainda) e `phase` (FK para `delivery_phases`, 18 fases). Em v1 a `phase` é só **espelho** de `status`/`stage` (gatilho `dispatch_phase_maintain`); em v2 só transita pelas linhas de `delivery_phase_transitions` (ator vem de `app.delivery_actor`). `orders.status` não muda.
+- Frete: **estimativa** = `estimated_freight`; **oferta atual** = `final_freight` (autorizado vigente) e, para o motorista, `ride_requests.offered_price`; **definitivo** = `frozen_freight` + `freight_frozen_at` (congelado no aceite). Reserva: `reserved_at/reserved_until/reservation_released_at/reservation_release_reason` (o motorista reservado é o `ride_requests.driver_id`).
+- Histórico: `order_delivery_events` (agora também auditoria, linhas já com `processed_at`) + `order_delivery_rounds` (`notified_count`). Não crie um segundo histórico.
+- `delivery_payment_events` (declarações, append-only, **não é confirmação bancária**), `delivery_obligations` (motorista deve **à loja**; separado de `driver_postpaid_charges`, a dívida com o **iUser**) e `delivery_incidents`. Sem escrita pelo app; leitura só das partes da entrega.
+- Rollback: `supabase/rollbacks/etapa_2_1_rollback.sql`.
+
 ## Graduação e comissão de indicação: mora no banco, nunca fixe um percentual no código
 
 A comissão que quem indica ganha vem da **graduação** (Inicial/Bronze/Prata/Ouro/Diamante... — níveis que o admin cria e edita em `/administrador` → **Graduação**, tabela `network_levels`). Não confundir com a "Hierarquia" (`user_statuses`: Usuário/Líder/Supervisor/Gestor/Administrador), que é autoridade administrativa.
