@@ -203,7 +203,7 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
 
             let openQuery = supabase
                 .from('ride_offers')
-                .select('id, requester_id, ride_type, origin_address, destination_address, origin_lat, origin_lng, origin_complement, destination_complement, notes, passenger_count, vehicle_type, object_description, object_is_sensitive, pet_description, has_child, children_count, child_age, child_needs_car_seat, has_shopping, bag_count, has_extra_object, extra_object_description, has_pet, pet_weight_range, pet_has_carrier, has_special_needs, special_needs_description, special_needs_wheelchair, special_needs_wheelchair_type, special_needs_visual_impairment, has_guide_dog, delivery_location, payment_method, cash_change_for, card_is_contactless, origin_needs_access, origin_access_notes, destination_needs_access, destination_access_notes, grocery_bag_size, wants_air_conditioning, distance_km, duration_min, scheduled_for, created_at, offered_price, order_id, applicant_count, stop1_address, stop2_address, requester_first_name')
+                .select('id, requester_id, ride_type, origin_address, destination_address, origin_lat, origin_lng, origin_complement, destination_complement, notes, passenger_count, vehicle_type, object_description, object_is_sensitive, pet_description, has_child, children_count, child_age, child_needs_car_seat, has_shopping, bag_count, has_extra_object, extra_object_description, has_pet, pet_weight_range, pet_has_carrier, has_special_needs, special_needs_description, special_needs_wheelchair, special_needs_wheelchair_type, special_needs_visual_impairment, has_guide_dog, delivery_location, payment_method, cash_change_for, card_is_contactless, origin_needs_access, origin_access_notes, destination_needs_access, destination_access_notes, grocery_bag_size, wants_air_conditioning, distance_km, duration_min, scheduled_for, created_at, offered_price, order_id, applicant_count, stop1_address, stop2_address')
                 .eq('status', 'pending')
             const { data: rows } = await openQuery
                 .order('created_at', { ascending: false })
@@ -246,7 +246,7 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
                         ride: r as unknown as OfferRide,
                         requester: {
                             id: r.requester_id as string,
-                            name: p?.name || (r as any).requester_first_name || null,
+                            name: p?.name || (r.requester_id ? null : 'Passageiro'),
                             slug: p?.profileSlug || null,
                             avatarUrl: getAvatarUrl(supabase, p?.avatar_url),
                             rating: { avg: 0, count: 0 },
@@ -281,7 +281,7 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
             const rideIds = applications.map((a) => a.ride_request_id)
             const { data: rides } = await supabase
                 .from('ride_offers')
-                .select('id, requester_id, requester_first_name, ride_type, origin_address, destination_address, distance_km, duration_min, passenger_count, object_description, pet_description')
+                .select('id, requester_id, ride_type, origin_address, destination_address, distance_km, duration_min, passenger_count, object_description, pet_description')
                 .in('id', rideIds)
             if (!active) return
             const ridesById = new Map((rides || []).map((r) => [r.id, r]))
@@ -302,7 +302,7 @@ export default function AcceptARider({ dragHandle, onUrgentChange }: AcceptARide
                     id: r.id,
                     ride_type: r.ride_type,
                     requesterId: r.requester_id as string,
-                    requesterName: p?.name || r.requester_first_name || null,
+                    requesterName: p?.name || 'Passageiro',
                     requesterSlug: p?.profileSlug || null,
                     requesterAvatarUrl: getAvatarUrl(supabase, p?.avatar_url),
                     proposedPrice: a.proposed_price,

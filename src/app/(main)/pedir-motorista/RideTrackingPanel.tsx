@@ -58,6 +58,7 @@ interface RideRow {
     extra_task_minutes: number | null
     extra_task_fee: number | null
     extra_task_description: string | null
+    share_token: string
 }
 
 interface CandidateStore {
@@ -124,7 +125,7 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
     const load = useCallback(async () => {
         const { data: rideRow } = await supabase
             .from('ride_requests')
-            .select('id, origin_address, destination_address, origin_complement, destination_complement, status, driver_id, vehicle_type, created_at, scheduled_for, origin_lat, origin_lng, destination_lat, destination_lng, duration_min, driver_en_route, driver_arrived_at, ride_started_at, extra_task_minutes, extra_task_fee, extra_task_description')
+            .select('id, origin_address, destination_address, origin_complement, destination_complement, status, driver_id, vehicle_type, created_at, scheduled_for, origin_lat, origin_lng, destination_lat, destination_lng, duration_min, driver_en_route, driver_arrived_at, ride_started_at, extra_task_minutes, extra_task_fee, extra_task_description, share_token')
             .eq('id', rideId)
             .single()
 
@@ -716,7 +717,7 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
                             onClick={() => handleShareLink({
                                 title: 'Acompanhe minha corrida no iUser',
                                 text: 'Acompanhe o status da minha corrida em tempo real.',
-                                url: `${window.location.origin}/acompanhar-corrida/${ride.id}`,
+                                url: `${window.location.origin}/acompanhar-corrida/${ride.share_token}`,
                             })}
                             className="flex items-center justify-center w-6 h-6 rounded-full flex-shrink-0"
                             style={{ background: colors.surface, color: colors.textPrimary, border: `1px solid ${colors.border}` }}

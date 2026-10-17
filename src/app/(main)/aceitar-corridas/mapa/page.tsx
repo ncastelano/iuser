@@ -317,9 +317,9 @@ function AceitarCorridasMapaContent() {
         if (!isPreview || !userId || !previewRideId) return
         let cancelled = false
         ;(async () => {
-            const { data: rideRow } = await supabase.from('ride_offers').select(OFFER_SELECT + ', requester_first_name').eq('id', previewRideId).maybeSingle()
+            const { data: rideRow } = await supabase.from('ride_offers').select(OFFER_SELECT + '').eq('id', previewRideId).maybeSingle()
             if (!rideRow || cancelled) return
-            const r = rideRow as unknown as OfferRide & { requester_id: string | null; requester_first_name?: string | null; store_id: string | null }
+            const r = rideRow as unknown as OfferRide & { requester_id: string | null; store_id: string | null }
             const [{ data: profile }, ratings, { data: pricing }, storeRes] = await Promise.all([
                 r.requester_id ? supabase.from('profiles').select('name, profileSlug, avatar_url').eq('id', r.requester_id).maybeSingle() : Promise.resolve({ data: null }),
                 r.requester_id ? getProfileRideRatingsBatch(supabase, [r.requester_id]) : Promise.resolve(new Map()),
@@ -340,7 +340,7 @@ function AceitarCorridasMapaContent() {
                 ride: r,
                 requester: {
                     id: r.requester_id as string,
-                    name: profile?.name || r.requester_first_name || null,
+                    name: profile?.name || 'Passageiro',
                     slug: profile?.profileSlug || null,
                     avatarUrl: getAvatarUrl(supabase, profile?.avatar_url),
                     rating: (r.requester_id && ratings.get(r.requester_id)) || { avg: 0, count: 0 },

@@ -234,6 +234,7 @@ interface CandidacyCardData extends RideRow {
 
 interface AcceptedRideDetail {
     id: string
+    share_token: string
     vehicle_type: VehicleType
     origin_address: string
     destination_address: string
@@ -623,7 +624,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
 
         let openRidesQuery = supabase
             .from('ride_offers')
-            .select('id, requester_id, ride_type, origin_address, destination_address, origin_complement, destination_complement, notes, passenger_count, vehicle_type, object_description, object_is_sensitive, pet_description, has_child, children_count, child_age, child_needs_car_seat, has_shopping, bag_count, has_extra_object, extra_object_description, has_pet, pet_weight_range, pet_has_carrier, has_special_needs, special_needs_description, special_needs_wheelchair, special_needs_wheelchair_type, special_needs_visual_impairment, has_guide_dog, delivery_location, payment_method, cash_change_for, card_is_contactless, origin_needs_access, origin_access_notes, destination_needs_access, destination_access_notes, grocery_bag_size, wants_air_conditioning, distance_km, duration_min, scheduled_for, created_at, origin_lat, origin_lng, destination_lat, destination_lng, stop1_address, stop1_complement, stop1_lat, stop1_lng, stop2_address, stop2_complement, stop2_lat, stop2_lng, offered_price, order_id, store_id, visible_radius_km, preferred_driver_id, requester_first_name')
+            .select('id, requester_id, ride_type, origin_address, destination_address, origin_complement, destination_complement, notes, passenger_count, vehicle_type, object_description, object_is_sensitive, pet_description, has_child, children_count, child_age, child_needs_car_seat, has_shopping, bag_count, has_extra_object, extra_object_description, has_pet, pet_weight_range, pet_has_carrier, has_special_needs, special_needs_description, special_needs_wheelchair, special_needs_wheelchair_type, special_needs_visual_impairment, has_guide_dog, delivery_location, payment_method, cash_change_for, card_is_contactless, origin_needs_access, origin_access_notes, destination_needs_access, destination_access_notes, grocery_bag_size, wants_air_conditioning, distance_km, duration_min, scheduled_for, created_at, origin_lat, origin_lng, destination_lat, destination_lng, stop1_address, stop1_complement, stop1_lat, stop1_lng, stop2_address, stop2_complement, stop2_lat, stop2_lng, offered_price, order_id, store_id, visible_radius_km, preferred_driver_id')
             .eq('status', 'pending')
         // ride_offers já esconde as corridas do próprio motorista (policy) e não mostra quem pediu antes do aceite
         const { data: openRides } = await openRidesQuery
@@ -657,7 +658,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
         if (myApplications.length > 0) {
             const { data } = await supabase
                 .from('ride_offers')
-                .select('id, requester_id, ride_type, origin_address, destination_address, origin_complement, destination_complement, notes, passenger_count, vehicle_type, object_description, object_is_sensitive, pet_description, has_child, children_count, child_age, child_needs_car_seat, has_shopping, bag_count, has_extra_object, extra_object_description, has_pet, pet_weight_range, pet_has_carrier, has_special_needs, special_needs_description, special_needs_wheelchair, special_needs_wheelchair_type, special_needs_visual_impairment, has_guide_dog, delivery_location, payment_method, cash_change_for, card_is_contactless, origin_needs_access, origin_access_notes, destination_needs_access, destination_access_notes, grocery_bag_size, wants_air_conditioning, distance_km, duration_min, scheduled_for, created_at, origin_lat, origin_lng, destination_lat, destination_lng, stop1_address, stop1_complement, stop1_lat, stop1_lng, stop2_address, stop2_complement, stop2_lat, stop2_lng, offered_price, order_id, store_id, requester_first_name')
+                .select('id, requester_id, ride_type, origin_address, destination_address, origin_complement, destination_complement, notes, passenger_count, vehicle_type, object_description, object_is_sensitive, pet_description, has_child, children_count, child_age, child_needs_car_seat, has_shopping, bag_count, has_extra_object, extra_object_description, has_pet, pet_weight_range, pet_has_carrier, has_special_needs, special_needs_description, special_needs_wheelchair, special_needs_wheelchair_type, special_needs_visual_impairment, has_guide_dog, delivery_location, payment_method, cash_change_for, card_is_contactless, origin_needs_access, origin_access_notes, destination_needs_access, destination_access_notes, grocery_bag_size, wants_air_conditioning, distance_km, duration_min, scheduled_for, created_at, origin_lat, origin_lng, destination_lat, destination_lng, stop1_address, stop1_complement, stop1_lat, stop1_lng, stop2_address, stop2_complement, stop2_lat, stop2_lng, offered_price, order_id, store_id')
                 .in('id', myApplications.map((a) => a.ride_request_id))
                 .eq('status', 'pending')
             myRideRows = data || []
@@ -708,7 +709,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
             const suggestedPrice = r.offered_price != null ? Number(r.offered_price) : priceWith(pricingShape)
             return {
                 ...r,
-                requesterName: p?.name || (r as any).requester_first_name || null,
+                requesterName: p?.name || (r.requester_id ? null : 'Passageiro'),
                 requesterSlug: p?.profileSlug || null,
                 requesterAvatarUrl: getAvatarUrl(supabase, p?.avatar_url),
                 requesterRating: ratingsMap.get(r.requester_id) || { avg: 0, count: 0 },
@@ -728,7 +729,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
             return {
                 ...r,
                 applicant_count: 0,
-                requesterName: p?.name || (r as any).requester_first_name || null,
+                requesterName: p?.name || (r.requester_id ? null : 'Passageiro'),
                 requesterSlug: p?.profileSlug || null,
                 requesterAvatarUrl: getAvatarUrl(supabase, p?.avatar_url),
                 requesterRating: ratingsMap.get(r.requester_id) || { avg: 0, count: 0 },
@@ -760,7 +761,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
         // definido no momento em que o pedido dele vira "accepted".
         const { data: acceptedRow } = !contextUserId ? { data: null as any } : await supabase
             .from('ride_requests')
-            .select('id, requester_id, vehicle_type, origin_address, destination_address, origin_complement, destination_complement, origin_lat, origin_lng, destination_lat, destination_lng, stop1_address, stop1_complement, stop1_lat, stop1_lng, stop1_reached_at, stop2_address, stop2_complement, stop2_lat, stop2_lng, stop2_reached_at, distance_km, duration_min, driver_en_route, driver_arrived_at, ride_started_at, extra_task_minutes, extra_task_fee, extra_task_description')
+            .select('id, requester_id, vehicle_type, origin_address, destination_address, origin_complement, destination_complement, origin_lat, origin_lng, destination_lat, destination_lng, stop1_address, stop1_complement, stop1_lat, stop1_lng, stop1_reached_at, stop2_address, stop2_complement, stop2_lat, stop2_lng, stop2_reached_at, distance_km, duration_min, driver_en_route, driver_arrived_at, ride_started_at, extra_task_minutes, extra_task_fee, extra_task_description, share_token')
             .eq('driver_id', contextUserId)
             .eq('status', 'accepted')
             .order('created_at', { ascending: false })
@@ -776,6 +777,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
             ])
             acceptedDetail = {
                 id: acceptedRow.id,
+                share_token: acceptedRow.share_token,
                 vehicle_type: acceptedRow.vehicle_type,
                 origin_address: acceptedRow.origin_address,
                 destination_address: acceptedRow.destination_address,
@@ -1603,7 +1605,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                                     onClick={() => handleShareLink({
                                         title: 'Acompanhe esta corrida no iUser',
                                         text: 'Acompanhe o status desta corrida em tempo real.',
-                                        url: `${window.location.origin}/acompanhar-corrida/${acceptedRide.id}`,
+                                        url: `${window.location.origin}/acompanhar-corrida/${acceptedRide.share_token}`,
                                     })}
                                     className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold flex-shrink-0"
                                     style={{ background: `${colors.border}30`, color: colors.textPrimary, border: `1px solid ${colors.border}` }}

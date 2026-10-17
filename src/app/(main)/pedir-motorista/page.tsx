@@ -1512,7 +1512,8 @@ export default function PedirMotoristaPage() {
                 id: insertedRide.id,
                 name: `${shortAddress(origin.address)} → ${shortAddress(destination.address)}`,
                 imageUrl: null,
-                url: `/acompanhar-corrida/${insertedRide.id}`,
+                // O atalho leva ao painel da própria corrida (o link público de acompanhamento usa token e não fica salvo aqui)
+                url: '/pedir-motorista',
             })
         } catch (err: any) {
             if (err.code === '23505') {

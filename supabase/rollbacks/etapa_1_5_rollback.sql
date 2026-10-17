@@ -673,4 +673,17 @@ DROP FUNCTION IF EXISTS public.can_apply_to_ride(uuid);
 DROP FUNCTION IF EXISTS public._address_area(text);
 DROP TABLE IF EXISTS public.ride_offers;
 -- Atenção: o app desta versão lê ride_offers e chama as RPCs acima; ao reverter o banco, reverta também o código (git revert).
+
+-- ===== Etapa 1.6 (migrations 20261091 e 20261092) =====
+DROP TRIGGER IF EXISTS ride_requests_reject_losing_applications ON public.ride_requests;
+DROP TRIGGER IF EXISTS zz_ride_applications_reject_if_closed ON public.ride_applications;
+DROP TRIGGER IF EXISTS ride_requests_set_share_closed ON public.ride_requests;
+DROP FUNCTION IF EXISTS public.reject_losing_ride_applications();
+DROP FUNCTION IF EXISTS public.reject_application_on_closed_ride();
+DROP FUNCTION IF EXISTS public.set_ride_share_closed();
+DROP FUNCTION IF EXISTS public.rotate_ride_share_token(uuid);
+DROP INDEX IF EXISTS public.ride_requests_share_token_idx;
+ALTER TABLE public.ride_requests DROP COLUMN IF EXISTS share_token, DROP COLUMN IF EXISTS share_closed_at;
+-- (as candidaturas que a 20261091 normalizou de 'pending' para 'accepted'/'rejected' não são revertidas: eram inconsistências)
+-- Reverter o código junto: /api/ride-share e /acompanhar-corrida voltam a usar [id] (git revert).
 commit;

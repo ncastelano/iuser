@@ -1,4 +1,4 @@
-// app/(main)/acompanhar-corrida/[id]/page.tsx
+// app/(main)/acompanhar-corrida/[token]/page.tsx
 //
 // Página pública (sem login) — pra quem recebeu o link de "compartilhar
 // corrida" (porteiro, familiar) acompanhar o essencial: status, endereços e
@@ -46,7 +46,7 @@ function shortAddress(address: string): string {
 export default function AcompanharCorridaPage() {
     const { colors } = useTheme()
     const params = useParams()
-    const id = Array.isArray(params.id) ? params.id[0] : params.id
+    const id = Array.isArray(params.token) ? params.token[0] : params.token  // token do link (não é o id da corrida)
 
     const [data, setData] = useState<RideShareData | null>(null)
     const [loading, setLoading] = useState(true)
