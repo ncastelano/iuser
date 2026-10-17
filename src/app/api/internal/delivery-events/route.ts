@@ -8,6 +8,7 @@ import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { sendPushToUser } from '@/lib/serverPush'
 import { notifyDriversOfRide } from '@/lib/notifyDrivers'
+import { reajustPushBody } from '@/modules/delivery-search'
 
 const brl = (v: number) => `R$ ${Number(v).toFixed(2).replace('.', ',')}`
 
@@ -16,7 +17,7 @@ export async function POST() {
         .from('order_delivery_events')
         .update({ processed_at: new Date().toISOString() })
         .is('processed_at', null)
-        .select('id, dispatch_id, kind, old_radius, new_radius, round_id')
+        .select('id, dispatch_id, kind, old_radius, new_radius, round_id, data')
         .limit(50)
     if (!events || events.length === 0) return NextResponse.json({ processed: 0 })
 
@@ -51,6 +52,27 @@ export async function POST() {
 
             if (d.status !== 'searching' || !d.ride_request_id) continue
 
+            // V2: acima do limite automático a busca PAROU e o cliente decide um NOVO LIMITE (não é pagamento). Só este aviso ao cliente:
+            // os aumentos automáticos dentro do limite nunca incomodam o cliente.
+            if (ev.kind === 'reajust_requested') {
+                const { data: auth } = await supabaseAdmin
+                    .from('delivery_reajust_authorizations')
+                    .select('id, estimated_freight, current_offer, requested_limit')
+                    .eq('dispatch_id', d.id)
+                    .eq('status', 'pending')
+                    .maybeSingle()
+                if (auth && d.customer_id) {
+                    await sendPushToUser(d.customer_id, {
+                        title: 'Ainda não encontramos um entregador',
+                        body: reajustPushBody({ estimatedFreight: Number(auth.estimated_freight), currentOffer: Number(auth.current_offer), requestedLimit: Number(auth.requested_limit) }),
+                        url: '/carrinho?aba=pedidos',
+                        tag: `delivery-reajust-${auth.id}`,
+                        urgent: true,
+                    })
+                }
+                continue
+            }
+
             // Proposta de aumento: o cliente decide
             if (ev.kind === 'tick' && ev.round_id && d.customer_id) {
                 const { data: round } = await supabaseAdmin.from('order_delivery_rounds').select('final_freight, status').eq('id', ev.round_id).maybeSingle()
@@ -81,7 +103,11 @@ export async function POST() {
                 radiusKm: Number(ride.visible_radius_km),
                 originLat: store.store_lat,
                 originLng: store.store_lng,
-                innerRadiusKm: ev.kind === 'tick' && ev.old_radius != null ? Number(ev.old_radius) : null,
+                // raio ampliado sem mudar o valor: só o anel novo; valor mudou (ou rodada 1): todo o raio
+                innerRadiusKm:
+                    ev.kind === 'tick' && ev.old_radius != null ? Number(ev.old_radius)
+                    : ev.kind === 'round_started' && ev.old_radius != null && !(ev.data as { price_changed?: boolean } | null)?.price_changed ? Number(ev.old_radius)
+                    : null,
             })
             // auditoria: quantos motoristas foram avisados nesta rodada (não muda a busca)
             await supabaseAdmin.rpc('record_delivery_round_notified', { p_dispatch: d.id, p_count: notified || 0 })

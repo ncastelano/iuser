@@ -40,10 +40,13 @@ export async function POST(req: Request) {
 
     const { data: dispatch } = await supabaseAdmin
         .from('order_delivery_dispatches')
-        .select('id, ride_request_id, status, radius_km')
+        .select('id, ride_request_id, status, radius_km, flow_version')
         .eq('id', dispatchId)
         .single()
     if (!dispatch?.ride_request_id) return NextResponse.json({ error: 'Entrega sem corrida' }, { status: 500 })
+
+    // V2: os avisos aos motoristas saem da fila do banco (round_started), uma vez por rodada; aqui nada é enviado
+    if (dispatch.flow_version === 2) return NextResponse.json({ success: true, dispatchId: dispatch.id, notified: 0, queued: true })
 
     if (dispatch.status === 'searching') {
         const { data: ride } = await supabaseAdmin
