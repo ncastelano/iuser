@@ -14,7 +14,8 @@
     "test:versions": "node --test scripts/test-versions.mjs",
     "test:service-requests": "node --test scripts/test-service-requests.mjs",
     "test:shopping": "node --test scripts/test-shopping.mjs",
-    "test:delivery-settings": "node --test scripts/test-delivery-settings.mjs"
+    "test:delivery-settings": "node --test scripts/test-delivery-settings.mjs",
+    "test:delivery-estimate": "node --test scripts/test-delivery-estimate.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",
