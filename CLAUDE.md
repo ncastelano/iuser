@@ -77,6 +77,12 @@ Estruturas aditivas para o novo fluxo (reserva, pagamento direto cliente→loja�
 - `delivery_payment_events` (declarações, append-only, **não é confirmação bancária**), `delivery_obligations` (motorista deve **à loja**; separado de `driver_postpaid_charges`, a dívida com o **iUser**) e `delivery_incidents`. Sem escrita pelo app; leitura só das partes da entrega.
 - Rollback: `supabase/rollbacks/etapa_2_1_rollback.sql`.
 
+## Configurações administrativas da entrega (Etapa 2.2)
+
+Regras globais do iUser (nenhuma loja define): linha única de `delivery_dispatch_settings`, editada em Admin → **Entregas** (grupos: precificação, busca, aumento, autorização do cliente, estratégia, reserva, contraproposta, cancelamentos, pendências, novo fluxo). **Uma fonte de verdade por conceito:** tarifa base/km/extras continuam em `platform_tariffs`; raio inicial, expansão, intervalo (`retry_interval_minutes` = tempo da rodada), `max_rounds`, aumento (`increase_kind/value`), `max_freight` e taxa já eram usados pelo fluxo atual e seguem iguais. As colunas novas só serão lidas pelo novo fluxo (`flow_version = 2`, ainda inativo).
+- Validação: `src/modules/delivery-settings` (mesma regra na tela e na rota `/api/admin/delivery-settings`) + constraints `dds_*` no banco. Escrita só pela RPC `admin_update_delivery_settings` (service role, rota exige o admin geral); o app logado não lê nem escreve a tabela (leitura pela rota `/load`). Toda mudança grava linha em `admin_config_audit` (valor anterior/novo/admin).
+- `new_delivery_flow_enabled` existe, default `false`, e o banco **impede** ligar (`dds_new_flow_inactive_check`) até a etapa de ativação. Rollback: `supabase/rollbacks/etapa_2_2_rollback.sql`. Testes: `npm run test:delivery-settings`.
+
 ## Graduação e comissão de indicação: mora no banco, nunca fixe um percentual no código
 
 A comissão que quem indica ganha vem da **graduação** (Inicial/Bronze/Prata/Ouro/Diamante... — níveis que o admin cria e edita em `/administrador` → **Graduação**, tabela `network_levels`). Não confundir com a "Hierarquia" (`user_statuses`: Usuário/Líder/Supervisor/Gestor/Administrador), que é autoridade administrativa.

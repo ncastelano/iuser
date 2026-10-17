@@ -29,6 +29,10 @@ export async function callAdminApi<T>(path: string, body?: Record<string, unknow
         body: JSON.stringify(body || {}),
     })
     const json = await res.json()
-    if (!res.ok) throw new Error(json.error || 'Erro na requisição')
+    if (!res.ok) {
+        const err = new Error(json.error || 'Erro na requisição') as Error & { fields?: Record<string, string> }
+        if (json.fields) err.fields = json.fields   // erros por campo (validação do servidor)
+        throw err
+    }
     return json as T
 }
