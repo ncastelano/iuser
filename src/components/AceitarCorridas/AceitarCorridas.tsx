@@ -22,6 +22,8 @@ import { Spinner } from '@/components/Spinner'
 import { loadPlatformTariffs } from '@/lib/platformTariffs'
 import { shortAddress } from '@/lib/serviceBoard'
 import { DRIVER_RESERVED_TEXT, brl, remainingLabel } from '@/modules/delivery-search'
+import DriverReceiptConfirm from '@/components/DeliveryPayment/DriverReceiptConfirm'
+import DriverPayoutPix from '@/components/DeliveryPayment/DriverPayoutPix'
 import { getAvatarUrl } from '@/lib/avatar'
 import { computeSuggestedPrice, computeConditionExtras, computePickupFee, getEffectivePricing, getCustomPricing, PLATFORM_DEFAULT_PRICING_BY_VEHICLE, DriverPricing, type RideConditionFlags } from '@/lib/driverPricing'
 import { playRideAlertSound, playNotificationSound } from '@/lib/rideAlertSound'
@@ -322,7 +324,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
     const [departing, setDeparting] = useState(false)
     // Entrega V2: depois de aceitar, o motorista fica RESERVADO e só anda depois que a entrega é liberada. A tela só esconde os botões;
     // quem barra de verdade é o banco (gatilho em ride_requests). Falha ao ler = mostra como sempre (o banco continua barrando).
-    const [deliveryGate, setDeliveryGate] = useState<{ v2: boolean; released: boolean; reserved_until?: string | null; frozen_freight?: number | null } | null>(null)
+    const [deliveryGate, setDeliveryGate] = useState<{ v2: boolean; released: boolean; dispatch_id?: string; reserved_until?: string | null; frozen_freight?: number | null } | null>(null)
     const [arriving, setArriving] = useState(false)
     const [starting, setStarting] = useState(false)
     const [showExtraTaskForm, setShowExtraTaskForm] = useState(false)
@@ -1400,6 +1402,8 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                         <LoginAndRegister onLoginSuccess={handleLoginSuccess} />
                     )}
 
+                    {!loading && !showLogin && <DriverPayoutPix />}
+
                     {!loading && !showLogin && !!contextUserId && !plansLoading && !hasDriver && (
                         <div
                             className="rounded-2xl p-3.5 flex items-center gap-3"
@@ -1775,6 +1779,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                                         {deliveryGate?.frozen_freight != null ? ` Frete: ${brl(deliveryGate.frozen_freight)}.` : ''}
                                         {remainingLabel(deliveryGate?.reserved_until) ? ` Reserva até ${remainingLabel(deliveryGate?.reserved_until)}.` : ''}
                                     </p>
+                                    {deliveryGate?.dispatch_id && <DriverReceiptConfirm dispatchId={deliveryGate.dispatch_id} />}
                                 </div>
                             )}
 

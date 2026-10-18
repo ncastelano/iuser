@@ -25,7 +25,7 @@ export async function POST() {
         try {
             const { data: d } = await supabaseAdmin
                 .from('order_delivery_dispatches')
-                .select('id, customer_id, store_id, order_id, ride_request_id, final_freight, status')
+                .select('id, customer_id, store_id, order_id, ride_request_id, final_freight, status, flow_version')
                 .eq('id', ev.dispatch_id)
                 .maybeSingle()
             if (!d) continue
@@ -33,13 +33,13 @@ export async function POST() {
             // V2 (Etapa 2.6): reserva do motorista, liberações, cancelamentos e "sem entregador". Cada pessoa recebe só o seu texto;
             // o evento é reivindicado uma única vez (sem duplicar) e nada disto mexe em dinheiro.
             if (ev.kind === 'reservation_notice') {
-                const data = (ev.data || {}) as { reason?: string; mode?: string; driver_id?: string | null; frozen_freight?: number }
+                const data = (ev.data || {}) as { reason?: string; mode?: string; driver_id?: string | null; frozen_freight?: number; amount?: number }
                 const [{ data: order }, { data: store }, { data: cfg }] = await Promise.all([
                     supabaseAdmin.from('orders').select('total_amount').eq('id', d.order_id).maybeSingle(),
                     supabaseAdmin.from('stores').select('owner_id').eq('id', d.store_id).maybeSingle(),
                     supabaseAdmin.from('delivery_dispatch_settings').select('reservation_timeout_minutes').eq('id', true).maybeSingle(),
                 ])
-                const text = reservationNoticeText(data.reason || '', data.mode, { total: order ? Number(order.total_amount) : null, minutes: cfg?.reservation_timeout_minutes ?? null })
+                const text = reservationNoticeText(data.reason || '', data.mode, { total: data.reason === 'driver_payment_reported' && data.amount != null ? Number(data.amount) : order ? Number(order.total_amount) : null, minutes: cfg?.reservation_timeout_minutes ?? null })
                 const tag = `delivery-notice-${ev.id}`
                 if (text.customer && d.customer_id) await sendPushToUser(d.customer_id, { ...text.customer, url: '/carrinho?aba=pedidos', tag: `${tag}-c` })
                 if (text.driver && data.driver_id) await sendPushToUser(data.driver_id, { ...text.driver, url: '/aceitar-corridas', tag: `${tag}-d` })
@@ -121,6 +121,7 @@ export async function POST() {
                 originLat: store.store_lat,
                 originLng: store.store_lng,
                 // raio ampliado sem mudar o valor: só o anel novo; valor mudou (ou rodada 1): todo o raio
+                requirePayoutPix: d.flow_version === 2,
                 innerRadiusKm:
                     ev.kind === 'tick' && ev.old_radius != null ? Number(ev.old_radius)
                     : ev.kind === 'round_started' && ev.old_radius != null && !(ev.data as { price_changed?: boolean } | null)?.price_changed ? Number(ev.old_radius)

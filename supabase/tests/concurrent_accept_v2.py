@@ -55,6 +55,10 @@ select (select count(*) from orders where id = '{o}') o, (select count(*) from r
 
 drivers = [r['id'] for r in q("""select driver_id as id from driver_pricing where driver_id <> (select owner_id from stores where id = '%s') and driver_id <> (select id from profiles where "profileSlug" = 'lucy') order by driver_id limit 3""" % ST, 'v2_drv')]
 assert len(drivers) == 3, 'precisa de 3 motoristas de teste'
+# V2 exige chave Pix do motorista (Etapa 2.7): cadastra para quem não tem e remove só o que criou
+created = [r['driver_id'] for r in q("insert into driver_payout_keys(driver_id, pix_key_type, pix_key) select d, 'email', 'teste.concorrencia@pix.com' from unnest(array[%s]::uuid[]) d on conflict do nothing returning driver_id" % ','.join("'%s'" % x for x in drivers), 'v2_keys')]
+import atexit
+atexit.register(lambda: q("delete from driver_payout_keys where driver_id = any(array[%s]::uuid[])" % ','.join("'%s'" % x for x in created) if created else "select 1", 'v2_keys_clean'))
 
 def state(o, d, ride):
     return q(f"""select (select count(*) from ride_applications where ride_request_id = '{ride}' and status = 'accepted') aceitas,

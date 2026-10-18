@@ -10,6 +10,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
+import CustomerPayInstructions from '@/components/DeliveryPayment/CustomerPayInstructions'
 import { reajustQuestion, searchStatusText, SEARCH_END_REASON_TEXT, definitiveSummary, remainingLabel } from '@/modules/delivery-search'
 
 type Round = { id: string; status: string; final_freight: number; extra: number; round: number }
@@ -165,9 +166,9 @@ export default function DeliveryIncreasePrompt({ userId, className = '' }: { use
                                     <div className="flex justify-between font-black border-t pt-1" style={{ borderColor: colors.border }}><span>Total</span><span>{sum.total}</span></div>
                                     {sum.initialEstimate && <p className="text-[11px]" style={{ color: colors.textSecondary }}>{sum.initialEstimate}</p>}
                                     {left && <p className="text-[11px]" style={{ color: colors.textSecondary }}>Reserva do entregador: {left}</p>}
-                                    <p className="text-[11px]" style={{ color: colors.textSecondary }}>Próximo passo: pagamento. Você ainda não pagou nada.</p>
                                 </div>
                             )}
+                            {d.status === 'accepted' && <CustomerPayInstructions dispatchId={d.id} />}
                             {asking && q && pending && (
                                 <>
                                     <p className="text-sm" style={{ color: colors.textPrimary }}>{q.body}</p>

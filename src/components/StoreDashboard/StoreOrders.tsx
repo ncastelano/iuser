@@ -28,6 +28,7 @@ import { ensureEmployeeAccessToken, buildCourierRouteMessage } from '@/lib/couri
 import { getWhatsAppLink } from '@/lib/whatsapp'
 import { handleShareLink } from '@/lib/share'
 import { STORE_STATE_TEXT, brl as brlText } from '@/modules/delivery-search'
+import StoreDeliveryPayment from '@/components/DeliveryPayment/StoreDeliveryPayment'
 
 // Entrega V2 vista pela loja: o estado vem da fase da entrega (o pedido continua com o status dele)
 const RELEASED_PHASES = ['ENTREGA_LIBERADA', 'A_CAMINHO_DA_LOJA', 'CHEGOU_NA_LOJA', 'PEDIDO_RETIRADO', 'A_CAMINHO_DO_CLIENTE', 'ENTREGUE', 'CONCLUIDO']
@@ -36,6 +37,11 @@ function v2StateOf(phase: string): string {
     if (phase === 'AGUARDANDO_AUTORIZACAO_REAJUSTE') return 'awaiting_authorization'
     if (phase === 'ENTREGADOR_RESERVADO') return 'driver_reserved'
     if (phase === 'AGUARDANDO_PAGAMENTO_CLIENTE') return 'awaiting_payment'
+    if (phase === 'LOJA_INFORMOU_RECEBIMENTO') return 'customer_payment_reported'
+    if (phase === 'AGUARDANDO_PAGAMENTO_ENTREGADOR') return 'awaiting_driver_payment'
+    if (phase === 'LOJA_INFORMOU_PAGAMENTO_ENTREGADOR') return 'driver_payment_reported'
+    if (phase === 'PAGAMENTO_EM_VERIFICACAO') return 'payment_in_verification'
+    if (phase === 'ENTREGADOR_CONFIRMOU_RECEBIMENTO') return 'receipt_confirmed'
     if (phase === 'SEM_ENTREGADOR') return 'no_driver'
     if (isReleasedPhase(phase)) return 'released'
     return 'searching'
@@ -150,7 +156,7 @@ export default function StoreOrders({
     const [iuserDeliveryEnabled, setIuserDeliveryEnabled] = useState(false)
     const [dispatchedOrderIds, setDispatchedOrderIds] = useState<Set<string>>(new Set())
     const [acceptedDispatchIds, setAcceptedDispatchIds] = useState<Set<string>>(new Set())
-    const [dispatchInfo, setDispatchInfo] = useState<Map<string, { freight: number; radius: number; stage: string; v2State?: string | null; frozen?: number | null }>>(new Map())
+    const [dispatchInfo, setDispatchInfo] = useState<Map<string, { id: string; freight: number; radius: number; stage: string; v2State?: string | null; frozen?: number | null }>>(new Map())
     const [callDriverOrder, setCallDriverOrder] = useState<any>(null)
     const [store, setStore] = useState<any>(null)
 
@@ -163,11 +169,11 @@ export default function StoreOrders({
     useEffect(() => {
         const ids = groupedOrders.map((o) => o.id).filter(Boolean)
         if (ids.length === 0) return
-        supabase.from('order_delivery_dispatches').select('order_id, status, stage, final_freight, radius_km, flow_version, phase, frozen_freight').in('order_id', ids).or('status.in.(searching,accepted),and(status.eq.cancelled,phase.eq.SEM_ENTREGADOR)')
+        supabase.from('order_delivery_dispatches').select('id, order_id, status, stage, final_freight, radius_km, flow_version, phase, frozen_freight').in('order_id', ids).or('status.in.(searching,accepted),and(status.eq.cancelled,phase.eq.SEM_ENTREGADOR)')
             .then(({ data }) => {
                 setDispatchedOrderIds(new Set((data || []).map((r) => r.order_id as string)))
                 setAcceptedDispatchIds(new Set((data || []).filter((r) => r.status === 'accepted' && !(r.flow_version === 2 && !isReleasedPhase(r.phase as string))).map((r) => r.order_id as string)))
-                setDispatchInfo(new Map((data || []).map((r) => [r.order_id as string, { freight: Number(r.final_freight), radius: Number(r.radius_km), stage: r.stage as string, v2State: r.flow_version === 2 ? v2StateOf(r.phase as string) : null, frozen: r.frozen_freight != null ? Number(r.frozen_freight) : null }])))
+                setDispatchInfo(new Map((data || []).map((r) => [r.order_id as string, { id: r.id as string, freight: Number(r.final_freight), radius: Number(r.radius_km), stage: r.stage as string, v2State: r.flow_version === 2 ? v2StateOf(r.phase as string) : null, frozen: r.frozen_freight != null ? Number(r.frozen_freight) : null }])))
             })
     }, [groupedOrders])
 
@@ -1406,6 +1412,9 @@ function OrderButton({
                                     ? ({ to_store: 'Motorista indo à loja', at_store: 'Motorista na loja', in_transit: 'A caminho do cliente' } as Record<string, string>)[iuserDelivery.info?.get(order.id)?.stage] || 'Motorista aceitou'
                                     : `Buscando motorista${iuserDelivery.info?.get(order.id) ? ` · R$ ${iuserDelivery.info.get(order.id).freight.toFixed(2)} · até ${iuserDelivery.info.get(order.id).radius} km` : ''}`}
                             </span>
+                        )}
+                        {iuserDelivery?.info?.get(order.id)?.v2State && ['awaiting_payment', 'customer_payment_reported', 'awaiting_driver_payment', 'driver_payment_reported', 'payment_in_verification'].includes(iuserDelivery.info.get(order.id)!.v2State!) && (
+                            <StoreDeliveryPayment dispatchId={iuserDelivery.info.get(order.id)!.id} />
                         )}
                     </div>
                     <div className="flex items-center gap-1 flex-shrink-0">

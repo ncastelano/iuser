@@ -33,6 +33,8 @@ export async function notifyDriversOfRide(ride: {
     innerRadiusKm?: number | null
     originLat?: number | null
     originLng?: number | null
+    /** Entrega V2: só avisa quem tem chave Pix cadastrada (sem ela o motorista não consegue aceitar) */
+    requirePayoutPix?: boolean
     /** Cliente chamou um motorista específico (abriu a página dele): ele recebe um aviso direto, além do geral */
     preferred_driver_id?: string | null
 }): Promise<number> {
@@ -70,7 +72,13 @@ export async function notifyDriversOfRide(ride: {
         debtByDriver.set(c.driver_id, (debtByDriver.get(c.driver_id) || 0) + Number(c.amount))
     }
 
+    let payoutOk: Set<string> | null = null
+    if (ride.requirePayoutPix) {
+        const { data: keys } = await supabaseAdmin.from('driver_payout_keys').select('driver_id').in('driver_id', ids)
+        payoutOk = new Set((keys || []).map((k) => k.driver_id as string))
+    }
     const eligible = ids.filter((id) => {
+        if (payoutOk && !payoutOk.has(id)) return false
         const kinds = kindsByDriver.get(id) || ['carro']
         // Corrida "qualquer um": todo motorista é elegível, seja qual for o veículo dele.
         const canServe = ride.vehicle_type === 'qualquer' || kinds.some((k) => (ACCEPTABLE[k] || []).includes(ride.vehicle_type))

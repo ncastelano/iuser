@@ -42,7 +42,13 @@ export function searchStatusText(phase: SearchPhase, radiusKm: number, frozenFre
             return 'A busca está pausada esperando a sua decisão.'
         case 'ENTREGADOR_RESERVADO':
         case 'AGUARDANDO_PAGAMENTO_CLIENTE':
+        case 'LOJA_INFORMOU_RECEBIMENTO':
+        case 'AGUARDANDO_PAGAMENTO_ENTREGADOR':
+        case 'LOJA_INFORMOU_PAGAMENTO_ENTREGADOR':
+        case 'ENTREGADOR_CONFIRMOU_RECEBIMENTO':
             return frozenFreight != null ? `Encontramos um entregador. Frete aceito: ${brl(frozenFreight)}.` : 'Encontramos um entregador.'
+        case 'PAGAMENTO_EM_VERIFICACAO':
+            return 'Pagamento em verificação: há uma divergência e nada foi liberado.'
         case 'SEM_ENTREGADOR':
             return 'Não encontramos um entregador para este pedido.'
         case 'CANCELADO':
@@ -92,6 +98,11 @@ export const STORE_STATE_TEXT: Record<string, string> = {
     awaiting_authorization: 'Aguardando o cliente autorizar a busca',
     driver_reserved: 'Motorista reservado',
     awaiting_payment: 'Motorista reservado · aguardando o pagamento do cliente',
+    customer_payment_reported: 'Cliente pagou (informado) · pague o entregador',
+    awaiting_driver_payment: 'Pague o frete ao entregador',
+    driver_payment_reported: 'Frete informado · aguardando o entregador confirmar',
+    payment_in_verification: 'Pagamento em verificação',
+    receipt_confirmed: 'Recebimento confirmado pelo entregador',
     no_driver: 'Não foi possível encontrar entregador',
     cancelled: 'Entrega cancelada',
     released: 'Entrega liberada',
@@ -115,6 +126,20 @@ export function reservationNoticeText(
             store: { title: 'Motorista reservado', body: 'Um entregador aceitou o pedido. Aguardando o pagamento do cliente.' },
         }
     }
+    if (reason === 'driver_payment_reported') {
+        return { driver: { title: 'A loja informou o pagamento do frete', body: `Confirme no app se você recebeu${ctx.total != null ? ` ${brl(ctx.total)}` : ''}.` } }
+    }
+    if (reason === 'released') {
+        return {
+            customer: { title: 'Entrega liberada', body: 'O entregador confirmou o recebimento e já pode buscar o seu pedido.' },
+            driver: { title: 'Entrega liberada', body: 'Você pode iniciar a retirada.' },
+            store: { title: 'Entrega liberada', body: 'O entregador confirmou o recebimento do frete.' },
+        }
+    }
+    if (reason === 'in_verification') {
+        const m = { title: 'Pagamento em verificação', body: 'Há uma divergência no pagamento da entrega. Nada foi liberado.' }
+        return { customer: m, driver: m, store: m }
+    }
     if (reason === 'no_driver') {
         return {
             customer: { title: 'Não encontramos um entregador.', body: 'Seu pedido não foi cobrado. Fale com a loja para combinar a entrega.' },
@@ -136,4 +161,53 @@ export function reservationNoticeText(
         out.driver = { title: 'Entrega cancelada', body: 'A loja cancelou a entrega.' }
     }
     return out
+}
+
+// ===== Etapa 2.7: fluxo financeiro DECLARATÓRIO. O iUser não recebe, guarda nem repassa esse dinheiro: só registra o que cada parte informou. =====
+export type PayRole = 'customer' | 'store' | 'driver'
+
+export const PIX_TYPE_LABEL: Record<string, string> = { cpf: 'CPF', cnpj: 'CNPJ', email: 'E-mail', phone: 'Telefone', random: 'Chave aleatória' }
+
+export const PAYMENT_NOTE = 'O iUser não recebe, não guarda e não repassa esse dinheiro. Ele apenas registra o que cada parte informa.'
+
+/** Linha de status do fluxo financeiro para cada papel. `amount` é sempre o valor que o servidor mandou. */
+export function paymentStateText(role: PayRole, state: string, amount?: number | null): string {
+    const money = amount != null ? brl(amount) : ''
+    switch (state) {
+        case 'awaiting_payment':
+            return role === 'customer' ? 'Pague diretamente à loja.' : role === 'store' ? 'Aguardando o pagamento do cliente.' : 'Aguardando o cliente pagar a loja.'
+        case 'customer_payment_reported':
+        case 'awaiting_driver_payment':
+            return role === 'customer' ? 'A loja informou que recebeu o seu pagamento.' : role === 'store' ? `Pague ${money} ao entregador e informe aqui.` : 'A loja recebeu do cliente. Aguardando a loja pagar o seu frete.'
+        case 'driver_payment_reported':
+            return role === 'customer' ? 'A loja está pagando o entregador.' : role === 'store' ? 'Pagamento informado. Aguardando o entregador confirmar o recebimento.' : `A loja informou que enviou ${money}. Você recebeu?`
+        case 'payment_in_verification':
+            return 'Pagamento em verificação: há uma divergência e nada foi liberado.'
+        case 'receipt_confirmed':
+        case 'released':
+            return role === 'driver' ? 'Entrega liberada. Pode iniciar a retirada.' : 'Entrega liberada.'
+        default:
+            return ''
+    }
+}
+
+export const PAYMENT_LABELS = {
+    customerReceived: 'Recebi o pagamento do cliente',
+    driverPaid: 'Informar pagamento enviado',
+    driverReceived: (amount: number) => `Recebi ${brl(amount)}`,
+    driverNotReceived: 'Não recebi',
+    copyPix: 'Copiar chave Pix',
+}
+
+export function paymentErrorText(hint: string | undefined, fallback: string): string {
+    const map: Record<string, string> = {
+        wrong_phase: 'Esta etapa já foi concluída ou ainda não chegou.',
+        amount_mismatch: fallback,
+        driver_pix_missing: 'O entregador ainda não tem chave Pix cadastrada.',
+        store_not_reported: 'A loja ainda não informou o envio do pagamento.',
+        total_mismatch: 'O total do pedido não confere com o frete aceito. Fale com o suporte.',
+        reservation_inactive: 'A reserva do entregador não está mais ativa.',
+        cancel_blocked_after_payment: 'Há pagamento informado nesta entrega. Abra uma ocorrência.',
+    }
+    return (hint && map[hint]) || fallback
 }

@@ -2,7 +2,7 @@
 // Rodar: npm run test:delivery-search
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { reajustQuestion, reajustPushBody, searchStatusText, brl, SEARCH_END_REASON_TEXT, remainingLabel, definitiveSummary, reservationNoticeText, DRIVER_RESERVED_TEXT, STORE_STATE_TEXT } from '../src/modules/delivery-search/domain.ts'
+import { reajustQuestion, reajustPushBody, searchStatusText, brl, SEARCH_END_REASON_TEXT, remainingLabel, definitiveSummary, reservationNoticeText, DRIVER_RESERVED_TEXT, STORE_STATE_TEXT, paymentStateText, paymentErrorText, PAYMENT_NOTE, PAYMENT_LABELS, PIX_TYPE_LABEL } from '../src/modules/delivery-search/domain.ts'
 
 const req = { estimatedFreight: 12, currentOffer: 15, requestedLimit: 17 }
 
@@ -61,4 +61,26 @@ test('avisos da reserva: cada pessoa recebe o texto certo e ninguém recebe o qu
     assert.match(reservationNoticeText('customer_timeout', 'reopen', {}).customer.body, /procurando outro/)
     assert.equal(reservationNoticeText('customer_cancelled', 'cancel', {}).customer, undefined)
     assert.ok(STORE_STATE_TEXT.no_driver)
+})
+
+test('fluxo financeiro declaratório: textos por papel e sem linguagem de confirmação bancária', () => {
+    assert.equal(paymentStateText('customer', 'awaiting_payment'), 'Pague diretamente à loja.')
+    assert.equal(paymentStateText('store', 'awaiting_driver_payment', 14), 'Pague R$ 14,00 ao entregador e informe aqui.')
+    assert.equal(paymentStateText('driver', 'driver_payment_reported', 14), 'A loja informou que enviou R$ 14,00. Você recebeu?')
+    assert.match(paymentStateText('driver', 'payment_in_verification'), /nada foi liberado/)
+    assert.equal(paymentStateText('driver', 'released'), 'Entrega liberada. Pode iniciar a retirada.')
+    assert.match(PAYMENT_NOTE, /não recebe, não guarda e não repassa/)
+    assert.equal(PAYMENT_LABELS.driverReceived(14), 'Recebi R$ 14,00')
+    assert.equal(PIX_TYPE_LABEL.random, 'Chave aleatória')
+    // nunca fala em confirmação do banco
+    const all = JSON.stringify([PAYMENT_NOTE, PAYMENT_LABELS.customerReceived, PAYMENT_LABELS.driverPaid, PAYMENT_LABELS.driverNotReceived, ['awaiting_payment', 'customer_payment_reported', 'driver_payment_reported', 'payment_in_verification', 'released'].map((st) => ['customer', 'store', 'driver'].map((r) => paymentStateText(r, st, 14)))])
+    assert.doesNotMatch(all, /confirmado pelo banco|Pix confirmado|pagamento confirmado/i)
+})
+
+test('avisos da etapa financeira', () => {
+    assert.match(reservationNoticeText('driver_payment_reported', 'x', { total: 14 }).driver.body, /R\$ 14,00/)
+    assert.equal(reservationNoticeText('released', 'x', {}).driver.title, 'Entrega liberada')
+    assert.equal(reservationNoticeText('in_verification', 'x', {}).customer.title, 'Pagamento em verificação')
+    assert.equal(paymentErrorText('driver_pix_missing', 'x'), 'O entregador ainda não tem chave Pix cadastrada.')
+    assert.equal(paymentErrorText(undefined, 'erro cru'), 'erro cru')
 })

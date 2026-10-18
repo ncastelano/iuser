@@ -17,7 +17,8 @@
     "test:delivery-settings": "node --test scripts/test-delivery-settings.mjs",
     "test:delivery-estimate": "node --test scripts/test-delivery-estimate.mjs",
     "test:checkout-v2": "node --test scripts/test-checkout-v2-coverage.mjs",
-    "test:delivery-search": "node --test scripts/test-delivery-search.mjs"
+    "test:delivery-search": "node --test scripts/test-delivery-search.mjs",
+    "test:delivery-money": "node --test scripts/test-delivery-money.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",

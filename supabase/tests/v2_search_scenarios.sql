@@ -59,6 +59,7 @@ begin
   select owner_id, store_lat, store_lng into owner, lat0, lng0 from stores where id = st;
   select id into drvA from profiles where "profileSlug" = 'natancastelano';
   select driver_id into drvB from driver_pricing where driver_id not in (cust, other, owner, drvA) order by driver_id limit 1;
+  insert into driver_payout_keys(driver_id, pix_key_type, pix_key) values (drvA, 'email', 'a.teste@pix.com'), (drvB, 'email', 'b.teste@pix.com') on conflict do nothing;   -- V2 exige Pix do motorista (2.7)
   if drvB is null then raise exception 'RESULT: sem segundo motorista de teste com driver_pricing'; end if;
 
   -- ===== T1/T2: primeira oferta = estimativa, raio inicial, taxa 0 =====
