@@ -20,7 +20,8 @@ if have and not a.reset:
 if a.reset:
     print('Limpando o schema public do staging...')
     q_staging("DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public; GRANT USAGE ON SCHEMA public TO postgres, anon, authenticated, service_role; GRANT ALL ON SCHEMA public TO postgres, service_role; ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO postgres, anon, authenticated, service_role; ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO postgres, anon, authenticated, service_role; ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO postgres, anon, authenticated, service_role")
-    q_staging("DELETE FROM storage.buckets WHERE true") if False else None
+    # políticas de storage.objects de uma aplicação anterior (o schema storage não é recriado)
+    q_staging("DO $$ DECLARE r record; BEGIN FOR r IN SELECT policyname FROM pg_policies WHERE schemaname = 'storage' AND tablename = 'objects' LOOP EXECUTE format('DROP POLICY %I ON storage.objects', r.policyname); END LOOP; END $$")
 
 app_url = os.environ.get('STAGING_APP_URL', 'https://staging.invalid').rstrip('/')
 secret = os.environ.get('STAGING_WEBHOOK_SECRET') or secrets.token_urlsafe(32)
