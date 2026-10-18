@@ -182,16 +182,17 @@ export default function PublicationClientPage() {
                             storeSlug,
                             logo_url,
                             owner_id,
-                            whatsapp,
                             show_whatsapp
                         `)
                         .eq('id', pubData.store_id)
                         .maybeSingle()
 
                     if (!storeErr && storeData) {
+                        // Telefone da loja só por RPC (exige login)
+                        const { data: storeWa } = await supabase.rpc('get_store_whatsapp', { p_store: storeData.id })
                         publicationWithData = {
                             ...pubData,
-                            store: storeData,
+                            store: { ...storeData, whatsapp: (storeWa as string | null) || null },
                             profile: null
                         }
 

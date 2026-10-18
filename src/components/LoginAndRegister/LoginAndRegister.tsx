@@ -199,12 +199,8 @@ function LoginAndRegisterContent({ onLoginSuccess, initialMode = 'login' }: Logi
             // tem um upline, em vez de a comissão de indicação simplesmente
             // não existir pra quem chegou sem link.
             if (!uplineId) {
-                const { data: adminProfile } = await supabase
-                    .from('profiles')
-                    .select('id')
-                    .eq('email', 'ncastelano@gmail.com')
-                    .maybeSingle()
-                if (adminProfile) uplineId = adminProfile.id
+                const { data: defaultUpline } = await supabase.rpc('get_default_upline_id')
+                if (defaultUpline) uplineId = defaultUpline as string
             }
 
             // Criar usuário no Auth
@@ -243,8 +239,6 @@ function LoginAndRegisterContent({ onLoginSuccess, initialMode = 'login' }: Logi
                 email: registerEmail,
                 cpf_cnpj: cleanCpfCnpj,
                 avatar_url: avatarUrl,
-                is_active: true,
-                created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString()
             }
 

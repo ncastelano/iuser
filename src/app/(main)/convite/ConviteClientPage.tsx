@@ -94,7 +94,7 @@ function ConviteContent() {
                     console.log('👤 Usuário logado:', userId)
 
                     const { data: currentProfile, error: profileError } = await supabase
-                        .from('profiles')
+                        .from('my_profile')
                         .select('*')
                         .eq('id', userId)
                         .maybeSingle()

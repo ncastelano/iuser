@@ -85,7 +85,7 @@ export default function ComunidadePage() {
     // ===== USUÁRIO + LOCALIZAÇÃO SALVA NO PERFIL =====
     const fetchProfileLocation = useCallback(async (uid: string) => {
         const { data: profile } = await supabase
-            .from('profiles')
+            .from('my_profile')
             .select('address, address_number, address_complement, store_lat, store_lng')
             .eq('id', uid)
             .maybeSingle()

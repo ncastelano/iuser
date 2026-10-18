@@ -97,13 +97,13 @@ export default function StorePublication({ storeId }: PublicationProps) {
                 }
 
                 const { data: storeData } = await supabase
-                    .from('stores')
-                    .select('whatsapp, final_whatsapp')
+                    .from('my_stores')
+                    .select('whatsapp')
                     .eq('id', storeId)
-                    .single()
+                    .maybeSingle()
 
                 if (storeData && isMounted) {
-                    setStoreWhatsapp(storeData.final_whatsapp || storeData.whatsapp || null)
+                    setStoreWhatsapp(storeData.whatsapp || null)
                 }
             } catch (err) {
                 console.error('[Publication] Erro ao carregar:', err)

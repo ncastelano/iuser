@@ -18,7 +18,9 @@
     "test:delivery-estimate": "node --test scripts/test-delivery-estimate.mjs",
     "test:checkout-v2": "node --test scripts/test-checkout-v2-coverage.mjs",
     "test:delivery-search": "node --test scripts/test-delivery-search.mjs",
-    "test:delivery-money": "node --test scripts/test-delivery-money.mjs"
+    "test:delivery-money": "node --test scripts/test-delivery-money.mjs",
+    "test:security-exposure": "node --test scripts/test-security-exposure.mjs",
+    "test:security-exposure:db": "npx supabase db query --linked -f supabase/tests/security_exposure_scenarios.sql"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",

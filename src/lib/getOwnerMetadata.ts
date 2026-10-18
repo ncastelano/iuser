@@ -83,9 +83,11 @@ export async function generateOwnerMetadata(ownerSlug: string): Promise<Metadata
         // 1. Tenta buscar como Perfil
         const { data: profile } = await supabase
             .from('profiles')
-            .select('name, profileSlug, avatar_url, bio, description, address, ratings_avg, ratings_count, is_seller')
+            .select('name, profileSlug, avatar_url, bio, description, ratings_avg, ratings_count, is_seller')
             .eq('profileSlug', ownerSlug)
             .maybeSingle()
+        // Só o bairro/cidade grosseiro, nunca o endereço completo (que é privado)
+        const { data: cityRaw } = profile ? await supabase.rpc('get_profile_city', { p_slug: ownerSlug }) : { data: null }
 
         if (profile) {
             const displayName = profile.name ? profile.name : `@${profile.profileSlug}`
@@ -93,7 +95,7 @@ export async function generateOwnerMetadata(ownerSlug: string): Promise<Metadata
             const rating = Number(profile.ratings_avg) > 0 && Number(profile.ratings_count) > 0
                 ? `⭐ ${Number(profile.ratings_avg).toFixed(1).replace('.', ',')} (${profile.ratings_count})`
                 : null
-            const highlight = joinParts([rating, cityFromAddress(profile.address)])
+            const highlight = joinParts([rating, (cityRaw as string | null) || null])
             const about = (profile.bio || profile.description || '').trim()
             const description = [highlight, about || `Confira o perfil de ${displayName} no iUser: compre, venda, dirija e preste serviços.`].filter(Boolean).join(' — ')
             const rawAvatarUrl = getPublicStorageUrl('avatars', profile.avatar_url)

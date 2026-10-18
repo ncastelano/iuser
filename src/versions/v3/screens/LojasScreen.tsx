@@ -69,7 +69,7 @@ export default function LojasScreen() {
         if (profileLoading) return
         if (!userId) { setMeLoaded(true); return }
         let cancelled = false
-        supabase.from('profiles').select('store_lat, store_lng').eq('id', userId).maybeSingle().then(({ data }) => {
+        supabase.from('my_profile').select('store_lat, store_lng').eq('id', userId).maybeSingle().then(({ data }) => {
             if (cancelled) return
             const d = data as { store_lat: number | null; store_lng: number | null } | null
             if (d?.store_lat != null && d?.store_lng != null) setMe({ lat: Number(d.store_lat), lng: Number(d.store_lng) })

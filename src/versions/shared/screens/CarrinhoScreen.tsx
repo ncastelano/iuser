@@ -406,7 +406,7 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
             setCurrentUserId(userId)
 
             const { data: profile } = await supabase
-                .from('profiles')
+                .from('my_profile')
                 .select('profileSlug, avatar_url, name, address, store_lat, store_lng')
                 .eq('id', userId)
                 .single()
@@ -913,7 +913,7 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
 
             const { data: storeData } = await supabase
                 .from('stores')
-                .select('id, owner_id, whatsapp, storeSlug')
+                .select('id, owner_id, storeSlug')
                 .eq('storeSlug', slug)
                 .single()
 
@@ -1038,21 +1038,11 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
             const remainingSlugs = Object.keys(itemsByStore).filter(s => s !== slug)
             if (remainingSlugs.length === 0) {
                 try {
-                    const { data: storeForWa } = await supabase
-                        .from('stores')
-                        .select('whatsapp, owner_id, whatsapp_orders_enabled')
-                        .eq('storeSlug', slug)
-                        .single()
-                    let whatsapp = storeForWa?.whatsapp
-                    if (!whatsapp && storeForWa?.owner_id) {
-                        const { data: owner } = await supabase
-                            .from('profiles')
-                            .select('whatsapp')
-                            .eq('id', storeForWa.owner_id)
-                            .single()
-                        whatsapp = owner?.whatsapp
-                    }
-                    if (whatsapp && storeForWa?.whatsapp_orders_enabled !== false) {
+                    // Telefone da loja: RPC que só responde a quem acabou de fazer pedido nela
+                    const { data: waRows } = await supabase.rpc('get_store_order_whatsapp', { p_store: storeData.id })
+                    const waRow = Array.isArray(waRows) ? waRows[0] : waRows
+                    const whatsapp: string | null | undefined = waRow?.whatsapp
+                    if (whatsapp && waRow?.orders_enabled !== false) {
                         const paymentLabel = isV2Order ? 'A combinar após a loja aceitar' : paymentOpt === 'pix' ? 'PIX' : paymentOpt === 'cartao' ? 'Cartão' : 'Dinheiro'
                         const deliveryLabel = deliveryOpt === 'entrega'
                             ? `Entrega (${address})${deliveryFee > 0 ? ` - Taxa: R$ ${deliveryFee.toFixed(2)}` : ' - Grátis'}`

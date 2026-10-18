@@ -193,12 +193,15 @@ export function PublicationClientPage({
                 if (pubData?.store_id) {
                     const { data: store } = await supabase
                         .from('stores')
-                        .select('id, name, "storeSlug", logo_url, whatsapp, show_whatsapp')
+                        .select('id, name, "storeSlug", logo_url, show_whatsapp')
                         .eq('id', pubData.store_id)
                         .maybeSingle()
+                    // Telefone da loja só por RPC (exige login)
+                    const { data: storeWa } = store ? await supabase.rpc('get_store_whatsapp', { p_store: store.id }) : { data: null }
                     storeData = store
                         ? {
                             ...store,
+                            whatsapp: (storeWa as string | null) || null,
                             logo_url: store.logo_url
                                 ? supabase.storage.from('store-logos').getPublicUrl(store.logo_url).data.publicUrl
                                 : null,

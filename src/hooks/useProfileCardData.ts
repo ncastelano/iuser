@@ -11,7 +11,7 @@ import { getAvatarUrl } from '@/lib/avatar'
 import { useLastSeen } from '@/hooks/useLastSeen'
 import type { SocialCardProfile, SocialCardStore } from '@/app/(main)/social/SocialProfileCard'
 
-const COLUMNS = 'id, name, avatar_url, "profileSlug", description, bio, address, ratings_avg, ratings_count, category, chat_enabled, show_location, show_in_social'
+const COLUMNS = 'id, name, avatar_url, "profileSlug", description, bio, address:public_address, ratings_avg, ratings_count, category, chat_enabled, show_location, show_in_social'
 
 export function useProfileCardData(ids: string[], viewerId: string | null | undefined) {
     const key = useMemo(() => Array.from(new Set(ids)).join(','), [ids])

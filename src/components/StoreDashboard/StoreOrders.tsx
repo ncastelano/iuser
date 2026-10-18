@@ -216,10 +216,10 @@ export default function StoreOrders({
                 if (storeData.owner_id) {
                     const { data: ownerData } = await supabase
                         .from('profiles')
-                        .select('name, phone')
+                        .select('name')
                         .eq('id', storeData.owner_id)
                         .single()
-                    if (ownerData) setOwnerProfile({ name: ownerData.name, phone: ownerData.phone })
+                    if (ownerData) setOwnerProfile({ name: ownerData.name })
                 }
 
                 const { data: empData } = await supabase

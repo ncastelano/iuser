@@ -110,7 +110,7 @@ export function VersionSync() {
         ;(async () => {
             let pref: UiVersion | null = null
             try {
-                const { data } = await supabase.from('profiles').select('preferred_version').eq('id', userId).maybeSingle()
+                const { data } = await supabase.from('my_profile').select('preferred_version').eq('id', userId).maybeSingle()
                 pref = parseVersion((data as { preferred_version?: string } | null)?.preferred_version)
             } catch { return }
             if (cancelled) return

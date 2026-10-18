@@ -298,7 +298,7 @@ export default function StoreDashboard({
         if (!storeSlug || !profileSlug) return
         setLoading(true)
 
-        const { data: storeData } = await supabase.from('stores').select('*').ilike('storeSlug', storeSlug).maybeSingle()
+        const { data: storeData } = await supabase.from('my_stores').select('*').ilike('storeSlug', storeSlug).maybeSingle()
         if (!storeData) { toast.error('Loja não encontrada'); setLoading(false); return }
 
         const logoUrl = storeData.logo_url ? supabase.storage.from('store-logos').getPublicUrl(storeData.logo_url).data.publicUrl : null

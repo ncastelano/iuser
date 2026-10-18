@@ -23,6 +23,7 @@ import LocationPicker from '@/components/LocationPicker'
 import { haversineKm } from '@/lib/mapboxRoute'
 import { parseCoords } from '@/lib/geoParse'
 import { getProfilesHiddenFromMap } from '@/lib/mapPrivacy'
+import { STORE_PUBLIC_SELECT } from '@/lib/publicColumns'
 import type { UiVersion } from '@/versions/registry'
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
@@ -189,7 +190,7 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
             console.log('[MapPage] 🔍 Carregando perfil para userId:', userId)
 
             const { data: profile, error } = await supabase
-                .from('profiles')
+                .from('my_profile')
                 .select('*')
                 .eq('id', userId)
                 .single()
@@ -406,7 +407,7 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
     // LOAD DATA
     useEffect(() => {
         const load = async () => {
-            const { data: storesData } = await supabase.from('stores').select('*')
+            const { data: storesData } = await supabase.from('stores').select(STORE_PUBLIC_SELECT)
             const { data: productsRaw } = await supabase.from('products').select('*')
             // Perfis que desligaram "Aparecer no mapa" (ou "Mostrar no meu perfil") não entram com os seus serviços
             const hiddenOwners = await getProfilesHiddenFromMap((productsRaw || []).filter((p: any) => !p.store_id).map((p: any) => p.owner_id))
@@ -494,16 +495,17 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
             try {
                 const storeId = selectedItem.id
 
-                let whatsapp = selectedItem.whatsapp || null
+                // Telefone só por RPC (exige login; sem login volta vazio)
+                const { data: waData } = await supabase.rpc('get_store_whatsapp', { p_store: storeId })
+                const whatsapp: string | null = (waData as string | null) || null
                 let instagram = selectedItem.instagram || null
-                if ((!whatsapp || !instagram) && selectedItem.owner_id) {
+                if (!instagram && selectedItem.owner_id) {
                     const { data: ownerProfile } = await supabase
                         .from('profiles')
-                        .select('whatsapp, instagram')
+                        .select('instagram')
                         .eq('id', selectedItem.owner_id)
                         .single()
-                    whatsapp = whatsapp || ownerProfile?.whatsapp || null
-                    instagram = instagram || ownerProfile?.instagram || null
+                    instagram = ownerProfile?.instagram || null
                 }
 
                 const [{ count: followersCount }, { data: topProducts }, { data: reviewsData }, { data: followData }] = await Promise.all([

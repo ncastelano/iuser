@@ -154,11 +154,13 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
 
         let profilesById = new Map<string, { name: string | null; profileSlug: string | null; avatar_url: string | null; store_lat: number | null; store_lng: number | null }>()
         if (idsToFetch.length > 0) {
-            const { data: profiles } = await supabase
-                .from('profiles')
-                .select('id, name, profileSlug, avatar_url, store_lat, store_lng')
-                .in('id', idsToFetch)
-            profilesById = new Map((profiles || []).map((p) => [p.id, p]))
+            const [{ data: profiles }, { data: locs }] = await Promise.all([
+                supabase.from('profiles').select('id, name, profileSlug, avatar_url').in('id', idsToFetch),
+                // Posição APROXIMADA (~1 km) de quem se candidatou à MINHA corrida; o endereço salvo de cada um é privado
+                supabase.rpc('get_ride_applicant_locations', { p_ride: rideId }),
+            ])
+            const locById = new Map(((locs as { profile_id: string; lat: number; lng: number }[]) || []).map((l) => [l.profile_id, l]))
+            profilesById = new Map((profiles || []).map((p) => [p.id, { ...p, store_lat: locById.get(p.id)?.lat ?? null, store_lng: locById.get(p.id)?.lng ?? null }]))
         }
 
         // Ficha do carro (modelo, cor, foto, serviços) — pública, pro

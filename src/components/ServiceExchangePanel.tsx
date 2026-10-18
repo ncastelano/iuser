@@ -66,14 +66,14 @@ export default function ServiceExchangePanel({ applicationId, role, counterpartI
             supabase.auth.getUser(),
             supabase.from('service_applications').select('completed_at').eq('id', applicationId).maybeSingle(),
             supabase.from('service_reviews').select('reviewer_id, rating, comment').eq('application_id', applicationId),
-            supabase.from('profiles').select('whatsapp').eq('id', counterpartId).maybeSingle(),
+            supabase.rpc('get_profile_whatsapp', { p_profile: counterpartId }),
             supabase.from('service_tips').select('tip_visible').eq('application_id', applicationId).maybeSingle(),
         ])
         setTip((tipRes.data as any) || null)
         setMyId(userRes.user?.id || null)
         setCompletedAt((appRes.data as any)?.completed_at || null)
         setReviews((revRes.data as ReviewRow[]) || [])
-        setWhatsapp((profRes.data as any)?.whatsapp || null)
+        setWhatsapp((profRes.data as string | null) || null)
         setLoading(false)
     }, [applicationId, counterpartId])
 

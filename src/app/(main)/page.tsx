@@ -290,7 +290,7 @@ function HomePageContent() {
 
             try {
                 const { data: profile, error } = await supabase
-                    .from('profiles')
+                    .from('my_profile')
                     .select('address, address_number, address_complement, store_lat, store_lng')
                     .eq('id', userId)
                     .maybeSingle()

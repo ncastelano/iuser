@@ -62,6 +62,7 @@ import { Follows } from './Follows'
 import { EditProfile } from './EditProfile'
 import { formatDistanceToNow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import { PROFILE_PUBLIC_SELECT, STORE_PUBLIC_SELECT } from '@/lib/publicColumns'
 
 interface ProfileProps {
     ownerSlug: string
@@ -334,7 +335,7 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
         try {
             const { data: profile, error: profileError } = await supabase
                 .from('profiles')
-                .select('*')
+                .select(PROFILE_PUBLIC_SELECT)
                 .eq('profileSlug', ownerSlug)
                 .maybeSingle()
 
@@ -356,6 +357,20 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                 avg = ratingsData.reduce((sum, r) => sum + r.rating, 0) / count
             }
 
+            // Dados privados (endereço completo, ponto no mapa, WhatsApp): o dono lê a própria linha em my_profile;
+            // os outros recebem só o bairro (public_address) e o WhatsApp por RPC (com login e motivo).
+            const viewerIsOwner = !!currentUserId && currentUserId === profile.id
+            let privateRow: { address: string | null; whatsapp: string | null; location: any } | null = null
+            let whatsapp: string | null = null
+            if (viewerIsOwner) {
+                const { data: mine } = await supabase.from('my_profile').select('address, whatsapp, location').maybeSingle()
+                privateRow = (mine as any) || null
+                whatsapp = privateRow?.whatsapp || null
+            } else if (currentUserId) {
+                const { data: wa } = await supabase.rpc('get_profile_whatsapp', { p_profile: profile.id })
+                whatsapp = (wa as string | null) || null
+            }
+
             const ownerData: OwnerData = {
                 id: profile.id,
                 name: profile.name,
@@ -364,14 +379,14 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                 avatar_url: profile.avatar_url,
                 business_hours: profile.business_hours,
                 description: profile.description,
-                address: profile.address,
-                whatsapp: profile.whatsapp,
+                address: viewerIsOwner ? (privateRow?.address ?? null) : (profile.public_address ?? null),
+                whatsapp,
                 instagram: profile.instagram,
                 view_count: profile.view_count || 0,
                 ratings_avg: avg,
                 ratings_count: count,
                 show_location: profile.show_location !== false,
-                location: profile.location,
+                location: viewerIsOwner ? (privateRow?.location ?? null) : null,
                 allow_scheduling: profile.allow_scheduling === true,
                 chat_enabled: profile.chat_enabled === true,
             }
@@ -399,7 +414,7 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
 
             const { data: storesData } = await supabase
                 .from('stores')
-                .select('*')
+                .select(STORE_PUBLIC_SELECT)
                 .eq('owner_id', profile.id)
 
             setStores(storesData || [])

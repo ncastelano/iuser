@@ -117,7 +117,7 @@ export function useStoreCheckout(ownerSlug: string | undefined, cartItems: CartI
     const loadUserData = useCallback(async (uid: string) => {
         setCurrentUserId(uid)
         const { data: profile } = await supabase
-            .from('profiles')
+            .from('my_profile')
             .select('profileSlug, name, address, store_lat, store_lng')
             .eq('id', uid)
             .single()
@@ -456,13 +456,11 @@ export function useStoreCheckout(ownerSlug: string | undefined, cartItems: CartI
             }
 
             try {
-                const { data: storeData } = await supabase.from('stores').select('whatsapp, owner_id, whatsapp_orders_enabled').eq('id', storeConfig.id).single()
-                let whatsapp = storeData?.whatsapp
-                if (!whatsapp && storeData?.owner_id) {
-                    const { data: owner } = await supabase.from('profiles').select('whatsapp').eq('id', storeData.owner_id).single()
-                    whatsapp = owner?.whatsapp
-                }
-                if (whatsapp && storeData?.whatsapp_orders_enabled !== false) {
+                // Telefone da loja: RPC que só responde a quem acabou de fazer pedido nela
+                const { data: waRows } = await supabase.rpc('get_store_order_whatsapp', { p_store: storeConfig.id })
+                const waRow = Array.isArray(waRows) ? waRows[0] : waRows
+                const whatsapp: string | null | undefined = waRow?.whatsapp
+                if (whatsapp && waRow?.orders_enabled !== false) {
                     const paymentLabel = isV2Delivery ? 'A combinar após a loja aceitar' : paymentMethod === 'pix' ? 'PIX' : paymentMethod === 'cartao' ? 'Cartão' : 'Dinheiro'
                     const deliveryLabel = deliveryOption === 'entrega'
                         ? `Entrega (${address})${deliveryFee > 0 ? ` - Taxa: R$ ${deliveryFee.toFixed(2)}` : ' - Grátis'}`

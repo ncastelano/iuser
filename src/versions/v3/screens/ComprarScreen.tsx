@@ -80,7 +80,7 @@ export default function ComprarScreen() {
         if (profileLoading) return
         if (!userId) { setMeLoaded(true); return }
         let cancelled = false
-        supabase.from('profiles').select('store_lat, store_lng').eq('id', userId).maybeSingle().then(({ data: d }) => {
+        supabase.from('my_profile').select('store_lat, store_lng').eq('id', userId).maybeSingle().then(({ data: d }) => {
             if (cancelled) return
             const row = d as { store_lat: number | null; store_lng: number | null } | null
             if (row?.store_lat != null && row?.store_lng != null) setMe({ lat: Number(row.store_lat), lng: Number(row.store_lng) })

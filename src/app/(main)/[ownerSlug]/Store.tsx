@@ -51,6 +51,7 @@ import { Follows } from './Follows'
 import StoreVipClubMember from './StoreVipClubMember'
 import EditProductDialog from '@/components/EditProductDialog'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
+import { STORE_PUBLIC_SELECT } from '@/lib/publicColumns'
 
 interface StoreProps {
     ownerSlug: string
@@ -452,7 +453,7 @@ export function Store({
         try {
             const { data: store, error: storeError } = await supabase
                 .from('stores')
-                .select('*')
+                .select(STORE_PUBLIC_SELECT)
                 .eq('storeSlug', ownerSlug)
                 .maybeSingle()
 
@@ -478,16 +479,20 @@ export function Store({
                 ? supabase.storage.from('store-logos').getPublicUrl(store.logo_url).data.publicUrl
                 : null
 
-            let storeWhatsapp = store.whatsapp
+            // Telefone não vem na linha pública da loja: só por RPC, com login (loja ativa ou dono).
+            let storeWhatsapp: string | null = null
             let storeInstagram = store.instagram
-            if ((!storeWhatsapp || !storeInstagram) && store.owner_id) {
+            if (currentUserId) {
+                const { data: wa } = await supabase.rpc('get_store_whatsapp', { p_store: store.id })
+                storeWhatsapp = (wa as string | null) || null
+            }
+            if (!storeInstagram && store.owner_id) {
                 const { data: profile } = await supabase
                     .from('profiles')
-                    .select('whatsapp, instagram')
+                    .select('instagram')
                     .eq('id', store.owner_id)
                     .single()
-                storeWhatsapp = storeWhatsapp || profile?.whatsapp
-                storeInstagram = storeInstagram || profile?.instagram
+                storeInstagram = profile?.instagram
             }
 
             const ownerData: OwnerData = {

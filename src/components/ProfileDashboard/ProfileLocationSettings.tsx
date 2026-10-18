@@ -34,7 +34,7 @@ export default function ProfileLocationSettings({ profileId }: { profileId: stri
 
     const load = useCallback(async () => {
         const { data } = await supabase
-            .from('profiles')
+            .from('my_profile')
             .select('address, address_number, address_complement, store_lat, store_lng, show_location, show_on_map, show_in_social, live_location')
             .eq('id', profileId)
             .maybeSingle()

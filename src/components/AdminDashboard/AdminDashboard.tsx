@@ -511,12 +511,12 @@ function WhatsAppBotSection({ cardStyle, colors }: SectionProps) {
 
     const load = useCallback(async () => {
         setLoading(true)
-        const { data } = await supabase
-            .from('stores')
-            .select('id, name, storeSlug, whatsapp_bot_opt_in, whatsapp_bot_phone_number_id, whatsapp_bot_display_number, whatsapp_bot_requested_number, whatsapp_bot_status')
-            .eq('whatsapp_bot_opt_in', true)
-            .order('whatsapp_bot_phone_number_id', { ascending: true, nullsFirst: true })
-        setStores((data as WhatsAppBotStoreRow[]) || [])
+        try {
+            const res = await callAdminApi<{ stores: WhatsAppBotStoreRow[] }>('/api/admin/stores/whatsapp-bot/list', {})
+            setStores(res.stores || [])
+        } catch {
+            setStores([])
+        }
         setLoading(false)
     }, [])
 
@@ -529,12 +529,12 @@ function WhatsAppBotSection({ cardStyle, colors }: SectionProps) {
         }
         setSearching(true)
         const t = setTimeout(async () => {
-            const { data } = await supabase
-                .from('stores')
-                .select('id, name, storeSlug, whatsapp_bot_opt_in, whatsapp_bot_phone_number_id, whatsapp_bot_display_number, whatsapp_bot_requested_number, whatsapp_bot_status')
-                .or(`name.ilike.%${query.trim()}%,storeSlug.ilike.%${query.trim()}%`)
-                .limit(10)
-            setSearchResults((data as WhatsAppBotStoreRow[]) || [])
+            try {
+                const res = await callAdminApi<{ stores: WhatsAppBotStoreRow[] }>('/api/admin/stores/whatsapp-bot/list', { query: query.trim() })
+                setSearchResults(res.stores || [])
+            } catch {
+                setSearchResults([])
+            }
             setSearching(false)
         }, 300)
         return () => clearTimeout(t)

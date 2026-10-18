@@ -159,12 +159,14 @@ export default function ProfilePublication({ profileId, profileSlug, isOwner = t
                 // Buscar dados do perfil (WhatsApp, nome e avatar para o cabecalho do card)
                 const { data: profileData } = await supabase
                     .from('profiles')
-                    .select('whatsapp, name, avatar_url')
+                    .select('name, avatar_url')
                     .eq('id', profileId)
                     .single()
+                // Telefone só por RPC (com login e motivo)
+                const { data: waData } = await supabase.rpc('get_profile_whatsapp', { p_profile: profileId })
 
                 if (profileData && isMounted) {
-                    setProfileWhatsapp(profileData.whatsapp || null)
+                    setProfileWhatsapp((waData as string | null) || null)
                     setOwnerName(profileData.name || '')
                     setOwnerAvatar(getAvatarUrl(supabase, profileData.avatar_url) || null)
                 }

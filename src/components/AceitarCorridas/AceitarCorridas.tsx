@@ -539,7 +539,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                 .eq('driver_id', contextUserId)
                 .maybeSingle(),
             !contextUserId ? noRow : supabase
-                .from('profiles')
+                .from('my_profile')
                 .select('address, address_number, address_complement, store_lat, store_lng')
                 .eq('id', contextUserId)
                 .maybeSingle(),

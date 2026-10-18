@@ -7,15 +7,21 @@
 // o usuário no Auth — sem isso, a pessoa só ia descobrir o problema depois
 // do auth.signUp() já ter rodado, quando o insert no profiles batesse no
 // índice único.
-import { supabase } from '@/lib/supabase/client'
-
+//
+// A coluna `cpf_cnpj` é privada (o navegador não a lê): a pergunta vai para o servidor, que só devolve sim/não.
 export async function isCpfCnpjTaken(cleanCpfCnpj: string): Promise<boolean> {
-    const { data } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('cpf_cnpj', cleanCpfCnpj)
-        .maybeSingle()
-    return !!data
+    try {
+        const res = await fetch('/api/auth/cpf-available', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ cpfCnpj: cleanCpfCnpj }),
+        })
+        if (!res.ok) return false // o índice único do banco ainda barra a duplicidade no insert
+        const json = await res.json()
+        return !!json.taken
+    } catch {
+        return false
+    }
 }
 
 export const CPF_CNPJ_TAKEN_MESSAGE = 'Esse CPF/CNPJ já está cadastrado em outra conta do iUser.'

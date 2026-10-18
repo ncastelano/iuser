@@ -78,8 +78,7 @@ export default function AllStoreList() {
                     owner_id,
                     business_hours,
                     view_count,
-                    category,
-                    whatsapp
+                    category
                 `)
                 .eq('is_active', true)
                 .order('view_count', { ascending: false })  // ✅ Mais visitados primeiro

@@ -55,7 +55,7 @@ export default function StorePaymentMethods({ storeId, onRefresh }: StorePayment
         setLoading(true)
 
         const { data: store, error } = await supabase
-            .from('stores')
+            .from('my_stores')
             .select('accepts_pix, accepts_card, accepts_cash, pix_key, pix_key_type')
             .eq('id', storeId)
             .single()

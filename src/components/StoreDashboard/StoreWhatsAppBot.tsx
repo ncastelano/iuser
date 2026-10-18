@@ -55,7 +55,7 @@ export default function StoreWhatsAppBot({ storeId }: StoreWhatsAppBotProps) {
         if (!storeId) return
         setLoading(true)
         const { data } = await supabase
-            .from('stores')
+            .from('my_stores')
             .select('whatsapp_bot_opt_in, whatsapp_bot_phone_number_id, whatsapp_bot_display_number, whatsapp_bot_requested_number, whatsapp_bot_status')
             .eq('id', storeId)
             .single()

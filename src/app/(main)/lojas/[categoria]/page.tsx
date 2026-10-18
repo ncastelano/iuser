@@ -217,7 +217,6 @@ export default function ListaCategoriaPage() {
                     address,
                     business_hours,
                     view_count,
-                    whatsapp,
                     show_whatsapp
                 `)
                 .in('category', [categoryName, categorySlug])
@@ -245,7 +244,6 @@ export default function ListaCategoriaPage() {
                         address,
                         business_hours,
                         view_count,
-                        whatsapp,
                         show_whatsapp
                     `)
                     .or(`name.ilike.%${categoryName}%, description.ilike.%${categoryName}%`)
@@ -366,7 +364,7 @@ export default function ListaCategoriaPage() {
                     owner_id: store.owner_id,
                     business_hours: convertBusinessHours(store.business_hours),
                     view_count: store.view_count || 0,
-                    whatsapp: store.whatsapp,
+                    whatsapp: null as string | null, // telefone não vem na linha pública da loja
                     show_whatsapp: store.show_whatsapp,
                     top_products: mappedProducts,
                     recent_reviews: mappedReviews,
@@ -389,6 +387,15 @@ export default function ListaCategoriaPage() {
     // Loja de quem está olhando, dentro desta mesma categoria - dono de
     // loja aqui é quem pode publicar pra ela (botão "Nova" das Publicações).
     const myStoreInCategory = useMemo(() => stores.find((s) => s.owner_id === userId) || null, [stores, userId])
+    // O telefone da loja é privado: o dono lê o da própria loja em my_stores
+    const [myStoreWhatsapp, setMyStoreWhatsapp] = useState<string | null>(null)
+    useEffect(() => {
+        if (!myStoreInCategory) { setMyStoreWhatsapp(null); return }
+        let cancelled = false
+        supabase.from('my_stores').select('whatsapp').eq('id', myStoreInCategory.id).maybeSingle()
+            .then(({ data }) => { if (!cancelled) setMyStoreWhatsapp((data?.whatsapp as string | null) || null) })
+        return () => { cancelled = true }
+    }, [myStoreInCategory?.id])
     const [isCreatingPublication, setIsCreatingPublication] = useState(false)
 
     // ===== FILTRO LOCAL =====
@@ -559,7 +566,7 @@ export default function ListaCategoriaPage() {
                                     open={isCreatingPublication}
                                     onClose={() => setIsCreatingPublication(false)}
                                     storeId={myStoreInCategory.id}
-                                    storeWhatsapp={myStoreInCategory.whatsapp}
+                                    storeWhatsapp={myStoreWhatsapp}
                                     showWhatsapp={myStoreInCategory.show_whatsapp !== false}
                                     onCreated={loadStores}
                                 />

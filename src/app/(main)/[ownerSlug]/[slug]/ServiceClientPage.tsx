@@ -82,7 +82,7 @@ export function ServiceClientPage({ ownerSlug, colors, initialService }: Service
         const load = async () => {
             if (!service.owner_id) { setLoadingProvider(false); return }
             const [{ data: profile }, { data: more }] = await Promise.all([
-                supabase.from('profiles').select('name, profileSlug, avatar_url, whatsapp').eq('id', service.owner_id).maybeSingle(),
+                supabase.from('profiles').select('name, profileSlug, avatar_url').eq('id', service.owner_id).maybeSingle(),
                 supabase
                     .from('products')
                     .select('id, name, slug, image_url')
@@ -94,12 +94,19 @@ export function ServiceClientPage({ ownerSlug, colors, initialService }: Service
                     .limit(6),
             ])
             if (cancelled) return
+            // Telefone só por RPC (com login e motivo): não vem na linha pública do perfil
+            let providerWhatsapp: string | null = null
+            if (userId) {
+                const { data: wa } = await supabase.rpc('get_profile_whatsapp', { p_profile: service.owner_id })
+                providerWhatsapp = (wa as string | null) || null
+                if (cancelled) return
+            }
             if (profile) {
                 setProvider({
                     name: profile.name,
                     profileSlug: profile.profileSlug,
                     avatarUrl: getAvatarUrl(supabase, profile.avatar_url),
-                    whatsapp: profile.whatsapp,
+                    whatsapp: providerWhatsapp,
                 })
             }
             setOthers((more || []) as OtherService[])
@@ -107,7 +114,7 @@ export function ServiceClientPage({ ownerSlug, colors, initialService }: Service
         }
         load()
         return () => { cancelled = true }
-    }, [service.id, service.owner_id])
+    }, [service.id, service.owner_id, userId])
 
     // Conta a visita: a do serviço (products.view_count) e a do perfil de quem oferece. Espera a sessão carregar
     // (pra saber se quem olha é o próprio dono, que não conta) e vale também pra visitante sem conta.

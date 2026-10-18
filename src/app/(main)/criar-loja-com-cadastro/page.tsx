@@ -685,12 +685,8 @@ function CriarLojaComCadastroContent() {
             }
 
             if (!uplineId) {
-                const { data: adminProfile } = await supabase
-                    .from('profiles')
-                    .select('id')
-                    .eq('email', 'ncastelano@gmail.com')
-                    .maybeSingle()
-                if (adminProfile) uplineId = adminProfile.id
+                const { data: defaultUpline } = await supabase.rpc('get_default_upline_id')
+                if (defaultUpline) uplineId = defaultUpline as string
             }
 
             // 2. Criar usuário (auth)

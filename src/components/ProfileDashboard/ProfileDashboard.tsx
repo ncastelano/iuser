@@ -379,7 +379,7 @@ export default function ProfileDashboard({
 
         try {
             const { data: profileData, error: profileError } = await supabase
-                .from('profiles')
+                .from('my_profile')
                 .select('*')
                 .ilike('profileSlug', profileSlug)
                 .maybeSingle()

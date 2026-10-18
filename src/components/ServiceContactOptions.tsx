@@ -18,7 +18,7 @@ export default function ServiceContactOptions({ ownerId, colors, showWhatsapp, s
     const [whatsapp, setWhatsapp] = useState<string | null | undefined>(undefined)
 
     useEffect(() => {
-        supabase.from('profiles').select('whatsapp').eq('id', ownerId).maybeSingle().then(({ data }) => setWhatsapp(data?.whatsapp || null))
+        supabase.from('my_profile').select('whatsapp').eq('id', ownerId).maybeSingle().then(({ data }) => setWhatsapp(data?.whatsapp || null))
     }, [ownerId])
 
     const hasWhatsapp = !!whatsapp
