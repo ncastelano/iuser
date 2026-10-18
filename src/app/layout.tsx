@@ -3,6 +3,10 @@
 import type { Viewport, Metadata } from 'next'
 import { Providers } from './providers'
 import './globals.css'
+import StagingBanner from '@/components/StagingBanner'
+
+// Ambiente de TESTE (staging): banco separado, dados fictícios. Nunca indexar no Google.
+const IS_STAGING = process.env.NEXT_PUBLIC_APP_ENV === 'staging'
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -70,7 +74,7 @@ export const metadata: Metadata = {
     description: 'Tudo o que você precisa está aqui!',
     images: ['/logo-preview-thumb.png'],
   },
-  robots: {
+  robots: IS_STAGING ? { index: false, follow: false } : {
     index: true,
     follow: true,
     googleBot: {
@@ -115,6 +119,7 @@ export default function RootLayout({
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd) }}
         />
+        <StagingBanner />
         <Providers>
           {children}
         </Providers>

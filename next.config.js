@@ -1,4 +1,31 @@
 /** @type {import('next').NextConfig} */
+
+// ---- Trava anti-acidente: teste nunca pode apontar para o banco de PRODUÇÃO ----
+// O projeto Supabase de produção. (Não é segredo: aparece na URL pública do app.)
+const PROD_SUPABASE_REF = 'mqtwehsmkuknkrtrqbnf'
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
+const pointsAtProd = supabaseUrl.includes(PROD_SUPABASE_REF)
+const isStagingEnv = process.env.NEXT_PUBLIC_APP_ENV === 'staging'
+const isNonProdDeploy = !!process.env.VERCEL_ENV && process.env.VERCEL_ENV !== 'production'
+if (pointsAtProd && (isStagingEnv || isNonProdDeploy)) {
+  // Preview/branch da Vercel ou app marcado como staging usando o banco de produção: o build NÃO sai.
+  throw new Error(
+    '\n\n[iUser] BUILD BLOQUEADO: este ambiente (' + (process.env.VERCEL_ENV || 'staging') + ') está apontando para o banco de PRODUÇÃO.\n' +
+    'Troque NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY / SUPABASE_SERVICE_ROLE_KEY pelos do projeto de STAGING ' +
+    '(Vercel → Settings → Environment Variables → Preview). Veja docs/STAGING.md.\n'
+  )
+}
+if (pointsAtProd && process.env.NODE_ENV === 'development' && process.env.ALLOW_PROD_DB_IN_DEV !== '1') {
+  console.warn(
+    '\n\x1b[41m\x1b[97m [iUser] ATENÇÃO: o servidor local está usando o banco de PRODUÇÃO. Testes que gravam dados afetam gente de verdade. \x1b[0m\n' +
+    'Use o banco de staging no .env.local (docs/STAGING.md). Para silenciar de propósito: ALLOW_PROD_DB_IN_DEV=1.\n'
+  )
+}
+
+// Host do Storage do Supabase do ambiente atual (produção ou staging) para o next/image
+let supabaseHost = 'mqtwehsmkuknkrtrqbnf.supabase.co'
+try { if (supabaseUrl) supabaseHost = new URL(supabaseUrl).hostname } catch {}
+
 const nextConfig = {
   allowedDevOrigins: ['192.168.1.33'], // se necessário, mantenha
 
@@ -16,7 +43,13 @@ const nextConfig = {
         protocol: 'https',
         hostname: 'avatars.githubusercontent.com',
       },
-      // 👇 Adicione este bloco
+      {
+        protocol: 'https',
+        hostname: supabaseHost,
+        port: '',
+        pathname: '/storage/v1/object/public/**',
+      },
+      // produção sempre liberada (links antigos/gravados no banco)
       {
         protocol: 'https',
         hostname: 'mqtwehsmkuknkrtrqbnf.supabase.co',

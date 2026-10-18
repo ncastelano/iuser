@@ -44,3 +44,7 @@ next-env.d.ts
 dev-server.log
 .claude/
 supabase/.temp/
+
+# staging (credenciais e diretório de trabalho do CLI)
+.env.staging.local
+/.staging/

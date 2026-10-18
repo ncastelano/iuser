@@ -1,0 +1,34 @@
+# Verificação automática de TODO pull request e de todo push na branch de testes (staging).
+# Não toca em nenhum banco: só confere tipos e os testes que rodam sem banco.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [staging]
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Tipos (TypeScript)
+        run: npx tsc --noEmit
+      - name: Testes sem banco
+        run: |
+          npm run test:versions
+          npm run test:graduation
+          npm run test:fare
+          npm run test:delivery-settings
+          npm run test:delivery-estimate
+          npm run test:checkout-v2
+          npm run test:delivery-search
+          npm run test:delivery-money
+          npm run test:shopping
+          npm run test:service-requests
+          npm run test:security-exposure

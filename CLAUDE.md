@@ -164,6 +164,15 @@ O cron de reajuste (`process_order_delivery_dispatches`) e as rodadas `increase/
 - **Pix do motorista = `driver_payout_keys`** (privada, com consentimento, `set_my_payout_pix`; formato validado, sem consulta a banco). **Não use `profiles.pix_key`**: hoje `profiles.pix_key`/`stores.pix_key` têm SELECT para anon e a política "Anyone can view profiles" (qualquer visitante lê); a chave de loja é pública por design, a de perfil seria vazamento. Motorista sem chave não aceita entrega V2 (`payout_pix_required` no `ride_applications_v2_gate`) nem recebe o push. A loja só vê a chave do motorista depois de declarar que recebeu do cliente; o cliente nunca vê.
 - Telas: `src/components/DeliveryPayment/*` (cliente: instruções para pagar a loja; loja: "Recebi o pagamento do cliente" / "Informar pagamento enviado" + copiar Pix; motorista: "Recebi R$ X" / "Não recebi"; cadastro do Pix, invisível enquanto o V2 estiver desligado). Leitura por papel: `get_delivery_payment_view`. Testes: `supabase/tests/v2_payment_scenarios.sql`. Rollback: `supabase/rollbacks/etapa_2_7_rollback.sql`.
 
+## Ambiente de teste (staging) e entrega segura — leia antes de testar qualquer coisa que escreve no banco
+
+Guia completo: `docs/STAGING.md`. Resumo operacional:
+- **Produção só muda por caminho aprovado.** Fluxo: branch → PR para `staging` (app de teste + banco de teste separado) → testar → PR para `main`. Migrations em produção só pelo workflow **Banco de produção** (`docs/github-workflows/db-production.yml`, ainda a ativar em `.github/workflows/`) (digita `APLICAR` + revisor aprova), depois de já terem passado pelo staging. Ordem: banco (só adiciona) → código.
+- **Teste que escreve no banco roda SÓ no staging** (`python3 scripts/staging/...`, `--workdir .staging`). Nunca em produção. O link do CLI deste repositório (`supabase/.temp`) é o da PRODUÇÃO: `db query --linked` sem `--workdir` fala com a produção.
+- Os scripts de `scripts/staging/` só escrevem no projeto de staging (recusam a referência da produção). `export-*` só LÊEM a produção.
+- `next.config.js` **bloqueia o build** de qualquer deploy que não é de produção (ou com `NEXT_PUBLIC_APP_ENV=staging`) se ele apontar para o banco de produção. `NEXT_PUBLIC_APP_ENV=staging` liga a faixa "AMBIENTE DE TESTE" e `noindex`.
+- `supabase/staging/baseline.sql` é o esquema da produção (gerado; sem dados nem segredos — o exportador aborta se achar segredo). As migrations antigas não recriam o banco do zero; o baseline é quem cria o staging.
+
 ## Exposição de dados: `profiles` e `stores` têm colunas PRIVADAS (Etapa 2.7.1) — leia antes de ler/gravar nessas tabelas
 
 Regra permanente: dado privado (Pix, e-mail, CPF/CNPJ, telefone, endereço residencial, coordenadas, saldos, bot de WhatsApp, concessão de acesso) é protegido **no banco** (grant por coluna + RLS + RPC com vínculo), nunca "escondido na tela". Se achar exposição indevida durante o desenvolvimento: investigar na hora, corrigir ANTES de seguir o roadmap, testar com anon / estranho / dono.

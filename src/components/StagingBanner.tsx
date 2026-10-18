@@ -1,0 +1,19 @@
+// src/components/StagingBanner.tsx
+//
+// Faixa fixa "AMBIENTE DE TESTE" só quando NEXT_PUBLIC_APP_ENV=staging (projeto/branch de teste na Vercel, banco Supabase
+// separado). Em produção não renderiza nada. Serve para ninguém confundir o teste com o app de verdade.
+export default function StagingBanner() {
+    if (process.env.NEXT_PUBLIC_APP_ENV !== 'staging') return null
+    return (
+        <div
+            role="status"
+            style={{
+                position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 2147483647, pointerEvents: 'none',
+                background: '#dc2626', color: '#fff', textAlign: 'center', fontSize: 11, fontWeight: 800,
+                letterSpacing: 0.4, padding: '3px 8px', paddingBottom: 'max(3px, env(safe-area-inset-bottom))',
+            }}
+        >
+            AMBIENTE DE TESTE — dados fictícios, nada aqui é real
+        </div>
+    )
+}
