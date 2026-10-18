@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase/client'
 import { Spinner } from '@/components/Spinner'
 import { toast } from 'sonner'
 import { hexToRgb } from '@/lib/color'
-import { Check, X, Copy, Plus, ShieldOff, ShieldCheck, Send, CalendarClock, Wallet, Tag, Sparkles, MessageCircle, Search, Activity, PiggyBank, Car, Gift, CircleDashed, Handshake, Award, Trophy, Truck } from 'lucide-react'
+import { Check, X, Copy, Plus, ShieldOff, ShieldCheck, Send, CalendarClock, Wallet, Tag, Sparkles, MessageCircle, Search, Activity, PiggyBank, Car, Gift, CircleDashed, Handshake, Award, Trophy, Truck, BarChart3 } from 'lucide-react'
 import HierarchyAdmin from './HierarchyAdmin'
 import ActivitySection from './ActivitySection'
 import FinanceSection from './FinanceSection'
@@ -18,12 +18,14 @@ import AvatarBordersSection from './AvatarBordersSection'
 import GrantsSection from './GrantsSection'
 import GraduationSection from './GraduationSection'
 import PointsSection from './PointsSection'
+import IuserStatusSection from './IuserStatusSection'
 import { callAdminApi } from '@/lib/callAdminApi'
 
-type Section = 'pagamentos' | 'concedidos' | 'graduacao' | 'saques' | 'planos' | 'tarifas' | 'entregas' | 'brinde' | 'bordas' | 'pontuacao' | 'hierarquia' | 'whatsapp' | 'interface' | 'atividade' | 'financeiro'
+type Section = 'pagamentos' | 'concedidos' | 'graduacao' | 'saques' | 'planos' | 'tarifas' | 'entregas' | 'brinde' | 'bordas' | 'pontuacao' | 'hierarquia' | 'whatsapp' | 'interface' | 'atividade' | 'financeiro' | 'status'
 
 const SECTIONS: { id: Section; label: string; icon: typeof Send }[] = [
     { id: 'atividade', label: 'Atividade', icon: Activity },
+    { id: 'status', label: 'iUser status', icon: BarChart3 },
     { id: 'pagamentos', label: 'Pagamentos', icon: Wallet },
     { id: 'concedidos', label: 'Concedidos', icon: Handshake },
     { id: 'financeiro', label: 'Financeiro', icon: PiggyBank },
@@ -116,6 +118,7 @@ export default function AdminDashboard() {
             {section === 'entregas' && <DeliverySettingsSection cardStyle={cardStyle} colors={colors} />}
             {section === 'saques' && <WithdrawalsSection cardStyle={cardStyle} colors={colors} />}
             {section === 'graduacao' && <GraduationSection cardStyle={cardStyle} colors={colors} />}
+            {section === 'status' && <IuserStatusSection cardStyle={cardStyle} colors={colors} />}
             {section === 'pontuacao' && <PointsSection cardStyle={cardStyle} colors={colors} />}
             {section === 'hierarquia' && <HierarchyAdmin cardStyle={cardStyle} colors={colors} />}
             {section === 'whatsapp' && <WhatsAppBotSection cardStyle={cardStyle} colors={colors} />}

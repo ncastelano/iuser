@@ -1,7 +1,8 @@
--- Cenários de teste da GRADUAÇÃO. Rode DENTRO de uma transação que termina em ROLLBACK (nada é gravado):
---   begin;  \i este-arquivo  ;  rollback;
--- ou: (echo 'begin;'; cat este-arquivo; echo 'rollback;') | supabase db query --linked -f -
--- Usa perfis reais só como "figurantes" (muda upline_id dentro da transação).
+-- Cenários de teste da GRADUAÇÃO. ESTE ARQUIVO JÁ ABRE E DESFAZ A PRÓPRIA TRANSAÇÃO (begin ... rollback): nada é gravado.
+-- NUNCA concatene outro SQL (migration, etc.) antes dele: o que vem antes do BEGIN é COMMITADO pelo `supabase db query`.
+-- Usa perfis reais como "figurantes" (muda upline_id, nível, carteira, comissão e cria nível dentro da transação) —
+-- se o rollback do fim não rodar, isso vai parar em produção (já aconteceu em 2026-10-18; ver supabase/repairs/).
+begin;
 
 create or replace function pg_temp.chk(p_name text, p_ok boolean, p_detail text default '') returns text language sql as $$
   select (case when p_ok then 'PASS ' else 'FAIL ' end) || p_name || case when p_ok or p_detail = '' then '' else '  -> ' || p_detail end || E'\n'
@@ -158,3 +159,5 @@ begin
 end $f$;
 
 select pg_temp.run() as resultado;
+
+rollback;

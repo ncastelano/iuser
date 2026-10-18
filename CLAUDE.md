@@ -101,6 +101,8 @@ Cada ação que pontua tem uma linha em `point_rules` (pontos, limite por dia, l
 
 "Melhores perfis" (`/social`) = `get_best_profiles`: **só pontos (do maior pro menor)**, empate por visitas e avaliação. A hierarquia (`user_statuses`) **não** entra no ranking e os pontos **não** promovem ninguém de nível: a hierarquia continua sendo concedida só pelo admin.
 
+Admin → **iUser status** (`IuserStatusSection`, rota `/api/admin/iuser-status`, só leitura): ranking do maior pro menor e, ao abrir uma pessoa, o extrato do livro-caixa (dia/hora, o que foi, pontos, e a quem/ao que se refere). Se criar uma regra nova em `point_rules`, ela aparece lá sozinha; só é preciso ensinar a rota a resolver o `ref` se ele não for id de perfil, loja ou produto.
+
 ## Estimativa oficial do frete (Etapa 2.3): a conta mora no banco, o app só pede e mostra
 
 Valor #1 do novo fluxo = **estimativa inicial** (`delivery_estimates` + `order_delivery_dispatches.estimated_freight`/`estimate_id`). Ela **não** é `offered_price` nem `frozen_freight` e **nunca muda** depois de gravada (gatilho `dispatch_estimate_immutable`): estimada 12 → ofertas 13, 14 → aceita 14 mantém estimada 12.
