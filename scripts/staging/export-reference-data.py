@@ -13,11 +13,11 @@ TABLES = ['user_statuses', 'permissions', 'status_permissions', 'network_levels'
           'free_trial_settings', 'network_settings', 'platform_tariffs', 'point_rules', 'service_pricing',
           'store_access_settings']
 OVERRIDES = {
-    'delivery_dispatch_settings': {'notify_url': None},                       # aponta para a produção: fica vazio
+    'delivery_dispatch_settings': {'notify_url': ''},                       # aponta para a produção: fica vazio
     'store_access_settings': {'pix_key': '00000000000', 'pix_key_type': 'cpf', 'pix_receiver_name': 'STAGING (fictício)'},
     'network_settings': {'updated_by': None},
 }
-out = ['-- DADOS DE CONFIGURAÇÃO copiados da produção (sem dados pessoais). GERADO por scripts/staging/export-reference-data.py.\n']
+out = ['-- DADOS DE CONFIGURAÇÃO copiados da produção (sem dados pessoais). GERADO por scripts/staging/export-reference-data.py.\n-- Rodar numa tabela vazia (staging recém-criado ou --reset): não usa ON CONFLICT porque há unicidades adiáveis.\n']
 for t in TABLES:
     cols = [r['column_name'] for r in q_prod(
         f"select column_name from information_schema.columns where table_schema='public' and table_name='{t}' and is_generated='NEVER' order by ordinal_position")]
@@ -30,7 +30,7 @@ for t in TABLES:
     collist = ', '.join('"' + c + '"' for c in cols)
     payload = json.dumps(rows, ensure_ascii=False)
     assert '$ref$' not in payload
-    out.append(f'-- {t}: {len(rows)} linha(s)\nINSERT INTO public."{t}" ({collist}) SELECT {collist} FROM jsonb_populate_recordset(null::public."{t}", $ref${payload}$ref$::jsonb) ON CONFLICT DO NOTHING;\n')
+    out.append(f'-- {t}: {len(rows)} linha(s)\nINSERT INTO public."{t}" ({collist}) SELECT {collist} FROM jsonb_populate_recordset(null::public."{t}", $ref${payload}$ref$::jsonb);\n')
     print(f'{t}: {len(rows)}')
 path = os.path.join(ROOT, 'supabase', 'staging', 'reference-data.sql')
 open(path, 'w').write('\n'.join(out))

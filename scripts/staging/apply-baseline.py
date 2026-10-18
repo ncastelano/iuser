@@ -6,7 +6,7 @@
 # Variáveis opcionais: STAGING_APP_URL (URL do app de staging, para os webhooks), STAGING_WEBHOOK_SECRET.
 import argparse, glob, os, re, secrets, sys, tempfile
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from _common import ROOT, q_staging, staging_ref
+from _common import ROOT, q_prod, q_staging, staging_ref
 
 ap = argparse.ArgumentParser()
 ap.add_argument('--reset', action='store_true')
@@ -22,6 +22,13 @@ if a.reset:
     q_staging("DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public; GRANT USAGE ON SCHEMA public TO postgres, anon, authenticated, service_role; GRANT ALL ON SCHEMA public TO postgres, service_role; ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO postgres, anon, authenticated, service_role; ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO postgres, anon, authenticated, service_role; ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO postgres, anon, authenticated, service_role")
     # políticas de storage.objects de uma aplicação anterior (o schema storage não é recriado)
     q_staging("DO $$ DECLARE r record; BEGIN FOR r IN SELECT policyname FROM pg_policies WHERE schemaname = 'storage' AND tablename = 'objects' LOOP EXECUTE format('DROP POLICY %I ON storage.objects', r.policyname); END LOOP; END $$")
+
+# Webhooks de banco: o schema supabase_functions (e http_request) só existe depois de ativar "Database Webhooks" no painel.
+# Criamos igual ao da produção (é o modelo padrão do Supabase, sem segredo).
+if not q_staging("select count(*)::int n from pg_namespace where nspname = 'supabase_functions'")[0]['n']:
+    fn = q_prod("select pg_get_functiondef('supabase_functions.http_request()'::regprocedure) d")[0]['d']
+    q_staging("create schema if not exists supabase_functions; grant usage on schema supabase_functions to postgres, anon, authenticated, service_role; " + fn)
+    print('schema supabase_functions criado no staging')
 
 app_url = os.environ.get('STAGING_APP_URL', 'https://staging.invalid').rstrip('/')
 secret = os.environ.get('STAGING_WEBHOOK_SECRET') or secrets.token_urlsafe(32)
@@ -61,6 +68,7 @@ APPLY = """
 DO $A$
 DECLARE r record; k int := %d; done_n int := 0; fail_n int := 0;
 BEGIN
+  PERFORM set_config('check_function_bodies', 'off', true);
   FOR r IN SELECT ord, sql FROM public._baseline_stmts WHERE NOT done AND attempt < k ORDER BY ord LIMIT 150 LOOP
     BEGIN
       EXECUTE r.sql;

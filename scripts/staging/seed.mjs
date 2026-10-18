@@ -64,11 +64,15 @@ const [store] = await upsert('stores', [{
 }], 'storeSlug')
 
 const products = [
-    { name: 'Produto Teste 1', slug: 'produto-teste-1', price: 10, type: 'product', store_id: store.id, owner_id: ids.lojista, listing_type: 'sale', is_active: true },
-    { name: 'Produto Teste 2', slug: 'produto-teste-2', price: 25.5, type: 'product', store_id: store.id, owner_id: ids.lojista, listing_type: 'sale', is_active: true },
+    { name: 'Produto Teste 1', slug: 'produto-teste-1', price: 10, type: 'physical', store_id: store.id, owner_id: ids.lojista, listing_type: 'sale', is_active: true },
+    { name: 'Produto Teste 2', slug: 'produto-teste-2', price: 25.5, type: 'physical', store_id: store.id, owner_id: ids.lojista, listing_type: 'sale', is_active: true },
     { name: 'Serviço de Teste', slug: 'servico-de-teste', price: 80, type: 'service', owner_id: ids.prestador, listing_type: 'service_offer', is_active: true },
 ]
-for (const p of products) await upsert('products', [p], 'slug').catch((e) => console.warn('produto:', p.slug, e.message))
+// products não tem unicidade só por slug: confere se já existe antes de inserir
+for (const p of products) {
+    const exists = await api('GET', `/rest/v1/products?select=id&slug=eq.${p.slug}`)
+    if (exists.length === 0) await api('POST', '/rest/v1/products', [p]).catch((e) => console.warn('produto:', p.slug, e.message))
+}
 
 await upsert('driver_pricing', [{ driver_id: ids.motorista, pricing_mode: 'platform', driver_mode_active: true }], 'driver_id').catch((e) => console.warn('driver_pricing:', e.message))
 await upsert('driver_vehicles', [{ driver_id: ids.motorista, vehicle_kind: 'moto', services: ['pessoa', 'objeto'] }], 'driver_id,vehicle_kind').catch((e) => console.warn('driver_vehicles:', e.message))
