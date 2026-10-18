@@ -20,6 +20,7 @@
     "test:delivery-search": "node --test scripts/test-delivery-search.mjs",
     "test:delivery-money": "node --test scripts/test-delivery-money.mjs",
     "test:security-exposure": "node --test scripts/test-security-exposure.mjs",
+    "test:security-exposure:rest": "node scripts/test-security-exposure-rest.mjs",
     "test:security-exposure:db": "npx supabase db query --linked -f supabase/tests/security_exposure_scenarios.sql"
   },
   "dependencies": {

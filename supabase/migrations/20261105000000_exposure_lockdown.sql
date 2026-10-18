@@ -81,6 +81,9 @@ END $$;
 DROP POLICY IF EXISTS "Anyone can view profiles" ON public.profiles;
 DROP POLICY IF EXISTS "Permitir INSERT para usuários autenticados" ON public.profiles;
 DROP POLICY IF EXISTS "Permitir UPDATE para próprio usuário" ON public.profiles;
+DROP POLICY IF EXISTS profiles_select_public_columns ON public.profiles;
+DROP POLICY IF EXISTS profiles_insert_own ON public.profiles;
+DROP POLICY IF EXISTS profiles_update_own ON public.profiles;
 CREATE POLICY profiles_select_public_columns ON public.profiles FOR SELECT TO anon, authenticated USING (true);
 CREATE POLICY profiles_insert_own ON public.profiles FOR INSERT TO authenticated WITH CHECK (auth.uid() = id);
 CREATE POLICY profiles_update_own ON public.profiles FOR UPDATE TO authenticated USING (auth.uid() = id) WITH CHECK (auth.uid() = id);
@@ -101,6 +104,8 @@ DROP POLICY IF EXISTS "Owners can update their own stores" ON public.stores;
 DROP POLICY IF EXISTS owner_atualiza_loja ON public.stores;
 DROP POLICY IF EXISTS "Authenticated users can create stores" ON public.stores;
 DROP POLICY IF EXISTS "Dono pode gerenciar sua loja" ON public.stores;
+DROP POLICY IF EXISTS stores_select_public_columns ON public.stores;
+DROP POLICY IF EXISTS stores_owner_write ON public.stores;
 CREATE POLICY stores_select_public_columns ON public.stores FOR SELECT TO anon, authenticated USING (true);
 CREATE POLICY stores_owner_write ON public.stores FOR ALL TO authenticated
     USING (auth.uid() = owner_id) WITH CHECK (auth.uid() = owner_id);
