@@ -32,13 +32,14 @@ export function countByKind(list: ActiveDriver[]): Record<VehicleKind, number> {
     return counts
 }
 
-/** Busca os motoristas ativos perto de (lat, lng). Qualquer falha (sem login, rede, cota do Supabase) devolve lista vazia: o mapa só fica sem eles. */
-export async function fetchActiveDrivers(client: SupabaseClient, lat: number, lng: number, radiusKm = 30): Promise<ActiveDriver[]> {
+/** Busca os motoristas ativos perto de (lat, lng). Devolve `null` quando a consulta FALHA (sem login, rede, cota do Supabase): quem chama não deve
+ *  confundir falha com "não há motoristas" (lista vazia). */
+export async function fetchActiveDrivers(client: SupabaseClient, lat: number, lng: number, radiusKm = 30): Promise<ActiveDriver[] | null> {
     try {
         const { data, error } = await client.rpc('get_active_drivers_map', { p_lat: lat, p_lng: lng, p_radius_km: radiusKm })
-        if (error) return []
+        if (error) return null
         return parseActiveDrivers(data)
     } catch {
-        return []
+        return null
     }
 }

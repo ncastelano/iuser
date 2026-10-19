@@ -33,7 +33,7 @@ export function useActiveDriversLayer({ map, mapReady, enabled, focus }: Options
             if (document.visibilityState !== 'visible') return
             const c = focus ? { lng: focus[0], lat: focus[1] } : map.getCenter()
             const list = await fetchActiveDrivers(supabase, c.lat, c.lng, 30)
-            if (!cancelled) { setDrivers(list); setLoaded(true) }
+            if (!cancelled && list) { setDrivers(list); setLoaded(true) }   // falha da consulta: mantém o que já havia e não afirma "sem motoristas"
         }
         void run()
         const t = setInterval(() => { void run() }, REFRESH_MS)
