@@ -36,6 +36,7 @@ O que está em vigor para isso não repetir:
 - Jobs do `pg_cron` do staging (os mesmos 4 da produção): `supabase/staging/cron-jobs.sql` (aplicar com `python3 scripts/staging/apply-sql.py supabase/staging/cron-jobs.sql`).
 - Teste de exposição de dados no staging: `npm run test:security-exposure:staging` (esperado: `RESULT: OK ... fails=0`).
 - Avisos do banco no staging ligados (fila de entrega e push de pedidos): `python3 scripts/staging/set-webhook-urls.py`.
+- Trava do Storage testada no staging pela API real: `npm run test:storage-lockdown` (esperado: `RESULTADO: OK passes=72 fails=0`).
 - Pendente: Asaas sandbox (chaves de sandbox nas variáveis de Preview).
 
 ### Avisos do banco no staging
