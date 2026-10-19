@@ -6,6 +6,7 @@ import { useState, useEffect, Suspense, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
+import { MaintenanceCard } from '@/components/MaintenanceNotice'
 import { hexToRgb } from '@/lib/color'
 import {
     User,
@@ -402,6 +403,7 @@ function LoginAndRegisterContent({ onLoginSuccess, initialMode = 'login' }: Logi
         >
             <div className="relative z-10 flex-1 flex items-center justify-center px-4 py-8">
                 <div className="w-full max-w-md">
+                    <MaintenanceCard />
                     <div
                         className="rounded-3xl p-8 flex flex-col gap-6"
                         style={{

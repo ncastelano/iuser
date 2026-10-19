@@ -4,6 +4,7 @@ import { processLock } from '@supabase/supabase-js'
 import { trackEgressBytes, trackRealtimeMessage } from '@/lib/usageTelemetry'
 import { optimizeImageForUpload } from '@/lib/optimizeImage'
 import { proxyImageUrl } from '@/lib/imageProxy'
+import { clearMaintenance, getMaintenance, reportMaintenance } from '@/lib/maintenance'
 
 // Fetch customizado só pra medir o tamanho de cada resposta que volta do
 // Supabase (Egress próprio — ver usageTelemetry.ts) — não muda nada no
@@ -12,6 +13,11 @@ import { proxyImageUrl } from '@/lib/imageProxy'
 // pra quem chamou, sem bloquear nada.
 const trackedFetch: typeof fetch = (...args) => {
     return fetch(...args).then((response) => {
+        // 402 = projeto restringido pela cota do Supabase: liga o aviso de manutenção (ver lib/maintenance.ts); resposta boa desliga
+        try {
+            if (response.status === 402) reportMaintenance()
+            else if (response.ok && getMaintenance()) clearMaintenance()
+        } catch { /* o aviso nunca quebra a chamada */ }
         try {
             const len = response.headers.get('content-length')
             if (len) {

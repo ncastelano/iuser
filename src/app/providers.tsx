@@ -20,6 +20,7 @@ import { Toaster } from 'sonner'
 import { ProfileProvider } from './contexts/ProfileContext'
 import { VersionSync } from '@/versions/client'
 import AdminV3Button from '@/components/AdminV3Button'
+import { MaintenanceBanner } from '@/components/MaintenanceNotice'
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => new QueryClient())
@@ -48,6 +49,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <ProfileProvider>
+        <MaintenanceBanner />
         <VersionSync />
         <AdminV3Button />
         <PageViewTracker />

@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase/client'
 import { Eye, EyeOff, Lock, ArrowRight, Sparkles, KeyRound } from 'lucide-react'
 import Link from 'next/link'
 import AnimatedBackground from '@/components/AnimatedBackground'
+import { MaintenanceCard } from '@/components/MaintenanceNotice'
 
 export default function RecoverPassword() {
   const [password, setPassword] = useState('')
@@ -145,6 +146,7 @@ export default function RecoverPassword() {
 
       <div className="relative z-10 flex-1 flex items-center justify-center px-4 py-8">
         <form onSubmit={handleUpdatePassword} className="w-full max-w-md mb-8">
+          <MaintenanceCard />
           {/* Logo Avatar Circular */}
           <div className="text-center mb-8">
             <div className="flex justify-center mb-6">
