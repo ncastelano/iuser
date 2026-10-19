@@ -21,7 +21,7 @@ O que está em vigor para isso não repetir:
   (`next.config.js`). O servidor local também avisa em vermelho.
 - **Scripts de staging só escrevem no staging** (`scripts/staging/_common.py` recusa a referência da produção).
 - **Produção só muda por aprovação** (workflow *Banco de produção* exige um revisor e a palavra `APLICAR`).
-- **Faixa vermelha "AMBIENTE DE TESTE"** e `noindex` em tudo que for staging.
+- **Faixa laranja "AMBIENTE DE TESTE"** e `noindex` em tudo que for staging.
 
 ---
 
