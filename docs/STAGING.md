@@ -84,10 +84,8 @@ Se não precisar do segundo projeto (`iuser-1`) em branches de teste, em *Settin
 
 ## 4. GitHub (segredos e aprovação)
 
-Os três workflows estão em `docs/github-workflows/` (`ci.yml`, `db-staging.yml`, `db-production.yml`). Para ativá-los eles precisam ir para
-`.github/workflows/`. O token do GitHub usado aqui não tem permissão de mexer em workflows, então escolha um jeito:
-(a) `gh auth refresh -h github.com -s workflow` e peça para copiar/commitar; ou (b) copie os três arquivos pelo site do GitHub
-(*Add file → Create new file* em `.github/workflows/`).
+Os três workflows estão em `.github/workflows/` (`ci.yml`, `db-staging.yml`, `db-production.yml`). Para o `gh` poder criá-los/editá-los ele precisa
+do escopo `workflow` (`gh auth refresh -h github.com -s workflow`, já feito neste computador).
 
 *Settings → Secrets and variables → Actions*: `SUPABASE_ACCESS_TOKEN` (token da sua conta), `STAGING_PROJECT_REF`, `STAGING_DB_PASSWORD`.
 *Settings → Environments → New environment `production`*: marque **Required reviewers** (você) e adicione os segredos
