@@ -7,7 +7,7 @@
 import { useEffect, useSyncExternalStore } from 'react'
 import { Layers, Palette, Server, Wrench } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
-import { clearMaintenance, getMaintenance, probeSupabase, reportMaintenance, subscribeMaintenance } from '@/lib/maintenance'
+import { clearMaintenance, getMaintenance, maintenanceForcedByUrl, probeSupabase, reportMaintenance, subscribeMaintenance } from '@/lib/maintenance'
 
 const TITLE = 'O iUser está em manutenção'
 const SHORT = 'O iUser está em manutenção. Voltamos já, com novidades!'
@@ -36,11 +36,7 @@ function useMaintenanceWatch(active: boolean) {
     }, [])
     useEffect(() => {
         if (!active) return
-        const t = setInterval(() => {
-            // ?manutencao=1 (teste visual) não é desligado pelo teste de saúde: o Supabase está bem e limparia na hora
-            try { if (new URLSearchParams(window.location.search).get('manutencao') === '1') return } catch { /* ignora */ }
-            void probeSupabase()
-        }, 60_000)
+        const t = setInterval(() => { void probeSupabase() }, 60_000)
         return () => clearInterval(t)
     }, [active])
 }

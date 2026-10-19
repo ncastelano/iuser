@@ -44,6 +44,11 @@ export function subscribeMaintenance(cb: () => void): () => void {
     return () => { listeners.delete(cb) }
 }
 
+/** `?manutencao=1` na URL = aviso forçado (conferir o visual): nenhum teste de saúde pode desligá-lo. */
+export function maintenanceForcedByUrl(): boolean {
+    try { return typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('manutencao') === '1' } catch { return false }
+}
+
 /** Pergunta ao Supabase se ele está respondendo (rota de saúde do Auth, que não gasta banco). 402 liga o aviso; resposta boa desliga. */
 export async function probeSupabase(): Promise<void> {
     const base = (process.env.NEXT_PUBLIC_SUPABASE_URL || '').replace(/\/+$/, '')
@@ -52,7 +57,7 @@ export async function probeSupabase(): Promise<void> {
     try {
         const res = await fetch(`${base}/auth/v1/health`, { headers: { apikey: key }, cache: 'no-store' })
         if (res.status === 402) reportMaintenance()
-        else if (res.ok) clearMaintenance()
+        else if (res.ok && !maintenanceForcedByUrl()) clearMaintenance()
     } catch {
         // sem rede do usuário: não é problema do Supabase, não mexe no aviso
     }

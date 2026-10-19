@@ -54,3 +54,15 @@ test('faixa no site todo e cartão em login, cadastro, recuperar senha', () => {
         assert.match(fs.readFileSync(path.join(root, f), 'utf8'), /<MaintenanceCard \/>/, `${f} sem o aviso de manutenção`)
     }
 })
+
+test('?manutencao=1 na URL não é desligado pelo teste de saúde (só para conferir o visual)', async () => {
+    m.reportMaintenance()
+    globalThis.window = { location: { search: '?manutencao=1' } }
+    globalThis.fetch = async () => ({ status: 200, ok: true })
+    await m.probeSupabase()
+    assert.equal(m.getMaintenance(), true)
+    globalThis.window = { location: { search: '' } }
+    await m.probeSupabase()
+    assert.equal(m.getMaintenance(), false)
+    delete globalThis.window
+})
