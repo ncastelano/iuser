@@ -2,6 +2,7 @@
 import { createBrowserClient } from '@supabase/ssr'
 import { processLock } from '@supabase/supabase-js'
 import { trackEgressBytes, trackRealtimeMessage } from '@/lib/usageTelemetry'
+import { optimizeImageForUpload } from '@/lib/optimizeImage'
 
 // Fetch customizado só pra medir o tamanho de cada resposta que volta do
 // Supabase (Egress próprio — ver usageTelemetry.ts) — não muda nada no
@@ -80,3 +81,27 @@ supabase.channel = ((name: string, opts?: any) => {
   }) as typeof channel.on
   return channel
 }) as typeof supabase.channel
+
+// Todo upload de IMAGEM para o Storage passa por aqui: reduz a foto antes de enviar (ver optimizeImage.ts) e dá cache longo
+// ao arquivo (o nome carrega timestamp, então não muda). Envolve .storage.from() uma única vez, como o .channel() acima:
+// os ~30 pontos de upload do app já saem otimizados sem tocar em nenhum deles. Se algo falhar, envia o arquivo original.
+const originalStorageFrom = supabase.storage.from.bind(supabase.storage)
+supabase.storage.from = ((bucket: string) => {
+  const api = originalStorageFrom(bucket)
+  const originalUpload = api.upload.bind(api)
+  api.upload = (async (path: string, body: any, options?: any) => {
+    let nextBody = body
+    let nextOptions = options
+    if (typeof Blob !== 'undefined' && body instanceof Blob) {
+      const optimized = await optimizeImageForUpload(body, bucket)
+      if (optimized !== body) {
+        nextBody = optimized
+        nextOptions = { ...(options || {}), contentType: optimized.type }
+      }
+    }
+    // cache de 1 ano só quando não é troca no mesmo caminho (upsert); senão fica o padrão
+    if (!nextOptions?.cacheControl && !nextOptions?.upsert) nextOptions = { ...(nextOptions || {}), cacheControl: '31536000' }
+    return originalUpload(path, nextBody, nextOptions)
+  }) as typeof api.upload
+  return api
+}) as typeof supabase.storage.from
