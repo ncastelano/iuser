@@ -67,6 +67,7 @@ const IGNORED_PREFIXES = [
     '/compromisso/', // link de um agendamento compartilhado (iuser.com.br/compromisso/<id>)
     '/painel-loja/', // painel de uma loja (iuser.com.br/painel-loja/<storeSlug>) — o 1º segmento não é slug de perfil/loja
     '/veiculo/', // página de um veículo (rota interna; o endereço público é iuser.com.br/<vehicleSlug>)
+    '/img/', // proxy de imagens (iuser.com.br/img/<bucket>/<arquivo>) -> Storage do Supabase com cache da Vercel (next.config.js rewrites)
     '/v3/', // implementações internas da interface 3.0 (iuser.com.br/carrinho é servido por /v3/carrinho) — não é slug
 ]
 

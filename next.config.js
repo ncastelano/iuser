@@ -26,8 +26,28 @@ if (pointsAtProd && process.env.NODE_ENV === 'development' && process.env.ALLOW_
 let supabaseHost = 'mqtwehsmkuknkrtrqbnf.supabase.co'
 try { if (supabaseUrl) supabaseHost = new URL(supabaseUrl).hostname } catch {}
 
+// Endereço de imagens do próprio site (/img/...): a Vercel busca no Storage do Supabase uma vez e guarda a cópia (cache), então as
+// visualizações seguintes não gastam o Cached Egress do Supabase. Ver src/lib/imageProxy.ts. Base ABSOLUTA: produção usa o domínio
+// oficial; preview usa a URL da própria branch; local fica vazio (links diretos do Supabase). NEXT_PUBLIC_IMAGE_BASE força um valor
+// (use 'off' para desligar o proxy num ambiente).
+const imageBase = (() => {
+  const forced = process.env.NEXT_PUBLIC_IMAGE_BASE
+  if (forced !== undefined && forced !== '') return forced === 'off' ? '' : forced.replace(/\/+$/, '')
+  if (process.env.VERCEL_ENV === 'production') return 'https://www.iuser.com.br'
+  if (process.env.VERCEL_BRANCH_URL) return 'https://' + process.env.VERCEL_BRANCH_URL
+  return ''
+})()
+let imageBaseHost = ''
+try { if (imageBase) imageBaseHost = new URL(imageBase).hostname } catch {}
+
 const nextConfig = {
   allowedDevOrigins: ['192.168.1.33'], // se necessário, mantenha
+
+  env: { NEXT_PUBLIC_IMAGE_BASE: imageBase },
+
+  async rewrites() {
+    return [{ source: '/img/:path*', destination: `https://${supabaseHost}/storage/v1/object/public/:path*` }]
+  },
 
   images: {
     remotePatterns: [
@@ -49,6 +69,8 @@ const nextConfig = {
         port: '',
         pathname: '/storage/v1/object/public/**',
       },
+      // o próprio proxy de imagens (/img) quando um componente usa next/image
+      ...(imageBaseHost ? [{ protocol: 'https', hostname: imageBaseHost, port: '', pathname: '/img/**' }] : []),
       // produção sempre liberada (links antigos/gravados no banco)
       {
         protocol: 'https',
