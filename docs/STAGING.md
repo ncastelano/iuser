@@ -25,6 +25,15 @@ O que está em vigor para isso não repetir:
 
 ---
 
+## Estado atual (2026-10-19)
+
+- Banco de staging criado e igual à produção: projeto `iuser-staging` (ref `avxcbdsgsyyjwfsfeexs`).
+- Vercel: o projeto `iuser` tem as variáveis de **Preview** apontando para o staging (URL, anon, service_role e `NEXT_PUBLIC_APP_ENV=staging`).
+  O projeto `iuser-1` só compila a `main` (Ignored Build Step = "Only build production").
+- Branch `staging` criada; o primeiro commit próprio dela dispara o primeiro deploy de teste. (A Vercel pula commits que já foram
+  compilados em produção, então a `staging` precisa de um commit novo para gerar o preview.)
+- Pendente: `NEXT_PUBLIC_APP_URL` de Preview, segredos/ambiente no GitHub, workflows, jobs do `pg_cron` no staging.
+
 ## 1. Criar o projeto Supabase de staging (uma vez)
 
 1. https://supabase.com/dashboard → *New project* na **mesma organização**. Nome: `iuser-staging`. Região: a mesma da produção (West US / Oregon).
@@ -75,13 +84,11 @@ Se não precisar do segundo projeto (`iuser-1`) em branches de teste, em *Settin
 
 ## 4. GitHub (segredos e aprovação)
 
-Os três workflows estão em `docs/github-workflows/` (`ci.yml`, `db-staging.yml`, `db-production.yml`). Para ativá-los eles precisam ir para
-`.github/workflows/`. O token do GitHub usado aqui não tem permissão de mexer em workflows, então escolha um jeito:
-(a) `gh auth refresh -h github.com -s workflow` e peça para copiar/commitar; ou (b) copie os três arquivos pelo site do GitHub
-(*Add file → Create new file* em `.github/workflows/`).
+Os três workflows estão em `.github/workflows/` (`ci.yml`, `db-staging.yml`, `db-production.yml`). Para o `gh` poder criá-los/editá-los ele precisa
+do escopo `workflow` (`gh auth refresh -h github.com -s workflow`, já feito neste computador).
 
 *Settings → Secrets and variables → Actions*: `SUPABASE_ACCESS_TOKEN` (token da sua conta), `STAGING_PROJECT_REF`, `STAGING_DB_PASSWORD`.
-*Settings → Environments → New environment `production`*: marque **Required reviewers** (você) e adicione os segredos
+*Settings → Environments → New environment `db-production`* (não use `production`: é o ambiente da Vercel): marque **Required reviewers** (você) e adicione os segredos
 `PRODUCTION_PROJECT_REF`, `PRODUCTION_DB_PASSWORD`, `SUPABASE_ACCESS_TOKEN`, `STAGING_PROJECT_REF`, `STAGING_DB_PASSWORD`.
 *Settings → Branches → Branch protection rule para `main`*: exigir pull request e o check **CI** verde.
 
