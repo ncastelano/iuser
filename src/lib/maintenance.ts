@@ -22,6 +22,11 @@ function load() {
 }
 function emit() { listeners.forEach((l) => { try { l() } catch { /* um ouvinte com erro não derruba os outros */ } }) }
 
+/** `?manutencao=1` na URL = aviso forçado (conferir o visual): nenhum teste de saúde pode desligá-lo. */
+export function maintenanceForcedByUrl(): boolean {
+    try { return typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('manutencao') === '1' } catch { return false }
+}
+
 export function getMaintenance(): boolean {
     load()
     return flagged
@@ -33,8 +38,9 @@ export function reportMaintenance() {
     if (!flagged) { flagged = true; emit() }
 }
 
-export function clearMaintenance() {
+export function clearMaintenance(force = false) {
     load()
+    if (!force && maintenanceForcedByUrl()) return // aviso forçado pela URL (conferir o visual): nenhuma resposta boa do Supabase o desliga
     try { storage()?.removeItem(KEY) } catch { /* ignora */ }
     if (flagged) { flagged = false; emit() }
 }
@@ -42,11 +48,6 @@ export function clearMaintenance() {
 export function subscribeMaintenance(cb: () => void): () => void {
     listeners.add(cb)
     return () => { listeners.delete(cb) }
-}
-
-/** `?manutencao=1` na URL = aviso forçado (conferir o visual): nenhum teste de saúde pode desligá-lo. */
-export function maintenanceForcedByUrl(): boolean {
-    try { return typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('manutencao') === '1' } catch { return false }
 }
 
 /** Pergunta ao Supabase se ele está respondendo (rota de saúde do Auth, que não gasta banco). 402 liga o aviso; resposta boa desliga. */
@@ -57,7 +58,7 @@ export async function probeSupabase(): Promise<void> {
     try {
         const res = await fetch(`${base}/auth/v1/health`, { headers: { apikey: key }, cache: 'no-store' })
         if (res.status === 402) reportMaintenance()
-        else if (res.ok && !maintenanceForcedByUrl()) clearMaintenance()
+        else if (res.ok) clearMaintenance()
     } catch {
         // sem rede do usuário: não é problema do Supabase, não mexe no aviso
     }

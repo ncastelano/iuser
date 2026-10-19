@@ -7,7 +7,7 @@
 import { useEffect, useSyncExternalStore } from 'react'
 import { Layers, Palette, Server, Wrench } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
-import { clearMaintenance, getMaintenance, maintenanceForcedByUrl, probeSupabase, reportMaintenance, subscribeMaintenance } from '@/lib/maintenance'
+import { clearMaintenance, getMaintenance, probeSupabase, reportMaintenance, subscribeMaintenance } from '@/lib/maintenance'
 
 const TITLE = 'O iUser está em manutenção'
 const SHORT = 'O iUser está em manutenção. Voltamos já, com novidades!'
@@ -31,7 +31,7 @@ function useMaintenanceWatch(active: boolean) {
         try {
             const p = new URLSearchParams(window.location.search).get('manutencao')
             if (p === '1') reportMaintenance()
-            else if (p === '0') clearMaintenance()
+            else if (p === '0') clearMaintenance(true)
         } catch { /* ignora */ }
     }, [])
     useEffect(() => {

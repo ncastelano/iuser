@@ -55,7 +55,7 @@ test('faixa no site todo e cartão em login, cadastro, recuperar senha', () => {
     }
 })
 
-test('?manutencao=1 na URL não é desligado pelo teste de saúde (só para conferir o visual)', async () => {
+test('?manutencao=1 na URL não é desligado por resposta boa do Supabase (só para conferir o visual)', async () => {
     m.reportMaintenance()
     globalThis.window = { location: { search: '?manutencao=1' } }
     globalThis.fetch = async () => ({ status: 200, ok: true })
@@ -63,6 +63,16 @@ test('?manutencao=1 na URL não é desligado pelo teste de saúde (só para conf
     assert.equal(m.getMaintenance(), true)
     globalThis.window = { location: { search: '' } }
     await m.probeSupabase()
+    assert.equal(m.getMaintenance(), false)
+    delete globalThis.window
+})
+
+test('clearMaintenance direto também respeita ?manutencao=1, exceto com force', () => {
+    m.reportMaintenance()
+    globalThis.window = { location: { search: '?manutencao=1' } }
+    m.clearMaintenance()
+    assert.equal(m.getMaintenance(), true)
+    m.clearMaintenance(true)
     assert.equal(m.getMaintenance(), false)
     delete globalThis.window
 })
