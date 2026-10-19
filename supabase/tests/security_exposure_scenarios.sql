@@ -1,7 +1,8 @@
 -- Etapa 2.7.1 — TESTE PERMANENTE DE EXPOSIÇÃO DE DADOS (profiles / stores / Pix / funções / realtime).
 -- Roda inteiro numa transação DESFEITA (termina em RAISE EXCEPTION 'RESULT: ...'); dados de teste são marcadores
 -- inventados (nenhum valor real é lido ou impresso). Falha = linha 'FAIL' no RESULT.
---   npx supabase db query --linked -f supabase/tests/security_exposure_scenarios.sql
+--   npx supabase db query --linked -f supabase/tests/security_exposure_scenarios.sql           (produção: só lê, termina desfeito)
+--   env -u SUPABASE_ACCESS_TOKEN npx supabase db query --linked --workdir .staging -f supabase/tests/security_exposure_scenarios.sql   (staging)
 -- Cobre: anon, autenticado sem vínculo (estranho), dono, catálogo de colunas sensíveis em TODO o schema público,
 -- views, funções que devolvem linhas inteiras, políticas largas, grants de tabela e publicação realtime.
 -- Se alguém criar uma view/tabela/função que exponha Pix, e-mail, CPF, telefone etc. a anon, ou devolver
@@ -31,7 +32,9 @@ DECLARE
         'blocked_reason','cart_data','notification_preferences','privacy_settings','access_token','password','token',
         'whatsapp_bot_phone_number_id','recipient_whatsapp','phone','employee_phone','document','api_key','secret'];
 BEGIN
-    SELECT id INTO u FROM profiles WHERE email = 'usuarioteste@gmail.com' LIMIT 1;
+    -- produção: conta de teste do projeto; staging: conta do seed (scripts/staging/seed.mjs)
+    SELECT id INTO u FROM profiles WHERE email IN ('usuarioteste@gmail.com', 'cliente@staging.iuser.test')
+      ORDER BY (email = 'usuarioteste@gmail.com') DESC LIMIT 1;
     SELECT id INTO stranger FROM profiles WHERE id <> u AND id NOT IN (SELECT owner_id FROM stores) LIMIT 1;
     SELECT id, owner_id INTO seller_store, seller_owner FROM stores WHERE owner_id <> u LIMIT 1;
     IF u IS NULL OR stranger IS NULL OR seller_store IS NULL THEN RAISE EXCEPTION 'RESULT: FAIL setup (faltam dados de teste)'; END IF;

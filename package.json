@@ -21,7 +21,8 @@
     "test:delivery-money": "node --test scripts/test-delivery-money.mjs",
     "test:security-exposure": "node --test scripts/test-security-exposure.mjs",
     "test:security-exposure:rest": "node scripts/test-security-exposure-rest.mjs",
-    "test:security-exposure:db": "npx supabase db query --linked -f supabase/tests/security_exposure_scenarios.sql"
+    "test:security-exposure:db": "npx supabase db query --linked -f supabase/tests/security_exposure_scenarios.sql",
+    "test:security-exposure:staging": "env -u SUPABASE_ACCESS_TOKEN npx supabase db query --linked --workdir .staging -f \"$PWD/supabase/tests/security_exposure_scenarios.sql\""
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",

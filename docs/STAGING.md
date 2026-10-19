@@ -32,7 +32,15 @@ O que está em vigor para isso não repetir:
   O projeto `iuser-1` só compila a `main` (Ignored Build Step = "Only build production").
 - Branch `staging` criada; o primeiro commit próprio dela dispara o primeiro deploy de teste. (A Vercel pula commits que já foram
   compilados em produção, então a `staging` precisa de um commit novo para gerar o preview.)
-- Pendente: `NEXT_PUBLIC_APP_URL` de Preview, segredos/ambiente no GitHub, workflows, jobs do `pg_cron` no staging.
+- GitHub: `main` protegido (PR + check `checks`), workflows ativos, segredos e ambiente `db-production` com revisor.
+- Jobs do `pg_cron` do staging (os mesmos 4 da produção): `supabase/staging/cron-jobs.sql` (aplicar com `python3 scripts/staging/apply-sql.py supabase/staging/cron-jobs.sql`).
+- Teste de exposição de dados no staging: `npm run test:security-exposure:staging` (esperado: `RESULT: OK ... fails=0`).
+- Pendente: URL dos avisos do banco para o app de teste (a Vercel pede login para abrir o preview; ver "Avisos do banco no staging"), Asaas sandbox.
+
+### Avisos do banco no staging
+Os gatilhos de push (`order_push_notificatio...`) e a fila de entrega (`delivery_dispatch_settings.notify_url`) chamam o app por URL.
+No staging ficaram com `https://staging.invalid` (não chamam nada). Enquanto o preview exigir login da Vercel (Deployment Protection),
+o banco não consegue chamá-lo; então os avisos de push do staging não saem. As telas e as regras do banco funcionam normalmente.
 
 ## 1. Criar o projeto Supabase de staging (uma vez)
 
