@@ -44,6 +44,22 @@ function useMaintenanceWatch(active: boolean) {
 export function MaintenanceBanner() {
     const active = useMaintenance()
     useMaintenanceWatch(active)
+    // Quem já está com o site aberto também descobre a queda sozinho: testa o Supabase quando a aba volta a ficar visível, quando a
+    // internet volta e a cada 5 min enquanto a aba está visível (no máx. 1 teste por minuto; a rota de saúde do Auth é leve).
+    useEffect(() => {
+        let last = 0
+        const run = () => {
+            if (document.visibilityState !== 'visible') return
+            const now = Date.now()
+            if (now - last < 60_000) return
+            last = now
+            void probeSupabase()
+        }
+        document.addEventListener('visibilitychange', run)
+        window.addEventListener('online', run)
+        const t = setInterval(run, 5 * 60_000)
+        return () => { document.removeEventListener('visibilitychange', run); window.removeEventListener('online', run); clearInterval(t) }
+    }, [])
     // empurra a página para baixo da faixa fixa (sem isso ela cobre o topo das telas)
     useEffect(() => {
         if (!active) return
