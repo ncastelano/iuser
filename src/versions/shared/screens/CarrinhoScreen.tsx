@@ -54,6 +54,7 @@ import { isStoreOpenNow, getStoreStatusText, getNextOpeningInfo, type BusinessHo
 import CatalogBag from '@/app/(main)/[ownerSlug]/catalogo/CatalogBag'
 import CarrinhoSkeleton from './CarrinhoSkeleton'
 import DeliveryIncreasePrompt from '@/components/DeliveryIncreasePrompt'
+import { saveOwnProfile } from '@/lib/saveOwnProfile'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -1201,8 +1202,7 @@ export default function CarrinhoScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                 }
             }
 
-            await supabase.from('profiles').upsert({
-                id: data.user.id,
+            await saveOwnProfile(supabase, data.user.id, {
                 name: authName,
                 profileSlug: authProfileSlug,
                 avatar_url: avatarUrl,

@@ -31,6 +31,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Spinner } from '@/components/Spinner'
+import { saveOwnProfile } from '@/lib/saveOwnProfile'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -156,16 +157,13 @@ export default function ComunidadePage() {
                 return
             }
 
-            const { error } = await supabase
-                .from('profiles')
-                .upsert({
-                    id: user.id,
-                    address: location.address,
-                    address_number: location.addressNumber || null,
-                    address_complement: location.addressComplement || null,
-                    store_lat: location.lat,
-                    store_lng: location.lng,
-                }, { onConflict: 'id' })
+            const { error } = await saveOwnProfile(supabase, user.id, {
+                address: location.address,
+                address_number: location.addressNumber || null,
+                address_complement: location.addressComplement || null,
+                store_lat: location.lat,
+                store_lng: location.lng,
+            })
 
             if (error) {
                 console.error('[Comunidade] Erro ao salvar localização:', error)

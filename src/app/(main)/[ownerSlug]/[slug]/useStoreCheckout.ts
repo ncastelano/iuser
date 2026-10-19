@@ -16,6 +16,7 @@ import { useCartStore, type CartItem, cartItemUnitPrice, cartItemLineTotal } fro
 import { isStoreOpenNow, getNextOpeningInfo, type BusinessHours } from '@/lib/storeHours'
 import { toast } from 'sonner'
 
+import { saveOwnProfile } from '@/lib/saveOwnProfile'
 export type CheckoutStep = 'auth' | 'delivery' | 'payment' | null
 
 interface StoreConfig {
@@ -239,7 +240,7 @@ export function useStoreCheckout(ownerSlug: string | undefined, cartItems: CartI
                 }
                 avatarUrl = supabase.storage.from('avatars').getPublicUrl(fileName).data.publicUrl
             }
-            await supabase.from('profiles').upsert({ id: data.user.id, name: authName, profileSlug: authProfileSlug, avatar_url: avatarUrl })
+            await saveOwnProfile(supabase, data.user.id, { name: authName, profileSlug: authProfileSlug, avatar_url: avatarUrl })
             await loadUserData(data.user.id)
             setCheckoutStep('delivery')
             toast.success('Conta criada com sucesso!')

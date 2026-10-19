@@ -31,6 +31,7 @@ import { checkSlugAvailability } from '@/lib/slugUtils'
 import { getDeviceId } from '@/lib/deviceId'
 import { isCpfCnpjTaken, CPF_CNPJ_TAKEN_MESSAGE } from '@/lib/checkCpfCnpjAvailable'
 
+import { saveOwnProfile } from '@/lib/saveOwnProfile'
 interface LoginAndRegisterProps {
     onLoginSuccess?: () => void
     // Abre direto na tela de cadastro (ex.: "Ser motorista")
@@ -243,9 +244,7 @@ function LoginAndRegisterContent({ onLoginSuccess, initialMode = 'login' }: Logi
                 updated_at: new Date().toISOString()
             }
 
-            const { error: profileError } = await supabase
-                .from('profiles')
-                .upsert(profileData, { onConflict: 'id' })
+            const { error: profileError } = await saveOwnProfile(supabase, authData.user.id, profileData)
 
             if (profileError) {
                 if (profileError.code === '23505' && profileError.message.includes('cpf_cnpj')) {

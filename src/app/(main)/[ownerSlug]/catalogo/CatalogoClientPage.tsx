@@ -23,6 +23,7 @@ import { hexToRgb } from '@/lib/color'
 import AddToCartModal from '@/components/AddToCartModal'
 import FallbackImage from '@/components/FallbackImage'
 import { captureReferral } from '@/lib/referralCapture'
+import { saveOwnProfile } from '@/lib/saveOwnProfile'
 
 interface Product {
     id: string
@@ -683,8 +684,7 @@ export default function CatalogoClientPage() {
                 uplineId = storeInfo.owner_id
             }
 
-            await supabase.from('profiles').upsert({
-                id: data.user.id,
+            await saveOwnProfile(supabase, data.user.id, {
                 name: authName,
                 profileSlug: authProfileSlug,
                 avatar_url: avatarUrl,

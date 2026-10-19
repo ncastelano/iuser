@@ -42,6 +42,7 @@ import StoreList from './inicio/sections/StoreList'
 import StoreDashboard from '@/components/StoreDashboard/StoreDashboard'
 import CareerPlans from './inicio/sections/CareerPlans'
 
+import { saveOwnProfile } from '@/lib/saveOwnProfile'
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -477,21 +478,21 @@ function HomePageContent() {
                 return
             }
 
-            const { data, error } = await supabase
-                .from('profiles')
-                .upsert({
-                    id: user.id,
-                    address: location.address,
-                    address_number: location.addressNumber || null,
-                    address_complement: location.addressComplement || null,
-                    store_lat: location.lat,
-                    store_lng: location.lng,
-                }, {
-                    onConflict: 'id',
-                    ignoreDuplicates: false
-                })
-                .select('address, address_number, address_complement, store_lat, store_lng')
-                .single()
+            // Grava e usa os próprios valores (não dá para pedir endereço/coordenadas de volta de `profiles`: colunas privadas; ver lib/saveOwnProfile.ts)
+            const { error } = await saveOwnProfile(supabase, user.id, {
+                address: location.address,
+                address_number: location.addressNumber || null,
+                address_complement: location.addressComplement || null,
+                store_lat: location.lat,
+                store_lng: location.lng,
+            })
+            const data = error ? null : {
+                address: location.address,
+                address_number: location.addressNumber || null,
+                address_complement: location.addressComplement || null,
+                store_lat: location.lat,
+                store_lng: location.lng,
+            }
 
             if (error) {
                 alert('Erro ao salvar: ' + error.message)

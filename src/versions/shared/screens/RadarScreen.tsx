@@ -25,6 +25,7 @@ import { parseCoords } from '@/lib/geoParse'
 import { getProfilesHiddenFromMap } from '@/lib/mapPrivacy'
 import { STORE_PUBLIC_SELECT } from '@/lib/publicColumns'
 import type { UiVersion } from '@/versions/registry'
+import { saveOwnProfile } from '@/lib/saveOwnProfile'
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
 
@@ -583,21 +584,21 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                 return
             }
 
-            const { data, error } = await supabase
-                .from('profiles')
-                .upsert({
-                    id: user.id,
-                    address: location.address,
-                    address_number: location.addressNumber || null,
-                    address_complement: location.addressComplement || null,
-                    store_lat: location.lat,
-                    store_lng: location.lng,
-                }, {
-                    onConflict: 'id',
-                    ignoreDuplicates: false
-                })
-                .select('address, address_number, address_complement, store_lat, store_lng')
-                .single()
+            // Grava e usa os próprios valores (não dá para pedir endereço/coordenadas de volta de `profiles`: colunas privadas; ver lib/saveOwnProfile.ts)
+            const { error } = await saveOwnProfile(supabase, user.id, {
+                address: location.address,
+                address_number: location.addressNumber || null,
+                address_complement: location.addressComplement || null,
+                store_lat: location.lat,
+                store_lng: location.lng,
+            })
+            const data = error ? null : {
+                address: location.address,
+                address_number: location.addressNumber || null,
+                address_complement: location.addressComplement || null,
+                store_lat: location.lat,
+                store_lng: location.lng,
+            }
 
             if (error) {
                 toast.error('Erro ao salvar: ' + error.message)

@@ -126,6 +126,14 @@ for (const f of files) {
                     for (const c of columnsOf(text, info[table].pub)) OFFENDERS[table].push(`${rel(f)}:${line} select ${table}.${c}`)
                 }
             }
+            // upsert no navegador: INSERT ... ON CONFLICT DO UPDATE exige SELECT nas colunas privadas e devolve 403 (cadastro e "Definir local"
+            // quebraram assim em 18/10). Use saveOwnProfile (src/lib/saveOwnProfile.ts) = UPDATE, com INSERT se a linha ainda não existir.
+            if (/^\s*\.upsert\(/.test(stmt)) OFFENDERS[table].push(`${rel(f)}:${line} upsert em ${table} (use saveOwnProfile / update)`)
+            // gravar e pedir de volta coluna PRIVADA (.update/.insert(...).select('address, ...')) também dá 403
+            if (/^\s*\.(update|insert)\(/.test(stmt)) {
+                const back = stmt.match(/\)\s*(?:\.eq\([^)]*\)\s*)*\.select\(\s*['"`]([^'"`]*)['"`]/)
+                if (back) for (const c of back[1].split(',').map((x) => x.trim().split(':').pop())) if (info[table].priv.includes(c)) OFFENDERS[table].push(`${rel(f)}:${line} ${table}.${c} pedida de volta após gravar (coluna privada; use my_profile/my_stores)`)
+            }
             // filtros/ordem por coluna privada = oráculo (mesmo sem selecionar a coluna)
             for (const fm of stmt.matchAll(/\.(?:eq|neq|in|ilike|like|is|gt|gte|lt|lte|order|contains|not)\(\s*['"]([\w".]+)['"]/g)) {
                 const col = fm[1].replace(/"/g, '')
