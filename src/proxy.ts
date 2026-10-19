@@ -153,6 +153,12 @@ async function resolveUiVersion(request: NextRequest, pathname: string): Promise
     return NextResponse.rewrite(rewritten)
 }
 
+// Banco indisponível de verdade (cota do Supabase = 402, limite = 429, queda = 5xx ou falha de rede = status 0). Erro comum de consulta
+// (ex.: ilike com várias linhas) NÃO é queda e continua valendo como "não achou".
+function dbUnavailable(...results: Array<{ error: unknown; status: number }>): boolean {
+    return results.some((r) => !!r.error && (r.status === 402 || r.status === 429 || r.status >= 500 || r.status === 0))
+}
+
 // ===== CACHE EM MEMÓRIA =====
 const cache = new Map<string, { type: 'profile' | 'store' | 'category' | 'product' | 'vehicle'; slug: string; timestamp: number }>()
 const CACHE_TTL = 60 * 1000 // 60 segundos
@@ -276,6 +282,11 @@ export async function proxy(request: NextRequest) {
             } else if (storeResult.data) {
                 setCache(firstSegment, 'store')
                 isStore = true
+            } else if (dbUnavailable(profileResult, storeResult)) {
+                // Banco indisponível (ex.: 402 da cota, queda): NÃO sabemos se o perfil existe. Deixa a página abrir (ela mostra o aviso
+                // de manutenção) em vez de mandar gente de perfis reais para o 404. Não guarda no cache.
+                console.warn(`[Proxy] Consulta falhou para ${firstSegment}; liberando a rota sem decidir 404: ${pathname}`)
+                return NextResponse.next()
             }
         }
 
@@ -352,6 +363,13 @@ export async function proxy(request: NextRequest) {
             setCache(slug, 'vehicle')
             console.log(`[Proxy] ${slug} é um veículo ✅`)
             return rewriteToVehicle()
+        }
+
+        // Banco indisponível (402/queda) em alguma das consultas e nada achado: não dá para afirmar que o endereço não existe.
+        // Libera a rota (a página mostra o aviso de manutenção) em vez de cair no 404. Categorias e rotas fixas continuam valendo.
+        if (!CATEGORIAS_VALIDAS.includes(slug) && slug !== 'publicacoes' && dbUnavailable(profileResult, storeResult, vehicleResult)) {
+            console.warn(`[Proxy] Consulta falhou para ${slug}; liberando a rota sem decidir 404`)
+            return NextResponse.next()
         }
 
         // Verifica se é uma categoria

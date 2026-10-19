@@ -25,6 +25,7 @@ import { captureReferral } from '@/lib/referralCapture'
 import { useMyVehicles, buildVehicleTabs } from '@/lib/vehicleHeaderTabs'
 import { useAdminHeaderTab } from '@/lib/adminHeaderTab'
 import { useInsideShell } from '@/components/InsideShell'
+import { useMaintenance } from '@/components/MaintenanceNotice'
 
 type OwnerType = 'profile' | 'store'
 
@@ -38,6 +39,9 @@ export interface StoreInfo {
     name: string
     business_hours?: BusinessHours | null
 }
+
+// Falha de consulta (cota/queda do Supabase) — diferente de "o perfil não existe"
+const LOAD_FAILED = 'LOAD_FAILED'
 
 export default function OwnerClientPage() {
     const params = useParams()
@@ -65,6 +69,14 @@ export default function OwnerClientPage() {
     const [ownerType, setOwnerType] = useState<OwnerType | null>(null)
     const [ownerId, setOwnerId] = useState<string | null>(null)
     const [error, setError] = useState<string | null>(null)
+    const [loadFailed, setLoadFailed] = useState(false)
+    const maintenance = useMaintenance()
+    // quando o Supabase volta (aviso de manutenção desliga), recarrega a página que não conseguiu abrir
+    const wasMaintenance = useRef(false)
+    useEffect(() => {
+        if (maintenance) wasMaintenance.current = true
+        else if (wasMaintenance.current && loadFailed) window.location.reload()
+    }, [maintenance, loadFailed])
     const [mounted, setMounted] = useState(false)
     const [stores, setStores] = useState<StoreInfo[]>([])
     const [loadingStores, setLoadingStores] = useState(true)
@@ -119,6 +131,9 @@ export default function OwnerClientPage() {
         if (store && !storeError) {
             return { type: 'store' as OwnerType, id: store.id, ownerProfileId: store.owner_id as string | null }
         }
+
+        // Consulta com ERRO (402 da cota, queda) não é "não existe": sinaliza falha de carga para mostrar o aviso de manutenção
+        if (profileError || storeError) throw new Error(LOAD_FAILED)
 
         return null
     }
@@ -304,6 +319,7 @@ export default function OwnerClientPage() {
                 setReferralOwnerProfileId(result.ownerProfileId)
             } catch (err: any) {
                 console.error('Erro ao detectar owner:', err)
+                if (err?.message === LOAD_FAILED) setLoadFailed(true)
                 setError(err.message || 'Erro ao carregar página')
             } finally {
                 setLoading(false)
@@ -350,6 +366,30 @@ export default function OwnerClientPage() {
                 <div className="text-center">
                     <Spinner size={48} color={colors.accent} className="mx-auto mb-4" />
                     <p className="text-sm font-bold" style={{ color: colors.textSecondary }}>Carregando...</p>
+                </div>
+            </div>
+        )
+    }
+
+    if (loadFailed || (maintenance && (error || !ownerType))) {
+        return (
+            <div className="min-h-screen flex items-center justify-center px-4" style={{ background: colors.background }}>
+                <div className="flex flex-col items-center gap-4 max-w-sm text-center">
+                    <div className="text-6xl">🔧</div>
+                    <h2 className="text-2xl font-black" style={{ color: colors.textPrimary }}>O iUser está em manutenção</h2>
+                    <p className="text-sm" style={{ color: colors.textSecondary }}>
+                        Não conseguimos carregar esta página agora. Estamos atualizando o servidor e o design do app: voltamos já, com novidades!
+                    </p>
+                    <button
+                        onClick={() => window.location.reload()}
+                        className="flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition hover:scale-105"
+                        style={{ background: colors.accent, color: '#fff' }}
+                    >
+                        Tentar de novo
+                    </button>
+                    <button onClick={() => router.push('/')} className="text-sm font-bold underline" style={{ color: colors.textSecondary }}>
+                        Voltar ao início
+                    </button>
                 </div>
             </div>
         )

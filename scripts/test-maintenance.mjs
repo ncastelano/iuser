@@ -76,3 +76,20 @@ test('clearMaintenance direto também respeita ?manutencao=1, exceto com force',
     assert.equal(m.getMaintenance(), false)
     delete globalThis.window
 })
+
+test('roteador: erro de consulta ao banco não vira 404 de perfil/loja, e a tela do perfil mostra a manutenção', () => {
+    const proxy = fs.readFileSync(path.join(root, 'src/proxy.ts'), 'utf8')
+    assert.match(proxy, /dbUnavailable\(profileResult, storeResult\)\) \{[\s\S]*?return NextResponse\.next\(\)/, 'rota de 2+ segmentos precisa liberar quando o banco está indisponível')
+    assert.match(proxy, /r\.status === 402 \|\| r\.status === 429 \|\| r\.status >= 500 \|\| r\.status === 0/)
+    assert.match(proxy, /dbUnavailable\(profileResult, storeResult, vehicleResult\)\) \{[\s\S]*?return NextResponse\.next\(\)/, 'rota de 1 segmento precisa liberar quando o banco está indisponível')
+    const owner = fs.readFileSync(path.join(root, 'src/app/(main)/[ownerSlug]/OwnerClientPage.tsx'), 'utf8')
+    assert.match(owner, /if \(profileError \|\| storeError\) throw new Error\(LOAD_FAILED\)/)
+    assert.match(owner, /O iUser está em manutenção/)
+})
+
+test('abas já abertas testam o Supabase sozinhas (ao voltar a ficar visíveis, ao voltar a internet e a cada 5 min)', () => {
+    const n = fs.readFileSync(path.join(root, 'src/components/MaintenanceNotice.tsx'), 'utf8')
+    assert.match(n, /addEventListener\('visibilitychange'/)
+    assert.match(n, /addEventListener\('online'/)
+    assert.match(n, /5 \* 60_000/)
+})
