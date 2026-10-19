@@ -195,6 +195,14 @@ Migration `20261106000000_storage_lockdown.sql` trocou as 77 políticas antigas 
 - **SELECT/UPDATE/DELETE:** só do dono (`owner = auth.uid()` ou pasta própria). Trocar/apagar arquivo de outra pessoa só por rota do servidor (service role).
 - Testes: `npm run test:storage-lockdown` (staging; API real: visitante, dono e outro usuário; 72 checagens). Rollback (reabre a escrita anônima, só em emergência): `supabase/rollbacks/storage_lockdown_rollback.sql`.
 
+## Imagens: proxy `/img` com cache da Vercel (cota do Supabase) — leia antes de mexer em URL de imagem
+
+O plano gratuito do Supabase limita o **Cached Egress** (5 GB/mês), e quase toda imagem do app (`<img>` direto, ~260 usos) saía do Storage dele. Agora `www.iuser.com.br/img/<bucket>/<arquivo>` (`src/app/img/[...path]/route.ts`, edge) busca no Storage e responde com `s-maxage`: a CDN da Vercel guarda a cópia e só a 1ª visualização de cada arquivo gasta o Supabase (testado no staging: `x-vercel-cache: HIT`). Um `rewrites()` externo **não** serve: o Storage só aceita `max-age` e a Vercel só guarda em cache com `s-maxage`.
+- **Todo link público sai pelo proxy sozinho:** `supabase.storage.from(b).getPublicUrl()` do cliente do navegador (`lib/supabase/client.ts`) passa por `proxyImageUrl` (`lib/imageProxy.ts`); não gere URL de Storage na mão (nem `${SUPABASE_URL}/storage/v1/object/public/...`) em código que o navegador mostra. Rotas de servidor com `supabaseAdmin` seguem com o link direto (push, e-mail, OG).
+- A base vem de `NEXT_PUBLIC_IMAGE_BASE` (definida em `next.config.js`): produção = `https://www.iuser.com.br`, preview = URL da branch, local = vazio (link direto do Supabase). **Sempre absoluta** (o link é gravado no banco e usado por push e app nativo). `NEXT_PUBLIC_IMAGE_BASE=off` desliga.
+- **Segurança:** o endereço fica no domínio do site, então a rota só serve imagem de verdade (jpeg/png/webp/gif/avif), só buckets da lista, nunca HTML/SVG (senão um arquivo malicioso num bucket vira XSS no domínio). **Bucket novo:** inclua-o em `BUCKETS` da rota.
+- `/img/` está em `IGNORED_PREFIXES` do `src/proxy.ts` e passa direto (roda a cada foto; sem log). Links antigos do Supabase guardados no banco continuam funcionando; a migração `20261107...` (separada) troca os absolutos por links do proxy. Testes: `npm run test:image-proxy`.
+
 ## Telemetria própria de Egress/Realtime — não mexer sem saber
 
 O Supabase não expõe Egress nem Realtime Messages por nenhuma API pública documentada (confirmado testando ao vivo os endpoints da Management API — ver commit `b1b81d8`). Por isso o iUser mede isso sozinho:
