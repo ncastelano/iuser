@@ -44,6 +44,13 @@ function useMaintenanceWatch(active: boolean) {
 export function MaintenanceBanner() {
     const active = useMaintenance()
     useMaintenanceWatch(active)
+    // empurra a página para baixo da faixa fixa (sem isso ela cobre o topo das telas)
+    useEffect(() => {
+        if (!active) return
+        const prev = document.body.style.paddingTop
+        document.body.style.paddingTop = 'calc(env(safe-area-inset-top, 0px) + 34px)'
+        return () => { document.body.style.paddingTop = prev }
+    }, [active])
     if (!active) return null
     return (
         <div
