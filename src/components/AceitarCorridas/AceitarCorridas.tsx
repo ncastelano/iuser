@@ -56,6 +56,7 @@ import { RideOfferCard } from './RideOfferCard'
 import { VehicleRequiredDialog } from '@/components/VehicleRequiredDialog'
 import { submitRideApplication } from '@/lib/rideApplication'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
+import { saveOwnProfile } from '@/lib/saveOwnProfile'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 const REFRESH_INTERVAL_MS = 15000
@@ -1028,16 +1029,13 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
             const { data: { user } } = await supabase.auth.getUser()
             if (!user) return
 
-            const { error } = await supabase
-                .from('profiles')
-                .upsert({
-                    id: user.id,
-                    address: location.address,
-                    address_number: location.addressNumber || null,
-                    address_complement: location.addressComplement || null,
-                    store_lat: location.lat,
-                    store_lng: location.lng,
-                }, { onConflict: 'id', ignoreDuplicates: false })
+            const { error } = await saveOwnProfile(supabase, user.id, {
+                address: location.address,
+                address_number: location.addressNumber || null,
+                address_complement: location.addressComplement || null,
+                store_lat: location.lat,
+                store_lng: location.lng,
+            })
 
             if (error) throw error
 

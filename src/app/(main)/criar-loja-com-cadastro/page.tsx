@@ -44,6 +44,7 @@ import Header from '@/components/Header'
 import { categorias } from '@/lib/categorias'
 import { isCpfCnpjTaken, CPF_CNPJ_TAKEN_MESSAGE } from '@/lib/checkCpfCnpjAvailable'
 
+import { saveOwnProfile } from '@/lib/saveOwnProfile'
 const CATEGORIAS_LOJAS = categorias.filter(cat => cat.slug !== 'social')
 
 type Step = 'store' | 'account' | 'access' | 'success'
@@ -719,16 +720,13 @@ function CriarLojaComCadastroContent() {
             }
 
             // 3. Criar perfil
-            const { error: profileError } = await supabase
-                .from('profiles')
-                .upsert({
-                    id: userId,
-                    name: name,
-                    profileSlug: profileSlug,
-                    upline_id: uplineId,
-                    cpf_cnpj: cleanCpfCnpj,
-                    avatar_url: accountAvatarUrl,
-                })
+            const { error: profileError } = await saveOwnProfile(supabase, userId, {
+                name: name,
+                profileSlug: profileSlug,
+                upline_id: uplineId,
+                cpf_cnpj: cleanCpfCnpj,
+                avatar_url: accountAvatarUrl,
+            })
             if (profileError) {
                 console.error('Erro ao criar perfil:', profileError)
                 if (profileError.code === '23505' && profileError.message.includes('cpf_cnpj')) {

@@ -40,6 +40,7 @@ import { checkSlugAvailability, sanitizeSlug, RESERVED_SLUGS } from '@/lib/slugU
 import { getDeviceId } from '@/lib/deviceId'
 import { isCpfCnpjTaken, CPF_CNPJ_TAKEN_MESSAGE } from '@/lib/checkCpfCnpjAvailable'
 
+import { saveOwnProfile } from '@/lib/saveOwnProfile'
 // Componente de badge animado com efeito rápido - CONTAINER TRANSPARENTE
 function AnimatedBadge({
   words,
@@ -395,11 +396,7 @@ function RegisterContent() {
         updated_at: new Date().toISOString()
       }
 
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .upsert(profileData, {
-          onConflict: 'id'
-        })
+      const { error: profileError } = await saveOwnProfile(supabase, authData.user.id, profileData)
 
       if (profileError) {
         if (profileError.code === '23505' && profileError.message.includes('cpf_cnpj')) {
