@@ -41,6 +41,7 @@ export const VERSION_ROUTES: Record<string, Partial<Record<UiVersion, string>>> 
     '/conversas': { v3: '/v3/conversas' },
     '/lojas': { v3: '/v3/lojas' },
     '/solicitar-servico': { v3: '/v3/solicitar-servico' },
+    '/pedir-motorista': { v3: '/v3/pedir-motorista' },
     '/radar': { v3: '/v3/radar' },
 }
 

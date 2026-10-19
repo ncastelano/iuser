@@ -28,7 +28,6 @@ import { fetchOpenBoardItems, askedAgo, shortAddress, type BoardItem } from '@/l
 import { getRequestTitle } from '@/lib/serviceTypes'
 import { fetchCommunitiesActivity, type CommunityActivity } from '@/lib/communityActivity'
 import PlanAvatarRing, { usePlanRing } from '@/components/PlanAvatarRing'
-import AnnouncementBanner from '@/components/AnnouncementBanner'
 import SearchResultsSection from '../../inicio/SearchResultsSection'
 import { rankStyle } from '../../social/SocialProfileCard'
 import ShareLinkDialog, { copyText } from '@/components/ShareLinkDialog'
@@ -548,7 +547,6 @@ export default function ModeloInicialPage() {
                     {query && <button onClick={() => setQuery('')} aria-label="Limpar busca" style={{ color: colors.textSecondary }}><X size={17} /></button>}
                 </div>
 
-                {!searching && <AnnouncementBanner />}
 
                 {searching ? (
                     <div className="mt-6"><SearchResultsSection searchQuery={query} /></div>

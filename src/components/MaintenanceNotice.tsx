@@ -4,10 +4,11 @@
 // MaintenanceCard = cartão grande, no estilo do aviso da home, para as telas de login/cadastro/recuperar senha.
 'use client'
 
-import { useEffect, useSyncExternalStore } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 import { Layers, Palette, Server, Wrench } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import { clearMaintenance, getMaintenance, probeSupabase, reportMaintenance, subscribeMaintenance } from '@/lib/maintenance'
+import { VERSION_COOKIE } from '@/versions/registry'
 
 const TITLE = 'O iUser está em manutenção'
 const SHORT = 'O iUser está em manutenção. Voltamos já, com novidades!'
@@ -20,6 +21,15 @@ const HIGHLIGHTS = [
     { icon: Server, label: 'Banco e servidor atualizados' },
     { icon: Palette, label: 'Novo design' },
 ]
+
+/** A interface 3.0 ainda não foi lançada: os avisos de manutenção/novidades valem só para a 2.0. Lê a escolha de versão (cookie). */
+export function useIsV3(): boolean {
+    const [v3, setV3] = useState(false)
+    useEffect(() => {
+        try { setV3(document.cookie.split('; ').some((c) => c === `${VERSION_COOKIE}=v3`)) } catch { /* sem cookie: v2 */ }
+    }, [])
+    return v3
+}
 
 export function useMaintenance(): boolean {
     return useSyncExternalStore(subscribeMaintenance, getMaintenance, () => false)
@@ -42,7 +52,8 @@ function useMaintenanceWatch(active: boolean) {
 }
 
 export function MaintenanceBanner() {
-    const active = useMaintenance()
+    const v3 = useIsV3()
+    const active = useMaintenance() && !v3
     useMaintenanceWatch(active)
     // Quem já está com o site aberto também descobre a queda sozinho: testa o Supabase quando a aba volta a ficar visível, quando a
     // internet volta e a cada 5 min enquanto a aba está visível (no máx. 1 teste por minuto; a rota de saúde do Auth é leve).
@@ -88,7 +99,8 @@ export function MaintenanceBanner() {
 
 export function MaintenanceCard({ className = '' }: { className?: string }) {
     const { colors } = useTheme()
-    const active = useMaintenance()
+    const v3 = useIsV3()
+    const active = useMaintenance() && !v3
     useMaintenanceWatch(active)
     // Ao abrir uma tela de login, já pergunta ao Supabase (nessas telas nenhuma outra chamada acontece até a pessoa tentar entrar).
     useEffect(() => { void probeSupabase() }, [])

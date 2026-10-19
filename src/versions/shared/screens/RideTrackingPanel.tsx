@@ -1,4 +1,4 @@
-// app/(main)/pedir-motorista/RideTrackingPanel.tsx
+// versions/shared/screens/RideTrackingPanel.tsx (painel de acompanhamento do /pedir-motorista)
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
