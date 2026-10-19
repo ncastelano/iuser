@@ -49,6 +49,15 @@ const nextConfig = {
     return [{ source: '/img/:path*', destination: `https://${supabaseHost}/storage/v1/object/public/:path*` }]
   },
 
+  // A Vercel só guarda em cache o que vem de um rewrite externo com s-maxage (max-age sozinho dá MISS sempre). Os nomes de arquivo
+  // levam timestamp (nunca se sobrescreve o mesmo caminho), então cache longo na CDN é seguro; o navegador revalida em 1 dia.
+  async headers() {
+    return [{
+      source: '/img/:path*',
+      headers: [{ key: 'Cache-Control', value: 'public, max-age=86400, s-maxage=2592000, stale-while-revalidate=604800' }],
+    }]
+  },
+
   images: {
     remotePatterns: [
       {

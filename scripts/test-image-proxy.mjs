@@ -30,6 +30,7 @@ test('o roteador não confunde /img/... com perfil ou loja, e o next.config tem 
     const cfg = fs.readFileSync(path.join(root, 'next.config.js'), 'utf8')
     assert.match(cfg, /source: '\/img\/:path\*'/)
     assert.match(cfg, /storage\/v1\/object\/public\/:path\*/)
+    assert.match(cfg, /s-maxage=\d+/, 'sem s-maxage a Vercel não guarda o rewrite externo em cache')
 })
 
 test('todo getPublicUrl do cliente do navegador sai pelo proxy', () => {
