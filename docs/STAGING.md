@@ -25,6 +25,15 @@ O que está em vigor para isso não repetir:
 
 ---
 
+## Estado atual (2026-10-19)
+
+- Banco de staging criado e igual à produção: projeto `iuser-staging` (ref `avxcbdsgsyyjwfsfeexs`).
+- Vercel: o projeto `iuser` tem as variáveis de **Preview** apontando para o staging (URL, anon, service_role e `NEXT_PUBLIC_APP_ENV=staging`).
+  O projeto `iuser-1` só compila a `main` (Ignored Build Step = "Only build production").
+- Branch `staging` criada; o primeiro commit próprio dela dispara o primeiro deploy de teste. (A Vercel pula commits que já foram
+  compilados em produção, então a `staging` precisa de um commit novo para gerar o preview.)
+- Pendente: `NEXT_PUBLIC_APP_URL` de Preview, segredos/ambiente no GitHub, workflows, jobs do `pg_cron` no staging.
+
 ## 1. Criar o projeto Supabase de staging (uma vez)
 
 1. https://supabase.com/dashboard → *New project* na **mesma organização**. Nome: `iuser-staging`. Região: a mesma da produção (West US / Oregon).
