@@ -32,7 +32,18 @@ O que está em vigor para isso não repetir:
   O projeto `iuser-1` só compila a `main` (Ignored Build Step = "Only build production").
 - Branch `staging` criada; o primeiro commit próprio dela dispara o primeiro deploy de teste. (A Vercel pula commits que já foram
   compilados em produção, então a `staging` precisa de um commit novo para gerar o preview.)
-- Pendente: `NEXT_PUBLIC_APP_URL` de Preview, segredos/ambiente no GitHub, workflows, jobs do `pg_cron` no staging.
+- GitHub: `main` protegido (PR + check `checks`), workflows ativos, segredos e ambiente `db-production` com revisor.
+- Jobs do `pg_cron` do staging (os mesmos 4 da produção): `supabase/staging/cron-jobs.sql` (aplicar com `python3 scripts/staging/apply-sql.py supabase/staging/cron-jobs.sql`).
+- Teste de exposição de dados no staging: `npm run test:security-exposure:staging` (esperado: `RESULT: OK ... fails=0`).
+- Avisos do banco no staging ligados (fila de entrega e push de pedidos): `python3 scripts/staging/set-webhook-urls.py`.
+- Pendente: Asaas sandbox (chaves de sandbox nas variáveis de Preview).
+
+### Avisos do banco no staging
+O preview da Vercel exige login (Deployment Protection), então o banco de teste entra pelo **Protection Bypass for Automation**:
+um segredo da Vercel enviado como `?x-vercel-protection-bypass=...` na URL (o preview continua protegido para o resto do mundo).
+`set-webhook-urls.py` lê `STAGING_APP_URL`, `STAGING_BYPASS_SECRET` e `STAGING_WEBHOOK_SECRET` de `.env.staging.local` e atualiza
+`delivery_dispatch_settings.notify_url` e o gatilho `order_push_notificatio...`. `STAGING_WEBHOOK_SECRET` = variável de Preview
+`SUPABASE_WEBHOOK_SECRET` na Vercel. Se trocar um deles, rode o script de novo.
 
 ## 1. Criar o projeto Supabase de staging (uma vez)
 
