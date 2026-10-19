@@ -32,6 +32,7 @@ import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { toast } from 'sonner'
 import { useAppointments } from '@/app/(main)/compromissos/dadosDoCompromisso'
+import { saveOwnProfile } from '@/lib/saveOwnProfile'
 
 /* ============= HELPERS ============= */
 function toMinutes(timeStr: string): number {
@@ -334,8 +335,7 @@ export default function StoreSchedule({
                 avatarUrl = supabase.storage.from('avatars').getPublicUrl(fileName).data.publicUrl
             }
 
-            await supabase.from('profiles').upsert({
-                id: data.user.id,
+            await saveOwnProfile(supabase, data.user.id, {
                 name: authName,
                 profileSlug: authProfileSlug,
                 avatar_url: avatarUrl,

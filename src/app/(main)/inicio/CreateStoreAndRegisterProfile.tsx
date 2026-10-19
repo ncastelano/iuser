@@ -37,6 +37,7 @@ import AnimatedBackground from '@/components/AnimatedBackground'
 import { createSquareImage } from '@/lib/image'
 import { checkSlugAvailability, getSlugSuggestions, sanitizeSlug } from '@/lib/slugUtils'
 import { categorias } from '@/lib/categorias'
+import { saveOwnProfile } from '@/lib/saveOwnProfile'
 
 // Filtra as categorias para remover "Social"
 const CATEGORIAS_LOJAS = categorias.filter(cat => cat.slug !== 'social')
@@ -621,14 +622,11 @@ export default function CreateStoreAndRegisterProfile({
             }
 
             // 3. Criar perfil
-            const { error: profileError } = await supabase
-                .from('profiles')
-                .upsert({
-                    id: userId,
-                    name: name,
-                    profileSlug: profileSlug,
-                    avatar_url: accountAvatarUrl,
-                })
+            const { error: profileError } = await saveOwnProfile(supabase, userId, {
+                name: name,
+                profileSlug: profileSlug,
+                avatar_url: accountAvatarUrl,
+            })
             if (profileError) {
                 console.error('Erro ao criar perfil:', profileError)
                 throw new Error('Erro ao criar perfil')
