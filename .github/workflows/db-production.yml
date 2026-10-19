@@ -1,9 +1,9 @@
 # Aplica migrations no banco de PRODUÇÃO. Só roda quando alguém dispara à mão E aprova.
 #   1) GitHub → Actions → "Banco de produção" → Run workflow (escolha a branch/ref; normalmente `staging` já testada)
-#   2) o ambiente `production` exige aprovação de um revisor (Settings → Environments → production → Required reviewers)
+#   2) o ambiente `db-production` exige aprovação de um revisor (Settings → Environments → db-production → Required reviewers)
 # Antes de aplicar, o job confere que TODAS as migrations novas já passaram pelo staging (mesmo ref). Ele mostra a lista
 # do que vai ser aplicado ANTES de aplicar (dry-run).
-# Segredos (no ambiente `production`): SUPABASE_ACCESS_TOKEN, PRODUCTION_PROJECT_REF, PRODUCTION_DB_PASSWORD,
+# Segredos (no ambiente `db-production`): SUPABASE_ACCESS_TOKEN, PRODUCTION_PROJECT_REF, PRODUCTION_DB_PASSWORD,
 # e para a checagem do staging: STAGING_PROJECT_REF, STAGING_DB_PASSWORD.
 name: Banco de produção
 
@@ -20,7 +20,7 @@ jobs:
   migrate:
     if: inputs.confirm == 'APLICAR'
     runs-on: ubuntu-latest
-    environment: production        # <- exige aprovação manual de um revisor
+    environment: db-production      # <- exige aprovação manual de um revisor
     steps:
       - uses: actions/checkout@v4
       - uses: supabase/setup-cli@v1

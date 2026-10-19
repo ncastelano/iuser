@@ -88,7 +88,7 @@ Os três workflows estão em `.github/workflows/` (`ci.yml`, `db-staging.yml`, `
 do escopo `workflow` (`gh auth refresh -h github.com -s workflow`, já feito neste computador).
 
 *Settings → Secrets and variables → Actions*: `SUPABASE_ACCESS_TOKEN` (token da sua conta), `STAGING_PROJECT_REF`, `STAGING_DB_PASSWORD`.
-*Settings → Environments → New environment `production`*: marque **Required reviewers** (você) e adicione os segredos
+*Settings → Environments → New environment `db-production`* (não use `production`: é o ambiente da Vercel): marque **Required reviewers** (você) e adicione os segredos
 `PRODUCTION_PROJECT_REF`, `PRODUCTION_DB_PASSWORD`, `SUPABASE_ACCESS_TOKEN`, `STAGING_PROJECT_REF`, `STAGING_DB_PASSWORD`.
 *Settings → Branches → Branch protection rule para `main`*: exigir pull request e o check **CI** verde.
 
