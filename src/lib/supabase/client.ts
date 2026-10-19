@@ -3,6 +3,7 @@ import { createBrowserClient } from '@supabase/ssr'
 import { processLock } from '@supabase/supabase-js'
 import { trackEgressBytes, trackRealtimeMessage } from '@/lib/usageTelemetry'
 import { optimizeImageForUpload } from '@/lib/optimizeImage'
+import { proxyImageUrl } from '@/lib/imageProxy'
 
 // Fetch customizado só pra medir o tamanho de cada resposta que volta do
 // Supabase (Egress próprio — ver usageTelemetry.ts) — não muda nada no
@@ -103,5 +104,12 @@ supabase.storage.from = ((bucket: string) => {
     if (!nextOptions?.cacheControl && !nextOptions?.upsert) nextOptions = { ...(nextOptions || {}), cacheControl: '31536000' }
     return originalUpload(path, nextBody, nextOptions)
   }) as typeof api.upload
+  // Links públicos saem pelo endereço de imagens do próprio site (cache da Vercel; ver imageProxy.ts). Cobre os ~175 pontos
+  // que chamam getPublicUrl sem tocar em nenhum, inclusive o link que o app grava no banco ao enviar uma foto nova.
+  const originalGetPublicUrl = api.getPublicUrl.bind(api)
+  api.getPublicUrl = ((path: string, options?: any) => {
+    const r = originalGetPublicUrl(path, options)
+    return { data: { publicUrl: proxyImageUrl(r.data.publicUrl) } }
+  }) as typeof api.getPublicUrl
   return api
 }) as typeof supabase.storage.from

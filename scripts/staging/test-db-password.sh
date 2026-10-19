@@ -7,11 +7,13 @@ printf 'Senha do banco de STAGING (não aparece enquanto digita) e Enter: '
 read -rs PW
 echo
 if [ -z "$PW" ]; then echo "Nada digitado."; exit 1; fi
-OUT=$(env -u SUPABASE_ACCESS_TOKEN SUPABASE_DB_PASSWORD="$PW" npx supabase db push --linked --workdir .staging --dry-run 2>&1)
-if echo "$OUT" | grep -qi "login role"; then
-  echo "AVISO: o CLI não usou a senha digitada (usou login temporário), então este teste não prova nada."
-  unset PW; exit 2
-elif echo "$OUT" | grep -qi "up to date\|DRY RUN"; then
+ENC=$(PW="$PW" python3 -c 'import os,urllib.parse;print(urllib.parse.quote(os.environ["PW"],safe=""))')
+URL="postgresql://postgres.avxcbdsgsyyjwfsfeexs:${ENC}@aws-0-us-east-1.pooler.supabase.com:5432/postgres"
+OUT=$(env -u SUPABASE_ACCESS_TOKEN npx supabase db push --db-url "$URL" --dry-run 2>&1)
+if echo "$OUT" | grep -qi "password authentication failed"; then
+  echo "SENHA ERRADA: o banco de STAGING recusou essa senha."
+  unset PW; exit 3
+elif echo "$OUT" | grep -qi "up to date\|Would push"; then
   echo "SENHA CORRETA: conectou no banco de STAGING (só leitura, nada foi alterado)."
   if printf '%s' "$PW" | gh secret set STAGING_DB_PASSWORD --repo ncastelano/iuser >/dev/null 2>&1; then
     echo "Guardada como segredo STAGING_DB_PASSWORD no GitHub."
