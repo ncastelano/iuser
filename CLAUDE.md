@@ -187,6 +187,14 @@ Regra permanente: dado privado (Pix, e-mail, CPF/CNPJ, telefone, endereço resid
 - **Testes:** `npm run test:security-exposure` (varre o código e as migrations) e `npm run test:security-exposure:db` (`supabase/tests/security_exposure_scenarios.sql`: anon, estranho, dono, catálogo de colunas sensíveis em TODO o schema, views, funções que devolvem linha inteira, realtime, políticas). Rollback: `supabase/rollbacks/etapa_2_7_1_rollback.sql`.
 - **Cuidado ao testar migrations:** `supabase db query -f` NÃO desfaz o que veio antes de um `BEGIN`/`COMMIT` explícito do mesmo arquivo — um teste que começa com `begin;` (ex.: `graduation_scenarios.sql`) comita o que o precede. Não concatene migration + teste que tenha `begin`.
 
+## Storage: quem pode escrever nos buckets (Etapa 2.7.2) — leia antes de criar bucket ou mexer em `storage.objects`
+
+Migration `20261106000000_storage_lockdown.sql` trocou as 77 políticas antigas (que deixavam **qualquer visitante sem login** enviar/sobrescrever/apagar em `avatars`, `mural-images`, `product-images` e `store-logos`) por 5, todas para `authenticated`:
+- **Leitura pública é por URL** (`/object/public/...`, buckets públicos: não passa por política). Ninguém **lista** arquivos (o app nunca lista; não use `.list()`/`createSignedUrl` sem criar a política junto).
+- **INSERT:** `avatars`, `backgrounds`, `mural-images`, `product-images`, `store-logos` = qualquer caminho (nomes planos, ex.: `<uid>-<timestamp>.jpg`); `community-photos`, `driver-car-photos`, `driver-selfie-photos`, `posts`, `ride-object-photos`, `service-request-photos`, `store-links` = **só em `<uid>/...`**. **Bucket novo:** crie a política de INSERT dele na mesma migration (sem ela, ninguém envia) e prefira o caminho `<uid>/...`.
+- **SELECT/UPDATE/DELETE:** só do dono (`owner = auth.uid()` ou pasta própria). Trocar/apagar arquivo de outra pessoa só por rota do servidor (service role).
+- Testes: `npm run test:storage-lockdown` (staging; API real: visitante, dono e outro usuário; 72 checagens). Rollback (reabre a escrita anônima, só em emergência): `supabase/rollbacks/storage_lockdown_rollback.sql`.
+
 ## Telemetria própria de Egress/Realtime — não mexer sem saber
 
 O Supabase não expõe Egress nem Realtime Messages por nenhuma API pública documentada (confirmado testando ao vivo os endpoints da Management API — ver commit `b1b81d8`). Por isso o iUser mede isso sozinho:
