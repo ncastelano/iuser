@@ -23,6 +23,7 @@ export function useActiveDriversLayer({ map, mapReady, enabled, focus }: Options
     const [drivers, setDrivers] = useState<ActiveDriver[]>([])
     const [loaded, setLoaded] = useState(false)
     const markersRef = useRef<mapboxgl.Marker[]>([])
+    const fittedRef = useRef(false)
 
     // busca (e repete a cada 30 s com a aba visível)
     useEffect(() => {
@@ -42,6 +43,15 @@ export function useActiveDriversLayer({ map, mapReady, enabled, focus }: Options
         // focus por valor (não por referência) para não refazer a busca a cada render
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [enabled, map, mapReady, focus?.[0], focus?.[1]])
+
+    // 1ª vez com motoristas e sem ponto de partida: enquadra todos no mapa (se houver partida/localização, o mapa já está onde importa)
+    useEffect(() => {
+        if (!enabled || !map || !mapReady || fittedRef.current || focus || drivers.length === 0) return
+        fittedRef.current = true
+        const bounds = new mapboxgl.LngLatBounds()
+        drivers.forEach((d) => bounds.extend([d.lng, d.lat]))
+        try { map.fitBounds(bounds, { padding: { top: 70, bottom: 30, left: 30, right: 30 }, maxZoom: 14, duration: 600 }) } catch { /* mapa ainda sem tamanho */ }
+    }, [drivers, enabled, map, mapReady, focus])
 
     // desenha os marcadores
     useEffect(() => {

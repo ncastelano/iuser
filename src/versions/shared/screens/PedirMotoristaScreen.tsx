@@ -1811,7 +1811,7 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                                 </>
                             ) : (
                                 <>
-                            <h2 className="text-lg font-black mb-1" style={{ color: colors.textPrimary }}>Motorista para:</h2>
+                            <h2 className={`${v3 ? 'text-[15px]' : 'text-lg'} font-black mb-1`} style={{ color: colors.textPrimary }}>Motorista para:</h2>
                             <p className="text-xs mb-4" style={{ color: colors.textSecondary }}>Escolha uma opção pra começar</p>
 
                             <div className="grid grid-cols-3 gap-2">
@@ -1922,7 +1922,7 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                     {step === 'where' && (
                         <>
                             {/* Local de início */}
-                            <h2 className="text-lg font-black mb-3" style={{ color: colors.textPrimary }}>Qual local para iniciar a corrida?</h2>
+                            <h2 className={`${v3 ? 'text-[15px]' : 'text-lg'} font-black mb-3`} style={{ color: colors.textPrimary }}>Qual local para iniciar a corrida?</h2>
                             <div className="flex items-center gap-3 px-4 py-3 rounded-2xl" style={{ border: `1px solid ${colors.border}` }}>
                                 <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: '#22c55e' }} />
                                 <input
@@ -1978,7 +1978,7 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                             )}
 
                             {/* Local de chegada */}
-                            <h2 className="text-lg font-black mb-3 mt-4" style={{ color: colors.textPrimary }}>Para onde quer ir?</h2>
+                            <h2 className={`${v3 ? 'text-[15px]' : 'text-lg'} font-black mb-3 mt-4`} style={{ color: colors.textPrimary }}>Para onde quer ir?</h2>
                             <div className="flex items-center gap-3 px-4 py-3 rounded-2xl" style={{ border: `1px solid ${colors.border}` }}>
                                 <MapPin size={14} className="flex-shrink-0" style={{ color: '#ef4444' }} />
                                 <input
@@ -2110,7 +2110,7 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                             <div className="flex items-center gap-2 mt-4">
                                 <button
                                     onClick={() => setStep('type')}
-                                    className="py-3.5 px-5 rounded-xl font-black uppercase text-sm tracking-wider transition-all active:scale-95"
+                                    className={`${v3 ? 'py-2.5' : 'py-3.5'} px-5 rounded-xl font-black ${v3 ? 'text-[13px]' : 'uppercase text-sm tracking-wider'} transition-all active:scale-95`}
                                     style={{ background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
                                 >
                                     Voltar
@@ -2118,7 +2118,7 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                                 <button
                                     onClick={goNext}
                                     disabled={!origin.address.trim() || !destination.address.trim() || stops.some((s) => !s.address.trim())}
-                                    className="flex-1 py-3.5 rounded-xl font-black uppercase text-sm tracking-wider transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:hover:scale-100"
+                                    className={`flex-1 ${v3 ? 'py-2.5' : 'py-3.5'} rounded-xl font-black ${v3 ? 'text-[13px]' : 'uppercase text-sm tracking-wider'} transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:hover:scale-100`}
                                     style={{ background: GRADIENT, color: '#fff' }}
                                 >
                                     Continuar
@@ -2130,7 +2130,7 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                     {/* ===== ETAPA: VEÍCULO ===== */}
                     {step === 'vehicle' && requestFor && (
                         <>
-                            <h2 className="text-lg font-black mb-1" style={{ color: colors.textPrimary }}>Qual veículo prefere?</h2>
+                            <h2 className={`${v3 ? 'text-[15px]' : 'text-lg'} font-black mb-1`} style={{ color: colors.textPrimary }}>Qual veículo prefere?</h2>
                             <p className="text-xs mb-4" style={{ color: colors.textSecondary }}>Toque numa opção pra continuar</p>
 
                             <div className="grid grid-cols-2 gap-2">
@@ -2187,14 +2187,14 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                             <div className="flex items-center gap-2 mt-4">
                                 <button
                                     onClick={goPrev}
-                                    className="py-3.5 px-5 rounded-xl font-black uppercase text-sm tracking-wider transition-all active:scale-95"
+                                    className={`${v3 ? 'py-2.5' : 'py-3.5'} px-5 rounded-xl font-black ${v3 ? 'text-[13px]' : 'uppercase text-sm tracking-wider'} transition-all active:scale-95`}
                                     style={{ background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
                                 >
                                     Voltar
                                 </button>
                                 <button
                                     onClick={goNext}
-                                    className="flex-1 py-3.5 rounded-xl font-black uppercase text-sm tracking-wider transition-all hover:scale-[1.02] active:scale-95"
+                                    className={`flex-1 ${v3 ? 'py-2.5' : 'py-3.5'} rounded-xl font-black ${v3 ? 'text-[13px]' : 'uppercase text-sm tracking-wider'} transition-all hover:scale-[1.02] active:scale-95`}
                                     style={{ background: GRADIENT, color: '#fff' }}
                                 >
                                     Continuar
@@ -2206,7 +2206,7 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                     {/* ===== ETAPA 3: ACESSO ===== */}
                     {step === 'access' && (
                         <>
-                            <h2 className="text-lg font-black mb-3" style={{ color: colors.textPrimary }}>Acesso</h2>
+                            <h2 className={`${v3 ? 'text-[15px]' : 'text-lg'} font-black mb-3`} style={{ color: colors.textPrimary }}>Acesso</h2>
 
                             {/* Condomínio fechado — precisa de nº/apto/quadra pra achar? */}
                             <div className="flex flex-col gap-2">
@@ -2436,7 +2436,7 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                             <div className="flex items-center gap-2 mt-4">
                                 <button
                                     onClick={() => setStep('payment')}
-                                    className="py-3.5 px-5 rounded-xl font-black uppercase text-sm tracking-wider transition-all active:scale-95"
+                                    className={`${v3 ? 'py-2.5' : 'py-3.5'} px-5 rounded-xl font-black ${v3 ? 'text-[13px]' : 'uppercase text-sm tracking-wider'} transition-all active:scale-95`}
                                     style={{ background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
                                 >
                                     Voltar
@@ -2444,7 +2444,7 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                                 <button
                                     onClick={handleRequestConfirm}
                                     disabled={submitting || !origin.address.trim() || !destination.address.trim()}
-                                    className="flex-1 py-3.5 rounded-xl font-black uppercase text-sm tracking-wider transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:hover:scale-100 flex items-center justify-center gap-2"
+                                    className={`flex-1 ${v3 ? 'py-2.5' : 'py-3.5'} rounded-xl font-black ${v3 ? 'text-[13px]' : 'uppercase text-sm tracking-wider'} transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:hover:scale-100 flex items-center justify-center gap-2`}
                                     style={{ background: GRADIENT, color: '#fff' }}
                                 >
                                     {submitting ? <Spinner size={18} /> : <Car size={18} />}
@@ -2457,7 +2457,7 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                     {/* ===== ETAPA: QUEM VAI / O QUE LEVA ===== */}
                     {step === 'extras' && requestFor && (
                         <>
-                            <h2 className="text-lg font-black mb-3" style={{ color: colors.textPrimary }}>
+                            <h2 className={`${v3 ? 'text-[15px]' : 'text-lg'} font-black mb-3`} style={{ color: colors.textPrimary }}>
                                 {requestFor === 'pessoa' ? 'Quem vai com você?' : requestFor === 'animal' ? 'Sobre o animal' : 'Sobre o objeto'}
                             </h2>
 
@@ -2893,14 +2893,14 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                             <div className="flex items-center gap-2 mt-4">
                                 <button
                                     onClick={goPrev}
-                                    className="py-3.5 px-5 rounded-xl font-black uppercase text-sm tracking-wider transition-all active:scale-95"
+                                    className={`${v3 ? 'py-2.5' : 'py-3.5'} px-5 rounded-xl font-black ${v3 ? 'text-[13px]' : 'uppercase text-sm tracking-wider'} transition-all active:scale-95`}
                                     style={{ background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
                                 >
                                     Voltar
                                 </button>
                                 <button
                                     onClick={goNext}
-                                    className="flex-1 py-3.5 rounded-xl font-black uppercase text-sm tracking-wider transition-all hover:scale-[1.02] active:scale-95"
+                                    className={`flex-1 ${v3 ? 'py-2.5' : 'py-3.5'} rounded-xl font-black ${v3 ? 'text-[13px]' : 'uppercase text-sm tracking-wider'} transition-all hover:scale-[1.02] active:scale-95`}
                                     style={{ background: GRADIENT, color: '#fff' }}
                                 >
                                     Continuar
@@ -2912,7 +2912,7 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                     {/* ===== ETAPA: FORMA DE PAGAMENTO ===== */}
                     {step === 'payment' && requestFor && (
                         <>
-                            <h2 className="text-lg font-black mb-1" style={{ color: colors.textPrimary }}>Forma de pagamento</h2>
+                            <h2 className={`${v3 ? 'text-[15px]' : 'text-lg'} font-black mb-1`} style={{ color: colors.textPrimary }}>Forma de pagamento</h2>
                             <p className="text-xs mb-4" style={{ color: colors.textSecondary }}>Toque numa opção pra continuar</p>
 
                             <div className="grid grid-cols-3 gap-2">
@@ -3006,14 +3006,14 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                             <div className="flex items-center gap-2 mt-4">
                                 <button
                                     onClick={goPrev}
-                                    className="py-3.5 px-5 rounded-xl font-black uppercase text-sm tracking-wider transition-all active:scale-95"
+                                    className={`${v3 ? 'py-2.5' : 'py-3.5'} px-5 rounded-xl font-black ${v3 ? 'text-[13px]' : 'uppercase text-sm tracking-wider'} transition-all active:scale-95`}
                                     style={{ background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
                                 >
                                     Voltar
                                 </button>
                                 <button
                                     onClick={goNext}
-                                    className="flex-1 py-3.5 rounded-xl font-black uppercase text-sm tracking-wider transition-all hover:scale-[1.02] active:scale-95"
+                                    className={`flex-1 ${v3 ? 'py-2.5' : 'py-3.5'} rounded-xl font-black ${v3 ? 'text-[13px]' : 'uppercase text-sm tracking-wider'} transition-all hover:scale-[1.02] active:scale-95`}
                                     style={{ background: GRADIENT, color: '#fff' }}
                                 >
                                     Continuar
