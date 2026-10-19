@@ -173,6 +173,9 @@ export async function proxy(request: NextRequest) {
     const url = request.nextUrl.clone()
     const pathname = url.pathname
 
+    // Proxy de imagens (src/app/img/[...path]/route.ts): passa direto, sem log nem resolução de versão (roda a cada foto)
+    if (pathname.startsWith('/img/')) return NextResponse.next()
+
     console.log(`[Proxy] Processando: ${pathname}`)
 
     // --- 0. Versão da interface (2.0 / 3.0): mesma URL, implementação escolhida pela pessoa ---

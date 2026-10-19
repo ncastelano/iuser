@@ -24,17 +24,27 @@ test('sem base (desenvolvimento local) ou link de outro lugar: devolve o link or
     assert.equal(proxyImageUrl('', BASE, SB), '')
 })
 
-test('o roteador não confunde /img/... com perfil ou loja, e o next.config tem o rewrite para o Storage', () => {
+test('o roteador deixa /img/... passar, e a rota de imagens serve do Storage com cache da CDN', () => {
     const proxy = fs.readFileSync(path.join(root, 'src/proxy.ts'), 'utf8')
     assert.match(proxy, /IGNORED_PREFIXES = \[[\s\S]*'\/img\/'/)
-    const cfg = fs.readFileSync(path.join(root, 'next.config.js'), 'utf8')
-    assert.match(cfg, /source: '\/img\/:path\*'/)
-    assert.match(cfg, /storage\/v1\/object\/public\/:path\*/)
-    assert.match(cfg, /s-maxage=\d+/, 'sem s-maxage a Vercel não guarda o rewrite externo em cache')
+    assert.match(proxy, /pathname\.startsWith\('\/img\/'\)\) return NextResponse\.next\(\)/)
+    const route = fs.readFileSync(path.join(root, 'src/app/img/[...path]/route.ts'), 'utf8')
+    assert.match(route, /s-maxage=\d+/, 'sem s-maxage a Vercel não guarda em cache')
+    assert.match(route, /storage\/v1\/object\/public/)
 })
 
 test('todo getPublicUrl do cliente do navegador sai pelo proxy', () => {
     const c = fs.readFileSync(path.join(root, 'src/lib/supabase/client.ts'), 'utf8')
     assert.match(c, /api\.getPublicUrl = /)
     assert.match(c, /proxyImageUrl\(r\.data\.publicUrl\)/)
+})
+
+test('a rota de imagens nunca serve HTML/SVG nem bucket fora da lista (o endereço fica no domínio do site)', () => {
+    const route = fs.readFileSync(path.join(root, 'src/app/img/[...path]/route.ts'), 'utf8')
+    assert.doesNotMatch(route, /image\/svg/)
+    assert.doesNotMatch(route, /text\/html/)
+    assert.match(route, /BUCKETS\.has\(segments\[0\]\)/)
+    assert.match(route, /ALLOWED_TYPES\.has\(type\)/)
+    assert.match(route, /sandbox/)
+    assert.match(route, /nosniff/)
 })

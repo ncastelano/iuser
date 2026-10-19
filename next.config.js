@@ -26,8 +26,8 @@ if (pointsAtProd && process.env.NODE_ENV === 'development' && process.env.ALLOW_
 let supabaseHost = 'mqtwehsmkuknkrtrqbnf.supabase.co'
 try { if (supabaseUrl) supabaseHost = new URL(supabaseUrl).hostname } catch {}
 
-// Endereço de imagens do próprio site (/img/...): a Vercel busca no Storage do Supabase uma vez e guarda a cópia (cache), então as
-// visualizações seguintes não gastam o Cached Egress do Supabase. Ver src/lib/imageProxy.ts. Base ABSOLUTA: produção usa o domínio
+// Endereço de imagens do próprio site (/img/..., rota src/app/img/[...path]/route.ts): a Vercel busca no Storage do Supabase uma vez e
+// guarda a cópia (cache), então as visualizações seguintes não gastam o Cached Egress do Supabase. Ver src/lib/imageProxy.ts. Base ABSOLUTA: produção usa o domínio
 // oficial; preview usa a URL da própria branch; local fica vazio (links diretos do Supabase). NEXT_PUBLIC_IMAGE_BASE força um valor
 // (use 'off' para desligar o proxy num ambiente).
 const imageBase = (() => {
@@ -44,19 +44,6 @@ const nextConfig = {
   allowedDevOrigins: ['192.168.1.33'], // se necessário, mantenha
 
   env: { NEXT_PUBLIC_IMAGE_BASE: imageBase },
-
-  async rewrites() {
-    return [{ source: '/img/:path*', destination: `https://${supabaseHost}/storage/v1/object/public/:path*` }]
-  },
-
-  // A Vercel só guarda em cache o que vem de um rewrite externo com s-maxage (max-age sozinho dá MISS sempre). Os nomes de arquivo
-  // levam timestamp (nunca se sobrescreve o mesmo caminho), então cache longo na CDN é seguro; o navegador revalida em 1 dia.
-  async headers() {
-    return [{
-      source: '/img/:path*',
-      headers: [{ key: 'Cache-Control', value: 'public, max-age=86400, s-maxage=2592000, stale-while-revalidate=604800' }],
-    }]
-  },
 
   images: {
     remotePatterns: [
