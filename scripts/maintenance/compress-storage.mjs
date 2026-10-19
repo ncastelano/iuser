@@ -57,6 +57,24 @@ async function list(bucket, prefix = '') {
     return out
 }
 
+// Desfazer: devolve os originais guardados no backup (mesmo caminho). Ex.: --target prod --restore --yes-prod
+if (flag('restore')) {
+    if (target === 'prod' && !flag('yes-prod')) { console.error('Restaurar na produção exige --yes-prod.'); process.exit(1) }
+    let n = 0
+    for (const bucket of fs.existsSync(backupRoot) ? fs.readdirSync(backupRoot) : []) {
+        const walk = (d) => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)])
+        for (const file of walk(path.join(backupRoot, bucket))) {
+            const name = path.relative(path.join(backupRoot, bucket), file).split(path.sep).join('/')
+            const buf = fs.readFileSync(file)
+            const mime = /\.png$/i.test(name) ? 'image/png' : /\.webp$/i.test(name) ? 'image/webp' : 'image/jpeg'
+            const up = await fetch(`${URL_}/storage/v1/object/${bucket}/${name.split('/').map(encodeURIComponent).join('/')}`, { method: 'POST', headers: { ...H, 'Content-Type': mime, 'x-upsert': 'true' }, body: buf })
+            console.log(`${up.ok ? 'restaurado' : '! falhou ' + up.status}  ${bucket}/${name}`); if (up.ok) n++
+        }
+    }
+    console.log(`${n} arquivo(s) restaurado(s) a partir de ${backupRoot}`)
+    process.exit(0)
+}
+
 let before = 0, after = 0, changed = 0, skipped = 0
 for (const bucket of BUCKETS) {
     const files = (await list(bucket)).filter((f) => /^image\/(jpeg|png|webp)$/.test(f.mime || '') && f.size >= MIN)
