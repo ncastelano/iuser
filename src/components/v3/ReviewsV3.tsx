@@ -5,6 +5,7 @@
 // os dados chegam prontos de `Store.tsx` e o avatar (moldura do plano, imagem) vem por `renderAvatar`.
 'use client'
 
+import Link from 'next/link'
 import { useMemo, useState, type ReactNode } from 'react'
 import { Star } from 'lucide-react'
 import { RatingStars } from '@/components/ratings/RatingStars'
@@ -72,7 +73,11 @@ export default function ReviewsV3({ ratings, colors, renderAvatar }: { ratings: 
                         {renderAvatar(r)}
                         <div className="flex-1 min-w-0">
                             <div className="flex items-baseline justify-between gap-2">
-                                <p className="text-[13px] font-black truncate" style={{ color: colors.textPrimary }}>{r.is_anonymous ? 'Anônimo' : profileLabel(r.profiles)}</p>
+                                {r.is_anonymous || !r.profiles?.profileSlug ? (
+                                    <p className="text-[13px] font-black truncate" style={{ color: colors.textPrimary }}>{r.is_anonymous ? 'Anônimo' : profileLabel(r.profiles)}</p>
+                                ) : (
+                                    <Link href={`/${r.profiles.profileSlug}`} className="text-[13px] font-black truncate hover:underline" style={{ color: colors.textPrimary }}>{profileLabel(r.profiles)}</Link>
+                                )}
                                 <span className="text-[11px] flex-shrink-0" style={{ color: colors.textSecondary }}>
                                     {new Date(r.created_at).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short', year: 'numeric' })}
                                 </span>

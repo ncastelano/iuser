@@ -1641,7 +1641,7 @@ export function Store({
                                 colors={colors}
                                 renderAvatar={(rating: any) => {
                                     const avatarUrl = getAvatarUrl(supabase, rating.profiles?.avatar_url)
-                                    return (
+                                    const avatarBox = (
                                         <PlanAvatarRing userId={rating.is_anonymous ? null : rating.profile_id} radius="999px">
                                             <div className="w-9 h-9 rounded-full overflow-hidden flex items-center justify-center shrink-0" style={{ background: `${colors.border}60` }}>
                                                 {avatarUrl && !rating.is_anonymous ? (
@@ -1654,6 +1654,10 @@ export function Store({
                                             </div>
                                         </PlanAvatarRing>
                                     )
+                                    // clicar no avatar leva ao perfil de quem avaliou (avaliação anônima não leva a lugar nenhum)
+                                    return !rating.is_anonymous && rating.profiles?.profileSlug
+                                        ? <a href={`/${rating.profiles.profileSlug}`} aria-label={`Ver perfil de ${profileLabel(rating.profiles)}`} className="shrink-0">{avatarBox}</a>
+                                        : avatarBox
                                 }}
                             />
                         ) : ratings.length === 0 ? (

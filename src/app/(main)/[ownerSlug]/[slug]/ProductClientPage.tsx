@@ -166,7 +166,7 @@ export function ProductClientPage({
         comment: string | null
         is_anonymous: boolean
         created_at: string
-        profiles: { id?: string; name: string | null; avatar_url: string | null } | null
+        profiles: { id?: string; name: string | null; avatar_url: string | null; profileSlug?: string | null } | null
     }[]>([])
     const [showReviews, setShowReviews] = useState(false)
 
@@ -1252,6 +1252,11 @@ export function ProductClientPage({
                                                         className="flex gap-2 p-2.5 rounded-xl"
                                                         style={{ background: `${colors.surface}66` }}
                                                     >
+                                                        <a
+                                                            href={!r.is_anonymous && r.profiles?.profileSlug ? `/${r.profiles.profileSlug}` : undefined}
+                                                            aria-label={`Ver perfil de ${reviewerName}`}
+                                                            className="flex-shrink-0 self-start"
+                                                        >
                                                         <PlanAvatarRing userId={r.is_anonymous ? null : r.profiles?.id}>
                                                         <div className="w-7 h-7 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center" style={{ background: colors.border }}>
                                                             {reviewerAvatar ? (
@@ -1263,11 +1268,18 @@ export function ProductClientPage({
                                                             )}
                                                         </div>
                                                         </PlanAvatarRing>
+                                                        </a>
                                                         <div className="flex-1 min-w-0">
                                                             <div className="flex items-center justify-between gap-2">
-                                                                <p className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>
-                                                                    {reviewerName}
-                                                                </p>
+                                                                {!r.is_anonymous && r.profiles?.profileSlug ? (
+                                                                    <a href={`/${r.profiles.profileSlug}`} className="text-xs font-bold truncate hover:underline" style={{ color: colors.textPrimary }}>
+                                                                        {reviewerName}
+                                                                    </a>
+                                                                ) : (
+                                                                    <p className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>
+                                                                        {reviewerName}
+                                                                    </p>
+                                                                )}
                                                                 <span className="text-[9px] flex-shrink-0" style={{ color: colors.textSecondary, opacity: 0.75 }}>
                                                                     {new Date(r.created_at).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short' })}
                                                                 </span>

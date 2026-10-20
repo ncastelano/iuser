@@ -490,6 +490,11 @@ export function PublicationClientPage({
                         boxShadow: isBeingReplied ? '0 0 0 2px rgba(249, 115, 22, 0.2)' : 'none',
                         transition: 'all 0.2s ease',
                     }}>
+                        <a
+                            href={comment.profiles?.profileSlug ? `/${comment.profiles.profileSlug}` : undefined}
+                            aria-label={`Ver perfil de ${profileLabel(comment.profiles)}`}
+                            className="flex-shrink-0 self-start"
+                        >
                         <PlanAvatarRing userId={comment.profile_id}>
                         <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0" style={{ background: 'rgba(255,255,255,0.1)' }}>
                             {comment.profiles?.avatar_url ? (
@@ -501,13 +506,18 @@ export function PublicationClientPage({
                             )}
                         </div>
                         </PlanAvatarRing>
+                        </a>
 
                         <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between flex-wrap gap-1">
                                 <div className="flex items-center gap-2">
-                                    <span className="text-sm font-bold" style={{ color: colors.textPrimary }}>
+                                    <a
+                                        href={comment.profiles?.profileSlug ? `/${comment.profiles.profileSlug}` : undefined}
+                                        className="text-sm font-bold hover:underline"
+                                        style={{ color: colors.textPrimary }}
+                                    >
                                         {profileLabel(comment.profiles)}
-                                    </span>
+                                    </a>
                                     <span className="text-[10px]" style={{ color: colors.textSecondary }}>
                                         {formatDistanceToNow(new Date(comment.created_at), {
                                             addSuffix: true,
