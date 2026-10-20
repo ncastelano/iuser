@@ -109,7 +109,7 @@ function SocialEntry({ people, total, colors, go }: { people: PersonItem[] | nul
     const P = TYPE.pessoa.color
     const top = (people || []).slice(0, 3)
     return (
-        <EntryCard color={P} icon={Users} title="Social" subtitle={total != null ? `${total} ${total === 1 ? 'pessoa' : 'pessoas'} no iUser · veja os perfis em alta` : 'Os perfis em alta do iUser'} onClick={() => go('/social')} colors={colors}>
+        <EntryCard color={P} icon={Users} title="Social" subtitle={total != null ? `${total} ${total === 1 ? 'pessoa' : 'pessoas'} · perfis em alta` : 'Os perfis em alta do iUser'} onClick={() => go('/social')} colors={colors}>
             {people === null ? (
                 [0, 1, 2].map((i) => <span key={i} className="h-12 mx-1 my-1 rounded-2xl animate-pulse" style={{ background: `${colors.border}40` }} />)
             ) : top.length === 0 ? (
@@ -134,7 +134,7 @@ function ComunidadesEntry({ communities, colors, go }: { communities: CommunityI
     const C = TYPE.comunidade.color
     const top = (communities || []).slice(0, 3)
     return (
-        <EntryCard color={C} icon={MessageCircle} title="Comunidades" subtitle={communities ? `${communities.length} ${communities.length === 1 ? 'sala' : 'salas'} de conversa · veja o que estão falando` : 'Converse com quem é da sua cidade'} onClick={() => go('/comunidade')} colors={colors}>
+        <EntryCard color={C} icon={MessageCircle} title="Comunidades" subtitle={communities ? `${communities.length} ${communities.length === 1 ? 'sala' : 'salas'} · o que estão falando` : 'Converse com quem é da sua cidade'} onClick={() => go('/comunidade')} colors={colors}>
             {communities === null ? (
                 [0, 1, 2].map((i) => <span key={i} className="h-12 mx-1 my-1 rounded-2xl animate-pulse" style={{ background: `${colors.border}40` }} />)
             ) : top.length === 0 ? (
