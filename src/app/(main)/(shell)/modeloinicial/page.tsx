@@ -642,7 +642,7 @@ export default function ModeloInicialPage() {
                             <SectionHeader type="produto" title="Produtos que você pode gostar" subtitle="Itens para você" onSeeAll={() => go('/produtos')} colors={colors} />
                             {products === null ? <Skeleton colors={colors} /> : products.length === 0 ? null : (
                                 // Mesmo cartão da página /produtos, em colunas de 3: rola de lado e cada coluna tem 3 produtos
-                                <div className="flex gap-4 overflow-x-auto snap-x snap-mandatory pb-2 -mx-4 px-4" style={{ scrollbarWidth: 'none' }}>
+                                <div className="flex gap-4 overflow-x-auto snap-x snap-mandatory scroll-pl-4 scroll-pr-4 pb-2 -mx-4 px-4" style={{ scrollbarWidth: 'none' }}>
                                     {Array.from({ length: Math.ceil(products.length / 3) }, (_, col) => products.slice(col * 3, col * 3 + 3)).map((group, col) => (
                                         <div key={col} className="snap-start flex-shrink-0 w-[88%] sm:w-[380px] flex flex-col">
                                             {group.map((p) => (
