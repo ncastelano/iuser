@@ -432,7 +432,7 @@ export default function OwnerClientPage() {
                 <Header
                     title="iUser"
                     // loja na v3: o botão voltar já está na capa do cabeçalho (StoreHeaderV3)
-                    showBack={insideShell && !(ownerType === 'store' && !showProfile && !showStoreDashboard && !showPublications)}
+                    showBack={insideShell && (showProfile || !!showStoreDashboard || showPublications)}
                     onBack={insideShell
                         ? ((showProfile || showStoreDashboard || showPublications) ? showMainContent : () => (window.history.length > 1 ? router.back() : router.push('/')))
                         : undefined}
@@ -479,6 +479,7 @@ export default function OwnerClientPage() {
                     <>
                         {ownerType === 'profile' ? (
                             <Profile
+                                ui={insideShell ? 'v3' : 'v2'}
                                 ownerSlug={ownerSlug}
                                 colors={colors}
                                 bgMode={bgMode}
