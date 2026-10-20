@@ -3,7 +3,7 @@
 // MODELO INICIAL — proposta de página inicial pensada em quem usa: o que ela pode
 // FAZER aqui e o que existe pra ela VER. Mesmos dados reais da home, outra organização:
 //   topo: selo (logo/foto), cumprimento, atalhos de conversas e carrinho (com selos) e sair; busca;
-//   1) "Precisando..." / "Quero ganhar com o iUser", e os cartões Social e Comunidades (cada um com o que existe nele);
+//   1) "Precisando..." / "Quero ganhar com o iUser", as vitrines (Social = "OUTDOOR iUSER", Comunidades, pedidos de serviço...);
 //   2) categorias;  3) vitrines, uma por tipo, cada tipo com a SUA cor e o seu rótulo;  4) convite final.
 // Todos os cartões das vitrines têm o mesmo tamanho (nem miúdos, nem gigantes) pra a página ter ritmo.
 'use client'
@@ -24,7 +24,8 @@ import { fetchStoreCards } from '@/lib/storeCards'
 import { isStoreOpenNow, type BusinessHours } from '@/lib/storeHours'
 import { getAvatarUrl } from '@/lib/avatar'
 import { loadProductCards, type ProductCard } from '../../inicio/sections/ProductShowcase'
-import { fetchOpenBoardItems, askedAgo, shortAddress, type BoardItem } from '@/lib/serviceBoard'
+import { fetchOpenBoardItems, askedAgo, shortAddress, notifyServiceRequestsChanged, type BoardItem } from '@/lib/serviceBoard'
+import { notifyServiceApplication } from '@/lib/notifyRideStatus'
 import { getRequestTitle } from '@/lib/serviceTypes'
 import { fetchCommunitiesActivity, type CommunityActivity } from '@/lib/communityActivity'
 import PlanAvatarRing, { usePlanRing } from '@/components/PlanAvatarRing'
@@ -80,82 +81,6 @@ function SellCta({ colors, onStore, onService, onProduct }: { colors: any; onSto
                 })}
             </div>
         </section>
-    )
-}
-
-// "Social" e "Comunidades" são coisas diferentes e cada uma tem o seu cartão, mostrando o que existe lá dentro (não só o convite):
-// Social = as pessoas em alta (foto, @, colocação e pontos); Comunidades = as salas mais movimentadas com a última mensagem.
-function EntryCard({ color, icon: Icon, title, subtitle, onClick, colors, children }: {
-    color: string; icon: LucideIcon; title: string; subtitle: string; onClick: () => void; colors: any; children: ReactNode
-}) {
-    return (
-        <div className="rounded-3xl border overflow-hidden flex flex-col" style={{ background: colors.surface, borderColor: `${color}55`, boxShadow: colors.shadow }}>
-            <button onClick={onClick} className="w-full flex items-center gap-3 px-4 pt-4 pb-3 text-left">
-                <span className="w-11 h-11 rounded-2xl flex items-center justify-center text-white flex-shrink-0" style={{ background: color }}>
-                    <Icon size={22} />
-                </span>
-                <span className="min-w-0 flex-1">
-                    <span className="block text-[15px] font-black leading-tight" style={{ color: colors.textPrimary }}>{title}</span>
-                    <span className="block text-xs leading-snug truncate" style={{ color: colors.textSecondary }}>{subtitle}</span>
-                </span>
-                <ChevronRight size={18} className="flex-shrink-0" style={{ color: colors.textSecondary }} />
-            </button>
-            <div className="px-2 pb-2 flex flex-col">{children}</div>
-        </div>
-    )
-}
-
-function SocialEntry({ people, total, colors, go }: { people: PersonItem[] | null; total: number | null; colors: any; go: (p: string) => void }) {
-    const P = TYPE.pessoa.color
-    const top = (people || []).slice(0, 3)
-    return (
-        <EntryCard color={P} icon={Users} title="Social" subtitle={total != null ? `${total} ${total === 1 ? 'pessoa' : 'pessoas'} · perfis em alta` : 'Os perfis em alta do iUser'} onClick={() => go('/social')} colors={colors}>
-            {people === null ? (
-                [0, 1, 2].map((i) => <span key={i} className="h-12 mx-1 my-1 rounded-2xl animate-pulse" style={{ background: `${colors.border}40` }} />)
-            ) : top.length === 0 ? (
-                <p className="px-3 pb-3 text-xs" style={{ color: colors.textSecondary }}>Descubra perfis e siga quem você gosta.</p>
-            ) : top.map((p) => (
-                <button key={p.id} onClick={() => go(`/${p.slug}`)} className="flex items-center gap-3 px-2 py-2 rounded-2xl text-left transition active:scale-[0.99] hover:bg-black/5">
-                    {p.avatar
-                        ? <img src={p.avatar} alt="" className="w-10 h-10 rounded-full object-cover flex-shrink-0" loading="lazy" />
-                        : <span className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-black flex-shrink-0" style={{ background: P }}>{p.slug.charAt(0).toUpperCase()}</span>}
-                    <span className="min-w-0 flex-1">
-                        <span className="block text-sm font-black truncate" style={{ color: colors.textPrimary }}>@{p.slug}</span>
-                        <span className="block text-[11px]" style={{ color: colors.textSecondary }}>{p.points} pts em Melhores perfis</span>
-                    </span>
-                    <span className="px-2 py-0.5 rounded-full text-[11px] font-black flex-shrink-0" style={rankStyle(p.rank)}>#{p.rank + 1}</span>
-                </button>
-            ))}
-        </EntryCard>
-    )
-}
-
-function ComunidadesEntry({ communities, colors, go }: { communities: CommunityItem[] | null; colors: any; go: (p: string) => void }) {
-    const C = TYPE.comunidade.color
-    const top = (communities || []).slice(0, 3)
-    return (
-        <EntryCard color={C} icon={MessageCircle} title="Comunidades" subtitle={communities ? `${communities.length} ${communities.length === 1 ? 'sala' : 'salas'} · o que estão falando` : 'Converse com quem é da sua cidade'} onClick={() => go('/comunidade')} colors={colors}>
-            {communities === null ? (
-                [0, 1, 2].map((i) => <span key={i} className="h-12 mx-1 my-1 rounded-2xl animate-pulse" style={{ background: `${colors.border}40` }} />)
-            ) : top.length === 0 ? (
-                <p className="px-3 pb-3 text-xs" style={{ color: colors.textSecondary }}>Converse com quem é da sua cidade.</p>
-            ) : top.map((c) => (
-                <button key={c.id} onClick={() => go(`/comunidade/${c.slug}`)} className="flex items-center gap-3 px-2 py-2 rounded-2xl text-left transition active:scale-[0.99] hover:bg-black/5">
-                    {c.image
-                        ? <img src={c.image} alt="" className="w-10 h-10 rounded-xl object-cover flex-shrink-0" loading="lazy" />
-                        : <span className="w-10 h-10 rounded-xl flex items-center justify-center text-white flex-shrink-0" style={{ background: C }}><MessageCircle size={18} /></span>}
-                    <span className="min-w-0 flex-1">
-                        <span className="flex items-center gap-1.5">
-                            <span className="text-sm font-black truncate" style={{ color: colors.textPrimary }}>{c.name}</span>
-                            <span className="text-[11px] flex-shrink-0" style={{ color: colors.textSecondary }}>· {c.members} {c.members === 1 ? 'membro' : 'membros'}</span>
-                        </span>
-                        <span className="block text-[12px] truncate" style={{ color: colors.textSecondary }}>
-                            {c.activity?.photoVoteActive ? 'Votação de foto rolando agora' : c.last ? <><b style={{ color: colors.textPrimary }}>{c.last.author}:</b> {c.last.text}</> : 'Seja o primeiro a falar'}
-                        </span>
-                    </span>
-                </button>
-            ))}
-        </EntryCard>
     )
 }
 
@@ -289,9 +214,13 @@ function Tile({ type, onClick, image, fallback, children, colors, round = false,
 }) {
     const t = TYPE[type]
     return (
-        <button
+        // div com role=button (e não <button>) para o cartão poder ter um botão de verdade dentro (ex.: "Inscrever-se" nos pedidos)
+        <div
+            role="button"
+            tabIndex={0}
             onClick={onClick}
-            className="snap-start flex-shrink-0 w-[168px] sm:w-[188px] text-left rounded-3xl overflow-hidden border flex flex-col transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl active:scale-[0.98]"
+            onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onClick() } }}
+            className="snap-start flex-shrink-0 w-[168px] sm:w-[188px] text-left rounded-3xl overflow-hidden border flex flex-col transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl active:scale-[0.98] cursor-pointer"
             style={{ background: colors.surface, borderColor: colors.border, boxShadow: colors.shadow }}
         >
             {/* Foto (mesma altura em todos), com o rótulo do tipo por cima */}
@@ -306,7 +235,7 @@ function Tile({ type, onClick, image, fallback, children, colors, round = false,
                 </span>
             </span>
             <span className="block p-3 flex-1">{children}</span>
-        </button>
+        </div>
     )
 }
 
@@ -336,7 +265,30 @@ export default function ModeloInicialPage() {
     const [requests, setRequests] = useState<BoardItem[] | null>(null)
     const [people, setPeople] = useState<PersonItem[] | null>(null)
     const [communities, setCommunities] = useState<CommunityItem[] | null>(null)
-    const [peopleTotal, setPeopleTotal] = useState<number | null>(null)
+    // Pedidos de serviço em que eu já me inscrevi (para o botão "Inscrever-se" das vitrines)
+    const [applied, setApplied] = useState<Set<string>>(new Set())
+    const [applying, setApplying] = useState<string | null>(null)
+    useEffect(() => {
+        if (!userId) { setApplied(new Set()); return }
+        supabase.from('service_applications').select('service_request_id').eq('applicant_id', userId)
+            .then(({ data }) => setApplied(new Set(((data as any[]) || []).map((r) => r.service_request_id))))
+    }, [userId])
+    const applyTo = async (requestId: string) => {
+        if (!userId) { router.push(`/login?redirect=${encodeURIComponent('/')}`); return }
+        setApplying(requestId)
+        const { error } = await supabase.from('service_applications').insert({ service_request_id: requestId, applicant_id: userId })
+        setApplying(null)
+        if (error) {
+            toast.error(error.code === '42501' || error.code === 'PGRST301'
+                ? 'Não foi possível se inscrever agora. Se você tem uma dívida do Pós-pago, quite para continuar.'
+                : 'Erro ao se inscrever: ' + (error.message || 'tente novamente'))
+            return
+        }
+        setApplied((prev) => new Set(prev).add(requestId))
+        notifyServiceApplication(requestId)
+        notifyServiceRequestsChanged()
+        toast.success('Inscrição enviada! Acompanhe em "Me inscrevi".')
+    }
 
     useEffect(() => {
         let cancelled = false
@@ -422,11 +374,6 @@ export default function ModeloInicialPage() {
         }, setServices, [])
 
         safe(() => fetchOpenBoardItems(10), setRequests, [])
-
-        safe(async () => {
-            const { count } = await supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('is_active', true)
-            return count ?? null
-        }, setPeopleTotal, null)
 
         safe(async () => {
             const { data: ranked } = await supabase.rpc('get_best_profiles', { p_limit: 10 })
@@ -607,11 +554,7 @@ export default function ModeloInicialPage() {
                                 })}
                             </div>
 
-                            {/* Social e Comunidades: lugares pra estar, não ações — cada um com o seu cartão e o que existe nele */}
-                            <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-3">
-                                <SocialEntry people={people} total={peopleTotal} colors={colors} go={go} />
-                                <ComunidadesEntry communities={communities} colors={colors} go={go} />
-                            </div>
+
                         </section>
 
                         {/* ===== 2. CATEGORIAS — as que já têm loja em destaque; as vazias convidam a abrir a primeira ===== */}
@@ -739,6 +682,18 @@ export default function ModeloInicialPage() {
                                             <span className="flex items-center gap-1 text-[11px] truncate mt-0.5" style={{ color: colors.textSecondary }}>
                                                 <MapPin size={10} className="flex-shrink-0" />{shortAddress(r.location_address).replace(/[,\s]+\d+\s*\w*$/, '')}
                                             </span>
+                                            {r.requester_id === userId ? (
+                                                <span className="mt-2 w-full h-9 rounded-full flex items-center justify-center text-[12px] font-black" style={{ background: `${colors.border}40`, color: colors.textSecondary }}>Seu pedido</span>
+                                            ) : (
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); if (!applied.has(r.id)) applyTo(r.id) }}
+                                                    disabled={applied.has(r.id) || applying === r.id}
+                                                    className="mt-2 w-full h-9 rounded-full text-[12px] font-black transition active:scale-95 disabled:opacity-70"
+                                                    style={applied.has(r.id) ? { background: `${colors.border}40`, color: colors.textSecondary } : { background: '#f97316', color: '#fff' }}
+                                                >
+                                                    {applying === r.id ? '...' : applied.has(r.id) ? 'Inscrição enviada' : 'Inscrever-se'}
+                                                </button>
+                                            )}
                                         </Tile>
                                     ))}
                                 </Strip>
