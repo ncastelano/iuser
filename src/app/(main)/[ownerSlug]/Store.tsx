@@ -50,6 +50,7 @@ import { handleShareLink } from '@/lib/share'
 import { Follows } from './Follows'
 import StoreVipClubMember from './StoreVipClubMember'
 import StoreHeaderV3 from '@/components/v3/StoreHeaderV3'
+import ReviewsV3 from '@/components/v3/ReviewsV3'
 import { buildSocialLinks } from '@/lib/socialLinks'
 import EditProductDialog from '@/components/EditProductDialog'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
@@ -1634,7 +1635,28 @@ export function Store({
                             )}
                         </div>
 
-                        {ratings.length === 0 ? (
+                        {v3 ? (
+                            <ReviewsV3
+                                ratings={ratings as any}
+                                colors={colors}
+                                renderAvatar={(rating: any) => {
+                                    const avatarUrl = getAvatarUrl(supabase, rating.profiles?.avatar_url)
+                                    return (
+                                        <PlanAvatarRing userId={rating.is_anonymous ? null : rating.profile_id} radius="999px">
+                                            <div className="w-9 h-9 rounded-full overflow-hidden flex items-center justify-center shrink-0" style={{ background: `${colors.border}60` }}>
+                                                {avatarUrl && !rating.is_anonymous ? (
+                                                    <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
+                                                ) : (
+                                                    <span className="font-black text-xs" style={{ color: '#f97316' }}>
+                                                        {rating.is_anonymous ? '?' : (rating.profiles?.profileSlug || rating.profiles?.name || '?').slice(0, 1).toUpperCase()}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </PlanAvatarRing>
+                                    )
+                                }}
+                            />
+                        ) : ratings.length === 0 ? (
                             <div className="py-8 text-center rounded-xl" style={{
                                 background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
                                 border: `1px dashed ${colors.border}`,
