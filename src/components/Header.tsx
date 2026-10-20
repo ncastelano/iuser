@@ -252,8 +252,8 @@ export default function Header({
     if (insideShell) {
         return (
             <div
-                className={`flex flex-col gap-2.5 pb-3 ${pinned ? 'sticky top-0 z-30 pt-1' : 'relative z-10'}`}
-                style={{ color: colors.textPrimary, ...(pinned ? { background: colors.background } : {}) }}
+                className={`flex flex-col gap-2.5 pb-3 ${pinned ? 'sticky z-30 pt-1' : 'relative z-10'}`}
+                style={{ color: colors.textPrimary, ...(pinned ? { background: colors.background, top: 'var(--shell-top, 0px)' } : {}) }}
             >
                 {(showBack || (title && title !== 'iUser') || locationElement) && (
                     <div className="flex items-center gap-2">
