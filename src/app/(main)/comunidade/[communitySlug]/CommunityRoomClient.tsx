@@ -137,7 +137,7 @@ export default function CommunityRoomClient() {
 
             const { data: messagesData, error: messagesErr } = await supabase
                 .from('community_messages')
-                .select('id, content, created_at, edited_at, profile_id, ref_product_id, ref_store_id, ref_profile_id, profiles(name, avatar_url, "profileSlug")')
+                .select('id, content, created_at, edited_at, profile_id, ref_product_id, ref_store_id, ref_profile_id, profiles!profile_id(name, avatar_url, "profileSlug")')
                 .eq('community_id', communityData.id)
                 .order('created_at', { ascending: true })
 
@@ -267,7 +267,7 @@ export default function CommunityRoomClient() {
                     content: messageInput.trim() || (pending ? SHARE_DEFAULT_TEXT[pending.kind] : ''),
                     ...(pending ? refColumns(pending) : {}),
                 })
-                .select('id, content, created_at, edited_at, profile_id, ref_product_id, ref_store_id, ref_profile_id, profiles(name, avatar_url, "profileSlug")')
+                .select('id, content, created_at, edited_at, profile_id, ref_product_id, ref_store_id, ref_profile_id, profiles!profile_id(name, avatar_url, "profileSlug")')
                 .single()
 
             if (error) throw error
