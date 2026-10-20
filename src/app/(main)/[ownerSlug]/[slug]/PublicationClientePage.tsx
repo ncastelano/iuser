@@ -88,6 +88,10 @@ interface PublicationClientPageProps {
     profileLoading?: boolean
 }
 
+function countAllComments(list: Comment[]): number {
+    return list.reduce((n, c) => n + 1 + countAllComments(c.replies || []), 0)
+}
+
 export function PublicationClientPage({
     ownerSlug,
     slug,
@@ -114,6 +118,9 @@ export function PublicationClientPage({
     const [submittingComment, setSubmittingComment] = useState(false)
     const [replyTo, setReplyTo] = useState<Comment | null>(null)
     const [expandedComments, setExpandedComments] = useState<Set<string>>(new Set())
+    // v3: mostra poucos comentários e abre aos poucos; ordena por curtidas ou por data
+    const [commentsShown, setCommentsShown] = useState(3)
+    const [commentSort, setCommentSort] = useState<'top' | 'recent'>('top')
 
     // ===== CONTA A VISITA (publicação + perfil de quem publicou, quando é de pessoa) =====
     useEffect(() => {
@@ -264,6 +271,8 @@ export function PublicationClientPage({
     const loadPublicationComments = async (publicationId: string) => {
         try {
             setLoadingComments(true)
+            // Uma consulta com todos os comentários da publicação (respostas e respostas de respostas) e as curtidas em lote:
+            // a árvore é montada aqui. (Antes eram 2 consultas por comentário e só 1 nível de resposta.)
             const { data, error } = await supabase
                 .from('comments')
                 .select(`
@@ -273,75 +282,39 @@ export function PublicationClientPage({
                         name,
                         avatar_url,
                         profileSlug
-                    ),
-                    replies:comments!parent_comment_id (
-                        *,
-                        profiles:profile_id (
-                            id,
-                            name,
-                            avatar_url,
-                            profileSlug
-                        )
                     )
                 `)
                 .eq('publication_id', publicationId)
-                .is('parent_comment_id', null)
-                .order('created_at', { ascending: false })
+                .order('created_at', { ascending: true })
 
             if (error) throw error
+            const rows = (data || []) as any[]
 
-            const processed = await Promise.all((data || []).map(async (comment: any) => {
-                const { count: likeCount } = await supabase
+            const counts = new Map<string, number>()
+            const mine = new Set<string>()
+            const ids = rows.map((r) => r.id as string)
+            for (let i = 0; i < ids.length; i += 100) {
+                const { data: likes } = await supabase
                     .from('comment_likes')
-                    .select('*', { count: 'exact', head: true })
-                    .eq('comment_id', comment.id)
-
-                let isLiked = false
-                if (currentUserId) {
-                    const { data: likeData } = await supabase
-                        .from('comment_likes')
-                        .select('id')
-                        .eq('comment_id', comment.id)
-                        .eq('profile_id', currentUserId)
-                        .maybeSingle()
-                    isLiked = !!likeData
+                    .select('comment_id, profile_id')
+                    .in('comment_id', ids.slice(i, i + 100))
+                for (const l of (likes || []) as { comment_id: string; profile_id: string }[]) {
+                    counts.set(l.comment_id, (counts.get(l.comment_id) || 0) + 1)
+                    if (currentUserId && l.profile_id === currentUserId) mine.add(l.comment_id)
                 }
+            }
 
-                const repliesWithLikes = await Promise.all((comment.replies || []).map(async (reply: any) => {
-                    const { count: replyLikeCount } = await supabase
-                        .from('comment_likes')
-                        .select('*', { count: 'exact', head: true })
-                        .eq('comment_id', reply.id)
-
-                    let replyIsLiked = false
-                    if (currentUserId) {
-                        const { data: replyLikeData } = await supabase
-                            .from('comment_likes')
-                            .select('id')
-                            .eq('comment_id', reply.id)
-                            .eq('profile_id', currentUserId)
-                            .maybeSingle()
-                        replyIsLiked = !!replyLikeData
-                    }
-
-                    return {
-                        ...reply,
-                        like_count: replyLikeCount || 0,
-                        is_liked: replyIsLiked
-                    }
-                }))
-
-                return {
-                    ...comment,
-                    like_count: likeCount || 0,
-                    is_liked: isLiked,
-                    replies: repliesWithLikes.sort((a: any, b: any) =>
-                        new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-                    )
-                }
-            }))
-
-            setComments(processed)
+            const byId = new Map<string, Comment>()
+            for (const r of rows) byId.set(r.id, { ...r, like_count: counts.get(r.id) || 0, is_liked: mine.has(r.id), replies: [] })
+            const roots: Comment[] = []
+            for (const c of byId.values()) {
+                const parent = c.parent_comment_id ? byId.get(c.parent_comment_id) : null
+                if (parent) parent.replies!.push(c)
+                else roots.push(c)
+            }
+            // comentários principais: mais recentes primeiro (como antes); respostas: em ordem de conversa
+            roots.reverse()
+            setComments(roots)
         } catch (error) {
             console.error('Erro ao carregar comentários:', error)
         } finally {
@@ -395,13 +368,12 @@ export function PublicationClientPage({
             }
 
             if (replyTo) {
-                setComments(prev =>
-                    prev.map(c =>
-                        c.id === replyTo.id
-                            ? { ...c, replies: [...(c.replies || []), newComment] }
-                            : c
-                    )
-                )
+                const addReply = (list: Comment[]): Comment[] => list.map(c =>
+                    c.id === replyTo.id
+                        ? { ...c, replies: [...(c.replies || []), newComment] }
+                        : { ...c, replies: addReply(c.replies || []) })
+                setComments(prev => addReply(prev))
+                setExpandedComments(prev => new Set(prev).add(replyTo.id))
                 setReplyTo(null)
                 toast.success('Resposta adicionada!')
             } else {
@@ -430,7 +402,8 @@ export function PublicationClientPage({
 
             if (error) throw error
 
-            setComments(prev => prev.filter(c => c.id !== commentId))
+            const removeFrom = (list: Comment[]): Comment[] => list.filter(c => c.id !== commentId).map(c => ({ ...c, replies: removeFrom(c.replies || []) }))
+            setComments(prev => removeFrom(prev))
             toast.success('Comentário excluído')
         } catch (error: any) {
             toast.error('Erro ao excluir: ' + error.message)
@@ -504,13 +477,14 @@ export function PublicationClientPage({
     }
 
     // ========== RENDER COMENTÁRIO ==========
-    const renderCommentTree = (commentsList: Comment[], isReply = false) => {
+    const renderCommentTree = (commentsList: Comment[], depth = 0) => {
+        const isReply = depth > 0
         return commentsList.map((comment) => {
             const isBeingReplied = replyTo?.id === comment.id
 
             return (
-                <div key={comment.id} className={`${isReply ? 'ml-8' : ''}`}>
-                    <div className="flex gap-3 p-3 rounded-xl" style={{
+                <div key={comment.id} className={isReply ? (depth <= 2 ? 'ml-6' : '') : ''}>
+                    <div className={v3 ? 'flex gap-2.5 py-2 rounded-xl' : 'flex gap-3 p-3 rounded-xl'} style={v3 ? (isBeingReplied ? { background: '#f9731612' } : undefined) : {
                         background: isReply ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.05)',
                         border: `1px solid ${isBeingReplied ? '#f97316' : colors.border}`,
                         boxShadow: isBeingReplied ? '0 0 0 2px rgba(249, 115, 22, 0.2)' : 'none',
@@ -684,12 +658,12 @@ export function PublicationClientPage({
                                 className="text-xs font-bold transition hover:opacity-70 ml-3"
                                 style={{ color: colors.textSecondary }}
                             >
-                                {expandedComments.has(comment.id) ? 'Ocultar' : 'Mostrar'} {comment.replies.length} respostas
+                                {expandedComments.has(comment.id) ? 'Ocultar' : (v3 ? 'Ver' : 'Mostrar')} {comment.replies.length} {comment.replies.length === 1 ? 'resposta' : 'respostas'}
                             </button>
 
                             {expandedComments.has(comment.id) && (
                                 <div className="space-y-2 mt-2">
-                                    {renderCommentTree(comment.replies, true)}
+                                    {renderCommentTree(comment.replies, depth + 1)}
                                 </div>
                             )}
                         </div>
@@ -930,54 +904,6 @@ export function PublicationClientPage({
                     </main>
                 </div>
 
-                {/* Outras publicações da loja */}
-                {otherPublications.length > 0 && (
-                    <div className="px-5 md:px-0 mt-3 md:mt-6">
-                        <h2 className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: colors.textSecondary, opacity: 0.6 }}>
-                            Outras publicações desta loja
-                        </h2>
-                        <div className="flex gap-3 overflow-x-auto pb-1 -mx-5 px-5 md:mx-0 md:px-0 scrollbar-hide">
-                            {otherPublications.map((other) => {
-                                const otherImageUrl = other.image_url
-                                    ? supabase.storage.from('product-images').getPublicUrl(other.image_url).data.publicUrl
-                                    : finalOwnerImage
-
-                                return (
-                                    <button
-                                        key={other.id}
-                                        onClick={() => router.push(`/${ownerSlug}/${other.slug}`)}
-                                        className={v3 ? 'text-left flex-shrink-0 w-36 transition active:scale-95' : 'text-left rounded-2xl overflow-hidden flex-shrink-0 w-36 md:w-44 transition-transform hover:scale-[1.02]'}
-                                        style={v3 ? undefined : {
-                                            background: colors.surface,
-                                            border: `1px solid ${colors.border}`,
-                                            boxShadow: colors.shadow,
-                                        }}
-                                    >
-                                        <div className={`w-full aspect-square ${v3 ? 'rounded-2xl overflow-hidden' : ''}`} style={{ background: `${colors.accentLight}20` }}>
-                                            {otherImageUrl ? (
-                                                <img
-                                                    src={otherImageUrl}
-                                                    alt={other.name}
-                                                    className="w-full h-full object-cover"
-                                                />
-                                            ) : (
-                                                <div className="w-full h-full flex items-center justify-center">
-                                                    <Store size={24} style={{ color: colors.textSecondary }} />
-                                                </div>
-                                            )}
-                                        </div>
-                                        <div className={v3 ? 'pt-1.5 px-0.5' : 'p-2.5'}>
-                                            <p className={`${v3 ? 'text-[13px] font-black' : 'text-xs font-bold'} truncate`} style={{ color: colors.textPrimary }}>
-                                                {other.name}
-                                            </p>
-                                        </div>
-                                    </button>
-                                )
-                            })}
-                        </div>
-                    </div>
-                )}
-
                 {/* ===== SEÇÃO DE COMENTÁRIOS ===== */}
                 <div className={v3 ? 'mx-5 md:mx-0 mt-6' : 'mx-5 md:mx-0 mt-6 rounded-2xl border p-6'} style={v3 ? undefined : {
                     background: colors.surface,
@@ -989,7 +915,7 @@ export function PublicationClientPage({
                                 Comentários
                             </h3>
                             <span className="text-sm font-bold px-3 py-1 rounded-full" style={{ background: '#f9731620', color: '#f97316' }}>
-                                {comments.length}
+                                {countAllComments(comments)}
                             </span>
                         </div>
 
@@ -1079,11 +1005,92 @@ export function PublicationClientPage({
                                 <p className="text-xs" style={{ color: colors.textSecondary }}>Seja o primeiro a comentar!</p>
                             </div>
                         ) : (
+                            v3 ? (() => {
+                                const sorted = commentSort === 'top'
+                                    ? [...comments].sort((a, b) => (b.like_count || 0) - (a.like_count || 0) || new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                                    : comments
+                                return (
+                                    <div>
+                                        <div className="flex gap-1.5 mb-2">
+                                            {(['top', 'recent'] as const).map((k) => (
+                                                <button
+                                                    key={k}
+                                                    onClick={() => setCommentSort(k)}
+                                                    className="h-8 px-3 rounded-full text-[12px] font-black transition active:scale-95"
+                                                    style={commentSort === k ? { background: colors.textPrimary, color: colors.background } : { background: `${colors.border}40`, color: colors.textSecondary }}
+                                                >
+                                                    {k === 'top' ? 'Mais curtidos' : 'Mais recentes'}
+                                                </button>
+                                            ))}
+                                        </div>
+                                        <div className="space-y-1">{renderCommentTree(sorted.slice(0, commentsShown))}</div>
+                                        {commentsShown < sorted.length && (
+                                            <button
+                                                onClick={() => setCommentsShown((n) => n + 10)}
+                                                className="mt-2 w-full h-10 rounded-full text-[13px] font-black transition active:scale-95"
+                                                style={{ background: `${colors.border}40`, color: colors.textPrimary }}
+                                            >
+                                                Ver mais comentários ({sorted.length - commentsShown})
+                                            </button>
+                                        )}
+                                    </div>
+                                )
+                            })() : (
                             <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
                                 {renderCommentTree(comments)}
-                            </div>
+                            </div>)
                         )}
                     </div>
+
+                {/* Outras publicações da loja */}
+                {otherPublications.length > 0 && (
+                    <div className="px-5 md:px-0 mt-3 md:mt-6">
+                        <h2 className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: colors.textSecondary, opacity: 0.6 }}>
+                            Outras publicações desta loja
+                        </h2>
+                        <div className="flex gap-3 overflow-x-auto pb-1 -mx-5 px-5 md:mx-0 md:px-0 scrollbar-hide">
+                            {otherPublications.map((other) => {
+                                const otherImageUrl = other.image_url
+                                    ? supabase.storage.from('product-images').getPublicUrl(other.image_url).data.publicUrl
+                                    : finalOwnerImage
+
+                                return (
+                                    <button
+                                        key={other.id}
+                                        onClick={() => router.push(`/${ownerSlug}/${other.slug}`)}
+                                        className={v3 ? 'text-left flex-shrink-0 w-36 transition active:scale-95' : 'text-left rounded-2xl overflow-hidden flex-shrink-0 w-36 md:w-44 transition-transform hover:scale-[1.02]'}
+                                        style={v3 ? undefined : {
+                                            background: colors.surface,
+                                            border: `1px solid ${colors.border}`,
+                                            boxShadow: colors.shadow,
+                                        }}
+                                    >
+                                        <div className={`w-full aspect-square ${v3 ? 'rounded-2xl overflow-hidden' : ''}`} style={{ background: `${colors.accentLight}20` }}>
+                                            {otherImageUrl ? (
+                                                <img
+                                                    src={otherImageUrl}
+                                                    alt={other.name}
+                                                    className="w-full h-full object-cover"
+                                                />
+                                            ) : (
+                                                <div className="w-full h-full flex items-center justify-center">
+                                                    <Store size={24} style={{ color: colors.textSecondary }} />
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className={v3 ? 'pt-1.5 px-0.5' : 'p-2.5'}>
+                                            <p className={`${v3 ? 'text-[13px] font-black' : 'text-xs font-bold'} truncate`} style={{ color: colors.textPrimary }}>
+                                                {other.name}
+                                            </p>
+                                        </div>
+                                    </button>
+                                )
+                            })}
+                        </div>
+                    </div>
+                )}
+
+
                 </div>
 
             <style jsx global>{`

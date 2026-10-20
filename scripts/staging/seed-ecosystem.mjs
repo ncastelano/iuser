@@ -9,7 +9,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
 import sharp from 'sharp'
-import { STORES, LINKS, FIRST, LAST, COMMENTS, PUB_COMMENTS } from './ecosystem-data.mjs'
+import { STORES, LINKS, FIRST, LAST, COMMENTS, PRAISE, REPLY_PEERS, THANKS, QA } from './ecosystem-data.mjs'
 
 const PROD_REF = 'mqtwehsmkuknkrtrqbnf'
 const file = path.resolve(import.meta.dirname, '..', '..', '.env.staging.local')
@@ -246,21 +246,72 @@ for (const s of STORES) {
 await upsertBatched('follows', followRows, 'follower_id,following_id', 'resolution=ignore-duplicates,return=minimal')
 const likeRows = []
 const commentRows = []
+const commentLikeRows = []
+// conversa de cada publicação: comentários, respostas e respostas de respostas (3 níveis), com curtidas nos comentários.
+// A 1ª publicação da loja badalada passa de 100 comentários; as demais têm menos.
+const THREAD_SIZE = (s, i) => (s.key === 'padaria' ? (i === 0 ? 118 : i < 4 ? 42 : 14) : 3 + (i % 3) * 3)
 for (const s of STORES) {
     const r = rng(`likes:${s.key}`)
-    for (const pub of s.pubItems) {
+    const owner_ = byKey[s.key]
+    s.pubItems.forEach((pub, pi) => {
         const pool = reviewerPool(s).map((p) => ({ p, k: r() })).sort((a, b) => a.k - b.k).map((x) => x.p)
         const nLikes = s.key === 'padaria' ? 18 + Math.floor(r() * 70) : 4 + Math.floor(r() * 30)
         pool.slice(0, nLikes).forEach((p) => likeRows.push({ profile_id: p.id, publication_id: pub.id, created_at: new Date(new Date(pub.created_at).getTime() + (1 + r() * 5) * 3600000).toISOString() }))
-        const nCom = Math.floor(r() * (s.key === 'padaria' ? 6 : 4))
-        for (let i = 0; i < nCom; i++) {
-            const p = pool[nLikes + i] || pool[i]
-            commentRows.push({ id: uid(`com:${pub.id}:${i}`), content: pick(r, PUB_COMMENTS), profile_id: p.id, comment_type: 'publication', publication_id: pub.id, created_at: new Date(new Date(pub.created_at).getTime() + (2 + r() * 40) * 3600000).toISOString() })
+
+        const total = THREAD_SIZE(s, pi)
+        const t0 = new Date(pub.created_at).getTime()
+        const when = (after, maxH) => new Date(Math.min(Date.now() - 60000, after + (0.2 + r() * maxH) * 3600000)).toISOString()
+        const everyone = reviewerPool(s)
+        const qa = QA[s.key]
+        let n = 0
+        const mk = (parent, author, content, created) => {
+            const c = { id: uid(`com:${pub.id}:${n++}`), content, profile_id: author.id, comment_type: 'publication', publication_id: pub.id, parent_comment_id: parent ? parent.id : null, created_at: created, _depth: parent ? parent._depth + 1 : 0 }
+            commentRows.push(c)
+            return c
         }
-    }
+        const tops = []
+        const topCount = Math.round(total * 0.55)
+        let qi = 0
+        for (let i = 0; i < topCount; i++) {
+            const asker = pick(r, everyone)
+            if (i % 4 === 1 && qi < qa.length * 2) {   // pergunta com resposta do dono
+                const [q, a] = qa[qi++ % qa.length]
+                const top = mk(null, asker, q, when(t0, 30))
+                tops.push(top)
+                const ans = mk(top, owner_, a, when(new Date(top.created_at).getTime(), 6))
+                if (r() < 0.7) mk(ans, asker, pick(r, THANKS), when(new Date(ans.created_at).getTime(), 8))
+            } else {
+                tops.push(mk(null, asker, pick(r, PRAISE), when(t0, 72)))
+            }
+        }
+        // respostas entre clientes e do dono, até completar o total
+        const pickable = () => commentRows.filter((c) => c.publication_id === pub.id)
+        let guard = 0
+        while (n < total && guard++ < total * 20) {
+            const list = pickable()
+            const parent = pick(r, list)
+            if (parent._depth >= 2) continue
+            const author = r() < 0.18 ? owner_ : pick(r, everyone)
+            if (author.id === parent.profile_id && author.id !== owner_.id) continue
+            const text = author.id === owner_.id ? pick(r, ['Obrigado pelo carinho! 💛', 'Esperamos você! 😊', 'Muito obrigado pelo comentário!', 'Ficamos felizes em saber 🙏']) : pick(r, REPLY_PEERS)
+            mk(parent, author, text, when(new Date(parent.created_at).getTime(), 24))
+        }
+        // curtidas nos comentários: poucos viralizam, muitos têm 0–3
+        const mine = commentRows.filter((c) => c.publication_id === pub.id)
+        const cap = s.key === 'padaria' && pi === 0 ? 64 : 14
+        for (const c of mine) {
+            const base = Math.floor(Math.pow(r(), 3) * cap) + (c.profile_id === owner_.id ? 4 : 0)
+            const likers = everyone.filter((p) => p.id !== c.profile_id).map((p) => ({ p, k: r() })).sort((a, b) => a.k - b.k).slice(0, base)
+            likers.forEach(({ p }) => commentLikeRows.push({ profile_id: p.id, comment_id: c.id, created_at: new Date(Math.min(Date.now() - 1000, new Date(c.created_at).getTime() + (0.1 + r() * 20) * 3600000)).toISOString() }))
+        }
+    })
 }
+// recria as conversas das publicações do ecossistema (curtidas dos comentários saem junto, por cascata)
+const pubIds = STORES.flatMap((s) => s.pubItems.map((p) => p.id))
+for (let i = 0; i < pubIds.length; i += 20) await api('DELETE', `/rest/v1/comments?publication_id=in.(${pubIds.slice(i, i + 20).join(',')})`, undefined, { Prefer: 'return=minimal' })
 await upsertBatched('likes', likeRows, 'profile_id,publication_id', 'resolution=ignore-duplicates,return=minimal', 300)
-await upsertBatched('comments', commentRows, 'id')
+for (const depth of [0, 1, 2]) await upsertBatched('comments', commentRows.filter((c) => c._depth === depth).map(({ _depth, ...c }) => c), 'id')
+await upsertBatched('comment_likes', commentLikeRows, 'profile_id,comment_id', 'resolution=ignore-duplicates,return=minimal', 300)
 
 // ---------- 6) pedidos e agendamentos (clientes e donos entre si) ----------
 const orderRows = []
@@ -332,6 +383,6 @@ await upsertBatched('appointments', apptRows, 'id')
 console.log(`
 Pronto.
   ${STORES.length} lojas | ${productRows.filter((p) => p.listing_type === 'sale' && p.type !== 'service').length} produtos | ${productRows.filter((p) => p.type === 'service').length} serviços | ${productRows.filter((p) => p.listing_type === 'publication').length} publicações
-  ${reviewRows.length} avaliações | ${followRows.length} seguidores | ${likeRows.length} curtidas | ${commentRows.length} comentários | ${orderRows.length} pedidos | ${apptRows.length} agendamentos
+  ${reviewRows.length} avaliações | ${followRows.length} seguidores | ${likeRows.length} curtidas | ${commentRows.length} comentários (${commentLikeRows.length} curtidas neles) | ${orderRows.length} pedidos | ${apptRows.length} agendamentos
   Lojas: ${STORES.map((s) => '/' + s.slug).join('  ')}
   Contas: donos owner-<segmento>@staging.iuser.test (lojista@staging.iuser.test na padaria) e clientes cliente-001..${String(N_CUSTOMERS).padStart(3, '0')}@staging.iuser.test; senha = STAGING_TEST_PASSWORD`)

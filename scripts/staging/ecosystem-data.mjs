@@ -305,3 +305,39 @@ export const PUB_COMMENTS = [
     'Adorei a novidade!', 'Já quero experimentar.', 'Muito bom, parabéns pelo trabalho!', 'Salvei para mostrar para um amigo.',
     'Que ótima ideia!', 'Vou passar aí essa semana.', 'Boa explicação, obrigado por compartilhar.', 'Top demais!', 'Compartilhei com minha família.',
 ]
+
+// ---------- conversas nas publicações (comentários, respostas e respostas de respostas) ----------
+export const PRAISE = [
+    'Adorei a novidade!', 'Já quero experimentar 😍', 'Muito bom, parabéns pelo trabalho!', 'Salvei para mostrar para um amigo.',
+    'Que ótima ideia!', 'Vou passar aí essa semana.', 'Boa explicação, obrigado por compartilhar.', 'Top demais!', 'Compartilhei com minha família.',
+    'Vocês são referência na cidade 👏', 'Sempre com qualidade, parabéns!', 'Amei! Quando posso ir?', 'Que capricho, hein!', 'Já sou cliente e recomendo muito.',
+    'Isso é o que eu estava esperando!', 'Mandei para o grupo da firma.', 'Fiquei com água na boca 🤤', 'Parabéns pela iniciativa!', 'Continuem assim, vocês merecem.',
+    'Foto linda, produto melhor ainda.', 'Vou levar minha mãe aí no fim de semana.', 'Aprendi bastante, valeu!', 'Excelente conteúdo, continuem postando.',
+]
+export const REPLY_PEERS = [
+    'Concordo totalmente!', 'Também adorei.', 'Já experimentei, recomendo.', 'Fui semana passada e foi ótimo.', 'Verdade, melhor da cidade.',
+    'Boa! Vou lá também.', 'Mesma opinião aqui 👍', 'Foi o que pedi ontem, estava ótimo.', 'Confirmo, atendimento nota 10.', 'Quero ir junto, hein!',
+]
+export const THANKS = ['Perfeito, obrigado!', 'Valeu! Vou passar aí hoje.', 'Show, até já!', 'Obrigada pela resposta rápida 🙏', 'Ótimo, já fiz o pedido!', 'Combinado, muito obrigado!', 'Resolvido, valeu!']
+// pergunta de cliente → resposta do dono da loja
+export const QA = {
+    padaria: [
+        ['Vocês entregam no bairro Embratel?', 'Entregamos sim! Taxa fixa de R$ 8 e pedido mínimo de R$ 30.'],
+        ['Qual o horário de funcionamento no domingo?', 'Aos domingos abrimos das 6h às 21h, igual aos outros dias.'],
+        ['Tem opção sem glúten?', 'Temos pão de queijo e bolo de milho sem glúten. Confirme a disponibilidade no chat.'],
+        ['Aceitam encomenda de bolo para 40 pessoas?', 'Aceitamos! Chame a gente no chat com 3 dias de antecedência.'],
+        ['O cappuccino de canela também sai gelado?', 'Sai sim! É só pedir "gelado" no balcão ou no pedido.'],
+        ['Dá para pagar no Pix?', 'Aceitamos Pix, cartão e dinheiro.'],
+        ['Tem vaga para a aula de confeitaria no sábado?', 'Temos 2 vagas no sábado às 14h. Reserve pelo chat.'],
+        ['Vocês fazem café da manhã para empresas?', 'Fazemos! Veja o Coffee Break Corporativo na aba de serviços.'],
+        ['Como funciona a retirada no balcão?', 'Você faz o pedido pelo app e retira no balcão com o nome. Fica pronto em até 20 minutos.'],
+        ['O pão de queijo congelado dura quanto tempo?', 'Até 60 dias no congelador. Assa direto, sem descongelar.'],
+    ],
+    mecanica: [['Vocês fazem revisão de carro flex?', 'Fazemos sim, de qualquer marca. Agende pela aba de serviços.'], ['Quanto tempo leva a troca de óleo?', 'Em média 40 minutos, sem precisar deixar o carro.']],
+    psicologia: [['Atendem pelo plano de saúde?', 'Trabalhamos com recibo para reembolso. A primeira conversa de acolhimento é gratuita.'], ['A terapia online tem o mesmo valor?', 'Sim, o valor é o mesmo da sessão presencial.']],
+    odonto: [['O clareamento causa sensibilidade?', 'Pode causar um pouco, mas usamos protocolo que reduz bastante. Avaliamos antes.'], ['Atendem criança?', 'Atendemos! Temos horário especial para os pequenos.']],
+    studio: [['Vocês fazem penteado para formatura?', 'Fazemos sim! Agende com antecedência pelo chat.'], ['Tem horário aos sábados à tarde?', 'Temos alguns horários. Veja a agenda na aba de serviços.']],
+    contabil: [['Fazem declaração de IR para MEI?', 'Fazemos a declaração anual do MEI e também a pessoa física.'], ['Atendem online?', 'Atendemos 100% online ou presencial, como preferir.']],
+    pet: [['Fazem banho em gato?', 'Fazemos com agendamento e cuidado especial.'], ['O táxi dog atende qual região?', 'Atendemos toda a região central e bairros próximos.']],
+    eletrica: [['Atendem sábado?', 'Atendemos sim, das 7h às 18h. Urgência 24 h por telefone.'], ['Emitem nota fiscal?', 'Emitimos nota fiscal de serviço em todos os atendimentos.']],
+}
