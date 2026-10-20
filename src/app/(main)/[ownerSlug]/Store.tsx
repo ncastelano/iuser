@@ -957,7 +957,7 @@ export function Store({
                     onToggleChat={() => handleToggleChat(!owner.chat_enabled)}
                     onOpenAgendaDialog={() => setShowAgendaDialog(true)}
                     hasProducts={products.length > 0}
-                    contactSlot={owner.chat_enabled && !isOwner ? <ChatContactButton storeId={owner.id} colors={colors} background={glassBg} /> : undefined}
+                    contactSlot={owner.chat_enabled && !isOwner ? <ChatContactButton storeId={owner.id} colors={colors} variant="v3" /> : undefined}
                     extraSlot={<StoreVipClubMember storeId={owner.id} userId={currentUserId} />}
                     ownerToolsSlot={isOwner && !isStoreOpen ? (
                         <StoreOperatingDays

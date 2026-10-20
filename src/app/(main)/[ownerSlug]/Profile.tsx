@@ -1608,7 +1608,7 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                     onFollowToggle={handleFollowToggle}
                     whatsappLink={whatsappLink}
                     instagramLink={instagramLink}
-                    contactSlot={owner.chat_enabled && owner.id !== currentUserId ? <ChatContactButton profileId={owner.id} colors={colors} background={glassBg} /> : undefined}
+                    contactSlot={owner.chat_enabled && owner.id !== currentUserId ? <ChatContactButton profileId={owner.id} colors={colors} variant="v3" /> : undefined}
                     liveLocSlot={liveLoc && owner.show_location !== false && process.env.NEXT_PUBLIC_MAPBOX_TOKEN ? liveLocCard : undefined}
                     dialogsSlot={agendaDialogs}
                     isOwner={isOwner}

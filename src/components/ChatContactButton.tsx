@@ -22,7 +22,7 @@ interface Props {
     colors: any
     background?: string
     /** 'pill': botão redondo cheio (mesmo desenho do botão de WhatsApp da página do serviço) */
-    variant?: 'card' | 'pill'
+    variant?: 'card' | 'pill' | 'v3'
     /** Serviço/postagem de onde a pessoa veio: já manda uma mensagem com ela no chat de quem oferece */
     productId?: string
     /** Candidatura de um pedido de serviço: manda no chat um cartão com o pedido (vale pros dois lados) */
@@ -50,6 +50,21 @@ export default function ChatContactButton({ profileId, storeId, colors, backgrou
         // Veio de um serviço: a mensagem com a postagem já foi criada — avisa quem recebe no aparelho
         if (productId || requestApplicationId) notifyChatMessage(data as string)
         router.push(`/conversas?c=${data}`)
+    }
+
+    // v3: cápsula compacta (mesma altura dos botões de ação da página), no texto "Chat iUser"
+    if (variant === 'v3') {
+        return (
+            <button
+                onClick={open}
+                disabled={loading}
+                className="flex-1 min-w-0 h-11 rounded-full text-[13px] font-black flex items-center justify-center gap-1.5 transition active:scale-95 disabled:opacity-70"
+                style={{ background: '#f973161a', color: '#f97316' }}
+            >
+                {loading ? <Spinner size={16} color="#f97316" /> : <MessageCircle size={16} />}
+                {label === 'Conversar pelo iUser' ? 'Chat iUser' : label}
+            </button>
+        )
     }
 
     if (variant === 'pill') {

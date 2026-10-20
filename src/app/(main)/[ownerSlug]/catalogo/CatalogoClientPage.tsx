@@ -24,6 +24,7 @@ import AddToCartModal from '@/components/AddToCartModal'
 import FallbackImage from '@/components/FallbackImage'
 import { captureReferral } from '@/lib/referralCapture'
 import { saveOwnProfile } from '@/lib/saveOwnProfile'
+import { useInsideShell } from '@/components/InsideShell'
 
 interface Product {
     id: string
@@ -57,6 +58,7 @@ const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 export default function CatalogoClientPage() {
     const params = useParams()
     const router = useRouter()
+    const insideShell = useInsideShell()   // v3: a página abre dentro da casca (navbar fixa) e ganha o botão voltar
     const { colors } = useTheme()
     const {
         userId,
@@ -1074,7 +1076,7 @@ export default function CatalogoClientPage() {
                         color: colors.textPrimary,
                         padding: '8px 12px 14px 12px',
                         position: 'sticky',
-                        top: 0,
+                        top: insideShell ? 'var(--shell-top, 0px)' : 0,
                         zIndex: 20,
                         overflow: 'hidden',
                         background: gradientBg,
@@ -1125,6 +1127,16 @@ export default function CatalogoClientPage() {
 
                     <div className="relative z-10">
                         <div className="flex items-center gap-3">
+                            {insideShell && (
+                                <button
+                                    onClick={() => (typeof window !== 'undefined' && window.history.length > 1 ? router.back() : router.push(`/${ownerSlug}`))}
+                                    aria-label="Voltar"
+                                    className="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center transition active:scale-95"
+                                    style={{ background: `${colors.border}40`, color: colors.textPrimary }}
+                                >
+                                    <ArrowLeft size={19} />
+                                </button>
+                            )}
                             {storeInfo.logo_url && (
                                 <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 border-2" style={{ borderColor: colors.accent }}>
                                     <img src={storeInfo.logo_url} alt={storeInfo.name} className="w-full h-full object-cover" />

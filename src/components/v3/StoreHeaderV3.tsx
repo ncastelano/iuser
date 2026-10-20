@@ -7,7 +7,7 @@
 
 import { useState, type ReactNode } from 'react'
 import {
-    BookOpen, Calendar, Camera, Clock, Eye, MapPin, MessageCircle, Star, UserCheck, UserPlus, Users, AlertCircle,
+    ShoppingBag, Calendar, Camera, Clock, Eye, MapPin, MessageCircle, Star, UserCheck, UserPlus, Users, AlertCircle,
 } from 'lucide-react'
 
 const ORANGE = '#f97316'
@@ -136,22 +136,28 @@ export default function StoreHeaderV3(p: StoreHeaderV3Props) {
                         </button>
                     )}
                     <button onClick={p.onOpenCatalog} className="flex-1 h-11 rounded-full text-[13px] font-black flex items-center justify-center gap-1.5 transition active:scale-95" style={{ background: soft, color: colors.textPrimary }}>
-                        <BookOpen size={16} />
-                        Catálogo
+                        <ShoppingBag size={16} />
+                        Comprar
                     </button>
-                    {p.whatsappLink && (
-                        <a href={p.whatsappLink} target="_blank" rel="noopener noreferrer" aria-label="WhatsApp" className={round} style={{ background: '#25D3661f', color: '#25D366' }}>
-                            <MessageCircle size={19} />
-                        </a>
-                    )}
-                    {p.instagramLink && (
-                        <a href={p.instagramLink} target="_blank" rel="noopener noreferrer" aria-label="Instagram" className={round} style={{ background: soft, color: colors.textPrimary }}>
-                            <Camera size={18} />
-                        </a>
-                    )}
                 </div>
 
-                {p.contactSlot && <div className="mt-2">{p.contactSlot}</div>}
+                {/* contatos: WhatsApp (com o nome escrito), Chat iUser (quando a loja ativou) e Instagram */}
+                {(p.whatsappLink || p.contactSlot || p.instagramLink) && (
+                    <div className="mt-2 flex items-center gap-2">
+                        {p.whatsappLink && (
+                            <a href={p.whatsappLink} target="_blank" rel="noopener noreferrer" className="flex-1 min-w-0 h-11 rounded-full text-[13px] font-black flex items-center justify-center gap-1.5 transition active:scale-95" style={{ background: '#25D3661f', color: '#16a34a' }}>
+                                <MessageCircle size={16} />
+                                WhatsApp
+                            </a>
+                        )}
+                        {p.contactSlot}
+                        {p.instagramLink && (
+                            <a href={p.instagramLink} target="_blank" rel="noopener noreferrer" aria-label="Instagram" className={round} style={{ background: soft, color: colors.textPrimary }}>
+                                <Camera size={18} />
+                            </a>
+                        )}
+                    </div>
+                )}
 
                 {p.allowScheduling && (
                     <button onClick={p.onOpenSchedule} className="mt-2 w-full h-11 rounded-2xl px-3 flex items-center gap-2.5 text-left transition active:scale-[0.99]" style={{ background: soft }}>
