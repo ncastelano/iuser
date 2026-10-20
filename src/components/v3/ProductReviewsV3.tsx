@@ -63,11 +63,11 @@ export default function ProductReviewsV3({
     const [shown, setShown] = useState(PAGE)
     const [idx, setIdx] = useState(0)
 
-    // cartão que gira: só avaliações com texto, da mais curtida para a menos (se nenhuma tiver texto, usa todas)
+    // cartão que gira: todas as avaliações, da mais curtida para a menos
     const rotating = useMemo(() => {
-        const sorted = [...reviews].sort(byLikes)
-        const withText = sorted.filter((r) => r.comment && r.comment.trim())
-        return (withText.length ? withText : sorted).slice(0, ROTATING_MAX)
+        // todas as avaliações, da mais curtida para a menos; no empate as que têm texto vêm antes (as só com nota também giram)
+        const hasText = (r: ProductReviewV3) => (r.comment && r.comment.trim() ? 1 : 0)
+        return [...reviews].sort((a, b) => b.like_count - a.like_count || hasText(b) - hasText(a) || byLikes(a, b)).slice(0, ROTATING_MAX)
     }, [reviews])
 
     useEffect(() => {
@@ -119,7 +119,9 @@ export default function ProductReviewsV3({
                                 <Heart size={13} fill={current.is_liked ? '#ef4444' : 'none'} />{current.like_count}
                             </span>
                         </div>
-                        {current.comment && <p className="mt-2 text-[14px] leading-relaxed line-clamp-3" style={{ color: colors.textPrimary }}>“{current.comment}”</p>}
+                        {current.comment
+                            ? <p className="mt-2 text-[14px] leading-relaxed line-clamp-3" style={{ color: colors.textPrimary }}>“{current.comment}”</p>
+                            : <p className="mt-2 text-[13px]" style={{ color: colors.textSecondary }}>Avaliou só com a nota.</p>}
                     </div>
                 )}
                 <div className="mt-3 flex items-center justify-between gap-3">
