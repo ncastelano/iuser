@@ -518,9 +518,6 @@ export default function CommunityRoomClient() {
                                             <span className="text-[10px]" style={{ color: colors.textSecondary }}>
                                                 {formatDistanceToNow(new Date(message.created_at), { addSuffix: true, locale: ptBR })}
                                             </span>
-                                            {!!currentUserId && isMember && editingId !== message.id && (
-                                                <button onClick={() => setReplyTo(message)} className="text-[11px] font-bold hover:underline" style={{ color: colors.accent }}>Responder</button>
-                                            )}
                                             {isMine && (
                                                 <div className="relative">
                                                     <button
@@ -654,6 +651,9 @@ export default function CommunityRoomClient() {
                                                     )}
                                                 </div>
                                                 <ChatLinkPreviews content={message.content} colors={colors} />
+                                                {!!currentUserId && isMember && (
+                                                    <button onClick={() => setReplyTo(message)} className="text-[11px] font-bold px-1 hover:underline" style={{ color: colors.accent }}>Responder</button>
+                                                )}
                                             </div>
                                         )}
                                     </div>
