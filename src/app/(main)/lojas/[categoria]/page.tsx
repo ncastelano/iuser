@@ -81,6 +81,7 @@ interface CategoryPublication {
 
 // ===== COMPONENTE CARD PARA CRIAR LOJA =====
 function CreateStoreCard({ colors, category }: { colors: any; category: string }) {
+    const v3 = useInsideShell()
     const router = useRouter()
     const { userId } = useProfile()
 
@@ -93,6 +94,19 @@ function CreateStoreCard({ colors, category }: { colors: any; category: string }
         } else {
             router.push(`/login?redirect=/criar-loja&category=${encodeURIComponent(category)}`)
         }
+    }
+
+    // v3: um convite em linha, não um cartão gigante
+    if (v3) {
+        return (
+            <button onClick={handleCreateStore} className="w-full py-4 flex items-center gap-3 text-left transition active:opacity-80">
+                <span className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: '#f9731620', color: '#f97316' }}><PlusCircle size={22} /></span>
+                <span className="min-w-0">
+                    <span className="block text-[14px] font-black" style={{ color: colors.textPrimary }}>Cadastrar loja</span>
+                    <span className="block text-[12px]" style={{ color: colors.textSecondary }}>Coloque a sua loja aqui também. Leva só alguns minutos.</span>
+                </span>
+            </button>
+        )
     }
 
     return (

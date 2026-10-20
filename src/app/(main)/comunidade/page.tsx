@@ -555,8 +555,8 @@ export default function ComunidadePage() {
                                                     : <MessageCircle size={26} />}
                                             </div>
                                             <div className="flex-1 min-w-0">
-                                                <h3 className="text-lg font-black truncate flex items-center gap-1.5" style={{ color: colors.textPrimary }}>
-                                                    <span className="truncate">{community.name}</span>
+                                                <h3 className={`${v3 ? 'text-base' : 'text-lg truncate'} font-black flex items-center gap-1.5`} style={{ color: colors.textPrimary }}>
+                                                    <span className={v3 ? 'line-clamp-2' : 'truncate'}>{community.name}</span>
                                                     {sv?.pinned && <Pin size={13} className="flex-shrink-0" style={{ color: colors.accent }} />}
                                                     {community.requires_password && <Lock size={14} className="flex-shrink-0" style={{ color: colors.textSecondary }} />}
                                                 </h3>
