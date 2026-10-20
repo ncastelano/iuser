@@ -46,9 +46,10 @@ import EditProductDialog from '@/components/EditProductDialog'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { trackProductView } from '@/lib/trackProductView'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
+import { useInsideShell } from '@/components/InsideShell'
 import { V2CheckoutReview } from '@/components/DeliveryEstimate/V2CheckoutReview'
 
-const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
+const GRADIENT_V2 = 'linear-gradient(135deg, #f97316, #dc2626)'
 
 // ===== TIPOS =====
 interface ProductWithStore {
@@ -125,6 +126,9 @@ export function ProductClientPage({
     initialStore,
 }: ProductClientPageProps) {
     const router = useRouter()
+    // v3 (dentro da casca): laranja sólido no lugar do degradê laranja→vermelho, e cartões sem moldura (só apresentação)
+    const v3 = useInsideShell()
+    const GRADIENT = v3 ? '#f97316' : GRADIENT_V2
     const { userId: currentUserId } = useProfile()
     const [editingProduct, setEditingProduct] = useState(false)
 
@@ -1314,14 +1318,16 @@ export function ProductClientPage({
                             <button
                                 key={other.id}
                                 onClick={() => router.push(`/${ownerSlug}/${other.slug}`)}
-                                className="text-left rounded-3xl overflow-hidden flex-shrink-0 w-44 md:w-48 flex flex-col transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl"
-                                style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
+                                className={v3
+                                    ? 'text-left flex-shrink-0 w-40 flex flex-col transition active:scale-95'
+                                    : 'text-left rounded-3xl overflow-hidden flex-shrink-0 w-44 md:w-48 flex flex-col transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl'}
+                                style={v3 ? undefined : { background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
                             >
-                                <div className="relative w-full h-32 overflow-hidden" style={{ background: GRADIENT }}>
+                                <div className={`relative w-full overflow-hidden ${v3 ? 'aspect-square rounded-2xl' : 'h-32'}`} style={{ background: GRADIENT }}>
                                     {otherImageUrl ? (
                                         <>
                                             <img src={otherImageUrl} alt="" aria-hidden className="absolute inset-0 w-full h-full object-cover scale-125 blur-xl opacity-70" />
-                                            <img src={otherImageUrl} alt={other.name} className={`relative w-full h-full ${other.image_url ? 'object-contain' : 'object-contain p-4'}`} />
+                                            <img src={otherImageUrl} alt={other.name} className={`relative w-full h-full ${v3 && other.image_url ? 'object-cover' : other.image_url ? 'object-contain' : 'object-contain p-4'}`} />
                                         </>
                                     ) : (
                                         <div className="w-full h-full flex items-center justify-center">
@@ -1334,9 +1340,9 @@ export function ProductClientPage({
                                         </span>
                                     ) : null}
                                 </div>
-                                <div className="p-3 flex flex-col gap-1">
-                                    <p className="text-sm font-black leading-snug line-clamp-2" style={{ color: colors.textPrimary }}>{other.name}</p>
-                                    <p className="text-base font-black" style={{ color: '#f97316' }}>{otherPrice}</p>
+                                <div className={`${v3 ? 'pt-1.5 px-0.5' : 'p-3'} flex flex-col gap-1`}>
+                                    <p className={`${v3 ? 'text-[13px]' : 'text-sm'} font-black leading-snug line-clamp-2`} style={{ color: colors.textPrimary }}>{other.name}</p>
+                                    <p className={`${v3 ? 'text-sm' : 'text-base'} font-black`} style={{ color: '#f97316' }}>{otherPrice}</p>
                                 </div>
                             </button>
                         )

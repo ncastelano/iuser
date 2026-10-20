@@ -4,6 +4,7 @@
 
 import { profileLabel } from '@/lib/profileDisplay'
 import { useParams, useRouter } from 'next/navigation'
+import { useInsideShell } from '@/components/InsideShell'
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
@@ -98,6 +99,8 @@ export function PublicationClientPage({
     profileLoading = false
 }: PublicationClientPageProps) {
     const router = useRouter()
+    // v3 (dentro da casca): sem barra de título repetida, cartões sem moldura e laranja sólido (só apresentação)
+    const v3 = useInsideShell()
     const { userId: currentUserId } = useProfile()
 
     const [loading, setLoading] = useState(true)
@@ -133,7 +136,7 @@ export function PublicationClientPage({
         image_url: string | null
     }[]>([])
 
-    const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
+    const GRADIENT = v3 ? '#f97316' : 'linear-gradient(135deg, #f97316, #dc2626)'
 
     // ========== CARREGAR PUBLICAÇÃO ==========
     useEffect(() => {
@@ -774,8 +777,8 @@ export function PublicationClientPage({
         <div className="relative min-h-dvh" style={{ background: colors.background }}>
             {/* Barra do topo (mobile): fica grudada no topo enquanto rola. */}
             <div
-                className="md:hidden sticky top-0 z-30"
-                style={{
+                className={v3 ? 'md:hidden' : 'md:hidden sticky top-0 z-30'}
+                style={v3 ? undefined : {
                     background: colors.background,
                     borderBottom: `1px solid ${colors.border}`,
                     boxShadow: '0 8px 24px rgba(0,0,0,0.08)',
@@ -791,9 +794,11 @@ export function PublicationClientPage({
                     >
                         <ArrowLeft size={20} />
                     </button>
-                    <h1 className="flex-1 min-w-0 truncate text-base font-black" style={{ color: colors.textPrimary }}>
-                        {publication.name || 'Publicação'}
-                    </h1>
+                    {!v3 && (
+                        <h1 className="flex-1 min-w-0 truncate text-base font-black" style={{ color: colors.textPrimary }}>
+                            {publication.name || 'Publicação'}
+                        </h1>
+                    )}
                 </div>
             </div>
 
@@ -842,8 +847,8 @@ export function PublicationClientPage({
                         <div className="px-5 pt-4 md:px-0 md:pt-0 space-y-3">
                             {/* Quem publicou: em cima do título, pra descrição longa não empurrar o perfil pra baixo */}
                             <div
-                                className="w-full flex items-center gap-2 px-3 py-2.5 rounded-2xl"
-                                style={{ background: colors.surface, border: `1px solid ${colors.border}` }}
+                                className={v3 ? 'w-full flex items-center gap-2 py-1' : 'w-full flex items-center gap-2 px-3 py-2.5 rounded-2xl'}
+                                style={v3 ? undefined : { background: colors.surface, border: `1px solid ${colors.border}` }}
                             >
                                 <button
                                     onClick={goToStore}
@@ -913,11 +918,11 @@ export function PublicationClientPage({
                                         href={getWhatsAppLink(publication.store.whatsapp, encodeURIComponent(`Olá! Vi "${publication.name}" no iUser e quero saber mais.`))}
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition hover:scale-105"
-                                        style={{ background: '#25D366', color: '#fff' }}
+                                        className={v3 ? 'text-[13px] underline underline-offset-2 active:opacity-70' : 'flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition hover:scale-105'}
+                                        style={v3 ? { color: colors.textSecondary } : { background: '#25D366', color: '#fff' }}
                                     >
-                                        <MessageCircle size={18} />
-                                        Falar no WhatsApp
+                                        {!v3 && <MessageCircle size={18} />}
+                                        {v3 ? 'WhatsApp' : 'Falar no WhatsApp'}
                                     </a>
                                 )}
                             </div>
@@ -941,14 +946,14 @@ export function PublicationClientPage({
                                     <button
                                         key={other.id}
                                         onClick={() => router.push(`/${ownerSlug}/${other.slug}`)}
-                                        className="text-left rounded-2xl overflow-hidden flex-shrink-0 w-36 md:w-44 transition-transform hover:scale-[1.02]"
-                                        style={{
+                                        className={v3 ? 'text-left flex-shrink-0 w-36 transition active:scale-95' : 'text-left rounded-2xl overflow-hidden flex-shrink-0 w-36 md:w-44 transition-transform hover:scale-[1.02]'}
+                                        style={v3 ? undefined : {
                                             background: colors.surface,
                                             border: `1px solid ${colors.border}`,
                                             boxShadow: colors.shadow,
                                         }}
                                     >
-                                        <div className="w-full aspect-square" style={{ background: `${colors.accentLight}20` }}>
+                                        <div className={`w-full aspect-square ${v3 ? 'rounded-2xl overflow-hidden' : ''}`} style={{ background: `${colors.accentLight}20` }}>
                                             {otherImageUrl ? (
                                                 <img
                                                     src={otherImageUrl}
@@ -961,8 +966,8 @@ export function PublicationClientPage({
                                                 </div>
                                             )}
                                         </div>
-                                        <div className="p-2.5">
-                                            <p className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>
+                                        <div className={v3 ? 'pt-1.5 px-0.5' : 'p-2.5'}>
+                                            <p className={`${v3 ? 'text-[13px] font-black' : 'text-xs font-bold'} truncate`} style={{ color: colors.textPrimary }}>
                                                 {other.name}
                                             </p>
                                         </div>
@@ -974,7 +979,7 @@ export function PublicationClientPage({
                 )}
 
                 {/* ===== SEÇÃO DE COMENTÁRIOS ===== */}
-                <div className="mx-5 md:mx-0 mt-6 rounded-2xl border p-6" style={{
+                <div className={v3 ? 'mx-5 md:mx-0 mt-6' : 'mx-5 md:mx-0 mt-6 rounded-2xl border p-6'} style={v3 ? undefined : {
                     background: colors.surface,
                     borderColor: colors.border,
                 }}>
