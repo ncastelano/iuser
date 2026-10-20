@@ -655,7 +655,7 @@ export function PublicationClientPage({
                                     }
                                     setExpandedComments(new Set(expandedComments))
                                 }}
-                                className="text-xs font-bold transition hover:opacity-70 ml-3"
+                                className={`text-xs font-bold transition hover:opacity-70 ${v3 ? 'ml-[42px] py-1' : 'ml-3'}`}
                                 style={{ color: colors.textSecondary }}
                             >
                                 {expandedComments.has(comment.id) ? 'Ocultar' : (v3 ? 'Ver' : 'Mostrar')} {comment.replies.length} {comment.replies.length === 1 ? 'resposta' : 'respostas'}
