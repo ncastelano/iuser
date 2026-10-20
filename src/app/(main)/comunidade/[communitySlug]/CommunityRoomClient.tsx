@@ -1,6 +1,7 @@
 // app/(main)/comunidade/[communitySlug]/CommunityRoomClient.tsx
 'use client'
 
+import { useInsideShell } from '@/components/InsideShell'
 import LinkPreviewCard from '@/components/communities/LinkPreviewCard'
 import { extractFirstUrl, linkify } from '@/lib/linkify'
 import { profileLabel } from '@/lib/profileDisplay'
@@ -77,6 +78,8 @@ export default function CommunityRoomClient() {
     const { colors } = useTheme()
     const { userId: currentUserId, avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
     const bottomRef = useRef<HTMLDivElement>(null)
+    // v3: a sala ocupa a área abaixo da navbar e não rola; voltar, nome, cidade e info ficam parados e só as mensagens rolam
+    const v3 = useInsideShell()
 
     const communitySlug = Array.isArray(params.communitySlug) ? params.communitySlug[0] : params.communitySlug
 
@@ -329,12 +332,16 @@ export default function CommunityRoomClient() {
     }
 
     return (
-        <div className="relative min-h-dvh flex flex-col" style={{ background: colors.background }}>
-            <div className="fixed inset-0 z-0">
-                <AnimatedBackgroundiUser bgMode={bgMode} customBgUrl={customBgUrl} />
-            </div>
+        <div className={v3 ? 'fixed inset-x-0 bottom-0 top-[var(--shell-top,0px)] rounded-t-[28px] overflow-hidden flex flex-col' : 'relative min-h-dvh flex flex-col'} style={{ background: colors.background }}>
+            {!v3 && (
+                <div className="fixed inset-0 z-0">
+                    <AnimatedBackgroundiUser bgMode={bgMode} customBgUrl={customBgUrl} />
+                </div>
+            )}
 
-            <div className="relative z-10 flex flex-col min-h-dvh">
+            <div className={v3 ? 'relative z-10 flex flex-col h-full min-h-0 w-full max-w-3xl mx-auto' : 'relative z-10 flex flex-col min-h-dvh'}>
+                <div className={v3 ? 'flex-shrink-0 max-h-[55%] overflow-y-auto pt-4 px-0' : ''}>
+                <div className={v3 ? 'px-4' : ''}>
                 <Header
                     title={community.name}
                     showBack={true}
@@ -343,6 +350,7 @@ export default function CommunityRoomClient() {
                     avatarUrl={avatarUrl}
                     loading={profileLoading}
                 />
+                </div>
 
                 {/* Info da comunidade */}
                 <div className="px-4 md:px-6 mt-2">
@@ -484,8 +492,10 @@ export default function CommunityRoomClient() {
                     )}
                 </div>
 
+                </div>
+
                 {/* Mensagens */}
-                <div className="flex-1 overflow-y-auto px-4 md:px-6 py-4 space-y-3">
+                <div className="flex-1 min-h-0 overflow-y-auto px-4 md:px-6 py-4 space-y-3">
                     {messages.length === 0 ? (
                         <div className="flex flex-col items-center justify-center gap-2 py-16 opacity-60">
                             <MessageCircle size={32} style={{ color: colors.textSecondary }} />
@@ -665,7 +675,7 @@ export default function CommunityRoomClient() {
                 </div>
 
                 {/* Composer */}
-                <div className="px-4 md:px-6 pb-24 pt-2 sticky bottom-0" style={{ background: `${colors.background}dd`, backdropFilter: 'blur(8px)' }}>
+                <div className={v3 ? 'px-4 pb-3 pt-2 flex-shrink-0' : 'px-4 md:px-6 pb-24 pt-2 sticky bottom-0'} style={{ background: `${colors.background}dd`, backdropFilter: 'blur(8px)' }}>
                     {!currentUserId ? (
                         /* Visitante lê a conversa à vontade; na hora de escrever é que pede o login (e volta pra cá) */
                         <div className="flex gap-2">

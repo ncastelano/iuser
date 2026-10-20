@@ -396,12 +396,16 @@ export default function ComunidadePage() {
     const cardBg = `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`
 
     return (
-        <div className="relative min-h-dvh" style={{ background: colors.background }}>
-            <div className="fixed inset-0 z-0">
-                <AnimatedBackgroundiUser bgMode={bgMode} customBgUrl={customBgUrl} />
-            </div>
+        // v3: a página ocupa a área abaixo da navbar e NÃO rola; só a lista de comunidades rola (voltar, título, local e busca ficam parados)
+        <div className={v3 ? 'fixed inset-x-0 bottom-0 top-[var(--shell-top,0px)] rounded-t-[28px] overflow-hidden' : 'relative min-h-dvh'} style={{ background: colors.background }}>
+            {!v3 && (
+                <div className="fixed inset-0 z-0">
+                    <AnimatedBackgroundiUser bgMode={bgMode} customBgUrl={customBgUrl} />
+                </div>
+            )}
 
-            <main className="relative z-10 min-h-dvh" style={{ overscrollBehavior: 'none' }}>
+            <main className={v3 ? 'relative z-10 h-full flex flex-col' : 'relative z-10 min-h-dvh'} style={{ overscrollBehavior: 'none' }}>
+                <div className={v3 ? 'flex-shrink-0 w-full max-w-5xl mx-auto px-4 pt-4' : ''}>
                 <Header
                     title="Comunidades"
                     showBack={true}
@@ -411,7 +415,6 @@ export default function ComunidadePage() {
                     loading={profileLoading}
                     showSearch={true}
                     searchPlaceholder="Buscar comunidade ou cidade..."
-                    pinned
                     onSearch={setSearchQuery}
                     searchValue={searchQuery}
                     searchRef={searchInputRef}
@@ -432,8 +435,9 @@ export default function ComunidadePage() {
                         </button>
                     }
                 />
+                </div>
 
-                <section className="px-4 md:px-6 mt-2 pb-28">
+                <section className={v3 ? 'flex-1 min-h-0 overflow-y-auto w-full max-w-5xl mx-auto px-4 pt-1 pb-28' : 'px-4 md:px-6 mt-2 pb-28'}>
                     {/* Loading */}
                     {loadingData && (
                         <div className="flex justify-center py-12">
