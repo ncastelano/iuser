@@ -49,6 +49,11 @@ export function firstDisallowedLink(text: string): string | null {
     return urlsIn(text).find((u) => !isAllowedChatLink(u)) ?? null
 }
 
+/** Texto sem os links que viram imagem ou cartão (o resto, inclusive links antigos de outro tipo, fica). */
+export function withoutPreviewedUrls(text: string): string {
+    return (text || '').replace(URL_RE, (m) => (isAllowedChatLink(withProtocol(clean(m))) ? '' : m)).replace(/[ \t]{2,}/g, ' ').trim()
+}
+
 /** Texto sem os links (para saber se a mensagem é só imagem/cartão). */
 export const withoutUrls = (text: string) => (text || '').replace(URL_RE, '').trim()
 

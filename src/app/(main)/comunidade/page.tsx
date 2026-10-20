@@ -34,6 +34,9 @@ import { toast } from 'sonner'
 import { Spinner } from '@/components/Spinner'
 import { saveOwnProfile } from '@/lib/saveOwnProfile'
 
+// Na prévia da lista, link de imagem ou do iUser vira uma palavra (o link inteiro não cabe e não ajuda)
+const previewText = (t: string) => (t || '').replace(/(https?:\/\/[^\s<>"']+)/gi, (u) => (/\.(png|jpe?g|gif|webp|avif)(\?|$)/i.test(u) ? '📷 imagem' : '🔗 link do iUser')).trim()
+
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
 interface CommunityMessagePreview { id: string; content: string; created_at: string; name: string; avatar: string | null }
@@ -238,7 +241,7 @@ export default function ComunidadePage() {
                 recent: msgs.map((m) => {
                     const a: any = authorMap.get(m.profile_id)
                     return {
-                        id: m.id, content: m.content, created_at: m.created_at,
+                        id: m.id, content: previewText(m.content), created_at: m.created_at,
                         name: a?.name?.split(' ')[0] || (a?.profileSlug ? `@${a.profileSlug}` : 'Alguém'),
                         avatar: getAvatarUrl(supabase, a?.avatar_url) || null,
                     }

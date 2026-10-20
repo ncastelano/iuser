@@ -35,7 +35,7 @@ import PlanAvatarRing from '@/components/PlanAvatarRing'
 import ShareCardView from '@/components/chat/ShareCardView'
 import ShareSheet from '@/components/chat/ShareSheet'
 import ChatLinkPreviews from '@/components/chat/ChatLinkPreviews'
-import { firstDisallowedLink, isAllowedChatLink, urlsIn, withoutUrls } from '@/lib/chatLinks'
+import { firstDisallowedLink, isAllowedChatLink, urlsIn, withoutPreviewedUrls, withoutUrls } from '@/lib/chatLinks'
 import { SHARE_DEFAULT_TEXT, cardKeyOf, fetchShareCards, isDefaultShareText, refColumns, type ShareCard } from '@/lib/shareCards'
 import CommunityPhotoCampaign from '@/components/communities/CommunityPhotoCampaign'
 import { fetchCommunitiesActivity, type CommunityActivity } from '@/lib/communityActivity'
@@ -640,8 +640,7 @@ export default function CommunityRoomClient() {
                                                     hidden={(() => {
                                                         const k = cardKeyOf(message)
                                                         if (k && shareCards[k] && isDefaultShareText(message.content)) return true
-                                                        const us = urlsIn(message.content)
-                                                        return us.length > 0 && withoutUrls(message.content) === '' && us.every(isAllowedChatLink)
+                                                        return urlsIn(message.content).length > 0 && withoutPreviewedUrls(message.content) === ''
                                                     })()}
                                                     style={
                                                         isMine
@@ -649,7 +648,7 @@ export default function CommunityRoomClient() {
                                                             : { background: colors.surface, color: colors.textPrimary, border: `1px solid ${colors.border}` }
                                                     }
                                                 >
-                                                    {linkify(message.content, { color: isMine ? '#fff' : colors.accent })}
+                                                    {linkify(withoutPreviewedUrls(message.content) || message.content, { color: isMine ? '#fff' : colors.accent })}
                                                     {message.edited_at && (
                                                         <span className="ml-1.5 text-[10px] opacity-70">(editada)</span>
                                                     )}
