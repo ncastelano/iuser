@@ -9,7 +9,7 @@ import { useState, type ReactNode } from 'react'
 import SocialLinksV3 from './SocialLinksV3'
 import type { SocialLink } from '@/lib/socialLinks'
 import {
-    ShoppingBag, Calendar, Clock, Eye, MapPin, MessageCircle, Star, UserCheck, UserPlus, Users, AlertCircle,
+    ShoppingBag, Calendar, Clock, Eye, MapPin, MessageCircle, Star, UserCheck, UserPlus, Users,
 } from 'lucide-react'
 
 const ORANGE = '#f97316'
@@ -125,30 +125,30 @@ export default function StoreHeaderV3(p: StoreHeaderV3Props) {
                     </button>
                 </div>
 
-                {/* ações */}
+                {/* ação principal: Comprar (único botão laranja sólido); Seguir é secundário */}
                 <div className="mt-3 flex items-center gap-2">
+                    <button onClick={p.onOpenCatalog} className="flex-[1.4] h-11 rounded-full text-[13px] font-black flex items-center justify-center gap-1.5 transition active:scale-95" style={{ background: ORANGE, color: '#fff' }}>
+                        <ShoppingBag size={16} />
+                        Comprar
+                    </button>
                     {p.canFollow && (
                         <button
                             onClick={p.onFollowToggle}
                             className="flex-1 h-11 rounded-full text-[13px] font-black flex items-center justify-center gap-1.5 transition active:scale-95"
-                            style={p.isFollowing ? { background: 'transparent', color: ORANGE, border: `2px solid ${ORANGE}` } : { background: ORANGE, color: '#fff' }}
+                            style={p.isFollowing ? { background: soft, color: colors.textPrimary } : { background: 'transparent', color: ORANGE, border: `2px solid ${ORANGE}` }}
                         >
                             {p.isFollowing ? <UserCheck size={16} /> : <UserPlus size={16} />}
                             {p.isFollowing ? 'Seguindo' : 'Seguir'}
                         </button>
                     )}
-                    <button onClick={p.onOpenCatalog} className="flex-1 h-11 rounded-full text-[13px] font-black flex items-center justify-center gap-1.5 transition active:scale-95" style={{ background: soft, color: colors.textPrimary }}>
-                        <ShoppingBag size={16} />
-                        Comprar
-                    </button>
                 </div>
 
-                {/* contatos: WhatsApp (nome escrito) e a conversa pelo iUser; depois as redes sociais que tiverem link */}
+                {/* contatos: todos neutros e do mesmo tamanho, só o ícone leva cor (WhatsApp verde, chat laranja); depois as redes sociais que tiverem link */}
                 {(p.whatsappLink || p.contactSlot) && (
                     <div className="mt-2 flex items-center gap-2">
                         {p.whatsappLink && (
-                            <a href={p.whatsappLink} target="_blank" rel="noopener noreferrer" className="flex-1 min-w-0 h-11 rounded-full text-[13px] font-black flex items-center justify-center gap-1.5 transition active:scale-95" style={{ background: '#25D3661f', color: '#16a34a' }}>
-                                <MessageCircle size={16} />
+                            <a href={p.whatsappLink} target="_blank" rel="noopener noreferrer" className="flex-1 min-w-0 h-10 rounded-full text-[12px] font-black flex items-center justify-center gap-1.5 transition active:scale-95" style={{ background: soft, color: colors.textPrimary }}>
+                                <MessageCircle size={15} style={{ color: '#16a34a' }} />
                                 WhatsApp
                             </a>
                         )}
@@ -182,13 +182,9 @@ export default function StoreHeaderV3(p: StoreHeaderV3Props) {
                 {p.extraSlot && <div className="mt-2">{p.extraSlot}</div>}
 
                 {!p.isOpen && (
-                    <div className="mt-3 rounded-2xl px-3 py-2.5 flex items-center gap-2" style={{ background: 'rgba(239,68,68,0.08)', color: '#ef4444' }}>
-                        <AlertCircle size={16} className="flex-shrink-0" />
-                        <p className="text-[11px] font-bold leading-snug">
-                            Loja fechada no momento
-                            <span className="font-medium" style={{ color: colors.textSecondary }}> · {p.hasProducts ? 'toque num produto para ver os detalhes' : 'ainda sem produtos'}</span>
-                        </p>
-                    </div>
+                    <p className="mt-3 text-[11px] font-medium leading-snug" style={{ color: colors.textSecondary }}>
+                        {p.hasProducts ? 'Toque num produto para ver os detalhes.' : 'Ainda sem produtos.'}
+                    </p>
                 )}
 
                 {p.ownerToolsSlot && <div className="mt-2">{p.ownerToolsSlot}</div>}

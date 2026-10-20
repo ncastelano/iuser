@@ -958,7 +958,7 @@ export function Store({
                     onToggleChat={() => handleToggleChat(!owner.chat_enabled)}
                     onOpenAgendaDialog={() => setShowAgendaDialog(true)}
                     hasProducts={products.length > 0}
-                    contactSlot={owner.chat_enabled && !isOwner ? <ChatContactButton storeId={owner.id} colors={colors} variant="v3" label="Falar com a loja" /> : undefined}
+                    contactSlot={owner.chat_enabled && !isOwner ? <ChatContactButton storeId={owner.id} colors={colors} variant="v3quiet" label="Falar com a loja" /> : undefined}
                     extraSlot={<StoreVipClubMember storeId={owner.id} userId={currentUserId} />}
                     ownerToolsSlot={isOwner && !isStoreOpen ? (
                         <StoreOperatingDays
@@ -1334,7 +1334,7 @@ export function Store({
             )}
 
             {/* ===== TABS ===== */}
-            <div className={v3 ? 'flex gap-1.5' : 'flex rounded-2xl p-1.5 gap-1'} style={v3 ? undefined : cardStyle}>
+            <div className={v3 ? 'flex' : 'flex rounded-2xl p-1.5 gap-1'} style={v3 ? { borderBottom: `1px solid ${colors.border}60` } : cardStyle}>
                 {(() => {
                     const productsTab = { id: 'products', label: 'Produtos', count: goods.length }
                     const servicesTab = { id: 'services', label: 'Serviços', count: services.length }
@@ -1348,10 +1348,10 @@ export function Store({
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id as TabType)}
                             className={v3
-                                ? 'flex-1 h-10 flex items-center justify-center gap-1.5 rounded-full text-[12px] font-black transition active:scale-95'
+                                ? 'flex-1 h-10 -mb-px flex items-center justify-center gap-1.5 text-[13px] font-black transition active:scale-95'
                                 : `flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-black uppercase tracking-wide transition-all duration-300 ${isActive ? 'shadow-lg scale-[1.02]' : 'hover:bg-white/5'}`}
                             style={v3
-                                ? (isActive ? { background: '#f97316', color: '#fff' } : { background: `${colors.border}40`, color: colors.textPrimary })
+                                ? { background: 'transparent', color: isActive ? colors.textPrimary : colors.textSecondary, borderBottom: `3px solid ${isActive ? '#f97316' : 'transparent'}` }
                                 : isActive
                                     ? {
                                         background: GRADIENT,

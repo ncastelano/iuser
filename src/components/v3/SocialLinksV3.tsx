@@ -1,6 +1,6 @@
 // src/components/v3/SocialLinksV3.tsx
 //
-// Botões de redes sociais (Instagram, YouTube, X, GitHub) no mesmo estilo do botão de WhatsApp: cápsula com o nome escrito, duas por linha.
+// Botões de redes sociais (Instagram, YouTube, X, GitHub) no mesmo estilo neutro do WhatsApp e do chat: cápsula com o nome escrito, só o ícone colorido.
 // Recebe a lista pronta de `buildSocialLinks` (lib/socialLinks.ts): só aparece botão para a rede que tiver link.
 'use client'
 
@@ -38,10 +38,10 @@ function SocialIcon({ kind, size = 16 }: { kind: SocialKind; size?: number }) {
     }
 }
 
-// cor de cada rede (texto + fundo bem suave); X e GitHub usam a cor do texto do tema
-const BRAND: Partial<Record<SocialKind, { fg: string; bg: string }>> = {
-    instagram: { fg: '#e1306c', bg: '#e1306c1a' },
-    youtube: { fg: '#ff0000', bg: '#ff00001a' },
+// só o ícone leva a cor da rede (o botão é neutro, igual aos outros contatos); X e GitHub usam a cor do texto do tema
+const BRAND: Partial<Record<SocialKind, string>> = {
+    instagram: '#e1306c',
+    youtube: '#ff0000',
 }
 
 export default function SocialLinksV3({ links, colors }: { links: SocialLink[]; colors: any }) {
@@ -49,17 +49,17 @@ export default function SocialLinksV3({ links, colors }: { links: SocialLink[]; 
     return (
         <div className="mt-2 flex flex-wrap gap-2">
             {links.map((l) => {
-                const brand = BRAND[l.kind]
+                const iconColor = BRAND[l.kind]
                 return (
                     <a
                         key={l.kind}
                         href={l.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex-1 min-w-[calc(50%-4px)] h-11 rounded-full text-[13px] font-black flex items-center justify-center gap-1.5 transition active:scale-95"
-                        style={{ background: brand ? brand.bg : `${colors.border}40`, color: brand ? brand.fg : colors.textPrimary }}
+                        className="flex-1 min-w-[calc(50%-4px)] h-10 rounded-full text-[12px] font-black flex items-center justify-center gap-1.5 transition active:scale-95"
+                        style={{ background: `${colors.border}40`, color: colors.textPrimary }}
                     >
-                        <SocialIcon kind={l.kind} />
+                        <span style={{ color: iconColor ?? colors.textPrimary }} className="flex"><SocialIcon kind={l.kind} size={15} /></span>
                         {l.label}
                     </a>
                 )

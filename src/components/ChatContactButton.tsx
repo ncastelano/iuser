@@ -22,7 +22,7 @@ interface Props {
     colors: any
     background?: string
     /** 'pill': botão redondo cheio (mesmo desenho do botão de WhatsApp da página do serviço) */
-    variant?: 'card' | 'pill' | 'v3'
+    variant?: 'card' | 'pill' | 'v3' | 'v3quiet'
     /** Serviço/postagem de onde a pessoa veio: já manda uma mensagem com ela no chat de quem oferece */
     productId?: string
     /** Candidatura de um pedido de serviço: manda no chat um cartão com o pedido (vale pros dois lados) */
@@ -62,6 +62,21 @@ export default function ChatContactButton({ profileId, storeId, colors, backgrou
                 style={{ background: '#f97316', color: '#fff' }}
             >
                 {loading ? <Spinner size={16} color="#fff" /> : <MessageCircle size={16} />}
+                {label}
+            </button>
+        )
+    }
+
+    // v3quiet: botão neutro (mesmo formato dos outros contatos da loja), só o ícone leva a cor
+    if (variant === 'v3quiet') {
+        return (
+            <button
+                onClick={open}
+                disabled={loading}
+                className="flex-1 min-w-0 h-10 rounded-full text-[12px] font-black flex items-center justify-center gap-1.5 transition active:scale-95 disabled:opacity-70"
+                style={{ background: `${colors.border}40`, color: colors.textPrimary }}
+            >
+                {loading ? <Spinner size={15} color="#f97316" /> : <MessageCircle size={15} style={{ color: '#f97316' }} />}
                 {label}
             </button>
         )
