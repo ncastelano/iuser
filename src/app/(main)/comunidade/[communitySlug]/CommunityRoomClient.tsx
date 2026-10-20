@@ -32,6 +32,9 @@ import {
     X,
 } from 'lucide-react'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
+import ShareCardView from '@/components/chat/ShareCardView'
+import ShareSheet from '@/components/chat/ShareSheet'
+import { SHARE_DEFAULT_TEXT, cardKeyOf, fetchShareCards, isDefaultShareText, refColumns, type ShareCard } from '@/lib/shareCards'
 import CommunityPhotoCampaign from '@/components/communities/CommunityPhotoCampaign'
 import { fetchCommunitiesActivity, type CommunityActivity } from '@/lib/communityActivity'
 
@@ -55,6 +58,9 @@ interface CommunityMessage {
     created_at: string
     edited_at?: string | null
     profile_id: string
+    ref_product_id?: string | null
+    ref_store_id?: string | null
+    ref_profile_id?: string | null
     profiles?: {
         name: string | null
         avatar_url: string | null
@@ -91,6 +97,10 @@ export default function CommunityRoomClient() {
     const [editingId, setEditingId] = useState<string | null>(null)
     const [editText, setEditText] = useState('')
     const [savingEdit, setSavingEdit] = useState(false)
+    // Loja, serviço, produto, publicação e perfil compartilhados na conversa viram cartões
+    const [shareCards, setShareCards] = useState<Record<string, ShareCard>>({})
+    const [shareOpen, setShareOpen] = useState(false)
+    const [pending, setPending] = useState<ShareCard | null>(null)
 
     const loadRoom = useCallback(async () => {
         if (!communitySlug) return
@@ -127,18 +137,18 @@ export default function CommunityRoomClient() {
 
             const { data: messagesData, error: messagesErr } = await supabase
                 .from('community_messages')
-                .select('id, content, created_at, edited_at, profile_id, profiles(name, avatar_url, "profileSlug")')
+                .select('id, content, created_at, edited_at, profile_id, ref_product_id, ref_store_id, ref_profile_id, profiles(name, avatar_url, "profileSlug")')
                 .eq('community_id', communityData.id)
                 .order('created_at', { ascending: true })
 
             if (messagesErr) throw messagesErr
 
-            setMessages(
-                (messagesData || []).map((m: any) => ({
-                    ...m,
-                    profiles: Array.isArray(m.profiles) ? m.profiles[0] : m.profiles,
-                }))
-            )
+            const loaded = (messagesData || []).map((m: any) => ({
+                ...m,
+                profiles: Array.isArray(m.profiles) ? m.profiles[0] : m.profiles,
+            }))
+            setMessages(loaded)
+            fetchShareCards(loaded).then((c) => setShareCards((prev) => ({ ...prev, ...c })))
         } catch (err: any) {
             console.error('[CommunityRoom] Erro ao carregar sala:', err)
             setError(err.message || 'Comunidade não encontrada')
@@ -245,7 +255,7 @@ export default function CommunityRoomClient() {
             toast.error('Entre na comunidade primeiro')
             return
         }
-        if (!messageInput.trim() || !community) return
+        if ((!messageInput.trim() && !pending) || !community) return
 
         setSending(true)
         try {
@@ -254,9 +264,10 @@ export default function CommunityRoomClient() {
                 .insert({
                     community_id: community.id,
                     profile_id: currentUserId,
-                    content: messageInput.trim(),
+                    content: messageInput.trim() || (pending ? SHARE_DEFAULT_TEXT[pending.kind] : ''),
+                    ...(pending ? refColumns(pending) : {}),
                 })
-                .select('id, content, created_at, edited_at, profile_id, profiles(name, avatar_url, "profileSlug")')
+                .select('id, content, created_at, edited_at, profile_id, ref_product_id, ref_store_id, ref_profile_id, profiles(name, avatar_url, "profileSlug")')
                 .single()
 
             if (error) throw error
@@ -265,6 +276,8 @@ export default function CommunityRoomClient() {
                 ...prev,
                 { ...data, profiles: Array.isArray(data.profiles) ? data.profiles[0] : data.profiles } as CommunityMessage,
             ])
+            if (pending) setShareCards((prev) => ({ ...prev, [`${pending.kind === 'store' ? 'store' : pending.kind === 'profile' ? 'profile' : 'product'}:${pending.id}`]: pending }))
+            setPending(null)
             setMessageInput('')
         } catch (err: any) {
             toast.error('Erro ao enviar mensagem: ' + (err.message || 'tente novamente'))
@@ -584,8 +597,18 @@ export default function CommunityRoomClient() {
                                             </div>
                                         ) : (
                                             <div className={`flex flex-col gap-1.5 mt-1 ${isMine ? 'items-end' : 'items-start'}`}>
+                                                {(() => {
+                                                    const key = cardKeyOf(message)
+                                                    const card = key ? shareCards[key] : null
+                                                    return card ? (
+                                                        <div className="w-full max-w-[320px] rounded-2xl overflow-hidden pt-2 pl-0 pr-0 pb-0" style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}>
+                                                            <ShareCardView card={card} colors={colors} />
+                                                        </div>
+                                                    ) : null
+                                                })()}
                                                 <div
                                                     className="rounded-2xl px-3 py-2 text-sm break-words whitespace-pre-wrap max-w-full"
+                                                    hidden={(() => { const k = cardKeyOf(message); return !!(k && shareCards[k] && isDefaultShareText(message.content)) })()}
                                                     style={
                                                         isMine
                                                             ? { background: GRADIENT, color: '#fff' }
@@ -645,7 +668,16 @@ export default function CommunityRoomClient() {
                             {extractFirstUrl(messageInput) && (
                                 <div className="max-w-[360px]"><LinkPreviewCard url={extractFirstUrl(messageInput)!} compact /></div>
                             )}
+                            {pending && (
+                                <div className="flex items-start gap-2">
+                                    <div className="flex-1 min-w-0 max-w-[360px] rounded-xl overflow-hidden" style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}>
+                                        <ShareCardView card={{ ...pending, href: '#' }} colors={colors} compact />
+                                    </div>
+                                    <button onClick={() => setPending(null)} aria-label="Tirar o item" className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: `${colors.border}50`, color: colors.textPrimary }}>×</button>
+                                </div>
+                            )}
                         <div className="flex gap-2">
+                            <button onClick={() => setShareOpen(true)} aria-label="Compartilhar loja, serviço, publicação ou perfil" className="w-11 rounded-xl flex items-center justify-center text-lg font-black transition active:scale-95" style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: '#f97316' }}>+</button>
                             <input
                                 type="text"
                                 value={messageInput}
@@ -663,7 +695,7 @@ export default function CommunityRoomClient() {
                             />
                             <button
                                 onClick={handleSend}
-                                disabled={!messageInput.trim() || sending}
+                                disabled={(!messageInput.trim() && !pending) || sending}
                                 className="px-4 py-2.5 rounded-xl transition-all hover:scale-105 disabled:opacity-50 flex items-center justify-center"
                                 style={{ background: GRADIENT, color: '#fff' }}
                             >
@@ -674,6 +706,7 @@ export default function CommunityRoomClient() {
                     )}
                 </div>
             </div>
+            <ShareSheet open={shareOpen} onClose={() => setShareOpen(false)} onPick={setPending} colors={colors} />
         </div>
     )
 }

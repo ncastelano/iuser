@@ -427,7 +427,19 @@ COMMUNITIES.forEach((c, ci) => {
         const author = pick(r, members)
         const isReply = i > 6 && r() < 0.35
         const age = Math.pow(r(), 2) * 6   // mais mensagens nos últimos dias
-        msgRows.push({ id: uid(`msg:${c.slug}:${i}`), community_id: id, profile_id: author.id, content: isReply ? pick(r, COMMUNITY_REPLIES) : pick(r, c.lines), created_at: daysAgo(age) })
+        const row = { id: uid(`msg:${c.slug}:${i}`), community_id: id, profile_id: author.id, content: isReply ? pick(r, COMMUNITY_REPLIES) : pick(r, c.lines), created_at: daysAgo(age), ref_product_id: null, ref_store_id: null, ref_profile_id: null }
+        // ~14% das mensagens compartilham um item (loja, serviço, produto, publicação ou perfil) como cartão
+        if (!isReply && r() < 0.14) {
+            const kind = pick(r, ['store', 'service', 'product', 'publication', 'profile'])
+            const st = pick(r, STORES)
+            if (kind === 'store') { row.ref_store_id = st.id; row.content = pick(r, ['Compartilhou uma loja', 'Olha essa loja, recomendo!', 'Quem precisa? Atendimento muito bom.']) }
+            else if (kind === 'profile') { row.ref_profile_id = pick(r, [...customers, ...owners]).id; row.content = pick(r, ['Compartilhou um perfil', 'Sigam essa pessoa!']) }
+            else {
+                const pool = st.items.filter((x) => kind === 'publication' ? x.kind === 'publication' : kind === 'service' ? x.type === 'service' && x.kind === 'sale' : x.type !== 'service' && x.kind === 'sale')
+                if (pool.length) { row.ref_product_id = pick(r, pool).id; row.content = pick(r, [`Compartilhou ${kind === 'publication' ? 'uma publicação' : kind === 'service' ? 'um serviço' : 'um produto'}`, 'Achei interessante, olhem!', 'Vale conferir.']) }
+            }
+        }
+        msgRows.push(row)
     }
 })
 await api('DELETE', `/rest/v1/communities?id=in.(${commRows.map((x) => x.id).join(',')})`, undefined, { Prefer: 'return=minimal' })
@@ -435,9 +447,52 @@ await upsertBatched('communities', commRows, 'id')
 await upsertBatched('community_members', memRows, 'id')
 await upsertBatched('community_messages', msgRows, 'id')
 
+// ---------- 9) conversas diretas da conta admin (admin-teste) com cartões compartilhados ----------
+const adminId = existing.get('ncastelano@gmail.com')
+let dmCount = 0
+if (adminId) {
+    const itemOf = (key, name) => storeByKey[key].items.find((i) => i.name === name)
+    const pubOf = (key, i = 0) => storeByKey[key].pubItems[i]
+    const convs = [
+        { key: 'padaria', store: true, msgs: [
+            ['me', 'Oi! Vocês entregam no Embratel?'],
+            ['them', 'Oi! Entregamos sim, taxa fixa de R$ 8. Olha nossa cesta de café, sai muito:', { ref_product_id: itemOf('padaria', 'Cesta de Café da Manhã (para 2)').id }],
+            ['me', 'Perfeito! E tem novidade essa semana?'],
+            ['them', 'Tem sim, vê o cardápio novo:', { ref_product_id: pubOf('padaria', 0).id }],
+            ['me', 'Obrigado! Vou pedir hoje. Aliás, minha mecânica de confiança é essa:', { ref_store_id: storeByKey.mecanica.id }],
+            ['them', 'Boa indicação, valeu! 🙏'],
+        ] },
+        { key: 'mecanica', msgs: [
+            ['me', 'Bom dia, Carlos! Preciso fazer a revisão do carro.'],
+            ['them', 'Bom dia! Esse é o serviço que você precisa:', { ref_product_id: itemOf('mecanica', 'Revisão Completa').id }],
+            ['me', 'Show! Dá para fazer sexta?'],
+            ['them', 'Dá sim, às 9h. Pode confirmar pela agenda da loja.'],
+        ] },
+        { key: 'psicologia', msgs: [
+            ['me', 'Oi, Helena! Indicaram você para mim.'],
+            ['them', 'Oi! Que bom. Segue meu perfil e a conversa de acolhimento, sem custo:', { ref_profile_id: byKey.psicologia.id }],
+            ['them', 'Esse é o atendimento:', { ref_product_id: itemOf('psicologia', 'Primeira Conversa de Acolhimento').id }],
+            ['me', 'Perfeito, vou agendar. Obrigada!'],
+        ] },
+    ]
+    for (const [ci, c] of convs.entries()) {
+        const id = uid(`dm:${c.key}`)
+        const st = storeByKey[c.key]
+        await api('DELETE', `/rest/v1/conversations?id=eq.${id}`, undefined, { Prefer: 'return=minimal' })
+        await upsert('conversations', [{ id, customer_id: adminId, owner_profile_id: c.store ? null : byKey[c.key].id, store_id: c.store ? st.id : null, kind: 'direct', created_at: daysAgo(3 - ci) }], 'id')
+        const base = Date.now() - (2 + ci) * 3600000 * 5
+        const rows = c.msgs.map(([who, content, ref], i) => {
+            const created = new Date(base + i * 7 * 60000).toISOString()
+            return { id: uid(`dmmsg:${c.key}:${i}`), conversation_id: id, sender_id: who === 'me' ? adminId : byKey[c.key].id, content, created_at: created, push_notified_at: created, ref_product_id: ref?.ref_product_id ?? null, ref_store_id: ref?.ref_store_id ?? null, ref_profile_id: ref?.ref_profile_id ?? null }
+        })
+        await upsertBatched('direct_messages', rows, 'id')
+        dmCount += rows.length
+    }
+}
+
 console.log(`
 Pronto.
   ${STORES.length} lojas | ${productRows.filter((p) => p.listing_type === 'sale' && p.type !== 'service').length} produtos | ${productRows.filter((p) => p.type === 'service').length} serviços | ${productRows.filter((p) => p.listing_type === 'publication').length} publicações
-  ${reviewRows.length} avaliações (${reviewLikeRows.length} curtidas) | ${followRows.length} seguidores | ${likeRows.length} curtidas | ${commentRows.length} comentários (${commentLikeRows.length} curtidas neles) | ${orderRows.length} pedidos | ${apptRows.length} agendamentos | ${reqRows.length} pedidos de serviço | ${commRows.length} comunidades (${msgRows.length} mensagens)
+  ${reviewRows.length} avaliações (${reviewLikeRows.length} curtidas) | ${followRows.length} seguidores | ${likeRows.length} curtidas | ${commentRows.length} comentários (${commentLikeRows.length} curtidas neles) | ${orderRows.length} pedidos | ${apptRows.length} agendamentos | ${reqRows.length} pedidos de serviço | ${commRows.length} comunidades (${msgRows.length} mensagens) | ${dmCount} mensagens diretas
   Lojas: ${STORES.map((s) => '/' + s.slug).join('  ')}
   Contas: donos owner-<segmento>@staging.iuser.test (lojista@staging.iuser.test na padaria) e clientes cliente-001..${String(N_CUSTOMERS).padStart(3, '0')}@staging.iuser.test; senha = STAGING_TEST_PASSWORD`)
