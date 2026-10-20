@@ -155,11 +155,8 @@ export default function StoreHeaderV3(p: StoreHeaderV3Props) {
                         </button>
                     ) : null
                     const contact = p.contactSlot
-                    const productsBtn = p.productsSecondary ? (
-                        <button onClick={p.onOpenCatalog} className="flex-1 min-w-0 h-10 rounded-full text-[12px] font-black flex items-center justify-center gap-1.5 transition active:scale-95" style={{ background: soft, color: colors.textPrimary }}>
-                            <ShoppingBag size={15} style={{ color: ORANGE }} /> Produtos
-                        </button>
-                    ) : null
+                    // loja de atendimento com produtos: os produtos ficam na aba "Produtos" (sem botão extra apertando a linha)
+                    const productsBtn = null
                     return (
                         <>
                             <div className="mt-3 flex items-center gap-2">
