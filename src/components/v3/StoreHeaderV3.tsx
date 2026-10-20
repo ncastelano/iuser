@@ -45,7 +45,6 @@ export interface StoreHeaderV3Props {
     chatSaving: boolean
     onToggleChat: () => void
     onOpenAgendaDialog: () => void
-    hasProducts: boolean
     /** botão "Conversar" (quando o chat da loja está ativo e quem vê não é o dono) */
     contactSlot?: ReactNode
     /** Clube VIP e demais blocos que já existiam no cabeçalho da v2 */

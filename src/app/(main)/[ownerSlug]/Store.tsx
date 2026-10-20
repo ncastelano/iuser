@@ -957,7 +957,6 @@ export function Store({
                     chatSaving={chatSaving}
                     onToggleChat={() => handleToggleChat(!owner.chat_enabled)}
                     onOpenAgendaDialog={() => setShowAgendaDialog(true)}
-                    hasProducts={products.length > 0}
                     contactSlot={owner.chat_enabled && !isOwner ? <ChatContactButton storeId={owner.id} colors={colors} variant="v3quiet" label="Falar com a loja" /> : undefined}
                     extraSlot={<StoreVipClubMember storeId={owner.id} userId={currentUserId} />}
                     ownerToolsSlot={isOwner && !isStoreOpen ? (
