@@ -464,7 +464,7 @@ function SerParceiroContent() {
                                                     onClick={() => handleApply(job)}
                                                     disabled={applied || applyingKey === key || autoApplyingId === job.id}
                                                     className={v3
-                                                        ? 'mt-1 w-full h-10 rounded-full text-[13px] font-black transition active:scale-95 disabled:opacity-70 flex items-center justify-center gap-2'
+                                                        ? 'mt-1 self-start h-9 px-6 rounded-full text-[13px] font-black transition active:scale-95 disabled:opacity-70 flex items-center justify-center gap-2'
                                                         : 'mt-auto w-full py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all disabled:opacity-70 flex items-center justify-center gap-2'}
                                                     style={
                                                         applied

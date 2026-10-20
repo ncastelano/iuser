@@ -7,6 +7,7 @@ import { Store, MapPin, Clock, Eye, ShoppingCart, Coffee } from 'lucide-react'
 import { resolveCategoria } from '@/lib/categorias'
 import { RatingStars } from '@/components/ratings/RatingStars'
 import { isStoreOpenNow, getStoreStatusText, type BusinessHours } from '@/lib/storeHours'
+import { useInsideShell } from '@/components/InsideShell'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -85,6 +86,7 @@ export function StoreCard({
     onClick: () => void
     colors: any
 }) {
+    const v3 = useInsideShell()
     const isOpen = isStoreOpenNow(store.business_hours)
     const addressShort = store.address ? store.address.split(',')[0]?.trim() || store.address : ''
 
@@ -97,6 +99,42 @@ export function StoreCard({
     const categoryInfo = resolveCategoria(store.category)
     const categoryColor = categoryInfo?.color || '#f97316'
     const categoryName = categoryInfo?.nome || store.category || null
+
+    // v3: linha de loja (sem capa nem cartão): logo quadrado, nome, nota, endereço e situação; miniaturas do que ela vende
+    if (v3) {
+        return (
+            <div onClick={onClick} className="py-3.5 flex gap-3 cursor-pointer transition active:opacity-80" style={{ borderBottom: `1px solid ${colors.border}50` }}>
+                <div className="w-16 h-16 rounded-2xl overflow-hidden flex-shrink-0 flex items-center justify-center" style={{ background: '#f9731620' }}>
+                    {hasLogo
+                        ? <img src={store.logo_url!} alt="" className="w-full h-full object-cover" loading="lazy" />
+                        : <span className="text-2xl font-black" style={{ color: '#f97316' }}>{store.name.charAt(0).toUpperCase()}</span>}
+                </div>
+                <div className="min-w-0 flex-1">
+                    <h3 className="text-[15px] font-black leading-tight truncate" style={{ color: colors.textPrimary }}>{store.name}</h3>
+                    <p className="mt-0.5 text-[12px] truncate" style={{ color: colors.textSecondary }}>
+                        {[categoryName, addressShort].filter(Boolean).join(' · ')}
+                    </p>
+                    <div className="mt-1 flex items-center gap-2 flex-wrap text-[12px]" style={{ color: colors.textSecondary }}>
+                        {hasRating && (
+                            <span className="flex items-center gap-1"><RatingStars value={store.ratings_avg || 0} size={11} /><b style={{ color: colors.textPrimary }}>{store.ratings_avg?.toFixed(1)}</b> ({store.ratings_count})</span>
+                        )}
+                        <span className="font-black" style={{ color: isOpen ? '#16a34a' : '#ef4444' }}>{isOpen ? 'Aberto agora' : 'Fechado'}</span>
+                    </div>
+                    {products.length > 0 && (
+                        <div className="mt-2 flex items-center gap-1.5">
+                            {(store.top_products || []).slice(0, 4).map((product) => (
+                                <span key={product.id} className="w-11 h-11 rounded-xl overflow-hidden flex-shrink-0 flex items-center justify-center" style={{ background: `${colors.border}40` }}>
+                                    {product.image_url
+                                        ? <img src={product.image_url} alt="" className="w-full h-full object-cover" loading="lazy" />
+                                        : <ShoppingCart className="w-4 h-4 opacity-40" style={{ color: colors.textPrimary }} />}
+                                </span>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            </div>
+        )
+    }
 
     return (
         <div

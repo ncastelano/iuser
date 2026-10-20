@@ -1,6 +1,7 @@
 // app/(main)/comunidade/page.tsx
 'use client'
 
+import { useInsideShell } from '@/components/InsideShell'
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -55,6 +56,7 @@ interface CommunityCard {
 }
 
 export default function ComunidadePage() {
+    const v3 = useInsideShell()   // v3: lista corrida, sem cartões; só as 3 últimas conversas na prévia
     const router = useRouter()
     const { userId, avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
     const { colors } = useTheme()
@@ -540,13 +542,13 @@ export default function ComunidadePage() {
                                 )}
                                 <Link href={`/comunidade/${community.slug}`} className="block group">
                                     <div
-                                        className="rounded-2xl p-4 border transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5"
-                                        style={{ background: cardBg, backdropFilter: 'blur(12px)', borderColor: sv?.pinned ? `${colors.accent}80` : colors.border, boxShadow: colors.shadow }}
+                                        className={v3 ? 'py-4 transition-opacity active:opacity-80' : 'rounded-2xl p-4 border transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5'}
+                                        style={v3 ? { borderBottom: `1px solid ${colors.border}50` } : { background: cardBg, backdropFilter: 'blur(12px)', borderColor: sv?.pinned ? `${colors.accent}80` : colors.border, boxShadow: colors.shadow }}
                                     >
                                         <div className="flex gap-4 items-center">
                                             <div
-                                                className="w-16 h-16 rounded-2xl overflow-hidden flex items-center justify-center flex-shrink-0"
-                                                style={{ background: GRADIENT, color: '#fff' }}
+                                                className={`${v3 ? 'w-14 h-14' : 'w-16 h-16'} rounded-2xl overflow-hidden flex items-center justify-center flex-shrink-0`}
+                                                style={{ background: v3 ? '#f97316' : GRADIENT, color: '#fff' }}
                                             >
                                                 {community.image_url
                                                     ? <img src={community.image_url} alt="" className="w-full h-full object-cover" loading="lazy" />
@@ -608,11 +610,11 @@ export default function ComunidadePage() {
 
                                         {/* Últimas conversas (até 10) */}
                                         {community.recent.length > 0 && (
-                                            <div className="mt-3 pt-3 border-t flex flex-col gap-2" style={{ borderColor: colors.border }}>
+                                            <div className={v3 ? 'mt-3 flex flex-col gap-2' : 'mt-3 pt-3 border-t flex flex-col gap-2'} style={v3 ? undefined : { borderColor: colors.border }}>
                                                 <p className="text-[10px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>
                                                     Últimas conversas
                                                 </p>
-                                                {community.recent.map((m) => (
+                                                {(v3 ? community.recent.slice(-3) : community.recent).map((m) => (
                                                     <div key={m.id} className="flex items-start gap-2">
                                                         {m.avatar ? (
                                                             <img src={m.avatar} alt="" className="w-6 h-6 rounded-full object-cover flex-shrink-0" loading="lazy" />
@@ -654,9 +656,9 @@ export default function ComunidadePage() {
                         setShowCreateModal(true)
                     }}
                     className={`${menuFor ? 'hidden' : ''} fixed bottom-24 right-6 z-40 flex items-center gap-2 px-5 py-3.5 rounded-full font-black text-xs uppercase tracking-wider shadow-2xl transition-transform hover:scale-105 active:scale-95`}
-                    style={{ background: GRADIENT, color: '#fff', boxShadow: `0 8px 24px #14b8a660` }}
+                    style={v3 ? { background: '#f97316', color: '#fff' } : { background: GRADIENT, color: '#fff', boxShadow: `0 8px 24px #14b8a660` }}
                 >
-                    <Plus size={16} /> Criar Comunidade
+                    <Plus size={16} /> {v3 ? 'Criar comunidade' : 'Criar Comunidade'}
                 </button>
 
                 {showCreateModal && userId && (

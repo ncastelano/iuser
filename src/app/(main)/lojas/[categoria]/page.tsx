@@ -1,6 +1,7 @@
 // app/(main)/lojas/[categoria]/page.tsx
 'use client'
 
+import { useInsideShell } from '@/components/InsideShell'
 import { useMemo, useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
@@ -160,6 +161,7 @@ const convertBusinessHours = (data: any): BusinessHours | null => {
 
 // ===== COMPONENTE PRINCIPAL =====
 export default function ListaCategoriaPage() {
+    const v3 = useInsideShell()
     const params = useParams()
     const router = useRouter()
     const categoriaRaw = params.categoria
@@ -652,7 +654,7 @@ export default function ListaCategoriaPage() {
                                         </span>
                                     </div>
 
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                    <div className={v3 ? 'flex flex-col' : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4'}>
                                         {currentItems.map((store) => (
                                             <StoreCard
                                                 key={store.id}

@@ -9,7 +9,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
 import sharp from 'sharp'
-import { STORES, LINKS, FIRST, LAST, COMMENTS, PRAISE, REPLY_PEERS, THANKS, QA, SERVICE_REQUESTS } from './ecosystem-data.mjs'
+import { STORES, LINKS, FIRST, LAST, COMMENTS, PRAISE, REPLY_PEERS, THANKS, QA, SERVICE_REQUESTS, COMMUNITIES, COMMUNITY_REPLIES } from './ecosystem-data.mjs'
 
 const PROD_REF = 'mqtwehsmkuknkrtrqbnf'
 const file = path.resolve(import.meta.dirname, '..', '..', '.env.staging.local')
@@ -413,9 +413,31 @@ await api('DELETE', `/rest/v1/service_requests?id=in.(${reqRows.map((x) => x.id)
 await upsertBatched('service_requests', reqRows, 'id')
 await upsertBatched('service_applications', appRows, 'id')
 
+// ---------- 8) comunidades (salas de conversa) com membros e mensagens recentes ----------
+const memRows = []
+const msgRows = []
+const commRows = COMMUNITIES.map((c) => ({ id: uid(`comm:${c.slug}`), slug: c.slug, name: c.name, city: c.city, description: c.description, creator_id: byKey.padaria.id, scope: c.scope, is_listed: true, requires_password: false, kind: c.kind, created_at: daysAgo(60 + (hash(c.slug) % 90)) }))
+COMMUNITIES.forEach((c, ci) => {
+    const r = rng(`comm:${c.slug}`)
+    const id = commRows[ci].id
+    const pool = [...customers, ...owners].map((p) => ({ p, k: r() })).sort((a, b) => a.k - b.k).map((x) => x.p)
+    const members = pool.slice(0, c.members)
+    members.forEach((p) => memRows.push({ id: uid(`mem:${c.slug}:${p.id}`), community_id: id, profile_id: p.id, joined_at: daysAgo(1 + r() * 50) }))
+    for (let i = 0; i < c.messages; i++) {
+        const author = pick(r, members)
+        const isReply = i > 6 && r() < 0.35
+        const age = Math.pow(r(), 2) * 6   // mais mensagens nos últimos dias
+        msgRows.push({ id: uid(`msg:${c.slug}:${i}`), community_id: id, profile_id: author.id, content: isReply ? pick(r, COMMUNITY_REPLIES) : pick(r, c.lines), created_at: daysAgo(age) })
+    }
+})
+await api('DELETE', `/rest/v1/communities?id=in.(${commRows.map((x) => x.id).join(',')})`, undefined, { Prefer: 'return=minimal' })
+await upsertBatched('communities', commRows, 'id')
+await upsertBatched('community_members', memRows, 'id')
+await upsertBatched('community_messages', msgRows, 'id')
+
 console.log(`
 Pronto.
   ${STORES.length} lojas | ${productRows.filter((p) => p.listing_type === 'sale' && p.type !== 'service').length} produtos | ${productRows.filter((p) => p.type === 'service').length} serviços | ${productRows.filter((p) => p.listing_type === 'publication').length} publicações
-  ${reviewRows.length} avaliações (${reviewLikeRows.length} curtidas) | ${followRows.length} seguidores | ${likeRows.length} curtidas | ${commentRows.length} comentários (${commentLikeRows.length} curtidas neles) | ${orderRows.length} pedidos | ${apptRows.length} agendamentos | ${reqRows.length} pedidos de serviço
+  ${reviewRows.length} avaliações (${reviewLikeRows.length} curtidas) | ${followRows.length} seguidores | ${likeRows.length} curtidas | ${commentRows.length} comentários (${commentLikeRows.length} curtidas neles) | ${orderRows.length} pedidos | ${apptRows.length} agendamentos | ${reqRows.length} pedidos de serviço | ${commRows.length} comunidades (${msgRows.length} mensagens)
   Lojas: ${STORES.map((s) => '/' + s.slug).join('  ')}
   Contas: donos owner-<segmento>@staging.iuser.test (lojista@staging.iuser.test na padaria) e clientes cliente-001..${String(N_CUSTOMERS).padStart(3, '0')}@staging.iuser.test; senha = STAGING_TEST_PASSWORD`)
