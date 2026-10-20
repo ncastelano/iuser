@@ -1380,12 +1380,15 @@ export function Store({
                 {/* TAB PRODUTOS / SERVIÇOS (mesmo layout, listas separadas) */}
                 {(activeTab === 'products' || activeTab === 'services') && (
                     <div className={v3 ? '' : 'rounded-2xl p-4'} style={v3 ? undefined : cardStyle}>
-                        <div className="flex items-center gap-2 mb-3">
-                            <ShoppingCart size={16} style={{ color: '#f97316' }} />
-                            <h3 className="text-xs font-black uppercase tracking-widest" style={{ color: colors.textPrimary }}>
-                                {activeTab === 'services' ? 'Serviços' : 'Produtos'}
-                            </h3>
-                            {!isStoreOpen && (
+                        {/* v3: a aba já diz "Produtos"/"Serviços" e o cabeçalho já diz se está fechada: sem título repetido (só o botão do dono) */}
+                        <div className={`flex items-center gap-2 ${v3 ? (isOwner && storeSubscriptionActive !== false ? 'mb-3' : 'hidden') : 'mb-3'}`}>
+                            {!v3 && <ShoppingCart size={16} style={{ color: '#f97316' }} />}
+                            {!v3 && (
+                                <h3 className="text-xs font-black uppercase tracking-widest" style={{ color: colors.textPrimary }}>
+                                    {activeTab === 'services' ? 'Serviços' : 'Produtos'}
+                                </h3>
+                            )}
+                            {!v3 && !isStoreOpen && (
                                 <span className="text-[8px] font-bold px-2 py-0.5 rounded-full" style={{ background: '#ef444420', color: '#ef4444' }}>
                                     Fechado
                                 </span>
@@ -1612,8 +1615,9 @@ export function Store({
 
                 {/* TAB AVALIAÇÕES */}
                 {activeTab === 'reviews' && (
-                    <div className="rounded-2xl p-4" style={cardStyle}>
-                        <div className="flex items-center gap-2 mb-3">
+                    <div className={v3 ? '' : 'rounded-2xl p-4'} style={v3 ? undefined : cardStyle}>
+                        {/* v3: a aba já diz "Avaliações" e a nota já aparece no cabeçalho: sem título nem cartão */}
+                        <div className={`flex items-center gap-2 mb-3 ${v3 ? 'hidden' : ''}`}>
                             <Star size={16} style={{ color: '#f97316' }} />
                             <h3 className="text-xs font-black uppercase tracking-widest" style={{ color: colors.textPrimary }}>
                                 Avaliações

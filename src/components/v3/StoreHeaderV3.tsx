@@ -179,12 +179,6 @@ export default function StoreHeaderV3(p: StoreHeaderV3Props) {
 
                 {p.extraSlot && <div className="mt-2">{p.extraSlot}</div>}
 
-                {!p.isOpen && (
-                    <p className="mt-3 text-[11px] font-medium leading-snug" style={{ color: colors.textSecondary }}>
-                        {p.hasProducts ? 'Toque num produto para ver os detalhes.' : 'Ainda sem produtos.'}
-                    </p>
-                )}
-
                 {p.ownerToolsSlot && <div className="mt-2">{p.ownerToolsSlot}</div>}
             </div>
         </section>
