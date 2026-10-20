@@ -3,7 +3,7 @@
 // MODELO INICIAL — proposta de página inicial pensada em quem usa: o que ela pode
 // FAZER aqui e o que existe pra ela VER. Mesmos dados reais da home, outra organização:
 //   topo: selo (logo/foto), cumprimento, atalhos de conversas e carrinho (com selos) e sair; busca;
-//   1) "Precisando..." / "Quero ganhar com o iUser", e o card Social;
+//   1) "Precisando..." / "Quero ganhar com o iUser", e os cartões Social e Comunidades (cada um com o que existe nele);
 //   2) categorias;  3) vitrines, uma por tipo, cada tipo com a SUA cor e o seu rótulo;  4) convite final.
 // Todos os cartões das vitrines têm o mesmo tamanho (nem miúdos, nem gigantes) pra a página ter ritmo.
 'use client'
@@ -83,93 +83,79 @@ function SellCta({ colors, onStore, onService, onProduct }: { colors: any; onSto
     )
 }
 
-// Card "Social": pessoas e comunidades num lugar só. Duas metades tocáveis — as pessoas (pilha de fotos dos perfis
-// mais pontuados) e as comunidades (pilha de fotos + a que está mais movimentada) —, cada uma na cor do seu tipo.
-function SocialCard({ people, communities, colors, go }: {
-    people: { id: string; slug: string; avatar: string | null }[] | null
-    communities: { id: string; name: string; members: number; image: string | null; activity: { photoVoteActive?: boolean } | null }[] | null
-    colors: any
-    go: (p: string) => void
+// "Social" e "Comunidades" são coisas diferentes e cada uma tem o seu cartão, mostrando o que existe lá dentro (não só o convite):
+// Social = as pessoas em alta (foto, @, colocação e pontos); Comunidades = as salas mais movimentadas com a última mensagem.
+function EntryCard({ color, icon: Icon, title, subtitle, onClick, colors, children }: {
+    color: string; icon: LucideIcon; title: string; subtitle: string; onClick: () => void; colors: any; children: ReactNode
 }) {
-    const P = TYPE.pessoa.color
-    const C = TYPE.comunidade.color
-    const ppl = (people || []).slice(0, 5)
-    const comms = (communities || []).slice(0, 3)
-    const top = communities && communities[0]
     return (
-        <div
-            className="mt-5 rounded-3xl border overflow-hidden"
-            style={{ background: `linear-gradient(135deg, ${P}14, ${C}14)`, borderColor: colors.border, boxShadow: colors.shadow }}
-        >
-            <button onClick={() => go('/social')} className="w-full flex items-center gap-3 px-4 pt-4 pb-3 text-left">
-                <span className="w-11 h-11 rounded-2xl flex items-center justify-center text-white flex-shrink-0" style={{ background: `linear-gradient(135deg, ${P}, ${C})` }}>
-                    <Users size={22} />
+        <div className="rounded-3xl border overflow-hidden flex flex-col" style={{ background: colors.surface, borderColor: `${color}55`, boxShadow: colors.shadow }}>
+            <button onClick={onClick} className="w-full flex items-center gap-3 px-4 pt-4 pb-3 text-left">
+                <span className="w-11 h-11 rounded-2xl flex items-center justify-center text-white flex-shrink-0" style={{ background: color }}>
+                    <Icon size={22} />
                 </span>
                 <span className="min-w-0 flex-1">
-                    <span className="block text-[15px] font-black leading-tight" style={{ color: colors.textPrimary }}>Social</span>
-                    <span className="block text-xs leading-snug" style={{ color: colors.textSecondary }}>Quem está no iUser e onde a conversa acontece</span>
+                    <span className="block text-[15px] font-black leading-tight" style={{ color: colors.textPrimary }}>{title}</span>
+                    <span className="block text-xs leading-snug truncate" style={{ color: colors.textSecondary }}>{subtitle}</span>
                 </span>
                 <ChevronRight size={18} className="flex-shrink-0" style={{ color: colors.textSecondary }} />
             </button>
-
-            <div className="grid grid-cols-2 gap-3 px-3 pb-3">
-                {/* Pessoas */}
-                <button
-                    onClick={() => go('/social')}
-                    className="rounded-2xl p-3 text-left border flex flex-col gap-2.5 transition hover:-translate-y-0.5 active:scale-[0.98]"
-                    style={{ background: colors.surface, borderColor: `${P}45` }}
-                >
-                    <span className="self-start text-[10px] font-black uppercase tracking-wide px-2 py-0.5 rounded-full text-white" style={{ background: P }}>Pessoas</span>
-                    <span className="flex items-center h-10">
-                        {people === null ? (
-                            <span className="h-10 w-24 rounded-full animate-pulse" style={{ background: `${colors.border}60` }} />
-                        ) : ppl.length === 0 ? (
-                            <Users size={26} style={{ color: P }} />
-                        ) : (
-                            <span className="flex -space-x-3">
-                                {ppl.map((p) => (
-                                    p.avatar
-                                        ? <img key={p.id} src={p.avatar} alt="" className="w-10 h-10 rounded-full object-cover" style={{ border: `2px solid ${colors.surface}` }} loading="lazy" />
-                                        : <span key={p.id} className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-black" style={{ background: GRADIENT, border: `2px solid ${colors.surface}` }}>{p.slug.charAt(0).toUpperCase()}</span>
-                                ))}
-                            </span>
-                        )}
-                    </span>
-                    <span className="block text-xs leading-snug" style={{ color: colors.textSecondary }}>
-                        {ppl.length > 0 ? <>Siga <b style={{ color: colors.textPrimary }}>@{ppl[0].slug}</b>{ppl[1] ? <> e outros perfis em alta</> : ' e outros perfis em alta'}</> : 'Descubra perfis e siga quem você gosta'}
-                    </span>
-                </button>
-
-                {/* Comunidades */}
-                <button
-                    onClick={() => go('/comunidade')}
-                    className="rounded-2xl p-3 text-left border flex flex-col gap-2.5 transition hover:-translate-y-0.5 active:scale-[0.98]"
-                    style={{ background: colors.surface, borderColor: `${C}45` }}
-                >
-                    <span className="self-start text-[10px] font-black uppercase tracking-wide px-2 py-0.5 rounded-full text-white" style={{ background: C }}>Comunidades</span>
-                    <span className="flex items-center h-10">
-                        {communities === null ? (
-                            <span className="h-10 w-24 rounded-xl animate-pulse" style={{ background: `${colors.border}60` }} />
-                        ) : comms.length === 0 ? (
-                            <MessageCircle size={26} style={{ color: C }} />
-                        ) : (
-                            <span className="flex -space-x-3">
-                                {comms.map((c) => (
-                                    c.image
-                                        ? <img key={c.id} src={c.image} alt="" className="w-10 h-10 rounded-xl object-cover" style={{ border: `2px solid ${colors.surface}` }} loading="lazy" />
-                                        : <span key={c.id} className="w-10 h-10 rounded-xl flex items-center justify-center text-white" style={{ background: C, border: `2px solid ${colors.surface}` }}><MessageCircle size={16} /></span>
-                                ))}
-                            </span>
-                        )}
-                    </span>
-                    <span className="block text-xs leading-snug" style={{ color: colors.textSecondary }}>
-                        {top ? (
-                            <><b className="block truncate" style={{ color: colors.textPrimary }}>{top.name}</b>{top.activity?.photoVoteActive ? 'Votação de foto rolando' : `${top.members} ${top.members === 1 ? 'membro' : 'membros'}`}</>
-                        ) : 'Converse com quem é da sua cidade'}
-                    </span>
-                </button>
-            </div>
+            <div className="px-2 pb-2 flex flex-col">{children}</div>
         </div>
+    )
+}
+
+function SocialEntry({ people, total, colors, go }: { people: PersonItem[] | null; total: number | null; colors: any; go: (p: string) => void }) {
+    const P = TYPE.pessoa.color
+    const top = (people || []).slice(0, 3)
+    return (
+        <EntryCard color={P} icon={Users} title="Social" subtitle={total != null ? `${total} ${total === 1 ? 'pessoa' : 'pessoas'} no iUser · veja os perfis em alta` : 'Os perfis em alta do iUser'} onClick={() => go('/social')} colors={colors}>
+            {people === null ? (
+                [0, 1, 2].map((i) => <span key={i} className="h-12 mx-1 my-1 rounded-2xl animate-pulse" style={{ background: `${colors.border}40` }} />)
+            ) : top.length === 0 ? (
+                <p className="px-3 pb-3 text-xs" style={{ color: colors.textSecondary }}>Descubra perfis e siga quem você gosta.</p>
+            ) : top.map((p) => (
+                <button key={p.id} onClick={() => go(`/${p.slug}`)} className="flex items-center gap-3 px-2 py-2 rounded-2xl text-left transition active:scale-[0.99] hover:bg-black/5">
+                    {p.avatar
+                        ? <img src={p.avatar} alt="" className="w-10 h-10 rounded-full object-cover flex-shrink-0" loading="lazy" />
+                        : <span className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-black flex-shrink-0" style={{ background: P }}>{p.slug.charAt(0).toUpperCase()}</span>}
+                    <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-black truncate" style={{ color: colors.textPrimary }}>@{p.slug}</span>
+                        <span className="block text-[11px]" style={{ color: colors.textSecondary }}>{p.points} pts em Melhores perfis</span>
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full text-[11px] font-black flex-shrink-0" style={rankStyle(p.rank)}>#{p.rank + 1}</span>
+                </button>
+            ))}
+        </EntryCard>
+    )
+}
+
+function ComunidadesEntry({ communities, colors, go }: { communities: CommunityItem[] | null; colors: any; go: (p: string) => void }) {
+    const C = TYPE.comunidade.color
+    const top = (communities || []).slice(0, 3)
+    return (
+        <EntryCard color={C} icon={MessageCircle} title="Comunidades" subtitle={communities ? `${communities.length} ${communities.length === 1 ? 'sala' : 'salas'} de conversa · veja o que estão falando` : 'Converse com quem é da sua cidade'} onClick={() => go('/comunidade')} colors={colors}>
+            {communities === null ? (
+                [0, 1, 2].map((i) => <span key={i} className="h-12 mx-1 my-1 rounded-2xl animate-pulse" style={{ background: `${colors.border}40` }} />)
+            ) : top.length === 0 ? (
+                <p className="px-3 pb-3 text-xs" style={{ color: colors.textSecondary }}>Converse com quem é da sua cidade.</p>
+            ) : top.map((c) => (
+                <button key={c.id} onClick={() => go(`/comunidade/${c.slug}`)} className="flex items-center gap-3 px-2 py-2 rounded-2xl text-left transition active:scale-[0.99] hover:bg-black/5">
+                    {c.image
+                        ? <img src={c.image} alt="" className="w-10 h-10 rounded-xl object-cover flex-shrink-0" loading="lazy" />
+                        : <span className="w-10 h-10 rounded-xl flex items-center justify-center text-white flex-shrink-0" style={{ background: C }}><MessageCircle size={18} /></span>}
+                    <span className="min-w-0 flex-1">
+                        <span className="flex items-center gap-1.5">
+                            <span className="text-sm font-black truncate" style={{ color: colors.textPrimary }}>{c.name}</span>
+                            <span className="text-[11px] flex-shrink-0" style={{ color: colors.textSecondary }}>· {c.members} {c.members === 1 ? 'membro' : 'membros'}</span>
+                        </span>
+                        <span className="block text-[12px] truncate" style={{ color: colors.textSecondary }}>
+                            {c.activity?.photoVoteActive ? 'Votação de foto rolando agora' : c.last ? <><b style={{ color: colors.textPrimary }}>{c.last.author}:</b> {c.last.text}</> : 'Seja o primeiro a falar'}
+                        </span>
+                    </span>
+                </button>
+            ))}
+        </EntryCard>
     )
 }
 
@@ -262,7 +248,7 @@ interface ServiceItem {
     ownerId?: string | null
 }
 interface PersonItem { id: string; slug: string; avatar: string | null; points: number; rank: number }
-interface CommunityItem { id: string; slug: string; name: string; city: string; members: number; image: string | null; activity: CommunityActivity | null }
+interface CommunityItem { id: string; slug: string; name: string; city: string; members: number; image: string | null; activity: CommunityActivity | null; last: { author: string; text: string } | null }
 
 const toPublicImage = (bucket: string, path: string | null | undefined) => {
     if (!path) return null
@@ -350,6 +336,7 @@ export default function ModeloInicialPage() {
     const [requests, setRequests] = useState<BoardItem[] | null>(null)
     const [people, setPeople] = useState<PersonItem[] | null>(null)
     const [communities, setCommunities] = useState<CommunityItem[] | null>(null)
+    const [peopleTotal, setPeopleTotal] = useState<number | null>(null)
 
     useEffect(() => {
         let cancelled = false
@@ -437,6 +424,11 @@ export default function ModeloInicialPage() {
         safe(() => fetchOpenBoardItems(10), setRequests, [])
 
         safe(async () => {
+            const { count } = await supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('is_active', true)
+            return count ?? null
+        }, setPeopleTotal, null)
+
+        safe(async () => {
             const { data: ranked } = await supabase.rpc('get_best_profiles', { p_limit: 10 })
             const rows = (ranked as { id: string; points: number }[]) || []
             if (rows.length === 0) return []
@@ -466,10 +458,19 @@ export default function ModeloInicialPage() {
             ])
             const counts = new Map<string, number>()
             ;(mem || []).forEach((m: any) => counts.set(m.community_id, (counts.get(m.community_id) || 0) + 1))
+            // última mensagem de cada sala (links viram palavra: o endereço inteiro não cabe nem ajuda)
+            const { data: msgs } = await supabase.from('community_messages').select('community_id, profile_id, content, created_at').in('community_id', ids).order('created_at', { ascending: false }).limit(80)
+            const lastBy = new Map<string, { profile_id: string; content: string }>()
+            ;(msgs || []).forEach((m: any) => { if (!lastBy.has(m.community_id)) lastBy.set(m.community_id, m) })
+            const authorIds = [...new Set([...lastBy.values()].map((m) => m.profile_id))]
+            const { data: authors } = authorIds.length ? await supabase.from('profiles').select('id, "profileSlug", name').in('id', authorIds) : { data: [] as any[] }
+            const authorName = new Map((authors || []).map((a: any) => [a.id, a.profileSlug ? `@${a.profileSlug}` : (a.name || 'Alguém')]))
+            const say = (t: string) => (t || '').replace(/(https?:\/\/[^\s<>"']+)/gi, (u) => (/\.(png|jpe?g|gif|webp|avif)(\?|$)/i.test(u) ? '📷 imagem' : '🔗 link do iUser')).trim()
             return list
                 .map((c: any) => ({
                     id: c.id, slug: c.slug, name: c.name, city: c.city,
                     members: counts.get(c.id) || 0, image: c.image_url || null, activity: act[c.id] || null,
+                    last: lastBy.has(c.id) ? { author: authorName.get(lastBy.get(c.id)!.profile_id) || 'Alguém', text: say(lastBy.get(c.id)!.content) } : null,
                 }))
                 .sort((a: CommunityItem, b: CommunityItem) => (b.activity?.activityAt || 0) - (a.activity?.activityAt || 0)) as CommunityItem[]
         }, setCommunities, [])
@@ -606,8 +607,11 @@ export default function ModeloInicialPage() {
                                 })}
                             </div>
 
-                            {/* Social: um lugar pra estar, não uma ação — card próprio com pessoas e comunidades */}
-                            <SocialCard people={people} communities={communities} colors={colors} go={go} />
+                            {/* Social e Comunidades: lugares pra estar, não ações — cada um com o seu cartão e o que existe nele */}
+                            <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <SocialEntry people={people} total={peopleTotal} colors={colors} go={go} />
+                                <ComunidadesEntry communities={communities} colors={colors} go={go} />
+                            </div>
                         </section>
 
                         {/* ===== 2. CATEGORIAS — as que já têm loja em destaque; as vazias convidam a abrir a primeira ===== */}
