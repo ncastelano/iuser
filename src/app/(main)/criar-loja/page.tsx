@@ -37,6 +37,8 @@ import { categorias } from "@/lib/categorias";
 import { checkSlugAvailability, getSlugSuggestions, sanitizeSlug } from "@/lib/slugUtils";
 import { useInsideShell } from "@/components/InsideShell";
 import { useTheme } from "@/app/contexts/theme";
+import LinkListInput, { type LinkRow } from "@/components/v3/LinkListInput";
+import { linksFromRows } from "@/lib/storeLinks";
 
 // Filtra as categorias para remover "Social"
 const CATEGORIAS_LOJAS = categorias.filter(cat => cat.slug !== 'social');
@@ -194,6 +196,8 @@ export default function CriarLoja() {
   const [whatsappError, setWhatsappError] = useState("");
   const [whatsappOrders, setWhatsappOrders] = useState(false);
   const [showWhatsapp, setShowWhatsapp] = useState(false);
+  // Links da loja (texto + endereço): aparecem embaixo da descrição na página da loja
+  const [linkRows, setLinkRows] = useState<LinkRow[]>([]);
 
   const [selectedPosition, setSelectedPosition] = useState<{ lat: number; lng: number }>({
     lat: -15.7801,
@@ -589,14 +593,16 @@ export default function CriarLoja() {
       return;
     }
 
+    // WhatsApp é opcional; se a pessoa preencheu, tem que ser um número válido
     const whatsappClean = whatsapp.replace(/\D/g, '');
-    if (!whatsappClean || whatsappClean.length < 10) {
-      toast.error("Digite um número de WhatsApp válido com DDD");
+    if (whatsappClean && (whatsappClean.length < 10 || whatsappClean.length > 13)) {
+      toast.error("Digite um número de WhatsApp válido com DDD (ou deixe em branco)");
       return;
     }
 
-    if (whatsappClean.length > 13) {
-      toast.error("Número de WhatsApp inválido");
+    const parsedLinks = linksFromRows(linkRows);
+    if (!parsedLinks.ok) {
+      toast.error(parsedLinks.error);
       return;
     }
 
@@ -654,7 +660,7 @@ export default function CriarLoja() {
         address_number: addressNumber,
         address_complement: addressComplement || null,
         category: categoryName,
-        whatsapp: whatsappClean,
+        whatsapp: whatsappClean || null,
       },
     });
 
@@ -664,10 +670,13 @@ export default function CriarLoja() {
       return;
     }
 
-    // Os dois começam desmarcados: grava explicitamente a escolha da pessoa.
+    // v3: sem os dois interruptores do WhatsApp (não incentivamos): número preenchido aparece como link na página; pedidos só pelo iUser.
+    // Os links da loja entram aqui. v2: grava explicitamente a escolha da pessoa nos interruptores.
     await supabase
       .from("stores")
-      .update({ whatsapp_orders_enabled: whatsappOrders, show_whatsapp: showWhatsapp })
+      .update(v3
+        ? { links: parsedLinks.links, whatsapp_orders_enabled: false, show_whatsapp: !!whatsappClean }
+        : { whatsapp_orders_enabled: whatsappOrders, show_whatsapp: showWhatsapp })
       .eq("storeSlug", storeSlug);
 
     setLoading(false);
@@ -714,7 +723,6 @@ export default function CriarLoja() {
     const wppDigits = whatsapp.replace(/\D/g, '').length;
     const checklist = [
       { ok: !!name && !!storeSlug && slugStatus === 'available', text: 'Nome e link' },
-      { ok: wppDigits >= 10, text: 'WhatsApp' },
       { ok: !!selectedCategorySlug, text: 'Categoria' },
       { ok: !!addressNumber, text: 'Localização' },
     ];
@@ -774,33 +782,17 @@ export default function CriarLoja() {
             )}
           </div>
 
-          {/* whatsapp */}
+          {/* descrição: logo abaixo do link, para escrever */}
           <div>
-            {label('WhatsApp da loja')}
-            <div className="flex items-center h-12 rounded-2xl overflow-hidden focus-within:ring-2" style={{ background: soft, boxShadow: whatsappError ? '0 0 0 2px #ef4444' : undefined, ['--tw-ring-color' as any]: '#f97316' } as React.CSSProperties}>
-              <span className="pl-4 pr-2 text-sm font-black" style={{ color: colors.textSecondary }}>+55</span>
-              <input placeholder="(11) 99999-9999" value={whatsapp} onChange={(e) => handleWhatsAppChange(e.target.value)} maxLength={18} inputMode="tel"
-                className="flex-1 min-w-0 h-full bg-transparent pr-4 text-sm outline-none" style={{ color: colors.textPrimary }} />
-            </div>
-            {whatsappError ? <p className="mt-1.5 text-[12px] font-bold" style={{ color: '#ef4444' }}>{whatsappError}</p>
-              : wppDigits >= 10 ? <p className="mt-1.5 text-[12px] font-bold" style={{ color: '#16a34a' }}>Número válido ({wppDigits >= 11 ? 'celular' : 'telefone'})</p> : null}
+            {label('Descrição', 'O que você vende? (opcional)')}
+            <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Conte em poucas palavras o que a sua loja oferece"
+              className="w-full min-h-[96px] rounded-2xl px-4 py-3 text-sm outline-none focus:ring-2" style={fieldStyle} />
+          </div>
 
-            <div className="mt-3 space-y-3">
-              <div className="flex items-start gap-3">
-                <div className="min-w-0 flex-1">
-                  <p className="text-[13px] font-black" style={{ color: colors.textPrimary }}>Mostrar o WhatsApp na página da loja</p>
-                  <p className="text-[12px] leading-snug" style={{ color: colors.textSecondary }}>{showWhatsapp ? 'Os clientes veem o WhatsApp na página da loja.' : 'O número fica escondido dos clientes.'}</p>
-                </div>
-                <Switch on={showWhatsapp} set={setShowWhatsapp} />
-              </div>
-              <div className="flex items-start gap-3">
-                <div className="min-w-0 flex-1">
-                  <p className="text-[13px] font-black" style={{ color: colors.textPrimary }}>Receber pedidos também no WhatsApp</p>
-                  <p className="text-[12px] leading-snug" style={{ color: colors.textSecondary }}>{whatsappOrders ? 'Ao finalizar, o cliente é levado ao WhatsApp da loja. O pedido já terá aparecido no iUser.' : 'Os pedidos chegam só pelo iUser. Opcional.'}</p>
-                </div>
-                <Switch on={whatsappOrders} set={setWhatsappOrders} />
-              </div>
-            </div>
+          {/* links: texto + endereço, aparecem embaixo da descrição */}
+          <div>
+            {label('Links (opcional)', 'Escreva o texto e o endereço. Eles aparecem embaixo da descrição, na página da loja.')}
+            <LinkListInput rows={linkRows} onChange={setLinkRows} colors={colors} />
           </div>
 
           {/* categoria */}
@@ -821,11 +813,16 @@ export default function CriarLoja() {
             </div>
           </div>
 
-          {/* descrição */}
+          {/* whatsapp: só um campo opcional, sem interruptores */}
           <div>
-            {label('Descrição', 'O que você vende? (opcional)')}
-            <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Conte em poucas palavras o que a sua loja oferece"
-              className="w-full min-h-[96px] rounded-2xl px-4 py-3 text-sm outline-none focus:ring-2" style={fieldStyle} />
+            {label('WhatsApp (opcional)', 'Se preencher, o número aparece como link na página da loja.')}
+            <div className="flex items-center h-12 rounded-2xl overflow-hidden focus-within:ring-2" style={{ background: soft, boxShadow: whatsappError ? '0 0 0 2px #ef4444' : undefined, ['--tw-ring-color' as any]: '#f97316' } as React.CSSProperties}>
+              <span className="pl-4 pr-2 text-sm font-black" style={{ color: colors.textSecondary }}>+55</span>
+              <input placeholder="(11) 99999-9999" value={whatsapp} onChange={(e) => handleWhatsAppChange(e.target.value)} maxLength={18} inputMode="tel"
+                className="flex-1 min-w-0 h-full bg-transparent pr-4 text-sm outline-none" style={{ color: colors.textPrimary }} />
+            </div>
+            {whatsappError ? <p className="mt-1.5 text-[12px] font-bold" style={{ color: '#ef4444' }}>{whatsappError}</p>
+              : wppDigits >= 10 ? <p className="mt-1.5 text-[12px] font-bold" style={{ color: '#16a34a' }}>Número válido ({wppDigits >= 11 ? 'celular' : 'telefone'})</p> : null}
           </div>
 
           {/* localização */}
@@ -1020,7 +1017,7 @@ export default function CriarLoja() {
             <div className="space-y-2">
               <label className="block text-[10px] font-black uppercase tracking-wider text-gray-700 flex items-center gap-2">
                 <MessageCircle className="w-3 h-3 text-green-500" />
-                WhatsApp da Loja *
+                WhatsApp da Loja (opcional)
               </label>
               <div className="relative">
                 <div className="flex items-center bg-white border-2 rounded-xl overflow-hidden focus-within:border-orange-500 transition-all"

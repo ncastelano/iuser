@@ -140,6 +140,17 @@ if (!NO_IMAGES) {
     console.log('Gerando logos...')
     for (const s of STORES) await upload('store-logos', `eco-${s.slug}.png`, await sharp(Buffer.from(badgeSvg(s.name, s.colors, 512))).png().toBuffer(), 'image/png')
 }
+const handleOf = (v) => String(v || '').replace(/^@/, '')
+const storeLinksOf = (s) => {
+    const out = []
+    if (s.social.instagram) out.push({ label: 'Instagram da loja', url: `https://instagram.com/${handleOf(s.social.instagram)}` })
+    if (s.social.youtube) out.push({ label: 'Canal no YouTube', url: `https://youtube.com/@${handleOf(s.social.youtube)}` })
+    if (s.social.facebook) out.push({ label: 'Página no Facebook', url: `https://facebook.com/${handleOf(s.social.facebook)}` })
+    if (s.social.x) out.push({ label: 'Siga no X', url: `https://x.com/${handleOf(s.social.x)}` })
+    if (s.key === 'padaria') out.push({ label: 'Cardápio completo (PDF)', url: 'https://exemplo.com.br/cardapio-loja-de-teste' })
+    if (s.key === 'mecanica') out.push({ label: 'Tabela de preços dos serviços', url: 'https://exemplo.com.br/auto-center/precos' })
+    return out
+}
 const storeRows = STORES.map((s) => {
     const r = rng(`store:${s.key}`)
     const flagship = s.key === 'padaria'
@@ -148,7 +159,9 @@ const storeRows = STORES.map((s) => {
         address: s.address, store_lat: s.lat, store_lng: s.lng, whatsapp: s.whatsapp, show_whatsapp: true, chat_enabled: true,
         accepts_delivery: ['padaria', 'pet'].includes(s.key), accepts_pickup: true, accepts_pix: true, accepts_card: true, accepts_cash: true,
         delivery_type: 'fixed', delivery_fee: 8, allow_scheduling: s.scheduling, business_hours: { weekly: s.hours },
-        logo_url: `eco-${s.slug}.png`, instagram: s.social.instagram ?? null, youtube: s.social.youtube ?? null, facebook: s.social.facebook ?? null, x: s.social.x ?? null,
+        logo_url: `eco-${s.slug}.png`, instagram: null, youtube: null, facebook: null, x: null,
+        // links livres da loja (texto + endereço), sob a descrição; no lugar das colunas por rede social
+        links: storeLinksOf(s),
         view_count: flagship ? 12840 : Math.floor(600 + r() * 4200), share_count: flagship ? 318 : Math.floor(10 + r() * 90),
         pix_key: `${s.slug}@staging.iuser.test`, pix_key_type: 'email',
     }

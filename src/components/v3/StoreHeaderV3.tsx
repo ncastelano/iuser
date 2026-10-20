@@ -7,7 +7,7 @@
 
 import { useState, type ReactNode } from 'react'
 import LinkLinesV3, { type LinkLine } from './LinkLinesV3'
-import type { SocialLink } from '@/lib/socialLinks'
+import type { StoreLink } from '@/lib/storeLinks'
 import {
     ShoppingBag, Calendar, Clock, Eye, MapPin, MessageCircle, Star, UserCheck, UserPlus, Users,
 } from 'lucide-react'
@@ -36,8 +36,8 @@ export interface StoreHeaderV3Props {
     onFollowToggle: () => void
     onOpenCatalog: () => void
     whatsappLink?: string | null
-    /** redes sociais com link (Instagram, YouTube, X, GitHub): só aparece botão de quem tiver */
-    socialLinks: SocialLink[]
+        /** links que a loja cadastrou (texto + endereço), mostrados sob a descrição */
+    links: StoreLink[]
     allowScheduling: boolean
     onOpenSchedule: () => void
     isOwner: boolean
@@ -97,8 +97,8 @@ export default function StoreHeaderV3(p: StoreHeaderV3Props) {
                 {/* links em texto (WhatsApp e redes sociais que tiverem link), um por linha */}
                 <LinkLinesV3
                     lines={[
-                        ...(p.whatsappLink ? [{ kind: 'whatsapp', label: 'WhatsApp', url: p.whatsappLink } as LinkLine] : []),
-                        ...p.socialLinks,
+                        ...(p.whatsappLink ? [{ label: 'WhatsApp', url: p.whatsappLink } as LinkLine] : []),
+                        ...p.links,
                     ]}
                     colors={colors}
                 />

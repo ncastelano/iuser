@@ -51,7 +51,7 @@ import { Follows } from './Follows'
 import StoreVipClubMember from './StoreVipClubMember'
 import StoreHeaderV3 from '@/components/v3/StoreHeaderV3'
 import ReviewsV3 from '@/components/v3/ReviewsV3'
-import { buildSocialLinks } from '@/lib/socialLinks'
+import { sanitizeStoreLinks, type StoreLink } from '@/lib/storeLinks'
 import EditProductDialog from '@/components/EditProductDialog'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
 import { STORE_PUBLIC_SELECT } from '@/lib/publicColumns'
@@ -83,6 +83,7 @@ interface OwnerData {
     youtube?: string | null
     facebook?: string | null
     x?: string | null
+    links?: StoreLink[]
     view_count?: number
     ratings_avg?: number
     ratings_count?: number
@@ -520,6 +521,7 @@ export function Store({
                 youtube: store.youtube,
                 facebook: store.facebook,
                 x: store.x,
+                links: sanitizeStoreLinks(store.links),
                 view_count: store.view_count || 0,
                 ratings_avg: avg,
                 ratings_count: count,
@@ -956,7 +958,7 @@ export function Store({
                     onFollowToggle={handleFollowToggle}
                     onOpenCatalog={() => router.push(`/${ownerSlug}/catalogo`)}
                     whatsappLink={whatsappLink}
-                    socialLinks={buildSocialLinks({ instagram: owner.instagram, youtube: owner.youtube, facebook: owner.facebook, x: owner.x })}
+                    links={owner.links ?? []}
                     allowScheduling={!!owner.allow_scheduling}
                     onOpenSchedule={() => setShowScheduleModal(true)}
                     isOwner={isOwner}

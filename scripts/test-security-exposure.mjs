@@ -44,7 +44,8 @@ const lockdown = read(path.join(repo, 'supabase/migrations/20261105000000_exposu
 const social = read(path.join(repo, 'supabase/migrations/20261109000000_social_links_columns.sql'))
 const socialCols = arrayFrom(social, 'social_cols')
 const dbProfilePublic = [...arrayFrom(lockdown, 'profile_public'), ...socialCols]
-const dbStorePublic = [...arrayFrom(lockdown, 'store_public'), ...socialCols]
+const linksMig = read(path.join(repo, 'supabase/migrations/20261113000000_store_links.sql'))
+const dbStorePublic = [...arrayFrom(lockdown, 'store_public'), ...socialCols, ...arrayFrom(linksMig, 'links_cols')]
 
 const pc = read(path.join(srcRoot, 'lib/publicColumns.ts'))
 function tsList(name) {
