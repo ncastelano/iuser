@@ -397,7 +397,7 @@ export default function ComunidadePage() {
 
     return (
         // v3: a página ocupa a área abaixo da navbar e NÃO rola; só a lista de comunidades rola (voltar, título, local e busca ficam parados)
-        <div className={v3 ? 'fixed inset-x-0 bottom-0 top-[var(--shell-top,0px)] rounded-t-[28px] overflow-hidden' : 'relative min-h-dvh'} style={{ background: colors.background }}>
+        <div className={v3 ? 'fixed inset-x-0 bottom-[var(--staging-banner-h,0px)] top-[var(--shell-top,0px)] rounded-t-[28px] overflow-hidden' : 'relative min-h-dvh'} style={{ background: colors.background }}>
             {!v3 && (
                 <div className="fixed inset-0 z-0">
                     <AnimatedBackgroundiUser bgMode={bgMode} customBgUrl={customBgUrl} />

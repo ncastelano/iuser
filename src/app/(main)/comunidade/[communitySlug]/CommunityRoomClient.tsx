@@ -332,7 +332,7 @@ export default function CommunityRoomClient() {
     }
 
     return (
-        <div className={v3 ? 'fixed inset-x-0 bottom-0 top-[var(--shell-top,0px)] rounded-t-[28px] overflow-hidden flex flex-col' : 'relative min-h-dvh flex flex-col'} style={{ background: colors.background }}>
+        <div className={v3 ? 'fixed inset-x-0 bottom-[var(--staging-banner-h,0px)] top-[var(--shell-top,0px)] rounded-t-[28px] overflow-hidden flex flex-col' : 'relative min-h-dvh flex flex-col'} style={{ background: colors.background }}>
             {!v3 && (
                 <div className="fixed inset-0 z-0">
                     <AnimatedBackgroundiUser bgMode={bgMode} customBgUrl={customBgUrl} />

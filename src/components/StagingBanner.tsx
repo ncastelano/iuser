@@ -4,7 +4,10 @@
 // separado). Em produção não renderiza nada. Serve para ninguém confundir o teste com o app de verdade.
 export default function StagingBanner() {
     if (process.env.NEXT_PUBLIC_APP_ENV !== 'staging') return null
+    // as telas de altura fixa (comunidades) sobem esta altura para o campo de mensagem não ficar atrás da faixa
     return (
+        <>
+        <style>{':root{--staging-banner-h:24px}'}</style>
         <div
             role="status"
             style={{
@@ -15,5 +18,6 @@ export default function StagingBanner() {
         >
             AMBIENTE DE TESTE — dados fictícios, nada aqui é real
         </div>
+        </>
     )
 }
