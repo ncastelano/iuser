@@ -32,8 +32,9 @@ export interface ProductReviewV3 {
 const byLikes = (a: ProductReviewV3, b: ProductReviewV3) =>
     b.like_count - a.like_count || b.rating - a.rating || new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
 
-function Reviewer({ r, colors, avatar }: { r: ProductReviewV3; colors: any; avatar: ReactNode }) {
-    const linked = !r.is_anonymous && !!r.profiles?.profileSlug
+// `linkable`: na lista aberta, avatar e nome levam ao perfil; no cartão que gira não (tocar em qualquer parte dele abre as avaliações)
+function Reviewer({ r, colors, avatar, linkable = true }: { r: ProductReviewV3; colors: any; avatar: ReactNode; linkable?: boolean }) {
+    const linked = linkable && !r.is_anonymous && !!r.profiles?.profileSlug
     const name = r.is_anonymous ? 'Anônimo' : profileLabel(r.profiles)
     return (
         <div className="flex items-center gap-2.5 min-w-0">
@@ -113,7 +114,7 @@ export default function ProductReviewsV3({
                 {current && (
                     <div key={current.id} className="mt-3 pt-3 review-slide" style={{ borderTop: `1px solid ${colors.border}60` }}>
                         <div className="flex items-start justify-between gap-3">
-                            <Reviewer r={current} colors={colors} avatar={renderAvatar(current)} />
+                            <Reviewer r={current} colors={colors} avatar={renderAvatar(current)} linkable={false} />
                             <span className="flex items-center gap-1 text-[12px] font-black flex-shrink-0" style={{ color: current.is_liked ? '#ef4444' : colors.textSecondary }}>
                                 <Heart size={13} fill={current.is_liked ? '#ef4444' : 'none'} />{current.like_count}
                             </span>
