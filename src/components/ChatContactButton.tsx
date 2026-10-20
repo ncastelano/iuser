@@ -52,17 +52,17 @@ export default function ChatContactButton({ profileId, storeId, colors, backgrou
         router.push(`/conversas?c=${data}`)
     }
 
-    // v3: cápsula compacta (mesma altura dos botões de ação da página), no texto "Chat iUser"
+    // v3: cápsula compacta na cor do botão Seguir (mesma altura dos botões de ação da página); o texto vem de `label`
     if (variant === 'v3') {
         return (
             <button
                 onClick={open}
                 disabled={loading}
                 className="flex-1 min-w-0 h-11 rounded-full text-[13px] font-black flex items-center justify-center gap-1.5 transition active:scale-95 disabled:opacity-70"
-                style={{ background: '#f973161a', color: '#f97316' }}
+                style={{ background: '#f97316', color: '#fff' }}
             >
-                {loading ? <Spinner size={16} color="#f97316" /> : <MessageCircle size={16} />}
-                {label === 'Conversar pelo iUser' ? 'Chat iUser' : label}
+                {loading ? <Spinner size={16} color="#fff" /> : <MessageCircle size={16} />}
+                {label}
             </button>
         )
     }

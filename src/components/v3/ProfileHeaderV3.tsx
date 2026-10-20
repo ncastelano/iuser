@@ -6,7 +6,9 @@
 'use client'
 
 import { useState, type ReactNode } from 'react'
-import { Calendar, Camera, Eye, MapPin, MessageCircle, Pencil, UserCheck, UserPlus, Users } from 'lucide-react'
+import SocialLinksV3 from './SocialLinksV3'
+import type { SocialLink } from '@/lib/socialLinks'
+import { Calendar, Eye, MapPin, MessageCircle, Pencil, UserCheck, UserPlus, Users } from 'lucide-react'
 
 const ORANGE = '#f97316'
 
@@ -30,7 +32,8 @@ export interface ProfileHeaderV3Props {
     isFollowing: boolean
     onFollowToggle: () => void
     whatsappLink?: string | null
-    instagramLink?: string | null
+    /** redes sociais com link (Instagram, YouTube, X, GitHub): só aparece botão de quem tiver */
+    socialLinks: SocialLink[]
     contactSlot?: ReactNode
     liveLocSlot?: ReactNode
     dialogsSlot?: ReactNode
@@ -55,8 +58,7 @@ export default function ProfileHeaderV3(p: ProfileHeaderV3Props) {
     const DESC_LIMIT = 120
     const desc = p.description || ''
     const capsule = 'inline-flex items-center gap-1.5 h-8 px-3 rounded-full text-[11px] font-bold transition active:scale-95 max-w-full'
-    const round = 'flex-shrink-0 w-11 h-11 rounded-full flex items-center justify-center transition active:scale-95'
-
+    
     return (
         <section>
             <div className="px-1 pt-1 pb-2">
@@ -123,8 +125,8 @@ export default function ProfileHeaderV3(p: ProfileHeaderV3Props) {
                     )}
                 </div>
 
-                {/* contatos: WhatsApp (com o nome escrito), Chat iUser (quando a pessoa ativou) e Instagram */}
-                {(p.whatsappLink || p.contactSlot || p.instagramLink) && (
+                {/* contatos: WhatsApp (nome escrito) e a conversa pelo iUser; depois as redes sociais que tiverem link */}
+                {(p.whatsappLink || p.contactSlot) && (
                     <div className="mt-2 flex items-center gap-2">
                         {p.whatsappLink && (
                             <a href={p.whatsappLink} target="_blank" rel="noopener noreferrer" className="flex-1 min-w-0 h-11 rounded-full text-[13px] font-black flex items-center justify-center gap-1.5 transition active:scale-95" style={{ background: '#25D3661f', color: '#16a34a' }}>
@@ -133,13 +135,9 @@ export default function ProfileHeaderV3(p: ProfileHeaderV3Props) {
                             </a>
                         )}
                         {p.contactSlot}
-                        {p.instagramLink && (
-                            <a href={p.instagramLink} target="_blank" rel="noopener noreferrer" aria-label="Instagram" className={round} style={{ background: soft, color: colors.textPrimary }}>
-                                <Camera size={18} />
-                            </a>
-                        )}
                     </div>
                 )}
+                <SocialLinksV3 links={p.socialLinks} colors={colors} />
 
                 {!p.isOwner && p.allowScheduling && (
                     <button onClick={p.onOpenSchedule} className="mt-2 w-full h-11 rounded-2xl px-3 flex items-center gap-2.5 text-left transition active:scale-[0.99]" style={{ background: soft }}>

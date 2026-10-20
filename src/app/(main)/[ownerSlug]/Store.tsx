@@ -50,6 +50,7 @@ import { handleShareLink } from '@/lib/share'
 import { Follows } from './Follows'
 import StoreVipClubMember from './StoreVipClubMember'
 import StoreHeaderV3 from '@/components/v3/StoreHeaderV3'
+import { buildSocialLinks } from '@/lib/socialLinks'
 import EditProductDialog from '@/components/EditProductDialog'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
 import { STORE_PUBLIC_SELECT } from '@/lib/publicColumns'
@@ -948,7 +949,7 @@ export function Store({
                     onFollowToggle={handleFollowToggle}
                     onOpenCatalog={() => router.push(`/${ownerSlug}/catalogo`)}
                     whatsappLink={whatsappLink}
-                    instagramLink={instagramLink}
+                    socialLinks={buildSocialLinks({ instagram: owner.instagram, youtube: (owner as any).youtube, x: (owner as any).x, github: (owner as any).github })}
                     allowScheduling={!!owner.allow_scheduling}
                     onOpenSchedule={() => setShowScheduleModal(true)}
                     isOwner={isOwner}
@@ -957,7 +958,7 @@ export function Store({
                     onToggleChat={() => handleToggleChat(!owner.chat_enabled)}
                     onOpenAgendaDialog={() => setShowAgendaDialog(true)}
                     hasProducts={products.length > 0}
-                    contactSlot={owner.chat_enabled && !isOwner ? <ChatContactButton storeId={owner.id} colors={colors} variant="v3" /> : undefined}
+                    contactSlot={owner.chat_enabled && !isOwner ? <ChatContactButton storeId={owner.id} colors={colors} variant="v3" label="Falar com a loja" /> : undefined}
                     extraSlot={<StoreVipClubMember storeId={owner.id} userId={currentUserId} />}
                     ownerToolsSlot={isOwner && !isStoreOpen ? (
                         <StoreOperatingDays

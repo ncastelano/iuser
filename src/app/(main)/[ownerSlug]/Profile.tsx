@@ -6,6 +6,7 @@ import { profileLabel } from '@/lib/profileDisplay'
 import { useLevelsFor } from '@/hooks/useLevelsFor'
 import LevelBadge from '@/components/Graduation/LevelBadge'
 import ProfileHeaderV3 from '@/components/v3/ProfileHeaderV3'
+import { buildSocialLinks } from '@/lib/socialLinks'
 import { notifyNewFollower } from '@/lib/notifyRideStatus'
 import { useCallback, useEffect, useState, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
@@ -1607,8 +1608,8 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                     isFollowing={isFollowing}
                     onFollowToggle={handleFollowToggle}
                     whatsappLink={whatsappLink}
-                    instagramLink={instagramLink}
-                    contactSlot={owner.chat_enabled && owner.id !== currentUserId ? <ChatContactButton profileId={owner.id} colors={colors} variant="v3" /> : undefined}
+                    socialLinks={buildSocialLinks({ instagram: owner.instagram, youtube: (owner as any).youtube, x: (owner as any).x, github: (owner as any).github })}
+                    contactSlot={owner.chat_enabled && owner.id !== currentUserId ? <ChatContactButton profileId={owner.id} colors={colors} variant="v3" label="Enviar mensagem" /> : undefined}
                     liveLocSlot={liveLoc && owner.show_location !== false && process.env.NEXT_PUBLIC_MAPBOX_TOKEN ? liveLocCard : undefined}
                     dialogsSlot={agendaDialogs}
                     isOwner={isOwner}

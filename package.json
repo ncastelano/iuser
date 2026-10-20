@@ -24,6 +24,7 @@
     "test:security-exposure:db": "npx supabase db query --linked -f supabase/tests/security_exposure_scenarios.sql",
     "test:maintenance": "node --test scripts/test-maintenance.mjs",
     "test:image-proxy": "node --test scripts/test-image-proxy.mjs",
+    "test:social-links": "node --test scripts/test-social-links.mjs",
     "test:active-drivers": "node --test scripts/test-active-drivers.mjs",
     "test:active-drivers:staging": "env -u SUPABASE_ACCESS_TOKEN npx supabase db query --linked --workdir .staging -f \"$PWD/supabase/tests/active_drivers_map_scenarios.sql\"",
     "test:save-own-profile": "node --test scripts/test-save-own-profile.mjs",
