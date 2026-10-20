@@ -29,6 +29,7 @@ import { notifyServiceApplication } from '@/lib/notifyRideStatus'
 import { getRequestTitle } from '@/lib/serviceTypes'
 import { fetchCommunitiesActivity, type CommunityActivity } from '@/lib/communityActivity'
 import PlanAvatarRing, { usePlanRing } from '@/components/PlanAvatarRing'
+import ListingRowCard from '@/components/ListingRowCard'
 import SearchResultsSection from '../../inicio/SearchResultsSection'
 import { rankStyle } from '../../social/SocialProfileCard'
 import ShareLinkDialog, { copyText } from '@/components/ShareLinkDialog'
@@ -320,7 +321,7 @@ export default function ModeloInicialPage() {
                 supabase.from('products').select('id').eq('listing_type', 'sale').order('created_at', { ascending: false }).limit(60),
             ])
             const byId = new Map(cards.map((c) => [c.id, c]))
-            const ordered = ((newest || []).map((r: any) => byId.get(r.id)).filter(Boolean) as ProductCard[]).slice(0, 10)
+            const ordered = ((newest || []).map((r: any) => byId.get(r.id)).filter(Boolean) as ProductCard[]).slice(0, 12)
 
             // A loja que vende está aberta agora? (produto de perfil, sem loja, fica sem essa informação)
             const slugs = [...new Set(ordered.filter((p) => !p.isProfileProduct && p.storeSlug && p.storeSlug !== '#').map((p) => p.storeSlug))]
@@ -640,15 +641,29 @@ export default function ModeloInicialPage() {
                         <section className="mt-8">
                             <SectionHeader type="produto" title="Produtos que você pode gostar" subtitle="Itens para você" onSeeAll={() => go('/produtos')} colors={colors} />
                             {products === null ? <Skeleton colors={colors} /> : products.length === 0 ? null : (
-                                <Strip>
-                                    {products.map((p) => (
-                                        <Tile key={p.id} type="produto" colors={colors} image={p.imageUrl} fallback={<ShoppingBag size={36} />} badge={p.storeOpen == null ? undefined : { label: p.storeOpen ? 'Aberto' : 'Fechado', color: p.storeOpen ? '#16a34a' : '#dc2626' }} onClick={() => go(p.storeSlug && p.storeSlug !== '#' && p.slug ? `/${p.storeSlug}/${p.slug}` : `/${p.profileSlug || p.storeSlug}/${p.slug || p.id}`)}>
-                                            <span className="block text-sm font-black leading-snug line-clamp-2" style={{ color: colors.textPrimary }}>{p.name}</span>
-                                            {money(p.price) && <span className="block text-sm font-black mt-1" style={{ color: TYPE.produto.color }}>{money(p.price)}</span>}
-                                            <span className="block text-[11px] truncate mt-0.5" style={{ color: colors.textSecondary }}>{p.storeName}</span>
-                                        </Tile>
+                                // Mesmo cartão da página /produtos, em colunas de 3: rola de lado e cada coluna tem 3 produtos
+                                <div className="flex gap-4 overflow-x-auto snap-x snap-mandatory pb-2 -mx-4 px-4" style={{ scrollbarWidth: 'none' }}>
+                                    {Array.from({ length: Math.ceil(products.length / 3) }, (_, col) => products.slice(col * 3, col * 3 + 3)).map((group, col) => (
+                                        <div key={col} className="snap-start flex-shrink-0 w-[88%] sm:w-[380px] flex flex-col">
+                                            {group.map((p) => (
+                                                <ListingRowCard
+                                                    key={p.id}
+                                                    title={p.name}
+                                                    description={p.description}
+                                                    imageUrl={p.imageUrl || p.storeLogoUrl}
+                                                    fallbackIcon={<Package size={30} />}
+                                                    priceLabel={money(p.price)}
+                                                    sellerName={p.storeName}
+                                                    sellerImageUrl={p.storeLogoUrl}
+                                                    rating={p.rating}
+                                                    views={p.viewCount}
+                                                    tag={p.storeOpen == null ? null : p.storeOpen ? 'Aberto' : 'Fechado'}
+                                                    onClick={() => go(p.storeSlug && p.storeSlug !== '#' && p.slug ? `/${p.storeSlug}/${p.slug}` : `/${p.profileSlug || p.storeSlug}/${p.slug || p.id}`)}
+                                                />
+                                            ))}
+                                        </div>
                                     ))}
-                                </Strip>
+                                </div>
                             )}
                         </section>
 
