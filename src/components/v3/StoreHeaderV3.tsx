@@ -64,8 +64,8 @@ export default function StoreHeaderV3(p: StoreHeaderV3Props) {
     const round = 'flex-shrink-0 w-11 h-11 rounded-full flex items-center justify-center transition active:scale-95'
 
     return (
-        <section className="rounded-3xl overflow-hidden" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
-            <div className="px-4 py-4">
+        <section>
+            <div className="px-1 pt-1 pb-2">
                 {/* logo + nome + status */}
                 <div className="flex items-center gap-3">
                     <div className="flex-shrink-0 w-[62px] h-[62px] rounded-2xl overflow-hidden flex items-center justify-center" style={{ background: colors.surface, border: `3px solid ${colors.surface}`, outline: `2px solid ${statusColor}` }}>

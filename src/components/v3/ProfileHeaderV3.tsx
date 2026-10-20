@@ -58,8 +58,8 @@ export default function ProfileHeaderV3(p: ProfileHeaderV3Props) {
     const round = 'flex-shrink-0 w-11 h-11 rounded-full flex items-center justify-center transition active:scale-95'
 
     return (
-        <section className="rounded-3xl overflow-hidden" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
-            <div className="px-4 py-4">
+        <section>
+            <div className="px-1 pt-1 pb-2">
                 {/* foto redonda sobre a capa, nome centralizado */}
                 <div className="flex flex-col items-center text-center">
                     {p.avatarSlot}
