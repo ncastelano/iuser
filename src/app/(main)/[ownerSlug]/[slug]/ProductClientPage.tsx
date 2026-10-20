@@ -518,18 +518,18 @@ export function ProductClientPage({
                 <button
                     onClick={() => handleQuantityChange(quantity - 1)}
                     aria-label="Diminuir quantidade"
-                    className="w-9 h-9 rounded-full flex items-center justify-center transition hover:scale-105"
+                    className={`${v3 ? 'w-8 h-8' : 'w-9 h-9'} rounded-full flex items-center justify-center transition hover:scale-105`}
                     style={{ color: colors.textPrimary }}
                 >
                     <Minus size={16} />
                 </button>
-                <span className="w-6 text-center font-black" style={{ color: colors.textPrimary }}>
+                <span className={`${v3 ? 'w-5' : 'w-6'} text-center font-black`} style={{ color: colors.textPrimary }}>
                     {quantity}
                 </span>
                 <button
                     onClick={() => handleQuantityChange(quantity + 1)}
                     aria-label="Aumentar quantidade"
-                    className="w-9 h-9 rounded-full flex items-center justify-center transition hover:scale-105"
+                    className={`${v3 ? 'w-8 h-8' : 'w-9 h-9'} rounded-full flex items-center justify-center transition hover:scale-105`}
                     style={{ color: colors.textPrimary }}
                 >
                     <Plus size={16} />
