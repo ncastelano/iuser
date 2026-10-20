@@ -51,6 +51,7 @@ import { Follows } from './Follows'
 import StoreVipClubMember from './StoreVipClubMember'
 import StoreHeaderV3 from '@/components/v3/StoreHeaderV3'
 import ReviewsV3 from '@/components/v3/ReviewsV3'
+import { pageActions, parseStoreModel, type StoreModel } from '@/lib/storeModel'
 import { sanitizeStoreLinks, type StoreLink } from '@/lib/storeLinks'
 import EditProductDialog from '@/components/EditProductDialog'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
@@ -84,6 +85,7 @@ interface OwnerData {
     facebook?: string | null
     x?: string | null
     links?: StoreLink[]
+    store_model?: StoreModel
     view_count?: number
     ratings_avg?: number
     ratings_count?: number
@@ -251,8 +253,9 @@ export function Store({
     const goods = useMemo(() => products.filter(p => p.type !== 'service'), [products])
     const services = useMemo(() => products.filter(p => p.type === 'service'), [products])
     const catalogList = activeTab === 'services' ? services : goods
-    // Loja que atende com hora marcada (agenda ligada e serviços cadastrados): a página gira em torno de AGENDAR
-    const schedulingFocus = !!owner?.allow_scheduling && services.length > 0
+    // Modelo da loja (produtos / atendimento / mista): define o botão central, a ordem das abas e se os serviços viram linhas
+    const model = parseStoreModel(owner?.store_model)
+    const actions = pageActions(model, !!owner?.allow_scheduling, goods.length > 0)
 
     // Se a loja só tem serviços (nenhum produto), a aba de serviços já abre na frente
     const defaultTabPickedRef = useRef(false)
@@ -260,8 +263,8 @@ export function Store({
         if (loading || defaultTabPickedRef.current) return
         if (goods.length + services.length === 0) return // ainda carregando (ou loja vazia): espera
         defaultTabPickedRef.current = true
-        if ((goods.length === 0 || schedulingFocus) && services.length > 0) setActiveTab('services')
-    }, [loading, goods.length, services.length, schedulingFocus])
+        if ((goods.length === 0 || actions.servicesFirst) && services.length > 0) setActiveTab('services')
+    }, [loading, goods.length, services.length, actions.servicesFirst])
 
     // ========== FILTRO ==========
     const filteredProducts = useMemo(() => {
@@ -525,6 +528,7 @@ export function Store({
                 facebook: store.facebook,
                 x: store.x,
                 links: sanitizeStoreLinks(store.links),
+                store_model: parseStoreModel(store.store_model),
                 view_count: store.view_count || 0,
                 ratings_avg: avg,
                 ratings_count: count,
@@ -965,8 +969,10 @@ export function Store({
                     links={owner.links ?? []}
                     allowScheduling={!!owner.allow_scheduling}
                     onOpenSchedule={() => { setScheduleProductId(null); setShowScheduleModal(true) }}
-                    schedulingFocus={schedulingFocus}
-                    hasGoods={goods.length > 0}
+                    showBuy={actions.buy}
+                    showSchedule={actions.schedule}
+                    productsSecondary={actions.productsSecondary}
+                    model={model}
                     isOwner={isOwner}
                     chatEnabled={!!owner.chat_enabled}
                     chatSaving={chatSaving}
@@ -1353,7 +1359,7 @@ export function Store({
                     const productsTab = { id: 'products', label: 'Produtos', count: goods.length }
                     const servicesTab = { id: 'services', label: 'Serviços', count: services.length }
                     // Normal: Produtos, Serviços, Avaliações. Sem produtos, mas com serviços: Serviços vem na frente.
-                    const catalogTabs = (goods.length === 0 || schedulingFocus) && services.length > 0 ? [servicesTab, productsTab] : [productsTab, servicesTab]
+                    const catalogTabs = (goods.length === 0 || actions.servicesFirst) && services.length > 0 ? [servicesTab, productsTab] : [productsTab, servicesTab]
                     return [...catalogTabs, { id: 'reviews', label: 'Avaliações', count: ratings.length }]
                 })().map(tab => {
                     const isActive = activeTab === tab.id
@@ -1500,10 +1506,44 @@ export function Store({
                                     <h4 className="text-[10px] font-black uppercase tracking-wider" style={{ color: '#f97316' }}>
                                         {category}
                                     </h4>
-                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                    <div className={v3 && activeTab === 'services' && actions.serviceRows ? 'flex flex-col' : 'grid grid-cols-2 sm:grid-cols-3 gap-2'}>
                                         {products.map(product => {
                                             const isHourly = product.price_type === 'hourly'
                                             const hasImage = !!product.image_url
+
+                                            // v3, lojas de atendimento e mistas: serviços em LINHAS (foto pequena, nome, duração e preço, botão Agendar)
+                                            if (v3 && activeTab === 'services' && actions.serviceRows) {
+                                                return (
+                                                    <div
+                                                        key={product.id}
+                                                        onClick={(e) => handleProductClick(product, e)}
+                                                        className="flex items-center gap-3 py-3 cursor-pointer transition active:opacity-80"
+                                                        style={{ borderBottom: `1px solid ${colors.border}50` }}
+                                                    >
+                                                        <div className="w-16 h-16 rounded-2xl overflow-hidden flex-shrink-0 flex items-center justify-center" style={{ background: `${colors.accentLight}` }}>
+                                                            {hasImage ? <img src={product.image_url!} className="w-full h-full object-cover" alt="" /> : <span className="text-xl font-black" style={{ color: '#f97316' }}>{product.name.charAt(0).toUpperCase()}</span>}
+                                                        </div>
+                                                        <div className="min-w-0 flex-1">
+                                                            <h4 className="text-[14px] font-black leading-snug line-clamp-2" style={{ color: colors.textPrimary }}>{product.name}</h4>
+                                                            <p className="text-[12px] mt-0.5" style={{ color: colors.textSecondary }}>
+                                                                {product.duration_minutes ? `${product.duration_minutes} min` : 'Duração a combinar'}
+                                                            </p>
+                                                            <span className="text-sm font-black" style={{ color: '#f97316' }}>
+                                                                {(product.price || 0) > 0 ? `R$ ${(product.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : 'Sem custo'}{isHourly ? '/h' : ''}
+                                                            </span>
+                                                        </div>
+                                                        {isOwner ? (
+                                                            <button onClick={e => { e.stopPropagation(); setEditingProductId(product.id) }} className="h-9 px-4 rounded-full flex items-center gap-1.5 text-[12px] font-black flex-shrink-0" style={{ background: `${colors.border}40`, color: colors.textPrimary }}>
+                                                                <Pencil size={12} /> Editar
+                                                            </button>
+                                                        ) : owner?.allow_scheduling ? (
+                                                            <button onClick={e => { e.stopPropagation(); setScheduleProductId(product.id); setShowScheduleModal(true) }} className="h-9 px-4 rounded-full flex items-center gap-1.5 text-[12px] font-black flex-shrink-0 transition active:scale-95" style={{ background: '#f97316', color: '#fff' }}>
+                                                                <Calendar size={13} /> Agendar
+                                                            </button>
+                                                        ) : null}
+                                                    </div>
+                                                )
+                                            }
 
                                             if (!hasImage) {
                                                 return (

@@ -162,6 +162,7 @@ const storeRows = STORES.map((s) => {
         logo_url: `eco-${s.slug}.png`, instagram: null, youtube: null, facebook: null, x: null,
         // links livres da loja (texto + endereço), sob a descrição; no lugar das colunas por rede social
         links: storeLinksOf(s),
+        store_model: ({ padaria: 'products', mecanica: 'mixed', psicologia: 'services', odonto: 'services', studio: 'mixed', contabil: 'services', pet: 'mixed', eletrica: 'mixed' })[s.key] || 'mixed',
         view_count: flagship ? 12840 : Math.floor(600 + r() * 4200), share_count: flagship ? 318 : Math.floor(10 + r() * 90),
         pix_key: `${s.slug}@staging.iuser.test`, pix_key_type: 'email',
     }

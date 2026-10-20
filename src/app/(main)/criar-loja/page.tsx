@@ -39,6 +39,8 @@ import { useInsideShell } from "@/components/InsideShell";
 import { useTheme } from "@/app/contexts/theme";
 import LinkListInput, { type LinkRow } from "@/components/v3/LinkListInput";
 import { linksFromRows } from "@/lib/storeLinks";
+import StoreModelPicker from "@/components/v3/StoreModelPicker";
+import { STORE_MODELS, suggestModelForCategory, type StoreModel } from "@/lib/storeModel";
 
 // Filtra as categorias para remover "Social"
 const CATEGORIAS_LOJAS = categorias.filter(cat => cat.slug !== 'social');
@@ -198,6 +200,10 @@ export default function CriarLoja() {
   const [showWhatsapp, setShowWhatsapp] = useState(false);
   // Links da loja (texto + endereço): aparecem embaixo da descrição na página da loja
   const [linkRows, setLinkRows] = useState<LinkRow[]>([]);
+  // Modelo da loja (produtos / atendimento / mista): muda o botão central da página. A agenda liga junto nos modelos de atendimento.
+  const [storeModel, setStoreModel] = useState<StoreModel>('products');
+  const modelTouchedRef = useRef(false);
+  const [agendaOn, setAgendaOn] = useState(true);
 
   const [selectedPosition, setSelectedPosition] = useState<{ lat: number; lng: number }>({
     lat: -15.7801,
@@ -675,7 +681,7 @@ export default function CriarLoja() {
     await supabase
       .from("stores")
       .update(v3
-        ? { links: parsedLinks.links, whatsapp_orders_enabled: false, show_whatsapp: !!whatsappClean }
+        ? { links: parsedLinks.links, whatsapp_orders_enabled: false, show_whatsapp: !!whatsappClean, store_model: storeModel, allow_scheduling: storeModel !== 'products' && agendaOn }
         : { whatsapp_orders_enabled: whatsappOrders, show_whatsapp: showWhatsapp })
       .eq("storeSlug", storeSlug);
 
@@ -750,6 +756,21 @@ export default function CriarLoja() {
             <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (file) handleImageChange(file); }} />
           </div>
 
+          {/* modelo da loja */}
+          <div>
+            {label('Como é a sua loja?', 'Escolha o modelo: ele define o botão central da página. Dá para trocar depois.')}
+            <StoreModelPicker value={storeModel} onChange={(m) => { modelTouchedRef.current = true; setStoreModel(m) }} colors={colors} />
+            {STORE_MODELS.find((m) => m.id === storeModel)?.needsAgenda && (
+              <div className="mt-3 flex items-start gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="text-[13px] font-black" style={{ color: colors.textPrimary }}>Ativar a agenda de atendimentos</p>
+                  <p className="text-[12px] leading-snug" style={{ color: colors.textSecondary }}>Os clientes agendam horários pela página. Você define os dias e horários depois.</p>
+                </div>
+                <Switch on={agendaOn} set={setAgendaOn} />
+              </div>
+            )}
+          </div>
+
           {/* nome */}
           <div>
             {label('Nome da loja', 'Já sugerimos um nome com o seu @. Pode trocar.')}
@@ -803,7 +824,7 @@ export default function CriarLoja() {
                 const Icon = cat.icone;
                 const on = selectedCategorySlug === cat.slug;
                 return (
-                  <button key={cat.slug} type="button" onClick={() => setSelectedCategorySlug(cat.slug)} aria-pressed={on}
+                  <button key={cat.slug} type="button" onClick={() => { setSelectedCategorySlug(cat.slug); if (!modelTouchedRef.current) setStoreModel(suggestModelForCategory(cat.slug)) }} aria-pressed={on}
                     className="h-10 pl-3 pr-4 rounded-full flex items-center gap-1.5 text-[13px] font-black transition active:scale-95"
                     style={on ? { background: '#f97316', color: '#fff' } : { background: soft, color: colors.textPrimary }}>
                     <Icon size={15} style={{ color: on ? '#fff' : cat.color }} />{cat.nome}
