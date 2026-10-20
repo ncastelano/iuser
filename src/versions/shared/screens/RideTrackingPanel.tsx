@@ -897,11 +897,9 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
                                                 )}
                                             </PlanAvatarRing>
                                             <div className="flex-1 min-w-0">
-                                                <div className="flex items-baseline gap-2 min-w-0">
-                                                    <span className="text-[12px] font-black truncate" style={{ color: colors.textPrimary }}>{c.profileSlug ? `@${c.profileSlug}` : c.name || 'Candidato'}</span>
-                                                    <span className="text-[12px] font-black flex-shrink-0" style={{ color: '#f97316' }}>{c.proposedPrice != null ? `R$ ${c.proposedPrice.toFixed(2)}` : 'Sem valor'}</span>
-                                                </div>
+                                                <span className="text-[12px] font-black block truncate" style={{ color: colors.textPrimary }}>{c.profileSlug ? `@${c.profileSlug}` : c.name || 'Candidato'}</span>
                                                 <div className="flex items-center gap-1.5 text-[10px] font-bold min-w-0" style={{ color: colors.textSecondary }}>
+                                                    <span className="text-[12px] font-black flex-shrink-0" style={{ color: '#f97316' }}>{c.proposedPrice != null ? `R$ ${c.proposedPrice.toFixed(2)}` : 'Sem valor'}</span>
                                                     {pickupEtaMin != null && <span className="flex items-center gap-0.5 flex-shrink-0"><Clock size={9} />{pickupEtaMin} min</span>}
                                                     {rating && <span className="flex-shrink-0" style={{ color: '#f97316' }}>★ {rating}</span>}
                                                     {(vehicle || c.carPlate) && <span className="truncate">{[vehicle, c.carPlate].filter(Boolean).join(' · ')}</span>}
@@ -912,7 +910,7 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
                                                     <Spinner size={14} color={colors.textSecondary} />
                                                 ) : (
                                                     <div className="flex items-center gap-1.5 flex-shrink-0">
-                                                        <button onClick={() => acceptCandidate(c.applicationId, c.applicantId)} className="h-8 px-3 rounded-full text-[11px] font-black flex items-center gap-1" style={{ background: '#22c55e', color: '#fff' }}>
+                                                        <button onClick={() => acceptCandidate(c.applicationId, c.applicantId)} className="h-8 px-2.5 rounded-full text-[11px] font-black flex items-center gap-1" style={{ background: '#22c55e', color: '#fff' }}>
                                                             <Check size={12} />Aceitar
                                                         </button>
                                                         <button onClick={() => rejectCandidate(c.applicationId)} className="w-8 h-8 flex items-center justify-center rounded-full" style={{ background: '#ef44441a', color: '#ef4444' }} aria-label="Recusar">
