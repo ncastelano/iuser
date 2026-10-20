@@ -1543,10 +1543,12 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
     }
 
     // v3: motoristas ativos no mapa (carro/moto/bicicleta, posição aproximada; ver lib/activeDrivers.ts). Some quando há corrida em andamento.
+    const [rideStatus, setRideStatus] = useState<string | null>(null)
     const { counts: driverCounts, loaded: driversLoaded } = useActiveDriversLayer({
         map: mapRef.current,
         mapReady,
-        enabled: v3 && !activeRideId && !checkingActiveRide,
+        // também enquanto o pedido está pendente ("buscando motorista"): mostra quem está por perto
+        enabled: v3 && ((!activeRideId && !checkingActiveRide) || rideStatus === 'pending'),
         focus: origin.coords,
     })
     const driversTotal = driverCounts.carro + driverCounts.moto + driverCounts.bicicleta
@@ -1572,7 +1574,7 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                 </button>
 
                 {/* v3: motoristas ativos agora (carro / moto / bicicleta), os mesmos que aparecem no mapa */}
-                {v3 && driversLoaded && !activeRideId && !checkingActiveRide && (
+                {v3 && driversLoaded && ((!activeRideId && !checkingActiveRide) || rideStatus === 'pending') && (
                     <div
                         role="status"
                         className="absolute top-3 right-3 z-30 flex items-center gap-2.5 px-3 h-11 rounded-full text-[12px] font-black shadow-xl"
@@ -1743,6 +1745,8 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                         map={mapRef.current}
                         mapReady={mapReady}
                         onFitBounds={(bounds, padding) => { lastFitBoundsRef.current = { bounds, padding } }}
+                        compact={v3}
+                        onRideStatus={setRideStatus}
                     />
                 </div>
             )}
