@@ -6,7 +6,7 @@
 
 import type { SocialKind, SocialLink } from '@/lib/socialLinks'
 
-function SocialIcon({ kind, size = 16 }: { kind: SocialKind; size?: number }) {
+export function SocialIcon({ kind, size = 16 }: { kind: SocialKind; size?: number }) {
     const common = { width: size, height: size, viewBox: '0 0 24 24', 'aria-hidden': true } as const
     switch (kind) {
         case 'instagram':

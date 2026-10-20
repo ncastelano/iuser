@@ -6,7 +6,7 @@
 'use client'
 
 import { useState, type ReactNode } from 'react'
-import SocialLinksV3 from './SocialLinksV3'
+import LinkLinesV3, { type LinkLine } from './LinkLinesV3'
 import type { SocialLink } from '@/lib/socialLinks'
 import {
     ShoppingBag, Calendar, Clock, Eye, MapPin, MessageCircle, Star, UserCheck, UserPlus, Users,
@@ -95,6 +95,15 @@ export default function StoreHeaderV3(p: StoreHeaderV3Props) {
                     </p>
                 )}
 
+                {/* links em texto (WhatsApp e redes sociais que tiverem link), um por linha */}
+                <LinkLinesV3
+                    lines={[
+                        ...(p.whatsappLink ? [{ kind: 'whatsapp', label: 'WhatsApp', url: p.whatsappLink } as LinkLine] : []),
+                        ...p.socialLinks,
+                    ]}
+                    colors={colors}
+                />
+
                 {/* atalhos em cápsulas */}
                 <div className="mt-3 flex flex-wrap gap-1.5">
                     {p.address && (
@@ -143,19 +152,8 @@ export default function StoreHeaderV3(p: StoreHeaderV3Props) {
                     )}
                 </div>
 
-                {/* contatos: todos neutros e do mesmo tamanho, só o ícone leva cor (WhatsApp verde, chat laranja); depois as redes sociais que tiverem link */}
-                {(p.whatsappLink || p.contactSlot) && (
-                    <div className="mt-2 flex items-center gap-2">
-                        {p.whatsappLink && (
-                            <a href={p.whatsappLink} target="_blank" rel="noopener noreferrer" className="flex-1 min-w-0 h-10 rounded-full text-[12px] font-black flex items-center justify-center gap-1.5 transition active:scale-95" style={{ background: soft, color: colors.textPrimary }}>
-                                <MessageCircle size={15} style={{ color: '#16a34a' }} />
-                                WhatsApp
-                            </a>
-                        )}
-                        {p.contactSlot}
-                    </div>
-                )}
-                <SocialLinksV3 links={p.socialLinks} colors={colors} />
+                {/* conversa pelo iUser */}
+                {p.contactSlot && <div className="mt-2 flex">{p.contactSlot}</div>}
 
                 {p.allowScheduling && (
                     <button onClick={p.onOpenSchedule} className="mt-2 w-full h-11 rounded-2xl px-3 flex items-center gap-2.5 text-left transition active:scale-[0.99]" style={{ background: soft }}>
