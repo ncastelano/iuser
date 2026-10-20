@@ -884,13 +884,11 @@ export default function CriarLoja() {
 
         {/* botão fixo embaixo, com o que ainda falta */}
         <div className="sticky z-20 -mx-4 px-4 pt-3 pb-3 mt-6" style={{ bottom: 'var(--staging-banner-h, 0px)', background: colors.background, borderTop: `1px solid ${colors.border}50` }}>
-          <div className="flex flex-wrap gap-x-3 gap-y-1 justify-center mb-2 text-[12px] font-bold">
-            {checklist.map((c) => (
-              <span key={c.text} className="flex items-center gap-1" style={{ color: c.ok ? '#16a34a' : colors.textSecondary }}>
-                {c.ok ? <CheckCircle2 size={13} /> : <AlertCircle size={13} />}{c.text}
-              </span>
-            ))}
-          </div>
+          {checklist.some((c) => !c.ok) && (
+            <p className="text-center mb-2 text-[12px] font-bold truncate" style={{ color: colors.textSecondary }}>
+              Falta: {checklist.filter((c) => !c.ok).map((c) => c.text).join(', ')}
+            </p>
+          )}
           <button onClick={handleCreate} disabled={loading} className="w-full h-12 rounded-full text-[14px] font-black text-white flex items-center justify-center gap-2 transition active:scale-[0.98] disabled:opacity-50" style={{ background: '#f97316' }}>
             {loading ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : 'Criar loja'}
           </button>
