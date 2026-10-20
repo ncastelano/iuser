@@ -341,3 +341,23 @@ export const QA = {
     pet: [['Fazem banho em gato?', 'Fazemos com agendamento e cuidado especial.'], ['O táxi dog atende qual região?', 'Atendemos toda a região central e bairros próximos.']],
     eletrica: [['Atendem sábado?', 'Atendemos sim, das 7h às 18h. Urgência 24 h por telefone.'], ['Emitem nota fiscal?', 'Emitimos nota fiscal de serviço em todos os atendimentos.']],
 }
+
+// pedidos de serviço publicados por clientes ("procurando profissional") e quais lojas/profissionais do ecossistema se candidatam
+export const SERVICE_REQUESTS = [
+    ['eletricista', null, 'Rua Rafael Vaz e Silva, 410, São Cristóvão, Porto Velho - RO', 'Preciso trocar o disjuntor geral e revisar os fios da cozinha. O chuveiro desarma toda vez que ligo junto com o micro-ondas.', 'Posso receber a partir das 14h.', ['eletrica']],
+    ['eletricista', null, 'Av. Calama, 880, Embratel, Porto Velho - RO', 'Instalação de 6 luminárias de LED e 3 tomadas novas na sala comercial.', 'Material por minha conta.', ['eletrica']],
+    ['cabeleireiro', null, 'Rua José Bonifácio, 120, Olaria, Porto Velho - RO', 'Procuro profissional para corte e coloração em casa para a minha mãe, que tem dificuldade de locomoção.', 'Atendimento domiciliar, sábado de manhã.', ['studio']],
+    ['psicologa', null, 'Atendimento online', 'Busco psicóloga para acompanhamento semanal de ansiedade. Prefiro atendimento online no período da noite.', null, ['psicologia']],
+    ['dentista', null, 'Av. Sete de Setembro, 900, Nossa Senhora das Graças, Porto Velho - RO', 'Dor no dente do fundo há dois dias. Preciso de avaliação e, se der, atendimento ainda esta semana.', 'Urgente.', ['odonto']],
+    ['veterinario', null, 'Rua Dom Pedro II, 320, Centro, Porto Velho - RO', 'Minha cachorrinha de 8 anos está sem apetite. Preciso de consulta veterinária a domicílio.', null, ['pet']],
+    ['pintor', null, 'Rua Euclides da Cunha, 77, Liberdade, Porto Velho - RO', 'Pintura de apartamento de 2 quartos (sala, cozinha e 2 quartos). Paredes já estão preparadas.', 'Tinta eu compro, só a mão de obra.', []],
+    ['encanador', null, 'Av. Jorge Teixeira, 1500, Industrial, Porto Velho - RO', 'Vazamento embaixo da pia da cozinha e torneira do tanque pingando.', 'Pode ser a qualquer hora.', []],
+    ['diarista', null, 'Rua das Palmeiras, 230, Porto Velho - RO', 'Diarista para limpeza pesada de casa de 3 quartos, uma vez só, antes de uma mudança.', null, []],
+    ['jardineiro', null, 'Rua Campos Sales, 45, Centro, Porto Velho - RO', 'Poda de duas árvores e limpeza do quintal (aprox. 120 m²).', 'Preciso de nota fiscal.', []],
+    ['montador', null, 'Av. Rio Madeira, 700, Mato Grosso, Porto Velho - RO', 'Montagem de guarda-roupa de 6 portas e uma cômoda. Móveis já estão no local.', null, []],
+    ['instrutor', null, 'Rua Almirante Barroso, 150, Centro, Porto Velho - RO', 'Aulas de violão para iniciante, duas vezes por semana. Tenho o instrumento.', 'Prefiro à tarde.', []],
+    ['personal', null, 'Academia perto do Shopping, Porto Velho - RO', 'Personal para treino de força 3x por semana, foco em ganho de massa.', null, []],
+    ['massageador', null, 'Rua Tenreiro Aranha, 90, Centro, Porto Velho - RO', 'Massagem relaxante para dor nas costas. Atendimento no meu escritório.', 'Quartas ou sextas.', []],
+    ['outro', 'Fotógrafo para aniversário', 'Salão de festas Vila Verde, Porto Velho - RO', 'Fotógrafo para festa de 15 anos, sábado, das 19h às 23h. Cerca de 80 convidados.', 'Quero ver portfólio antes.', []],
+    ['outro', 'Técnico de ar-condicionado', 'Rua Rio Branco, 310, Centro, Porto Velho - RO', 'Instalação de 2 aparelhos split de 12.000 BTU em escritório.', 'Já tenho os aparelhos.', ['eletrica']],
+]

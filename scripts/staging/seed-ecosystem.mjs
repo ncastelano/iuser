@@ -9,7 +9,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
 import sharp from 'sharp'
-import { STORES, LINKS, FIRST, LAST, COMMENTS, PRAISE, REPLY_PEERS, THANKS, QA } from './ecosystem-data.mjs'
+import { STORES, LINKS, FIRST, LAST, COMMENTS, PRAISE, REPLY_PEERS, THANKS, QA, SERVICE_REQUESTS } from './ecosystem-data.mjs'
 
 const PROD_REF = 'mqtwehsmkuknkrtrqbnf'
 const file = path.resolve(import.meta.dirname, '..', '..', '.env.staging.local')
@@ -393,9 +393,29 @@ await upsertBatched('orders', orderRows, 'id')
 await upsertBatched('order_items', itemRows, 'id')
 await upsertBatched('appointments', apptRows, 'id')
 
+// ---------- 7) pedidos de serviço ("procurando profissional") e candidaturas dos donos ----------
+const reqRows = []
+const appRows = []
+{
+    const r = rng('requests')
+    SERVICE_REQUESTS.forEach(([type, custom, address, description, notes, applicants], i) => {
+        const id = uid(`req:${i}`)
+        const who = customers[(i * 7 + 3) % customers.length]
+        reqRows.push({
+            id, requester_id: who.id, service_type: type, custom_service: custom, location_address: address, location_needs_access: i % 5 === 0,
+            location_access_notes: i % 5 === 0 ? 'Portaria: avisar o nome na chegada.' : null, description, photo_urls: [], notes, status: 'pending',
+            created_at: daysAgo(0.2 + r() * 9), view_count: Math.floor(5 + r() * 120),
+        })
+        applicants.forEach((key) => appRows.push({ id: uid(`app:${i}:${key}`), service_request_id: id, applicant_id: byKey[key].id, status: 'pending', created_at: daysAgo(r() * 3) }))
+    })
+}
+await api('DELETE', `/rest/v1/service_requests?id=in.(${reqRows.map((x) => x.id).join(',')})`, undefined, { Prefer: 'return=minimal' })
+await upsertBatched('service_requests', reqRows, 'id')
+await upsertBatched('service_applications', appRows, 'id')
+
 console.log(`
 Pronto.
   ${STORES.length} lojas | ${productRows.filter((p) => p.listing_type === 'sale' && p.type !== 'service').length} produtos | ${productRows.filter((p) => p.type === 'service').length} serviços | ${productRows.filter((p) => p.listing_type === 'publication').length} publicações
-  ${reviewRows.length} avaliações (${reviewLikeRows.length} curtidas) | ${followRows.length} seguidores | ${likeRows.length} curtidas | ${commentRows.length} comentários (${commentLikeRows.length} curtidas neles) | ${orderRows.length} pedidos | ${apptRows.length} agendamentos
+  ${reviewRows.length} avaliações (${reviewLikeRows.length} curtidas) | ${followRows.length} seguidores | ${likeRows.length} curtidas | ${commentRows.length} comentários (${commentLikeRows.length} curtidas neles) | ${orderRows.length} pedidos | ${apptRows.length} agendamentos | ${reqRows.length} pedidos de serviço
   Lojas: ${STORES.map((s) => '/' + s.slug).join('  ')}
   Contas: donos owner-<segmento>@staging.iuser.test (lojista@staging.iuser.test na padaria) e clientes cliente-001..${String(N_CUSTOMERS).padStart(3, '0')}@staging.iuser.test; senha = STAGING_TEST_PASSWORD`)

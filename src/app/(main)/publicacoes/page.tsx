@@ -36,6 +36,7 @@ import Header from '@/components/Header'
 import { getAvatarUrl } from '@/lib/avatar'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
 import { handleShareLink } from '@/lib/share'
+import { useInsideShell } from '@/components/InsideShell'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -89,6 +90,7 @@ function PublicationCardComponent({
     onLike?: (pubId: string) => void
 }) {
     const router = useRouter()
+    const v3 = useInsideShell()
     const [isLiked, setIsLiked] = useState(pub.is_liked || false)
     const [likeCount, setLikeCount] = useState(pub.like_count || 0)
     const [liking, setLiking] = useState(false)
@@ -150,6 +152,66 @@ function PublicationCardComponent({
 
     const surfaceRgb = hexToRgb(colors.surface)
     const cardBg = `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`
+
+    // v3: publicação como item de feed (sem cartão): quem publicou, título e texto, imagem arredondada, ações discretas e o comentário mais curtido
+    if (v3) {
+        return (
+            <article onClick={handleClick} className="py-4 cursor-pointer" style={{ borderBottom: `1px solid ${colors.border}50` }}>
+                <div className="flex items-center gap-2.5">
+                    <PlanAvatarRing userId={pub.ownerType === 'profile' ? pub.ownerId : undefined}>
+                        <div className="w-9 h-9 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center" style={{ background: '#f9731620' }}>
+                            {pub.ownerImageUrl
+                                ? <img src={pub.ownerImageUrl} className="w-full h-full object-cover" alt={pub.ownerName} />
+                                : <span className="font-black text-sm" style={{ color: '#f97316' }}>{pub.ownerName?.charAt(0).toUpperCase() || '?'}</span>}
+                        </div>
+                    </PlanAvatarRing>
+                    <div className="min-w-0 flex-1">
+                        <p className="text-[13px] font-black truncate" style={{ color: colors.textPrimary }}>{pub.ownerName}</p>
+                        <p className="text-[11px]" style={{ color: colors.textSecondary }}>{formattedDate || 'Data desconhecida'}</p>
+                    </div>
+                </div>
+
+                <p className="mt-2.5 text-[16px] font-black leading-snug" style={{ color: colors.textPrimary }}>{pub.title || 'Sem título'}</p>
+                {pub.description && <p className="mt-1 text-[13px] leading-relaxed line-clamp-2" style={{ color: colors.textSecondary }}>{pub.description}</p>}
+
+                {pub.imageUrl && (
+                    <div className="mt-3 rounded-2xl overflow-hidden">
+                        <img src={pub.imageUrl} className="w-full max-h-[320px] object-cover" alt={pub.title} loading="lazy" />
+                    </div>
+                )}
+
+                <div className="mt-3 flex items-center gap-2">
+                    <button onClick={handleLike} disabled={liking} aria-pressed={isLiked} aria-label={isLiked ? 'Descurtir' : 'Curtir'}
+                        className="h-9 px-3.5 rounded-full flex items-center gap-1.5 text-[13px] font-black transition active:scale-95 disabled:opacity-60"
+                        style={{ background: isLiked ? '#ef444418' : `${colors.border}40`, color: isLiked ? '#ef4444' : colors.textPrimary }}>
+                        <Heart size={15} fill={isLiked ? '#ef4444' : 'none'} />{likeCount}
+                    </button>
+                    <button onClick={(e) => { e.stopPropagation(); handleClick() }} aria-label="Comentários"
+                        className="h-9 px-3.5 rounded-full flex items-center gap-1.5 text-[13px] font-black transition active:scale-95"
+                        style={{ background: `${colors.border}40`, color: colors.textPrimary }}>
+                        <MessageCircle size={15} />{pub.comment_count || 0}
+                    </button>
+                    <button
+                        onClick={(e) => { e.stopPropagation(); handleShareLink({ title: pub.title || 'Publicação', text: pub.description || 'Confira esta publicação no iUser!', url: `${window.location.origin}/publicacoes/${pub.slug || pub.id}` }) }}
+                        aria-label="Compartilhar"
+                        className="ml-auto w-9 h-9 rounded-full flex items-center justify-center transition active:scale-95"
+                        style={{ background: `${colors.border}40`, color: colors.textPrimary }}>
+                        <Share2 size={15} />
+                    </button>
+                </div>
+
+                {pub.top_comment && (
+                    <p className="mt-2.5 text-[13px] leading-snug line-clamp-2" style={{ color: colors.textSecondary }}>
+                        <span className="font-black" style={{ color: colors.textPrimary }}>{profileLabel(pub.top_comment.profiles)}</span>{' '}
+                        {pub.top_comment.content}
+                        <span className="ml-1.5 inline-flex items-center gap-0.5 text-[11px] font-black" style={{ color: colors.textSecondary }}>
+                            <Heart size={10} fill="#ef4444" color="#ef4444" />{pub.top_comment.like_count}
+                        </span>
+                    </p>
+                )}
+            </article>
+        )
+    }
 
     return (
         <div
@@ -368,6 +430,7 @@ function PublicationCardSkeleton({ colors }: { colors: any }) {
 
 // ========== PÁGINA PRINCIPAL ==========
 export default function AllPublicationsPage() {
+    const v3 = useInsideShell()
     const router = useRouter()
     const { colors } = useTheme()
     const { userId: currentUserId, avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
@@ -801,7 +864,7 @@ export default function AllPublicationsPage() {
                                 </div>
                             ) : (
                                 <>
-                                    <div className="space-y-4">
+                                    <div className={v3 ? '' : 'space-y-4'}>
                                         {displayedPublications.map((pub, index) => (
                                             <div key={`${pub.id}-${index}`} className="animate-fadeIn">
                                                 <PublicationCardComponent

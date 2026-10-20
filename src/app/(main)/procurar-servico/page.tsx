@@ -1,6 +1,7 @@
 // app/(main)/procurar-servico/page.tsx
 'use client'
 
+import { useInsideShell } from '@/components/InsideShell'
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { getRequestTitle } from '@/lib/serviceTypes'
@@ -47,6 +48,7 @@ export default function SerParceiroPage() {
 }
 
 function SerParceiroContent() {
+    const v3 = useInsideShell()   // v3: lista corrida (sem cartões), foto/ícone pequenos e botão laranja sólido
     const router = useRouter()
     const searchParams = useSearchParams()
     // Vem de "Quero fazer esse serviço" na home: foca o card desse pedido e
@@ -359,8 +361,11 @@ function SerParceiroContent() {
                                         id={`job-card-${job.id}`}
                                         // Tocar no card (fora dos botões) abre o pedido em tamanho grande e já conta a visita
                                         onClick={(e) => { if (!(e.target as HTMLElement).closest('button, a, input, textarea')) setViewJob(job) }}
-                                        className="rounded-3xl p-3 scroll-mt-32 flex gap-3 cursor-pointer"
-                                        style={{
+                                        className={v3 ? 'py-3 scroll-mt-32 flex gap-3 cursor-pointer' : 'rounded-3xl p-3 scroll-mt-32 flex gap-3 cursor-pointer'}
+                                        style={v3 ? {
+                                            borderBottom: `1px solid ${colors.border}50`,
+                                            background: focusId === job.id ? `${colors.accent}10` : undefined,
+                                        } : {
                                             background: colors.surface,
                                             border: `1px solid ${focusId === job.id ? colors.accent : colors.border}`,
                                             boxShadow: focusId === job.id ? `0 0 0 3px ${colors.accent}40` : colors.shadow,
@@ -368,14 +373,14 @@ function SerParceiroContent() {
                                     >
                                         {/* Foto do pedido em destaque, à esquerda (sem foto: o ícone do tipo) */}
                                         <div
-                                            className="relative w-28 sm:w-32 flex-shrink-0 rounded-2xl overflow-hidden self-stretch min-h-[132px]"
-                                            style={{ background: photo ? '#0b1220' : GRADIENT, boxShadow: '0 8px 18px rgba(0,0,0,0.18)' }}
+                                            className={v3 ? 'relative w-20 h-20 flex-shrink-0 rounded-2xl overflow-hidden' : 'relative w-28 sm:w-32 flex-shrink-0 rounded-2xl overflow-hidden self-stretch min-h-[132px]'}
+                                            style={v3 ? { background: photo ? '#0b1220' : '#f9731620' } : { background: photo ? '#0b1220' : GRADIENT, boxShadow: '0 8px 18px rgba(0,0,0,0.18)' }}
                                         >
                                             {photo ? (
                                                 <img src={photo} alt={title} className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
                                             ) : (
                                                 <div className="absolute inset-0 flex items-center justify-center">
-                                                    <Icon size={38} color="rgba(255,255,255,0.9)" />
+                                                    <Icon size={v3 ? 28 : 38} color={v3 ? '#f97316' : 'rgba(255,255,255,0.9)'} />
                                                 </div>
                                             )}
                                             {job.photo_urls.length > 1 && (
@@ -409,7 +414,7 @@ function SerParceiroContent() {
                                                 </span>
                                             </div>
 
-                                            <p className="text-base font-black leading-snug" style={{ color: colors.textPrimary, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                                            <p className={`${v3 ? 'text-[15px]' : 'text-base'} font-black leading-snug`} style={{ color: colors.textPrimary, display: '-webkit-box', WebkitLineClamp: v3 ? 2 : 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                                                 {title}
                                             </p>
 
@@ -458,11 +463,13 @@ function SerParceiroContent() {
                                                 <button
                                                     onClick={() => handleApply(job)}
                                                     disabled={applied || applyingKey === key || autoApplyingId === job.id}
-                                                    className="mt-auto w-full py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all disabled:opacity-70 flex items-center justify-center gap-2"
+                                                    className={v3
+                                                        ? 'mt-1 w-full h-10 rounded-full text-[13px] font-black transition active:scale-95 disabled:opacity-70 flex items-center justify-center gap-2'
+                                                        : 'mt-auto w-full py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all disabled:opacity-70 flex items-center justify-center gap-2'}
                                                     style={
                                                         applied
-                                                            ? { background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }
-                                                            : { background: GRADIENT, color: '#fff', boxShadow: '0 4px 12px #f9731640' }
+                                                            ? { background: `${colors.border}30`, color: colors.textSecondary, border: v3 ? 'none' : `1px solid ${colors.border}` }
+                                                            : v3 ? { background: '#f97316', color: '#fff' } : { background: GRADIENT, color: '#fff', boxShadow: '0 4px 12px #f9731640' }
                                                     }
                                                 >
                                                     {autoApplyingId === job.id && !applied ? (
@@ -472,7 +479,7 @@ function SerParceiroContent() {
                                                     ) : applied ? (
                                                         'Inscrição enviada'
                                                     ) : (
-                                                        <><Briefcase size={14} />Inscrever-se</>
+                                                        <>{!v3 && <Briefcase size={14} />}Inscrever-se</>
                                                     )}
                                                 </button>
                                             )}
