@@ -46,6 +46,7 @@ import EditProductDialog from '@/components/EditProductDialog'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { trackProductView } from '@/lib/trackProductView'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
+import ProductReviewsV3, { type ProductReviewV3 } from '@/components/v3/ProductReviewsV3'
 import { useInsideShell } from '@/components/InsideShell'
 import { V2CheckoutReview } from '@/components/DeliveryEstimate/V2CheckoutReview'
 
@@ -167,6 +168,8 @@ export function ProductClientPage({
         is_anonymous: boolean
         created_at: string
         profiles: { id?: string; name: string | null; avatar_url: string | null; profileSlug?: string | null } | null
+        like_count: number
+        is_liked: boolean
     }[]>([])
     const [showReviews, setShowReviews] = useState(false)
 
@@ -290,17 +293,48 @@ export function ProductClientPage({
             .select('id, rating, comment, is_anonymous, created_at, profiles(id, name, avatar_url, "profileSlug")')
             .eq('product_id', productId)
             .order('created_at', { ascending: false })
-            .then(({ data }) => {
+            .then(async ({ data }) => {
                 if (!isMounted) return
                 const rows = (data || []).map((r: any) => ({
                     ...r,
                     profiles: Array.isArray(r.profiles) ? r.profiles[0] : r.profiles,
+                    like_count: 0,
+                    is_liked: false,
                 }))
+                // curtidas das avaliações (contagem pública; "curtiu" só para quem está logado), em lote
+                if (rows.length > 0) {
+                    const { data: likes } = await supabase
+                        .from('product_review_likes')
+                        .select('review_id, profile_id')
+                        .in('review_id', rows.map((r: any) => r.id))
+                    const counts = new Map<string, number>()
+                    const mine = new Set<string>()
+                    for (const l of (likes || []) as { review_id: string; profile_id: string }[]) {
+                        counts.set(l.review_id, (counts.get(l.review_id) || 0) + 1)
+                        if (currentUserId && l.profile_id === currentUserId) mine.add(l.review_id)
+                    }
+                    for (const r of rows as any[]) { r.like_count = counts.get(r.id) || 0; r.is_liked = mine.has(r.id) }
+                }
+                if (!isMounted) return
                 setProductReviews(rows)
             })
 
         return () => { isMounted = false }
-    }, [product?.id])
+    }, [product?.id, currentUserId])
+
+    // curtir/descurtir uma avaliação (otimista; desfaz se o banco recusar)
+    const toggleReviewLike = async (reviewId: string) => {
+        if (!currentUserId) { toast.error('Faça login para curtir'); return }
+        const target = productReviews.find((r) => r.id === reviewId)
+        if (!target) return
+        const next = !target.is_liked
+        const apply = (liked: boolean) => setProductReviews((list) => list.map((r) => r.id === reviewId ? { ...r, is_liked: liked, like_count: Math.max(0, r.like_count + (liked ? 1 : -1)) } : r))
+        apply(next)
+        const { error } = next
+            ? await supabase.from('product_review_likes').insert({ review_id: reviewId, profile_id: currentUserId })
+            : await supabase.from('product_review_likes').delete().eq('review_id', reviewId).eq('profile_id', currentUserId)
+        if (error) { apply(!next); toast.error('Não foi possível curtir agora') }
+    }
 
     // ===== FUNÇÃO PARA IR PARA A LOJA =====
     const goToStore = () => {
@@ -1129,8 +1163,9 @@ export function ProductClientPage({
                             </div>
                         )}
 
-                        {/* Loja + data + compartilhar - no rodapé da foto. Tocar na loja (avatar/nome)
-                            abre a loja; o compartilhar ocupa o lugar do antigo botão "ir pra loja". */}
+                        {/* Loja + data + compartilhar - no rodapé da foto (v2). Tocar na loja (avatar/nome)
+                            abre a loja; o compartilhar ocupa o lugar do antigo botão "ir pra loja". Na v3 isso vira uma linha abaixo da foto. */}
+                        {!v3 && (
                         <div
                             className="absolute bottom-0 inset-x-0 flex items-center gap-2 px-4 pb-4 pt-8"
                             style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.72), transparent)' }}
@@ -1184,11 +1219,45 @@ export function ProductClientPage({
                                 </button>
                             )}
                         </div>
+                        )}
                     </div>
 
                     {/* Sheet de conteúdo (mobile: sobreposto à imagem / web: coluna ao lado) */}
                     <main className="relative z-10" style={{ background: colors.background }}>
                         <div className="px-5 pt-4 md:px-0 md:pt-0 space-y-3">
+                            {/* v3: loja, data e ações numa linha limpa (a foto fica sem camada escura por cima) */}
+                            {v3 && (
+                                <div className="flex items-center gap-2.5">
+                                    <button onClick={goToStore} className="flex items-center gap-2.5 min-w-0 flex-1 text-left transition active:opacity-70">
+                                        <div className="w-9 h-9 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center" style={{ background: `${colors.border}60` }}>
+                                            {finalStoreImage ? <img src={finalStoreImage} alt={storeDisplay.name} className="w-full h-full object-cover" /> : <Store size={16} style={{ color: colors.textSecondary }} />}
+                                        </div>
+                                        <div className="min-w-0">
+                                            <p className="text-[13px] font-black truncate" style={{ color: colors.textPrimary }}>{storeDisplay.name}</p>
+                                            <p className="text-[11px]" style={{ color: colors.textSecondary }}>{formattedDate}</p>
+                                        </div>
+                                    </button>
+                                    <button
+                                        onClick={() => handleShareLink({ title: `${product.name || 'Produto'} | ${storeDisplay.name}`, text: product.description || 'Confira no iUser!' })}
+                                        aria-label="Compartilhar"
+                                        className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition active:scale-95"
+                                        style={{ background: `${colors.border}40`, color: colors.textPrimary }}
+                                    >
+                                        <Share2 size={17} />
+                                    </button>
+                                    {!!currentUserId && currentUserId === product.store?.owner_id && (
+                                        <button
+                                            onClick={() => setEditingProduct(true)}
+                                            aria-label="Editar produto"
+                                            className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition active:scale-95"
+                                            style={{ background: `${colors.border}40`, color: colors.textPrimary }}
+                                        >
+                                            <MoreHorizontal size={17} />
+                                        </button>
+                                    )}
+                                </div>
+                            )}
+
                             {/* Preço - o nome do produto já está no cabeçalho flutuante */}
                             <div className="flex items-center gap-3">
                                 <span className="text-2xl md:text-3xl font-black" style={{ color: colors.accent }}>
@@ -1214,8 +1283,30 @@ export function ProductClientPage({
                                 </div>
                             )}
 
-                            {/* Avaliações - resumo compacto, expande sob demanda */}
-                            {productReviews.length > 0 && (
+                            {/* v3: avaliações em cartão que gira (mais curtidas primeiro) e abre a lista completa */}
+                            {v3 && productReviews.length > 0 && (
+                                <ProductReviewsV3
+                                    reviews={productReviews as ProductReviewV3[]}
+                                    colors={colors}
+                                    avgRating={avgRating}
+                                    onToggleLike={toggleReviewLike}
+                                    renderAvatar={(r) => {
+                                        const a = getAvatarUrl(supabase, r.profiles?.avatar_url)
+                                        return (
+                                            <PlanAvatarRing userId={r.is_anonymous ? null : r.profiles?.id}>
+                                                <div className="w-9 h-9 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0" style={{ background: `${colors.border}60` }}>
+                                                    {a && !r.is_anonymous
+                                                        ? <img src={a} alt="" className="w-full h-full object-cover" />
+                                                        : <span className="text-xs font-black" style={{ color: '#f97316' }}>{r.is_anonymous ? '?' : (r.profiles?.profileSlug || r.profiles?.name || '?').slice(0, 1).toUpperCase()}</span>}
+                                                </div>
+                                            </PlanAvatarRing>
+                                        )
+                                    }}
+                                />
+                            )}
+
+                            {/* Avaliações - resumo compacto, expande sob demanda (v2) */}
+                            {!v3 && productReviews.length > 0 && (
                                 <div className="border-t pt-2" style={{ borderColor: colors.border }}>
                                     <button
                                         onClick={() => setShowReviews((v) => !v)}

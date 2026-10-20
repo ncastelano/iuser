@@ -231,6 +231,19 @@ for (const s of STORES) {
 // sem duplicar a rodada anterior: limpa as avaliações das lojas do ecossistema e recria
 await api('DELETE', `/rest/v1/product_reviews?store_id=in.(${STORES.map((s) => s.id).join(',')})`, undefined, { Prefer: 'return=minimal' })
 await upsertBatched('product_reviews', reviewRows, 'id')
+// curtidas nas avaliações: avaliações boas e com texto são mais curtidas; poucas viralizam (a lista "mais curtidas" varia de verdade)
+const reviewLikeRows = []
+{
+    const r = rng('reviewlikes')
+    const pool = [...customers, ...owners]
+    for (const rv of reviewRows) {
+        const w = (rv.rating >= 4 ? 1 : 0.25) * (rv.comment ? 1 : 0.15)
+        const n = Math.floor(Math.pow(r(), 3) * 26 * w)
+        pool.filter((p) => p.id !== rv.profile_id).map((p) => ({ p, k: r() })).sort((a, b) => a.k - b.k).slice(0, n)
+            .forEach(({ p }) => reviewLikeRows.push({ review_id: rv.id, profile_id: p.id, created_at: new Date(Math.min(Date.now() - 1000, new Date(rv.created_at).getTime() + (0.2 + r() * 200) * 3600000)).toISOString() }))
+    }
+}
+await upsertBatched('product_review_likes', reviewLikeRows, 'review_id,profile_id', 'resolution=ignore-duplicates,return=minimal', 300)
 for (const s of STORES) {
     await api('PATCH', `/rest/v1/stores?id=eq.${s.id}`, { ratings_avg: Math.round((s.ratingSum / s.reviewCount) * 10) / 10, ratings_count: s.reviewCount }, { Prefer: 'return=minimal' })
     for (const [pid, pr] of s.productRatings) await api('PATCH', `/rest/v1/products?id=eq.${pid}`, { ratings_avg: Math.round((pr.sum / pr.n) * 10) / 10, ratings_count: pr.n }, { Prefer: 'return=minimal' })
@@ -383,6 +396,6 @@ await upsertBatched('appointments', apptRows, 'id')
 console.log(`
 Pronto.
   ${STORES.length} lojas | ${productRows.filter((p) => p.listing_type === 'sale' && p.type !== 'service').length} produtos | ${productRows.filter((p) => p.type === 'service').length} serviços | ${productRows.filter((p) => p.listing_type === 'publication').length} publicações
-  ${reviewRows.length} avaliações | ${followRows.length} seguidores | ${likeRows.length} curtidas | ${commentRows.length} comentários (${commentLikeRows.length} curtidas neles) | ${orderRows.length} pedidos | ${apptRows.length} agendamentos
+  ${reviewRows.length} avaliações (${reviewLikeRows.length} curtidas) | ${followRows.length} seguidores | ${likeRows.length} curtidas | ${commentRows.length} comentários (${commentLikeRows.length} curtidas neles) | ${orderRows.length} pedidos | ${apptRows.length} agendamentos
   Lojas: ${STORES.map((s) => '/' + s.slug).join('  ')}
   Contas: donos owner-<segmento>@staging.iuser.test (lojista@staging.iuser.test na padaria) e clientes cliente-001..${String(N_CUSTOMERS).padStart(3, '0')}@staging.iuser.test; senha = STAGING_TEST_PASSWORD`)
