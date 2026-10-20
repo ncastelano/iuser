@@ -1,12 +1,12 @@
 // src/components/v3/ProfileHeaderV3.tsx
 //
-// Cabeçalho da página pública de um PERFIL na interface 3.0: capa, foto redonda, nome, atalhos em cápsulas e linha de ações.
+// Cabeçalho da página pública de um PERFIL na interface 3.0: foto redonda, nome, atalhos em cápsulas e linha de ações (sem capa: a navbar da v3 já é a faixa laranja).
 // Só apresentação (como StoreHeaderV3): dados e ações vêm de `Profile.tsx`; blocos complexos (avatar com moldura/zoom/upload, janelas
 // da agenda, mapa ao vivo, botão de conversar) chegam prontos por slots, então a regra é a mesma da v2.
 'use client'
 
 import { useState, type ReactNode } from 'react'
-import { ArrowLeft, Calendar, Camera, Eye, MapPin, MessageCircle, Pencil, Share2, UserCheck, UserPlus, Users } from 'lucide-react'
+import { Calendar, Camera, Eye, MapPin, MessageCircle, Pencil, UserCheck, UserPlus, Users } from 'lucide-react'
 
 const ORANGE = '#f97316'
 
@@ -26,9 +26,6 @@ export interface ProfileHeaderV3Props {
     following: number
     onOpenFollowers: () => void
     onOpenFollowing: () => void
-    shareCount: number
-    onShare: () => void
-    onBack: () => void
     canFollow: boolean
     isFollowing: boolean
     onFollowToggle: () => void
@@ -62,23 +59,9 @@ export default function ProfileHeaderV3(p: ProfileHeaderV3Props) {
 
     return (
         <section className="rounded-3xl overflow-hidden" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
-            <div className="relative h-20" style={{ background: ORANGE }}>
-                <button onClick={p.onBack} aria-label="Voltar" className="absolute top-3 left-3 w-10 h-10 rounded-full flex items-center justify-center transition active:scale-95" style={{ background: colors.surface, color: colors.textPrimary }}>
-                    <ArrowLeft size={19} />
-                </button>
-                <button onClick={p.onShare} aria-label="Compartilhar" className="absolute top-3 right-3 w-10 h-10 rounded-full flex items-center justify-center transition active:scale-95" style={{ background: colors.surface, color: colors.textPrimary }}>
-                    <Share2 size={17} />
-                    {p.shareCount > 0 && (
-                        <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full text-white text-[9px] font-black flex items-center justify-center" style={{ background: '#ef4444', border: `2px solid ${colors.surface}` }}>
-                            {p.shareCount}
-                        </span>
-                    )}
-                </button>
-            </div>
-
-            <div className="px-4 pb-4">
+            <div className="px-4 py-4">
                 {/* foto redonda sobre a capa, nome centralizado */}
-                <div className="relative z-10 -mt-11 flex flex-col items-center text-center">
+                <div className="flex flex-col items-center text-center">
                     {p.avatarSlot}
                     <h1 className="mt-2 text-[19px] font-black leading-tight" style={{ color: colors.textPrimary }}>{p.name}</h1>
                     {p.levelSlot && <div className="mt-1 flex justify-center">{p.levelSlot}</div>}

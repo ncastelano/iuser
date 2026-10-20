@@ -1603,9 +1603,6 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                     following={followingCount}
                     onOpenFollowers={() => { setFollowType('followers'); setShowFollows(true) }}
                     onOpenFollowing={() => { setFollowType('following'); setShowFollows(true) }}
-                    shareCount={shareCount}
-                    onShare={handleShareProfile}
-                    onBack={() => (typeof window !== 'undefined' && window.history.length > 1 ? router.back() : router.push('/'))}
                     canFollow={!!currentUserId && currentUserId !== owner.id}
                     isFollowing={isFollowing}
                     onFollowToggle={handleFollowToggle}

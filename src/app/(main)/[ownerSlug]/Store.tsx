@@ -943,9 +943,6 @@ export function Store({
                     visitors={totalVisitors}
                     followers={followersCount}
                     onOpenFollowers={() => setShowFollowers(true)}
-                    shareCount={shareCount}
-                    onShare={handleShareStore}
-                    onBack={() => (typeof window !== 'undefined' && window.history.length > 1 ? router.back() : router.push('/'))}
                     canFollow={!!currentUserId && currentUserId !== owner.id}
                     isFollowing={isFollowing}
                     onFollowToggle={handleFollowToggle}

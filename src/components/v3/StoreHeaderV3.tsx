@@ -1,13 +1,13 @@
 // src/components/v3/StoreHeaderV3.tsx
 //
-// Cabeçalho da página pública de uma LOJA na interface 3.0: capa, logo, nome, status, atalhos em cápsulas e uma linha de ações.
+// Cabeçalho da página pública de uma LOJA na interface 3.0: logo, nome, status, atalhos em cápsulas e uma linha de ações (sem capa: a navbar da v3 já é a faixa laranja).
 // Só apresentação: todos os dados e ações vêm de `Store.tsx` (mesmas regras da v2). Fica em `components/v3` (neutro) e é usado
 // quando a tela está dentro da casca da 3.0 (`useInsideShell`).
 'use client'
 
 import { useState, type ReactNode } from 'react'
 import {
-    ArrowLeft, BookOpen, Calendar, Camera, Clock, Eye, MapPin, MessageCircle, Share2, Star, UserCheck, UserPlus, Users, AlertCircle,
+    BookOpen, Calendar, Camera, Clock, Eye, MapPin, MessageCircle, Star, UserCheck, UserPlus, Users, AlertCircle,
 } from 'lucide-react'
 
 const ORANGE = '#f97316'
@@ -29,9 +29,6 @@ export interface StoreHeaderV3Props {
     visitors: number
     followers: number
     onOpenFollowers: () => void
-    shareCount: number
-    onShare: () => void
-    onBack: () => void
     canFollow: boolean
     isFollowing: boolean
     onFollowToggle: () => void
@@ -68,24 +65,9 @@ export default function StoreHeaderV3(p: StoreHeaderV3Props) {
 
     return (
         <section className="rounded-3xl overflow-hidden" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
-            {/* capa */}
-            <div className="relative h-24" style={{ background: ORANGE }}>
-                <button onClick={p.onBack} aria-label="Voltar" className="absolute top-3 left-3 w-10 h-10 rounded-full flex items-center justify-center transition active:scale-95" style={{ background: colors.surface, color: colors.textPrimary }}>
-                    <ArrowLeft size={19} />
-                </button>
-                <button onClick={p.onShare} aria-label="Compartilhar" className="absolute top-3 right-3 w-10 h-10 rounded-full flex items-center justify-center transition active:scale-95" style={{ background: colors.surface, color: colors.textPrimary }}>
-                    <Share2 size={17} />
-                    {p.shareCount > 0 && (
-                        <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full text-white text-[9px] font-black flex items-center justify-center" style={{ background: '#ef4444', border: `2px solid ${colors.surface}` }}>
-                            {p.shareCount}
-                        </span>
-                    )}
-                </button>
-            </div>
-
-            <div className="px-4 pb-4">
+            <div className="px-4 py-4">
                 {/* logo + nome + status */}
-                <div className="relative z-10 flex items-end gap-3 -mt-7">
+                <div className="flex items-center gap-3">
                     <div className="flex-shrink-0 w-[62px] h-[62px] rounded-2xl overflow-hidden flex items-center justify-center" style={{ background: colors.surface, border: `3px solid ${colors.surface}`, outline: `2px solid ${statusColor}` }}>
                         {p.imageUrl ? <img src={p.imageUrl} alt={p.name} className="w-full h-full object-cover" /> : <span className="text-2xl font-black" style={{ color: ORANGE }}>{initial}</span>}
                     </div>
