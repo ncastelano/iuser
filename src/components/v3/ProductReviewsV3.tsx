@@ -119,9 +119,7 @@ export default function ProductReviewsV3({
                                 <Heart size={13} fill={current.is_liked ? '#ef4444' : 'none'} />{current.like_count}
                             </span>
                         </div>
-                        {current.comment
-                            ? <p className="mt-2 text-[14px] leading-relaxed line-clamp-3" style={{ color: colors.textPrimary }}>“{current.comment}”</p>
-                            : <p className="mt-2 text-[13px]" style={{ color: colors.textSecondary }}>Avaliou só com a nota.</p>}
+                        {current.comment && <p className="mt-2 text-[14px] leading-relaxed line-clamp-3" style={{ color: colors.textPrimary }}>“{current.comment}”</p>}
                     </div>
                 )}
                 <div className="mt-3 flex items-center justify-between gap-3">

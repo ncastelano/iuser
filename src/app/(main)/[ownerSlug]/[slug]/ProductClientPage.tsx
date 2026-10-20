@@ -513,7 +513,7 @@ export function ProductClientPage({
         <>
             <div
                 className="flex items-center gap-1 rounded-full p-1 flex-shrink-0"
-                style={{ border: `1px solid ${colors.border}` }}
+                style={v3 ? { background: `${colors.border}40` } : { border: `1px solid ${colors.border}` }}
             >
                 <button
                     onClick={() => handleQuantityChange(quantity - 1)}
@@ -539,11 +539,13 @@ export function ProductClientPage({
             <button
                 onClick={openAddModal}
                 disabled={addingToCart || addedToCart}
-                className="flex-1 min-w-0 flex items-center justify-center gap-2 px-3 py-3 md:py-3.5 rounded-2xl text-sm md:text-base font-bold whitespace-nowrap transition-all hover:scale-[1.01] disabled:opacity-60"
+                className={v3
+                    ? 'flex-1 min-w-0 h-11 flex items-center justify-center gap-2 px-3 rounded-full text-[13px] font-black whitespace-nowrap transition active:scale-95 disabled:opacity-60'
+                    : 'flex-1 min-w-0 flex items-center justify-center gap-2 px-3 py-3 md:py-3.5 rounded-2xl text-sm md:text-base font-bold whitespace-nowrap transition-all hover:scale-[1.01] disabled:opacity-60'}
                 style={{
                     background: addedToCart ? '#22c55e' : GRADIENT,
                     color: '#ffffff',
-                    boxShadow: addedToCart ? '0 4px 14px rgba(34, 197, 94, 0.4)' : '0 4px 14px rgba(249, 115, 22, 0.4)',
+                    ...(v3 ? {} : { boxShadow: addedToCart ? '0 4px 14px rgba(34, 197, 94, 0.4)' : '0 4px 14px rgba(249, 115, 22, 0.4)' }),
                 }}
             >
                 {addedToCart ? (
@@ -1103,7 +1105,12 @@ export function ProductClientPage({
                 do iPhone atrapalha). */}
             <div
                 className="md:hidden sticky top-0 z-30"
-                style={{
+                style={v3 ? {
+                    // v3: header parado logo abaixo da navbar, sem sombra
+                    background: colors.background,
+                    top: 'var(--shell-top, 0px)',
+                    borderBottom: `1px solid ${colors.border}50`,
+                } : {
                     background: colors.background,
                     borderBottom: `1px solid ${colors.border}`,
                     boxShadow: '0 8px 24px rgba(0,0,0,0.08)',
@@ -1114,8 +1121,8 @@ export function ProductClientPage({
                     <button
                         onClick={() => router.back()}
                         aria-label="Voltar"
-                        className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition hover:scale-105"
-                        style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                        className={`${v3 ? 'w-11 h-11' : 'w-10 h-10'} rounded-full flex items-center justify-center flex-shrink-0 transition ${v3 ? 'active:scale-95' : 'hover:scale-105'}`}
+                        style={v3 ? { background: `${colors.border}40`, color: colors.textPrimary } : { background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
                     >
                         <ArrowLeft size={20} />
                     </button>
