@@ -162,6 +162,7 @@ export function Store({
     const DESC_LIMIT = 80
     const [showAllHours, setShowAllHours] = useState(false)
     const [showScheduleModal, setShowScheduleModal] = useState(false)
+    const [scheduleProductId, setScheduleProductId] = useState<string | null>(null)
     const [showAgendaDialog, setShowAgendaDialog] = useState(false)
     const [agendaSaving, setAgendaSaving] = useState(false)
     const [chatSaving, setChatSaving] = useState(false)
@@ -250,6 +251,8 @@ export function Store({
     const goods = useMemo(() => products.filter(p => p.type !== 'service'), [products])
     const services = useMemo(() => products.filter(p => p.type === 'service'), [products])
     const catalogList = activeTab === 'services' ? services : goods
+    // Loja que atende com hora marcada (agenda ligada e serviços cadastrados): a página gira em torno de AGENDAR
+    const schedulingFocus = !!owner?.allow_scheduling && services.length > 0
 
     // Se a loja só tem serviços (nenhum produto), a aba de serviços já abre na frente
     const defaultTabPickedRef = useRef(false)
@@ -257,8 +260,8 @@ export function Store({
         if (loading || defaultTabPickedRef.current) return
         if (goods.length + services.length === 0) return // ainda carregando (ou loja vazia): espera
         defaultTabPickedRef.current = true
-        if (goods.length === 0 && services.length > 0) setActiveTab('services')
-    }, [loading, goods.length, services.length])
+        if ((goods.length === 0 || schedulingFocus) && services.length > 0) setActiveTab('services')
+    }, [loading, goods.length, services.length, schedulingFocus])
 
     // ========== FILTRO ==========
     const filteredProducts = useMemo(() => {
@@ -797,7 +800,8 @@ export function Store({
                             storeId={owner.id}
                             storeName={owner.name}
                             storeSlug={owner.slug}
-                            onClose={() => setShowScheduleModal(false)}
+                            preselectProductId={scheduleProductId}
+                            onClose={() => { setShowScheduleModal(false); setScheduleProductId(null) }}
                             onSuccess={() => {
                                 loadStoreData()
                             }}
@@ -960,7 +964,9 @@ export function Store({
                     whatsappLink={whatsappLink}
                     links={owner.links ?? []}
                     allowScheduling={!!owner.allow_scheduling}
-                    onOpenSchedule={() => setShowScheduleModal(true)}
+                    onOpenSchedule={() => { setScheduleProductId(null); setShowScheduleModal(true) }}
+                    schedulingFocus={schedulingFocus}
+                    hasGoods={goods.length > 0}
                     isOwner={isOwner}
                     chatEnabled={!!owner.chat_enabled}
                     chatSaving={chatSaving}
@@ -1347,7 +1353,7 @@ export function Store({
                     const productsTab = { id: 'products', label: 'Produtos', count: goods.length }
                     const servicesTab = { id: 'services', label: 'Serviços', count: services.length }
                     // Normal: Produtos, Serviços, Avaliações. Sem produtos, mas com serviços: Serviços vem na frente.
-                    const catalogTabs = goods.length === 0 && services.length > 0 ? [servicesTab, productsTab] : [productsTab, servicesTab]
+                    const catalogTabs = (goods.length === 0 || schedulingFocus) && services.length > 0 ? [servicesTab, productsTab] : [productsTab, servicesTab]
                     return [...catalogTabs, { id: 'reviews', label: 'Avaliações', count: ratings.length }]
                 })().map(tab => {
                     const isActive = activeTab === tab.id
@@ -1589,7 +1595,17 @@ export function Store({
                                                                 R$ {(product.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                                             </span>
                                                             {isHourly && <span className="text-[10px] ml-1 opacity-75">/h</span>}
+                                                            {v3 && product.type === 'service' && product.duration_minutes ? <span className="text-[11px] ml-2 font-bold" style={{ color: colors.textSecondary }}>{product.duration_minutes} min</span> : null}
                                                         </div>
+                                                        {v3 && product.type === 'service' && !!owner?.allow_scheduling && !isOwner && (
+                                                            <button
+                                                                onClick={e => { e.stopPropagation(); setScheduleProductId(product.id); setShowScheduleModal(true) }}
+                                                                className="mt-1.5 w-full h-9 rounded-full text-[12px] font-black flex items-center justify-center gap-1.5 transition active:scale-95"
+                                                                style={{ background: '#f97316', color: '#fff' }}
+                                                            >
+                                                                <Calendar size={13} /> Agendar
+                                                            </button>
+                                                        )}
                                                         {isOwner && (
                                                             <div className="mt-1.5 flex items-center gap-1.5">
                                                                 <button

@@ -39,6 +39,9 @@ export interface StoreHeaderV3Props {
         /** links que a loja cadastrou (texto + endereço), mostrados sob a descrição */
     links: StoreLink[]
     allowScheduling: boolean
+    /** loja de atendimento (agenda ligada + serviços): o botão principal passa a ser Agendar */
+    schedulingFocus?: boolean
+    hasGoods?: boolean
     onOpenSchedule: () => void
     isOwner: boolean
     chatEnabled: boolean
@@ -133,12 +136,19 @@ export default function StoreHeaderV3(p: StoreHeaderV3Props) {
                     </button>
                 </div>
 
-                {/* ação principal: Comprar (único botão laranja sólido); Seguir é secundário */}
+                {/* ação principal (único botão laranja sólido): Agendar nas lojas de atendimento, Comprar nas demais; Seguir é secundário */}
                 <div className="mt-3 flex items-center gap-2">
-                    <button onClick={p.onOpenCatalog} className="flex-[1.4] h-11 rounded-full text-[13px] font-black flex items-center justify-center gap-1.5 transition active:scale-95" style={{ background: ORANGE, color: '#fff' }}>
-                        <ShoppingBag size={16} />
-                        Comprar
-                    </button>
+                    {p.schedulingFocus ? (
+                        <button onClick={p.onOpenSchedule} className="flex-[1.4] h-11 rounded-full text-[13px] font-black flex items-center justify-center gap-1.5 transition active:scale-95" style={{ background: ORANGE, color: '#fff' }}>
+                            <Calendar size={16} />
+                            Agendar atendimento
+                        </button>
+                    ) : (
+                        <button onClick={p.onOpenCatalog} className="flex-[1.4] h-11 rounded-full text-[13px] font-black flex items-center justify-center gap-1.5 transition active:scale-95" style={{ background: ORANGE, color: '#fff' }}>
+                            <ShoppingBag size={16} />
+                            Comprar
+                        </button>
+                    )}
                     {p.canFollow && (
                         <button
                             onClick={p.onFollowToggle}
@@ -152,9 +162,18 @@ export default function StoreHeaderV3(p: StoreHeaderV3Props) {
                 </div>
 
                 {/* conversa pelo iUser */}
-                {p.contactSlot && <div className="mt-2 flex">{p.contactSlot}</div>}
+                {(p.contactSlot || (p.schedulingFocus && p.hasGoods)) && (
+                    <div className="mt-2 flex items-center gap-2">
+                        {p.contactSlot}
+                        {p.schedulingFocus && p.hasGoods && (
+                            <button onClick={p.onOpenCatalog} className="flex-1 min-w-0 h-10 rounded-full text-[12px] font-black flex items-center justify-center gap-1.5 transition active:scale-95" style={{ background: soft, color: colors.textPrimary }}>
+                                <ShoppingBag size={15} style={{ color: ORANGE }} /> Produtos
+                            </button>
+                        )}
+                    </div>
+                )}
 
-                {p.allowScheduling && (
+                {p.allowScheduling && !p.schedulingFocus && (
                     <button onClick={p.onOpenSchedule} className="mt-2 w-full h-11 rounded-2xl px-3 flex items-center gap-2.5 text-left transition active:scale-[0.99]" style={{ background: soft }}>
                         <Calendar size={17} style={{ color: ORANGE }} className="flex-shrink-0" />
                         <span className="text-[13px] font-black flex-1" style={{ color: colors.textPrimary }}>Agendar atendimento</span>

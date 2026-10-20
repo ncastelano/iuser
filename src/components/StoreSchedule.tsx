@@ -84,6 +84,8 @@ interface Props {
     storeSlug?: string
     onClose?: () => void
     onSuccess?: () => void
+    /** abre já com este serviço escolhido (vindo do botão "Agendar" do cartão do serviço) */
+    preselectProductId?: string | null
 }
 
 // ===== GRADIENTE FIXO =====
@@ -111,6 +113,7 @@ export default function StoreSchedule({
     storeSlug: initialStoreSlug,
     onClose,
     onSuccess,
+    preselectProductId,
 }: Props) {
     const { colors } = useTheme()
     const { appointments, refetch } = useAppointments()
@@ -452,10 +455,15 @@ export default function StoreSchedule({
             .select('id, name, description, price, duration_minutes')
             .eq('store_id', storeId)
             .eq('is_active', true)
+            // só o que se agenda: SERVIÇOS da loja (antes entravam também publicações e produtos)
+            .eq('type', 'service')
+            .eq('listing_type', 'sale')
             .order('name', { ascending: true })
             .limit(20)
         setStoreProducts(data || [])
         setLoadingProducts(false)
+        const wanted = preselectProductId ? (data || []).find((p: any) => p.id === preselectProductId) : null
+        if (wanted) setSelectedItems((prev) => (prev.length ? prev : [{ product: wanted as Product, quantity: 1 }]))
     }
 
     // ---------- Manipulação dos itens selecionados ----------
