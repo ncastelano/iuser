@@ -37,6 +37,8 @@ interface HeaderProps {
     profileSlug?: string | null
     onHomeClick?: () => void
     locationElement?: React.ReactNode
+    /** v3: título, abas e busca ficam presos no topo enquanto a lista rola */
+    pinned?: boolean
 }
 
 export default function Header({
@@ -57,6 +59,7 @@ export default function Header({
     profileSlug,
     onHomeClick,
     locationElement,
+    pinned = false,
 }: HeaderProps) {
     const router = useRouter()
     const pathname = usePathname()
@@ -248,7 +251,10 @@ export default function Header({
     // Dentro da casca da 3.0 a navbar e o menu já existem: aqui sobram só o voltar/título, as abas e a busca da página
     if (insideShell) {
         return (
-            <div className="relative z-10 flex flex-col gap-2.5 pb-3" style={{ color: colors.textPrimary }}>
+            <div
+                className={`flex flex-col gap-2.5 pb-3 ${pinned ? 'sticky top-0 z-30 pt-1' : 'relative z-10'}`}
+                style={{ color: colors.textPrimary, ...(pinned ? { background: colors.background } : {}) }}
+            >
                 {(showBack || (title && title !== 'iUser') || locationElement) && (
                     <div className="flex items-center gap-2">
                         {showBack && (

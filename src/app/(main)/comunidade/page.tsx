@@ -408,6 +408,7 @@ export default function ComunidadePage() {
                     loading={profileLoading}
                     showSearch={true}
                     searchPlaceholder="Buscar comunidade ou cidade..."
+                    pinned
                     onSearch={setSearchQuery}
                     searchValue={searchQuery}
                     searchRef={searchInputRef}
@@ -542,8 +543,8 @@ export default function ComunidadePage() {
                                 )}
                                 <Link href={`/comunidade/${community.slug}`} className="block group">
                                     <div
-                                        className={v3 ? 'py-4 transition-opacity active:opacity-80' : 'rounded-2xl p-4 border transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5'}
-                                        style={v3 ? { borderBottom: `1px solid ${colors.border}50` } : { background: cardBg, backdropFilter: 'blur(12px)', borderColor: sv?.pinned ? `${colors.accent}80` : colors.border, boxShadow: colors.shadow }}
+                                        className={v3 ? 'rounded-3xl p-4 border transition active:scale-[0.99]' : 'rounded-2xl p-4 border transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5'}
+                                        style={v3 ? { background: colors.surface, borderColor: sv?.pinned ? `${colors.accent}80` : colors.border } : { background: cardBg, backdropFilter: 'blur(12px)', borderColor: sv?.pinned ? `${colors.accent}80` : colors.border, boxShadow: colors.shadow }}
                                     >
                                         <div className="flex gap-4 items-center">
                                             <div

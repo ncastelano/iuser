@@ -34,6 +34,8 @@ import {
 import PlanAvatarRing from '@/components/PlanAvatarRing'
 import ShareCardView from '@/components/chat/ShareCardView'
 import ShareSheet from '@/components/chat/ShareSheet'
+import ChatLinkPreviews from '@/components/chat/ChatLinkPreviews'
+import { firstDisallowedLink, isAllowedChatLink, urlsIn, withoutUrls } from '@/lib/chatLinks'
 import { SHARE_DEFAULT_TEXT, cardKeyOf, fetchShareCards, isDefaultShareText, refColumns, type ShareCard } from '@/lib/shareCards'
 import CommunityPhotoCampaign from '@/components/communities/CommunityPhotoCampaign'
 import { fetchCommunitiesActivity, type CommunityActivity } from '@/lib/communityActivity'
@@ -61,6 +63,7 @@ interface CommunityMessage {
     ref_product_id?: string | null
     ref_store_id?: string | null
     ref_profile_id?: string | null
+    reply_to_id?: string | null
     profiles?: {
         name: string | null
         avatar_url: string | null
@@ -101,6 +104,9 @@ export default function CommunityRoomClient() {
     const [shareCards, setShareCards] = useState<Record<string, ShareCard>>({})
     const [shareOpen, setShareOpen] = useState(false)
     const [pending, setPending] = useState<ShareCard | null>(null)
+    // Responder a outra mensagem da comunidade (a citação aparece em cima da resposta)
+    const [replyTo, setReplyTo] = useState<CommunityMessage | null>(null)
+    const [flashId, setFlashId] = useState<string | null>(null)
 
     const loadRoom = useCallback(async () => {
         if (!communitySlug) return
@@ -137,7 +143,7 @@ export default function CommunityRoomClient() {
 
             const { data: messagesData, error: messagesErr } = await supabase
                 .from('community_messages')
-                .select('id, content, created_at, edited_at, profile_id, ref_product_id, ref_store_id, ref_profile_id, profiles!profile_id(name, avatar_url, "profileSlug")')
+                .select('id, content, created_at, edited_at, profile_id, ref_product_id, ref_store_id, ref_profile_id, reply_to_id, profiles!profile_id(name, avatar_url, "profileSlug")')
                 .eq('community_id', communityData.id)
                 .order('created_at', { ascending: true })
 
@@ -224,6 +230,7 @@ export default function CommunityRoomClient() {
         const id = editingId
         const text = editText.trim()
         if (!id || !text) return
+        if (firstDisallowedLink(text)) { toast.error('Só dá para enviar link de imagem ou link do iUser.'); return }
         setSavingEdit(true)
         const { data, error } = await supabase
             .from('community_messages')
@@ -256,6 +263,7 @@ export default function CommunityRoomClient() {
             return
         }
         if ((!messageInput.trim() && !pending) || !community) return
+        if (firstDisallowedLink(messageInput)) { toast.error('Só dá para enviar link de imagem ou link do iUser.'); return }
 
         setSending(true)
         try {
@@ -266,8 +274,9 @@ export default function CommunityRoomClient() {
                     profile_id: currentUserId,
                     content: messageInput.trim() || (pending ? SHARE_DEFAULT_TEXT[pending.kind] : ''),
                     ...(pending ? refColumns(pending) : {}),
+                    ...(replyTo ? { reply_to_id: replyTo.id } : {}),
                 })
-                .select('id, content, created_at, edited_at, profile_id, ref_product_id, ref_store_id, ref_profile_id, profiles!profile_id(name, avatar_url, "profileSlug")')
+                .select('id, content, created_at, edited_at, profile_id, ref_product_id, ref_store_id, ref_profile_id, reply_to_id, profiles!profile_id(name, avatar_url, "profileSlug")')
                 .single()
 
             if (error) throw error
@@ -278,6 +287,7 @@ export default function CommunityRoomClient() {
             ])
             if (pending) setShareCards((prev) => ({ ...prev, [`${pending.kind === 'store' ? 'store' : pending.kind === 'profile' ? 'profile' : 'product'}:${pending.id}`]: pending }))
             setPending(null)
+            setReplyTo(null)
             setMessageInput('')
         } catch (err: any) {
             toast.error('Erro ao enviar mensagem: ' + (err.message || 'tente novamente'))
@@ -488,7 +498,7 @@ export default function CommunityRoomClient() {
                             const isMine = message.profile_id === currentUserId
                             const senderAvatar = message.profiles?.avatar_url ? getAvatarUrl(supabase, message.profiles.avatar_url) : null
                             return (
-                                <div key={message.id} className={`flex gap-2 ${isMine ? 'flex-row-reverse' : ''}`}>
+                                <div key={message.id} id={`msg-${message.id}`} className={`flex gap-2 rounded-2xl transition-colors duration-700 ${isMine ? 'flex-row-reverse' : ''}`} style={flashId === message.id ? { background: `${colors.accent}22` } : undefined}>
                                     <PlanAvatarRing userId={message.profile_id}>
                                     <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0" style={{ background: `${colors.border}60` }}>
                                         {senderAvatar ? (
@@ -508,6 +518,9 @@ export default function CommunityRoomClient() {
                                             <span className="text-[10px]" style={{ color: colors.textSecondary }}>
                                                 {formatDistanceToNow(new Date(message.created_at), { addSuffix: true, locale: ptBR })}
                                             </span>
+                                            {!!currentUserId && isMember && editingId !== message.id && (
+                                                <button onClick={() => setReplyTo(message)} className="text-[11px] font-bold hover:underline" style={{ color: colors.accent }}>Responder</button>
+                                            )}
                                             {isMine && (
                                                 <div className="relative">
                                                     <button
@@ -598,6 +611,22 @@ export default function CommunityRoomClient() {
                                         ) : (
                                             <div className={`flex flex-col gap-1.5 mt-1 ${isMine ? 'items-end' : 'items-start'}`}>
                                                 {(() => {
+                                                    const quoted = message.reply_to_id ? messages.find((x) => x.id === message.reply_to_id) : null
+                                                    if (!quoted) return null
+                                                    const quotedCardKey = cardKeyOf(quoted)
+                                                    const snippet = withoutUrls(quoted.content) || (urlsIn(quoted.content).some((u) => isAllowedChatLink(u)) ? 'Imagem ou link' : quoted.content)
+                                                    return (
+                                                        <button
+                                                            onClick={() => { const el = document.getElementById(`msg-${quoted.id}`); el?.scrollIntoView({ block: 'center', behavior: 'smooth' }); setFlashId(quoted.id); setTimeout(() => setFlashId(null), 1800) }}
+                                                            className="w-full max-w-[320px] text-left rounded-xl px-3 py-1.5 border-l-4"
+                                                            style={{ background: `${colors.border}30`, borderColor: colors.accent, color: colors.textPrimary }}
+                                                        >
+                                                            <span className="block text-[11px] font-black" style={{ color: colors.accent }}>{profileLabel(quoted.profiles)}</span>
+                                                            <span className="block text-xs line-clamp-2" style={{ color: colors.textSecondary }}>{quotedCardKey && isDefaultShareText(quoted.content) ? quoted.content : snippet}</span>
+                                                        </button>
+                                                    )
+                                                })()}
+                                                {(() => {
                                                     const key = cardKeyOf(message)
                                                     const card = key ? shareCards[key] : null
                                                     return card ? (
@@ -608,7 +637,12 @@ export default function CommunityRoomClient() {
                                                 })()}
                                                 <div
                                                     className="rounded-2xl px-3 py-2 text-sm break-words whitespace-pre-wrap max-w-full"
-                                                    hidden={(() => { const k = cardKeyOf(message); return !!(k && shareCards[k] && isDefaultShareText(message.content)) })()}
+                                                    hidden={(() => {
+                                                        const k = cardKeyOf(message)
+                                                        if (k && shareCards[k] && isDefaultShareText(message.content)) return true
+                                                        const us = urlsIn(message.content)
+                                                        return us.length > 0 && withoutUrls(message.content) === '' && us.every(isAllowedChatLink)
+                                                    })()}
                                                     style={
                                                         isMine
                                                             ? { background: GRADIENT, color: '#fff' }
@@ -620,12 +654,7 @@ export default function CommunityRoomClient() {
                                                         <span className="ml-1.5 text-[10px] opacity-70">(editada)</span>
                                                     )}
                                                 </div>
-                                                {(() => {
-                                                    const url = extractFirstUrl(message.content)
-                                                    return url ? (
-                                                        <div className="w-full max-w-[320px]"><LinkPreviewCard url={url} /></div>
-                                                    ) : null
-                                                })()}
+                                                <ChatLinkPreviews content={message.content} colors={colors} />
                                             </div>
                                         )}
                                     </div>
@@ -665,8 +694,19 @@ export default function CommunityRoomClient() {
                     ) : (
                         <div className="flex flex-col gap-2">
                             {/* Colou um link: o cartão aparece antes de enviar, como no WhatsApp */}
-                            {extractFirstUrl(messageInput) && (
-                                <div className="max-w-[360px]"><LinkPreviewCard url={extractFirstUrl(messageInput)!} compact /></div>
+                            {replyTo && (
+                                <div className="flex items-start gap-2 rounded-xl px-3 py-2 border-l-4" style={{ background: `${colors.border}30`, borderColor: colors.accent }}>
+                                    <div className="min-w-0 flex-1">
+                                        <p className="text-[11px] font-black" style={{ color: colors.accent }}>Respondendo a {profileLabel(replyTo.profiles)}</p>
+                                        <p className="text-xs line-clamp-1" style={{ color: colors.textSecondary }}>{withoutUrls(replyTo.content) || 'Imagem ou link'}</p>
+                                    </div>
+                                    <button onClick={() => setReplyTo(null)} aria-label="Cancelar resposta" className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: `${colors.border}50`, color: colors.textPrimary }}>×</button>
+                                </div>
+                            )}
+                            {urlsIn(messageInput).length > 0 && (
+                                firstDisallowedLink(messageInput)
+                                    ? <p className="text-[11px] font-bold" style={{ color: '#ef4444' }}>Só dá para enviar link de imagem ou link do iUser.</p>
+                                    : <ChatLinkPreviews content={messageInput} colors={colors} compact />
                             )}
                             {pending && (
                                 <div className="flex items-start gap-2">
@@ -695,7 +735,7 @@ export default function CommunityRoomClient() {
                             />
                             <button
                                 onClick={handleSend}
-                                disabled={(!messageInput.trim() && !pending) || sending}
+                                disabled={(!messageInput.trim() && !pending) || sending || !!firstDisallowedLink(messageInput)}
                                 className="px-4 py-2.5 rounded-xl transition-all hover:scale-105 disabled:opacity-50 flex items-center justify-center"
                                 style={{ background: GRADIENT, color: '#fff' }}
                             >

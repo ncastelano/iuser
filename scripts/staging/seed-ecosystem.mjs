@@ -439,13 +439,34 @@ COMMUNITIES.forEach((c, ci) => {
                 if (pool.length) { row.ref_product_id = pick(r, pool).id; row.content = pick(r, [`Compartilhou ${kind === 'publication' ? 'uma publicação' : kind === 'service' ? 'um serviço' : 'um produto'}`, 'Achei interessante, olhem!', 'Vale conferir.']) }
             }
         }
+        row.reply_to_id = null
+        row._reply = isReply
         msgRows.push(row)
     }
+    // links: alguns balões têm imagem (link de imagem) ou link do iUser (vira cartão)
+    const APP = (env.STAGING_APP_URL || '').replace(/\/$/, '')
+    const mine = msgRows.filter((m) => m.community_id === id)
+    mine.forEach((m, i) => {
+        if (m.ref_product_id || m.ref_store_id || m.ref_profile_id) return
+        const x = r()
+        if (APP && x < 0.07) { const st = pick(r, STORES); const it = pick(r, st.items.filter((q) => q.kind === 'sale')); m.content = `${pick(r, ['Olha que lindo:', 'Ficou assim:', 'Foto de hoje'])} ${APP}/img/product-images/${it.image_url}` }
+        else if (APP && x < 0.14) { const st = pick(r, STORES); const it = pick(r, st.items.filter((q) => q.kind === 'sale')); m.content = `${pick(r, ['Esse aqui é bom:', 'Vale conferir', 'Recomendo:'])} ${APP}/${st.slug}/${it.slug}` }
+    })
+    // respostas: apontam para uma mensagem anterior da mesma sala (depois dela, no tempo)
+    mine.forEach((m, i) => {
+        if (!(m._reply || r() < 0.08) || i < 3) return
+        const parent = mine[Math.floor(r() * i)]
+        m.reply_to_id = parent.id
+        m.created_at = new Date(Math.min(Date.now() - 60000, new Date(parent.created_at).getTime() + (3 + r() * 90) * 60000)).toISOString()
+    })
 })
 await api('DELETE', `/rest/v1/communities?id=in.(${commRows.map((x) => x.id).join(',')})`, undefined, { Prefer: 'return=minimal' })
 await upsertBatched('communities', commRows, 'id')
 await upsertBatched('community_members', memRows, 'id')
-await upsertBatched('community_messages', msgRows, 'id')
+const toRow = ({ _reply, ...m }) => m
+// pais primeiro (a resposta só pode apontar para uma mensagem que já existe)
+await upsertBatched('community_messages', msgRows.filter((m) => !m.reply_to_id).map(toRow), 'id')
+await upsertBatched('community_messages', msgRows.filter((m) => m.reply_to_id).map(toRow), 'id')
 
 // ---------- 9) conversas diretas da conta admin (admin-teste) com cartões compartilhados ----------
 const adminId = existing.get('ncastelano@gmail.com')
