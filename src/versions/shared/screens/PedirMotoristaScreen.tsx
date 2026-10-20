@@ -279,7 +279,7 @@ function PhotoPicker({ preview, onPick, colors }: { preview: string | null; onPi
 }
 
 function CounterRow({
-    label, icon: Icon, value, onChange, min = 0, max = 30, colors,
+    label, icon: Icon, value, onChange, min = 0, max = 30, colors, compact = false,
 }: {
     label: string
     icon: ElementType
@@ -288,9 +288,11 @@ function CounterRow({
     min?: number
     max?: number
     colors: ThemeColors
+    /** v3: linha mais baixa */
+    compact?: boolean
 }) {
     return (
-        <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
+        <div className={`flex items-center justify-between gap-3 rounded-xl ${compact ? 'px-3 py-1.5' : 'px-4 py-3'}`} style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
             <div className="flex items-center gap-2">
                 <Icon size={16} style={{ color: colors.textSecondary }} />
                 <span className="text-sm font-bold" style={{ color: colors.textPrimary }}>{label}</span>
@@ -2131,26 +2133,37 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                     {step === 'vehicle' && requestFor && (
                         <>
                             <h2 className={`${v3 ? 'text-[15px]' : 'text-lg'} font-black mb-1`} style={{ color: colors.textPrimary }}>Qual veículo prefere?</h2>
-                            <p className="text-xs mb-4" style={{ color: colors.textSecondary }}>Toque numa opção pra continuar</p>
+                            <p className={`text-xs ${v3 ? 'mb-2.5' : 'mb-4'}`} style={{ color: colors.textSecondary }}>Toque numa opção pra continuar</p>
 
                             <div className="grid grid-cols-2 gap-2">
                                 {(['carro', 'moto', 'bicicleta', 'qualquer'] as const).map((kind) => {
                                     const active = vehicleTypeChoice === kind
                                     const Icon = kind === 'moto' ? Motorbike : kind === 'bicicleta' ? Bike : kind === 'qualquer' ? Shuffle : Car
                                     const allowed = objectVehicleAllowed(kind)
+                                    // v3: quantos motoristas ativos desse tipo há agora (os mesmos do mapa)
+                                    const activeNow = kind === 'qualquer' ? driversTotal : driverCounts[kind]
                                     return (
                                         <button
                                             key={kind}
                                             type="button"
                                             disabled={!allowed}
                                             onClick={() => chooseVehicle(kind)}
-                                            className="flex flex-col items-center gap-2 py-5 px-2 rounded-2xl transition-all hover:scale-[1.03] active:scale-95 disabled:opacity-40 disabled:hover:scale-100"
+                                            className={v3
+                                                ? 'flex items-center gap-2.5 h-[58px] px-3 rounded-2xl text-left transition active:scale-95 disabled:opacity-40'
+                                                : 'flex flex-col items-center gap-2 py-5 px-2 rounded-2xl transition-all hover:scale-[1.03] active:scale-95 disabled:opacity-40 disabled:hover:scale-100'}
                                             style={active ? { background: GRADIENT } : { background: `${colors.border}30`, border: `1px solid ${colors.border}` }}
                                         >
-                                            <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: active ? 'rgba(255,255,255,0.25)' : GRADIENT, color: '#fff' }}>
-                                                <Icon size={22} />
+                                            <div className={`${v3 ? 'w-9 h-9' : 'w-12 h-12'} flex-shrink-0 rounded-full flex items-center justify-center`} style={{ background: active ? 'rgba(255,255,255,0.25)' : GRADIENT, color: '#fff' }}>
+                                                <Icon size={v3 ? 18 : 22} />
                                             </div>
-                                            <span className="text-xs font-black" style={{ color: active ? '#fff' : colors.textPrimary }}>{VEHICLE_TYPE_LABELS[kind]}</span>
+                                            <span className="min-w-0 flex flex-col">
+                                                <span className="text-xs font-black leading-tight" style={{ color: active ? '#fff' : colors.textPrimary }}>{v3 && kind === 'carro' ? 'Carro' : VEHICLE_TYPE_LABELS[kind]}</span>
+                                                {v3 && driversLoaded && (
+                                                    <span className="text-[10px] font-bold leading-tight" style={{ color: active ? 'rgba(255,255,255,0.85)' : activeNow > 0 ? '#16a34a' : colors.textSecondary }}>
+                                                        {activeNow > 0 ? `${activeNow} ativo${activeNow > 1 ? 's' : ''} agora` : 'nenhum agora'}
+                                                    </span>
+                                                )}
+                                            </span>
                                         </button>
                                     )
                                 })}
@@ -2482,7 +2495,7 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
 
                                         {!isTwoWheels && (
                                         <>
-                                        <CounterRow
+                                        <CounterRow compact={v3}
                                             label="Quantas adultos a mais?"
                                             icon={Users}
                                             value={extraPeopleCount}
@@ -2498,7 +2511,7 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                                             </div>
                                         )}
 
-                                        <CounterRow label="Criança" icon={Baby} value={childrenCount} onChange={setChildrenCount} max={10} colors={colors} />
+                                        <CounterRow compact={v3} label="Criança" icon={Baby} value={childrenCount} onChange={setChildrenCount} max={10} colors={colors} />
                                         {hasChild && (
                                             <div className="rounded-xl px-3 py-2.5" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
                                                 <span className="text-xs font-bold block mb-1.5" style={{ color: colors.textPrimary }}>
@@ -2535,7 +2548,7 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                                             </div>
                                         )}
 
-                                        <CounterRow label="Compras de mercado" icon={ShoppingCart} value={bagCount} onChange={setBagCount} max={20} colors={colors} />
+                                        <CounterRow compact={v3} label="Compras de mercado" icon={ShoppingCart} value={bagCount} onChange={setBagCount} max={20} colors={colors} />
                                         {hasShopping && (
                                             <div className="rounded-xl px-3 py-2.5" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
                                                 <span className="text-xs font-bold block mb-1.5" style={{ color: colors.textSecondary }}>Tamanho da compra</span>
@@ -2562,7 +2575,7 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                                             </div>
                                         )}
 
-                                        <CounterRow label="Objeto" icon={PackagePlus} value={extraObjectCount} onChange={setExtraObjectCount} max={10} colors={colors} />
+                                        <CounterRow compact={v3} label="Objeto" icon={PackagePlus} value={extraObjectCount} onChange={setExtraObjectCount} max={10} colors={colors} />
                                         {hasExtraObject && (
                                             <div className="rounded-xl px-3 py-2.5" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
                                                 <span className="text-xs font-bold block mb-1.5" style={{ color: colors.textSecondary }}>Tamanho do objeto</span>
@@ -2607,7 +2620,7 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                                             </div>
                                         )}
 
-                                        <CounterRow label="Pet" icon={PawPrint} value={petCount} onChange={setPetCount} max={10} colors={colors} />
+                                        <CounterRow compact={v3} label="Pet" icon={PawPrint} value={petCount} onChange={setPetCount} max={10} colors={colors} />
                                         {hasPet && (
                                             <div className="rounded-xl px-3 py-2.5" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
                                                 <span className="text-xs font-bold block mb-2" style={{ color: colors.textPrimary }}>Qual é o animal?</span>
@@ -2913,7 +2926,7 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                     {step === 'payment' && requestFor && (
                         <>
                             <h2 className={`${v3 ? 'text-[15px]' : 'text-lg'} font-black mb-1`} style={{ color: colors.textPrimary }}>Forma de pagamento</h2>
-                            <p className="text-xs mb-4" style={{ color: colors.textSecondary }}>Toque numa opção pra continuar</p>
+                            <p className={`text-xs ${v3 ? 'mb-2.5' : 'mb-4'}`} style={{ color: colors.textSecondary }}>Toque numa opção pra continuar</p>
 
                             <div className="grid grid-cols-3 gap-2">
                                 {([
@@ -2931,11 +2944,13 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                                                 if (value !== 'dinheiro') setCashChangeFor('')
                                                 if (value !== 'cartao') setCardIsContactless(null)
                                             }}
-                                            className="flex flex-col items-center gap-2 py-5 px-2 rounded-2xl transition-all hover:scale-[1.03] active:scale-95"
+                                            className={v3
+                                                ? 'flex flex-col items-center gap-1 py-2.5 px-2 rounded-2xl transition active:scale-95'
+                                                : 'flex flex-col items-center gap-2 py-5 px-2 rounded-2xl transition-all hover:scale-[1.03] active:scale-95'}
                                             style={active ? { background: GRADIENT } : { background: `${colors.border}30`, border: `1px solid ${colors.border}` }}
                                         >
-                                            <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: active ? 'rgba(255,255,255,0.25)' : GRADIENT, color: '#fff' }}>
-                                                <Icon size={22} />
+                                            <div className={`${v3 ? 'w-9 h-9' : 'w-12 h-12'} rounded-full flex items-center justify-center`} style={{ background: active ? 'rgba(255,255,255,0.25)' : GRADIENT, color: '#fff' }}>
+                                                <Icon size={v3 ? 18 : 22} />
                                             </div>
                                             <span className="text-xs font-black" style={{ color: active ? '#fff' : colors.textPrimary }}>{label}</span>
                                         </button>
