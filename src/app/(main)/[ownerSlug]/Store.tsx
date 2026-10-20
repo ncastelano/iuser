@@ -79,6 +79,9 @@ interface OwnerData {
     whatsapp?: string | null
     show_whatsapp?: boolean
     instagram?: string | null
+    youtube?: string | null
+    facebook?: string | null
+    x?: string | null
     view_count?: number
     ratings_avg?: number
     ratings_count?: number
@@ -513,6 +516,9 @@ export function Store({
                 whatsapp: storeWhatsapp,
                 show_whatsapp: store.show_whatsapp ?? true,
                 instagram: storeInstagram,
+                youtube: store.youtube,
+                facebook: store.facebook,
+                x: store.x,
                 view_count: store.view_count || 0,
                 ratings_avg: avg,
                 ratings_count: count,
@@ -949,7 +955,7 @@ export function Store({
                     onFollowToggle={handleFollowToggle}
                     onOpenCatalog={() => router.push(`/${ownerSlug}/catalogo`)}
                     whatsappLink={whatsappLink}
-                    socialLinks={buildSocialLinks({ instagram: owner.instagram, youtube: (owner as any).youtube, x: (owner as any).x, github: (owner as any).github })}
+                    socialLinks={buildSocialLinks({ instagram: owner.instagram, youtube: owner.youtube, facebook: owner.facebook, x: owner.x })}
                     allowScheduling={!!owner.allow_scheduling}
                     onOpenSchedule={() => setShowScheduleModal(true)}
                     isOwner={isOwner}

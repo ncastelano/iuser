@@ -87,6 +87,9 @@ interface OwnerData {
     address?: string | null
     whatsapp?: string | null
     instagram?: string | null
+    youtube?: string | null
+    facebook?: string | null
+    x?: string | null
     view_count?: number
     ratings_avg?: number
     ratings_count?: number
@@ -387,6 +390,9 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                 address: viewerIsOwner ? (privateRow?.address ?? null) : (profile.public_address ?? null),
                 whatsapp,
                 instagram: profile.instagram,
+                youtube: profile.youtube,
+                facebook: profile.facebook,
+                x: profile.x,
                 view_count: profile.view_count || 0,
                 ratings_avg: avg,
                 ratings_count: count,
@@ -1608,7 +1614,7 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                     isFollowing={isFollowing}
                     onFollowToggle={handleFollowToggle}
                     whatsappLink={whatsappLink}
-                    socialLinks={buildSocialLinks({ instagram: owner.instagram, youtube: (owner as any).youtube, x: (owner as any).x, github: (owner as any).github })}
+                    socialLinks={buildSocialLinks({ instagram: owner.instagram, youtube: owner.youtube, facebook: owner.facebook, x: owner.x })}
                     contactSlot={owner.chat_enabled && owner.id !== currentUserId ? <ChatContactButton profileId={owner.id} colors={colors} variant="v3" label="Enviar mensagem" /> : undefined}
                     liveLocSlot={liveLoc && owner.show_location !== false && process.env.NEXT_PUBLIC_MAPBOX_TOKEN ? liveLocCard : undefined}
                     dialogsSlot={agendaDialogs}

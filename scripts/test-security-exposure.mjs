@@ -40,8 +40,11 @@ function arrayFrom(src, name) {
     return [...m[1].matchAll(/'([^']+)'/g)].map((x) => x[1])
 }
 const lockdown = read(path.join(repo, 'supabase/migrations/20261105000000_exposure_lockdown.sql'))
-const dbProfilePublic = arrayFrom(lockdown, 'profile_public')
-const dbStorePublic = arrayFrom(lockdown, 'store_public')
+// colunas liberadas por migrations posteriores à trava (redes sociais): entram nas duas listas
+const social = read(path.join(repo, 'supabase/migrations/20261109000000_social_links_columns.sql'))
+const socialCols = arrayFrom(social, 'social_cols')
+const dbProfilePublic = [...arrayFrom(lockdown, 'profile_public'), ...socialCols]
+const dbStorePublic = [...arrayFrom(lockdown, 'store_public'), ...socialCols]
 
 const pc = read(path.join(srcRoot, 'lib/publicColumns.ts'))
 function tsList(name) {

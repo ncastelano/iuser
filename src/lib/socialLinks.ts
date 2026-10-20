@@ -1,8 +1,7 @@
 // Redes sociais de um perfil/loja: transforma o que a pessoa digitou (@usuario, usuario ou o link inteiro) num link seguro.
-// Só aceita endereços https dos sites certos de cada rede (nunca `javascript:` nem outro domínio). Hoje só `instagram` existe no banco;
-// youtube, x e github já funcionam aqui: quando as colunas forem criadas (nascem PRIVADAS: ver "Exposição de dados" no CLAUDE.md), basta
-// passá-las para `buildSocialLinks` e o botão aparece sozinho.
-export type SocialKind = 'instagram' | 'youtube' | 'x' | 'github'
+// Só aceita endereços https dos sites certos de cada rede (nunca `javascript:` nem outro domínio). No banco existem `instagram`, `youtube`, `facebook` e `x`
+// (migration 20261109); `github` já funciona aqui e entra quando houver coluna (nasce PRIVADA: ver "Exposição de dados" no CLAUDE.md).
+export type SocialKind = 'instagram' | 'youtube' | 'facebook' | 'x' | 'github'
 
 export interface SocialLink {
     kind: SocialKind
@@ -10,12 +9,13 @@ export interface SocialLink {
     url: string
 }
 
-export const SOCIAL_ORDER: SocialKind[] = ['instagram', 'youtube', 'x', 'github']
-export const SOCIAL_LABELS: Record<SocialKind, string> = { instagram: 'Instagram', youtube: 'YouTube', x: 'X', github: 'GitHub' }
+export const SOCIAL_ORDER: SocialKind[] = ['instagram', 'youtube', 'facebook', 'x', 'github']
+export const SOCIAL_LABELS: Record<SocialKind, string> = { instagram: 'Instagram', youtube: 'YouTube', facebook: 'Facebook', x: 'X', github: 'GitHub' }
 
 const HOSTS: Record<SocialKind, RegExp> = {
     instagram: /^(www\.)?instagram\.com$/i,
     youtube: /^((www|m)\.)?youtube\.com$|^youtu\.be$/i,
+    facebook: /^((www|m|web)\.)?facebook\.com$|^fb\.com$/i,
     x: /^((www|mobile)\.)?(x|twitter)\.com$/i,
     github: /^(www\.)?github\.com$/i,
 }
@@ -42,6 +42,7 @@ export function normalizeSocialUrl(kind: SocialKind, value: string | null | unde
     switch (kind) {
         case 'instagram': return `https://instagram.com/${handle}`
         case 'youtube': return `https://youtube.com/@${handle}`
+        case 'facebook': return `https://facebook.com/${handle}`
         case 'x': return `https://x.com/${handle}`
         case 'github': return `https://github.com/${handle}`
     }
