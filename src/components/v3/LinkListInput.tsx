@@ -19,8 +19,8 @@ export default function LinkListInput({ rows, onChange, colors }: { rows: LinkRo
             {rows.map((r, i) => (
                 <div key={i} className="flex items-start gap-2">
                     <div className="flex-1 min-w-0 space-y-2">
-                        <input value={r.label} onChange={(e) => set(i, { label: e.target.value })} maxLength={MAX_LABEL} placeholder="O que vai ficar escrito (ex.: Cardápio completo)" aria-label={`Texto do link ${i + 1}`} className={field} style={style} />
-                        <input value={r.url} onChange={(e) => set(i, { url: e.target.value })} inputMode="url" autoCapitalize="none" autoCorrect="off" placeholder="Endereço (ex.: meusite.com.br/cardapio)" aria-label={`Endereço do link ${i + 1}`} className={field} style={style} />
+                        <input value={r.label} onChange={(e) => set(i, { label: e.target.value })} maxLength={MAX_LABEL} placeholder="Texto (ex.: Cardápio completo)" aria-label={`Texto do link ${i + 1}`} className={field} style={style} />
+                        <input value={r.url} onChange={(e) => set(i, { url: e.target.value })} inputMode="url" autoCapitalize="none" autoCorrect="off" placeholder="Endereço (ex.: meusite.com.br)" aria-label={`Endereço do link ${i + 1}`} className={field} style={style} />
                     </div>
                     <button type="button" onClick={() => onChange(rows.filter((_, k) => k !== i))} aria-label={`Remover o link ${i + 1}`} className="w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 transition active:scale-95" style={{ background: soft, color: colors.textSecondary }}>
                         <X size={16} />
