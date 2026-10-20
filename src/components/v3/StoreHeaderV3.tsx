@@ -85,7 +85,7 @@ export default function StoreHeaderV3(p: StoreHeaderV3Props) {
 
             <div className="px-4 pb-4">
                 {/* logo + nome + status */}
-                <div className="flex items-end gap-3 -mt-7">
+                <div className="relative z-10 flex items-end gap-3 -mt-7">
                     <div className="flex-shrink-0 w-[62px] h-[62px] rounded-2xl overflow-hidden flex items-center justify-center" style={{ background: colors.surface, border: `3px solid ${colors.surface}`, outline: `2px solid ${statusColor}` }}>
                         {p.imageUrl ? <img src={p.imageUrl} alt={p.name} className="w-full h-full object-cover" /> : <span className="text-2xl font-black" style={{ color: ORANGE }}>{initial}</span>}
                     </div>
