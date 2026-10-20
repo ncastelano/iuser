@@ -210,6 +210,11 @@ O plano gratuito do Supabase limita o **Cached Egress** (5 GB/mês), e quase tod
 - Cliente: `lib/activeDrivers.ts` (valida/conta; falha da consulta = `null`, nunca "sem motoristas") + `lib/useActiveDriversLayer.ts` (busca a cada 30 s com a aba visível, marcadores `vehicleMarkerHtml`, enquadra o mapa uma vez). Staging: `node scripts/staging/seed-drivers.mjs [--loop]` cria 8 motoristas fictícios ativos (a posição ao vivo vale 10 min). Testes: `npm run test:active-drivers`, `npm run test:active-drivers:staging`. Rollback: `supabase/rollbacks/active_drivers_map_rollback.sql`.
 - Avisos de "estamos evoluindo" (home v2) e de manutenção (faixa/cartão) **só existem na v2** enquanto a v3 não for lançada (`useIsV3` em `MaintenanceNotice`; a home da v3 não tem o banner).
 
+## Páginas de perfil e loja na v3 — como a v3 entra numa página que a v2 também serve
+
+`/[perfil ou loja]` é uma rota dinâmica (não dá para listar em `VERSION_ROUTES`), então a v3 é escolhida **dentro da página**: `OwnerClientPage` passa `ui={insideShell ? 'v3' : 'v2'}` (`useInsideShell`) para `Store` e `Profile`. Com `ui==='v3'`: cabeçalho compacto (`src/components/v3/StoreHeaderV3.tsx` / `ProfileHeaderV3.tsx`: capa, logo/foto, nome, atalhos em cápsulas, ações), abas em cápsulas, produtos em grade sem moldura e botão voltar na capa (o `Header` não mostra o voltar, e o botão flutuante "Ver Catálogo" some). **Os cabeçalhos v3 só apresentam**: dados e ações vêm do `Store.tsx`/`Profile.tsx` (mesmas regras da v2); blocos complexos (avatar com moldura/zoom/upload, janelas da agenda, mapa ao vivo) são variáveis do `Profile.tsx` (`renderAvatar`, `agendaDialogs`, `liveLocCard`) usadas pelos dois. Padrão visual v3: cápsulas `${colors.border}40`, primário laranja `#f97316` sólido, altura 40–46 px, `font-black` pequeno, sem sombra. Componentes de linguagem v3 ficam em `components/v3` (neutros: telas compartilhadas podem usar quando `ui==='v3'`).
+- **Gravar no próprio perfil** (endereço, nome, foto...) é sempre por `saveOwnProfile` (`lib/saveOwnProfile.ts`), nunca `upsert` (ver Exposição de dados).
+
 ## Telemetria própria de Egress/Realtime — não mexer sem saber
 
 O Supabase não expõe Egress nem Realtime Messages por nenhuma API pública documentada (confirmado testando ao vivo os endpoints da Management API — ver commit `b1b81d8`). Por isso o iUser mede isso sozinho:
