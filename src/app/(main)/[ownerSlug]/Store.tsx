@@ -49,6 +49,7 @@ import StoreOperatingDays from '@/components/StoreDashboard/StoreOperatingDays'
 import { handleShareLink } from '@/lib/share'
 import { Follows } from './Follows'
 import StoreVipClubMember from './StoreVipClubMember'
+import StoreHeaderV3 from '@/components/v3/StoreHeaderV3'
 import EditProductDialog from '@/components/EditProductDialog'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
 import { STORE_PUBLIC_SELECT } from '@/lib/publicColumns'
@@ -61,6 +62,8 @@ interface StoreProps {
     loggedUserSlug?: string | null
     onOpenPublications?: (publications: any[], initialIndex: number, storeSlug: string) => void
     onDialogOpenChange?: (open: boolean) => void
+    /** v3 = cabeçalho compacto, abas em cápsulas e produtos sem moldura (mesma lógica da v2) */
+    ui?: 'v2' | 'v3'
 }
 
 interface OwnerData {
@@ -120,8 +123,10 @@ export function Store({
     customBgUrl,
     loggedUserSlug,
     onOpenPublications,
-    onDialogOpenChange
+    onDialogOpenChange,
+    ui = 'v2',
 }: StoreProps) {
+    const v3 = ui === 'v3'
     const router = useRouter()
     const { userId: currentUserId } = useProfile()
 
@@ -920,6 +925,52 @@ export function Store({
             )}
 
             {/* ===== CARD DA LOJA (CABEÇALHO) ===== */}
+            {v3 ? (
+                <StoreHeaderV3
+                    colors={colors}
+                    name={owner.name}
+                    imageUrl={imageUrl}
+                    description={owner.description}
+                    isOpen={isStoreOpen}
+                    statusText={statusText}
+                    nextOpen={nextAvailable}
+                    hasHours={!!(owner.business_hours && Object.keys(owner.business_hours).length > 0)}
+                    onOpenHours={() => setShowAllHours(true)}
+                    address={owner.address}
+                    onOpenMaps={openGoogleMaps}
+                    rating={owner.ratings_avg || 0}
+                    ratingsCount={owner.ratings_count || 0}
+                    visitors={totalVisitors}
+                    followers={followersCount}
+                    onOpenFollowers={() => setShowFollowers(true)}
+                    shareCount={shareCount}
+                    onShare={handleShareStore}
+                    onBack={() => (typeof window !== 'undefined' && window.history.length > 1 ? router.back() : router.push('/'))}
+                    canFollow={!!currentUserId && currentUserId !== owner.id}
+                    isFollowing={isFollowing}
+                    onFollowToggle={handleFollowToggle}
+                    onOpenCatalog={() => router.push(`/${ownerSlug}/catalogo`)}
+                    whatsappLink={whatsappLink}
+                    instagramLink={instagramLink}
+                    allowScheduling={!!owner.allow_scheduling}
+                    onOpenSchedule={() => setShowScheduleModal(true)}
+                    isOwner={isOwner}
+                    chatEnabled={!!owner.chat_enabled}
+                    chatSaving={chatSaving}
+                    onToggleChat={() => handleToggleChat(!owner.chat_enabled)}
+                    onOpenAgendaDialog={() => setShowAgendaDialog(true)}
+                    hasProducts={products.length > 0}
+                    contactSlot={owner.chat_enabled && !isOwner ? <ChatContactButton storeId={owner.id} colors={colors} background={glassBg} /> : undefined}
+                    extraSlot={<StoreVipClubMember storeId={owner.id} userId={currentUserId} />}
+                    ownerToolsSlot={isOwner && !isStoreOpen ? (
+                        <StoreOperatingDays
+                            storeId={owner.id}
+                            onSaved={(config) => setOwner(prev => prev ? { ...prev, business_hours: config as any } : prev)}
+                        />
+                    ) : undefined}
+                />
+            ) : (
+            <>
             <div className="relative rounded-2xl p-6 space-y-4" style={cardStyle}>
                 <button
                     onClick={handleShareStore}
@@ -1205,6 +1256,8 @@ export function Store({
                     />
                 )}
             </div>
+            </>
+            )}
 
             {/* ===== PUBLICAÇÕES (círculos estilo stories, acima das tabs) ===== */}
             {(publications.length > 0 || isOwner) && (
@@ -1283,7 +1336,7 @@ export function Store({
             )}
 
             {/* ===== TABS ===== */}
-            <div className="flex rounded-2xl p-1.5 gap-1" style={cardStyle}>
+            <div className={v3 ? 'flex gap-1.5' : 'flex rounded-2xl p-1.5 gap-1'} style={v3 ? undefined : cardStyle}>
                 {(() => {
                     const productsTab = { id: 'products', label: 'Produtos', count: goods.length }
                     const servicesTab = { id: 'services', label: 'Serviços', count: services.length }
@@ -1296,9 +1349,12 @@ export function Store({
                         <button
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id as TabType)}
-                            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-black uppercase tracking-wide transition-all duration-300 ${isActive ? 'shadow-lg scale-[1.02]' : 'hover:bg-white/5'}`}
-                            style={
-                                isActive
+                            className={v3
+                                ? 'flex-1 h-10 flex items-center justify-center gap-1.5 rounded-full text-[12px] font-black transition active:scale-95'
+                                : `flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-black uppercase tracking-wide transition-all duration-300 ${isActive ? 'shadow-lg scale-[1.02]' : 'hover:bg-white/5'}`}
+                            style={v3
+                                ? (isActive ? { background: '#f97316', color: '#fff' } : { background: `${colors.border}40`, color: colors.textPrimary })
+                                : isActive
                                     ? {
                                         background: GRADIENT,
                                         color: '#ffffff',
@@ -1325,7 +1381,7 @@ export function Store({
             <div className="space-y-4">
                 {/* TAB PRODUTOS / SERVIÇOS (mesmo layout, listas separadas) */}
                 {(activeTab === 'products' || activeTab === 'services') && (
-                    <div className="rounded-2xl p-4" style={cardStyle}>
+                    <div className={v3 ? '' : 'rounded-2xl p-4'} style={v3 ? undefined : cardStyle}>
                         <div className="flex items-center gap-2 mb-3">
                             <ShoppingCart size={16} style={{ color: '#f97316' }} />
                             <h3 className="text-xs font-black uppercase tracking-widest" style={{ color: colors.textPrimary }}>
@@ -1487,13 +1543,15 @@ export function Store({
                                                 <div
                                                     key={product.id}
                                                     onClick={(e) => handleProductClick(product, e)}
-                                                    className="relative rounded-xl overflow-hidden border transition-all duration-300 hover:shadow-xl hover:-translate-y-1 cursor-pointer"
-                                                    style={{
+                                                    className={v3
+                                                        ? 'relative cursor-pointer transition active:scale-[0.98]'
+                                                        : 'relative rounded-xl overflow-hidden border transition-all duration-300 hover:shadow-xl hover:-translate-y-1 cursor-pointer'}
+                                                    style={v3 ? undefined : {
                                                         background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
                                                         borderColor: colors.border,
                                                     }}
                                                 >
-                                                    <div className="aspect-square relative overflow-hidden" style={{ background: colors.accentLight }}>
+                                                    <div className={`aspect-square relative overflow-hidden ${v3 ? 'rounded-2xl' : ''}`} style={{ background: colors.accentLight }}>
                                                         {product.image_url ? (
                                                             <img src={product.image_url} className="w-full h-full object-cover" alt="" />
                                                         ) : (
@@ -1508,14 +1566,16 @@ export function Store({
                                                             </span>
                                                         )}
                                                     </div>
-                                                    <div className="p-2">
-                                                        <h4 className="text-xs font-bold line-clamp-1" style={{ color: colors.textPrimary }}>
+                                                    <div className={v3 ? 'pt-1.5 px-0.5' : 'p-2'}>
+                                                        <h4 className={`${v3 ? 'text-[13px]' : 'text-xs'} font-bold line-clamp-1`} style={{ color: colors.textPrimary }}>
                                                             {product.name}
                                                         </h4>
-                                                        <p className="text-[10px] line-clamp-1 mt-0.5 opacity-75" style={{ color: colors.textSecondary }}>
-                                                            {product.description || 'Sem descrição'}
-                                                        </p>
-                                                        <div className="mt-2 flex items-center">
+                                                        {!v3 && (
+                                                            <p className="text-[10px] line-clamp-1 mt-0.5 opacity-75" style={{ color: colors.textSecondary }}>
+                                                                {product.description || 'Sem descrição'}
+                                                            </p>
+                                                        )}
+                                                        <div className={`${v3 ? 'mt-0.5' : 'mt-2'} flex items-center`}>
                                                             <span className="text-sm font-extrabold" style={{ color: '#f97316' }}>
                                                                 R$ {(product.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                                             </span>

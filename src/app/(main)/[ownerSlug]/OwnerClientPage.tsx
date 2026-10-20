@@ -431,7 +431,8 @@ export default function OwnerClientPage() {
             <main className="relative z-10 min-h-dvh pb-28" style={{ overscrollBehavior: 'none' }}>
                 <Header
                     title="iUser"
-                    showBack={insideShell}
+                    // loja na v3: o botão voltar já está na capa do cabeçalho (StoreHeaderV3)
+                    showBack={insideShell && !(ownerType === 'store' && !showProfile && !showStoreDashboard && !showPublications)}
                     onBack={insideShell
                         ? ((showProfile || showStoreDashboard || showPublications) ? showMainContent : () => (window.history.length > 1 ? router.back() : router.push('/')))
                         : undefined}
@@ -486,6 +487,7 @@ export default function OwnerClientPage() {
                             />
                         ) : (
                             <Store
+                                ui={insideShell ? 'v3' : 'v2'}
                                 ownerSlug={ownerSlug}
                                 colors={colors}
                                 bgMode={bgMode}
@@ -502,7 +504,7 @@ export default function OwnerClientPage() {
                 {/* Escondidos com algum dialog do Store aberto (ex: Agendar,
                     horários, produto) — senão ficam flutuando por cima dele. */}
                 {/* Botão "Ver Catálogo" - lado esquerdo (apenas fora do dashboard) */}
-                {!showProfile && !showStoreDashboard && !showPublications && !storeDialogOpen && ownerType === 'store' && (
+                {!showProfile && !showStoreDashboard && !showPublications && !storeDialogOpen && ownerType === 'store' && !insideShell && (
                     <div style={{ position: 'fixed', bottom: 32, left: 24, zIndex: 998 }}>
                         <button
                             onClick={handleOpenCatalogo}
