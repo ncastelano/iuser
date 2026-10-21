@@ -318,9 +318,8 @@ function CommunityTalkCard({ c, colors, onClick }: { c: CommunityItem; colors: a
                 </span>
                 <span className="min-w-0 flex-1">
                     <span className="block text-[15px] font-black leading-tight truncate" style={{ color: colors.textPrimary }}>{c.name}</span>
-                    <span className="flex items-center gap-1 text-[11px] mt-0.5" style={{ color: colors.textSecondary }}>
-                        <Users size={11} /> {c.members} {c.members === 1 ? 'membro' : 'membros'}
-                        {c.talkers > 1 && <span>· {c.talkers} falando</span>}
+                    <span className="flex items-center gap-1 text-[11px] mt-0.5 whitespace-nowrap min-w-0" style={{ color: colors.textSecondary }}>
+                        <Users size={11} className="flex-shrink-0" /> <span className="truncate">{c.members} {c.members === 1 ? 'membro' : 'membros'}{c.talkers > 1 ? ` · ${c.talkers} falando` : ''}</span>
                     </span>
                 </span>
                 {c.talk.length > 0 && (
