@@ -7,7 +7,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Wrench } from 'lucide-react'
-import { supabase } from '@/lib/supabase/client'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { useTheme } from '@/app/contexts/theme'
 import Header from '@/components/Header'
@@ -15,84 +14,10 @@ import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import ListingRowCard from '@/components/ListingRowCard'
 import { Spinner } from '@/components/Spinner'
 import { useInsideShell } from '@/components/InsideShell'
-import { getAvatarUrl } from '@/lib/avatar'
+import { loadServiceCards, type ServiceCard } from '@/lib/serviceCards'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 const PAGE_SIZE = 24
-
-interface ServiceCard {
-    id: string
-    name: string
-    description: string | null
-    imageUrl: string | null
-    price: number | null
-    minutes: number | null
-    views: number
-    rating: number
-    seller: string
-    sellerImage: string | null
-    sellerId: string | null
-    kind: 'Loja' | 'Pessoa'
-    href: string
-}
-
-const publicImage = (bucket: string, path: string | null | undefined) => {
-    if (!path) return null
-    return path.startsWith('http') ? path : supabase.storage.from(bucket).getPublicUrl(path).data.publicUrl
-}
-
-async function loadServiceCards(): Promise<ServiceCard[]> {
-    const { data: rows } = await supabase
-        .from('products')
-        .select('id, name, slug, description, image_url, price, duration_minutes, view_count, owner_id, store_id, owner_image_url')
-        .eq('is_active', true)
-        .or('listing_type.eq.service_offer,and(type.eq.service,listing_type.eq.sale)')
-        .order('view_count', { ascending: false })
-        .limit(500)
-    const list = (rows || []) as any[]
-    if (list.length === 0) return []
-
-    const storeIds = [...new Set(list.filter((r) => r.store_id).map((r) => r.store_id))]
-    const ownerIds = [...new Set(list.filter((r) => !r.store_id && r.owner_id).map((r) => r.owner_id))]
-    const [{ data: stores }, { data: profiles }, { data: reviews }] = await Promise.all([
-        storeIds.length ? supabase.from('stores').select('id, name, "storeSlug", logo_url, owner_id').in('id', storeIds) : Promise.resolve({ data: [] as any[] }),
-        ownerIds.length ? supabase.from('profiles').select('id, name, "profileSlug", avatar_url').in('id', ownerIds) : Promise.resolve({ data: [] as any[] }),
-        supabase.from('product_reviews').select('product_id, rating').in('product_id', list.map((r) => r.id)),
-    ])
-    const storeById = new Map((stores || []).map((s: any) => [s.id, s]))
-    const profileById = new Map((profiles || []).map((p: any) => [p.id, p]))
-    const sums = new Map<string, { sum: number; n: number }>()
-    ;(reviews || []).forEach((r: any) => {
-        const cur = sums.get(r.product_id) || { sum: 0, n: 0 }
-        cur.sum += r.rating; cur.n += 1
-        sums.set(r.product_id, cur)
-    })
-
-    const cards: ServiceCard[] = []
-    for (const r of list) {
-        const store: any = r.store_id ? storeById.get(r.store_id) : null
-        const profile: any = !r.store_id ? profileById.get(r.owner_id) : null
-        const slug = store ? store.storeSlug : profile?.profileSlug
-        if (!slug || !r.slug) continue
-        const rt = sums.get(r.id)
-        cards.push({
-            id: r.id,
-            name: r.name,
-            description: r.description,
-            imageUrl: publicImage('product-images', r.image_url),
-            price: r.price != null ? Number(r.price) : null,
-            minutes: r.duration_minutes ?? null,
-            views: r.view_count ?? 0,
-            rating: rt ? Number((rt.sum / rt.n).toFixed(1)) : 0,
-            seller: store ? store.name : `@${slug}`,
-            sellerImage: r.owner_image_url || (store ? publicImage('store-logos', store.logo_url) : getAvatarUrl(supabase, profile?.avatar_url) || null),
-            sellerId: store ? store.owner_id : r.owner_id,
-            kind: store ? 'Loja' : 'Pessoa',
-            href: `/${slug}/${r.slug}`,
-        })
-    }
-    return cards
-}
 
 const formatPrice = (price: number | null) => (price == null ? null : price.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }))
 

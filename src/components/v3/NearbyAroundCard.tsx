@@ -2,7 +2,7 @@
 //
 // "Ver ao redor" da home 3.0: em vez de só chamar o mapa, mostra um de cada coisa que existe perto — loja, produto, serviço
 // e pessoa — com a distância. Tocar num item abre ele; tocar no título abre o radar (o mapa). Mesma fonte do Radar da home
-// 2.0 (`fetchNearest`): sem local definido mostra os mais vistos e avisa que dá para ver o mais perto definindo o local.
+// 2.0 (`fetchNearest`; os 3 mais perto de cada tipo, que se alternam a cada 5 s): sem local definido mostra os mais vistos e avisa que dá para ver o mais perto definindo o local.
 'use client'
 
 import { useEffect, useState } from 'react'
@@ -25,7 +25,9 @@ export default function NearbyAroundCard({ userId }: { userId: string | null }) 
     const router = useRouter()
     const { colors } = useTheme()
     const [origin, setOrigin] = useState<{ lat: number; lng: number } | null | undefined>(undefined)
-    const [items, setItems] = useState<NearestItem[] | null>(null)
+    const [nearest, setNearest] = useState<Record<NearestKind, NearestItem[]> | null>(null)
+    // Qual dos (até) 3 de cada tipo está na tela: todos pulam para o próximo a cada 5 segundos
+    const [tick, setTick] = useState(0)
 
     // Onde a pessoa está: o endereço salvo no perfil; visitante, o local definido neste aparelho
     useEffect(() => {
@@ -49,10 +51,18 @@ export default function NearbyAroundCard({ userId }: { userId: string | null }) 
         if (origin === undefined) return
         let cancelled = false
         fetchNearest(origin, userId)
-            .then((res) => { if (!cancelled) setItems(KINDS.map((k) => res[k.kind][0]).filter(Boolean)) })
-            .catch(() => { if (!cancelled) setItems([]) })
+            
+            .then((res) => { if (!cancelled) setNearest(res) })
+            .catch(() => { if (!cancelled) setNearest({ loja: [], produto: [], servico: [], pessoa: [] }) })
         return () => { cancelled = true }
     }, [origin, userId])
+
+    useEffect(() => {
+        if (!nearest || !KINDS.some((k) => nearest[k.kind].length > 1)) return
+        const t = setInterval(() => { if (!document.hidden) setTick((n) => n + 1) }, 5000)
+        return () => clearInterval(t)
+    }, [nearest])
+    const items = nearest ? KINDS.filter((k) => nearest[k.kind].length > 0).map((k) => nearest[k.kind][tick % nearest[k.kind].length]) : null
 
     const soft = `${colors.border}40`
 
@@ -82,7 +92,7 @@ export default function NearbyAroundCard({ userId }: { userId: string | null }) 
                             <button
                                 key={it.kind + it.id}
                                 onClick={() => router.push(it.href)}
-                                className="snap-start flex-shrink-0 w-[168px] rounded-2xl p-2 flex items-center gap-2.5 text-left transition active:scale-[0.98]"
+                                className="nearby-in snap-start flex-shrink-0 w-[168px] rounded-2xl p-2 flex items-center gap-2.5 text-left transition active:scale-[0.98]"
                                 style={{ background: soft }}
                             >
                                 <span className={`w-12 h-12 overflow-hidden flex-shrink-0 flex items-center justify-center ${it.kind === 'pessoa' ? 'rounded-full' : 'rounded-xl'}`} style={{ background: `${meta.color}22`, color: meta.color }}>
@@ -100,6 +110,11 @@ export default function NearbyAroundCard({ userId }: { userId: string | null }) 
                     })}
                 </div>
             )}
+            <style jsx>{`
+                .nearby-in { animation: nearbyIn .4s ease both; }
+                @keyframes nearbyIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
+                @media (prefers-reduced-motion: reduce) { .nearby-in { animation: none; } }
+            `}</style>
         </div>
     )
 }

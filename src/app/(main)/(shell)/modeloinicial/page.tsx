@@ -33,6 +33,7 @@ import { fetchCommunitiesActivity, type CommunityActivity } from '@/lib/communit
 import PlanAvatarRing, { usePlanRing } from '@/components/PlanAvatarRing'
 import ListingRowCard from '@/components/ListingRowCard'
 import NearbyAroundCard from '@/components/v3/NearbyAroundCard'
+import { loadServiceCards } from '@/lib/serviceCards'
 import SearchResultsSection from '../../inicio/SearchResultsSection'
 import { rankStyle } from '../../social/SocialProfileCard'
 import ShareLinkDialog, { copyText } from '@/components/ShareLinkDialog'
@@ -386,46 +387,11 @@ export default function ModeloInicialPage() {
             return ordered.map((p) => ({ ...p, storeOpen: open.has(p.storeSlug) ? open.get(p.storeSlug)! : null }))
         }, setProducts, [])
 
-        safe(async () => {
-            const { data: rows } = await supabase
-                .from('products')
-                .select('id, name, slug, image_url, price, owner_id, store_id, view_count')
-                .eq('listing_type', 'service_offer')
-                .eq('is_active', true)
-                .order('created_at', { ascending: false })
-                .limit(10)
-            const list = rows || []
-            const ownerIds = [...new Set(list.filter((r: any) => !r.store_id && r.owner_id).map((r: any) => r.owner_id))]
-            const storeIds = [...new Set(list.filter((r: any) => r.store_id).map((r: any) => r.store_id))]
-            const [{ data: profs }, { data: sts }] = await Promise.all([
-                ownerIds.length ? supabase.from('profiles').select('id, "profileSlug"').in('id', ownerIds) : Promise.resolve({ data: [] as any[] }),
-                storeIds.length ? supabase.from('stores').select('id, name, "storeSlug", business_hours').in('id', storeIds) : Promise.resolve({ data: [] as any[] }),
-            ])
-            const profMap = new Map((profs || []).map((p: any) => [p.id, p.profileSlug]))
-            const storeMap = new Map((sts || []).map((s: any) => [s.id, s]))
-            // Quem presta o serviço (perfil) está online agora? Respeita a escolha de "visto por último" de cada pessoa:
-            // quem não mostra a presença aparece como offline.
-            const online = new Map<string, boolean>()
-            if (ownerIds.length) {
-                const { data: seen } = await supabase.rpc('get_last_seen_for', { p_ids: ownerIds })
-                ;((seen as { profile_id: string; online: boolean }[]) || []).forEach((r) => online.set(r.profile_id, !!r.online))
-            }
-            return list.map((r: any) => {
-                const store: any = r.store_id ? storeMap.get(r.store_id) : null
-                const slug = store ? store.storeSlug : profMap.get(r.owner_id)
-                return {
-                    id: r.id,
-                    title: r.name,
-                    href: slug && r.slug ? `/${slug}/${r.slug}` : '/',
-                    image: toPublicImage('product-images', r.image_url),
-                    provider: store ? store.name : slug ? `@${slug}` : 'Prestador',
-                    price: r.price != null ? Number(r.price) : null,
-                    storeOpen: store ? isStoreOpenNow(store.business_hours as BusinessHours | null) : null,
-                    ownerId: store ? null : r.owner_id,
-                    ownerOnline: store ? null : (online.get(r.owner_id) ?? false),
-                }
-            }) as ServiceItem[]
-        }, setServices, [])
+        // Os mesmos serviços de /servicos-disponiveis (de lojas e de pessoas), os mais vistos na frente
+        safe(async () => (await loadServiceCards()).slice(0, 12).map((c) => ({
+            id: c.id, title: c.name, href: c.href, image: c.imageUrl, provider: c.seller, price: c.price,
+            storeOpen: c.storeOpen, ownerOnline: c.ownerOnline,
+        })) as ServiceItem[], setServices, [])
 
         safe(() => fetchOpenBoardItems(10), setRequests, [])
 
@@ -643,50 +609,20 @@ export default function ModeloInicialPage() {
                                 })}
                             </div>
 
-                            {myRequests.some((r) => r.stage !== 'concluido' || r.needsReview) && (
-                                <div className="mt-5">
-                                    <div className="flex items-center justify-between mb-1">
-                                        <h2 className="text-lg font-black" style={{ color: colors.textPrimary }}>Seus pedidos de serviço</h2>
-                                        <button onClick={() => go('/solicitar-servico')} className="text-xs font-black flex items-center gap-0.5" style={{ color: colors.accent }}>Ver todos <ChevronRight size={13} /></button>
-                                    </div>
-                                    <ul>
-                                        {myRequests.filter((r) => r.stage !== 'concluido' || r.needsReview).slice(0, 4).map((r) => {
-                                            const waiting = r.candidates.filter((c) => c.status === 'pending').length
-                                            const hired = r.candidates.find((c) => c.status === 'accepted')
-                                            const status = r.stage === 'buscando'
-                                                ? (waiting > 0 ? `${waiting} ${waiting === 1 ? 'profissional quer' : 'profissionais querem'} fazer. Escolha!` : 'Esperando profissionais')
-                                                : r.stage === 'contratado' ? `${hired?.name ? hired.name.split(' ')[0] : 'Profissional'} vai fazer` : 'Avalie o serviço'
-                                            const hot = waiting > 0 || r.needsReview
-                                            return (
-                                                <li key={r.id}>
-                                                    <button onClick={() => go('/solicitar-servico')} className="w-full py-3 flex items-center gap-3 text-left transition active:opacity-80" style={{ borderBottom: `1px solid ${colors.border}50` }}>
-                                                        {(() => {
-                                                            const RIcon = getServiceIcon(r.serviceType, r.customIcon)
-                                                            return (
-                                                                <span className="w-14 h-14 rounded-2xl overflow-hidden flex-shrink-0 flex items-center justify-center" style={{ background: `${TYPE.servico.color}1f`, color: TYPE.servico.color }}>
-                                                                    {r.photoUrl ? <img src={r.photoUrl} alt="" loading="lazy" className="w-full h-full object-cover" /> : <RIcon size={24} />}
-                                                                </span>
-                                                            )
-                                                        })()}
-                                                        <span className="min-w-0 flex-1">
-                                                            <span className="block text-sm font-black leading-snug line-clamp-1" style={{ color: colors.textPrimary }}>{r.title}</span>
-                                                            <span className="block text-xs font-bold mt-0.5" style={{ color: hot ? '#f97316' : r.stage === 'contratado' ? '#16a34a' : colors.textSecondary }}>{status}</span>
-                                                        </span>
-                                                        {waiting > 0 && r.stage === 'buscando' && (
-                                                            <span className="flex -space-x-2 flex-shrink-0">
-                                                                {r.candidates.filter((c) => c.status === 'pending').slice(0, 3).map((c) => c.avatarUrl
-                                                                    ? <img key={c.applicationId} src={c.avatarUrl} alt="" className="w-7 h-7 rounded-full object-cover" style={{ border: `2px solid ${colors.background}` }} />
-                                                                    : <span key={c.applicationId} className="w-7 h-7 rounded-full flex items-center justify-center bg-[#f97316]" style={{ border: `2px solid ${colors.background}` }}><User size={13} color="#fff" /></span>)}
-                                                            </span>
-                                                        )}
-                                                        <ChevronRight size={16} className="flex-shrink-0" style={{ color: colors.textSecondary }} />
-                                                    </button>
-                                                </li>
-                                            )
-                                        })}
-                                    </ul>
-                                </div>
+                        <div className="mt-7">
+                            <SectionHeader type="servico" title="Serviços que você pode gostar" subtitle="Profissionais divulgando os melhores serviços" onSeeAll={() => go('/servicos-disponiveis')} colors={colors} />
+                            {services === null ? <Skeleton colors={colors} /> : services.length === 0 ? null : (
+                                <Strip>
+                                    {services.map((s) => (
+                                        <Tile key={s.id} type="servico" colors={colors} image={s.image} fallback={<Wrench size={36} />} badge={s.storeOpen != null ? { label: s.storeOpen ? 'Aberto' : 'Fechado', color: s.storeOpen ? '#16a34a' : '#dc2626' } : s.ownerOnline != null ? { label: s.ownerOnline ? 'Online' : 'Offline', color: s.ownerOnline ? '#16a34a' : '#6b7280' } : undefined} onClick={() => go(s.href)}>
+                                            <span className="block text-sm font-black leading-snug line-clamp-2" style={{ color: colors.textPrimary }}>{s.title}</span>
+                                            {money(s.price) && <span className="block text-sm font-black mt-1" style={{ color: TYPE.servico.color }}>{money(s.price)}</span>}
+                                            <span className="block text-[11px] truncate mt-0.5" style={{ color: colors.textSecondary }}>{s.provider}</span>
+                                        </Tile>
+                                    ))}
+                                </Strip>
                             )}
+                        </div>
 
                             <h2 className="text-xl font-black mt-6 mb-3" style={{ color: colors.textPrimary }}>Quero ganhar com o iUser</h2>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -824,20 +760,6 @@ export default function ModeloInicialPage() {
                             )}
                         </section>
 
-                        <section className="mt-8">
-                            <SectionHeader type="servico" title="Serviços que você pode gostar" subtitle="Profissionais divulgando os melhores serviços" onSeeAll={() => go('/servicos-disponiveis')} colors={colors} />
-                            {services === null ? <Skeleton colors={colors} /> : services.length === 0 ? null : (
-                                <Strip>
-                                    {services.map((s) => (
-                                        <Tile key={s.id} type="servico" colors={colors} image={s.image} fallback={<Wrench size={36} />} badge={s.storeOpen != null ? { label: s.storeOpen ? 'Aberto' : 'Fechado', color: s.storeOpen ? '#16a34a' : '#dc2626' } : s.ownerOnline != null ? { label: s.ownerOnline ? 'Online' : 'Offline', color: s.ownerOnline ? '#16a34a' : '#6b7280' } : undefined} onClick={() => go(s.href)}>
-                                            <span className="block text-sm font-black leading-snug line-clamp-2" style={{ color: colors.textPrimary }}>{s.title}</span>
-                                            {money(s.price) && <span className="block text-sm font-black mt-1" style={{ color: TYPE.servico.color }}>{money(s.price)}</span>}
-                                            <span className="block text-[11px] truncate mt-0.5" style={{ color: colors.textSecondary }}>{s.provider}</span>
-                                        </Tile>
-                                    ))}
-                                </Strip>
-                            )}
-                        </section>
 
                         <section className="mt-8">
                             <SectionHeader type="pedido" title="Quem está procurando serviço" subtitle="Ganhe dinheiro fazendo serviços" onSeeAll={() => go('/procurar-servico')} colors={colors} />
