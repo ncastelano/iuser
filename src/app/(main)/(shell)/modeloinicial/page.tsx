@@ -309,11 +309,11 @@ function CommunityTalkCard({ c, colors, onClick }: { c: CommunityItem; colors: a
             tabIndex={0}
             onClick={onClick}
             onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onClick() } }}
-            className="snap-start flex-shrink-0 w-[272px] sm:w-[300px] rounded-3xl border p-3.5 flex flex-col gap-3 text-left cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl active:scale-[0.98]"
+            className="snap-start self-start flex-shrink-0 w-[264px] sm:w-[292px] rounded-3xl border p-3 flex flex-col gap-2 text-left cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl active:scale-[0.98]"
             style={{ background: colors.surface, borderColor: colors.border, boxShadow: colors.shadow }}
         >
             <span className="flex items-center gap-2.5 min-w-0">
-                <span className="w-11 h-11 rounded-2xl overflow-hidden flex-shrink-0 flex items-center justify-center" style={{ background: `${t.color}22`, color: t.color }}>
+                <span className="w-10 h-10 rounded-2xl overflow-hidden flex-shrink-0 flex items-center justify-center" style={{ background: `${t.color}22`, color: t.color }}>
                     {c.image ? <img src={c.image} alt="" className="w-full h-full object-cover" loading="lazy" /> : <MessageCircle size={20} />}
                 </span>
                 <span className="min-w-0 flex-1">
@@ -330,9 +330,9 @@ function CommunityTalkCard({ c, colors, onClick }: { c: CommunityItem; colors: a
                 )}
             </span>
 
-            <span className="flex flex-col gap-1.5 min-h-[112px]">
+            <span className="flex flex-col gap-1">
                 {c.talk.length === 0 ? (
-                    <span className="flex-1 rounded-2xl flex items-center justify-center text-center px-3 text-xs" style={{ background: `${colors.border}30`, color: colors.textSecondary }}>
+                    <span className="rounded-2xl py-3 flex items-center justify-center text-center px-3 text-xs" style={{ background: `${colors.border}30`, color: colors.textSecondary }}>
                         Ninguém falou ainda. Comece a conversa!
                     </span>
                 ) : c.talk.map((m, i) => (
@@ -340,15 +340,13 @@ function CommunityTalkCard({ c, colors, onClick }: { c: CommunityItem; colors: a
                         <span className="w-6 h-6 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center text-[10px] font-black text-white" style={{ background: t.color }}>
                             {m.avatar ? <img src={m.avatar} alt="" className="w-full h-full object-cover" loading="lazy" /> : m.author.replace('@', '').charAt(0).toUpperCase()}
                         </span>
-                        <span className="min-w-0 flex-1 rounded-2xl rounded-tl-md px-2.5 py-1.5" style={{ background: `${colors.border}30` }}>
+                        <span className="min-w-0 flex-1 rounded-2xl rounded-tl-md px-2.5 py-1" style={{ background: `${colors.border}30` }}>
                             <span className="block text-[10px] font-black truncate" style={{ color: t.color }}>{m.author}</span>
-                            <span className="block text-[12px] leading-snug line-clamp-2" style={{ color: colors.textPrimary }}>{m.text}</span>
+                            <span className="block text-[12px] leading-snug line-clamp-1" style={{ color: colors.textPrimary }}>{m.text}</span>
                         </span>
                     </span>
                 ))}
             </span>
-
-            <span className="text-[12px] font-black underline underline-offset-2" style={{ color: colors.textPrimary }}>Entrar na conversa</span>
         </div>
     )
 }
