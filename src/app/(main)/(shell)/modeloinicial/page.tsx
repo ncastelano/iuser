@@ -342,7 +342,7 @@ function CommunityTalkCard({ c, colors, onClick }: { c: CommunityItem; colors: a
                         </span>
                         <span className="min-w-0 flex-1 rounded-2xl rounded-tl-md px-2.5 py-1" style={{ background: `${colors.border}30` }}>
                             <span className="block text-[10px] font-black truncate" style={{ color: t.color }}>{m.author}</span>
-                            <span className="block text-[12px] leading-snug line-clamp-1" style={{ color: colors.textPrimary }}>{m.text}</span>
+                            <span className="block text-[12px] leading-snug truncate" style={{ color: colors.textPrimary }}>{m.text}</span>
                         </span>
                     </span>
                 ))}
