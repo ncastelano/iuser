@@ -50,8 +50,9 @@ const APPT_STATUS_LABEL: Record<string, string> = {
     cancelled: 'Cancelado',
 }
 
+// Cada coisa é uma coisa: produtos (ver / pedir), serviços (ver / agendar), horário e o que a pessoa já fez na loja.
 function menuText(storeName: string): string {
-    return `Olá! Bem-vindo(a) ao atendimento automático da *${storeName}* 🤖\n\nEscolha uma opção:\n1️⃣ Ver produtos/serviços\n2️⃣ Ver horário de funcionamento\n3️⃣ Fazer um pedido\n4️⃣ Meus pedidos e agendamentos\n\n(Responda só com o número)`
+    return `Olá! Bem-vindo(a) ao atendimento automático da *${storeName}* 🤖\n\nEscolha uma opção:\n*Produtos*\n1️⃣ Ver produtos\n2️⃣ Fazer um pedido\n\n*Serviços*\n3️⃣ Ver serviços\n4️⃣ Fazer um agendamento\n\n*Outros*\n5️⃣ Ver horário de funcionamento\n6️⃣ Meus pedidos e agendamentos\n\n(Responda só com o número)`
 }
 
 export function normalizeDigits(s: string | null | undefined): string {
@@ -86,20 +87,30 @@ export async function matchProfileByWhatsApp(
     return data && data[0] ? (data[0] as any) : null
 }
 
-function formatProductList(products: { name: string; price: number | null }[]): string {
-    return products.map((p, i) => `${i + 1}. ${p.name}${p.price != null ? ` — R$ ${Number(p.price).toFixed(2)}` : ''}`).join('\n')
+function formatProductList(products: { name: string; price: number | null; duration_minutes?: number | null }[]): string {
+    return products
+        .map((p, i) => `${i + 1}. ${p.name}${p.price != null && Number(p.price) > 0 ? ` — R$ ${Number(p.price).toFixed(2)}` : ''}${p.duration_minutes ? ` · ${p.duration_minutes} min` : ''}`)
+        .join('\n')
 }
 
-async function loadActiveProducts(admin: SupabaseClient, storeId: string) {
-    const { data } = await admin
+// Produtos e serviços moram na mesma tabela (type = 'service' é serviço): cada lista traz só o seu tipo.
+async function loadActiveProducts(admin: SupabaseClient, storeId: string, kind: 'goods' | 'services' = 'goods') {
+    let q = admin
         .from('products')
-        .select('id, name, price, image_url, slug')
+        .select('id, name, price, image_url, slug, duration_minutes')
         .eq('store_id', storeId)
         .eq('is_active', true)
         .eq('listing_type', 'sale') // exclui publicações e campanhas VIP, que ficam na mesma tabela
-        .order('name')
-        .limit(20)
+    q = kind === 'services' ? q.eq('type', 'service') : q.neq('type', 'service')
+    const { data } = await q.order('name').limit(20)
     return data || []
+}
+
+// Link para a pessoa agendar na página da loja (a janela de agendar abre sozinha, já com o serviço escolhido).
+async function buildScheduleUrl(admin: SupabaseClient, store: StoreRow, productId?: string): Promise<string> {
+    const url = new URL(`/${store.storeSlug}`, APP_URL)
+    url.searchParams.set('agendar', productId || '1')
+    return createShortLink(admin, url.toString())
 }
 
 // Storage do Supabase é público — dá pra montar a URL direto do nome do
@@ -159,22 +170,18 @@ export async function handleIncomingMessage(
     // ===== MENU =====
     if (convo.state === 'menu') {
         if (trimmed === '1') {
-            const products = await loadActiveProducts(admin, store.id)
+            const products = await loadActiveProducts(admin, store.id, 'goods')
             if (products.length === 0) {
                 return { reply: 'Essa loja ainda não tem produtos cadastrados.\n\n' + menuText(store.name), newState: 'menu', newContext: {} }
             }
             return {
-                reply: `*Produtos/serviços de ${store.name}:*\n\n${formatProductList(products)}\n\nDigite *3* no menu pra fazer um pedido, ou *menu* pra voltar.`,
+                reply: `*Produtos de ${store.name}:*\n\n${formatProductList(products)}\n\nDigite *2* no menu pra fazer um pedido, ou *menu* pra voltar.`,
                 newState: 'menu',
                 newContext: {},
             }
         }
         if (trimmed === '2') {
-            const statusText = getStoreStatusText(store.business_hours)
-            return { reply: `*Horário de ${store.name}:*\n${statusText}\n\nDigite *menu* pra voltar.`, newState: 'menu', newContext: {} }
-        }
-        if (trimmed === '3') {
-            const products = await loadActiveProducts(admin, store.id)
+            const products = await loadActiveProducts(admin, store.id, 'goods')
             if (products.length === 0) {
                 return { reply: 'Essa loja ainda não tem produtos disponíveis pra pedido no momento.\n\n' + menuText(store.name), newState: 'menu', newContext: {} }
             }
@@ -187,7 +194,39 @@ export async function handleIncomingMessage(
                 },
             }
         }
+        if (trimmed === '3') {
+            const services = await loadActiveProducts(admin, store.id, 'services')
+            if (services.length === 0) {
+                return { reply: 'Essa loja ainda não tem serviços cadastrados.\n\n' + menuText(store.name), newState: 'menu', newContext: {} }
+            }
+            return {
+                reply: `*Serviços de ${store.name}:*\n\n${formatProductList(services)}\n\nDigite *4* no menu pra fazer um agendamento, ou *menu* pra voltar.`,
+                newState: 'menu',
+                newContext: {},
+            }
+        }
         if (trimmed === '4') {
+            const { data: st } = await admin.from('stores').select('allow_scheduling').eq('id', store.id).maybeSingle()
+            if (!(st as { allow_scheduling?: boolean } | null)?.allow_scheduling) {
+                return { reply: 'Essa loja ainda não recebe agendamentos pelo iUser.\n\n' + menuText(store.name), newState: 'menu', newContext: {} }
+            }
+            const services = await loadActiveProducts(admin, store.id, 'services')
+            if (services.length === 0) {
+                // agenda ligada mas sem serviço na lista: leva direto à janela de agendar da loja
+                const link = await buildScheduleUrl(admin, store)
+                return { reply: `Abra o link pra escolher dia e horário:\n${link}\n\nDigite *menu* pra voltar.`, newState: 'menu', newContext: {} }
+            }
+            return {
+                reply: `*Qual serviço você quer agendar?* Escolha pelo número:\n\n${formatProductList(services)}\n\nOu digite *0* pra escolher na página.\n(Digite *cancelar* pra voltar ao menu)`,
+                newState: 'scheduling_pick_service',
+                newContext: { services: services.map((p: any) => ({ id: p.id, name: p.name })) },
+            }
+        }
+        if (trimmed === '5') {
+            const statusText = getStoreStatusText(store.business_hours)
+            return { reply: `*Horário de ${store.name}:*\n${statusText}\n\nDigite *menu* pra voltar.`, newState: 'menu', newContext: {} }
+        }
+        if (trimmed === '6') {
             if (!convo.matched_profile_id) {
                 return {
                     reply:
@@ -224,6 +263,26 @@ export async function handleIncomingMessage(
             return { reply: `*Seus pedidos e agendamentos em ${store.name}:*\n\n${body}\n\nDigite *menu* pra voltar.`, newState: 'menu', newContext: {} }
         }
         return { reply: 'Não entendi. ' + menuText(store.name), newState: 'menu', newContext: {} }
+    }
+
+    // ===== FAZER AGENDAMENTO: escolher o serviço (o link abre a janela de agendar da loja já com ele) =====
+    if (convo.state === 'scheduling_pick_service') {
+        const services: { id: string; name: string }[] = convo.context.services || []
+        const n = parseInt(trimmed, 10)
+        if (trimmed === '0') {
+            const link = await buildScheduleUrl(admin, store)
+            return { reply: `Abra o link pra escolher o serviço, o dia e o horário:\n${link}\n\nDigite *menu* pra voltar.`, newState: 'menu', newContext: {} }
+        }
+        if (isNaN(n) || n < 1 || n > services.length) {
+            return { reply: 'Número inválido. Escolha um dos serviços da lista, *0* pra escolher na página, ou *cancelar*.', newState: 'scheduling_pick_service', newContext: convo.context }
+        }
+        const chosen = services[n - 1]
+        const link = await buildScheduleUrl(admin, store, chosen.id)
+        return {
+            reply: `Ótimo! Pra agendar *${chosen.name}*, abra o link e escolha o dia e o horário:\n${link}\n\nDigite *menu* pra voltar.`,
+            newState: 'menu',
+            newContext: {},
+        }
     }
 
     // ===== FAZER PEDIDO: escolher item (ou finalizar) =====
