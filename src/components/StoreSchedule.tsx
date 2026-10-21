@@ -819,11 +819,15 @@ export default function StoreSchedule({
             direction: 'outgoing',
             is_public: isPublic,
         }
-        const { error } = await supabase.from('appointments').insert(appointment)
+        const { data: created, error } = await supabase.from('appointments').insert(appointment).select('id').maybeSingle()
         if (error) {
             toast.error(`Erro ao criar compromisso: ${error.message}`)
             setSubmitting(false)
             return
+        }
+        // Avisa no WhatsApp (pelo número da loja) que foi marcado, se o cliente conversa com o bot da loja; falha aqui não atrapalha
+        if (created?.id) {
+            fetch('/api/whatsapp/appointment-notice', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ appointmentId: created.id }) }).catch(() => { /* só um aviso a mais */ })
         }
         await refetch()
         toast.success('Compromisso criado com sucesso!')
