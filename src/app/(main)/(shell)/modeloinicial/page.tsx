@@ -250,7 +250,7 @@ function Tile({ type, onClick, image, fallback, children, colors, round = false,
 
 // Cartão alto padrão das vitrines de serviço ("Serviços que você pode gostar" e "Quem está procurando serviço"): a parte de
 // cima (imagem) ocupa 2/3 do cartão; sem imagem, o próprio título vira a imagem (o texto cabe no espaço). Embaixo ficam os
-// detalhes e o botão, sempre colado no rodapé, na mesma posição em todos os cartões.
+// detalhes e o botão, compactos e colados no rodapé, na mesma posição em todos os cartões (o que sobra de altura vai para a imagem).
 function TallTile({ type, colors, image, title, badge, meta, action, onClick }: {
     type: TypeKey; colors: any; image?: string | null; title: string; badge?: { label: string; color: string }
     /** Linha de detalhes do rodapé (preço, quem oferece, local...) */
@@ -269,7 +269,7 @@ function TallTile({ type, colors, image, title, badge, meta, action, onClick }: 
             className="snap-start flex-shrink-0 w-[168px] sm:w-[188px] h-[320px] sm:h-[336px] text-left rounded-3xl overflow-hidden border flex flex-col transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl active:scale-[0.98] cursor-pointer"
             style={{ background: colors.surface, borderColor: colors.border, boxShadow: colors.shadow }}
         >
-            <span className="relative block w-full h-[214px] sm:h-[224px] overflow-hidden flex-shrink-0" style={{ background: `linear-gradient(150deg, ${t.color}2e, ${t.color}0f)` }}>
+            <span className="relative block w-full flex-1 min-h-0 overflow-hidden" style={{ background: `linear-gradient(150deg, ${t.color}2e, ${t.color}0f)` }}>
                 {image ? (
                     <img src={image} alt="" className="w-full h-full object-cover" loading="lazy" />
                 ) : (
@@ -281,10 +281,10 @@ function TallTile({ type, colors, image, title, badge, meta, action, onClick }: 
                     {badge?.label || t.label}
                 </span>
             </span>
-            <span className="flex-1 min-h-0 p-2.5 flex flex-col gap-0.5">
+            <span className="flex-shrink-0 px-2.5 pt-2 pb-2.5 flex flex-col gap-1">
                 {image && <span className="block text-[13px] font-black leading-tight line-clamp-2" style={{ color: colors.textPrimary }}>{title}</span>}
                 {meta}
-                <span className="mt-auto block">{action}</span>
+                <span className="block pt-0.5">{action}</span>
             </span>
         </div>
     )
