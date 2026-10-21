@@ -21,6 +21,7 @@ import {
     Trash2,
     Sparkles,
     ArrowRight,
+    ArrowLeft,
     AlertCircle,
     Eye,
     EyeOff,
@@ -736,6 +737,17 @@ export default function StoreSchedule({
         }
     }
 
+    // Botão de voltar do topo (o mesmo desenho dos outros): confirmar → data e hora → (busca) → fecha
+    const headerBack = () => {
+        if (step === 'confirm') return goBack()
+        if (step === 'datetime') {
+            if (selectedDate || selectedTime) return goBack()
+            if (!initialStoreId) return goBack()
+            return onClose?.()
+        }
+        onClose?.()
+    }
+
     // ---------- VALIDAÇÃO ANTES DE CONFIRMAR (INCLUI VERIFICAÇÃO DE AUTENTICAÇÃO) ----------
     const handleConfirmClick = () => {
         // 1. Verifica se está autenticado
@@ -866,10 +878,18 @@ export default function StoreSchedule({
             }}
         >
             <div className="p-6">
-                <div className="flex items-center justify-between mb-6">
-                    <h3 className="text-xl font-black" style={{ color: textPrimary }}>{title}</h3>
+                <div className="flex items-center gap-3 mb-6">
+                    <button
+                        onClick={headerBack}
+                        aria-label="Voltar"
+                        className="flex-shrink-0 rounded-full flex items-center justify-center transition active:scale-95"
+                        style={{ width: 46, height: 46, background: `${colors.border}40`, color: textPrimary }}
+                    >
+                        <ArrowLeft size={20} />
+                    </button>
+                    <h3 className="flex-1 min-w-0 text-xl font-black leading-tight" style={{ color: textPrimary }}>{title}</h3>
                     {onClose && (
-                        <button onClick={onClose} className="text-2xl" style={{ color: textSecondary }}>×</button>
+                        <button onClick={onClose} aria-label="Fechar" className="flex-shrink-0 text-2xl w-8 h-8 flex items-center justify-center" style={{ color: textSecondary }}>×</button>
                     )}
                 </div>
 
