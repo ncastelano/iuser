@@ -127,6 +127,7 @@ export default function CommunityRoomClient() {
     const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const messagesRef = useRef<CommunityMessage[]>([])
     const scrollRef = useRef<HTMLDivElement>(null)
+    const contentRef = useRef<HTMLDivElement>(null)
     const atBottomRef = useRef(true)
     const [newBelow, setNewBelow] = useState(false)
 
@@ -212,6 +213,18 @@ export default function CommunityRoomClient() {
         atBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80
         if (atBottomRef.current) setNewBelow(false)
     }
+
+    // Fotos e cartões carregam depois das mensagens e esticam a conversa: quem está no fim continua no fim
+    useEffect(() => {
+        const content = contentRef.current
+        if (!content || typeof ResizeObserver === 'undefined') return
+        const ro = new ResizeObserver(() => {
+            const el = scrollRef.current
+            if (el && atBottomRef.current) el.scrollTop = el.scrollHeight
+        })
+        ro.observe(content)
+        return () => ro.disconnect()
+    }, [loading])
 
     // Chegou mensagem (ou alguém começou a escrever): se a pessoa está no fim, a conversa desce junto; senão avisa "novas mensagens"
     const lastCountRef = useRef(0)
@@ -628,7 +641,8 @@ export default function CommunityRoomClient() {
 
                 {/* Mensagens */}
                 <div className="relative flex-1 min-h-0 flex flex-col">
-                <div ref={scrollRef} onScroll={onScrollList} className="flex-1 min-h-0 overflow-y-auto px-4 md:px-6 py-4 space-y-3">
+                <div ref={scrollRef} onScroll={onScrollList} className="flex-1 min-h-0 overflow-y-auto px-4 md:px-6 py-4">
+                <div ref={contentRef} className="space-y-3">
                     {messages.length === 0 ? (
                         <div className="flex flex-col items-center justify-center gap-2 py-16 opacity-60">
                             <MessageCircle size={32} style={{ color: colors.textSecondary }} />
@@ -822,6 +836,7 @@ export default function CommunityRoomClient() {
                         </div>
                     )}
                     <div ref={bottomRef} />
+                </div>
                 </div>
                 {newBelow && (
                     <button onClick={() => scrollToBottom()} className="absolute left-1/2 -translate-x-1/2 bottom-2 h-9 px-4 rounded-full text-xs font-black text-white shadow-lg transition active:scale-95" style={{ background: '#f97316' }}>
