@@ -7,9 +7,13 @@ import { supabase } from '@/lib/supabase/client'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import OrderReviewPanel from '@/components/OrderReviewPanel'
 import DeliveryIncreasePrompt from '@/components/DeliveryIncreasePrompt'
+import { useInsideShell } from '@/components/InsideShell'
 
 export default function PedidosPage() {
     const router = useRouter()
+    // Na 3.0 os pedidos da pessoa moram na aba "Pedidos" do carrinho (mesma lista, sem uma segunda tela): o endereço antigo só encaminha
+    const v3 = useInsideShell()
+    useEffect(() => { if (v3) router.replace('/carrinho?aba=pedidos') }, [v3, router])
     const { userId: contextUserId, loading: profileLoading } = useProfile()
     const [mounted, setMounted] = useState(false)
 
