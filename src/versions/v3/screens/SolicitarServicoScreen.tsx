@@ -210,7 +210,7 @@ export default function SolicitarServicoScreen() {
                                                     {busy ? <Spinner size={15} color="#fff" /> : <><Check size={16} strokeWidth={3} /> Escolher</>}
                                                 </button>
                                                 <div className="[&>button]:!py-0 [&>button]:h-11 [&>button]:px-4 [&>button]:text-[13px] [&>button]:gap-1 [&>button]:hover:!scale-100">
-                                                    <ChatContactButton profileId={c.applicantId} requestApplicationId={c.applicationId} colors={colors} variant="pill" label="Conversar" />
+                                                    <ChatContactButton profileId={c.applicantId} requestApplicationId={c.applicationId} colors={colors} variant="v3quiet" label="Conversar" />
                                                 </div>
                                                 <button
                                                     onClick={() => decide(c.applicationId, 'rejected')}
