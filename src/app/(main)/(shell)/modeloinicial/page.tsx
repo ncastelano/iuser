@@ -248,6 +248,48 @@ function Tile({ type, onClick, image, fallback, children, colors, round = false,
     )
 }
 
+// Cartão alto padrão das vitrines de serviço ("Serviços que você pode gostar" e "Quem está procurando serviço"): a parte de
+// cima (imagem) ocupa 2/3 do cartão; sem imagem, o próprio título vira a imagem (o texto cabe no espaço). Embaixo ficam os
+// detalhes e o botão, sempre colado no rodapé, na mesma posição em todos os cartões.
+function TallTile({ type, colors, image, title, badge, meta, action, onClick }: {
+    type: TypeKey; colors: any; image?: string | null; title: string; badge?: { label: string; color: string }
+    /** Linha de detalhes do rodapé (preço, quem oferece, local...) */
+    meta?: ReactNode
+    /** Botão do rodapé */
+    action: ReactNode
+    onClick: () => void
+}) {
+    const t = TYPE[type]
+    return (
+        <div
+            role="button"
+            tabIndex={0}
+            onClick={onClick}
+            onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onClick() } }}
+            className="snap-start flex-shrink-0 w-[168px] sm:w-[188px] h-[320px] sm:h-[336px] text-left rounded-3xl overflow-hidden border flex flex-col transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl active:scale-[0.98] cursor-pointer"
+            style={{ background: colors.surface, borderColor: colors.border, boxShadow: colors.shadow }}
+        >
+            <span className="relative block w-full h-[214px] sm:h-[224px] overflow-hidden flex-shrink-0" style={{ background: `linear-gradient(150deg, ${t.color}2e, ${t.color}0f)` }}>
+                {image ? (
+                    <img src={image} alt="" className="w-full h-full object-cover" loading="lazy" />
+                ) : (
+                    <span className="w-full h-full flex items-center px-3.5 pt-10 pb-3">
+                        <span className={`block font-black leading-tight ${title.length > 70 ? 'text-[15px] line-clamp-8' : 'text-[19px] line-clamp-6'}`} style={{ color: colors.textPrimary }}>{title}</span>
+                    </span>
+                )}
+                <span className="absolute left-2 top-2 text-[10px] font-black uppercase tracking-wide px-2 py-0.5 rounded-full text-white" style={{ background: badge?.color || t.color }}>
+                    {badge?.label || t.label}
+                </span>
+            </span>
+            <span className="flex-1 min-h-0 p-2.5 flex flex-col gap-0.5">
+                {image && <span className="block text-[13px] font-black leading-tight line-clamp-2" style={{ color: colors.textPrimary }}>{title}</span>}
+                {meta}
+                <span className="mt-auto block">{action}</span>
+            </span>
+        </div>
+    )
+}
+
 function Skeleton({ colors }: { colors: any }) {
     return (
         <Strip>
@@ -614,11 +656,21 @@ export default function ModeloInicialPage() {
                             {services === null ? <Skeleton colors={colors} /> : services.length === 0 ? null : (
                                 <Strip>
                                     {services.map((s) => (
-                                        <Tile key={s.id} type="servico" colors={colors} image={s.image} fallback={<Wrench size={36} />} badge={s.storeOpen != null ? { label: s.storeOpen ? 'Aberto' : 'Fechado', color: s.storeOpen ? '#16a34a' : '#dc2626' } : s.ownerOnline != null ? { label: s.ownerOnline ? 'Online' : 'Offline', color: s.ownerOnline ? '#16a34a' : '#6b7280' } : undefined} onClick={() => go(s.href)}>
-                                            <span className="block text-sm font-black leading-snug line-clamp-2" style={{ color: colors.textPrimary }}>{s.title}</span>
-                                            {money(s.price) && <span className="block text-sm font-black mt-1" style={{ color: TYPE.servico.color }}>{money(s.price)}</span>}
-                                            <span className="block text-[11px] truncate mt-0.5" style={{ color: colors.textSecondary }}>{s.provider}</span>
-                                        </Tile>
+                                        <TallTile
+                                            key={s.id}
+                                            type="servico"
+                                            colors={colors}
+                                            image={s.image}
+                                            title={s.title}
+                                            badge={s.storeOpen != null ? { label: s.storeOpen ? 'Aberto' : 'Fechado', color: s.storeOpen ? '#16a34a' : '#dc2626' } : s.ownerOnline != null ? { label: s.ownerOnline ? 'Online' : 'Offline', color: s.ownerOnline ? '#16a34a' : '#6b7280' } : undefined}
+                                            onClick={() => go(s.href)}
+                                            meta={
+                                                <span className="block text-[11px] truncate" style={{ color: colors.textSecondary }}>
+                                                    {money(s.price) && <span className="font-black text-[12px]" style={{ color: TYPE.servico.color }}>{money(s.price)} · </span>}{s.provider}
+                                                </span>
+                                            }
+                                            action={<span className="w-full h-8 rounded-full flex items-center justify-center text-[12px] font-black" style={{ background: `${colors.border}40`, color: colors.textPrimary }}>Ver serviço</span>}
+                                        />
                                     ))}
                                 </Strip>
                             )}
@@ -766,42 +818,33 @@ export default function ModeloInicialPage() {
                             {requests === null ? <Skeleton colors={colors} /> : requests.length === 0 ? null : (
                                 <Strip>
                                     {requests.map((r) => (
-                                        <Tile
+                                        <TallTile
                                             key={r.id}
                                             type="pedido"
                                             colors={colors}
                                             image={r.photo_urls?.[0] || null}
-                                            fallback={<Briefcase size={36} />}
+                                            title={getRequestTitle(r.description, r.service_type, r.custom_service)}
                                             onClick={() => go(`/procurar-servico?ver=${r.id}`)}
-                                            textHero={
-                                                <span className="block text-[14px] font-black leading-snug line-clamp-3" style={{ color: colors.textPrimary }}>
-                                                    {getRequestTitle(r.description, r.service_type, r.custom_service)}
+                                            meta={
+                                                <span className="flex items-center gap-1 text-[11px]" style={{ color: colors.textSecondary }}>
+                                                    <MapPin size={10} className="flex-shrink-0" />
+                                                    <span className="truncate">{shortAddress(r.location_address).replace(/[,\s]+\d+\s*\w*$/, '')}</span>
+                                                    <span className="flex-shrink-0">· {askedAgo(r.created_at).replace('pediu ', '').replace('há ', '')}</span>
                                                 </span>
                                             }
-                                        >
-                                            {r.photo_urls?.[0] && (
-                                                <span className="block text-sm font-black leading-snug line-clamp-2" style={{ color: colors.textPrimary }}>
-                                                    {getRequestTitle(r.description, r.service_type, r.custom_service)}
-                                                </span>
-                                            )}
-                                            <span className="flex items-center gap-1 text-[11px] mt-1" style={{ color: colors.textSecondary }}>
-                                                <MapPin size={10} className="flex-shrink-0" />
-                                                <span className="truncate">{shortAddress(r.location_address).replace(/[,\s]+\d+\s*\w*$/, '')}</span>
-                                                <span className="flex-shrink-0">· {askedAgo(r.created_at).replace('pediu ', '').replace('há ', '')}</span>
-                                            </span>
-                                            {r.requester_id === userId ? (
-                                                <span className="mt-2 w-full h-9 rounded-full flex items-center justify-center text-[12px] font-black" style={{ background: `${colors.border}40`, color: colors.textSecondary }}>Seu pedido</span>
+                                            action={r.requester_id === userId ? (
+                                                <span className="w-full h-8 rounded-full flex items-center justify-center text-[12px] font-black" style={{ background: `${colors.border}40`, color: colors.textSecondary }}>Seu pedido</span>
                                             ) : (
                                                 <button
                                                     onClick={(e) => { e.stopPropagation(); if (!applied.has(r.id)) applyTo(r.id) }}
                                                     disabled={applied.has(r.id) || applying === r.id}
-                                                    className="mt-2 w-full h-9 rounded-full text-[12px] font-black transition active:scale-95 disabled:opacity-70"
+                                                    className="w-full h-8 rounded-full text-[12px] font-black transition active:scale-95 disabled:opacity-70"
                                                     style={applied.has(r.id) ? { background: `${colors.border}40`, color: colors.textSecondary } : { background: '#f97316', color: '#fff' }}
                                                 >
                                                     {applying === r.id ? '...' : applied.has(r.id) ? 'Inscrição enviada' : 'Quero me inscrever'}
                                                 </button>
                                             )}
-                                        </Tile>
+                                        />
                                     ))}
                                 </Strip>
                             )}
