@@ -266,6 +266,40 @@ export function Store({
         if ((goods.length === 0 || actions.servicesFirst) && services.length > 0) setActiveTab('services')
     }, [loading, goods.length, services.length, actions.servicesFirst])
 
+    // Veio de um cartão de loja (?produto=<id>): abre a aba certa, rola suave até o item (a "câmera" vai até ele) e o destaca
+    const focusProductRef = useRef<string | null>(null)
+    useEffect(() => {
+        if (loading || products.length === 0) return
+        let id: string | null = null
+        try { id = new URLSearchParams(window.location.search).get('produto') } catch { /* sem window */ }
+        if (!id || focusProductRef.current === id) return
+        const target = products.find((p) => p.id === id)
+        if (!target) return
+        focusProductRef.current = id
+        defaultTabPickedRef.current = true
+        setSearchQuery('')
+        setActiveTab(target.type === 'service' ? 'services' : 'products')
+        const timers: ReturnType<typeof setTimeout>[] = []
+        const tryFocus = (tries: number) => {
+            const el = document.getElementById(`produto-${id}`)
+            if (!el) { if (tries > 0) timers.push(setTimeout(() => tryFocus(tries - 1), 150)); return }
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+            // depois de chegar, um brilho laranja pulsa no item
+            timers.push(setTimeout(() => {
+                el.animate(
+                    [
+                        { boxShadow: '0 0 0 0 rgba(249,115,22,0)', transform: 'scale(1)', borderRadius: '16px' },
+                        { boxShadow: '0 0 0 6px rgba(249,115,22,0.6)', transform: 'scale(1.04)', borderRadius: '16px' },
+                        { boxShadow: '0 0 0 0 rgba(249,115,22,0)', transform: 'scale(1)', borderRadius: '16px' },
+                    ],
+                    { duration: 900, iterations: 3, easing: 'ease-in-out' },
+                )
+            }, 650))
+        }
+        // sem cleanup de propósito: se a lista de produtos atualizar no meio, a rolagem já agendada continua
+        timers.push(setTimeout(() => tryFocus(12), 350))
+    }, [loading, products])
+
     // ========== FILTRO ==========
     const filteredProducts = useMemo(() => {
         if (!searchQuery.trim()) return catalogList
@@ -1516,6 +1550,7 @@ export function Store({
                                                 return (
                                                     <div
                                                         key={product.id}
+                                                        id={`produto-${product.id}`}
                                                         onClick={(e) => handleProductClick(product, e)}
                                                         className="flex items-center gap-3 py-3 cursor-pointer transition active:opacity-80"
                                                         style={{ borderBottom: `1px solid ${colors.border}50` }}
@@ -1549,6 +1584,7 @@ export function Store({
                                                 return (
                                                     <div
                                                         key={product.id}
+                                                        id={`produto-${product.id}`}
                                                         onClick={(e) => handleProductClick(product, e)}
                                                         className="col-span-2 rounded-xl overflow-hidden border transition-all duration-300 hover:shadow-xl hover:-translate-y-1 cursor-pointer"
                                                         style={{
@@ -1597,6 +1633,7 @@ export function Store({
                                             return (
                                                 <div
                                                     key={product.id}
+                                                    id={`produto-${product.id}`}
                                                     onClick={(e) => handleProductClick(product, e)}
                                                     className={v3
                                                         ? 'relative cursor-pointer transition active:scale-[0.98]'
