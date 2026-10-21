@@ -26,9 +26,9 @@ import { getAvatarUrl } from '@/lib/avatar'
 import { loadProductCards, type ProductCard } from '../../inicio/sections/ProductShowcase'
 import { fetchOpenBoardItems, askedAgo, shortAddress, notifyServiceRequestsChanged, SERVICE_REQUESTS_CHANGED, type BoardItem } from '@/lib/serviceBoard'
 import { notifyServiceApplication } from '@/lib/notifyRideStatus'
-import { getRequestTitle } from '@/lib/serviceTypes'
+import { getRequestTitle, getServiceIcon } from '@/lib/serviceTypes'
 import { loadMyRequests, type MyRequest } from '@/modules/service-requests'
-import { useCartStore } from '@/store/useCartStore'
+import { useCartStore, cartItemLineTotal } from '@/store/useCartStore'
 import { fetchCommunitiesActivity, type CommunityActivity } from '@/lib/communityActivity'
 import PlanAvatarRing, { usePlanRing } from '@/components/PlanAvatarRing'
 import ListingRowCard from '@/components/ListingRowCard'
@@ -288,6 +288,8 @@ export default function ModeloInicialPage() {
     const [cartReady, setCartReady] = useState(false)
     useEffect(() => setCartReady(true), [])
     const cartCount = cartReady ? Object.values(cartItems).reduce((a, items) => a + items.reduce((n, i) => n + i.quantity, 0), 0) : 0
+    const cartTotal = cartReady ? Object.values(cartItems).reduce((a, items) => a + items.reduce((n, i) => n + cartItemLineTotal(i), 0), 0) : 0
+    const cartImages = cartReady ? Object.values(cartItems).flat().map((i) => i.product.image_url).filter((u): u is string => !!u).slice(0, 3) : []
     const [applying, setApplying] = useState<string | null>(null)
     useEffect(() => {
         if (!userId) { setApplied(new Set()); return }
@@ -463,7 +465,7 @@ export default function ModeloInicialPage() {
     const inviteUrl = typeof window !== 'undefined' && profileSlug ? `${window.location.origin}/convite?ref=${profileSlug}` : ''
 
     // `icons`: quatro ícones (quadrado 2x2) no lugar do ícone único — dão uma ideia do que cabe naquele cartão
-    type Action = { title: string; desc: string; icon: LucideIcon; icons?: LucideIcon[]; color: string; onClick: () => void; /** Algo esperando a pessoa (ex.: candidatos a escolher) */ alert?: boolean; /** Destaca o texto (o cartão está mostrando o andamento, não só a chamada) */ live?: boolean }
+    type Action = { /** Com algo em andamento o cartão vira um retângulo horizontal: fotos do que está em andamento + botão de voltar a isso */ wide?: { images: string[]; cta: string; hot?: boolean }; title: string; desc: string; icon: LucideIcon; icons?: LucideIcon[]; color: string; onClick: () => void; /** Algo esperando a pessoa (ex.: candidatos a escolher) */ alert?: boolean; /** Destaca o texto (o cartão está mostrando o andamento, não só a chamada) */ live?: boolean }
     // Quem PRECISA de algo (o visitante chega por aqui)
     // Os cartões se moldam ao que a pessoa tem em andamento: pedidos de serviço e carrinho
     const reqBuscando = myRequests.filter((r) => r.stage === 'buscando').length
@@ -475,9 +477,18 @@ export default function ModeloInicialPage() {
         reqContratado > 0 ? `${reqContratado} ${reqContratado === 1 ? 'contratado' : 'contratados'}` : '',
         reqAvaliar > 0 ? `${reqAvaliar} para avaliar` : '',
     ].filter(Boolean)
+    // O que pede a atenção primeiro: candidatos para escolher, serviço para avaliar, buscando, contratado
+    const activeRequests = myRequests.filter((r) => r.stage !== 'concluido' || r.needsReview)
+    const reqImages = [...activeRequests].sort((a, b) => Number(b.candidates.some((c) => c.status === 'pending') || b.needsReview) - Number(a.candidates.some((c) => c.status === 'pending') || a.needsReview))
+        .map((r) => r.photoUrl).filter((u): u is string => !!u).slice(0, 3)
     const needs: Action[] = [
-        { title: 'Comprar', desc: cartCount > 0 ? `${cartCount} ${cartCount === 1 ? 'item' : 'itens'} no carrinho` : 'Lojas e produtos perto de você', live: cartCount > 0, icon: ShoppingBag, icons: [ShoppingBag, UtensilsCrossed, Shirt, Smartphone], color: TYPE.loja.color, onClick: () => go('/comprar') },
-        { title: 'Contratar serviço', desc: serviceParts.length > 0 ? serviceParts.join(' · ') : 'Descreva o que você precisa', live: serviceParts.length > 0, alert: reqEscolher > 0 || reqAvaliar > 0, icon: Wrench, icons: [Wrench, Scissors, Hand, Sparkles], color: TYPE.servico.color, onClick: () => go('/solicitar-servico') },
+        {
+            title: 'Comprar', desc: cartCount > 0 ? `${cartCount} ${cartCount === 1 ? 'item' : 'itens'} no carrinho${money(cartTotal) ? ` · ${money(cartTotal)}` : ''}` : 'Lojas e produtos perto de você', live: cartCount > 0,
+            wide: cartCount > 0 ? { images: cartImages, cta: 'Finalizar' } : undefined,
+            icon: ShoppingBag, icons: [ShoppingBag, UtensilsCrossed, Shirt, Smartphone], color: TYPE.loja.color, onClick: () => go(cartCount > 0 ? '/carrinho' : '/comprar') },
+        { title: 'Contratar serviço', desc: serviceParts.length > 0 ? serviceParts.join(' · ') : 'Descreva o que você precisa', live: serviceParts.length > 0, alert: reqEscolher > 0 || reqAvaliar > 0,
+            wide: serviceParts.length > 0 ? { images: reqImages, cta: reqEscolher > 0 ? 'Escolher' : reqAvaliar > 0 ? 'Avaliar' : 'Ver', hot: reqEscolher > 0 || reqAvaliar > 0 } : undefined,
+            icon: Wrench, icons: [Wrench, Scissors, Hand, Sparkles], color: TYPE.servico.color, onClick: () => go('/solicitar-servico') },
         { title: 'Pedir motorista', desc: 'Corrida rápida, preço combinado', icon: Car, icons: [Car, Bike, Motorbike, Package], color: '#ea580c', onClick: () => go('/pedir-motorista') },
         { title: 'Ver ao redor', desc: 'Mapa com lojas, serviços e pessoas', icon: Radar, icons: [Radar, MapPin, StoreIcon, Users], color: '#0891b2', onClick: () => go('/radar') },
     ]
@@ -533,9 +544,35 @@ export default function ModeloInicialPage() {
                     <>
                         {/* ===== 1. O QUE VOCÊ QUER FAZER? — dois blocos: quem precisa / quem quer ganhar ===== */}
                         <section className="mt-2">
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 grid-flow-dense">
                                 {needs.map((a) => {
                                     const Icon = a.icon
+                                    if (a.wide) {
+                                        const Ic = a.icon
+                                        return (
+                                            <button
+                                                key={a.title}
+                                                onClick={a.onClick}
+                                                className="relative col-span-2 text-left rounded-3xl p-3.5 border flex items-center gap-3.5 transition-all hover:-translate-y-0.5 hover:shadow-xl active:scale-[0.98]"
+                                                style={{ background: colors.surface, borderColor: `${a.color}66`, boxShadow: colors.shadow }}
+                                            >
+                                                {a.wide.images.length > 0 ? (
+                                                    <span className="flex flex-shrink-0 -space-x-4">
+                                                        {a.wide.images.map((u, i) => (
+                                                            <img key={i} src={u} alt="" loading="lazy" className="w-14 h-14 rounded-2xl object-cover" style={{ border: `2.5px solid ${colors.surface}`, zIndex: 3 - i }} />
+                                                        ))}
+                                                    </span>
+                                                ) : (
+                                                    <span className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: `${a.color}1f`, color: a.color }}><Ic size={26} /></span>
+                                                )}
+                                                <span className="min-w-0 flex-1">
+                                                    <span className="block text-[15px] font-black leading-tight" style={{ color: colors.textPrimary }}>{a.title}</span>
+                                                    <span className="block text-xs mt-0.5 leading-snug font-black" style={{ color: a.color }}>{a.desc}</span>
+                                                </span>
+                                                <span className="flex-shrink-0 h-9 px-4 rounded-full flex items-center text-[13px] font-black text-white" style={{ background: a.wide.hot ? '#ef4444' : '#f97316' }}>{a.wide.cta}</span>
+                                            </button>
+                                        )
+                                    }
                                     return (
                                         <button
                                             key={a.title}
@@ -556,7 +593,6 @@ export default function ModeloInicialPage() {
                                                 <span className="block text-[15px] font-black leading-tight" style={{ color: colors.textPrimary }}>{a.title}</span>
                                                 <span className={`block text-xs mt-0.5 leading-snug ${a.live ? 'font-black' : ''}`} style={{ color: a.live ? a.color : colors.textSecondary }}>{a.desc}</span>
                                             </span>
-                                            {a.alert && <span aria-label="Precisa da sua atenção" className="absolute top-3 right-3 w-3 h-3 rounded-full bg-red-500 border-2" style={{ borderColor: colors.surface }} />}
                                         </button>
                                     )
                                 })}
@@ -579,6 +615,14 @@ export default function ModeloInicialPage() {
                                             return (
                                                 <li key={r.id}>
                                                     <button onClick={() => go(`/solicitar-servico?pedido=${r.id}`)} className="w-full py-3 flex items-center gap-3 text-left transition active:opacity-80" style={{ borderBottom: `1px solid ${colors.border}50` }}>
+                                                        {(() => {
+                                                            const RIcon = getServiceIcon(r.serviceType, r.customIcon)
+                                                            return (
+                                                                <span className="w-14 h-14 rounded-2xl overflow-hidden flex-shrink-0 flex items-center justify-center" style={{ background: `${TYPE.servico.color}1f`, color: TYPE.servico.color }}>
+                                                                    {r.photoUrl ? <img src={r.photoUrl} alt="" loading="lazy" className="w-full h-full object-cover" /> : <RIcon size={24} />}
+                                                                </span>
+                                                            )
+                                                        })()}
                                                         <span className="min-w-0 flex-1">
                                                             <span className="block text-sm font-black leading-snug line-clamp-1" style={{ color: colors.textPrimary }}>{r.title}</span>
                                                             <span className="block text-xs font-bold mt-0.5" style={{ color: hot ? '#f97316' : r.stage === 'contratado' ? '#16a34a' : colors.textSecondary }}>{status}</span>
