@@ -28,6 +28,8 @@ import {
     User,
     Camera,
 } from 'lucide-react'
+import { useInsideShell } from '@/components/InsideShell'
+import ScheduleV3 from '@/components/v3/ScheduleV3'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
@@ -119,6 +121,8 @@ export default function StoreSchedule({
     const { colors } = useTheme()
     const { appointments, refetch } = useAppointments()
     const { userId: contextUserId, loading: profileLoading } = useProfile()
+    // Na 3.0 as etapas de data/hora e de confirmação usam a tela nova (ScheduleV3); a busca de loja e as regras são as mesmas
+    const v3 = useInsideShell()
 
     // ---------- Estados ----------
     const [step, setStep] = useState<'search' | 'datetime' | 'confirm'>(
@@ -146,6 +150,8 @@ export default function StoreSchedule({
     const [calendarYear, setCalendarYear] = useState(new Date().getFullYear())
     const [appointmentNote, setAppointmentNote] = useState('')
     const [isPublic, setIsPublic] = useState(false)
+    // 3.0: o recado do cliente é separado da lista de serviços (que vira o texto do agendamento); os dois se juntam em `appointmentNote`
+    const [v3Recado, setV3Recado] = useState('')
 
     const [storeProducts, setStoreProducts] = useState<Product[]>([])
     const [loadingProducts, setLoadingProducts] = useState(false)
@@ -376,6 +382,12 @@ export default function StoreSchedule({
             setAppointmentNote(autoNote)
         }
     }, [autoNote, isEditingNote])
+
+    useEffect(() => {
+        if (!v3) return
+        const recado = v3Recado.trim()
+        setAppointmentNote(autoNote + (recado ? (autoNote ? ' — ' : '') + recado : ''))
+    }, [v3, autoNote, v3Recado])
 
     // ---------- Efeitos ----------
 
@@ -716,6 +728,45 @@ export default function StoreSchedule({
         return map
     }, [config, appointments, target, selectedDuration, calendarMonth, calendarYear, todayStr, selectedItems.length])
 
+    // ---------- Faixa dos próximos dias com o número de vagas livres (tela da 3.0) ----------
+    const dayStrip = useMemo(() => {
+        const out: { date: Date; dateStr: string; free: number }[] = []
+        if (!target || selectedItems.length === 0 || !config.is_active) return out
+        const now = new Date()
+        for (let d = 0; d < 21; d++) {
+            const date = new Date(now.getFullYear(), now.getMonth(), now.getDate() + d)
+            const dateStr = date.toISOString().split('T')[0]
+            let free = 0
+            if (!(config.blocked_dates && config.blocked_dates.includes(dateStr))) {
+                const dayConfig = config.weekly?.[date.getDay().toString()]
+                if (dayConfig && dayConfig.isOpen) {
+                    const slotInterval = config.slot_interval || 30
+                    const startMinutes = toMinutes(dayConfig.start || '08:00')
+                    const endMinutes = toMinutes(dayConfig.end || '18:00')
+                    const lunchStart = dayConfig.lunchStart ? toMinutes(dayConfig.lunchStart) : null
+                    const lunchEnd = dayConfig.lunchEnd ? toMinutes(dayConfig.lunchEnd) : null
+                    const rel = appointments.filter(a => a.store_id === target.id && a.date === dateStr && a.status !== 'cancelled')
+                    const isToday = date.toDateString() === now.toDateString()
+                    const currentMinutes = now.getHours() * 60 + now.getMinutes()
+                    for (let m = startMinutes; m + selectedDuration <= endMinutes; m += slotInterval) {
+                        if (lunchStart !== null && lunchEnd !== null) {
+                            const slotEnd = m + selectedDuration
+                            if ((m >= lunchStart && m < lunchEnd) || (slotEnd > lunchStart && slotEnd <= lunchEnd)) continue
+                        }
+                        if (isToday && m <= currentMinutes) continue
+                        const overlaps = rel.some(a => {
+                            const aStart = toMinutes(a.time)
+                            return m < aStart + (a.duration_minutes || 60) && aStart < m + selectedDuration
+                        })
+                        if (!overlaps) free++
+                    }
+                }
+            }
+            out.push({ date, dateStr, free })
+        }
+        return out
+    }, [config, appointments, target, selectedDuration, selectedItems.length])
+
     const diasDoMes = new Date(calendarYear, calendarMonth + 1, 0).getDate()
     const primeiroDia = new Date(calendarYear, calendarMonth, 1).getDay()
 
@@ -854,7 +905,8 @@ export default function StoreSchedule({
     const textSecondary = colors.textSecondary
     const accentColor = colors.accent
 
-    const title = step === 'search' ? 'Buscar loja' : step === 'datetime' ? `Agendar em ${target?.name || ''}` : 'Confirmar'
+    const v3Flow = v3 && !!target && (step === 'datetime' || step === 'confirm')
+    const title = step === 'search' ? 'Buscar loja' : step === 'datetime' ? (v3 ? 'Agendar atendimento' : `Agendar em ${target?.name || ''}`) : 'Confirmar'
 
     const formatDate = (date: Date) => {
         return date.toLocaleDateString('pt-BR', {
@@ -892,6 +944,48 @@ export default function StoreSchedule({
                         <button onClick={onClose} aria-label="Fechar" className="flex-shrink-0 text-2xl w-8 h-8 flex items-center justify-center" style={{ color: textSecondary }}>×</button>
                     )}
                 </div>
+
+                {/* 3.0: data/hora e confirmação numa tela só de apresentação (as regras acima são as mesmas) */}
+                {v3Flow && target && (
+                    <ScheduleV3
+                        colors={colors}
+                        step={step === 'confirm' ? 'confirm' : 'datetime'}
+                        storeName={target.name}
+                        services={storeProducts as any}
+                        loadingServices={loadingProducts}
+                        items={selectedItems as any}
+                        onToggleService={(srv) => addToSelection(srv as any)}
+                        onChangeQty={(id, delta) => updateItemQuantity(id, delta)}
+                        duration={selectedDuration}
+                        nextSlots={getNextAvailableSlots}
+                        days={dayStrip}
+                        selectedDate={selectedDate}
+                        onPickDate={(d) => { setSelectedDate(d); setSelectedTime(null); setValidationError(null) }}
+                        slots={allSlots}
+                        selectedTime={selectedTime}
+                        onPickTime={(t) => { setSelectedTime(t); setValidationError(null) }}
+                        onPickSuggestion={(sg) => { setSelectedDate(sg.date); setSelectedTime(sg.time); setValidationError(null) }}
+                        onContinue={() => {
+                            if (selectedItems.length === 0) return setValidationError('Escolha pelo menos um serviço')
+                            if (!selectedDate || !selectedTime) return setValidationError('Escolha o dia e o horário')
+                            setValidationError(null)
+                            setStep('confirm')
+                        }}
+                        note={v3Recado}
+                        onNote={setV3Recado}
+                        isPublic={isPublic}
+                        onPublic={setIsPublic}
+                        authed={isAuthenticated}
+                        onLogin={() => {
+                            // entra e volta para esta loja com a agenda aberta e o serviço já escolhido
+                            const back = `${window.location.pathname}?agendar=${selectedItems[0]?.product.id || '1'}`
+                            window.location.href = `/login?redirect=${encodeURIComponent(back)}`
+                        }}
+                        submitting={submitting}
+                        onConfirm={handleConfirmClick}
+                        error={validationError}
+                    />
+                )}
 
                 {/* ETAPA BUSCA */}
                 {step === 'search' && (
@@ -995,7 +1089,7 @@ export default function StoreSchedule({
                 )}
 
                 {/* ETAPA DATA/HORA */}
-                {step === 'datetime' && target && (
+                {!v3Flow && step === 'datetime' && target && (
                     <>
                         <div
                             style={{
@@ -1856,7 +1950,7 @@ export default function StoreSchedule({
                 )}
 
                 {/* ===== TELA DE CONFIRMAÇÃO COM LOGIN ===== */}
-                {step === 'confirm' && selectedDate && selectedTime && target && (
+                {!v3Flow && step === 'confirm' && selectedDate && selectedTime && target && (
                     <div style={{ textAlign: 'center' }}>
                         {/* ===== SE NÃO ESTIVER AUTENTICADO, MOSTRA O FORMULÁRIO DE LOGIN ===== */}
                         {!isAuthenticated ? (
