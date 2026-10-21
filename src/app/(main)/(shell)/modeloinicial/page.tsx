@@ -583,18 +583,22 @@ export default function ModeloInicialPage() {
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 grid-flow-dense">
                                 {needs.map((a) => {
                                     const Icon = a.icon
-                                    if (a.wide) {
+                                    // Sobrou um quadrado sozinho na linha (os outros viraram retângulos): ele também vira retângulo, só sem botão
+                                    const squares = needs.filter((n) => !n.wide)
+                                    const lonely = !a.wide && squares.length % 2 === 1 && squares[squares.length - 1] === a
+                                    if (a.wide || lonely) {
                                         const Ic = a.icon
+                                        const w = a.wide || { images: [] as string[], cta: '' }
                                         return (
                                             <button
                                                 key={a.title}
                                                 onClick={a.onClick}
                                                 className="relative col-span-2 text-left rounded-3xl p-3.5 border flex items-center gap-3.5 transition-all hover:-translate-y-0.5 hover:shadow-xl active:scale-[0.98]"
-                                                style={{ background: colors.surface, borderColor: `${a.color}66`, boxShadow: colors.shadow }}
+                                                style={{ background: colors.surface, borderColor: a.wide ? `${a.color}66` : colors.border, boxShadow: colors.shadow }}
                                             >
-                                                {a.wide.images.length > 0 ? (
+                                                {w.images.length > 0 ? (
                                                     <span className="flex flex-shrink-0 -space-x-4">
-                                                        {a.wide.images.map((u, i) => (
+                                                        {w.images.map((u, i) => (
                                                             <img key={i} src={u} alt="" loading="lazy" className="w-14 h-14 rounded-2xl object-cover" style={{ border: `2.5px solid ${colors.surface}`, zIndex: 3 - i }} />
                                                         ))}
                                                     </span>
@@ -603,10 +607,12 @@ export default function ModeloInicialPage() {
                                                 )}
                                                 <span className="min-w-0 flex-1">
                                                     <span className="block text-[15px] font-black leading-tight" style={{ color: colors.textPrimary }}>{a.title}</span>
-                                                    <span className="block text-xs mt-0.5 leading-snug font-black" style={{ color: a.color }}>{a.desc}</span>
-                                                    {a.wide.sub && <span className="block text-[11px] mt-0.5 truncate" style={{ color: colors.textSecondary }}>{a.wide.sub}</span>}
+                                                    <span className={`block text-xs mt-0.5 leading-snug ${a.wide ? 'font-black' : ''}`} style={{ color: a.wide ? a.color : colors.textSecondary }}>{a.desc}</span>
+                                                    {w.sub && <span className="block text-[11px] mt-0.5 truncate" style={{ color: colors.textSecondary }}>{w.sub}</span>}
                                                 </span>
-                                                <span className="flex-shrink-0 h-9 px-4 rounded-full flex items-center text-[13px] font-black text-white" style={{ background: a.wide.hot ? '#ef4444' : '#f97316' }}>{a.wide.cta}</span>
+                                                {w.cta
+                                                    ? <span className="flex-shrink-0 h-9 px-4 rounded-full flex items-center text-[13px] font-black text-white" style={{ background: w.hot ? '#ef4444' : '#f97316' }}>{w.cta}</span>
+                                                    : <ChevronRight size={16} className="flex-shrink-0" style={{ color: colors.textSecondary }} />}
                                             </button>
                                         )
                                     }
