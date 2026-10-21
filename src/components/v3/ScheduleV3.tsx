@@ -21,7 +21,10 @@ export interface V3Day { date: Date; dateStr: string; free: number }
 const brl = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 const sameDay = (a: Date | null, b: Date) => !!a && a.toDateString() === b.toDateString()
 const weekdayShort = (d: Date) => d.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '')
-const dayLong = (d: Date) => d.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })
+const dayLong = (d: Date) => {
+    const t = d.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })
+    return t.charAt(0).toUpperCase() + t.slice(1)
+}
 
 export default function ScheduleV3(p: {
     colors: any
@@ -92,8 +95,8 @@ export default function ScheduleV3(p: {
                     {p.selectedDate && (
                         <div className="mt-3 pt-3 flex items-center gap-2" style={{ borderTop: `1px solid ${colors.border}60` }}>
                             <Clock size={15} style={{ color: ORANGE }} />
-                            <span className="text-sm font-black capitalize" style={{ color: colors.textPrimary }}>{dayLong(p.selectedDate)} · {p.selectedTime}</span>
-                            <span className="text-xs ml-auto" style={{ color: colors.textSecondary }}>{p.duration} min</span>
+                            <span className="text-sm font-black min-w-0 flex-1" style={{ color: colors.textPrimary }}>{dayLong(p.selectedDate)} · {p.selectedTime}</span>
+                            <span className="text-xs flex-shrink-0 whitespace-nowrap" style={{ color: colors.textSecondary }}>{p.duration} min</span>
                         </div>
                     )}
                     {total > 0 && (
@@ -216,7 +219,7 @@ export default function ScheduleV3(p: {
 
                     {p.selectedDate && (
                         <>
-                            <p className="mt-4 text-[11px] font-black uppercase tracking-wide capitalize" style={{ color: colors.textSecondary }}>Horários de {dayLong(p.selectedDate)}</p>
+                            <p className="mt-4 text-[11px] font-black tracking-wide" style={{ color: colors.textSecondary }}>Horários de {dayLong(p.selectedDate).toLowerCase()}</p>
                             {p.slots.length === 0 ? (
                                 <p className="mt-1.5 text-sm rounded-2xl p-4" style={{ background: soft, color: colors.textSecondary }}>Sem horários neste dia.</p>
                             ) : (
