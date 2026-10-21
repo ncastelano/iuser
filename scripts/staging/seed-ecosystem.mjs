@@ -156,7 +156,7 @@ const storeRows = STORES.map((s) => {
     const flagship = s.key === 'padaria'
     return {
         name: s.name, storeSlug: s.slug, owner_id: byKey[s.key].id, is_active: true, category: s.category, description: s.description,
-        address: s.address, store_lat: s.lat, store_lng: s.lng, whatsapp: s.whatsapp, show_whatsapp: true, chat_enabled: true,
+        address: s.address, store_lat: s.lat, store_lng: s.lng, location: `SRID=4326;POINT(${s.lng} ${s.lat})`, whatsapp: s.whatsapp, show_whatsapp: true, chat_enabled: true,
         accepts_delivery: ['padaria', 'pet'].includes(s.key), accepts_pickup: true, accepts_pix: true, accepts_card: true, accepts_cash: true,
         delivery_type: 'fixed', delivery_fee: 8, allow_scheduling: s.scheduling, business_hours: { weekly: s.hours },
         logo_url: `eco-${s.slug}.png`, instagram: null, youtube: null, facebook: null, x: null,
