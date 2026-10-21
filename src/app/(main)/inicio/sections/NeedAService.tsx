@@ -9,7 +9,7 @@
 import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
-import { MapPin, Plus, Eye, Check, Wrench, MoreHorizontal, Pencil, Trash2, X } from 'lucide-react'
+import { MapPin, Plus, Check, MoreHorizontal, Pencil, Trash2, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase/client'
 import ServiceRequestDetailsDialog from '@/components/ServiceRequestDetailsDialog'
@@ -22,7 +22,6 @@ import { BoardItem, fetchOpenBoardItems, fetchOpenRequestCount, getItemIcon, get
 import { HOME_GRADIENT, HomeSectionHeader } from './HomeSectionKit'
 import { ViewServicesButton } from './ViewServicesButton'
 import { useMyServiceApplications } from '@/hooks/useMyServiceApplications'
-import PlanAvatarRing from '@/components/PlanAvatarRing'
 import SeenBox from '@/components/SeenBox'
 import { trackServiceRequestView } from '@/lib/trackServiceRequestView'
 import { getRequestTitle } from '@/lib/serviceTypes'
@@ -117,7 +116,6 @@ export default function NeedAService({ dragHandle, limit = 8 }: { dragHandle?: R
                     const mine = item.requester_id === userId
                     const photo = item.photo_urls?.[0] || null
                     const title = getRequestTitle(item.description, item.service_type, item.custom_service)
-                    const who = mine ? 'Você' : (item.requester?.profileSlug ? `@${item.requester.profileSlug}` : item.requester?.name?.trim() || 'Alguém')
                     return (
                         <SeenBox
                             key={item.id}
@@ -133,42 +131,46 @@ export default function NeedAService({ dragHandle, limit = 8 }: { dragHandle?: R
                                 boxShadow: colors.shadow,
                             }}
                         >
-                            {/* Capa: a FOTO do pedido inteira (sobre uma cópia desfocada dela); sem foto, o ícone do tipo */}
-                            <div className="relative h-36 w-full overflow-hidden flex-shrink-0" style={{ background: photo ? '#0b1220' : HOME_GRADIENT }}>
-                                {photo ? (
-                                    <>
-                                        <img src={photo} alt="" aria-hidden className="absolute inset-0 w-full h-full object-cover scale-125 blur-xl opacity-60" loading="lazy" />
-                                        <img src={photo} alt={title} className="relative w-full h-full object-contain" loading="lazy" />
-                                    </>
-                                ) : (
-                                    <div className="w-full h-full flex items-center justify-center">
-                                        <Icon size={44} color="rgba(255,255,255,0.85)" />
-                                    </div>
-                                )}
-                                <span
-                                    className="absolute right-2.5 top-2.5 flex items-center gap-1 text-[10px] font-bold text-white px-2 py-1 rounded-full"
-                                    style={{ background: 'rgba(0,0,0,0.5)' }}
-                                    title={`${item.view_count} ${item.view_count === 1 ? 'pessoa viu' : 'pessoas viram'} este pedido`}
-                                >
-                                    <Eye size={11} />
-                                    {item.view_count}
-                                </span>
-                                {mine && (
-                                    <span className="absolute left-2.5 top-2.5 text-[9px] font-black uppercase px-2 py-1 rounded-full text-white" style={{ background: HOME_GRADIENT }}>
-                                        seu pedido
-                                    </span>
-                                )}
-                            </div>
+                            {/* Com foto: a foto inteira (sobre uma cópia desfocada dela) e o título embaixo. Sem foto: o cartão é o próprio texto. */}
+                            {photo && (
+                                <div className="relative h-36 w-full overflow-hidden flex-shrink-0" style={{ background: '#0b1220' }}>
+                                    <img src={photo} alt="" aria-hidden className="absolute inset-0 w-full h-full object-cover scale-125 blur-xl opacity-60" loading="lazy" />
+                                    <img src={photo} alt={title} className="relative w-full h-full object-contain" loading="lazy" />
+                                    {mine && (
+                                        <span className="absolute left-2.5 top-2.5 text-[9px] font-black uppercase px-2 py-1 rounded-full text-white" style={{ background: HOME_GRADIENT }}>
+                                            seu pedido
+                                        </span>
+                                    )}
+                                </div>
+                            )}
 
-                            <div className="p-3.5 flex flex-col gap-2 flex-1">
-                                {/* O que a pessoa escreveu é o título; o tipo (jardineiro, veterinário...) é só uma etiqueta */}
-                                <p className="text-sm font-black leading-snug" title={title} style={{ color: colors.textPrimary, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                            <div className={`flex flex-col gap-2 flex-1 ${photo ? 'p-3.5' : 'p-4'}`} style={photo ? undefined : { background: `${colors.accent}10` }}>
+                                <div className="flex items-start justify-between gap-2">
+                                    <span className="self-start flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: `${colors.accent}18`, color: colors.accent }}>
+                                        <Icon size={11} />
+                                        {getItemLabel(item)}
+                                    </span>
+                                    {mine && !photo && <span className="text-[9px] font-black uppercase px-2 py-1 rounded-full text-white" style={{ background: HOME_GRADIENT }}>seu pedido</span>}
+                                    {mine && (
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); setMenuItem(item) }}
+                                            aria-label="Mais opções do seu pedido"
+                                            className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 -mr-1 -mt-1 transition-colors hover:bg-black/10"
+                                            style={{ color: colors.textPrimary }}
+                                        >
+                                            <MoreHorizontal size={17} />
+                                        </button>
+                                    )}
+                                </div>
+
+                                {/* O que a pessoa pediu é o foco: sem foto fica bem maior */}
+                                <p
+                                    className={`${photo ? 'text-sm' : 'text-[17px]'} font-black leading-snug flex-1`}
+                                    title={title}
+                                    style={{ color: colors.textPrimary, display: '-webkit-box', WebkitLineClamp: photo ? 2 : 6, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
+                                >
                                     {title}
                                 </p>
-                                <span className="self-start flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: `${colors.accent}15`, color: colors.accent }}>
-                                    <Icon size={11} />
-                                    {getItemLabel(item)}
-                                </span>
 
                                 <div className="flex items-center justify-between gap-2 text-[11px]" style={{ color: colors.textSecondary }}>
                                     <span className="flex items-center gap-1 min-w-0">
@@ -178,50 +180,26 @@ export default function NeedAService({ dragHandle, limit = 8 }: { dragHandle?: R
                                     <span className="flex-shrink-0">{askedAgo(item.created_at).replace('pediu ', '')}</span>
                                 </div>
 
-                                <div className="flex items-center gap-2">
-                                    <PlanAvatarRing userId={item.requester_id}>
-                                        {item.requester?.avatarUrl ? (
-                                            <img src={item.requester.avatarUrl} className="w-6 h-6 rounded-full object-cover flex-shrink-0" alt="" />
-                                        ) : (
-                                            <span className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-[10px] font-black" style={{ background: HOME_GRADIENT, color: '#fff' }}>
-                                                {who.charAt(0).toUpperCase()}
-                                            </span>
-                                        )}
-                                    </PlanAvatarRing>
-                                    <span className="text-xs font-bold truncate flex-1" style={{ color: colors.textPrimary }}>{who}</span>
-                                    {mine && (
-                                        <button
-                                            onClick={() => setMenuItem(item)}
-                                            aria-label="Mais opções do seu pedido"
-                                            className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 -mr-1 transition-colors hover:bg-black/10"
-                                            style={{ color: colors.textPrimary }}
-                                        >
-                                            <MoreHorizontal size={17} />
-                                        </button>
-                                    )}
-                                </div>
+                                {!mine && applied?.has(item.id) && applied.get(item.id) !== 'rejected' && (
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); goFromHome(`/procurar-servico?pedido=${item.id}`) }}
+                                        className="w-full flex items-center justify-center gap-2 py-3 rounded-full font-black text-sm"
+                                        style={{ background: '#22c55e18', color: '#16a34a', border: '1px solid #22c55e55' }}
+                                    >
+                                        <Check size={16} />
+                                        {applied.get(item.id) === 'accepted' ? 'Você foi escolhido!' : 'Você já se inscreveu'}
+                                    </button>
+                                )}
 
-                            {!mine && applied?.has(item.id) && applied.get(item.id) !== 'rejected' && (
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); goFromHome(`/procurar-servico?pedido=${item.id}`) }}
-                                    className="mt-auto w-full flex items-center justify-center gap-2 py-3 rounded-full font-black text-sm"
-                                    style={{ background: '#22c55e18', color: '#16a34a', border: '1px solid #22c55e55' }}
-                                >
-                                    <Check size={16} />
-                                    {applied.get(item.id) === 'accepted' ? 'Você foi escolhido!' : 'Você já se inscreveu'}
-                                </button>
-                            )}
-
-                            {!mine && !(applied?.has(item.id) && applied.get(item.id) !== 'rejected') && (
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); goFromHome(`/procurar-servico?pedido=${item.id}`) }}
-                                    className="mt-auto w-full flex items-center justify-center gap-2 py-3 rounded-full font-black text-sm transition-all hover:scale-[1.02] active:scale-95"
-                                    style={{ background: HOME_GRADIENT, color: '#fff', boxShadow: '0 4px 12px #f9731640' }}
-                                >
-                                    <Wrench size={16} />
-                                    Quero fazer esse serviço
-                                </button>
-                            )}
+                                {!mine && !(applied?.has(item.id) && applied.get(item.id) !== 'rejected') && (
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); goFromHome(`/procurar-servico?pedido=${item.id}`) }}
+                                        className="w-full flex items-center justify-center gap-2 py-3 rounded-full font-black text-sm transition-all hover:scale-[1.02] active:scale-95"
+                                        style={{ background: HOME_GRADIENT, color: '#fff', boxShadow: '0 4px 12px #f9731640' }}
+                                    >
+                                        Quero me inscrever
+                                    </button>
+                                )}
                             </div>
                         </SeenBox>
                     )

@@ -208,8 +208,10 @@ function Strip({ children }: { children: ReactNode }) {
     )
 }
 
-function Tile({ type, onClick, image, fallback, children, colors, round = false, badge }: {
+function Tile({ type, onClick, image, fallback, children, colors, round = false, badge, textHero }: {
     type: TypeKey; onClick: () => void; image?: string | null; fallback: ReactNode; children: ReactNode; colors: any; round?: boolean
+    /** Sem imagem, o título ocupa o lugar da foto (cartão só de texto) */
+    textHero?: ReactNode
     /** Troca o rótulo do tipo por outro (ex.: Aberto/Fechado nas lojas) */
     badge?: { label: string; color: string }
 }) {
@@ -228,6 +230,8 @@ function Tile({ type, onClick, image, fallback, children, colors, round = false,
             <span className="relative block w-full h-[116px] sm:h-[128px] overflow-hidden flex-shrink-0" style={{ background: `${t.color}22` }}>
                 {image ? (
                     <img src={image} alt="" className={`w-full h-full ${round ? 'object-contain p-3' : 'object-cover'}`} loading="lazy" />
+                ) : textHero ? (
+                    <span className="w-full h-full flex items-center px-3 pt-6">{textHero}</span>
                 ) : (
                     <span className="w-full h-full flex items-center justify-center" style={{ color: t.color }}>{fallback}</span>
                 )}
@@ -687,15 +691,26 @@ export default function ModeloInicialPage() {
                             {requests === null ? <Skeleton colors={colors} /> : requests.length === 0 ? null : (
                                 <Strip>
                                     {requests.map((r) => (
-                                        <Tile key={r.id} type="pedido" colors={colors} image={r.photo_urls?.[0] || null} fallback={<Briefcase size={36} />} onClick={() => go(`/procurar-servico?ver=${r.id}`)}>
-                                            <span className="block text-sm font-black leading-snug line-clamp-2" style={{ color: colors.textPrimary }}>
-                                                {getRequestTitle(r.description, r.service_type, r.custom_service)}
-                                            </span>
-                                            <span className="block text-[11px] truncate mt-1" style={{ color: colors.textSecondary }}>
-                                                {r.requester?.profileSlug ? `@${r.requester.profileSlug}` : 'Alguém'} · {askedAgo(r.created_at).replace('pediu ', '')}
-                                            </span>
-                                            <span className="flex items-center gap-1 text-[11px] truncate mt-0.5" style={{ color: colors.textSecondary }}>
-                                                <MapPin size={10} className="flex-shrink-0" />{shortAddress(r.location_address).replace(/[,\s]+\d+\s*\w*$/, '')}
+                                        <Tile
+                                            key={r.id}
+                                            type="pedido"
+                                            colors={colors}
+                                            image={r.photo_urls?.[0] || null}
+                                            fallback={<Briefcase size={36} />}
+                                            onClick={() => go(`/procurar-servico?ver=${r.id}`)}
+                                            textHero={
+                                                <span className="block text-[15px] font-black leading-snug line-clamp-4" style={{ color: colors.textPrimary }}>
+                                                    {getRequestTitle(r.description, r.service_type, r.custom_service)}
+                                                </span>
+                                            }
+                                        >
+                                            {r.photo_urls?.[0] && (
+                                                <span className="block text-sm font-black leading-snug line-clamp-2" style={{ color: colors.textPrimary }}>
+                                                    {getRequestTitle(r.description, r.service_type, r.custom_service)}
+                                                </span>
+                                            )}
+                                            <span className="flex items-center gap-1 text-[11px] truncate mt-1" style={{ color: colors.textSecondary }}>
+                                                <MapPin size={10} className="flex-shrink-0" />{shortAddress(r.location_address).replace(/[,\s]+\d+\s*\w*$/, '')} · {askedAgo(r.created_at).replace('pediu ', '')}
                                             </span>
                                             {r.requester_id === userId ? (
                                                 <span className="mt-2 w-full h-9 rounded-full flex items-center justify-center text-[12px] font-black" style={{ background: `${colors.border}40`, color: colors.textSecondary }}>Seu pedido</span>
@@ -706,7 +721,7 @@ export default function ModeloInicialPage() {
                                                     className="mt-2 w-full h-9 rounded-full text-[12px] font-black transition active:scale-95 disabled:opacity-70"
                                                     style={applied.has(r.id) ? { background: `${colors.border}40`, color: colors.textSecondary } : { background: '#f97316', color: '#fff' }}
                                                 >
-                                                    {applying === r.id ? '...' : applied.has(r.id) ? 'Inscrição enviada' : 'Inscrever-se'}
+                                                    {applying === r.id ? '...' : applied.has(r.id) ? 'Inscrição enviada' : 'Quero me inscrever'}
                                                 </button>
                                             )}
                                         </Tile>

@@ -155,7 +155,7 @@ export default function ServiceRequestViewDialog({ item, isMine, applied, onAppl
                             className="w-full py-3.5 rounded-full text-sm font-black flex items-center justify-center gap-2 text-white transition hover:scale-[1.01] active:scale-95"
                             style={{ background: GRADIENT, boxShadow: '0 6px 16px #f9731655' }}
                         >
-                            <Briefcase size={16} /> Quero fazer esse serviço
+                            <Briefcase size={16} /> Quero me inscrever
                         </button>
                     ) : null}
                 </div>
