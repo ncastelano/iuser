@@ -80,9 +80,9 @@ export default function StoreAgendaV3({ storeId, colors, durationMin, onPick }: 
     return (
         <section className="mt-6">
             <div className="flex items-center justify-between gap-3">
-                <h3 className="text-base font-black flex items-center gap-2" style={{ color: colors.textPrimary }}><Calendar size={17} style={{ color: ORANGE }} /> Horários disponíveis</h3>
+                <h3 className="text-base font-black flex items-center gap-2" style={{ color: colors.textPrimary }}><Calendar size={17} style={{ color: ORANGE }} /> Horários livres</h3>
                 <button onClick={() => setShowBusy((v) => !v)} role="switch" aria-checked={showBusy} className="flex items-center gap-2 text-[11px] font-bold" style={{ color: colors.textSecondary }}>
-                    Mostrar ocupados
+                    Ver ocupados
                     <span className="relative w-9 h-5 rounded-full transition-colors" style={{ background: showBusy ? ORANGE : 'rgba(120,120,120,0.35)' }}>
                         <span className="absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all" style={{ left: showBusy ? 18 : 2 }} />
                     </span>
