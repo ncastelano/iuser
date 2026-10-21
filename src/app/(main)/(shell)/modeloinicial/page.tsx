@@ -231,7 +231,7 @@ function Tile({ type, onClick, image, fallback, children, colors, round = false,
                 {image ? (
                     <img src={image} alt="" className={`w-full h-full ${round ? 'object-contain p-3' : 'object-cover'}`} loading="lazy" />
                 ) : textHero ? (
-                    <span className="w-full h-full flex items-center px-3 pt-6">{textHero}</span>
+                    <span className="w-full h-full flex items-center px-3 pt-9 pb-2">{textHero}</span>
                 ) : (
                     <span className="w-full h-full flex items-center justify-center" style={{ color: t.color }}>{fallback}</span>
                 )}
@@ -699,7 +699,7 @@ export default function ModeloInicialPage() {
                                             fallback={<Briefcase size={36} />}
                                             onClick={() => go(`/procurar-servico?ver=${r.id}`)}
                                             textHero={
-                                                <span className="block text-[15px] font-black leading-snug line-clamp-4" style={{ color: colors.textPrimary }}>
+                                                <span className="block text-[14px] font-black leading-snug line-clamp-3" style={{ color: colors.textPrimary }}>
                                                     {getRequestTitle(r.description, r.service_type, r.custom_service)}
                                                 </span>
                                             }
@@ -709,8 +709,10 @@ export default function ModeloInicialPage() {
                                                     {getRequestTitle(r.description, r.service_type, r.custom_service)}
                                                 </span>
                                             )}
-                                            <span className="flex items-center gap-1 text-[11px] truncate mt-1" style={{ color: colors.textSecondary }}>
-                                                <MapPin size={10} className="flex-shrink-0" />{shortAddress(r.location_address).replace(/[,\s]+\d+\s*\w*$/, '')} · {askedAgo(r.created_at).replace('pediu ', '')}
+                                            <span className="flex items-center gap-1 text-[11px] mt-1" style={{ color: colors.textSecondary }}>
+                                                <MapPin size={10} className="flex-shrink-0" />
+                                                <span className="truncate">{shortAddress(r.location_address).replace(/[,\s]+\d+\s*\w*$/, '')}</span>
+                                                <span className="flex-shrink-0">· {askedAgo(r.created_at).replace('pediu ', '').replace('há ', '')}</span>
                                             </span>
                                             {r.requester_id === userId ? (
                                                 <span className="mt-2 w-full h-9 rounded-full flex items-center justify-center text-[12px] font-black" style={{ background: `${colors.border}40`, color: colors.textSecondary }}>Seu pedido</span>
