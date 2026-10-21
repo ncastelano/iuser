@@ -26,6 +26,8 @@ import InviteButton from '@/components/InviteButton'
 import AceitarCorridas, { CandidateiTabIcon, type AceitarCorridasTab } from '@/components/AceitarCorridas/AceitarCorridas'
 import { callAdminApi } from '@/lib/callAdminApi'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
+import { useInsideShell } from '@/components/InsideShell'
+import DriverPanelHome from '@/components/v3/DriverPanelHome'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -71,6 +73,8 @@ function PainelMotoristaContent() {
     const { userId, avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
     const { colors } = useTheme()
     const { hasDriver } = useActivePlans(userId)
+    // Na 3.0 a aba Painel é redesenhada por tema (DriverPanelHome); as regras e ações são as mesmas
+    const v3 = useInsideShell()
 
     const [loading, setLoading] = useState(true)
     const [showLogin, setShowLogin] = useState(false)
@@ -806,7 +810,35 @@ function PainelMotoristaContent() {
 
                     {!loading && !showLogin && (
                         <div className="flex flex-col gap-5">
-                            {activeTab === 'painel' && (
+                            {activeTab === 'painel' && v3 && (
+                                <DriverPanelHome
+                                    colors={colors}
+                                    driverStatus={driverStatus}
+                                    driverModeActive={driverModeActive}
+                                    togglingMode={togglingMode}
+                                    onToggleMode={handleToggleDriverMode}
+                                    missingCount={missingFields.length}
+                                    onContinueSignup={() => { setShowActivationWizard(true); setActiveTab('veiculo') }}
+                                    rides={rideSummary.rides}
+                                    candidacies={rideSummary.candidacies}
+                                    hasAccepted={rideSummary.hasAccepted}
+                                    goTab={setActiveTab}
+                                    vehicleLabel={carModel.trim() ? `${VEHICLE_KIND_LABELS[vehicleKind]} · ${carModel.trim()}${carPlate.trim() ? ` · ${carPlate.trim().toUpperCase()}` : ''}` : null}
+                                    pricingLabel={pricingMode === 'platform' ? 'Tarifa iUser' : 'Minha tarifa própria'}
+                                    reviewsAvg={reviewsAvg}
+                                    reviewsCount={reviews.length}
+                                    ridesDone={rideHistory.length}
+                                    alertSound={alertSoundEnabled}
+                                    onToggleAlert={handleToggleAlertSound}
+                                    voiceNav={voiceNavEnabled}
+                                    onToggleVoice={handleToggleVoiceNav}
+                                    deliveryRadius={deliveryRadius}
+                                    onDeliveryRadius={handleDeliveryRadius}
+                                    debt={hasDriver ? <DriverDebtBanner userId={userId} /> : null}
+                                    invite={<InviteButton label="Convide amigos e ganhe" showCount />}
+                                />
+                            )}
+                            {activeTab === 'painel' && !v3 && (
                             <>
                             {hasDriver && <DriverDebtBanner userId={userId} />}
                             <InviteButton label="Convide amigos e ganhe" showCount />
