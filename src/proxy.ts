@@ -17,6 +17,7 @@ const IGNORED_ROUTES = [
     '/carrinho',
     '/conversas',
     '/produtos',
+    '/servicos-disponiveis',
     '/criar-loja',
     '/criar-loja-com-cadastro',
     '/login',

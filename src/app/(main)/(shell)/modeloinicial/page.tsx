@@ -24,9 +24,11 @@ import { fetchStoreCards } from '@/lib/storeCards'
 import { isStoreOpenNow, type BusinessHours } from '@/lib/storeHours'
 import { getAvatarUrl } from '@/lib/avatar'
 import { loadProductCards, type ProductCard } from '../../inicio/sections/ProductShowcase'
-import { fetchOpenBoardItems, askedAgo, shortAddress, notifyServiceRequestsChanged, type BoardItem } from '@/lib/serviceBoard'
+import { fetchOpenBoardItems, askedAgo, shortAddress, notifyServiceRequestsChanged, SERVICE_REQUESTS_CHANGED, type BoardItem } from '@/lib/serviceBoard'
 import { notifyServiceApplication } from '@/lib/notifyRideStatus'
 import { getRequestTitle } from '@/lib/serviceTypes'
+import { loadMyRequests, type MyRequest } from '@/modules/service-requests'
+import { useCartStore } from '@/store/useCartStore'
 import { fetchCommunitiesActivity, type CommunityActivity } from '@/lib/communityActivity'
 import PlanAvatarRing, { usePlanRing } from '@/components/PlanAvatarRing'
 import ListingRowCard from '@/components/ListingRowCard'
@@ -272,6 +274,20 @@ export default function ModeloInicialPage() {
     const [communities, setCommunities] = useState<CommunityItem[] | null>(null)
     // Pedidos de serviço em que eu já me inscrevi (para o botão "Inscrever-se" das vitrines)
     const [applied, setApplied] = useState<Set<string>>(new Set())
+    // Meus pedidos de contratação de serviço (o cartão "Contratar serviço" e a lista logo abaixo mostram como estão)
+    const [myRequests, setMyRequests] = useState<MyRequest[]>([])
+    useEffect(() => {
+        if (!userId) { setMyRequests([]); return }
+        const load = () => loadMyRequests(supabase, userId).then(setMyRequests).catch(() => setMyRequests([]))
+        load()
+        window.addEventListener(SERVICE_REQUESTS_CHANGED, load)
+        return () => window.removeEventListener(SERVICE_REQUESTS_CHANGED, load)
+    }, [userId])
+    // Carrinho (só depois de hidratar, para o servidor e o navegador mostrarem o mesmo)
+    const cartItems = useCartStore((st) => st.itemsByStore)
+    const [cartReady, setCartReady] = useState(false)
+    useEffect(() => setCartReady(true), [])
+    const cartCount = cartReady ? Object.values(cartItems).reduce((a, items) => a + items.reduce((n, i) => n + i.quantity, 0), 0) : 0
     const [applying, setApplying] = useState<string | null>(null)
     useEffect(() => {
         if (!userId) { setApplied(new Set()); return }
@@ -447,11 +463,21 @@ export default function ModeloInicialPage() {
     const inviteUrl = typeof window !== 'undefined' && profileSlug ? `${window.location.origin}/convite?ref=${profileSlug}` : ''
 
     // `icons`: quatro ícones (quadrado 2x2) no lugar do ícone único — dão uma ideia do que cabe naquele cartão
-    type Action = { title: string; desc: string; icon: LucideIcon; icons?: LucideIcon[]; color: string; onClick: () => void }
+    type Action = { title: string; desc: string; icon: LucideIcon; icons?: LucideIcon[]; color: string; onClick: () => void; /** Algo esperando a pessoa (ex.: candidatos a escolher) */ alert?: boolean; /** Destaca o texto (o cartão está mostrando o andamento, não só a chamada) */ live?: boolean }
     // Quem PRECISA de algo (o visitante chega por aqui)
+    // Os cartões se moldam ao que a pessoa tem em andamento: pedidos de serviço e carrinho
+    const reqBuscando = myRequests.filter((r) => r.stage === 'buscando').length
+    const reqContratado = myRequests.filter((r) => r.stage === 'contratado').length
+    const reqAvaliar = myRequests.filter((r) => r.needsReview).length
+    const reqEscolher = myRequests.filter((r) => r.stage === 'buscando' && r.candidates.some((c) => c.status === 'pending')).length
+    const serviceParts = [
+        reqBuscando > 0 ? `${reqBuscando} buscando` : '',
+        reqContratado > 0 ? `${reqContratado} ${reqContratado === 1 ? 'contratado' : 'contratados'}` : '',
+        reqAvaliar > 0 ? `${reqAvaliar} para avaliar` : '',
+    ].filter(Boolean)
     const needs: Action[] = [
-        { title: 'Comprar', desc: 'Lojas e produtos perto de você', icon: ShoppingBag, icons: [ShoppingBag, UtensilsCrossed, Shirt, Smartphone], color: TYPE.loja.color, onClick: () => go('/comprar') },
-        { title: 'Contratar serviço', desc: 'Descreva o que você precisa', icon: Wrench, icons: [Wrench, Scissors, Hand, Sparkles], color: TYPE.servico.color, onClick: () => go('/solicitar-servico') },
+        { title: 'Comprar', desc: cartCount > 0 ? `${cartCount} ${cartCount === 1 ? 'item' : 'itens'} no carrinho` : 'Lojas e produtos perto de você', live: cartCount > 0, icon: ShoppingBag, icons: [ShoppingBag, UtensilsCrossed, Shirt, Smartphone], color: TYPE.loja.color, onClick: () => go('/comprar') },
+        { title: 'Contratar serviço', desc: serviceParts.length > 0 ? serviceParts.join(' · ') : 'Descreva o que você precisa', live: serviceParts.length > 0, alert: reqEscolher > 0 || reqAvaliar > 0, icon: Wrench, icons: [Wrench, Scissors, Hand, Sparkles], color: TYPE.servico.color, onClick: () => go('/solicitar-servico') },
         { title: 'Pedir motorista', desc: 'Corrida rápida, preço combinado', icon: Car, icons: [Car, Bike, Motorbike, Package], color: '#ea580c', onClick: () => go('/pedir-motorista') },
         { title: 'Ver ao redor', desc: 'Mapa com lojas, serviços e pessoas', icon: Radar, icons: [Radar, MapPin, StoreIcon, Users], color: '#0891b2', onClick: () => go('/radar') },
     ]
@@ -514,7 +540,7 @@ export default function ModeloInicialPage() {
                                         <button
                                             key={a.title}
                                             onClick={a.onClick}
-                                            className="text-left rounded-3xl p-4 border flex flex-col gap-3 transition-all hover:-translate-y-0.5 hover:shadow-xl active:scale-[0.98]"
+                                            className="relative text-left rounded-3xl p-4 border flex flex-col gap-3 transition-all hover:-translate-y-0.5 hover:shadow-xl active:scale-[0.98]"
                                             style={{ background: colors.surface, borderColor: colors.border, boxShadow: colors.shadow }}
                                         >
                                             {a.icons && a.icons.length === 4 ? (
@@ -528,12 +554,43 @@ export default function ModeloInicialPage() {
                                             )}
                                             <span>
                                                 <span className="block text-[15px] font-black leading-tight" style={{ color: colors.textPrimary }}>{a.title}</span>
-                                                <span className="block text-xs mt-0.5 leading-snug" style={{ color: colors.textSecondary }}>{a.desc}</span>
+                                                <span className={`block text-xs mt-0.5 leading-snug ${a.live ? 'font-black' : ''}`} style={{ color: a.live ? a.color : colors.textSecondary }}>{a.desc}</span>
                                             </span>
+                                            {a.alert && <span aria-label="Precisa da sua atenção" className="absolute top-3 right-3 w-3 h-3 rounded-full bg-red-500 border-2" style={{ borderColor: colors.surface }} />}
                                         </button>
                                     )
                                 })}
                             </div>
+
+                            {myRequests.some((r) => r.stage !== 'concluido' || r.needsReview) && (
+                                <div className="mt-5">
+                                    <div className="flex items-center justify-between mb-1">
+                                        <h2 className="text-lg font-black" style={{ color: colors.textPrimary }}>Seus pedidos de serviço</h2>
+                                        <button onClick={() => go('/solicitar-servico')} className="text-xs font-black flex items-center gap-0.5" style={{ color: colors.accent }}>Ver todos <ChevronRight size={13} /></button>
+                                    </div>
+                                    <ul>
+                                        {myRequests.filter((r) => r.stage !== 'concluido' || r.needsReview).slice(0, 4).map((r) => {
+                                            const waiting = r.candidates.filter((c) => c.status === 'pending').length
+                                            const hired = r.candidates.find((c) => c.status === 'accepted')
+                                            const status = r.stage === 'buscando'
+                                                ? (waiting > 0 ? `${waiting} ${waiting === 1 ? 'profissional quer' : 'profissionais querem'} fazer. Escolha!` : 'Esperando profissionais')
+                                                : r.stage === 'contratado' ? `${hired?.name ? hired.name.split(' ')[0] : 'Profissional'} vai fazer` : 'Avalie o serviço'
+                                            const hot = waiting > 0 || r.needsReview
+                                            return (
+                                                <li key={r.id}>
+                                                    <button onClick={() => go(`/solicitar-servico?pedido=${r.id}`)} className="w-full py-3 flex items-center gap-3 text-left transition active:opacity-80" style={{ borderBottom: `1px solid ${colors.border}50` }}>
+                                                        <span className="min-w-0 flex-1">
+                                                            <span className="block text-sm font-black leading-snug line-clamp-1" style={{ color: colors.textPrimary }}>{r.title}</span>
+                                                            <span className="block text-xs font-bold mt-0.5" style={{ color: hot ? '#f97316' : r.stage === 'contratado' ? '#16a34a' : colors.textSecondary }}>{status}</span>
+                                                        </span>
+                                                        <ChevronRight size={16} className="flex-shrink-0" style={{ color: colors.textSecondary }} />
+                                                    </button>
+                                                </li>
+                                            )
+                                        })}
+                                    </ul>
+                                </div>
+                            )}
 
                             <h2 className="text-xl font-black mt-6 mb-3" style={{ color: colors.textPrimary }}>Quero ganhar com o iUser</h2>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -672,7 +729,7 @@ export default function ModeloInicialPage() {
                         </section>
 
                         <section className="mt-8">
-                            <SectionHeader type="servico" title="Serviços que você pode gostar" subtitle="Profissionais divulgando os melhores serviços" onSeeAll={() => go('/produtos')} colors={colors} />
+                            <SectionHeader type="servico" title="Serviços que você pode gostar" subtitle="Profissionais divulgando os melhores serviços" onSeeAll={() => go('/servicos-disponiveis')} colors={colors} />
                             {services === null ? <Skeleton colors={colors} /> : services.length === 0 ? null : (
                                 <Strip>
                                     {services.map((s) => (
