@@ -25,7 +25,7 @@ import { isStoreOpenNow, type BusinessHours } from '@/lib/storeHours'
 import { getAvatarUrl } from '@/lib/avatar'
 import { loadProductCards, type ProductCard } from '../../inicio/sections/ProductShowcase'
 import { fetchOpenBoardItems, askedAgo, shortAddress, notifyServiceRequestsChanged, SERVICE_REQUESTS_CHANGED, type BoardItem } from '@/lib/serviceBoard'
-import { notifyServiceApplication } from '@/lib/notifyRideStatus'
+import { notifyServiceApplication, notifyServiceDecision } from '@/lib/notifyRideStatus'
 import { getRequestTitle, getServiceIcon } from '@/lib/serviceTypes'
 import { loadMyRequests, type MyRequest } from '@/modules/service-requests'
 import { useCartStore, cartItemLineTotal } from '@/store/useCartStore'
@@ -313,6 +313,25 @@ export default function ModeloInicialPage() {
         const t = setInterval(load, 30_000)
         return () => { cancelled = true; clearInterval(t) }
     }, [userId])
+    // Candidatos aos meus pedidos: a lista abre sozinha no primeiro pedido que tem gente esperando resposta
+    const [expandedReq, setExpandedReq] = useState<string | null>(null)
+    const [reqAutoOpened, setReqAutoOpened] = useState(false)
+    const [decidingApp, setDecidingApp] = useState<string | null>(null)
+    useEffect(() => {
+        if (reqAutoOpened || myRequests.length === 0) return
+        setReqAutoOpened(true)
+        const first = myRequests.find((r) => r.stage === 'buscando' && r.candidates.some((c) => c.status === 'pending'))
+        if (first) setExpandedReq(first.id)
+    }, [myRequests, reqAutoOpened])
+    const decideCandidate = async (applicationId: string, status: 'accepted' | 'rejected') => {
+        setDecidingApp(applicationId)
+        const { error } = await supabase.from('service_applications').update({ status }).eq('id', applicationId)
+        setDecidingApp(null)
+        if (error) { toast.error('Erro ao atualizar: ' + (error.message || 'tente novamente')); return }
+        toast.success(status === 'accepted' ? 'Profissional escolhido!' : 'Profissional recusado.')
+        if (status === 'accepted') { notifyServiceDecision(applicationId, 'selected'); setExpandedReq(null) }
+        notifyServiceRequestsChanged() // recarrega os pedidos (o evento volta pra cá)
+    }
     // Carrinho (só depois de hidratar, para o servidor e o navegador mostrarem o mesmo)
     const cartItems = useCartStore((st) => st.itemsByStore)
     const [cartReady, setCartReady] = useState(false)
@@ -657,7 +676,8 @@ export default function ModeloInicialPage() {
                                             const hot = waiting > 0 || r.needsReview
                                             return (
                                                 <li key={r.id}>
-                                                    <button onClick={() => go(`/solicitar-servico?pedido=${r.id}`)} className="w-full py-3 flex items-center gap-3 text-left transition active:opacity-80" style={{ borderBottom: `1px solid ${colors.border}50` }}>
+                                                    <div style={{ borderBottom: `1px solid ${colors.border}50` }}>
+                                                    <button onClick={() => (waiting > 0 && r.stage === 'buscando' ? setExpandedReq(expandedReq === r.id ? null : r.id) : go(`/solicitar-servico?pedido=${r.id}`))} aria-expanded={waiting > 0 ? expandedReq === r.id : undefined} className="w-full py-3 flex items-center gap-3 text-left transition active:opacity-80">
                                                         {(() => {
                                                             const RIcon = getServiceIcon(r.serviceType, r.customIcon)
                                                             return (
@@ -670,8 +690,40 @@ export default function ModeloInicialPage() {
                                                             <span className="block text-sm font-black leading-snug line-clamp-1" style={{ color: colors.textPrimary }}>{r.title}</span>
                                                             <span className="block text-xs font-bold mt-0.5" style={{ color: hot ? '#f97316' : r.stage === 'contratado' ? '#16a34a' : colors.textSecondary }}>{status}</span>
                                                         </span>
-                                                        <ChevronRight size={16} className="flex-shrink-0" style={{ color: colors.textSecondary }} />
+                                                        {waiting > 0 && r.stage === 'buscando'
+                                                            ? <span className="flex -space-x-2 flex-shrink-0">
+                                                                {r.candidates.filter((c) => c.status === 'pending').slice(0, 3).map((c) => c.avatarUrl
+                                                                    ? <img key={c.applicationId} src={c.avatarUrl} alt="" className="w-7 h-7 rounded-full object-cover" style={{ border: `2px solid ${colors.background}` }} />
+                                                                    : <span key={c.applicationId} className="w-7 h-7 rounded-full flex items-center justify-center bg-[#f97316]" style={{ border: `2px solid ${colors.background}` }}><User size={13} color="#fff" /></span>)}
+                                                              </span>
+                                                            : null}
+                                                        <ChevronRight size={16} className="flex-shrink-0 transition-transform" style={{ color: colors.textSecondary, transform: waiting > 0 && r.stage === 'buscando' && expandedReq === r.id ? 'rotate(90deg)' : undefined }} />
                                                     </button>
+                                                    {waiting > 0 && r.stage === 'buscando' && expandedReq === r.id && (
+                                                        <div className="pb-3 flex flex-col gap-2">
+                                                            {r.candidates.filter((c) => c.status === 'pending').map((c) => {
+                                                                const busy = decidingApp === c.applicationId
+                                                                const who = c.name || (c.slug ? `@${c.slug}` : 'Profissional')
+                                                                return (
+                                                                    <div key={c.applicationId} className="rounded-2xl p-2.5 flex items-center gap-2.5" style={{ background: `${colors.border}30` }}>
+                                                                        <button onClick={() => c.slug && go(`/${c.slug}`)} disabled={!c.slug} className="flex items-center gap-2.5 min-w-0 flex-1 text-left">
+                                                                            {c.avatarUrl
+                                                                                ? <img src={c.avatarUrl} alt="" className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
+                                                                                : <span className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 bg-[#f97316]"><User size={16} color="#fff" /></span>}
+                                                                            <span className="min-w-0">
+                                                                                <span className="block text-sm font-black truncate" style={{ color: colors.textPrimary }}>{who}</span>
+                                                                                {c.slug && <span className="block text-[11px] underline" style={{ color: colors.textSecondary }}>Ver perfil</span>}
+                                                                            </span>
+                                                                        </button>
+                                                                        <button onClick={() => decideCandidate(c.applicationId, 'rejected')} disabled={busy} className="h-9 px-3 rounded-full text-[12px] font-black disabled:opacity-60" style={{ background: `${colors.border}55`, color: colors.textSecondary }}>Recusar</button>
+                                                                        <button onClick={() => decideCandidate(c.applicationId, 'accepted')} disabled={busy} className="h-9 px-4 rounded-full text-[12px] font-black text-white disabled:opacity-60" style={{ background: '#f97316' }}>{busy ? '...' : 'Escolher'}</button>
+                                                                    </div>
+                                                                )
+                                                            })}
+                                                            <button onClick={() => go(`/solicitar-servico?pedido=${r.id}`)} className="self-start text-xs font-black underline" style={{ color: colors.textSecondary }}>Ver o pedido</button>
+                                                        </div>
+                                                    )}
+                                                    </div>
                                                 </li>
                                             )
                                         })}
