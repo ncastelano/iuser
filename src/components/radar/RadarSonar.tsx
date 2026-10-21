@@ -13,6 +13,18 @@ import type mapboxgl from 'mapbox-gl'
 
 const ORANGE = '#f97316'
 const SCAN_MS = 3600
+// A varredura dá uma volta a cada SPIN_MS (precisa ser igual ao da animação .sonar-sweep-spin)
+const SPIN_MS = 1100
+
+// Quando o feixe da varredura encontra um ponto: ele precisa já ter alcançado a distância dele (a onda cresce desacelerando)
+// e apontar para o ângulo dele (graus no sentido horário a partir do topo).
+function hitTime(distance: number, radius: number, bearingDeg: number): number {
+    const p = Math.min(distance / radius, 1)
+    const reach = SCAN_MS * (1 - Math.pow(1 - p, 1 / 2.4))
+    const firstTurn = (bearingDeg / 360) * SPIN_MS
+    const turns = Math.max(0, Math.ceil((reach - firstTurn) / SPIN_MS))
+    return Math.min(SCAN_MS * 0.96, firstTurn + turns * SPIN_MS)
+}
 
 export default function RadarSonar({ phase, map, center, label, onScanDone }: {
     phase: 'loading' | 'scan' | 'off'
@@ -71,10 +83,19 @@ export default function RadarSonar({ phase, map, center, label, onScanDone }: {
                 @keyframes sonarRing { 0% { transform: scale(0.02); opacity: .95; } 80% { opacity: .5; } 100% { transform: scale(1); opacity: 0; } }
                 .sonar-sweep-grow { position: absolute; border-radius: 9999px; transform: scale(0.05); animation: sonarGrow ${SCAN_MS}ms cubic-bezier(.22,.61,.36,1) forwards; }
                 @keyframes sonarGrow { 0% { transform: scale(0.05); opacity: 1; } 85% { opacity: .8; } 100% { transform: scale(1); opacity: 0; } }
-                .sonar-sweep-spin { position: absolute; inset: 0; border-radius: 9999px; animation: radarSweep 1.1s linear infinite; }
-                .sonar-found { animation: sonarFound 1s ease-out; }
-                @keyframes sonarFound { 0% { filter: drop-shadow(0 0 0 rgba(251,146,60,0)); } 35% { filter: drop-shadow(0 0 16px rgba(251,146,60,1)); } 100% { filter: none; } }
-                @media (prefers-reduced-motion: reduce) { .radar-wave, .radar-sweep, .radar-blip, .sonar-ring, .sonar-sweep-grow, .sonar-sweep-spin { animation-duration: 0.01s; animation-iteration-count: 1; } }
+                .sonar-sweep-spin { position: absolute; inset: 0; border-radius: 9999px; animation: radarSweep ${SPIN_MS}ms linear infinite; }
+                /* usa as propriedades "scale"/"translate" (separadas de "transform", que o Mapbox usa para posicionar o pin) */
+                .sonar-found { transform-origin: 50% 100%; animation: sonarFound .9s cubic-bezier(.3,1.4,.5,1) both; }
+                @keyframes sonarFound {
+                    0% { scale: .2; translate: 0 -26px; opacity: 0; filter: drop-shadow(0 0 0 rgba(251,146,60,0)); }
+                    45% { scale: 1.4; translate: 0 0; opacity: 1; filter: drop-shadow(0 0 18px rgba(251,146,60,1)); }
+                    65% { scale: .92; }
+                    82% { scale: 1.06; }
+                    100% { scale: 1; filter: drop-shadow(0 0 0 rgba(251,146,60,0)); }
+                }
+                .sonar-found-ring { position: absolute; left: 50%; top: 50%; width: 64px; height: 64px; margin: -32px 0 0 -32px; border-radius: 9999px; border: 3px solid #f97316; pointer-events: none; animation: sonarFoundRing 1s ease-out forwards; }
+                @keyframes sonarFoundRing { 0% { transform: scale(.3); opacity: .95; } 100% { transform: scale(2.4); opacity: 0; } }
+                @media (prefers-reduced-motion: reduce) { .radar-wave, .radar-sweep, .radar-blip, .sonar-ring, .sonar-sweep-grow, .sonar-sweep-spin, .sonar-found, .sonar-found-ring { animation-duration: 0.01s; animation-iteration-count: 1; } }
             `}</style>
         </>
     )
@@ -103,19 +124,27 @@ function Scan({ map, center, onDone }: { map: mapboxgl.Map | null; center: { lat
         const timers: ReturnType<typeof setTimeout>[] = []
         container.querySelectorAll<HTMLElement>('.mapboxgl-marker').forEach((el) => {
             const b = el.getBoundingClientRect()
-            const d = Math.hypot(b.left + b.width / 2 - box.left - geo.x, b.top + b.height / 2 - box.top - geo.y)
-            // o marcador some até a onda chegar nele (a onda desacelera: chega mais rápido perto do centro)
-            const at = Math.min(SCAN_MS * 0.92, SCAN_MS * 0.9 * Math.pow(Math.min(d / geo.r, 1), 0.62))
+            const dx = b.left + b.width / 2 - box.left - geo.x
+            const dy = b.top + b.height / 2 - box.top - geo.y
+            const bearing = (Math.atan2(dx, -dy) * 180 / Math.PI + 360) % 360
+            // o pin fica escondido até o feixe passar por ele; aí "é localizado": salta e solta um anel
+            const at = hitTime(Math.hypot(dx, dy), geo.r, bearing)
             el.style.opacity = '0'
-            el.style.transition = 'opacity .35s ease'
             hidden.push(el)
-            timers.push(setTimeout(() => { el.style.opacity = ''; el.classList.add('sonar-found') }, at))
+            timers.push(setTimeout(() => {
+                el.style.opacity = ''
+                el.classList.add('sonar-found')
+                const ring = document.createElement('span')
+                ring.className = 'sonar-found-ring'
+                el.appendChild(ring)
+                timers.push(setTimeout(() => { ring.remove(); el.classList.remove('sonar-found') }, 1100))
+            }, at))
         })
         const end = setTimeout(() => doneRef.current?.(), SCAN_MS + 150)
         return () => {
             timers.forEach(clearTimeout)
             clearTimeout(end)
-            hidden.forEach((el) => { el.style.opacity = ''; el.style.transition = ''; el.classList.remove('sonar-found') })
+            hidden.forEach((el) => { el.style.opacity = ''; el.classList.remove('sonar-found'); el.querySelectorAll('.sonar-found-ring').forEach((r) => r.remove()) })
         }
     }, [map, geo])
 
