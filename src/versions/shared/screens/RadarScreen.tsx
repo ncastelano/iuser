@@ -15,6 +15,7 @@ import { ArrowLeft, Search, Store, ShoppingCart, X, MapPin, Star, Briefcase, Lay
 import { useAppModeStore } from '@/store/useAppModeStore'
 import { toast } from 'sonner'
 import { Spinner } from '@/components/Spinner'
+import RadarSonar from '@/components/radar/RadarSonar'
 import { isStoreOpenNow, getStoreStatusText, getNextOpeningInfo } from '@/lib/storeHours'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { getCurrentPosition as getNativeCurrentPosition } from '@/lib/nativeGeolocation'
@@ -154,6 +155,10 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
     const [selectedItem, setSelectedItem] = useState<any | null>(null)
     const [search, setSearch] = useState('')
     const [mapReady, setMapReady] = useState(false)
+    // Sonar: os dados do radar já chegaram? e a varredura de entrada (uma vez por visita) está rolando?
+    const [dataReady, setDataReady] = useState(false)
+    const [scanning, setScanning] = useState(false)
+    const scanPlayedRef = useRef(false)
     const [deviceLocation, setDeviceLocation] = useState<{ lat: number; lng: number } | null>(null)
     const [profileLocation, setProfileLocation] = useState<{ lat: number; lng: number } | null>(null)
     const [overrideList, setOverrideList] = useState<any[] | null>(null)
@@ -448,6 +453,7 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
 
             const { data: metricsData } = await supabase.rpc('get_radar_metrics')
             if (metricsData) setMetrics(metricsData as RadarMetrics)
+            setDataReady(true)
             console.log('[MapPage] 📦 Dados carregados:', { stores: mappedStores.length, products: mappedProducts.length })
         }
 
@@ -645,6 +651,13 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
             toast.error('Erro ao remover: ' + ((err as Error).message || 'tente de novo'))
         }
     }
+
+    // Tudo pronto (mapa, local, dados e marcadores): começa a varredura de entrada, só uma vez por visita
+    useEffect(() => {
+        if (!mapReady || loadingLocation || !dataReady || scanPlayedRef.current) return
+        const t = setTimeout(() => { scanPlayedRef.current = true; setScanning(true) }, 700)
+        return () => clearTimeout(t)
+    }, [mapReady, loadingLocation, dataReady])
 
     // MARKERS - CORRIGIDO COM LOGS
     useEffect(() => {
@@ -1236,23 +1249,14 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                 </button>
             </div>}
 
-            {(!mapReady || loadingLocation) && (
-                <div className="absolute inset-0 z-10 flex items-center justify-center">
-                    <Spinner size={48} color="#f97316" />
-                    {/* Overlay adicional com texto informativo */}
-                    {loadingLocation && (
-                        <div className="absolute bottom-32 left-1/2 -translate-x-1/2 z-20">
-                            <div className="bg-gradient-to-r from-orange-500 to-red-500 rounded-full px-5 py-2.5 shadow-xl border border-white/20 flex items-center gap-2.5">
-                                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin flex-shrink-0" />
-                                <span className="text-white text-sm font-black tracking-wide whitespace-nowrap">
-                                    Buscando localização...
-                                </span>
-                                <MapPin className="w-4 h-4 text-white/80 animate-bounce flex-shrink-0" />
-                            </div>
-                        </div>
-                    )}
-                </div>
-            )}
+            {/* Sonar: tela de radar enquanto carrega; quando tudo chegou, uma varredura a partir de onde a pessoa está */}
+            <RadarSonar
+                phase={!mapReady || loadingLocation || !dataReady ? 'loading' : scanning ? 'scan' : 'off'}
+                map={mapReady ? mapRef.current : null}
+                center={referenceLocation ? { lat: referenceLocation.lat, lng: referenceLocation.lng } : null}
+                label={loadingLocation ? 'Buscando sua localização...' : !mapReady ? 'Preparando o mapa...' : 'Procurando ao redor...'}
+                onScanDone={() => setScanning(false)}
+            />
 
             {/* HEADER - mesmo componente do homepage, com os filtros do radar nas tabs
                 e a localização salva (LocationPicker compartilhado) no lugar do cart.
