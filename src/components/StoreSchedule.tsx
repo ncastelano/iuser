@@ -871,7 +871,7 @@ export default function StoreSchedule({
 
     return (
         <div
-            className="w-full max-w-md mx-auto rounded-3xl shadow-sm max-h-[95vh] overflow-y-auto"
+            className="w-full max-w-md mx-auto rounded-3xl shadow-sm max-h-[calc(100dvh-var(--shell-top,0px)-2rem)] overflow-y-auto"
             style={{
                 background: colors.background,
                 overscrollBehavior: 'contain'
