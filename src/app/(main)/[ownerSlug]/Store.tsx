@@ -1317,8 +1317,8 @@ export function Store({
                         <div className="flex gap-3.5 overflow-hidden py-1" aria-hidden>
                             {[0, 1, 2, 3].map((i) => (
                                 <div key={i} className="flex flex-col items-center gap-1.5 flex-shrink-0">
-                                    <span className="block w-16 h-16 rounded-full animate-pulse" style={{ background: `${colors.border}55` }} />
-                                    <span className="block w-12 h-2 rounded animate-pulse" style={{ background: `${colors.border}55` }} />
+                                    <span className="block w-16 h-16 rounded-full animate-pulse" style={{ background: colors.border }} />
+                                    <span className="block w-12 h-2 rounded animate-pulse" style={{ background: colors.border }} />
                                 </div>
                             ))}
                         </div>

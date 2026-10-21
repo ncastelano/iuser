@@ -8,7 +8,7 @@ import { useTheme } from '@/app/contexts/theme'
 
 export default function StoreSkeleton({ withBack = true }: { withBack?: boolean }) {
     const { colors } = useTheme()
-    const block = `${colors.border}55`
+    const block = colors.border
     const Bar = ({ w, h = 12, r = 8 }: { w: number | string; h?: number; r?: number }) => <span className="block animate-pulse" style={{ width: w, height: h, borderRadius: r, background: block }} />
 
     return (
