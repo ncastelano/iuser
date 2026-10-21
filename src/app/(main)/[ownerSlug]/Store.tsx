@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { Spinner } from '@/components/Spinner'
+import StoreSkeleton from '@/components/v3/StoreSkeleton'
 import CreatePublicationDialog from '@/components/CreatePublicationDialog'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import ChatContactButton from '@/components/ChatContactButton'
@@ -684,13 +685,7 @@ export function Store({
     }
 
     // ========== RENDER ==========
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center min-h-[400px]">
-                <Spinner size={48} color={colors.accent} />
-            </div>
-        )
-    }
+    if (loading) return <StoreSkeleton />
 
     if (error || !owner) {
         return (
@@ -1319,8 +1314,13 @@ export function Store({
                     </h3>
 
                     {pubLoading ? (
-                        <div className="flex justify-center py-4">
-                            <Spinner size={20} color="#f97316" />
+                        <div className="flex gap-3.5 overflow-hidden py-1" aria-hidden>
+                            {[0, 1, 2, 3].map((i) => (
+                                <div key={i} className="flex flex-col items-center gap-1.5 flex-shrink-0">
+                                    <span className="block w-16 h-16 rounded-full animate-pulse" style={{ background: `${colors.border}55` }} />
+                                    <span className="block w-12 h-2 rounded animate-pulse" style={{ background: `${colors.border}55` }} />
+                                </div>
+                            ))}
                         </div>
                     ) : (
                         <div className={`flex items-start gap-3 overflow-x-auto pb-1 scrollbar-hide ${publications.length + (isOwner ? 1 : 0) <= 4 ? 'justify-center' : ''}`}>

@@ -6,6 +6,7 @@ import { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import { useParams, useRouter, usePathname, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { Spinner } from '@/components/Spinner'
+import StoreSkeleton from '@/components/v3/StoreSkeleton'
 import { useTheme } from '@/app/contexts/theme'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { useProfile } from '@/app/contexts/ProfileContext'
@@ -361,12 +362,10 @@ export default function OwnerClientPage() {
 
     // ========== RENDER ==========
     if (loading) {
+        // esqueleto da página (em vez de "Carregando..."): a forma da loja já aparece e o conteúdo entra no lugar
         return (
-            <div className="min-h-screen flex items-center justify-center" style={{ background: colors.background }}>
-                <div className="text-center">
-                    <Spinner size={48} color={colors.accent} className="mx-auto mb-4" />
-                    <p className="text-sm font-bold" style={{ color: colors.textSecondary }}>Carregando...</p>
-                </div>
+            <div className="min-h-screen" style={{ background: colors.background }}>
+                <StoreSkeleton />
             </div>
         )
     }
