@@ -358,7 +358,7 @@ function NavTab({ selected, selectedColor, colorDelay = 0, label, onClick, badge
             onClick={onClick}
             aria-label={label}
             aria-current={selected ? 'page' : undefined}
-            className={`relative flex items-center justify-center flex-shrink-0 transition active:scale-95 ${pulse && !selected ? 'animate-pulse' : ''}`}
+            className="relative flex items-center justify-center flex-shrink-0 transition active:scale-95"
             style={{
                 width: toEdge ? `calc(${TAB_W}px + ${EDGE_GAP})` : TAB_W,
                 paddingRight: toEdge ? EDGE_GAP : undefined,
@@ -384,6 +384,10 @@ function NavTab({ selected, selectedColor, colorDelay = 0, label, onClick, badge
                         ) : null
                     ))}
                 </span>
+            )}
+            {/* Não lida: o selo ganha um anel que pulsa (o ícone em si não apaga, fica igual ao dos outros) */}
+            {badge > 0 && pulse && !selected && (
+                <span aria-hidden className="absolute top-1.5 right-1 min-w-[18px] h-[18px] rounded-full animate-ping pointer-events-none" style={{ background: badgeColor, opacity: 0.55 }} />
             )}
             {badge > 0 && (
                 <span className="absolute top-1.5 right-1 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black text-white flex items-center justify-center" style={{ background: badgeColor, boxShadow: '0 0 0 2px #fff' }}>

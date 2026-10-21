@@ -283,6 +283,36 @@ export default function ModeloInicialPage() {
         window.addEventListener(SERVICE_REQUESTS_CHANGED, load)
         return () => window.removeEventListener(SERVICE_REQUESTS_CHANGED, load)
     }, [userId])
+    // Corrida em andamento (pedida por mim e ainda aberta): o cartão "Pedir motorista" mostra como está e leva de volta a ela
+    type ActiveRide = { id: string; status: string; destination: string | null; enRoute: boolean; arrived: boolean; started: boolean; candidates: number }
+    const [activeRide, setActiveRide] = useState<ActiveRide | null>(null)
+    useEffect(() => {
+        if (!userId) { setActiveRide(null); return }
+        let cancelled = false
+        const load = async () => {
+            if (document.hidden) return
+            const { data } = await supabase
+                .from('ride_requests')
+                .select('id, status, destination_address, driver_en_route, driver_arrived_at, ride_started_at')
+                .eq('requester_id', userId)
+                .in('status', ['pending', 'accepted'])
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .maybeSingle()
+            if (cancelled) return
+            if (!data) { setActiveRide(null); return }
+            let candidates = 0
+            if (data.status === 'pending') {
+                const { count } = await supabase.from('ride_applications').select('id', { count: 'exact', head: true }).eq('ride_request_id', data.id).eq('status', 'pending')
+                candidates = count || 0
+            }
+            if (cancelled) return
+            setActiveRide({ id: data.id, status: data.status, destination: data.destination_address, enRoute: !!data.driver_en_route, arrived: !!data.driver_arrived_at, started: !!data.ride_started_at, candidates })
+        }
+        load()
+        const t = setInterval(load, 30_000)
+        return () => { cancelled = true; clearInterval(t) }
+    }, [userId])
     // Carrinho (só depois de hidratar, para o servidor e o navegador mostrarem o mesmo)
     const cartItems = useCartStore((st) => st.itemsByStore)
     const [cartReady, setCartReady] = useState(false)
@@ -465,7 +495,7 @@ export default function ModeloInicialPage() {
     const inviteUrl = typeof window !== 'undefined' && profileSlug ? `${window.location.origin}/convite?ref=${profileSlug}` : ''
 
     // `icons`: quatro ícones (quadrado 2x2) no lugar do ícone único — dão uma ideia do que cabe naquele cartão
-    type Action = { /** Com algo em andamento o cartão vira um retângulo horizontal: fotos do que está em andamento + botão de voltar a isso */ wide?: { images: string[]; cta: string; hot?: boolean }; title: string; desc: string; icon: LucideIcon; icons?: LucideIcon[]; color: string; onClick: () => void; /** Algo esperando a pessoa (ex.: candidatos a escolher) */ alert?: boolean; /** Destaca o texto (o cartão está mostrando o andamento, não só a chamada) */ live?: boolean }
+    type Action = { /** Com algo em andamento o cartão vira um retângulo horizontal: fotos do que está em andamento + botão de voltar a isso */ wide?: { images: string[]; cta: string; hot?: boolean; sub?: string }; title: string; desc: string; icon: LucideIcon; icons?: LucideIcon[]; color: string; onClick: () => void; /** Algo esperando a pessoa (ex.: candidatos a escolher) */ alert?: boolean; /** Destaca o texto (o cartão está mostrando o andamento, não só a chamada) */ live?: boolean }
     // Quem PRECISA de algo (o visitante chega por aqui)
     // Os cartões se moldam ao que a pessoa tem em andamento: pedidos de serviço e carrinho
     const reqBuscando = myRequests.filter((r) => r.stage === 'buscando').length
@@ -481,6 +511,10 @@ export default function ModeloInicialPage() {
     const activeRequests = myRequests.filter((r) => r.stage !== 'concluido' || r.needsReview)
     const reqImages = [...activeRequests].sort((a, b) => Number(b.candidates.some((c) => c.status === 'pending') || b.needsReview) - Number(a.candidates.some((c) => c.status === 'pending') || a.needsReview))
         .map((r) => r.photoUrl).filter((u): u is string => !!u).slice(0, 3)
+    const rideStatus = !activeRide ? null
+        : activeRide.status === 'pending'
+            ? (activeRide.candidates > 0 ? `${activeRide.candidates} ${activeRide.candidates === 1 ? 'motorista quer' : 'motoristas querem'} te levar` : 'Buscando motorista...')
+            : activeRide.started ? 'Em viagem' : activeRide.arrived ? 'O motorista chegou' : activeRide.enRoute ? 'Motorista a caminho' : 'Motorista escolhido'
     const needs: Action[] = [
         {
             title: 'Comprar', desc: cartCount > 0 ? `${cartCount} ${cartCount === 1 ? 'item' : 'itens'} no carrinho${money(cartTotal) ? ` · ${money(cartTotal)}` : ''}` : 'Lojas e produtos perto de você', live: cartCount > 0,
@@ -489,7 +523,9 @@ export default function ModeloInicialPage() {
         { title: 'Contratar serviço', desc: serviceParts.length > 0 ? serviceParts.join(' · ') : 'Descreva o que você precisa', live: serviceParts.length > 0, alert: reqEscolher > 0 || reqAvaliar > 0,
             wide: serviceParts.length > 0 ? { images: reqImages, cta: reqEscolher > 0 ? 'Escolher' : reqAvaliar > 0 ? 'Avaliar' : 'Ver', hot: reqEscolher > 0 || reqAvaliar > 0 } : undefined,
             icon: Wrench, icons: [Wrench, Scissors, Hand, Sparkles], color: TYPE.servico.color, onClick: () => go('/solicitar-servico') },
-        { title: 'Pedir motorista', desc: 'Corrida rápida, preço combinado', icon: Car, icons: [Car, Bike, Motorbike, Package], color: '#ea580c', onClick: () => go('/pedir-motorista') },
+        { title: 'Pedir motorista', desc: rideStatus ?? 'Corrida rápida, preço combinado', live: !!activeRide,
+            wide: activeRide ? { images: [], cta: activeRide.status === 'pending' ? (activeRide.candidates > 0 ? 'Escolher' : 'Ver') : 'Acompanhar', hot: activeRide.candidates > 0 || activeRide.arrived, sub: activeRide.destination ? `Para ${shortAddress(activeRide.destination)}` : undefined } : undefined,
+            icon: Car, icons: [Car, Bike, Motorbike, Package], color: '#ea580c', onClick: () => go('/pedir-motorista') },
         { title: 'Ver ao redor', desc: 'Mapa com lojas, serviços e pessoas', icon: Radar, icons: [Radar, MapPin, StoreIcon, Users], color: '#0891b2', onClick: () => go('/radar') },
     ]
     // Quem QUER GANHAR com o iUser
@@ -568,6 +604,7 @@ export default function ModeloInicialPage() {
                                                 <span className="min-w-0 flex-1">
                                                     <span className="block text-[15px] font-black leading-tight" style={{ color: colors.textPrimary }}>{a.title}</span>
                                                     <span className="block text-xs mt-0.5 leading-snug font-black" style={{ color: a.color }}>{a.desc}</span>
+                                                    {a.wide.sub && <span className="block text-[11px] mt-0.5 truncate" style={{ color: colors.textSecondary }}>{a.wide.sub}</span>}
                                                 </span>
                                                 <span className="flex-shrink-0 h-9 px-4 rounded-full flex items-center text-[13px] font-black text-white" style={{ background: a.wide.hot ? '#ef4444' : '#f97316' }}>{a.wide.cta}</span>
                                             </button>
