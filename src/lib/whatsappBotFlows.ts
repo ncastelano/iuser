@@ -52,7 +52,7 @@ const APPT_STATUS_LABEL: Record<string, string> = {
 
 // Cada coisa é uma coisa: produtos (ver / pedir), serviços (ver / agendar), horário e o que a pessoa já fez na loja.
 function menuText(storeName: string): string {
-    return `Olá! Bem-vindo(a) ao atendimento automático da *${storeName}* 🤖\n\nEscolha uma opção:\n*Produtos*\n1️⃣ Ver produtos\n2️⃣ Fazer um pedido\n\n*Serviços*\n3️⃣ Ver serviços\n4️⃣ Fazer um agendamento\n\n*Outros*\n5️⃣ Ver horário de funcionamento\n6️⃣ Meus pedidos e agendamentos\n\n(Responda só com o número)`
+    return `Olá! Bem-vindo(a) ao atendimento automático da *${storeName}* 🤖\n\nEscolha uma opção:\n*Produtos*\n1️⃣ Ver produtos\n2️⃣ Fazer um pedido\n3️⃣ Meus pedidos\n\n*Serviços*\n4️⃣ Ver serviços\n5️⃣ Fazer um agendamento\n6️⃣ Meus agendamentos\n\n*Outros*\n7️⃣ Ver horário de funcionamento\n\n(Responda só com o número)`
 }
 
 export function normalizeDigits(s: string | null | undefined): string {
@@ -194,18 +194,18 @@ export async function handleIncomingMessage(
                 },
             }
         }
-        if (trimmed === '3') {
+        if (trimmed === '4') {
             const services = await loadActiveProducts(admin, store.id, 'services')
             if (services.length === 0) {
                 return { reply: 'Essa loja ainda não tem serviços cadastrados.\n\n' + menuText(store.name), newState: 'menu', newContext: {} }
             }
             return {
-                reply: `*Serviços de ${store.name}:*\n\n${formatProductList(services)}\n\nDigite *4* no menu pra fazer um agendamento, ou *menu* pra voltar.`,
+                reply: `*Serviços de ${store.name}:*\n\n${formatProductList(services)}\n\nDigite *5* no menu pra fazer um agendamento, ou *menu* pra voltar.`,
                 newState: 'menu',
                 newContext: {},
             }
         }
-        if (trimmed === '4') {
+        if (trimmed === '5') {
             const { data: st } = await admin.from('stores').select('allow_scheduling').eq('id', store.id).maybeSingle()
             if (!(st as { allow_scheduling?: boolean } | null)?.allow_scheduling) {
                 return { reply: 'Essa loja ainda não recebe agendamentos pelo iUser.\n\n' + menuText(store.name), newState: 'menu', newContext: {} }
@@ -222,45 +222,48 @@ export async function handleIncomingMessage(
                 newContext: { services: services.map((p: any) => ({ id: p.id, name: p.name })) },
             }
         }
-        if (trimmed === '5') {
+        if (trimmed === '7') {
             const statusText = getStoreStatusText(store.business_hours)
             return { reply: `*Horário de ${store.name}:*\n${statusText}\n\nDigite *menu* pra voltar.`, newState: 'menu', newContext: {} }
         }
-        if (trimmed === '6') {
+        // 3 = Meus pedidos, 6 = Meus agendamentos: cada coisa é uma coisa
+        if (trimmed === '3' || trimmed === '6') {
+            const wantOrders = trimmed === '3'
             if (!convo.matched_profile_id) {
                 return {
                     reply:
-                        'Não encontrei uma conta iUser com esse número de WhatsApp. Pra ver seus pedidos e agendamentos por aqui, cadastre esse número no seu perfil do iUser.\n\n' +
+                        `Não encontrei uma conta iUser com esse número de WhatsApp. Pra ver seus ${wantOrders ? 'pedidos' : 'agendamentos'} por aqui, cadastre esse número no seu perfil do iUser.\n\n` +
                         menuText(store.name),
                     newState: 'menu',
                     newContext: {},
                 }
             }
-            const [{ data: orders }, { data: appts }] = await Promise.all([
-                admin
+            if (wantOrders) {
+                const { data: orders } = await admin
                     .from('orders')
                     .select('id, status, total_amount, created_at')
                     .eq('store_id', store.id)
                     .eq('buyer_id', convo.matched_profile_id)
                     .order('created_at', { ascending: false })
-                    .limit(5),
-                admin
-                    .from('appointments')
-                    .select('id, status, date, time, service_name')
-                    .eq('store_id', store.id)
-                    .eq('customer_id', convo.matched_profile_id)
-                    .order('date', { ascending: false })
-                    .limit(5),
-            ])
-            const orderLines = (orders || []).map(
-                (o: any) => `📦 Pedido #${String(o.id).slice(0, 8)} — ${ORDER_STATUS_LABEL[o.status] || o.status} — R$ ${Number(o.total_amount).toFixed(2)}`
-            )
-            const apptLines = (appts || []).map(
+                    .limit(5)
+                const lines = (orders || []).map(
+                    (o: any) => `📦 Pedido #${String(o.id).slice(0, 8)} — ${ORDER_STATUS_LABEL[o.status] || o.status} — R$ ${Number(o.total_amount).toFixed(2)}`
+                )
+                const body = lines.length > 0 ? lines.join('\n') : 'Você ainda não fez pedidos nessa loja.'
+                return { reply: `*Seus pedidos em ${store.name}:*\n\n${body}\n\nDigite *menu* pra voltar.`, newState: 'menu', newContext: {} }
+            }
+            const { data: appts } = await admin
+                .from('appointments')
+                .select('id, status, date, time, service_name')
+                .eq('store_id', store.id)
+                .eq('customer_id', convo.matched_profile_id)
+                .order('date', { ascending: false })
+                .limit(5)
+            const lines = (appts || []).map(
                 (a: any) => `📅 ${a.service_name || 'Agendamento'} — ${a.date} ${a.time || ''} — ${APPT_STATUS_LABEL[a.status] || a.status}`
             )
-            const lines = [...orderLines, ...apptLines]
-            const body = lines.length > 0 ? lines.join('\n') : 'Você ainda não tem pedidos ou agendamentos nessa loja.'
-            return { reply: `*Seus pedidos e agendamentos em ${store.name}:*\n\n${body}\n\nDigite *menu* pra voltar.`, newState: 'menu', newContext: {} }
+            const body = lines.length > 0 ? lines.join('\n') : 'Você ainda não tem agendamentos nessa loja.'
+            return { reply: `*Seus agendamentos em ${store.name}:*\n\n${body}\n\nDigite *menu* pra voltar.`, newState: 'menu', newContext: {} }
         }
         return { reply: 'Não entendi. ' + menuText(store.name), newState: 'menu', newContext: {} }
     }
