@@ -52,6 +52,7 @@ import {
     Calendar,
 } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
+import ProfileSkeleton from '@/components/v3/ProfileSkeleton'
 import ProfileScheduleModal from '@/components/ProfileScheduleModal'
 import { toast } from 'sonner'
 import { getAvatarUrl } from '@/lib/avatar'
@@ -1394,13 +1395,7 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
     }
 
     // ========== RENDER ==========
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center min-h-[400px]">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2" style={{ borderColor: colors.accent }}></div>
-            </div>
-        )
-    }
+    if (loading) return <ProfileSkeleton />
 
     if (error || !owner) {
         return (
@@ -2385,8 +2380,16 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                         )}
 
                         {loadingComments ? (
-                            <div className="flex justify-center py-8">
-                                <Spinner size={24} color={colors.textSecondary} />
+                            <div className="flex flex-col gap-4 py-2" aria-hidden>
+                                {[0, 1, 2].map((i) => (
+                                    <div key={i} className="flex gap-3">
+                                        <span className="block w-9 h-9 rounded-full animate-pulse flex-shrink-0" style={{ background: colors.border }} />
+                                        <div className="flex-1 flex flex-col gap-2">
+                                            <span className="block h-3 rounded animate-pulse" style={{ width: '34%', background: colors.border }} />
+                                            <span className="block h-3 rounded animate-pulse" style={{ width: i === 1 ? '88%' : '66%', background: colors.border }} />
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
                         ) : profileComments.length === 0 ? (
                             <div className="py-10 text-center rounded-xl" style={{
