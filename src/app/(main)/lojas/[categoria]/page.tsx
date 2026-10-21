@@ -58,6 +58,7 @@ interface StoreCardData {
     top_products?: {
         id: string
         name: string
+        slug?: string | null
         image_url?: string | null
         price: number
         listing_type?: 'sale' | 'publication' | null
@@ -326,7 +327,7 @@ export default function ListaCategoriaPage() {
             const [productsResult, reviewsResult] = await Promise.all([
                 supabase
                     .from('products')
-                    .select('id, name, image_url, price, listing_type, store_id')
+                    .select('id, name, slug, image_url, price, listing_type, store_id')
                     .in('store_id', storeIds)
                     .order('created_at', { ascending: false }),
                 supabase
@@ -356,6 +357,7 @@ export default function ListaCategoriaPage() {
                 const mappedProducts = (productsByStore.get(store.id) || []).map((p: any) => ({
                     id: p.id,
                     name: p.name,
+                    slug: p.slug || null,
                     image_url: p.image_url ? supabase.storage.from('product-images').getPublicUrl(p.image_url).data.publicUrl : null,
                     price: p.price,
                     listing_type: p.listing_type || 'sale',

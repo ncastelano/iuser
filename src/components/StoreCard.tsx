@@ -29,6 +29,7 @@ export type StoreCardData = {
     top_products?: {
         id: string
         name: string
+        slug?: string | null
         image_url?: string | null
         price: number
         listing_type?: 'sale' | 'publication' | null
@@ -90,7 +91,12 @@ export function StoreCard({
     const v3 = useInsideShell()
     const router = useRouter()
     // Tocar num produto/serviço do cartão abre a loja já "levando a câmera" até ele (a página rola até o item e o destaca)
-    const openProduct = (e: React.SyntheticEvent, productId: string) => { e.stopPropagation(); router.push(`/${store.storeSlug}?produto=${productId}`) }
+    const openProduct = (e: React.SyntheticEvent, product: NonNullable<StoreCardData['top_products']>[number]) => {
+        e.stopPropagation()
+        // publicação não tem lugar na vitrine da loja: abre a própria página dela
+        if (product.listing_type === 'publication' && product.slug) return router.push(`/${store.storeSlug}/${product.slug}`)
+        router.push(`/${store.storeSlug}?produto=${product.id}`)
+    }
     const isOpen = isStoreOpenNow(store.business_hours)
     const addressShort = store.address ? store.address.split(',')[0]?.trim() || store.address : ''
 
@@ -127,7 +133,7 @@ export function StoreCard({
                     {products.length > 0 && (
                         <div className="mt-2 flex items-center gap-1.5">
                             {(store.top_products || []).slice(0, 4).map((product) => (
-                                <button key={product.id} onClick={(e) => openProduct(e, product.id)} aria-label={`Ver ${product.name} na loja`} title={product.name} className="w-11 h-11 rounded-xl overflow-hidden flex-shrink-0 flex items-center justify-center transition active:scale-90" style={{ background: `${colors.border}40` }}>
+                                <button key={product.id} onClick={(e) => openProduct(e, product)} aria-label={`Ver ${product.name} na loja`} title={product.name} className="w-11 h-11 rounded-xl overflow-hidden flex-shrink-0 flex items-center justify-center transition active:scale-90" style={{ background: `${colors.border}40` }}>
                                     {product.image_url
                                         ? <img src={product.image_url} alt="" className="w-full h-full object-cover" loading="lazy" />
                                         : <ShoppingCart className="w-4 h-4 opacity-40" style={{ color: colors.textPrimary }} />}
@@ -243,7 +249,7 @@ export function StoreCard({
                         {products.map((product) => {
                             const isPublication = product.listing_type === 'publication'
                             return (
-                                <div key={product.id} onClick={(e) => openProduct(e, product.id)} className="flex items-center gap-2.5 cursor-pointer rounded-xl transition active:opacity-70">
+                                <div key={product.id} onClick={(e) => openProduct(e, product)} className="flex items-center gap-2.5 cursor-pointer rounded-xl transition active:opacity-70">
                                     <span className="w-10 h-10 rounded-xl overflow-hidden flex-shrink-0 flex items-center justify-center" style={{ background: `${colors.border}40` }}>
                                         {product.image_url
                                             ? <img src={product.image_url} alt="" className="w-full h-full object-cover" loading="lazy" />
