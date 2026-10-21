@@ -314,19 +314,6 @@ export function Store({
         setShowScheduleModal(true)
     }, [loading, owner, isOwner, products])
 
-    // Veio do bot do WhatsApp (?agendar=<id do serviço> ou ?agendar=1): abre a janela de agendar (já com o serviço escolhido)
-    const openedScheduleFromLinkRef = useRef(false)
-    useEffect(() => {
-        if (loading || !owner || openedScheduleFromLinkRef.current || isOwner) return
-        let v: string | null = null
-        try { v = new URLSearchParams(window.location.search).get('agendar') } catch { /* sem window */ }
-        if (!v) return
-        openedScheduleFromLinkRef.current = true
-        if (!owner.allow_scheduling) return
-        setScheduleProductId(v !== '1' && products.some((p) => p.id === v) ? v : null)
-        setShowScheduleModal(true)
-    }, [loading, owner, isOwner, products])
-
     // ========== FILTRO ==========
     const filteredProducts = useMemo(() => {
         if (!searchQuery.trim()) return catalogList
