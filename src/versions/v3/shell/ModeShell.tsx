@@ -739,10 +739,19 @@ export default function ModeShell({ children, search }: {
             try { localStorage.setItem(`iuser_mode_${userId}`, mode) } catch { /* sem armazenamento */ }
         }
         const target = modePath(mode, drawerData)
+        // a aba clara vai para o botão do modo junto com o menu fechando
+        if (pathname !== target) setPendingTab('mode')
         setDrawerOpen(false)
         if (pathname !== target) router.push(target)
     }
-    const goAndClose = (path: string) => { setDrawerOpen(false); router.push(path) }
+    // Pelo menu: a aba clara já começa a ir para o destino JUNTO com o menu fechando (antes ela só saía quando a página nova abria,
+    // então o cartão assentava primeiro e a aba escorregava depois, deixando uma fresta entre a barra e o cartão).
+    const goAndClose = (path: string) => {
+        const tab: TabKey | null = path === '/modeloinicial' ? 'search' : path === '/carrinho' ? 'cart' : path === '/conversas' ? 'chat' : null
+        if (tab && pathname !== path) setPendingTab(tab)
+        setDrawerOpen(false)
+        router.push(path)
+    }
     // Seletor de versão (o único da 3.0): mesmo mecanismo central da 2.0
     // Só a home, o carrinho e as conversas existem nas duas; qualquer outra página do shell é só da 3.0 → home da 2.0
     const onSwitchVersion = () => switchVersion('v2', {
