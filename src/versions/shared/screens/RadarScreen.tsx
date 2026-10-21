@@ -655,7 +655,7 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
     // Tudo pronto (mapa, local, dados e marcadores): começa a varredura de entrada, só uma vez por visita
     useEffect(() => {
         if (!mapReady || loadingLocation || !dataReady || scanPlayedRef.current) return
-        const t = setTimeout(() => { scanPlayedRef.current = true; setScanning(true) }, 700)
+        const t = setTimeout(() => { scanPlayedRef.current = true; setScanning(true) }, 250)
         return () => clearTimeout(t)
     }, [mapReady, loadingLocation, dataReady])
 

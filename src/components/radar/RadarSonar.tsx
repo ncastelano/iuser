@@ -3,28 +3,19 @@
 // Efeito de sonar do /radar. Duas fases:
 //  - "loading": enquanto o mapa/localização/dados carregam, uma tela de radar (fundo escuro com anéis e grade, varredura girando
 //    e ondas saindo do centro) com o texto do que está sendo feito.
-//  - "scan": uma vez, quando tudo carregou, ondas saem do ponto onde a pessoa está e, conforme a onda chega em cada marcador do
-//    mapa, ele "aparece" com um brilho (os marcadores ficam escondidos até a onda passar).
+//  - "scan": uma vez, assim que a tela de carregamento sai, os pins do mapa são "localizados" um a um, dos mais perto de onde a
+//    pessoa está para os mais longe (cada um salta com um brilho e solta um anel). Não há outra faixa/onda por cima do mapa:
+//    a tela de carregamento já mostrou a busca.
 // Só apresentação: não mexe nos dados do radar. Respeita "reduzir movimento".
 'use client'
 
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type mapboxgl from 'mapbox-gl'
 
 const ORANGE = '#f97316'
-const SCAN_MS = 3600
-// A varredura dá uma volta a cada SPIN_MS (precisa ser igual ao da animação .sonar-sweep-spin)
-const SPIN_MS = 1100
-
-// Quando o feixe da varredura encontra um ponto: ele precisa já ter alcançado a distância dele (a onda cresce desacelerando)
-// e apontar para o ângulo dele (graus no sentido horário a partir do topo).
-function hitTime(distance: number, radius: number, bearingDeg: number): number {
-    const p = Math.min(distance / radius, 1)
-    const reach = SCAN_MS * (1 - Math.pow(1 - p, 1 / 2.4))
-    const firstTurn = (bearingDeg / 360) * SPIN_MS
-    const turns = Math.max(0, Math.ceil((reach - firstTurn) / SPIN_MS))
-    return Math.min(SCAN_MS * 0.96, firstTurn + turns * SPIN_MS)
-}
+// Os pins são localizados ao longo de POP_MS, do mais perto para o mais longe
+const POP_MS = 2400
+const popTime = (distance: number, radius: number) => 120 + POP_MS * Math.pow(Math.min(distance / radius, 1), 0.7)
 
 export default function RadarSonar({ phase, map, center, label, onScanDone }: {
     phase: 'loading' | 'scan' | 'off'
@@ -79,11 +70,6 @@ export default function RadarSonar({ phase, map, center, label, onScanDone }: {
                 @keyframes radarSweep { to { transform: rotate(360deg); } }
                 .radar-blip { animation: radarBlip 3.4s ease-out infinite; opacity: 0; }
                 @keyframes radarBlip { 0%, 100% { opacity: 0; transform: scale(.4); } 12% { opacity: 1; transform: scale(1.3); box-shadow: 0 0 14px #fb923c; } 45% { opacity: 0; } }
-                .sonar-ring { position: absolute; border-radius: 9999px; transform: scale(0.02); opacity: 0; animation: sonarRing ${SCAN_MS}ms cubic-bezier(.22,.61,.36,1) forwards; }
-                @keyframes sonarRing { 0% { transform: scale(0.02); opacity: .95; } 80% { opacity: .5; } 100% { transform: scale(1); opacity: 0; } }
-                .sonar-sweep-grow { position: absolute; border-radius: 9999px; transform: scale(0.05); animation: sonarGrow ${SCAN_MS}ms cubic-bezier(.22,.61,.36,1) forwards; }
-                @keyframes sonarGrow { 0% { transform: scale(0.05); opacity: 1; } 85% { opacity: .8; } 100% { transform: scale(1); opacity: 0; } }
-                .sonar-sweep-spin { position: absolute; inset: 0; border-radius: 9999px; animation: radarSweep ${SPIN_MS}ms linear infinite; }
                 /* usa as propriedades "scale"/"translate" (separadas de "transform", que o Mapbox usa para posicionar o pin) */
                 .sonar-found { transform-origin: 50% 100%; animation: sonarFound .9s cubic-bezier(.3,1.4,.5,1) both; }
                 @keyframes sonarFound {
@@ -95,40 +81,29 @@ export default function RadarSonar({ phase, map, center, label, onScanDone }: {
                 }
                 .sonar-found-ring { position: absolute; left: 50%; top: 50%; width: 64px; height: 64px; margin: -32px 0 0 -32px; border-radius: 9999px; border: 3px solid #f97316; pointer-events: none; animation: sonarFoundRing 1s ease-out forwards; }
                 @keyframes sonarFoundRing { 0% { transform: scale(.3); opacity: .95; } 100% { transform: scale(2.4); opacity: 0; } }
-                @media (prefers-reduced-motion: reduce) { .radar-wave, .radar-sweep, .radar-blip, .sonar-ring, .sonar-sweep-grow, .sonar-sweep-spin, .sonar-found, .sonar-found-ring { animation-duration: 0.01s; animation-iteration-count: 1; } }
+                @media (prefers-reduced-motion: reduce) { .radar-wave, .radar-sweep, .radar-blip, .sonar-found, .sonar-found-ring { animation-duration: 0.01s; animation-iteration-count: 1; } }
             `}</style>
         </>
     )
 }
 
-// A onda sai do ponto onde a pessoa está, no tamanho do mapa; os marcadores aparecem quando ela passa por eles.
+// Esconde os pins e os "localiza" um a um (a ordem é a distância até onde a pessoa está).
 function Scan({ map, center, onDone }: { map: mapboxgl.Map | null; center: { lat: number; lng: number } | null; onDone?: () => void }) {
-    const [geo, setGeo] = useState<{ x: number; y: number; r: number } | null>(null)
     const doneRef = useRef(onDone)
     doneRef.current = onDone
 
-    useLayoutEffect(() => {
-        if (!map) return
-        const c = center || map.getCenter()
-        const p = map.project([center ? center.lng : (c as mapboxgl.LngLat).lng, center ? center.lat : (c as mapboxgl.LngLat).lat])
-        const box = map.getContainer().getBoundingClientRect()
-        const r = Math.max(Math.hypot(p.x, p.y), Math.hypot(box.width - p.x, p.y), Math.hypot(p.x, box.height - p.y), Math.hypot(box.width - p.x, box.height - p.y))
-        setGeo({ x: p.x, y: p.y, r })
-    }, [map, center])
-
     useEffect(() => {
-        if (!map || !geo) return
+        if (!map) return
+        const c = center ? { lng: center.lng, lat: center.lat } : map.getCenter()
+        const p = map.project([c.lng, c.lat])
         const container = map.getContainer()
         const box = container.getBoundingClientRect()
+        const r = Math.max(Math.hypot(p.x, p.y), Math.hypot(box.width - p.x, p.y), Math.hypot(p.x, box.height - p.y), Math.hypot(box.width - p.x, box.height - p.y)) || 1
         const hidden: HTMLElement[] = []
         const timers: ReturnType<typeof setTimeout>[] = []
         container.querySelectorAll<HTMLElement>('.mapboxgl-marker').forEach((el) => {
             const b = el.getBoundingClientRect()
-            const dx = b.left + b.width / 2 - box.left - geo.x
-            const dy = b.top + b.height / 2 - box.top - geo.y
-            const bearing = (Math.atan2(dx, -dy) * 180 / Math.PI + 360) % 360
-            // o pin fica escondido até o feixe passar por ele; aí "é localizado": salta e solta um anel
-            const at = hitTime(Math.hypot(dx, dy), geo.r, bearing)
+            const d = Math.hypot(b.left + b.width / 2 - box.left - p.x, b.top + b.height / 2 - box.top - p.y)
             el.style.opacity = '0'
             hidden.push(el)
             timers.push(setTimeout(() => {
@@ -138,28 +113,15 @@ function Scan({ map, center, onDone }: { map: mapboxgl.Map | null; center: { lat
                 ring.className = 'sonar-found-ring'
                 el.appendChild(ring)
                 timers.push(setTimeout(() => { ring.remove(); el.classList.remove('sonar-found') }, 1100))
-            }, at))
+            }, popTime(d, r)))
         })
-        const end = setTimeout(() => doneRef.current?.(), SCAN_MS + 150)
+        const end = setTimeout(() => doneRef.current?.(), POP_MS + 1200)
         return () => {
             timers.forEach(clearTimeout)
             clearTimeout(end)
-            hidden.forEach((el) => { el.style.opacity = ''; el.classList.remove('sonar-found'); el.querySelectorAll('.sonar-found-ring').forEach((r) => r.remove()) })
+            hidden.forEach((el) => { el.style.opacity = ''; el.classList.remove('sonar-found'); el.querySelectorAll('.sonar-found-ring').forEach((x) => x.remove()) })
         }
-    }, [map, geo])
+    }, [map, center])
 
-    if (!geo) return null
-    const size = geo.r * 2
-    const pos = { left: geo.x - geo.r, top: geo.y - geo.r, width: size, height: size }
-    return (
-        <div className="absolute inset-0 z-[12] overflow-hidden pointer-events-none" aria-hidden>
-            <div className="sonar-sweep-grow" style={pos}>
-                <div className="sonar-sweep-spin" style={{ background: 'conic-gradient(from 0deg, rgba(249,115,22,0) 0deg, rgba(249,115,22,0) 270deg, rgba(249,115,22,0.28) 350deg, rgba(251,146,60,0.55) 360deg)' }} />
-            </div>
-            {[0, 0.28, 0.56].map((d) => (
-                <div key={d} className="sonar-ring" style={{ ...pos, border: `${3 - d * 2.5}px solid ${ORANGE}`, background: 'radial-gradient(circle, rgba(249,115,22,0) 68%, rgba(249,115,22,0.16) 100%)', animationDelay: `${d}s` }} />
-            ))}
-            <span className="absolute w-4 h-4 rounded-full" style={{ left: geo.x - 8, top: geo.y - 8, background: ORANGE, boxShadow: '0 0 0 6px rgba(249,115,22,0.35), 0 0 26px rgba(249,115,22,0.9)' }} />
-        </div>
-    )
+    return null
 }
