@@ -178,7 +178,8 @@ interface ServiceItem {
     ownerId?: string | null
 }
 interface PersonItem { id: string; slug: string; avatar: string | null; points: number; rank: number }
-interface CommunityItem { id: string; slug: string; name: string; city: string; members: number; image: string | null; activity: CommunityActivity | null; last: { author: string; text: string } | null }
+interface CommunityTalk { id: string; author: string; avatar: string | null; text: string; at: number }
+interface CommunityItem { id: string; slug: string; name: string; city: string; members: number; image: string | null; activity: CommunityActivity | null; last: { author: string; text: string } | null; /** As últimas mensagens da sala (a mais nova por último) */ talk: CommunityTalk[]; /** Gente diferente que falou nas últimas mensagens */ talkers: number }
 
 const toPublicImage = (bucket: string, path: string | null | undefined) => {
     if (!path) return null
@@ -286,6 +287,69 @@ function TallTile({ type, colors, image, title, badge, meta, action, onClick }: 
                 {meta}
                 <span className="block pt-0.5">{action}</span>
             </span>
+        </div>
+    )
+}
+
+// Cartão de comunidade que mostra o que está acontecendo dentro dela: quem falou por último e o que disse (as 3 mensagens mais
+// novas), há quanto tempo a sala está movimentada e quantos membros tem. Tocar abre a conversa.
+function CommunityTalkCard({ c, colors, onClick }: { c: CommunityItem; colors: any; onClick: () => void }) {
+    const t = TYPE.comunidade
+    const lastAt = c.talk.length ? c.talk[c.talk.length - 1].at : 0
+    const live = lastAt > 0 && Date.now() - lastAt < 15 * 60 * 1000
+    const ago = (at: number) => {
+        const m = Math.max(1, Math.round((Date.now() - at) / 60000))
+        if (m < 60) return `${m} min`
+        const h = Math.round(m / 60)
+        return h < 24 ? `${h} h` : `${Math.round(h / 24)} d`
+    }
+    return (
+        <div
+            role="button"
+            tabIndex={0}
+            onClick={onClick}
+            onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onClick() } }}
+            className="snap-start flex-shrink-0 w-[272px] sm:w-[300px] rounded-3xl border p-3.5 flex flex-col gap-3 text-left cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl active:scale-[0.98]"
+            style={{ background: colors.surface, borderColor: colors.border, boxShadow: colors.shadow }}
+        >
+            <span className="flex items-center gap-2.5 min-w-0">
+                <span className="w-11 h-11 rounded-2xl overflow-hidden flex-shrink-0 flex items-center justify-center" style={{ background: `${t.color}22`, color: t.color }}>
+                    {c.image ? <img src={c.image} alt="" className="w-full h-full object-cover" loading="lazy" /> : <MessageCircle size={20} />}
+                </span>
+                <span className="min-w-0 flex-1">
+                    <span className="block text-[15px] font-black leading-tight truncate" style={{ color: colors.textPrimary }}>{c.name}</span>
+                    <span className="flex items-center gap-1 text-[11px] mt-0.5" style={{ color: colors.textSecondary }}>
+                        <Users size={11} /> {c.members} {c.members === 1 ? 'membro' : 'membros'}
+                        {c.talkers > 1 && <span>· {c.talkers} falando</span>}
+                    </span>
+                </span>
+                {c.talk.length > 0 && (
+                    <span className="flex-shrink-0 flex items-center gap-1 text-[10px] font-black uppercase px-2 py-0.5 rounded-full" style={live ? { background: '#16a34a1f', color: '#16a34a' } : { background: `${colors.border}40`, color: colors.textSecondary }}>
+                        {live && <span className="w-1.5 h-1.5 rounded-full bg-[#16a34a] animate-pulse" />}
+                        {live ? 'ao vivo' : `há ${ago(lastAt)}`}
+                    </span>
+                )}
+            </span>
+
+            <span className="flex flex-col gap-1.5 min-h-[112px]">
+                {c.talk.length === 0 ? (
+                    <span className="flex-1 rounded-2xl flex items-center justify-center text-center px-3 text-xs" style={{ background: `${colors.border}30`, color: colors.textSecondary }}>
+                        Ninguém falou ainda. Comece a conversa!
+                    </span>
+                ) : c.talk.map((m, i) => (
+                    <span key={m.id} className="flex items-start gap-2" style={{ opacity: 0.55 + (i + 1) * (0.45 / c.talk.length) }}>
+                        <span className="w-6 h-6 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center text-[10px] font-black text-white" style={{ background: t.color }}>
+                            {m.avatar ? <img src={m.avatar} alt="" className="w-full h-full object-cover" loading="lazy" /> : m.author.replace('@', '').charAt(0).toUpperCase()}
+                        </span>
+                        <span className="min-w-0 flex-1 rounded-2xl rounded-tl-md px-2.5 py-1.5" style={{ background: `${colors.border}30` }}>
+                            <span className="block text-[10px] font-black truncate" style={{ color: t.color }}>{m.author}</span>
+                            <span className="block text-[12px] leading-snug line-clamp-2" style={{ color: colors.textPrimary }}>{m.text}</span>
+                        </span>
+                    </span>
+                ))}
+            </span>
+
+            <span className="text-[12px] font-black underline underline-offset-2" style={{ color: colors.textPrimary }}>Entrar na conversa</span>
         </div>
     )
 }
@@ -467,20 +531,29 @@ export default function ModeloInicialPage() {
             ])
             const counts = new Map<string, number>()
             ;(mem || []).forEach((m: any) => counts.set(m.community_id, (counts.get(m.community_id) || 0) + 1))
-            // última mensagem de cada sala (links viram palavra: o endereço inteiro não cabe nem ajuda)
-            const { data: msgs } = await supabase.from('community_messages').select('community_id, profile_id, content, created_at').in('community_id', ids).order('created_at', { ascending: false }).limit(80)
-            const lastBy = new Map<string, { profile_id: string; content: string }>()
-            ;(msgs || []).forEach((m: any) => { if (!lastBy.has(m.community_id)) lastBy.set(m.community_id, m) })
-            const authorIds = [...new Set([...lastBy.values()].map((m) => m.profile_id))]
-            const { data: authors } = authorIds.length ? await supabase.from('profiles').select('id, "profileSlug", name').in('id', authorIds) : { data: [] as any[] }
-            const authorName = new Map((authors || []).map((a: any) => [a.id, a.profileSlug ? `@${a.profileSlug}` : (a.name || 'Alguém')]))
+            // as últimas mensagens de cada sala (links viram palavra: o endereço inteiro não cabe nem ajuda)
+            const { data: msgs } = await supabase.from('community_messages').select('id, community_id, profile_id, content, created_at').in('community_id', ids).order('created_at', { ascending: false }).limit(160)
+            const byRoom = new Map<string, any[]>()
+            ;(msgs || []).forEach((m: any) => { const l = byRoom.get(m.community_id) || []; if (l.length < 3) { l.push(m); byRoom.set(m.community_id, l) } })
+            const authorIds = [...new Set([...byRoom.values()].flat().map((m: any) => m.profile_id))]
+            const { data: authors } = authorIds.length ? await supabase.from('profiles').select('id, "profileSlug", name, avatar_url').in('id', authorIds) : { data: [] as any[] }
+            const authorById = new Map((authors || []).map((a: any) => [a.id, a]))
+            const nameOf = (a: any) => (a?.profileSlug ? `@${a.profileSlug}` : (a?.name || 'Alguém'))
             const say = (t: string) => (t || '').replace(/(https?:\/\/[^\s<>"']+)/gi, (u) => (/\.(png|jpe?g|gif|webp|avif)(\?|$)/i.test(u) ? '📷 imagem' : '🔗 link do iUser')).trim()
             return list
-                .map((c: any) => ({
-                    id: c.id, slug: c.slug, name: c.name, city: c.city,
-                    members: counts.get(c.id) || 0, image: c.image_url || null, activity: act[c.id] || null,
-                    last: lastBy.has(c.id) ? { author: authorName.get(lastBy.get(c.id)!.profile_id) || 'Alguém', text: say(lastBy.get(c.id)!.content) } : null,
-                }))
+                .map((c: any) => {
+                    const recent = (byRoom.get(c.id) || []).slice().reverse()
+                    const talk: CommunityTalk[] = recent.map((m: any) => {
+                        const a = authorById.get(m.profile_id)
+                        return { id: m.id, author: nameOf(a), avatar: getAvatarUrl(supabase, a?.avatar_url) || null, text: say(m.content), at: new Date(m.created_at).getTime() }
+                    })
+                    return {
+                        id: c.id, slug: c.slug, name: c.name, city: c.city,
+                        members: counts.get(c.id) || 0, image: c.image_url || null, activity: act[c.id] || null,
+                        last: talk.length ? { author: talk[talk.length - 1].author, text: talk[talk.length - 1].text } : null,
+                        talk, talkers: new Set(recent.map((m: any) => m.profile_id)).size,
+                    }
+                })
                 .sort((a: CommunityItem, b: CommunityItem) => (b.activity?.activityAt || 0) - (a.activity?.activityAt || 0)) as CommunityItem[]
         }, setCommunities, [])
 
@@ -887,17 +960,7 @@ export default function ModeloInicialPage() {
                             {communities === null ? <Skeleton colors={colors} /> : communities.length === 0 ? null : (
                                 <Strip>
                                     {communities.map((c) => (
-                                        <Tile key={c.id} type="comunidade" colors={colors} image={c.image} fallback={<MessageCircle size={36} />} onClick={() => go(`/comunidade/${c.slug}`)}>
-                                            <span className="block text-sm font-black leading-tight truncate" style={{ color: colors.textPrimary }}>{c.name}</span>
-                                            <span className="flex items-center gap-1 text-[11px] mt-0.5" style={{ color: colors.textSecondary }}>
-                                                <Users size={11} /> {c.members} {c.members === 1 ? 'membro' : 'membros'}
-                                            </span>
-                                            {c.activity?.photoVoteActive && (
-                                                <span className="inline-flex items-center gap-1 text-[10px] font-black mt-1.5 px-2 py-0.5 rounded-full" style={{ background: '#f9731618', color: '#ea580c' }}>
-                                                    <Eye size={10} /> Votação de foto
-                                                </span>
-                                            )}
-                                        </Tile>
+                                        <CommunityTalkCard key={c.id} c={c} colors={colors} onClick={() => go(`/comunidade/${c.slug}`)} />
                                     ))}
                                 </Strip>
                             )}

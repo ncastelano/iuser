@@ -100,10 +100,10 @@ export function StoreCard({
     const categoryColor = categoryInfo?.color || '#f97316'
     const categoryName = categoryInfo?.nome || store.category || null
 
-    // v3: linha de loja (sem capa nem cartão): logo quadrado, nome, nota, endereço e situação; miniaturas do que ela vende
+    // v3: cartão de loja (sem capa): logo quadrado, nome, nota, endereço e situação; miniaturas do que ela vende
     if (v3) {
         return (
-            <div onClick={onClick} className="py-3.5 flex gap-3 cursor-pointer transition active:opacity-80" style={{ borderBottom: `1px solid ${colors.border}50` }}>
+            <div onClick={onClick} className="p-3 rounded-3xl border flex gap-3 cursor-pointer transition active:scale-[0.99]" style={{ background: colors.surface, borderColor: colors.border }}>
                 <div className="w-16 h-16 rounded-2xl overflow-hidden flex-shrink-0 flex items-center justify-center" style={{ background: '#f9731620' }}>
                     {hasLogo
                         ? <img src={store.logo_url!} alt="" className="w-full h-full object-cover" loading="lazy" />

@@ -668,7 +668,7 @@ export default function ListaCategoriaPage() {
                                         </span>
                                     </div>
 
-                                    <div className={v3 ? 'flex flex-col' : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4'}>
+                                    <div className={v3 ? 'flex flex-col gap-3' : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4'}>
                                         {currentItems.map((store) => (
                                             <StoreCard
                                                 key={store.id}
