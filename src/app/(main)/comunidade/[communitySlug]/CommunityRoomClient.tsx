@@ -42,6 +42,15 @@ import CommunityPhotoCampaign from '@/components/communities/CommunityPhotoCampa
 import { fetchCommunitiesActivity, type CommunityActivity } from '@/lib/communityActivity'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
+const MESSAGE_SELECT = 'id, content, created_at, edited_at, profile_id, ref_product_id, ref_store_id, ref_profile_id, reply_to_id, profiles!profile_id(name, avatar_url, "profileSlug")'
+// Conversa ao vivo: quem está na sala avisa as mensagens na hora (broadcast) e, por garantia, a sala confere as novas a cada
+// POLL_MS e refaz a lista inteira a cada RESYNC_MS (pega edições e exclusões).
+const POLL_MS = 3000
+const RESYNC_MS = 20000
+const TYPING_IDLE_MS = 3000
+const normalizeMessage = (m: any): CommunityMessage => ({ ...m, profiles: Array.isArray(m.profiles) ? m.profiles[0] : m.profiles })
+
+interface Typer { key: string; name: string; avatar: string | null }
 
 interface Community {
     id: string
@@ -110,6 +119,16 @@ export default function CommunityRoomClient() {
     // Responder a outra mensagem da comunidade (a citação aparece em cima da resposta)
     const [replyTo, setReplyTo] = useState<CommunityMessage | null>(null)
     const [flashId, setFlashId] = useState<string | null>(null)
+    // Ao vivo: quem está escrevendo agora, o canal da sala e a rolagem (a conversa só desce sozinha se a pessoa já está no fim)
+    const [typers, setTypers] = useState<Typer[]>([])
+    const channelRef = useRef<any>(null)
+    const channelReadyRef = useRef(false)
+    const typingRef = useRef(false)
+    const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const messagesRef = useRef<CommunityMessage[]>([])
+    const scrollRef = useRef<HTMLDivElement>(null)
+    const atBottomRef = useRef(true)
+    const [newBelow, setNewBelow] = useState(false)
 
     const loadRoom = useCallback(async () => {
         if (!communitySlug) return
@@ -146,7 +165,7 @@ export default function CommunityRoomClient() {
 
             const { data: messagesData, error: messagesErr } = await supabase
                 .from('community_messages')
-                .select('id, content, created_at, edited_at, profile_id, ref_product_id, ref_store_id, ref_profile_id, reply_to_id, profiles!profile_id(name, avatar_url, "profileSlug")')
+                .select(MESSAGE_SELECT)
                 .eq('community_id', communityData.id)
                 .order('created_at', { ascending: true })
 
@@ -178,9 +197,121 @@ export default function CommunityRoomClient() {
         return () => { cancelled = true }
     }, [community?.id, community?.kind, showCampaign])
 
+    useEffect(() => { messagesRef.current = messages }, [messages])
+
+    const scrollToBottom = useCallback((smooth = true) => {
+        const el = scrollRef.current
+        if (!el) return
+        el.scrollTo({ top: el.scrollHeight, behavior: smooth ? 'smooth' : 'auto' })
+        atBottomRef.current = true
+        setNewBelow(false)
+    }, [])
+    const onScrollList = () => {
+        const el = scrollRef.current
+        if (!el) return
+        atBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80
+        if (atBottomRef.current) setNewBelow(false)
+    }
+
+    // Chegou mensagem (ou alguém começou a escrever): se a pessoa está no fim, a conversa desce junto; senão avisa "novas mensagens"
+    const lastCountRef = useRef(0)
     useEffect(() => {
-        bottomRef.current?.scrollIntoView({ block: 'end' })
-    }, [messages.length])
+        const before = lastCountRef.current
+        const grew = messages.length > before
+        const lastMine = messages[messages.length - 1]?.profile_id === currentUserId
+        lastCountRef.current = messages.length
+        if (messages.length === 0) return
+        // primeira carga: vai direto ao fim; depois, desce suave
+        if (atBottomRef.current || lastMine) scrollToBottom(before > 0 && grew)
+        else if (grew) setNewBelow(true)
+    }, [messages, currentUserId, scrollToBottom])
+    useEffect(() => { if (typers.length > 0 && atBottomRef.current) scrollToBottom() }, [typers.length, scrollToBottom])
+
+    // ----- ao vivo: mensagens novas, edições/exclusões e "escrevendo..." -----
+    const readable = !!community && (!community.requires_password || isMember)
+    const fetchNewMessages = useCallback(async () => {
+        const cid = community?.id
+        if (!cid || document.hidden) return
+        const last = messagesRef.current[messagesRef.current.length - 1]?.created_at
+        let q = supabase.from('community_messages').select(MESSAGE_SELECT).eq('community_id', cid).order('created_at', { ascending: true })
+        if (last) q = q.gt('created_at', last)
+        const { data } = await q
+        if (!data || data.length === 0) return
+        const fresh = data.map(normalizeMessage)
+        setMessages((prev) => {
+            const ids = new Set(prev.map((m) => m.id))
+            const add = fresh.filter((m) => !ids.has(m.id))
+            return add.length ? [...prev, ...add] : prev
+        })
+        fetchShareCards(fresh).then((c) => setShareCards((prev) => ({ ...prev, ...c })))
+    }, [community?.id])
+
+    const resyncMessages = useCallback(async () => {
+        const cid = community?.id
+        if (!cid || document.hidden) return
+        const { data } = await supabase.from('community_messages').select(MESSAGE_SELECT).eq('community_id', cid).order('created_at', { ascending: true })
+        if (!data) return
+        const all = data.map(normalizeMessage)
+        // só troca a lista se algo mudou (texto, edição, exclusão ou mensagem nova), para não mexer na tela à toa
+        const sig = (l: CommunityMessage[]) => l.map((m) => `${m.id}:${m.edited_at || ''}:${m.content.length}`).join('|')
+        setMessages((prev) => (sig(prev) === sig(all) ? prev : all))
+        fetchShareCards(all).then((c) => setShareCards((prev) => ({ ...prev, ...c })))
+    }, [community?.id])
+
+    useEffect(() => {
+        if (!readable) return
+        const a = setInterval(fetchNewMessages, POLL_MS)
+        const b = setInterval(resyncMessages, RESYNC_MS)
+        const onVisible = () => { if (!document.hidden) fetchNewMessages() }
+        document.addEventListener('visibilitychange', onVisible)
+        return () => { clearInterval(a); clearInterval(b); document.removeEventListener('visibilitychange', onVisible) }
+    }, [readable, fetchNewMessages, resyncMessages])
+
+    const myName = profileSlug ? `@${profileSlug}` : 'Alguém'
+    useEffect(() => {
+        const cid = community?.id
+        if (!cid || !readable) return
+        const presenceKey = currentUserId || `visitante-${Math.random().toString(36).slice(2)}`
+        const channel = supabase.channel(`community-room:${cid}`, { config: { presence: { key: presenceKey }, broadcast: { self: false } } })
+        channelRef.current = channel
+        channelReadyRef.current = false
+        channel
+            .on('presence', { event: 'sync' }, () => {
+                const state = channel.presenceState() as Record<string, { typing?: boolean; name?: string; avatar?: string | null }[]>
+                setTypers(
+                    Object.entries(state)
+                        .filter(([key]) => key !== presenceKey)
+                        .map(([key, metas]) => ({ key, meta: metas[metas.length - 1] }))
+                        .filter((x) => x.meta?.typing)
+                        .map((x) => ({ key: x.key, name: x.meta?.name || 'Alguém', avatar: x.meta?.avatar || null })),
+                )
+            })
+            .on('broadcast', { event: 'msg' }, () => { fetchNewMessages() })
+            .on('broadcast', { event: 'sync' }, () => { resyncMessages() })
+            .subscribe((status: string) => {
+                if (status !== 'SUBSCRIBED') return
+                channelReadyRef.current = true
+                if (currentUserId && isMember) channel.track({ typing: false, name: myName, avatar: avatarUrl || null })
+            })
+        return () => {
+            channelReadyRef.current = false
+            channelRef.current = null
+            if (typingTimerRef.current) clearTimeout(typingTimerRef.current)
+            typingRef.current = false
+            setTypers([])
+            supabase.removeChannel(channel)
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [community?.id, readable, currentUserId, isMember])
+
+    const setTyping = useCallback((on: boolean) => {
+        if (typingTimerRef.current) { clearTimeout(typingTimerRef.current); typingTimerRef.current = null }
+        if (on) typingTimerRef.current = setTimeout(() => setTyping(false), TYPING_IDLE_MS)
+        if (typingRef.current === on) return
+        typingRef.current = on
+        if (channelReadyRef.current && currentUserId && isMember) channelRef.current?.track({ typing: on, name: myName, avatar: avatarUrl || null })
+    }, [currentUserId, isMember, myName, avatarUrl])
+    const tellRoom = (event: 'msg' | 'sync') => { if (channelReadyRef.current) channelRef.current?.send({ type: 'broadcast', event, payload: {} }) }
 
     const handleJoin = async () => {
         if (!currentUserId) {
@@ -244,6 +375,7 @@ export default function CommunityRoomClient() {
         setSavingEdit(false)
         if (error) { toast.error('Não foi possível editar: ' + error.message); return }
         setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, content: data.content, edited_at: data.edited_at } : m)))
+        tellRoom('sync')
         setEditingId(null)
         toast.success('Mensagem editada')
     }
@@ -253,6 +385,7 @@ export default function CommunityRoomClient() {
         const { error } = await supabase.from('community_messages').delete().eq('id', messageId)
         if (error) { toast.error('Não foi possível excluir: ' + error.message); return }
         setMessages((prev) => prev.filter((m) => m.id !== messageId))
+        tellRoom('sync')
         toast.success('Mensagem excluída')
     }
 
@@ -279,15 +412,14 @@ export default function CommunityRoomClient() {
                     ...(pending ? refColumns(pending) : {}),
                     ...(replyTo ? { reply_to_id: replyTo.id } : {}),
                 })
-                .select('id, content, created_at, edited_at, profile_id, ref_product_id, ref_store_id, ref_profile_id, reply_to_id, profiles!profile_id(name, avatar_url, "profileSlug")')
+                .select(MESSAGE_SELECT)
                 .single()
 
             if (error) throw error
 
-            setMessages((prev) => [
-                ...prev,
-                { ...data, profiles: Array.isArray(data.profiles) ? data.profiles[0] : data.profiles } as CommunityMessage,
-            ])
+            setMessages((prev) => (prev.some((m) => m.id === data.id) ? prev : [...prev, normalizeMessage(data)]))
+            setTyping(false)
+            tellRoom('msg')
             if (pending) setShareCards((prev) => ({ ...prev, [`${pending.kind === 'store' ? 'store' : pending.kind === 'profile' ? 'profile' : 'product'}:${pending.id}`]: pending }))
             setPending(null)
             setReplyTo(null)
@@ -495,7 +627,8 @@ export default function CommunityRoomClient() {
                 </div>
 
                 {/* Mensagens */}
-                <div className="flex-1 min-h-0 overflow-y-auto px-4 md:px-6 py-4 space-y-3">
+                <div className="relative flex-1 min-h-0 flex flex-col">
+                <div ref={scrollRef} onScroll={onScrollList} className="flex-1 min-h-0 overflow-y-auto px-4 md:px-6 py-4 space-y-3">
                     {messages.length === 0 ? (
                         <div className="flex flex-col items-center justify-center gap-2 py-16 opacity-60">
                             <MessageCircle size={32} style={{ color: colors.textSecondary }} />
@@ -671,7 +804,35 @@ export default function CommunityRoomClient() {
                             )
                         })
                     )}
+                    {typers.length > 0 && (
+                        <div className="flex items-center gap-2" aria-live="polite">
+                            <span className="flex -space-x-2 flex-shrink-0">
+                                {typers.slice(0, 3).map((t) => (
+                                    <span key={t.key} className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center text-xs font-bold" style={{ background: `${colors.border}80`, color: colors.textSecondary, border: `2px solid ${colors.background}` }}>
+                                        {t.avatar ? <img src={t.avatar} alt="" className="w-full h-full object-cover" /> : t.name.replace('@', '').charAt(0).toUpperCase()}
+                                    </span>
+                                ))}
+                            </span>
+                            <span className="rounded-2xl px-3 py-2.5 flex items-center gap-1" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
+                                <span className="typing-dot" /><span className="typing-dot" style={{ animationDelay: '.18s' }} /><span className="typing-dot" style={{ animationDelay: '.36s' }} />
+                            </span>
+                            <span className="text-[11px] font-bold truncate" style={{ color: colors.textSecondary }}>
+                                {typers.length === 1 ? `${typers[0].name} está escrevendo...` : typers.length === 2 ? `${typers[0].name} e ${typers[1].name} estão escrevendo...` : `${typers.length} pessoas estão escrevendo...`}
+                            </span>
+                        </div>
+                    )}
                     <div ref={bottomRef} />
+                </div>
+                {newBelow && (
+                    <button onClick={() => scrollToBottom()} className="absolute left-1/2 -translate-x-1/2 bottom-2 h-9 px-4 rounded-full text-xs font-black text-white shadow-lg transition active:scale-95" style={{ background: '#f97316' }}>
+                        Novas mensagens ↓
+                    </button>
+                )}
+                <style>{`
+                    .typing-dot { width: 6px; height: 6px; border-radius: 9999px; background: ${colors.textSecondary}; display: inline-block; animation: typingDot 1s infinite ease-in-out; }
+                    @keyframes typingDot { 0%, 60%, 100% { transform: translateY(0); opacity: .45; } 30% { transform: translateY(-4px); opacity: 1; } }
+                    @media (prefers-reduced-motion: reduce) { .typing-dot { animation: none; } }
+                `}</style>
                 </div>
 
                 {/* Composer */}
@@ -730,7 +891,8 @@ export default function CommunityRoomClient() {
                             <input
                                 type="text"
                                 value={messageInput}
-                                onChange={(e) => setMessageInput(e.target.value)}
+                                onChange={(e) => { setMessageInput(e.target.value); setTyping(e.target.value.trim().length > 0) }}
+                                onBlur={() => setTyping(false)}
                                 onKeyDown={(e) => {
                                     if (e.key === 'Enter' && !e.shiftKey) {
                                         e.preventDefault()
