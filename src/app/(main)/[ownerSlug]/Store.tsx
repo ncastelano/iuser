@@ -151,6 +151,8 @@ export function Store({
     const DESC_LIMIT = 80
     const [showAllHours, setShowAllHours] = useState(false)
     const [showScheduleModal, setShowScheduleModal] = useState(false)
+    // serviço já escolhido ao abrir a agenda (vindo do link do bot do WhatsApp: ?agendar=<id do serviço>)
+    const [scheduleProductId, setScheduleProductId] = useState<string | null>(null)
     const [showAgendaDialog, setShowAgendaDialog] = useState(false)
     const [agendaSaving, setAgendaSaving] = useState(false)
     const [chatSaving, setChatSaving] = useState(false)
@@ -248,6 +250,19 @@ export function Store({
         defaultTabPickedRef.current = true
         if (goods.length === 0 && services.length > 0) setActiveTab('services')
     }, [loading, goods.length, services.length])
+
+    // Veio do bot do WhatsApp (?agendar=<id do serviço> ou ?agendar=1): abre a janela de agendar (já com o serviço escolhido)
+    const openedScheduleFromLinkRef = useRef(false)
+    useEffect(() => {
+        if (loading || !owner || openedScheduleFromLinkRef.current || isOwner) return
+        let v: string | null = null
+        try { v = new URLSearchParams(window.location.search).get('agendar') } catch { /* sem window */ }
+        if (!v) return
+        openedScheduleFromLinkRef.current = true
+        if (!owner.allow_scheduling) return
+        setScheduleProductId(v !== '1' && products.some((p) => p.id === v) ? v : null)
+        setShowScheduleModal(true)
+    }, [loading, owner, isOwner, products])
 
     // ========== FILTRO ==========
     const filteredProducts = useMemo(() => {
@@ -775,14 +790,17 @@ export function Store({
             {showScheduleModal && owner && (
                 <div
                     className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4"
-                    onClick={() => setShowScheduleModal(false)}
+                    // na 3.0 a janela começa abaixo da navbar (senão o topo, com o botão de voltar, ficava escondido atrás dela)
+                    style={{ paddingTop: 'calc(var(--shell-top, 0px) + 1rem)' }}
+                    onClick={() => { setShowScheduleModal(false); setScheduleProductId(null) }}
                 >
                     <div onClick={(e) => e.stopPropagation()} className="w-full max-w-md">
                         <StoreSchedule
                             storeId={owner.id}
                             storeName={owner.name}
                             storeSlug={owner.slug}
-                            onClose={() => setShowScheduleModal(false)}
+                            preselectProductId={scheduleProductId}
+                            onClose={() => { setShowScheduleModal(false); setScheduleProductId(null) }}
                             onSuccess={() => {
                                 loadStoreData()
                             }}

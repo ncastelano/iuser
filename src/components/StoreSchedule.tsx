@@ -21,6 +21,7 @@ import {
     Trash2,
     Sparkles,
     ArrowRight,
+    ArrowLeft,
     AlertCircle,
     Eye,
     EyeOff,
@@ -84,6 +85,8 @@ interface Props {
     storeSlug?: string
     onClose?: () => void
     onSuccess?: () => void
+    /** abre já com este serviço escolhido (vindo do botão "Agendar" do cartão do serviço) */
+    preselectProductId?: string | null
 }
 
 // ===== GRADIENTE FIXO =====
@@ -111,6 +114,7 @@ export default function StoreSchedule({
     storeSlug: initialStoreSlug,
     onClose,
     onSuccess,
+    preselectProductId,
 }: Props) {
     const { colors } = useTheme()
     const { appointments, refetch } = useAppointments()
@@ -452,10 +456,15 @@ export default function StoreSchedule({
             .select('id, name, description, price, duration_minutes')
             .eq('store_id', storeId)
             .eq('is_active', true)
+            // só o que se agenda: SERVIÇOS da loja (antes entravam também publicações e produtos)
+            .eq('type', 'service')
+            .eq('listing_type', 'sale')
             .order('name', { ascending: true })
             .limit(20)
         setStoreProducts(data || [])
         setLoadingProducts(false)
+        const wanted = preselectProductId ? (data || []).find((p: any) => p.id === preselectProductId) : null
+        if (wanted) setSelectedItems((prev) => (prev.length ? prev : [{ product: wanted as Product, quantity: 1 }]))
     }
 
     // ---------- Manipulação dos itens selecionados ----------
@@ -728,6 +737,17 @@ export default function StoreSchedule({
         }
     }
 
+    // Botão de voltar do topo (o mesmo desenho dos outros): confirmar → data e hora → (busca) → fecha
+    const headerBack = () => {
+        if (step === 'confirm') return goBack()
+        if (step === 'datetime') {
+            if (selectedDate || selectedTime) return goBack()
+            if (!initialStoreId) return goBack()
+            return onClose?.()
+        }
+        onClose?.()
+    }
+
     // ---------- VALIDAÇÃO ANTES DE CONFIRMAR (INCLUI VERIFICAÇÃO DE AUTENTICAÇÃO) ----------
     const handleConfirmClick = () => {
         // 1. Verifica se está autenticado
@@ -811,11 +831,15 @@ export default function StoreSchedule({
             direction: 'outgoing',
             is_public: isPublic,
         }
-        const { error } = await supabase.from('appointments').insert(appointment)
+        const { data: created, error } = await supabase.from('appointments').insert(appointment).select('id').maybeSingle()
         if (error) {
             toast.error(`Erro ao criar compromisso: ${error.message}`)
             setSubmitting(false)
             return
+        }
+        // Avisa no WhatsApp (pelo número da loja) que foi marcado, se o cliente conversa com o bot da loja; falha aqui não atrapalha
+        if (created?.id) {
+            fetch('/api/whatsapp/appointment-notice', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ appointmentId: created.id }) }).catch(() => { /* só um aviso a mais */ })
         }
         await refetch()
         toast.success('Compromisso criado com sucesso!')
@@ -847,17 +871,25 @@ export default function StoreSchedule({
 
     return (
         <div
-            className="w-full max-w-md mx-auto rounded-3xl shadow-sm max-h-[95vh] overflow-y-auto"
+            className="w-full max-w-md mx-auto rounded-3xl shadow-sm max-h-[calc(100dvh-var(--shell-top,0px)-2rem)] overflow-y-auto"
             style={{
                 background: colors.background,
                 overscrollBehavior: 'contain'
             }}
         >
             <div className="p-6">
-                <div className="flex items-center justify-between mb-6">
-                    <h3 className="text-xl font-black" style={{ color: textPrimary }}>{title}</h3>
+                <div className="flex items-center gap-3 mb-6">
+                    <button
+                        onClick={headerBack}
+                        aria-label="Voltar"
+                        className="flex-shrink-0 rounded-full flex items-center justify-center transition active:scale-95"
+                        style={{ width: 46, height: 46, background: `${colors.border}40`, color: textPrimary }}
+                    >
+                        <ArrowLeft size={20} />
+                    </button>
+                    <h3 className="flex-1 min-w-0 text-xl font-black leading-tight" style={{ color: textPrimary }}>{title}</h3>
                     {onClose && (
-                        <button onClick={onClose} className="text-2xl" style={{ color: textSecondary }}>×</button>
+                        <button onClick={onClose} aria-label="Fechar" className="flex-shrink-0 text-2xl w-8 h-8 flex items-center justify-center" style={{ color: textSecondary }}>×</button>
                     )}
                 </div>
 
