@@ -431,7 +431,8 @@ export default function OwnerClientPage() {
             <main className="relative z-10 min-h-dvh pb-28" style={{ overscrollBehavior: 'none' }}>
                 <Header
                     title="iUser"
-                    showBack={insideShell}
+                    // na página de uma loja (3.0) o voltar fica na mesma linha do logo e do nome, dentro do cabeçalho da loja
+                    showBack={insideShell && !(ownerType === 'store' && !showProfile && !showStoreDashboard && !showPublications)}
                     onBack={insideShell
                         ? ((showProfile || showStoreDashboard || showPublications) ? showMainContent : () => (window.history.length > 1 ? router.back() : router.push('/')))
                         : undefined}

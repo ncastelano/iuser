@@ -27,6 +27,7 @@
     "test:social-links": "node --test scripts/test-social-links.mjs",
     "test:store-links": "node --test scripts/test-store-links.mjs",
     "test:store-model": "node --test scripts/test-store-model.mjs",
+    "test:store-slots": "node --test scripts/test-store-slots.mjs",
     "test:active-drivers": "node --test scripts/test-active-drivers.mjs",
     "test:active-drivers:staging": "env -u SUPABASE_ACCESS_TOKEN npx supabase db query --linked --workdir .staging -f \"$PWD/supabase/tests/active_drivers_map_scenarios.sql\"",
     "test:save-own-profile": "node --test scripts/test-save-own-profile.mjs",

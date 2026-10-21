@@ -7,10 +7,10 @@
 
 export interface LinkLine { label: string; url: string }
 
-export default function LinkLinesV3({ lines, colors }: { lines: LinkLine[]; colors: any }) {
+export default function LinkLinesV3({ lines, colors, inline = false }: { lines: LinkLine[]; colors: any; /** todos na mesma linha (quebra só se não couber), em vez de um por linha */ inline?: boolean }) {
     if (lines.length === 0) return null
     return (
-        <div className="mt-1 flex flex-col items-start">
+        <div className={inline ? 'mt-1 flex flex-wrap items-center gap-x-3' : 'mt-1 flex flex-col items-start'}>
             {lines.map((l, i) => (
                 <a
                     key={`${i}-${l.url}`}

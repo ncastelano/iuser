@@ -51,6 +51,7 @@ import { handleShareLink } from '@/lib/share'
 import { Follows } from './Follows'
 import StoreVipClubMember from './StoreVipClubMember'
 import StoreHeaderV3 from '@/components/v3/StoreHeaderV3'
+import StoreAgendaV3 from '@/components/v3/StoreAgendaV3'
 import ReviewsV3 from '@/components/v3/ReviewsV3'
 import { pageActions, parseStoreModel, type StoreModel } from '@/lib/storeModel'
 import { sanitizeStoreLinks, type StoreLink } from '@/lib/storeLinks'
@@ -166,6 +167,8 @@ export function Store({
     const [showAllHours, setShowAllHours] = useState(false)
     const [showScheduleModal, setShowScheduleModal] = useState(false)
     const [scheduleProductId, setScheduleProductId] = useState<string | null>(null)
+    // dia e horário escolhidos na agenda da página (abrem o agendador já preenchido)
+    const [schedulePick, setSchedulePick] = useState<{ date: Date; time: string } | null>(null)
     const [showAgendaDialog, setShowAgendaDialog] = useState(false)
     const [agendaSaving, setAgendaSaving] = useState(false)
     const [chatSaving, setChatSaving] = useState(false)
@@ -849,7 +852,9 @@ export function Store({
                             storeName={owner.name}
                             storeSlug={owner.slug}
                             preselectProductId={scheduleProductId}
-                            onClose={() => { setShowScheduleModal(false); setScheduleProductId(null) }}
+                            preselectDate={schedulePick?.date ?? null}
+                            preselectTime={schedulePick?.time ?? null}
+                            onClose={() => { setShowScheduleModal(false); setScheduleProductId(null); setSchedulePick(null) }}
                             onSuccess={() => {
                                 loadStoreData()
                             }}
@@ -1012,7 +1017,16 @@ export function Store({
                     whatsappLink={whatsappLink}
                     links={owner.links ?? []}
                     allowScheduling={!!owner.allow_scheduling}
-                    onOpenSchedule={() => { setScheduleProductId(null); setShowScheduleModal(true) }}
+                    onOpenSchedule={() => { setScheduleProductId(null); setSchedulePick(null); setShowScheduleModal(true) }}
+                    onBack={() => (window.history.length > 1 ? router.back() : router.push('/'))}
+                    agendaSlot={owner.allow_scheduling && model !== 'products' ? (
+                        <StoreAgendaV3
+                            storeId={owner.id}
+                            colors={colors}
+                            durationMin={Math.max(15, Math.min(...services.map((sv: any) => Number(sv.duration_minutes) || 60), 60))}
+                            onPick={(date, time) => { setScheduleProductId(null); setSchedulePick({ date, time }); setShowScheduleModal(true) }}
+                        />
+                    ) : undefined}
                     showBuy={actions.buy}
                     showSchedule={actions.schedule}
                     productsSecondary={actions.productsSecondary}

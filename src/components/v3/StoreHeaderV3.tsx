@@ -9,7 +9,7 @@ import { useState, type ReactNode } from 'react'
 import LinkLinesV3, { type LinkLine } from './LinkLinesV3'
 import type { StoreLink } from '@/lib/storeLinks'
 import {
-    ShoppingBag, Calendar, Clock, Eye, MapPin, MessageCircle, Star, UserCheck, UserPlus, Users,
+    ArrowLeft, ShoppingBag, Calendar, Clock, Eye, MapPin, MessageCircle, Star, UserCheck, UserPlus, Users,
 } from 'lucide-react'
 
 const ORANGE = '#f97316'
@@ -53,6 +53,10 @@ export interface StoreHeaderV3Props {
     onOpenAgendaDialog: () => void
     /** botão "Conversar" (quando o chat da loja está ativo e quem vê não é o dono) */
     contactSlot?: ReactNode
+    /** voltar: o botão fica na mesma linha do logo e do nome da loja */
+    onBack?: () => void
+    /** agenda de horários disponíveis (lojas de atendimento): logo abaixo das ações */
+    agendaSlot?: ReactNode
     /** Clube VIP e demais blocos que já existiam no cabeçalho da v2 */
     extraSlot?: ReactNode
     /** só o dono: ajustar dias e horários */
@@ -64,7 +68,7 @@ export default function StoreHeaderV3(p: StoreHeaderV3Props) {
     const [expanded, setExpanded] = useState(false)
     const soft = `${colors.border}40`
     const statusColor = p.isOpen ? '#16a34a' : '#ef4444'
-    const DESC_LIMIT = 110
+    const DESC_LIMIT = 90
     const desc = p.description || ''
     const initial = (p.name || '?').charAt(0).toUpperCase()
 
@@ -72,13 +76,18 @@ export default function StoreHeaderV3(p: StoreHeaderV3Props) {
     
     return (
         <section>
-            <div className="px-1 pt-1 pb-2">
-                {/* logo + nome + status */}
-                <div className="flex items-center gap-3">
-                    <div className="flex-shrink-0 w-[62px] h-[62px] rounded-2xl overflow-hidden flex items-center justify-center" style={{ background: colors.surface, border: `3px solid ${colors.surface}`, outline: `2px solid ${statusColor}` }}>
-                        {p.imageUrl ? <img src={p.imageUrl} alt={p.name} className="w-full h-full object-cover" /> : <span className="text-2xl font-black" style={{ color: ORANGE }}>{initial}</span>}
+            <div className="px-1 pt-0 pb-2">
+                {/* voltar + logo + nome + situação, numa linha só */}
+                <div className="flex items-center gap-2.5">
+                    {p.onBack && (
+                        <button onClick={p.onBack} aria-label="Voltar" className="flex-shrink-0 rounded-full flex items-center justify-center transition active:scale-95" style={{ width: 46, height: 46, background: soft, color: colors.textPrimary }}>
+                            <ArrowLeft size={20} />
+                        </button>
+                    )}
+                    <div className="flex-shrink-0 w-[46px] h-[46px] rounded-2xl overflow-hidden flex items-center justify-center" style={{ background: colors.surface, outline: `2px solid ${statusColor}`, outlineOffset: 1 }}>
+                        {p.imageUrl ? <img src={p.imageUrl} alt="" className="w-full h-full object-cover" /> : <span className="text-xl font-black" style={{ color: ORANGE }}>{initial}</span>}
                     </div>
-                    <div className="min-w-0 pb-0.5">
+                    <div className="min-w-0 flex-1">
                         <h2 className="text-[17px] font-black leading-tight truncate" style={{ color: colors.textPrimary }}>{p.name}</h2>
                         <button
                             onClick={() => { if (p.hasHours) p.onOpenHours() }}
@@ -91,6 +100,36 @@ export default function StoreHeaderV3(p: StoreHeaderV3Props) {
                     </div>
                 </div>
 
+                {/* atalhos em cápsulas, numa fileira só (rola para o lado se não couber) */}
+                <div className="mt-3 flex gap-1.5 overflow-x-auto -mx-1 px-1 pb-0.5" style={{ scrollbarWidth: 'none' }}>
+                    {p.ratingsCount > 0 && (
+                        <span className={`${capsule} flex-shrink-0`} style={{ background: soft, color: colors.textPrimary }}>
+                            <Star size={13} className="flex-shrink-0" style={{ color: ORANGE, fill: ORANGE }} />
+                            {p.rating.toFixed(1).replace('.', ',')} ({p.ratingsCount})
+                        </span>
+                    )}
+                    <span className={`${capsule} flex-shrink-0`} style={{ background: soft, color: colors.textSecondary }}>
+                        <Eye size={13} className="flex-shrink-0" />
+                        <b style={{ color: colors.textPrimary }}>{p.visitors}</b>
+                    </span>
+                    <button onClick={p.onOpenFollowers} className={`${capsule} flex-shrink-0`} style={{ background: soft, color: colors.textSecondary }}>
+                        <Users size={13} className="flex-shrink-0" />
+                        <b style={{ color: colors.textPrimary }}>{p.followers}</b> seguidores
+                    </button>
+                    {!p.isOpen && p.nextOpen && (
+                        <button onClick={() => p.hasHours && p.onOpenHours()} className={`${capsule} flex-shrink-0`} style={{ background: `${ORANGE}1a`, color: ORANGE }}>
+                            <Clock size={13} className="flex-shrink-0" />
+                            Abre {p.nextOpen.day} às {p.nextOpen.open}
+                        </button>
+                    )}
+                    {p.address && (
+                        <button onClick={p.onOpenMaps} className={`${capsule} flex-shrink-0`} style={{ background: soft, color: colors.textPrimary }}>
+                            <MapPin size={13} className="flex-shrink-0" style={{ color: ORANGE }} />
+                            <span className="truncate max-w-[210px]">{p.address}</span>
+                        </button>
+                    )}
+                </div>
+
                 {desc && (
                     <p className="mt-3 text-[13px] leading-relaxed" style={{ color: colors.textSecondary }}>
                         {expanded || desc.length <= DESC_LIMIT ? desc : `${desc.slice(0, DESC_LIMIT)}…`}
@@ -100,44 +139,15 @@ export default function StoreHeaderV3(p: StoreHeaderV3Props) {
                     </p>
                 )}
 
-                {/* links em texto (WhatsApp e redes sociais que tiverem link), um por linha */}
+                {/* links em texto (WhatsApp e redes sociais que tiverem link), juntos numa linha */}
                 <LinkLinesV3
+                    inline
                     lines={[
                         ...(p.whatsappLink ? [{ label: 'WhatsApp', url: p.whatsappLink } as LinkLine] : []),
                         ...p.links,
                     ]}
                     colors={colors}
                 />
-
-                {/* atalhos em cápsulas */}
-                <div className="mt-3 flex flex-wrap gap-1.5">
-                    {p.address && (
-                        <button onClick={p.onOpenMaps} className={capsule} style={{ background: soft, color: colors.textPrimary }}>
-                            <MapPin size={13} className="flex-shrink-0" style={{ color: ORANGE }} />
-                            <span className="truncate max-w-[210px]">{p.address}</span>
-                        </button>
-                    )}
-                    {!p.isOpen && p.nextOpen && (
-                        <button onClick={() => p.hasHours && p.onOpenHours()} className={capsule} style={{ background: `${ORANGE}1a`, color: ORANGE }}>
-                            <Clock size={13} className="flex-shrink-0" />
-                            Abre {p.nextOpen.day} às {p.nextOpen.open}
-                        </button>
-                    )}
-                    {p.ratingsCount > 0 && (
-                        <span className={capsule} style={{ background: soft, color: colors.textPrimary }}>
-                            <Star size={13} className="flex-shrink-0" style={{ color: ORANGE, fill: ORANGE }} />
-                            {p.rating.toFixed(1).replace('.', ',')} ({p.ratingsCount})
-                        </span>
-                    )}
-                    <span className={capsule} style={{ background: soft, color: colors.textSecondary }}>
-                        <Eye size={13} className="flex-shrink-0" />
-                        <b style={{ color: colors.textPrimary }}>{p.visitors}</b>
-                    </span>
-                    <button onClick={p.onOpenFollowers} className={capsule} style={{ background: soft, color: colors.textSecondary }}>
-                        <Users size={13} className="flex-shrink-0" />
-                        <b style={{ color: colors.textPrimary }}>{p.followers}</b> seguidores
-                    </button>
-                </div>
 
                 {/* botão(ões) central(is) conforme o modelo da loja: produtos = Comprar; atendimento = Agendar; mista = Comprar e Agendar lado a lado */}
                 {(() => {
@@ -204,6 +214,8 @@ export default function StoreHeaderV3(p: StoreHeaderV3Props) {
                         </button>
                     </div>
                 )}
+
+                {p.agendaSlot}
 
                 {p.extraSlot && <div className="mt-2">{p.extraSlot}</div>}
 

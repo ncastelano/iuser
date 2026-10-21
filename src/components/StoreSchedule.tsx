@@ -89,6 +89,9 @@ interface Props {
     onSuccess?: () => void
     /** abre já com este serviço escolhido (vindo do botão "Agendar" do cartão do serviço) */
     preselectProductId?: string | null
+    /** abre já com este dia e horário escolhidos (vindo da agenda da página da loja) */
+    preselectDate?: Date | null
+    preselectTime?: string | null
 }
 
 // ===== GRADIENTE FIXO =====
@@ -117,6 +120,8 @@ export default function StoreSchedule({
     onClose,
     onSuccess,
     preselectProductId,
+    preselectDate,
+    preselectTime,
 }: Props) {
     const { colors } = useTheme()
     const { appointments, refetch } = useAppointments()
@@ -389,6 +394,27 @@ export default function StoreSchedule({
         setAppointmentNote(autoNote + (recado ? (autoNote ? ' — ' : '') + recado : ''))
     }, [v3, autoNote, v3Recado])
 
+    // Horários já tomados por QUALQUER cliente da loja (só data, hora e duração): sem isso o agendador só conhecia os agendamentos do próprio
+    // cliente e oferecia vagas já ocupadas. Enquanto não chega (ou se falhar), vale o que o cliente já tinha.
+    const [storeBusy, setStoreBusy] = useState<{ date: string; time: string; duration: number }[] | null>(null)
+    useEffect(() => {
+        if (!target?.id || step === 'search') return
+        let cancelled = false
+        const from = new Date()
+        const to = new Date(from.getFullYear(), from.getMonth(), from.getDate() + 60)
+        const ymd = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+        supabase.rpc('get_store_busy_slots', { p_store_id: target.id, p_from: ymd(from), p_to: ymd(to) }).then(({ data, error }) => {
+            if (cancelled || error || !data) return
+            setStoreBusy((data as { slot_date: string; slot_time: string; duration_minutes: number }[]).map((r) => ({ date: r.slot_date, time: r.slot_time, duration: r.duration_minutes })))
+        })
+        return () => { cancelled = true }
+    }, [target?.id, step === 'search'])
+    // A lista que as contas de vaga usam: a da loja inteira quando chegou; senão os agendamentos do próprio cliente
+    const slotAppointments = useMemo(() => {
+        if (!target || !storeBusy) return appointments
+        return storeBusy.map((b, i) => ({ id: `busy-${i}`, store_id: target.id, date: b.date, time: b.time, duration_minutes: b.duration, status: 'confirmed' })) as unknown as typeof appointments
+    }, [storeBusy, appointments, target])
+
     // ---------- Efeitos ----------
 
     useEffect(() => {
@@ -477,6 +503,7 @@ export default function StoreSchedule({
         setLoadingProducts(false)
         const wanted = preselectProductId ? (data || []).find((p: any) => p.id === preselectProductId) : null
         if (wanted) setSelectedItems((prev) => (prev.length ? prev : [{ product: wanted as Product, quantity: 1 }]))
+        if (preselectDate && preselectTime) { setSelectedDate(preselectDate); setSelectedTime(preselectTime) }
     }
 
     // ---------- Manipulação dos itens selecionados ----------
@@ -565,7 +592,7 @@ export default function StoreSchedule({
             const lunchStart = dayConfig.lunchStart ? toMinutes(dayConfig.lunchStart) : null
             const lunchEnd = dayConfig.lunchEnd ? toMinutes(dayConfig.lunchEnd) : null
 
-            const relevantAppointments = appointments.filter(a =>
+            const relevantAppointments = slotAppointments.filter(a =>
                 a.date === dateStr && a.status !== 'cancelled' && a.store_id === target.id
             )
 
@@ -599,7 +626,7 @@ export default function StoreSchedule({
         }
 
         return slots.slice(0, 5)
-    }, [target, config, appointments, selectedDuration, todayStr, selectedItems.length])
+    }, [target, config, slotAppointments, selectedDuration, todayStr, selectedItems.length])
 
     // ---------- Todos os slots do dia (livres + ocupados) ----------
     const allSlots = useMemo(() => {
@@ -617,7 +644,7 @@ export default function StoreSchedule({
         const lunchStart = dayConfig.lunchStart ? toMinutes(dayConfig.lunchStart) : null
         const lunchEnd = dayConfig.lunchEnd ? toMinutes(dayConfig.lunchEnd) : null
 
-        const relevantAppointments = appointments.filter(a =>
+        const relevantAppointments = slotAppointments.filter(a =>
             a.date === dateStr && a.status !== 'cancelled' && a.store_id === target.id
         )
 
@@ -650,20 +677,20 @@ export default function StoreSchedule({
         }
 
         return slots
-    }, [selectedDate, appointments, config, target, selectedDuration])
+    }, [selectedDate, slotAppointments, config, target, selectedDuration])
 
     // ---------- Mapa de compromissos ocupados ----------
     const eventsByDate = useMemo(() => {
         const map: Record<string, number> = {}
         if (target) {
-            appointments
+            slotAppointments
                 .filter(a => a.store_id === target.id && a.status !== 'cancelled')
                 .forEach(a => {
                     map[a.date] = (map[a.date] || 0) + 1
                 })
         }
         return map
-    }, [appointments, target])
+    }, [slotAppointments, target])
 
     // ---------- Mapa de vagas livres por dia ----------
     const freeSlotsByDate = useMemo(() => {
@@ -701,7 +728,7 @@ export default function StoreSchedule({
             const lunchStart = dayConfig.lunchStart ? toMinutes(dayConfig.lunchStart) : null
             const lunchEnd = dayConfig.lunchEnd ? toMinutes(dayConfig.lunchEnd) : null
 
-            const relevantAppointments = appointments.filter(
+            const relevantAppointments = slotAppointments.filter(
                 a => a.store_id === target.id && a.date === dateStr && a.status !== 'cancelled'
             )
 
@@ -726,7 +753,7 @@ export default function StoreSchedule({
             map[dateStr] = freeCount
         }
         return map
-    }, [config, appointments, target, selectedDuration, calendarMonth, calendarYear, todayStr, selectedItems.length])
+    }, [config, slotAppointments, target, selectedDuration, calendarMonth, calendarYear, todayStr, selectedItems.length])
 
     // ---------- Faixa dos próximos dias com o número de vagas livres (tela da 3.0) ----------
     const dayStrip = useMemo(() => {
@@ -745,7 +772,7 @@ export default function StoreSchedule({
                     const endMinutes = toMinutes(dayConfig.end || '18:00')
                     const lunchStart = dayConfig.lunchStart ? toMinutes(dayConfig.lunchStart) : null
                     const lunchEnd = dayConfig.lunchEnd ? toMinutes(dayConfig.lunchEnd) : null
-                    const rel = appointments.filter(a => a.store_id === target.id && a.date === dateStr && a.status !== 'cancelled')
+                    const rel = slotAppointments.filter(a => a.store_id === target.id && a.date === dateStr && a.status !== 'cancelled')
                     const isToday = date.toDateString() === now.toDateString()
                     const currentMinutes = now.getHours() * 60 + now.getMinutes()
                     for (let m = startMinutes; m + selectedDuration <= endMinutes; m += slotInterval) {
@@ -765,7 +792,7 @@ export default function StoreSchedule({
             out.push({ date, dateStr, free })
         }
         return out
-    }, [config, appointments, target, selectedDuration, selectedItems.length])
+    }, [config, slotAppointments, target, selectedDuration, selectedItems.length])
 
     const diasDoMes = new Date(calendarYear, calendarMonth + 1, 0).getDate()
     const primeiroDia = new Date(calendarYear, calendarMonth, 1).getDay()
