@@ -155,10 +155,8 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
     const [selectedItem, setSelectedItem] = useState<any | null>(null)
     const [search, setSearch] = useState('')
     const [mapReady, setMapReady] = useState(false)
-    // Sonar: os dados do radar já chegaram? e a varredura de entrada (uma vez por visita) está rolando?
+    // Sonar: os dados do radar já chegaram?
     const [dataReady, setDataReady] = useState(false)
-    const [scanning, setScanning] = useState(false)
-    const scanPlayedRef = useRef(false)
     const [deviceLocation, setDeviceLocation] = useState<{ lat: number; lng: number } | null>(null)
     const [profileLocation, setProfileLocation] = useState<{ lat: number; lng: number } | null>(null)
     const [overrideList, setOverrideList] = useState<any[] | null>(null)
@@ -651,13 +649,6 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
             toast.error('Erro ao remover: ' + ((err as Error).message || 'tente de novo'))
         }
     }
-
-    // Tudo pronto (mapa, local, dados e marcadores): começa a varredura de entrada, só uma vez por visita
-    useEffect(() => {
-        if (!mapReady || loadingLocation || !dataReady || scanPlayedRef.current) return
-        const t = setTimeout(() => { scanPlayedRef.current = true; setScanning(true) }, 250)
-        return () => clearTimeout(t)
-    }, [mapReady, loadingLocation, dataReady])
 
     // MARKERS - CORRIGIDO COM LOGS
     useEffect(() => {
@@ -1249,13 +1240,10 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                 </button>
             </div>}
 
-            {/* Sonar: tela de radar enquanto carrega; quando tudo chegou, uma varredura a partir de onde a pessoa está */}
+            {/* Sonar: tela de radar enquanto o mapa, a localização e os dados carregam */}
             <RadarSonar
-                phase={!mapReady || loadingLocation || !dataReady ? 'loading' : scanning ? 'scan' : 'off'}
-                map={mapReady ? mapRef.current : null}
-                center={referenceLocation ? { lat: referenceLocation.lat, lng: referenceLocation.lng } : null}
+                loading={!mapReady || loadingLocation || !dataReady}
                 label={loadingLocation ? 'Buscando sua localização...' : !mapReady ? 'Preparando o mapa...' : 'Procurando ao redor...'}
-                onScanDone={() => setScanning(false)}
             />
 
             {/* HEADER - mesmo componente do homepage, com os filtros do radar nas tabs
