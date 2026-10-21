@@ -15,6 +15,11 @@ export interface MyCandidate {
     name: string | null
     slug: string | null
     avatarUrl: string | undefined
+    /** Nota média e quantas avaliações (públicas no perfil) */
+    rating: number | null
+    ratingCount: number
+    /** Apresentação curta do profissional */
+    bio: string | null
 }
 
 export interface MyRequest {
@@ -52,7 +57,7 @@ export async function loadMyRequests(client: SupabaseClient, userId: string): Pr
     const applicantIds = Array.from(new Set((apps || []).map((a: any) => a.applicant_id)))
     const profileById = new Map<string, any>()
     if (applicantIds.length) {
-        const { data: profiles } = await client.from('profiles').select('id, name, profileSlug, avatar_url').in('id', applicantIds)
+        const { data: profiles } = await client.from('profiles').select('id, name, profileSlug, avatar_url, ratings_avg, ratings_count, description').in('id', applicantIds)
         ;(profiles || []).forEach((p: any) => profileById.set(p.id, p))
     }
 
@@ -72,6 +77,7 @@ export async function loadMyRequests(client: SupabaseClient, userId: string): Pr
                 return {
                     applicationId: a.id, applicantId: a.applicant_id, status: a.status, completedAt: a.completed_at || null,
                     name: p?.name || null, slug: p?.profileSlug || null, avatarUrl: getAvatarUrl(client, p?.avatar_url),
+                    rating: p?.ratings_count > 0 && p?.ratings_avg != null ? Number(p.ratings_avg) : null, ratingCount: Number(p?.ratings_count) || 0, bio: (p?.description || '').trim() || null,
                 }
             })
         const stage = stageOf({ status: r.status, applications: candidates.map((c) => ({ status: c.status, completedAt: c.completedAt })) })
