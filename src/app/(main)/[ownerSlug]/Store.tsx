@@ -839,7 +839,9 @@ export function Store({
             {showScheduleModal && owner && (
                 <div
                     className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4"
-                    onClick={() => setShowScheduleModal(false)}
+                    // na 3.0 a janela começa abaixo da navbar (senão o topo, com o botão de voltar, ficava escondido atrás dela)
+                    style={{ paddingTop: 'calc(var(--shell-top, 0px) + 1rem)' }}
+                    onClick={() => { setShowScheduleModal(false); setScheduleProductId(null) }}
                 >
                     <div onClick={(e) => e.stopPropagation()} className="w-full max-w-md">
                         <StoreSchedule
