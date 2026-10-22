@@ -30,6 +30,8 @@ import {
 } from 'lucide-react'
 import { useInsideShell } from '@/components/InsideShell'
 import ScheduleV3 from '@/components/v3/ScheduleV3'
+import AppointmentDepositPanel from '@/components/AppointmentDepositPanel'
+import { brl as depositBrl, depositConfigOf, depositRuleLabel, previewDeposit, DEPOSIT_HOLD_MINUTES, type DepositConfig } from '@/lib/appointmentDeposit'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
@@ -157,6 +159,9 @@ export default function StoreSchedule({
     const [isPublic, setIsPublic] = useState(false)
     // 3.0: o recado do cliente é separado da lista de serviços (que vira o texto do agendamento); os dois se juntam em `appointmentNote`
     const [v3Recado, setV3Recado] = useState('')
+    // Entrada (opcional, definida pela loja): regra da loja, valor previsto e o agendamento aguardando o pagamento da entrada
+    const [depositCfg, setDepositCfg] = useState<DepositConfig>({ mode: 'none', value: 0, policy: null })
+    const [depositAppt, setDepositAppt] = useState<string | null>(null)
 
     const [storeProducts, setStoreProducts] = useState<Product[]>([])
     const [loadingProducts, setLoadingProducts] = useState(false)
@@ -394,6 +399,15 @@ export default function StoreSchedule({
         setAppointmentNote(autoNote + (recado ? (autoNote ? ' — ' : '') + recado : ''))
     }, [v3, autoNote, v3Recado])
 
+    useEffect(() => {
+        if (!target?.id || step === 'search') return
+        let cancelled = false
+        supabase.from('stores').select('deposit_mode, deposit_value, deposit_policy').eq('id', target.id).maybeSingle().then(({ data }) => {
+            if (!cancelled) setDepositCfg(depositConfigOf(data as any))
+        })
+        return () => { cancelled = true }
+    }, [target?.id, step === 'search'])
+
     // Horários já tomados por QUALQUER cliente da loja (só data, hora e duração): sem isso o agendador só conhecia os agendamentos do próprio
     // cliente e oferecia vagas já ocupadas. Enquanto não chega (ou se falhar), vale o que o cliente já tinha.
     const [storeBusy, setStoreBusy] = useState<{ date: string; time: string; duration: number }[] | null>(null)
@@ -414,6 +428,9 @@ export default function StoreSchedule({
         if (!target || !storeBusy) return appointments
         return storeBusy.map((b, i) => ({ id: `busy-${i}`, store_id: target.id, date: b.date, time: b.time, duration_minutes: b.duration, status: 'confirmed' })) as unknown as typeof appointments
     }, [storeBusy, appointments, target])
+
+    const selectedTotal = useMemo(() => selectedItems.reduce((sum, i) => sum + (Number(i.product.price) || 0) * i.quantity, 0), [selectedItems])
+    const depositPreview = previewDeposit(depositCfg, selectedTotal)
 
     // ---------- Efeitos ----------
 
@@ -908,6 +925,8 @@ export default function StoreSchedule({
             status: 'pending',
             direction: 'outgoing',
             is_public: isPublic,
+            // o banco calcula a entrada (se a loja cobra) pelo preço destes serviços
+            service_items: selectedItems.map((i) => ({ product_id: i.product.id, quantity: i.quantity })),
         }
         const { data: created, error } = await supabase.from('appointments').insert(appointment).select('id').maybeSingle()
         if (error) {
@@ -920,8 +939,14 @@ export default function StoreSchedule({
             fetch('/api/whatsapp/appointment-notice', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ appointmentId: created.id }) }).catch(() => { /* só um aviso a mais */ })
         }
         await refetch()
-        toast.success('Compromisso criado com sucesso!')
         onSuccess?.()
+        // loja que cobra entrada: o agendamento só fica garantido depois de pagar — mostra o Pix e o prazo em vez de fechar
+        if (created?.id && depositPreview > 0) {
+            setDepositAppt(created.id)
+            setSubmitting(false)
+            return
+        }
+        toast.success('Compromisso criado com sucesso!')
         onClose?.()
     }
 
@@ -932,8 +957,8 @@ export default function StoreSchedule({
     const textSecondary = colors.textSecondary
     const accentColor = colors.accent
 
-    const v3Flow = v3 && !!target && (step === 'datetime' || step === 'confirm')
-    const title = step === 'search' ? 'Buscar loja' : step === 'datetime' ? (v3 ? 'Agendar atendimento' : `Agendar em ${target?.name || ''}`) : 'Confirmar'
+    const v3Flow = v3 && !!target && !depositAppt && (step === 'datetime' || step === 'confirm')
+    const title = depositAppt ? 'Pague a entrada' : step === 'search' ? 'Buscar loja' : step === 'datetime' ? (v3 ? 'Agendar atendimento' : `Agendar em ${target?.name || ''}`) : 'Confirmar'
 
     const formatDate = (date: Date) => {
         return date.toLocaleDateString('pt-BR', {
@@ -1011,11 +1036,26 @@ export default function StoreSchedule({
                         submitting={submitting}
                         onConfirm={handleConfirmClick}
                         error={validationError}
+                        deposit={depositPreview > 0 ? { amount: depositPreview, rule: depositRuleLabel(depositCfg), policy: depositCfg.policy || null, holdMinutes: DEPOSIT_HOLD_MINUTES } : null}
                     />
                 )}
 
+                {/* ENTRADA: o agendamento foi registrado e espera o Pix da entrada (reserva o horário por alguns minutos) */}
+                {depositAppt && (
+                    <div className="flex flex-col gap-4">
+                        <p className="text-sm" style={{ color: textSecondary }}>Seu horário está reservado. Pague a entrada para confirmar o agendamento.</p>
+                        <AppointmentDepositPanel appointmentId={depositAppt} role="customer" onChanged={() => { refetch() }} />
+                        <button
+                            onClick={() => onClose?.()}
+                            style={v3 ? { height: 48, borderRadius: 9999, background: `${colors.border}40`, color: textPrimary, fontWeight: 900, fontSize: 14 } : { ...pillButtonStyle, background: 'transparent', border: `1px solid ${borderColor}`, color: textSecondary }}
+                        >
+                            Fechar (pago depois em Compromissos)
+                        </button>
+                    </div>
+                )}
+
                 {/* ETAPA BUSCA */}
-                {step === 'search' && (
+                {!depositAppt && step === 'search' && (
                     <div style={{ position: 'relative' }}>
                         <input
                             ref={searchInputRef}
@@ -1116,7 +1156,7 @@ export default function StoreSchedule({
                 )}
 
                 {/* ETAPA DATA/HORA */}
-                {!v3Flow && step === 'datetime' && target && (
+                {!depositAppt && !v3Flow && step === 'datetime' && target && (
                     <>
                         <div
                             style={{
@@ -1977,7 +2017,7 @@ export default function StoreSchedule({
                 )}
 
                 {/* ===== TELA DE CONFIRMAÇÃO COM LOGIN ===== */}
-                {!v3Flow && step === 'confirm' && selectedDate && selectedTime && target && (
+                {!depositAppt && !v3Flow && step === 'confirm' && selectedDate && selectedTime && target && (
                     <div style={{ textAlign: 'center' }}>
                         {/* ===== SE NÃO ESTIVER AUTENTICADO, MOSTRA O FORMULÁRIO DE LOGIN ===== */}
                         {!isAuthenticated ? (
@@ -2346,6 +2386,14 @@ export default function StoreSchedule({
                                         </div>
                                     </div>
                                 </div>
+
+                                {depositPreview > 0 && (
+                                    <div style={{ marginBottom: 16, padding: '12px 16px', borderRadius: 16, background: `${accentColor}12`, border: `1px solid ${accentColor}40`, textAlign: 'left' }}>
+                                        <p style={{ fontWeight: 800, fontSize: 14, color: textPrimary, margin: 0 }}>Entrada de {depositBrl(depositPreview)}</p>
+                                        <p style={{ fontSize: 12, color: textSecondary, margin: '4px 0 0' }}>{depositRuleLabel(depositCfg)}. Depois de confirmar você paga por Pix e o horário fica reservado por {DEPOSIT_HOLD_MINUTES} min.</p>
+                                        {depositCfg.policy && <p style={{ fontSize: 12, color: textSecondary, margin: '6px 0 0' }}><b>Cancelamento:</b> {depositCfg.policy}</p>}
+                                    </div>
+                                )}
 
                                 <div style={{ display: 'flex', gap: 12 }}>
                                     <button

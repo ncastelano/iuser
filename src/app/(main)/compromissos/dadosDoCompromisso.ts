@@ -33,6 +33,10 @@ export interface Appointment {
     is_public?: boolean
     provider_profile_id?: string | null   // NOVO
     service_id?: string | null            // NOVO (opcional)
+    // Entrada (sinal) pedida pela loja — migration 20261116; quem decide e muda é o banco
+    deposit_amount?: number
+    deposit_status?: 'none' | 'awaiting' | 'reported' | 'paid' | 'refunded' | 'expired'
+    deposit_due_at?: string | null
 }
 
 export function useAppointments() {

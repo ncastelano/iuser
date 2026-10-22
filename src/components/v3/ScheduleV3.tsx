@@ -54,6 +54,8 @@ export default function ScheduleV3(p: {
     submitting: boolean
     onConfirm: () => void
     error: string | null
+    /** a loja cobra entrada: valor, regra, política de cancelamento e quanto tempo o horário fica reservado */
+    deposit?: { amount: number; rule: string; policy: string | null; holdMinutes: number } | null
 }) {
     const { colors } = p
     const soft = `${colors.border}30`
@@ -107,6 +109,17 @@ export default function ScheduleV3(p: {
                     )}
                 </div>
 
+                {p.deposit && (
+                    <div className="mt-4 rounded-3xl p-4" style={{ background: `${ORANGE}12`, boxShadow: `inset 0 0 0 1.5px ${ORANGE}55` }}>
+                        <div className="flex items-center justify-between gap-3">
+                            <span className="text-sm font-black" style={{ color: colors.textPrimary }}>Entrada para garantir</span>
+                            <span className="text-base font-black" style={{ color: ORANGE }}>{brl(p.deposit.amount)}</span>
+                        </div>
+                        <p className="mt-1 text-xs leading-snug" style={{ color: colors.textSecondary }}>{p.deposit.rule}. Ao confirmar, você paga por Pix e o horário fica reservado por {p.deposit.holdMinutes} min.</p>
+                        {p.deposit.policy && <p className="mt-1.5 text-xs leading-snug" style={{ color: colors.textSecondary }}><b style={{ color: colors.textPrimary }}>Cancelamento:</b> {p.deposit.policy}</p>}
+                    </div>
+                )}
+
                 <label className="mt-5 block text-xs font-black" style={{ color: colors.textSecondary }}>Recado para a loja (opcional)</label>
                 <textarea
                     value={p.note}
@@ -129,7 +142,7 @@ export default function ScheduleV3(p: {
                 </button>
 
                 {!p.authed && <p className="mt-4 text-xs text-center" style={{ color: colors.textSecondary }}>Para confirmar você precisa entrar na sua conta. Volta para cá com tudo escolhido.</p>}
-                {bar(p.authed ? 'Confirmar agendamento' : 'Entrar para confirmar', p.authed ? p.onConfirm : p.onLogin, { busy: p.submitting })}
+                {bar(p.authed ? (p.deposit ? 'Confirmar e pagar entrada' : 'Confirmar agendamento') : 'Entrar para confirmar', p.authed ? p.onConfirm : p.onLogin, { busy: p.submitting })}
             </div>
         )
     }

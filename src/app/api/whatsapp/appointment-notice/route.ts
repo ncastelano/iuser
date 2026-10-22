@@ -26,7 +26,7 @@ export async function POST(req: Request) {
 
     const { data: appt } = await supabaseAdmin
         .from('appointments')
-        .select('id, store_id, store_name, customer_id, date, time, service_name, status, direction, created_at')
+        .select('id, store_id, store_name, customer_id, date, time, service_name, status, direction, created_at, deposit_amount, deposit_status')
         .eq('id', appointmentId)
         .maybeSingle()
     // só o próprio cliente, e só um agendamento que ele acabou de fazer na loja
@@ -79,6 +79,7 @@ export async function POST(req: Request) {
             time: appt.time,
             status: appt.status,
             appUrl: APP_URL,
+            deposit: appt.deposit_status === 'awaiting' ? { amount: Number(appt.deposit_amount) || 0, holdMinutes: 30 } : null,
         }))
         return NextResponse.json({ sent: true })
     } catch (err) {

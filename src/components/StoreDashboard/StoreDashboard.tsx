@@ -39,6 +39,7 @@ import { useInsideShell } from '@/components/InsideShell'
 import V3Section from './V3Section'
 import StoreDashboardSkeleton from './StoreDashboardSkeleton'
 import StoreOperatingDays from './StoreOperatingDays'
+import StoreDepositEditor from './StoreDepositEditor'
 import AtalhoCompromissosDaLoja from '@/app/(main)/compromissos/AtalhoCompromissosDaLoja'
 import StoreOrders from './StoreOrders'
 import StoreDeliverySettings from './StoreDeliverySettings'
@@ -733,6 +734,11 @@ export default function StoreDashboard({
             {/* ===== STORE OPERATING DAYS ===== */}
             <div className="mb-4">
                 <StoreOperatingDays storeId={store.id} />
+            </div>
+
+            {/* ===== ENTRADA NO AGENDAMENTO (opcional) ===== */}
+            <div className="mb-4">
+                <StoreDepositEditor storeId={store.id} />
             </div>
 
             {!infoFirst && descriptionNode}
