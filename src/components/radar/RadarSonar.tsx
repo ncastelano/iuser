@@ -1,14 +1,16 @@
 // src/components/radar/RadarSonar.tsx
 //
-// Tela de carregamento do /radar em forma de sonar: fundo escuro com anéis e grade, varredura girando, ondas saindo do centro e
+// Tela de carregamento do /radar em forma de sonar: fundo da cor do tema (branco no claro, preto no escuro) com anéis e grade, varredura girando, ondas saindo do centro e
 // ecos que acendem, com o texto do que está sendo feito. Some com um fade quando o mapa, a localização e os dados chegaram.
 // Só apresentação (os pins do mapa não têm animação). Respeita "reduzir movimento".
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useTheme } from '@/app/contexts/theme'
 
 const ORANGE = '#f97316'
 export default function RadarSonar({ loading, label }: { loading: boolean; label?: string }) {
+    const { colors } = useTheme()
     // a tela de carregamento some com um fade (fica montada 450 ms depois de sair)
     const [showLoading, setShowLoading] = useState(loading)
     const [loadingFading, setLoadingFading] = useState(false)
@@ -24,7 +26,7 @@ export default function RadarSonar({ loading, label }: { loading: boolean; label
     return (
         <>
             {showLoading && (
-                <div className="absolute inset-0 z-10 overflow-hidden flex items-center justify-center transition-opacity duration-500" style={{ opacity: loadingFading ? 0 : 1, background: 'radial-gradient(circle at 50% 46%, #0b2a3a 0%, #07131f 62%, #050b13 100%)', pointerEvents: loadingFading ? 'none' : 'auto' }} role="status" aria-live="polite">
+                <div className="absolute inset-0 z-10 overflow-hidden flex items-center justify-center transition-opacity duration-500" style={{ opacity: loadingFading ? 0 : 1, background: colors.background, pointerEvents: loadingFading ? 'none' : 'auto' }} role="status" aria-live="polite">
                     <div className="relative" style={{ width: 'min(78vw, 440px)', aspectRatio: '1 / 1' }}>
                         {/* anéis e cruz fixos */}
                         {[1, 0.72, 0.44, 0.2].map((s) => (
@@ -44,7 +46,7 @@ export default function RadarSonar({ loading, label }: { loading: boolean; label
                         ))}
                         <span className="absolute left-1/2 top-1/2 w-3.5 h-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full" style={{ background: ORANGE, boxShadow: '0 0 0 4px rgba(249,115,22,0.35), 0 0 22px rgba(249,115,22,0.9)' }} />
                     </div>
-                    {label && <p className="absolute left-1/2 -translate-x-1/2 text-sm font-black tracking-wide text-white/90" style={{ bottom: '17%' }}>{label}</p>}
+                    {label && <p className="absolute left-1/2 -translate-x-1/2 text-sm font-black tracking-wide" style={{ bottom: '17%', color: colors.textPrimary }}>{label}</p>}
                 </div>
             )}
             <style>{`
