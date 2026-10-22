@@ -11,9 +11,9 @@
 import { ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-    Search, ShoppingBag, Store as StoreIcon, Car, Wrench, Megaphone, Briefcase, Users, MessageCircle,
+    Search, ShoppingBag, Store as StoreIcon, Car, Wrench, Briefcase, Users, MessageCircle,
     ChevronRight, Star, MapPin, Eye, User, LogIn, LogOut, Radar, UserPlus, X, Plus, Package, ShoppingCart, Scissors, Check,
-    UtensilsCrossed, Shirt, Smartphone, Hand, Sparkles, Bike, Motorbike, type LucideIcon,
+    UtensilsCrossed, Shirt, Smartphone, Hand, Sparkles, Bike, Motorbike, CircleDollarSign, type LucideIcon,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
@@ -642,7 +642,7 @@ export default function ModeloInicialPage() {
     ]
     // Quem QUER GANHAR com o iUser
     const earns: Action[] = [
-        { title: 'Vender', desc: 'Mostre seu produto, serviço ou loja', icon: Megaphone, color: '#16a34a', onClick: () => setSellOpen(true) },
+        { title: 'Vender', desc: 'Mostre seu produto, serviço ou loja', icon: CircleDollarSign, color: '#16a34a', onClick: () => setSellOpen(true) },
         { title: 'Ser motorista', desc: 'Receba corridas na sua região', icon: Car, color: '#ea580c', onClick: () => go('/painel-motorista') },
         {
             title: 'Indicar e ganhar', desc: 'Convide e receba comissão', icon: UserPlus, color: '#7c3aed',
