@@ -12,7 +12,7 @@ import { ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
     Search, ShoppingBag, Store as StoreIcon, Car, Wrench, Megaphone, Briefcase, Users, MessageCircle,
-    ChevronRight, Star, MapPin, Eye, User, LogIn, LogOut, Radar, UserPlus, X, Package, ShoppingCart, Scissors, Check,
+    ChevronRight, Star, MapPin, Eye, User, LogIn, LogOut, Radar, UserPlus, X, Plus, Package, ShoppingCart, Scissors, Check,
     UtensilsCrossed, Shirt, Smartphone, Hand, Sparkles, Bike, Motorbike, type LucideIcon,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
@@ -108,9 +108,9 @@ function SellDialog({ open, onClose, userId, colors, go, mode = 'all' }: { open:
         return () => { cancelled = true }
     }, [open, userId])
 
-    // Vindo do "Vender produto": com mais de uma loja, já cai na escolha de qual loja
+    // Vindo do "Vender produto": quem já tem loja cai direto na escolha (uma loja sua ou criar outra)
     useEffect(() => {
-        if (open && mode === 'product' && myStores && myStores.length > 1) { setPickFor('product'); setView('pickStore') }
+        if (open && mode === 'product' && myStores && myStores.length > 0) { setPickFor('product'); setView('pickStore') }
     }, [open, mode, myStores])
 
     if (!open) return null
@@ -128,17 +128,16 @@ function SellDialog({ open, onClose, userId, colors, go, mode = 'all' }: { open:
     const createPath = (slug: string, kind: 'product' | 'service') => `/${slug}/criar-produto${kind === 'service' ? '?type=service' : ''}`
     const createStore = () => go(userId ? '/criar-loja' : '/criar-loja-com-cadastro')
 
+    // Quem já tem loja escolhe: publicar numa loja sua ou criar outra (sem loja, vai direto criar)
     const product = () => {
         if (!userId) return go('/criar-loja-com-cadastro')
         if (!myStores || myStores.length === 0) return go('/criar-loja')
-        if (myStores.length === 1) return go(createPath(myStores[0].storeSlug, 'product'))
         setPickFor('product')
         setView('pickStore')
     }
 
     const serviceByStore = () => {
         if (!myStores || myStores.length === 0) return createStore()
-        if (myStores.length === 1) return go(createPath(myStores[0].storeSlug, 'service'))
         setPickFor('service')
         setView('pickStore')
     }
@@ -146,7 +145,7 @@ function SellDialog({ open, onClose, userId, colors, go, mode = 'all' }: { open:
     const hasStores = !!myStores && myStores.length > 0
     const title = view === 'pickStore' ? 'Em qual loja?' : view === 'service' ? 'Onde publicar o serviço?' : 'O que você quer vender?'
     const subtitle = view === 'pickStore'
-        ? (pickFor === 'service' ? 'Escolha a loja que vai receber o serviço.' : 'Escolha a loja que vai receber o produto.')
+        ? (pickFor === 'service' ? 'Use uma loja que você já tem ou crie outra para o serviço.' : 'Use uma loja que você já tem ou crie outra para o produto.')
         : view === 'service' ? 'Pelo seu perfil ou por uma loja.' : 'Escolha o que quer mostrar no iUser.'
     const back = view === 'root' ? null : () => setView(view === 'pickStore' && pickFor === 'service' ? 'service' : 'root')
 
@@ -161,16 +160,21 @@ function SellDialog({ open, onClose, userId, colors, go, mode = 'all' }: { open:
                     <button onClick={onClose} aria-label="Fechar" className="p-1" style={{ color: colors.textSecondary }}><X size={20} /></button>
                 </div>
                 <div className="flex flex-col gap-2.5">
-                    {view === 'pickStore' && (myStores || []).map((st) => option(st.id, <StoreIcon size={20} />, TYPE.loja.color, st.name, `/${st.storeSlug}`, () => go(createPath(st.storeSlug, pickFor))))}
+                    {view === 'pickStore' && (
+                        <>
+                            {(myStores || []).map((st) => option(st.id, <StoreIcon size={20} />, TYPE.loja.color, st.name, `Publicar ${pickFor === 'service' ? 'o serviço' : 'o produto'} nesta loja · /${st.storeSlug}`, () => go(createPath(st.storeSlug, pickFor))))}
+                            {option('nova-loja', <Plus size={20} />, TYPE.produto.color, 'Criar outra loja', `Uma loja nova para ${pickFor === 'service' ? 'este serviço' : 'este produto'}`, createStore)}
+                        </>
+                    )}
                     {view === 'service' && (
                         <>
                             {option('perfil', <User size={20} />, TYPE.servico.color, 'Pelo meu perfil', 'Aparece no seu perfil, sem precisar de loja', () => go(userId ? '/meus-servicos' : '/login'))}
-                            {option('loja', <StoreIcon size={20} />, TYPE.loja.color, hasStores ? 'Por uma loja' : 'Criar uma loja', hasStores ? 'Publique em uma loja que você já tem' : 'Crie uma loja para publicar o serviço', serviceByStore)}
+                            {option('loja', <StoreIcon size={20} />, TYPE.loja.color, hasStores ? 'Por uma loja' : 'Criar uma loja', hasStores ? 'Em uma loja sua ou em uma loja nova' : 'Crie uma loja para publicar o serviço', serviceByStore)}
                         </>
                     )}
                     {view === 'root' && (
                         <>
-                            {option('produto', <Package size={20} />, TYPE.produto.color, 'Produto', myStores === null || myStores.length > 0 ? 'Publique na sua loja' : 'Precisa de uma loja — a gente leva você pra criar', product)}
+                            {option('produto', <Package size={20} />, TYPE.produto.color, 'Produto', hasStores ? 'Em uma loja sua ou em uma loja nova' : myStores === null ? 'Publique na sua loja' : 'Precisa de uma loja — a gente leva você pra criar', product)}
                             {option('servico', <Wrench size={20} />, TYPE.servico.color, 'Serviço', 'Divulgue o que você faz e seja encontrado', () => setView('service'))}
                         </>
                     )}
