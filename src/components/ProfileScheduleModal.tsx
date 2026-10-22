@@ -282,12 +282,12 @@ export default function ProfileScheduleModal({ profileId, profileName, profileSl
                                         <button
                                             key={sl.time}
                                             onClick={() => setMineOpen(mineOpen === sl.time ? null : sl.time)}
-                                            className="py-2 rounded-xl text-xs font-black border-2 border-dashed transition flex flex-col items-center leading-tight"
-                                            style={{ borderColor: '#f97316', color: '#c2410c', background: mineOpen === sl.time ? '#ffedd5' : '#fff7ed' }}
-                                            title="Você já tem um compromisso nesse horário"
+                                            aria-label={`${sl.time}, você já tem um compromisso`}
+                                            className="py-2 rounded-xl text-xs font-black border transition flex items-center justify-center gap-1.5"
+                                            style={{ borderColor: mineOpen === sl.time ? '#fdba74' : '#e5e7eb', color: '#9ca3af', background: mineOpen === sl.time ? '#fff1e0' : 'transparent' }}
                                         >
                                             {sl.time}
-                                            <span className="text-[9px] font-bold flex items-center gap-0.5"><Calendar size={9} /> seu compromisso</span>
+                                            <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#f97316' }} />
                                         </button>
                                     ) : (
                                         <button
@@ -303,11 +303,18 @@ export default function ProfileScheduleModal({ profileId, profileName, profileSl
                                 {(() => {
                                     const open = slots.find((x) => x.time === mineOpen)?.mine
                                     return open ? (
-                                        <p className="mt-2 text-xs rounded-xl p-3 font-bold" style={{ background: '#fff7ed', color: '#9a3412', border: '1px solid #fdba74' }}>
-                                            Você já tem um compromisso nesse horário: <b>{open.title}</b> · {open.place} · {open.from}–{open.to}. Escolha outro horário.
-                                        </p>
+                                        <div className="mt-2.5 flex items-start gap-3 rounded-2xl p-3.5" style={{ background: '#fff7ed' }}>
+                                            <span className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: '#ffedd5', color: '#ea580c' }}><Calendar size={15} /></span>
+                                            <div>
+                                                <p className="text-[13px] leading-snug" style={{ color: '#7c2d12' }}>Às {open.from} você já tem <b>{open.title}</b>{open.place ? <> — {open.place}</> : null}.</p>
+                                                <p className="text-[11px] mt-0.5" style={{ color: '#9a3412', opacity: 0.8 }}>{open.from}–{open.to} · escolha outro horário para marcar aqui.</p>
+                                            </div>
+                                        </div>
                                     ) : null
                                 })()}
+                                {slots.some((x) => x.mine) && (
+                                    <p className="mt-2.5 text-[11px] text-gray-500 flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full" style={{ background: '#f97316' }} /> Você já tem compromisso nesses horários.</p>
+                                )}
                             </div>
                         )}
 

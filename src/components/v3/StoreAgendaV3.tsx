@@ -8,7 +8,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Calendar, Check } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
-import { DEFAULT_OPENING, daySlots, dateKey, freeCount, type BusySlot, type MineBusy, type OpeningConfig } from '@/lib/storeSlots'
+import { DEFAULT_OPENING, daySlots, dateKey, freeCount, mineSentence, type BusySlot, type MineBusy, type OpeningConfig } from '@/lib/storeSlots'
 
 const ORANGE = '#f97316'
 const DAYS = 14
@@ -126,16 +126,18 @@ export default function StoreAgendaV3({ storeId, colors, durationMin, onPick }: 
                                 {current.slots.filter((s) => showBusy || s.status !== 'occupied').map((s) => {
                                     const free = s.status === 'free'
                                     if (s.status === 'mine') {
-                                        // eu já tenho compromisso nesse horário: fica à vista, marcado; tocar mostra qual é
+                                        // já tenho compromisso nesse horário: um tile calmo, com um ponto laranja; tocar conta qual é
+                                        const open = mineOpen === s.time
                                         return (
                                             <button
                                                 key={s.time}
-                                                onClick={() => setMineOpen(mineOpen === s.time ? null : s.time)}
-                                                className="min-h-11 py-1.5 rounded-3xl text-[13px] font-black transition active:scale-95 flex flex-col items-center justify-center leading-none"
-                                                style={{ background: mineOpen === s.time ? '#ffedd5' : 'transparent', color: '#c2410c', border: '1.5px dashed #f97316' }}
+                                                onClick={() => setMineOpen(open ? null : s.time)}
+                                                aria-label={`${s.time}, você já tem um compromisso`}
+                                                className="h-11 rounded-full text-[13px] font-black transition active:scale-95 flex items-center justify-center gap-1.5"
+                                                style={{ background: open ? '#fff1e0' : 'transparent', color: colors.textSecondary, border: `1px solid ${open ? '#fdba74' : colors.border}` }}
                                             >
                                                 {s.time}
-                                                <span className="text-[9px] font-bold mt-0.5">seu compromisso</span>
+                                                <span className="w-1.5 h-1.5 rounded-full" style={{ background: ORANGE }} />
                                             </button>
                                         )
                                     }
@@ -154,12 +156,23 @@ export default function StoreAgendaV3({ storeId, colors, durationMin, onPick }: 
                             </div>
                             {(() => {
                                 const open = current.slots.find((x) => x.time === mineOpen)?.mine
-                                return open ? (
-                                    <p className="mt-2 text-[12px] rounded-2xl p-3 font-bold" style={{ background: '#fff7ed', color: '#9a3412' }}>
-                                        Você já tem um compromisso nesse horário: <b>{open.title}</b> · {open.place} · {open.from}–{open.to}.
-                                    </p>
-                                ) : null
+                                if (!open) return null
+                                const m = mineSentence(open)
+                                return (
+                                    <div className="mt-2.5 flex items-start gap-3 rounded-2xl p-3.5" style={{ background: '#fff7ed' }}>
+                                        <span className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: '#ffedd5', color: '#ea580c' }}><Calendar size={15} /></span>
+                                        <div className="min-w-0">
+                                            <p className="text-[13px] leading-snug" style={{ color: '#7c2d12' }}>{m.lead} <b>{m.what}</b>{m.where ? <> — {m.where}</> : null}.</p>
+                                            <p className="text-[11px] mt-0.5" style={{ color: '#9a3412', opacity: 0.8 }}>{m.range} · escolha outro horário para marcar aqui.</p>
+                                        </div>
+                                    </div>
+                                )
                             })()}
+                            {current.slots.some((x) => x.status === 'mine') && (
+                                <p className="mt-2.5 text-[11px] flex items-center gap-1.5" style={{ color: colors.textSecondary }}>
+                                    <span className="w-1.5 h-1.5 rounded-full" style={{ background: ORANGE }} /> Você já tem compromisso nesses horários.
+                                </p>
+                            )}
                             {showBusy && <p className="mt-2 text-[10px] flex items-center gap-1" style={{ color: colors.textSecondary }}><Check size={11} /> Os riscados já estão reservados.</p>}
                         </>
                     )}

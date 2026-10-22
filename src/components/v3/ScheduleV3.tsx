@@ -243,16 +243,18 @@ export default function ScheduleV3(p: {
                                         const on = p.selectedTime === s.time
                                         const free = s.status === 'free'
                                         if (s.mine) {
-                                            // já tenho compromisso nesse horário: fica à vista, marcado; tocar mostra qual é
+                                            // já tenho compromisso nesse horário: tile calmo com um ponto laranja; tocar conta qual é
+                                            const openMine = mineOpen === s.time
                                             return (
                                                 <button
                                                     key={s.time}
-                                                    onClick={() => setMineOpen(mineOpen === s.time ? null : s.time)}
-                                                    className="min-h-11 py-1.5 rounded-3xl text-sm font-black transition active:scale-95 flex flex-col items-center justify-center leading-none"
-                                                    style={{ background: mineOpen === s.time ? '#ffedd5' : 'transparent', color: '#c2410c', border: '1.5px dashed #f97316' }}
+                                                    onClick={() => setMineOpen(openMine ? null : s.time)}
+                                                    aria-label={`${s.time}, você já tem um compromisso`}
+                                                    className="h-11 rounded-full text-sm font-black transition active:scale-95 flex items-center justify-center gap-1.5"
+                                                    style={{ background: openMine ? '#fff1e0' : 'transparent', color: colors.textSecondary, border: `1px solid ${openMine ? '#fdba74' : colors.border}` }}
                                                 >
                                                     {s.time}
-                                                    <span className="text-[9px] font-bold mt-0.5">seu compromisso</span>
+                                                    <span className="w-1.5 h-1.5 rounded-full" style={{ background: ORANGE }} />
                                                 </button>
                                             )
                                         }
@@ -272,12 +274,22 @@ export default function ScheduleV3(p: {
                             )}
                             {(() => {
                                 const open = p.slots.find((x) => x.time === mineOpen)?.mine
-                                return open ? (
-                                    <p className="mt-2 text-[13px] rounded-2xl p-3 font-bold" style={{ background: '#fff7ed', color: '#9a3412' }}>
-                                        Você já tem um compromisso nesse horário: <b>{open.title}</b> · {open.place} · {open.from}–{open.to}. Escolha outro horário.
-                                    </p>
-                                ) : null
+                                if (!open) return null
+                                return (
+                                    <div className="mt-2.5 flex items-start gap-3 rounded-2xl p-3.5" style={{ background: '#fff7ed' }}>
+                                        <span className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: '#ffedd5', color: '#ea580c' }}><Clock size={15} /></span>
+                                        <div className="min-w-0">
+                                            <p className="text-[13px] leading-snug" style={{ color: '#7c2d12' }}>Às {open.from} você já tem <b>{open.title}</b>{open.place ? <> — {open.place}</> : null}.</p>
+                                            <p className="text-[11px] mt-0.5" style={{ color: '#9a3412', opacity: 0.8 }}>{open.from}–{open.to} · escolha outro horário para marcar aqui.</p>
+                                        </div>
+                                    </div>
+                                )
                             })()}
+                            {p.slots.some((x) => x.mine) && (
+                                <p className="mt-2.5 text-[11px] flex items-center gap-1.5" style={{ color: colors.textSecondary }}>
+                                    <span className="w-1.5 h-1.5 rounded-full" style={{ background: ORANGE }} /> Você já tem compromisso nesses horários.
+                                </p>
+                            )}
                         </>
                     )}
                 </>

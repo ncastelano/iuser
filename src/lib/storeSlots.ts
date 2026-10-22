@@ -89,3 +89,8 @@ export function daySlots(cfg: OpeningConfig | null | undefined, date: Date, dura
 }
 
 export const freeCount = (slots: DaySlot[]): number => slots.filter((s) => s.status === 'free').length
+
+/** Frase calma para o compromisso que já existe num horário: "Às 09:00 você já tem Avaliação de parceria, com @ana (09:00–09:30)." */
+export function mineSentence(m: { title: string; place: string; from: string; to: string }): { lead: string; what: string; where: string; range: string } {
+    return { lead: `Às ${m.from} você já tem`, what: m.title, where: m.place, range: `${m.from}–${m.to}` }
+}

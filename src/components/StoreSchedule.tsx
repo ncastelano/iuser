@@ -412,6 +412,7 @@ export default function StoreSchedule({
     // Horários já tomados por QUALQUER cliente da loja (só data, hora e duração): sem isso o agendador só conhecia os agendamentos do próprio
     // cliente e oferecia vagas já ocupadas. Enquanto não chega (ou se falhar), vale o que o cliente já tinha.
     const [storeBusy, setStoreBusy] = useState<{ date: string; time: string; duration: number }[] | null>(null)
+    const [mineOpenTime, setMineOpenTime] = useState<string | null>(null)
     const [myBusy, setMyBusy] = useState<{ date: string; time: string; duration: number; title: string; place: string }[]>([])
     useEffect(() => {
         if (!target?.id || step === 'search') return
@@ -1913,6 +1914,7 @@ export default function StoreSchedule({
                                                     : 'Nenhum horário disponível.'}
                                     </div>
                                 ) : (
+                                    <>
                                     <div
                                         style={{
                                             display: 'grid',
@@ -1954,31 +1956,32 @@ export default function StoreSchedule({
                                                     </button>
                                                 )
                                             } else if (slot.mine) {
+                                                // já tenho compromisso nesse horário: tile calmo com um ponto laranja; tocar conta qual é
+                                                const openMine = mineOpenTime === slot.time
                                                 return (
-                                                    <div
+                                                    <button
                                                         key={slot.time}
-                                                        title="Você já tem um compromisso nesse horário"
+                                                        type="button"
+                                                        onClick={() => setMineOpenTime(openMine ? null : slot.time)}
+                                                        aria-label={`${slot.time}, você já tem um compromisso`}
                                                         style={{
-                                                            padding: '12px 10px',
+                                                            padding: '16px 12px',
                                                             borderRadius: 18,
-                                                            border: '2px dashed #f97316',
-                                                            background: '#fff7ed',
+                                                            border: `1px solid ${openMine ? '#fdba74' : borderColor}`,
+                                                            background: openMine ? '#fff1e0' : 'transparent',
                                                             display: 'flex',
-                                                            flexDirection: 'column',
                                                             alignItems: 'center',
-                                                            gap: 4,
-                                                            color: '#9a3412',
-                                                            fontSize: 12,
+                                                            justifyContent: 'center',
+                                                            gap: 6,
+                                                            color: textSecondary,
                                                             fontWeight: 700,
-                                                            cursor: 'default',
-                                                            textAlign: 'center',
+                                                            fontSize: 15,
+                                                            cursor: 'pointer',
                                                         }}
                                                     >
-                                                        <span style={{ fontWeight: 800, fontSize: 14 }}>{slot.time}</span>
-                                                        <span>Seu compromisso</span>
-                                                        <span style={{ fontWeight: 600, fontSize: 11 }}>{slot.mine.title}</span>
-                                                        <span style={{ fontWeight: 600, fontSize: 10, opacity: 0.85 }}>{slot.mine.place} · {slot.mine.from}–{slot.mine.to}</span>
-                                                    </div>
+                                                        {slot.time}
+                                                        <span style={{ width: 6, height: 6, borderRadius: 9999, background: '#f97316' }} />
+                                                    </button>
                                                 )
                                             } else {
                                                 const app = slot.appointment
@@ -2051,6 +2054,20 @@ export default function StoreSchedule({
                                             }
                                         })}
                                     </div>
+                                {(() => {
+                                    const open = allSlots.find((x) => x.time === mineOpenTime)?.mine
+                                    if (!open) return null
+                                    return (
+                                        <div style={{ marginTop: 12, display: 'flex', gap: 12, alignItems: 'flex-start', padding: 14, borderRadius: 18, background: '#fff7ed' }}>
+                                            <span style={{ width: 32, height: 32, borderRadius: 9999, background: '#ffedd5', color: '#ea580c', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Calendar size={15} /></span>
+                                            <div>
+                                                <p style={{ margin: 0, fontSize: 13, lineHeight: 1.35, color: '#7c2d12' }}>Às {open.from} você já tem <b>{open.title}</b>{open.place ? ` — ${open.place}` : ''}.</p>
+                                                <p style={{ margin: '2px 0 0', fontSize: 11, color: '#9a3412', opacity: 0.8 }}>{open.from}–{open.to} · escolha outro horário para marcar aqui.</p>
+                                            </div>
+                                        </div>
+                                    )
+                                })()}
+                                    </>
                                 )}
                             </div>
                         )}
