@@ -23,24 +23,44 @@ SERVICES = ['Reunião de alinhamento', 'Consultoria rápida', 'Mentoria 1:1', 'A
             'Atendimento comercial', 'Avaliação de parceria', 'Dúvidas sobre o plano', 'Visita técnica', 'Entrevista', 'Planejamento da semana']
 
 today = datetime.date.today()
-rows, per_day = [], {}
-for off in range(-5, 15):
-    day = today + datetime.timedelta(days=off)
-    if day.weekday() == 6:          # domingo fechado
-        continue
-    people = random.sample(pool, 12 + random.randint(0, 2))      # 12 a 14 pessoas diferentes
-    t, i = 8 * 60, 0
-    day_rows = []
-    while i < len(people):
-        dur = random.choice([30, 30, 30, 60])
+first, last = today + datetime.timedelta(days=-5), today + datetime.timedelta(days=14)
+
+# Ninguém fica em dois lugares ao mesmo tempo (regra do banco, migration 20261119): antes de marcar, confere os compromissos que cada
+# pessoa JÁ tem (como cliente em lojas/perfis ou como prestador) e os do próprio admin como cliente — a agenda é desenhada em volta deles.
+def to_min(t): h, m = str(t).split(':')[:2]; return int(h) * 60 + int(m)
+busy = {}   # pessoa -> {data: [(ini, fim)]}
+for r in q_local(f"""select customer_id, provider_profile_id, date::text d, time::text tm, coalesce(duration_minutes,60) dur from appointments
+                     where status in ('pending','confirmed','completed') and date between '{first}' and '{last}'
+                       and not (provider_profile_id = '{admin}' and store_id is null)
+                       and not (provider_profile_id is not null and customer_id = provider_profile_id)"""):
+    for pid in {r['customer_id'], r['provider_profile_id']} - {None}:
+        busy.setdefault(pid, {}).setdefault(r['d'], []).append((to_min(r['tm']), to_min(r['tm']) + r['dur']))
+def free(pid, d, a0, a1):
+    return all(not (a0 < e and s_ < a1) for s_, e in busy.get(pid, {}).get(d, []))
+
+def build_day(day, off, ds, prefer_short):
+    target = 12 + random.randint(0, 2)                           # 12 a 14 pessoas diferentes
+    shuffled = random.sample(pool, len(pool))
+    used, day_rows, added = set(), [], []
+    t = 8 * 60
+    while len(day_rows) < target:
+        dur = random.choice([30] if prefer_short else [30, 30, 30, 60])
         if t < 13 * 60 and t + dur > 12 * 60:   # cai no almoço: pula para 13h
             t = 13 * 60
         if t + dur > 19 * 60:
             break
-        if random.random() < 0.12:               # um respiro de vez em quando
+        if not free(admin, ds, t, t + dur):      # o admin já tem compromisso (como cliente) nesse horário: pula
             t += 30
             continue
-        p = people[i]; i += 1
+        if not prefer_short and random.random() < 0.12:   # um respiro de vez em quando
+            t += 30
+            continue
+        p = next((x for x in shuffled if x['id'] not in used and free(x['id'], ds, t, t + dur)), None)
+        if p is None:
+            t += 30
+            continue
+        used.add(p['id'])
+        added.append((p['id'], t, t + dur))
         if off < 0:
             status = random.choices(['completed', 'cancelled'], [0.86, 0.14])[0]
         elif off == 0:
@@ -49,12 +69,28 @@ for off in range(-5, 15):
             status = random.choices(['confirmed', 'pending', 'cancelled'], [0.55, 0.38, 0.07])[0]
         day_rows.append({
             'store_id': None, 'store_slug': '', 'store_name': '', 'store_logo_url': '', 'provider_profile_id': admin, 'owner_id': admin, 'owner_slug': 'admin-teste',
-            'customer_id': p['id'], 'customer_slug': p['slug'], 'customer_avatar_url': p['avatar'], 'date': day.isoformat(), 'time': f'{t//60:02d}:{t%60:02d}',
+            'customer_id': p['id'], 'customer_slug': p['slug'], 'customer_avatar_url': p['avatar'], 'date': ds, 'time': f'{t//60:02d}:{t%60:02d}',
             'duration_minutes': dur, 'service_name': random.choice(SERVICES), 'service_type': 'service', 'people_count': 1, 'status': status,
             'direction': 'outgoing', 'is_public': False,
         })
         t += dur
-    per_day[day.isoformat()] = len(day_rows)
+    return day_rows, added
+
+rows, per_day = [], {}
+for off in range(-5, 15):
+    day = today + datetime.timedelta(days=off)
+    if day.weekday() == 6:          # domingo fechado
+        continue
+    ds = day.isoformat()
+    best = ([], [])
+    for attempt in range(30):        # garante 10+ pessoas por dia mesmo nos dias em que o admin já tem compromissos como cliente
+        cand = build_day(day, off, ds, prefer_short=attempt >= 5)
+        if len(cand[0]) > len(best[0]): best = cand
+        if len(cand[0]) >= 12: break
+    day_rows, added = best
+    for pid, a0, a1 in added:
+        busy.setdefault(pid, {}).setdefault(ds, []).append((a0, a1))
+    per_day[ds] = len(day_rows)
     rows += day_rows
 
 # apaga a agenda de perfil anterior do admin e insere de uma vez (gatilhos de guarda/notificação/taxa valem normalmente)

@@ -66,12 +66,14 @@ export default function ProfileScheduleModal({ profileId, profileName, profileSl
     const load = async () => {
         const from = localDateStr(new Date())
         const to = localDateStr(new Date(Date.now() + DAYS_AHEAD * 86400000))
-        const [{ data: prof }, { data: slots }] = await Promise.all([
+        const [{ data: prof }, { data: slots }, { data: mine }] = await Promise.all([
             supabase.from('profiles').select('working_hours').eq('id', profileId).maybeSingle(),
             supabase.rpc('get_profile_busy_slots', { p_profile_id: profileId, p_from: from, p_to: to }),
+            // onde EU já estou ocupado (ninguém fica em dois lugares ao mesmo tempo): esses horários também somem
+            supabase.rpc('get_my_busy_slots', { p_from: from, p_to: to }),
         ])
         setHours(prof?.working_hours || DEFAULT_HOURS)
-        setBusy((slots || []) as any)
+        setBusy([...((slots || []) as any[]), ...((mine || []) as any[])])
         setLoading(false)
     }
     useEffect(() => { load() }, [profileId])

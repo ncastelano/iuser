@@ -412,12 +412,18 @@ export default function StoreSchedule({
     // Horários já tomados por QUALQUER cliente da loja (só data, hora e duração): sem isso o agendador só conhecia os agendamentos do próprio
     // cliente e oferecia vagas já ocupadas. Enquanto não chega (ou se falhar), vale o que o cliente já tinha.
     const [storeBusy, setStoreBusy] = useState<{ date: string; time: string; duration: number }[] | null>(null)
+    const [myBusy, setMyBusy] = useState<{ date: string; time: string; duration: number }[]>([])
     useEffect(() => {
         if (!target?.id || step === 'search') return
         let cancelled = false
         const from = new Date()
         const to = new Date(from.getFullYear(), from.getMonth(), from.getDate() + 60)
         const ymd = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+        // Onde EU já estou ocupado (qualquer loja ou agenda): esses horários também somem — ninguém fica em dois lugares ao mesmo tempo
+        supabase.rpc('get_my_busy_slots', { p_from: ymd(from), p_to: ymd(to) }).then(({ data }) => {
+            if (cancelled || !data) return
+            setMyBusy((data as { slot_date: string; slot_time: string; duration_minutes: number }[]).map((r) => ({ date: r.slot_date, time: r.slot_time, duration: r.duration_minutes })))
+        })
         supabase.rpc('get_store_busy_slots', { p_store_id: target.id, p_from: ymd(from), p_to: ymd(to) }).then(({ data, error }) => {
             if (cancelled || error || !data) return
             setStoreBusy((data as { slot_date: string; slot_time: string; duration_minutes: number }[]).map((r) => ({ date: r.slot_date, time: r.slot_time, duration: r.duration_minutes })))
@@ -427,8 +433,9 @@ export default function StoreSchedule({
     // A lista que as contas de vaga usam: a da loja inteira quando chegou; senão os agendamentos do próprio cliente
     const slotAppointments = useMemo(() => {
         if (!target || !storeBusy) return appointments
-        return storeBusy.map((b, i) => ({ id: `busy-${i}`, store_id: target.id, date: b.date, time: b.time, duration_minutes: b.duration, status: 'confirmed' })) as unknown as typeof appointments
-    }, [storeBusy, appointments, target])
+        // os da loja inteira + os meus (de qualquer lugar): a vaga some se a loja já tem alguém OU se eu já estou ocupado
+        return [...storeBusy, ...myBusy].map((b, i) => ({ id: `busy-${i}`, store_id: target.id, date: b.date, time: b.time, duration_minutes: b.duration, status: 'confirmed' })) as unknown as typeof appointments
+    }, [storeBusy, myBusy, appointments, target])
 
     const selectedTotal = useMemo(() => selectedItems.reduce((sum, i) => sum + (Number(i.product.price) || 0) * i.quantity, 0), [selectedItems])
     const depositPreview = previewDeposit(depositCfg, selectedTotal)
