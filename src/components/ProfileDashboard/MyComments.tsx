@@ -5,7 +5,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Trash2, MessageSquare } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDistanceToNow } from 'date-fns'
@@ -27,8 +27,12 @@ interface MyComment {
 
 const LIMIT = 100
 
+// Guarda de onde a pessoa saiu: ao voltar, o painel reabre "Meus comentários" e leva até esse comentário
+export const COMMENTS_RETURN_KEY = 'iuser_comments_return'
+
 export default function MyComments({ userId }: { userId: string }) {
     const { colors } = useTheme()
+    const router = useRouter()
     const [items, setItems] = useState<MyComment[] | null>(null)
     const [confirmId, setConfirmId] = useState<string | null>(null)
     const [busyId, setBusyId] = useState<string | null>(null)
@@ -74,6 +78,30 @@ export default function MyComments({ userId }: { userId: string }) {
 
     useEffect(() => { load() }, [load])
 
+    // Voltou da página do comentário: leva de volta até ele na lista (e o destaca um instante)
+    useEffect(() => {
+        if (!items || items.length === 0) return
+        let id: string | null = null
+        try { id = sessionStorage.getItem(COMMENTS_RETURN_KEY); sessionStorage.removeItem(COMMENTS_RETURN_KEY) } catch { /* sem storage */ }
+        if (!id) return
+        const t = setTimeout(() => {
+            const el = document.getElementById(`meu-comentario-${id}`)
+            if (!el) return
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+            el.style.transition = 'box-shadow .4s ease'
+            el.style.boxShadow = '0 0 0 2px #f97316aa'
+            setTimeout(() => { el.style.boxShadow = '' }, 2200)
+        }, 400)
+        return () => clearTimeout(t)
+    }, [items])
+
+    // Abre a página do comentário (ela leva a câmera até ele) lembrando de onde veio
+    const openComment = (c: MyComment) => {
+        if (!c.href) return
+        try { sessionStorage.setItem(COMMENTS_RETURN_KEY, c.id) } catch { /* sem storage */ }
+        router.push(`${c.href}?comentario=${c.id}&de=meus-comentarios`)
+    }
+
     const remove = async (id: string) => {
         setBusyId(id)
         const { error } = await supabase.from('comments').delete().eq('id', id)
@@ -103,14 +131,19 @@ export default function MyComments({ userId }: { userId: string }) {
             ) : (
                 <ul className="flex flex-col gap-2">
                     {items.map((c) => (
-                        <li key={c.id} className="rounded-xl p-3 flex items-start gap-3" style={{ border: `1px solid ${colors.border}` }}>
+                        <li key={c.id} id={`meu-comentario-${c.id}`} className="rounded-xl p-3 flex items-start gap-3" style={{ border: `1px solid ${colors.border}` }}>
                             <div className="min-w-0 flex-1">
                                 <p className="text-[11px] font-bold truncate" style={{ color: colors.textSecondary }}>
                                     {c.isReply ? 'Resposta em ' : 'Em '}
-                                    {c.href ? <Link href={c.href} className="underline" style={{ color: colors.accent }}>{c.pubName}</Link> : c.pubName}
+                                    {c.href ? <button type="button" onClick={() => openComment(c)} className="underline text-left" style={{ color: colors.accent, display: 'inline' }}>{c.pubName}</button> : c.pubName}
                                     {' · '}{formatDistanceToNow(new Date(c.created_at), { addSuffix: true, locale: ptBR })}
                                 </p>
-                                <p className="text-sm mt-1 break-words" style={{ color: colors.textPrimary }}>{c.content}</p>
+                                <p
+                                    className={`text-sm mt-1 break-words ${c.href ? 'cursor-pointer hover:underline' : ''}`}
+                                    style={{ color: colors.textPrimary }}
+                                    onClick={() => openComment(c)}
+                                    title={c.href ? 'Ver este comentário na publicação' : undefined}
+                                >{c.content}</p>
                             </div>
                             {confirmId === c.id ? (
                                 <div className="flex flex-col gap-1.5 flex-shrink-0">

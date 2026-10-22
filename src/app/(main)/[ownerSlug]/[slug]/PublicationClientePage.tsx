@@ -122,6 +122,45 @@ export function PublicationClientPage({
     const [commentsShown, setCommentsShown] = useState(3)
     const [commentSort, setCommentSort] = useState<'top' | 'recent'>('top')
 
+    // Vindo de "Meus comentários" (?comentario=<id>&de=meus-comentarios): a câmera vai até o comentário e ele é destacado;
+    // o "voltar" retorna ao painel (onde a pessoa estava)
+    const [focusCommentId, setFocusCommentId] = useState<string | null>(null)
+    const [fromMyComments, setFromMyComments] = useState(false)
+    const [highlightId, setHighlightId] = useState<string | null>(null)
+    const focusedRef = useRef(false)
+    useEffect(() => {
+        const q = new URLSearchParams(window.location.search)
+        setFocusCommentId(q.get('comentario'))
+        setFromMyComments(q.get('de') === 'meus-comentarios')
+    }, [])
+    const goBack = () => { if (fromMyComments && window.history.length > 1) router.back(); else router.push(`/${ownerSlug}`) }
+
+    useEffect(() => {
+        if (!focusCommentId || focusedRef.current || comments.length === 0) return
+        // o comentário pode ser uma resposta: acha o caminho até ele (as respostas dos pais precisam estar abertas)
+        const path: string[] = []
+        const find = (list: Comment[], trail: string[]): boolean => {
+            for (const c of list) {
+                if (c.id === focusCommentId) { path.push(...trail); return true }
+                if (c.replies?.length && find(c.replies, [...trail, c.id])) return true
+            }
+            return false
+        }
+        if (!find(comments, [])) return
+        focusedRef.current = true
+        setCommentSort('recent')
+        setCommentsShown(Math.max(comments.length, 3))
+        if (path.length > 0) setExpandedComments((prev) => new Set([...Array.from(prev), ...path]))
+        // sem "cleanup" de propósito: os comentários podem ser recarregados logo depois (login, curtidas) e isso cancelaria o movimento
+        setTimeout(() => {
+            const el = document.getElementById(`comment-${focusCommentId}`)
+            if (!el) return
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+            setHighlightId(focusCommentId)
+            setTimeout(() => setHighlightId(null), 4500)
+        }, 600)
+    }, [focusCommentId, comments])
+
     // ===== CONTA A VISITA (publicação + perfil de quem publicou, quando é de pessoa) =====
     useEffect(() => {
         const id = publication?.id
@@ -483,7 +522,12 @@ export function PublicationClientPage({
             const isBeingReplied = replyTo?.id === comment.id
 
             return (
-                <div key={comment.id} className={isReply ? (depth <= 2 ? 'ml-6' : '') : ''}>
+                <div
+                    key={comment.id}
+                    id={`comment-${comment.id}`}
+                    className={isReply ? (depth <= 2 ? 'ml-6' : '') : ''}
+                    style={highlightId === comment.id ? { borderRadius: 16, background: '#f9731622', boxShadow: '0 0 0 2px #f97316, 0 0 22px #f9731666', transition: 'all .4s ease' } : { transition: 'all .6s ease' }}
+                >
                     <div className={v3 ? 'flex gap-2.5 py-2 rounded-xl' : 'flex gap-3 p-3 rounded-xl'} style={v3 ? (isBeingReplied ? { background: '#f9731612' } : undefined) : {
                         background: isReply ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.05)',
                         border: `1px solid ${isBeingReplied ? '#f97316' : colors.border}`,
@@ -771,7 +815,7 @@ export function PublicationClientPage({
             >
                 <div className="flex items-center gap-2 px-4 py-3">
                     <button
-                        onClick={() => router.push(`/${ownerSlug}`)}
+                        onClick={goBack}
                         aria-label="Voltar"
                         className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition hover:scale-105"
                         style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
@@ -789,7 +833,7 @@ export function PublicationClientPage({
             {/* Header no fluxo normal (web) */}
             <div className="hidden md:flex items-center gap-3 max-w-4xl mx-auto px-6 pt-6">
                 <button
-                    onClick={() => router.push(`/${ownerSlug}`)}
+                    onClick={goBack}
                     aria-label="Voltar"
                     className="flex items-center gap-2 pl-3 pr-4 py-2 rounded-full text-sm font-medium flex-shrink-0 transition hover:scale-105"
                     style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
