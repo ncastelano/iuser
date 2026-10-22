@@ -133,7 +133,7 @@ export default function MyComments({ userId }: { userId: string }) {
                     {items.map((c) => (
                         <li key={c.id} id={`meu-comentario-${c.id}`} className="rounded-xl p-3 flex items-start gap-3" style={{ border: `1px solid ${colors.border}` }}>
                             <div className="min-w-0 flex-1">
-                                <p className="text-[11px] font-bold truncate" style={{ color: colors.textSecondary }}>
+                                <p className="text-[11px] font-bold leading-snug break-words" style={{ color: colors.textSecondary }}>
                                     {c.isReply ? 'Resposta em ' : 'Em '}
                                     {c.href ? <button type="button" onClick={() => openComment(c)} className="underline text-left" style={{ color: colors.accent, display: 'inline' }}>{c.pubName}</button> : c.pubName}
                                     {' · '}{formatDistanceToNow(new Date(c.created_at), { addSuffix: true, locale: ptBR })}
