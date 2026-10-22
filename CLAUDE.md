@@ -47,6 +47,8 @@ O admin (`/administrador` — aba "Administrador" do Header → **Financeiro**, 
 
 Os valores da "Tarifa iUser" (valor base, distância base, valor por km e extras por tipo/condição, por veículo) vivem na tabela `platform_tariffs` e são editados em `/administrador` → **Tarifas** (`src/components/AdminDashboard/PlatformTariffsSection.tsx`). Os números em `src/lib/driverPricing.ts` (`PLATFORM_DEFAULT_PRICING_BY_VEHICLE`) são só o padrão de fábrica: `loadPlatformTariffs()` (`src/lib/platformTariffs.ts`) sobrescreve esse mesmo objeto com o que está no banco. **Antes de calcular qualquer preço da plataforma, dê `await loadPlatformTariffs(client)`** — não coloque valores de tarifa fixos em outro lugar.
 
+- **Texto da tarifa no painel do motorista:** a aba Tarifa mostra só duas linhas (`src/lib/tariffSummary.ts`: "Até 3 km: R$ 7 • Depois: + R$ 2 por km • Ex.: 10 km = R$ 21" e "Em 1 hora: cerca de R$ 84 com 4 corridas de 10 km"), calculadas por `calculateFare` (base + km acima dos km incluídos × valor por km) e pela velocidade de `fareCalculator`. Os km incluídos da Tarifa iUser são editados em Admin → Tarifas (`platform_tariffs.base_distance_km`, por veículo); na tarifa personalizada, no campo "Km incluídos". Teste: `npm run test:tariff-summary`.
+
 ## Roteamento: não tem middleware.ts, tem src/proxy.ts
 
 Esse projeto **não usa** o `middleware.ts` padrão do Next.js — o roteamento de `/{slug}` (decidir se é perfil, loja, categoria ou 404) é feito à mão em `src/proxy.ts`, com uma lista explícita `IGNORED_ROUTES` de rotas que **não** são slug de perfil/loja.

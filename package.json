@@ -29,6 +29,7 @@
     "test:store-model": "node --test scripts/test-store-model.mjs",
     "dev:local": "node scripts/local/dev.mjs",
     "test:store-slots": "node --test scripts/test-store-slots.mjs",
+    "test:tariff-summary": "node --test scripts/test-tariff-summary.mjs",
     "test:appointment-deposit": "node --test scripts/test-appointment-deposit.mjs",
     "test:active-drivers": "node --test scripts/test-active-drivers.mjs",
     "test:active-drivers:staging": "env -u SUPABASE_ACCESS_TOKEN npx supabase db query --linked --workdir .staging -f \"$PWD/supabase/tests/active_drivers_map_scenarios.sql\"",

@@ -13,8 +13,8 @@ import { toast } from 'sonner'
 import { TrendingUp, Car, Camera, Star, MessageSquare, Clock, CheckCircle2, Volume2, VolumeX, Navigation2, LayoutDashboard, Trash2 } from 'lucide-react'
 import { loadPlatformTariffs } from '@/lib/platformTariffs'
 import { Spinner } from '@/components/Spinner'
-import { calculateHourlyEarning, calculateRidesPerHour, calculateTimeFromDistance, formatBRL, formatCount, formatDuration, VELOCIDADE_MEDIA_KMH } from '@/lib/fareCalculator'
-import { computeSuggestedPrice, explainSuggestedPrice, PLATFORM_DEFAULT_PRICING_BY_VEHICLE, PLATFORM_DEFAULT_EXTRA_FEES, PLATFORM_DEFAULT_CONDITION_EXTRA_FEES, PricingMode } from '@/lib/driverPricing'
+import { hourlyLine, tariffLine } from '@/lib/tariffSummary'
+import { PLATFORM_DEFAULT_PRICING_BY_VEHICLE, PLATFORM_DEFAULT_EXTRA_FEES, PLATFORM_DEFAULT_CONDITION_EXTRA_FEES, PricingMode } from '@/lib/driverPricing'
 import { VehicleKind, VEHICLE_KIND_LABELS } from '@/lib/rideVehicle'
 import { createSquareImage } from '@/lib/image'
 import { DRIVER_SERVICE_OPTIONS } from '@/lib/driverServices'
@@ -708,29 +708,20 @@ function PainelMotoristaContent() {
                 ar_condicionado: parseFloat(extraFeeArCondicionado) || 0,
             },
         }
-    const previewPrice = computeSuggestedPrice(previewDistance, activePricing)
-    const previewParts = explainSuggestedPrice(previewDistance, activePricing)
-    const brl2 = (v: number) => `R$ ${v.toFixed(2).replace('.', ',')}`
-    // base + quilometragem à vista pro motorista conferir a conta
-    const previewBreakdown = `${brl2(previewParts.base)} base + ${brl2(previewParts.kmPart)} de quilometragem (${previewParts.extraKm.toFixed(1).replace('.', ',')} km acima da base × ${brl2(activePricing.pricePerKmAfterBase)}) = ${brl2(previewParts.total)}`
-
-    // Quanto rende por hora fazendo corridas desse tamanho (a 40 km/h): quantas cabem em 1 hora × o valor de cada uma
-    const previewRidesPerHour = calculateRidesPerHour(previewDistance)
-    const previewHourlyEarning = calculateHourlyEarning(previewDistance, previewPrice)
-    const previewRideDuration = formatDuration(calculateTimeFromDistance(previewDistance))
-    const previewHourlyBlock = previewRidesPerHour != null && previewHourlyEarning != null ? (
-        <div className={`mt-2 p-2.5 ${v3 ? 'rounded-2xl' : 'rounded-xl'}`} style={{ background: '#22c55e14', border: v3 ? 'none' : '1px solid #22c55e40' }}>
-            <p className={`${v3 ? 'text-xs' : 'text-[10px]'} font-bold`} style={{ color: colors.textPrimary }}>
-                Por hora: em 1 hora dá pra fazer {formatCount(previewRidesPerHour)} {previewRidesPerHour === 1 ? 'corrida' : 'corridas'} de {previewDistance} km (cada uma leva {previewRideDuration}).
+    // Resumo em linguagem simples: tudo sai dos números da tarifa (e da velocidade média), então muda sozinho com eles
+    const fareTariff = { baseDistanceKm: activePricing.baseDistanceKm, baseFee: activePricing.baseFee, pricePerKm: activePricing.pricePerKmAfterBase }
+    const summaryHourly = hourlyLine(fareTariff, previewDistance)
+    const tariffSummary = (
+        <div className="flex flex-col gap-1.5">
+            <p className={`${v3 ? 'text-sm' : 'text-xs'} font-black leading-snug`} style={{ color: colors.textPrimary }}>
+                {/* quebra de linha só entre as partes (nunca no meio de "10 km = R$ 17") */}
+                {tariffLine(fareTariff, previewDistance).split(' • ').map((part, i) => (
+                    <span key={i}>{i > 0 && ' • '}<span className="whitespace-nowrap">{part}</span></span>
+                ))}
             </p>
-            <p className="text-[11px] font-black mt-1" style={{ color: '#16a34a' }}>
-                {formatCount(previewRidesPerHour)} × {formatBRL(previewPrice)} = {formatBRL(previewHourlyEarning)} por hora
-            </p>
-            <p className={`${v3 ? 'text-[11px]' : 'text-[9px]'} mt-1`} style={{ color: colors.textSecondary }}>
-                Estimativa a {VELOCIDADE_MEDIA_KMH} km/h, sem tempo parado entre as corridas.
-            </p>
+            {summaryHourly && <p className={`${v3 ? 'text-sm' : 'text-xs'} font-bold leading-snug`} style={{ color: '#16a34a' }}>{summaryHourly}</p>}
         </div>
-    ) : null
+    )
 
     const conditionExtraFeeFields = [
         { key: 'condominio', label: 'Condomínio', value: extraFeeCondominio, setValue: setExtraFeeCondominio, platformDefault: platformPricingForVehicle.conditionExtraFees.condominio },
@@ -1024,41 +1015,14 @@ function PainelMotoristaContent() {
                             </div>
 
                             {pricingMode === 'platform' ? (
-                                <div
-                                    className={cardCls}
-                                    style={cardStyle}
-                                >
-                                    <div className="flex items-center gap-2 mb-3">
-                                        <TrendingUp size={16} style={{ color: '#f97316' }} />
-                                        <p className={`${v3 ? 'text-xs' : 'text-[10px]'} font-black`} style={{ color: '#f97316' }}>
-                                            Tarifa padrão da plataforma
-                                        </p>
-                                    </div>
-                                    <p className="text-xs" style={{ color: colors.textPrimary }}>
-                                        Até {platformPricingForVehicle.baseDistanceKm} km = R$ {platformPricingForVehicle.baseFee.toFixed(2)}, acima + R$ {platformPricingForVehicle.pricePerKmAfterBase.toFixed(2)}/km
-                                    </p>
-                                    <p className={`${v3 ? 'text-xs' : 'text-[10px]'} mt-3 font-bold`} style={{ color: colors.textPrimary }}>
-                                        Exemplo: uma corrida de {previewDistance} km sairia por R$ {previewPrice.toFixed(2)}
-                                    </p>
-                                    <p className={`${v3 ? 'text-xs' : 'text-[9px]'} mt-1`} style={{ color: colors.textSecondary }}>{previewBreakdown}</p>
-                                    {previewHourlyBlock}
+                                <div className={cardCls} style={cardStyle}>
+                                    {tariffSummary}
                                 </div>
                             ) : (
-                                <div
-                                    className={cardCls}
-                                    style={cardStyle}
-                                >
-                                    <div className="flex items-center gap-2 mb-3">
-                                        <TrendingUp size={16} style={{ color: '#f97316' }} />
-                                        <p className={`${v3 ? 'text-xs' : 'text-[10px]'} font-black`} style={{ color: '#f97316' }}>
-                                            Tarifa com valor base
-                                        </p>
-                                    </div>
-                                    <div className="grid grid-cols-3 gap-2">
+                                <div className={cardCls} style={cardStyle}>
+                                    <div className="grid grid-cols-3 gap-2 mb-3">
                                         <div>
-                                            <label className={labelCls} style={{ color: colors.textSecondary }}>
-                                                Distância base (km)
-                                            </label>
+                                            <label className={labelCls}>Km incluídos</label>
                                             <input
                                                 type="number"
                                                 value={baseDistanceKm}
@@ -1069,9 +1033,7 @@ function PainelMotoristaContent() {
                                             />
                                         </div>
                                         <div>
-                                            <label className={labelCls} style={{ color: colors.textSecondary }}>
-                                                Valor base (R$)
-                                            </label>
+                                            <label className={labelCls}>Inicial (R$)</label>
                                             <input
                                                 type="number"
                                                 value={baseFee}
@@ -1082,9 +1044,7 @@ function PainelMotoristaContent() {
                                             />
                                         </div>
                                         <div>
-                                            <label className={labelCls} style={{ color: colors.textSecondary }}>
-                                                Extra por km (R$)
-                                            </label>
+                                            <label className={labelCls}>Por km (R$)</label>
                                             <input
                                                 type="number"
                                                 value={pricePerKmAfterBase}
@@ -1095,14 +1055,7 @@ function PainelMotoristaContent() {
                                             />
                                         </div>
                                     </div>
-                                    <p className={`${v3 ? 'text-xs' : 'text-[9px]'} mt-2`} style={{ color: colors.textSecondary }}>
-                                        Ex: até {baseDistanceKm || '0'} km = R$ {(parseFloat(baseFee) || 0).toFixed(2)}, acima + R$ {(parseFloat(pricePerKmAfterBase) || 0).toFixed(2)}/km
-                                    </p>
-                                    <p className={`${v3 ? 'text-xs' : 'text-[10px]'} mt-3 font-bold`} style={{ color: colors.textPrimary }}>
-                                        Exemplo: uma corrida de {previewDistance} km sairia por R$ {previewPrice.toFixed(2)}
-                                    </p>
-                                    <p className={`${v3 ? 'text-xs' : 'text-[9px]'} mt-1`} style={{ color: colors.textSecondary }}>{previewBreakdown}</p>
-                                    {previewHourlyBlock}
+                                    {tariffSummary}
                                 </div>
                             )}
 
