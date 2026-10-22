@@ -859,10 +859,12 @@ export function PublicationClientPage({
                                     </div>
                                 </button>
                                 <button
-                                    onClick={() => handleShareLink({
-                                        title: `${publication.name || 'Publicação'} | ${ownerDisplay.name}`,
-                                        text: publication.description || 'Confira no iUser!'
-                                    })}
+                                    onClick={async () => {
+                                        if (await handleShareLink({
+                                            title: `${publication.name || 'Publicação'} | ${ownerDisplay.name}`,
+                                            text: publication.description || 'Confira no iUser!'
+                                        })) void supabase.rpc('increment_product_share_count', { p_product: publication.id })
+                                    }}
                                     aria-label="Compartilhar"
                                     className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition hover:scale-105"
                                     style={{ background: `${colors.border}40`, color: colors.textPrimary }}

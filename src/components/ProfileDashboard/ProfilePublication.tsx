@@ -21,7 +21,10 @@ import {
     Share2,
     MessageCircle,
     Eye,
+    ArrowUpDown,
 } from 'lucide-react'
+import { useInsideShell } from '@/components/InsideShell'
+import V3Section, { V3_GRADIENT } from '@/components/StoreDashboard/V3Section'
 import { useRouter } from 'next/navigation'
 import { generateUniqueGlobalSlug } from '@/lib/slugUtils'
 import { getAvatarUrl } from '@/lib/avatar'
@@ -36,6 +39,7 @@ interface Publication {
     owner_id: string
     created_at: string
     view_count?: number
+    share_count?: number
     like_count?: number
     comment_count?: number
     is_liked?: boolean
@@ -71,7 +75,9 @@ export default function ProfilePublication({ profileId, profileSlug, isOwner = t
     const { colors } = useTheme()
     const surfaceRgb = hexToRgb(colors.surface)
     const router = useRouter()
+    const v3 = useInsideShell()
     const fileInputRef = useRef<HTMLInputElement>(null)
+    const [sortBy, setSortBy] = useState<'recent' | 'mostViewed' | 'mostLiked' | 'mostCommented' | 'mostShared'>('recent')
 
     const [isExpanded, setIsExpanded] = usePersistedExpanded('profilePublication', true)
     const [isCreating, setIsCreating] = useState(false)
@@ -144,7 +150,7 @@ export default function ProfilePublication({ profileId, profileSlug, isOwner = t
                 // Buscar publicações do perfil usando owner_id
                 const { data, error } = await supabase
                     .from('products')
-                    .select('id, name, description, image_url, slug, created_at, view_count')
+                    .select('id, name, description, image_url, slug, created_at, view_count, share_count')
                     .eq('owner_id', profileId)
                     .eq('listing_type', 'publication')
                     .order('created_at', { ascending: false })
@@ -235,7 +241,7 @@ export default function ProfilePublication({ profileId, profileSlug, isOwner = t
 
             const { data: freshData } = await supabase
                 .from('products')
-                .select('id, name, description, image_url, slug, created_at, view_count')
+                .select('id, name, description, image_url, slug, created_at, view_count, share_count')
                 .eq('owner_id', profileId)
                 .eq('listing_type', 'publication')
                 .order('created_at', { ascending: false })
@@ -273,12 +279,16 @@ export default function ProfilePublication({ profileId, profileSlug, isOwner = t
         }
     }
 
-    const handleShare = (pub: Publication) => {
-        handleShareLink({
+    const handleShare = async (pub: Publication) => {
+        const ok = await handleShareLink({
             title: pub.name || 'Publicação',
             text: pub.description || 'Confira esta publicação no iUser!',
             url: `${window.location.origin}/publicacoes/${pub.slug}`,
         })
+        if (ok) {
+            void supabase.rpc('increment_product_share_count', { p_product: pub.id })
+            setPublications(prev => prev.map(p => (p.id === pub.id ? { ...p, share_count: (p.share_count || 0) + 1 } : p)))
+        }
     }
 
     const formatDate = (iso: string) => {
@@ -570,129 +580,114 @@ export default function ProfilePublication({ profileId, profileSlug, isOwner = t
         )
     }
 
-    // Versão completa para o dono
-    return (
-        <div className="mb-6 mt-4">
-            <div
-                data-add-target="publication"
-                className={`rounded-2xl relative flex flex-col ${isExpanded ? 'p-6 pt-7 gap-5' : 'p-4'}`}
-                style={{
-                    background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
-                    backdropFilter: 'blur(12px)',
-                    WebkitBackdropFilter: 'blur(12px)',
-                    border: `1px solid ${colors.border}`,
-                    boxShadow: colors.shadow,
-                }}
-            >
-                <button
-                    onClick={() => setIsExpanded(!isExpanded)}
-                    className="w-full flex items-center justify-between text-left"
-                    style={{
-                        padding: isExpanded ? '0.5rem 0.75rem' : 0,
-                        borderRadius: '9999px',
-                        background: 'transparent',
-                        border: 'none',
-                        cursor: 'pointer',
-                    }}
-                >
-                    <div className="flex items-center gap-3">
-                        <div>
-                            <h3 className={`${isExpanded ? 'text-lg' : 'text-sm'} font-black`} style={{ color: textPrimary }}>
-                                Minhas Publicações
-                            </h3>
-                            <p className="text-xs mt-0.5" style={{ color: textSecondary }}>
-                                Compartilhe suas ideias, produtos ou serviços
-                            </p>
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        {publications.length > 0 && (
-                            <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: '#f9731620', color: '#f97316' }}>
-                                {publications.length}
-                            </span>
-                        )}
-                        {isExpanded ? (
-                            <ChevronUp size={isExpanded ? 22 : 18} style={{ color: textSecondary }} />
-                        ) : (
-                            <ChevronDown size={isExpanded ? 22 : 18} style={{ color: textSecondary }} />
-                        )}
-                    </div>
-                </button>
+    // Versão do dono — compacta, no desenho de "Serviços publicados": ordenar, "Adicionar" e cartões pequenos com os números
+    const sortedPublications = [...publications].sort((x, y) => {
+        switch (sortBy) {
+            case 'mostViewed': return (y.view_count || 0) - (x.view_count || 0)
+            case 'mostLiked': return (y.like_count || 0) - (x.like_count || 0)
+            case 'mostCommented': return (y.comment_count || 0) - (x.comment_count || 0)
+            case 'mostShared': return (y.share_count || 0) - (x.share_count || 0)
+            default: return new Date(y.created_at).getTime() - new Date(x.created_at).getTime()
+        }
+    })
 
-                {!isExpanded && !loading && publications.length > 0 && (
-                    <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
-                        {publications.slice(0, 6).map((pub) => renderPreviewCard(pub))}
+    const body = (
+        loading ? (
+            <div className="flex justify-center py-8">
+                <div className="w-6 h-6 border-2 border-orange-200 border-t-orange-500 rounded-full animate-spin" />
+            </div>
+        ) : (
+            <>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-1 text-xs" style={{ color: textSecondary }}>
+                        <ArrowUpDown size={14} />
+                        <select
+                            value={sortBy}
+                            onChange={(e) => setSortBy(e.target.value as any)}
+                            className="bg-transparent border rounded-full px-3 py-1 text-xs"
+                            style={{ borderColor: colors.border, color: textPrimary }}
+                        >
+                            <option value="recent">Mais recentes</option>
+                            <option value="mostViewed">Mais vistas</option>
+                            <option value="mostLiked">Mais curtidas</option>
+                            <option value="mostCommented">Mais comentadas</option>
+                            <option value="mostShared">Mais compartilhadas</option>
+                        </select>
+                    </div>
+                    {!isCreating && (
+                        <button
+                            onClick={() => setIsCreating(true)}
+                            style={{ ...pillButtonStyle, padding: '0.75rem 1.25rem', fontSize: '0.875rem', background: GRADIENT, color: '#ffffff', boxShadow: '0 4px 12px #f9731640' }}
+                            className="hover:scale-105 transition-transform"
+                        >
+                            <Plus size={14} /> Adicionar
+                        </button>
+                    )}
+                </div>
+
+                {publications.length === 0 && !isCreating ? (
+                    <div className="rounded-xl p-6 text-center flex flex-col items-center gap-3" style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`, border: `1px dashed ${colors.border}` }}>
+                        <p className="text-sm font-bold" style={{ color: textPrimary }}>Você ainda não fez nenhuma publicação</p>
+                        <p className="text-xs" style={{ color: textSecondary }}>Comece compartilhando suas ideias, produtos ou serviços.</p>
+                        <button
+                            onClick={() => setIsCreating(true)}
+                            style={{ ...pillButtonStyle, padding: '0.75rem 1.25rem', fontSize: '0.875rem', background: GRADIENT, color: '#ffffff' }}
+                            className="hover:opacity-80 transition-opacity"
+                        >
+                            <Plus size={14} /> Publicar
+                        </button>
+                    </div>
+                ) : publications.length > 0 && (
+                    <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-gray-400">
+                        {sortedPublications.map((pub) => {
+                            const imgUrl = getImageUrl(pub.image_url)
+                            return (
+                                <div
+                                    key={pub.id}
+                                    className="flex-shrink-0 w-40 rounded-2xl border p-3 flex flex-col gap-2 cursor-pointer hover:shadow-md transition-shadow relative"
+                                    style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`, borderColor: colors.border }}
+                                    onClick={() => router.push(`/publicacoes/${pub.slug}`)}
+                                >
+                                    <div className="absolute top-2 right-2 flex flex-col gap-1.5 z-10">
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); router.push(`/${profileSlug}/${pub.slug}/editar`) }}
+                                            className="w-7 h-7 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center hover:bg-black/50 transition-colors"
+                                            title="Editar publicação"
+                                        >
+                                            <Pencil size={14} color="white" />
+                                        </button>
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(pub.id) }}
+                                            className="w-7 h-7 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center hover:bg-red-600/80 transition-colors"
+                                            title="Excluir publicação"
+                                        >
+                                            <Trash2 size={14} color="white" />
+                                        </button>
+                                    </div>
+                                    <div className="w-full h-28 rounded-xl overflow-hidden bg-gray-100">
+                                        {imgUrl ? (
+                                            <img src={imgUrl} className="w-full h-full object-cover" alt="" />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center" style={{ color: textSecondary }}>
+                                                <MessageCircle size={28} />
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-xs font-bold truncate" style={{ color: textPrimary }}>{pub.name}</p>
+                                        <p className="text-[10px] mt-0.5" style={{ color: '#f97316' }}>{formatDate(pub.created_at)}</p>
+                                        <div className="flex flex-col text-[10px] mt-1 space-y-0.5" style={{ color: textSecondary }}>
+                                            <span>👁 {pub.view_count || 0} views</span>
+                                            <span>❤ {pub.like_count || 0} curtidas</span>
+                                            <span>💬 {pub.comment_count || 0} comentários</span>
+                                            <span>↗ {pub.share_count || 0} compartilhamentos</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            )
+                        })}
                     </div>
                 )}
-
-                {isExpanded && (
-                    <div className="flex flex-col gap-4">
-                        {!isCreating && publications.length > 0 && (
-                            <button
-                                onClick={() => setIsCreating(true)}
-                                style={{
-                                    ...pillButtonStyle,
-                                    width: '100%',
-                                    padding: '0.75rem',
-                                    background: 'transparent',
-                                    border: `1px dashed ${colors.border}`,
-                                    color: '#f97316',
-                                }}
-                                className="hover:bg-white/5 transition-colors"
-                            >
-                                <Plus size={16} />
-                                Nova publicação
-                            </button>
-                        )}
-
-                        {loading ? (
-                            <div className="flex justify-center py-8">
-                                <div className="w-6 h-6 border-2 border-orange-200 border-t-orange-500 rounded-full animate-spin" />
-                            </div>
-                        ) : publications.length === 0 ? (
-                            <div
-                                className="rounded-2xl p-6 text-center flex flex-col items-center gap-4"
-                                style={{
-                                    background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
-                                    border: `1px dashed ${colors.border}`,
-                                }}
-                            >
-                                <div
-                                    className="w-16 h-16 rounded-full flex items-center justify-center"
-                                    style={{ background: GRADIENT, color: '#ffffff' }}
-                                >
-                                    <MessageCircle size={28} />
-                                </div>
-                                <div>
-                                    <p className="text-sm font-bold" style={{ color: textPrimary }}>
-                                        Você ainda não fez nenhuma publicação
-                                    </p>
-                                    <p className="text-xs mt-1" style={{ color: textSecondary }}>
-                                        Comece compartilhando suas ideias, produtos ou serviços.
-                                    </p>
-                                </div>
-                                {!isCreating && (
-                                    <button
-                                        onClick={() => setIsCreating(true)}
-                                        style={{
-                                            ...pillButtonStyle,
-                                            padding: '0.625rem 1.5rem',
-                                            background: GRADIENT,
-                                            color: '#ffffff',
-                                            boxShadow: `0 4px 12px #f9731640`,
-                                        }}
-                                        className="hover:scale-105 transition-transform"
-                                    >
-                                        <Plus size={16} />
-                                        Publicar
-                                    </button>
-                                )}
-                            </div>
-                        ) : (
-                            <div className="flex flex-col gap-4">
-                                {publications.map(pub => renderPublicationCard(pub, true, false))}
-                            </div>
-                        )}
 
                         {isCreating && (
                             <div
@@ -813,9 +808,58 @@ export default function ProfilePublication({ profileId, profileSlug, isOwner = t
                                 </div>
                             </div>
                         )}
-                    </div>
-                )}
-            </div>
+            </>
+        )
+    )
+
+    const subtitle = `${publications.length} ${publications.length === 1 ? 'publicação' : 'publicações'}`
+
+    return (
+        <div className="mb-6 mt-4">
+            {v3 ? (
+                <div data-add-target="publication">
+                    <V3Section
+                        title="Minhas Publicações"
+                        subtitle={subtitle}
+                        badge={publications.length > 0 ? <span className="text-xs font-black px-2.5 py-1 rounded-full text-white flex-shrink-0" style={{ background: V3_GRADIENT }}>{publications.length}</span> : undefined}
+                        expanded={isExpanded}
+                        onToggle={() => setIsExpanded(!isExpanded)}
+                        className=""
+                    >
+                        {body}
+                    </V3Section>
+                </div>
+            ) : (
+                <div
+                    data-add-target="publication"
+                    className={`rounded-2xl relative flex flex-col ${isExpanded ? 'p-6 pt-7 gap-5' : 'p-4'}`}
+                    style={{
+                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
+                        backdropFilter: 'blur(12px)',
+                        WebkitBackdropFilter: 'blur(12px)',
+                        border: `1px solid ${colors.border}`,
+                        boxShadow: colors.shadow,
+                    }}
+                >
+                    <button
+                        onClick={() => setIsExpanded(!isExpanded)}
+                        className="w-full flex items-center justify-between text-left"
+                        style={{ padding: isExpanded ? '0.5rem 0.75rem' : 0, borderRadius: '9999px', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                    >
+                        <div>
+                            <h3 className={`${isExpanded ? 'text-lg' : 'text-sm'} font-black`} style={{ color: textPrimary }}>Minhas Publicações</h3>
+                            <p className="text-xs mt-0.5" style={{ color: textSecondary }}>{subtitle}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            {publications.length > 0 && (
+                                <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: '#f9731620', color: '#f97316' }}>{publications.length}</span>
+                            )}
+                            {isExpanded ? <ChevronUp size={22} style={{ color: textSecondary }} /> : <ChevronDown size={18} style={{ color: textSecondary }} />}
+                        </div>
+                    </button>
+                    {isExpanded && body}
+                </div>
+            )}
 
             {confirmDeleteId && (
                 <div
