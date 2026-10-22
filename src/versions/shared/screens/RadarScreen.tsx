@@ -16,6 +16,7 @@ import { useAppModeStore } from '@/store/useAppModeStore'
 import { toast } from 'sonner'
 import { Spinner } from '@/components/Spinner'
 import RadarSonar from '@/components/radar/RadarSonar'
+import RadarItemDetails from '@/components/radar/RadarItemDetails'
 import { isStoreOpenNow, getStoreStatusText, getNextOpeningInfo } from '@/lib/storeHours'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { getCurrentPosition as getNativeCurrentPosition } from '@/lib/nativeGeolocation'
@@ -175,6 +176,7 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
     const [userName, setUserName] = useState<string>('')
     const [profileData, setProfileData] = useState<any>(null)
     const [mapInitialized, setMapInitialized] = useState(false)
+    const [slugById, setSlugById] = useState<Record<string, string>>({})
     const [storeDetails, setStoreDetails] = useState<any | null>(null)
     const [loadingStoreDetails, setLoadingStoreDetails] = useState(false)
     const [expandedSelectedDesc, setExpandedSelectedDesc] = useState(false)
@@ -436,6 +438,7 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
 
             setStores(mappedStores)
             setProducts(mappedProducts)
+            setSlugById(Object.fromEntries((profilesList || []).filter((pr: any) => pr.profileSlug).map((pr: any) => [pr.id, pr.profileSlug])))
 
             const { data: peopleData } = await supabase.rpc('get_people_on_map', { p_limit: 200 })
             setPeople((peopleData || []).map((p: any) => ({
@@ -737,16 +740,18 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
 
                 const storeSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m2 7 4.41-2.20a2 2 0 0 1 1.76 0l4.23 2.12a2 2 0 0 0 1.76 0L18.4 4.8a2 2 0 0 1 1.76 0L22 7"/><path d="M22 7v11a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7"/><path d="M2 11h20"/><path d="M16 11v9"/><path d="M8 11v9"/></svg>`
 
+                const initial = String(item.name || '?').replace('@', '').charAt(0).toUpperCase().replace(/[<>&]/g, '')
+                const fallbackHtml = mode === 'lojas'
+                    ? `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;">${storeSvg}</div>`
+                    : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#fed7aa,#fecaca);color:#ea580c;font-weight:900;font-style:italic;font-size:${rank ? 22 : 18}px;">${initial}</div>`
                 if (imageUrl) {
                     const img = document.createElement('img')
                     img.src = imageUrl
                     img.style.cssText = 'width:100%;height:100%;object-fit:cover;'
-                    img.onerror = () => {
-                        inner.innerHTML = `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;">${storeSvg}</div>`
-                    }
+                    img.onerror = () => { inner.innerHTML = fallbackHtml }
                     inner.appendChild(img)
                 } else {
-                    inner.innerHTML = `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;">${storeSvg}</div>`
+                    inner.innerHTML = fallbackHtml
                 }
 
                 el.appendChild(inner)
@@ -1467,13 +1472,10 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                                             : 'border-orange-200'}`}`}
                                         style={rank ? { border: `3px solid ${RANK_COLORS[rank].fill}`, boxShadow: `0 0 0 3px ${RANK_COLORS[rank].fill}55, 0 6px 16px rgba(0,0,0,0.35)` } : undefined}
                                     >
-                                        {img ? (
-                                            <img src={img} className="w-full h-full object-cover" alt="" />
-                                        ) : (
-                                            <div className="w-full h-full flex items-center justify-center text-xs font-black italic bg-gradient-to-br from-orange-100 to-red-100 text-orange-500">
-                                                {item.name?.charAt(0)}
-                                            </div>
-                                        )}
+                                        <div className="relative w-full h-full flex items-center justify-center text-sm font-black italic bg-gradient-to-br from-orange-100 to-red-100 text-orange-500">
+                                            {(item.name || '?').replace('@', '').charAt(0).toUpperCase()}
+                                            {img && <img src={img} className="absolute inset-0 w-full h-full object-cover" alt="" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />}
+                                        </div>
                                     </div>
                                 </button>
                             )
@@ -1563,11 +1565,10 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                                                     : 'linear-gradient(135deg, #f97316, #dc2626)',
                                             }}
                                         >
-                                            <div className="w-full h-full rounded-2xl overflow-hidden bg-white flex items-center justify-center">
-                                                {(selectedItem.logo_url || selectedItem.image_url) ? (
-                                                    <img src={selectedItem.logo_url || selectedItem.image_url} className="w-full h-full object-cover" alt="" />
-                                                ) : (
-                                                    <span className="text-2xl font-black italic text-orange-300">?</span>
+                                            <div className="relative w-full h-full rounded-2xl overflow-hidden bg-gradient-to-br from-orange-100 to-red-100 flex items-center justify-center">
+                                                <span className="text-2xl font-black italic text-orange-400">{(selectedItem.name || '?').replace('@', '').charAt(0).toUpperCase()}</span>
+                                                {(selectedItem.logo_url || selectedItem.image_url) && (
+                                                    <img src={selectedItem.logo_url || selectedItem.image_url} className="absolute inset-0 w-full h-full object-cover" alt="" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />
                                                 )}
                                             </div>
                                         </div>
@@ -1603,11 +1604,6 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                                         </div>
                                     </div>
                                 </div>
-                                {(mode === 'servicos' || mode === 'produtos') && selectedItem.price && (
-                                    <div className="mt-3 p-2 bg-gradient-to-r from-orange-50 to-red-50 rounded-xl">
-                                        <p className="text-xl font-black text-orange-600">R$ {selectedItem.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-                                    </div>
-                                )}
                                 {/* Descrição, cards de contato e status - mesmo estilo/conteúdo
                                     da página da loja (Store.tsx), só que compacto pro dialog. */}
                                 {mode === 'lojas' && selectedItem.description && (
@@ -1741,6 +1737,17 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                                 )}
                             </div>
 
+                            {/* Serviços, produtos e pessoas: card completo, no nível do card da loja */}
+                            {mode !== 'lojas' && (
+                                <RadarItemDetails
+                                    mode={mode}
+                                    item={selectedItem}
+                                    stores={stores}
+                                    userId={userId}
+                                    go={(path) => router.push(path)}
+                                />
+                            )}
+
                             {/* Produtos mais vistos */}
                             {mode === 'lojas' && storeDetails?.topProducts?.length > 0 && (
                                 <div className="px-4 pb-3">
@@ -1805,13 +1812,15 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                                     if (mode === 'pessoas') router.push(`/${selectedItem.profileSlug}`)
                                     else if (mode === 'lojas') router.push(`/${selectedItem.storeSlug}`)
                                     else {
+                                        // serviço/produto: da loja, ou do perfil de quem publicou (serviço de perfil não tem loja)
                                         const store = stores.find(s => s.id === selectedItem.store_id)
-                                        if (store) router.push(`/${store.storeSlug}/${selectedItem.slug || selectedItem.id}`)
+                                        const ownerSlug = store?.storeSlug || (selectedItem.owner_id ? slugById[selectedItem.owner_id] : null)
+                                        if (ownerSlug) router.push(`/${ownerSlug}/${selectedItem.slug || selectedItem.id}`)
                                     }
                                 }}
                                 className="w-full py-3.5 rounded-full bg-gradient-to-r from-orange-500 to-red-500 text-white font-black uppercase text-xs tracking-wider shadow-lg transition-all hover:shadow-xl hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-1.5"
                             >
-                                {mode === 'pessoas' ? 'Ver perfil' : 'Visitar Loja'}
+                                {mode === 'pessoas' ? 'Ver perfil' : mode === 'lojas' ? 'Visitar Loja' : mode === 'servicos' ? 'Ver serviço' : 'Ver produto'}
                                 <ChevronRight className="w-4 h-4" />
                             </button>
                         </div>
