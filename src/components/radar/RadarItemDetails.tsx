@@ -160,7 +160,7 @@ function OfferBody({ mode, item, data, loading, expanded, setExpanded, go }: { m
         <div className="px-4 pb-4 space-y-3">
             {(price || dur || stock != null) && (
                 <div className="flex items-center gap-2 flex-wrap p-2.5 bg-gradient-to-r from-orange-50 to-red-50 rounded-xl">
-                    {price ? <p className="text-xl font-black text-orange-600 mr-auto">{price}</p> : <p className="text-sm font-black text-orange-600 mr-auto">Valor a combinar</p>}
+                    {price ? <p className="text-xl font-black text-orange-600 mr-auto">{price}</p> : <span className="mr-auto" />}
                     {dur && <span className="flex items-center gap-1 text-[10px] font-black text-gray-600 bg-white/80 rounded-full px-2.5 py-1"><Clock className="w-3 h-3 text-orange-500" />{dur}</span>}
                     {stock != null && <span className={`text-[10px] font-black rounded-full px-2.5 py-1 bg-white/80 ${stock > 0 ? 'text-green-600' : 'text-red-500'}`}>{stock > 0 ? `${stock} em estoque` : 'Esgotado'}</span>}
                 </div>

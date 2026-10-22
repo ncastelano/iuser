@@ -906,9 +906,9 @@ export function Store({
                         {/* Preço */}
                         <div className="mt-2">
                             <span className="text-2xl font-extrabold" style={{ color: '#f97316' }}>
-                                R$ {(selectedProduct.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                {selectedProduct.type === 'service' && !((selectedProduct.price || 0) > 0) ? 'Valor a combinar' : `R$ ${(selectedProduct.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
                             </span>
-                            {selectedProduct.price_type === 'hourly' && (
+                            {selectedProduct.price_type === 'hourly' && (selectedProduct.price || 0) > 0 && (
                                 <span className="text-sm ml-1 opacity-75" style={{ color: colors.textSecondary }}>/h</span>
                             )}
                         </div>
@@ -1593,7 +1593,7 @@ export function Store({
                                                                 {product.duration_minutes ? `${product.duration_minutes} min` : 'Duração a combinar'}
                                                             </p>
                                                             <span className="text-sm font-black" style={{ color: '#f97316' }}>
-                                                                {(product.price || 0) > 0 ? `R$ ${(product.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : 'Sem custo'}{isHourly ? '/h' : ''}
+                                                                {(product.price || 0) > 0 ? `R$ ${(product.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : product.type === 'service' ? 'Valor a combinar' : 'Sem custo'}{isHourly && (product.price || 0) > 0 ? '/h' : ''}
                                                             </span>
                                                         </div>
                                                         {isOwner ? (

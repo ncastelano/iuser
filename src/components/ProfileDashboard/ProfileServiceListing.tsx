@@ -342,9 +342,9 @@ export default function ProfileServiceListing({ profileId, profileSlug, linkToPr
                         // No ProfileDashboard o perfil já está na página: só o título da seção, como "Publicações"
                         <div className="flex items-center gap-3">
                             <div>
-                                <h3 className={`${isExpanded ? 'text-lg' : 'text-sm'} font-black`} style={{ color: textPrimary }}>Meus Serviços</h3>
+                                <h3 className={`${isExpanded ? 'text-lg' : 'text-sm'} font-black`} style={{ color: textPrimary }}>Serviços do meu perfil</h3>
                                 <p className="text-xs mt-0.5" style={{ color: textSecondary }}>
-                                    {listings.length} {listings.length === 1 ? 'serviço' : 'serviços'}
+                                    {listings.length} {listings.length === 1 ? 'serviço' : 'serviços'} · sem valor, o cliente combina com você
                                 </p>
                             </div>
                         </div>

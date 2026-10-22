@@ -311,7 +311,7 @@ export default function EditProductDialog({ productId, colors, onClose, onSaved,
                                 {/* Preço */}
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="space-y-2">
-                                        <label className="text-sm font-bold" style={{ color: colors.textPrimary }}>Preço (R$)</label>
+                                        <label className="text-sm font-bold" style={{ color: colors.textPrimary }}>{isService ? 'Preço (R$) — opcional' : 'Preço (R$)'}</label>
                                         <MoneyInput
                                             value={price}
                                             onChange={setPrice}
