@@ -1204,10 +1204,12 @@ export function ProductClientPage({
                                 </div>
                             </button>
                             <button
-                                onClick={() => handleShareLink({
-                                    title: `${product.name || 'Produto'} | ${storeDisplay.name}`,
-                                    text: product.description || 'Confira no iUser!'
-                                })}
+                                onClick={async () => {
+                                    if (await handleShareLink({
+                                        title: `${product.name || 'Produto'} | ${storeDisplay.name}`,
+                                        text: product.description || 'Confira no iUser!'
+                                    })) void supabase.rpc('increment_product_share_count', { p_product: product.id })
+                                }}
                                 aria-label="Compartilhar"
                                 className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 backdrop-blur-md transition hover:scale-105"
                                 style={{ background: 'rgba(17,17,17,0.4)' }}

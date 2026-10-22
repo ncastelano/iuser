@@ -169,7 +169,7 @@ export function ServiceClientPage({ ownerSlug, colors, initialService }: Service
                     </button>
                     <h1 className="flex-1 min-w-0 truncate text-base font-black" style={{ color: colors.textPrimary }}>{service.name}</h1>
                     <button
-                        onClick={() => handleShareLink({ title: service.name, text: `${service.name} — ${providerName} no iUser`, url: pageUrl })}
+                        onClick={async () => { if (await handleShareLink({ title: service.name, text: `${service.name} — ${providerName} no iUser`, url: pageUrl })) void supabase.rpc('increment_product_share_count', { p_product: service.id }) }}
                         aria-label="Compartilhar"
                         className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition hover:scale-105"
                         style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}

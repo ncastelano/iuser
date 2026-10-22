@@ -32,11 +32,15 @@ import {
     ExternalLink,
     Share2,
     Eye,
+    ArrowUpDown,
 } from 'lucide-react'
 import { handleShareLink } from '@/lib/share'
 import { generateUniqueGlobalSlug } from '@/lib/slugUtils'
 import { getAvatarUrl } from '@/lib/avatar'
 import { Spinner } from '@/components/Spinner'
+import { useInsideShell } from '@/components/InsideShell'
+import V3Section, { V3_GRADIENT } from '@/components/StoreDashboard/V3Section'
+import { startOfDay } from 'date-fns'
 
 interface ServiceListing {
     id: string
@@ -50,6 +54,11 @@ interface ServiceListing {
     lng: number | null
     created_at: string
     view_count?: number | null
+    share_count?: number | null
+    // números do painel (como em "Serviços da Loja")
+    viewsToday?: number
+    viewsTotal?: number
+    comments?: number
 }
 
 interface ProfileServiceListingProps {
@@ -93,7 +102,9 @@ export default function ProfileServiceListing({ profileId, profileSlug, linkToPr
     const { colors } = useTheme()
     const surfaceRgb = hexToRgb(colors.surface)
     const router = useRouter()
+    const v3 = useInsideShell()
     const fileInputRef = useRef<HTMLInputElement>(null)
+    const [sortBy, setSortBy] = useState<'recent' | 'mostViewed' | 'mostShared' | 'mostCommented'>('recent')
 
     const [isExpanded, setIsExpanded] = usePersistedExpanded('profileServiceListing', true)
     const [isCreating, setIsCreating] = useState(false)
@@ -149,13 +160,31 @@ export default function ProfileServiceListing({ profileId, profileSlug, linkToPr
             try {
                 const { data, error } = await supabase
                     .from('products')
-                    .select('id, name, description, image_url, slug, service_type, address, lat, lng, created_at, view_count')
+                    .select('id, name, description, image_url, slug, service_type, address, lat, lng, created_at, view_count, share_count')
                     .eq('owner_id', profileId)
                     .eq('listing_type', 'service_offer')
                     .order('created_at', { ascending: false })
 
                 if (!error && data && isMounted) {
-                    setListings(data as ServiceListing[])
+                    const ids = data.map((r: any) => r.id)
+                    let withStats = data as ServiceListing[]
+                    if (ids.length > 0) {
+                        // visitas (hoje e total) e comentários de cada serviço — os mesmos números que a loja vê nos serviços dela
+                        const todayISO = startOfDay(new Date()).toISOString()
+                        const [{ data: vToday }, { data: vTotal }, { data: cm }] = await Promise.all([
+                            supabase.from('product_views').select('product_id').in('product_id', ids).gte('created_at', todayISO),
+                            supabase.from('product_views').select('product_id').in('product_id', ids),
+                            supabase.from('comments').select('publication_id').in('publication_id', ids),
+                        ])
+                        const count = (rows: any[] | null, key: string) => {
+                            const m = new Map<string, number>()
+                            rows?.forEach((r) => m.set(r[key], (m.get(r[key]) || 0) + 1))
+                            return m
+                        }
+                        const t = count(vToday, 'product_id'), a = count(vTotal, 'product_id'), c = count(cm, 'publication_id')
+                        withStats = (data as ServiceListing[]).map((l) => ({ ...l, viewsToday: t.get(l.id) || 0, viewsTotal: Math.max(a.get(l.id) || 0, l.view_count || 0), comments: c.get(l.id) || 0 }))
+                    }
+                    setListings(withStats)
                 }
             } catch (err) {
                 console.error('[ProfileServiceListing] Erro ao carregar:', err)
@@ -303,213 +332,106 @@ export default function ProfileServiceListing({ profileId, profileSlug, linkToPr
     const textPrimary = colors.textPrimary
     const textSecondary = colors.textSecondary
 
-    return (
-        <div className="mb-6 mt-4">
-            <div
-                data-add-target="service"
-                className={`rounded-2xl relative flex flex-col ${isExpanded ? 'p-6 pt-7 gap-5' : 'p-4'}`}
-                style={{
-                    background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
-                    backdropFilter: 'blur(12px)',
-                    WebkitBackdropFilter: 'blur(12px)',
-                    border: `1px solid ${colors.border}`,
-                    boxShadow: colors.shadow,
-                }}
-            >
-                <button
-                    onClick={() => setIsExpanded(!isExpanded)}
-                    className="w-full flex items-center justify-between text-left"
-                    style={{ padding: isExpanded ? '0.5rem 0.75rem' : 0, borderRadius: '9999px', background: 'transparent', border: 'none', cursor: 'pointer' }}
-                >
-                    {linkToProfile ? (
-                        <div
-                            className="flex items-center gap-3"
-                            onClick={linkToProfile ? (e) => { e.stopPropagation(); router.push(`/${profileSlug}`) } : undefined}
-                            style={linkToProfile ? { cursor: 'pointer' } : undefined}
-                            title={linkToProfile ? 'Ir para o meu perfil' : undefined}
-                        >
-                            <div className="w-12 h-12 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#ffffff' }}>
-                                {owner?.avatarUrl ? <img src={owner.avatarUrl} className="w-full h-full object-cover" alt="" /> : <span className="text-lg font-black">{(profileSlug || owner?.name || '?').charAt(0).toUpperCase()}</span>}
-                            </div>
-                            <div className="min-w-0">
-                                <h3 className="text-lg font-black truncate" style={{ color: textPrimary }}>{owner?.name || `@${profileSlug}`}</h3>
-                                <p className="text-xs mt-0.5" style={{ color: textSecondary }}>
-                                    @{profileSlug} · serviços do seu perfil (sem loja)
-                                </p>
-                            </div>
-                        </div>
-                    ) : (
-                        // No ProfileDashboard o perfil já está na página: só o título da seção, como "Publicações"
-                        <div className="flex items-center gap-3">
-                            <div>
-                                <h3 className={`${isExpanded ? 'text-lg' : 'text-sm'} font-black`} style={{ color: textPrimary }}>Serviços do meu perfil</h3>
-                                <p className="text-xs mt-0.5" style={{ color: textSecondary }}>
-                                    {listings.length} {listings.length === 1 ? 'serviço' : 'serviços'} · sem valor, o cliente combina com você
-                                </p>
-                            </div>
-                        </div>
-                    )}
-                    <div className="flex items-center gap-2">
-                        {linkToProfile && listings.length > 0 && (
-                            <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: '#f9731620', color: '#f97316' }}>
-                                {listings.length}
-                            </span>
-                        )}
-                        {isExpanded ? <ChevronUp size={isExpanded ? 22 : 18} style={{ color: textSecondary }} /> : <ChevronDown size={isExpanded ? 22 : 18} style={{ color: textSecondary }} />}
-                    </div>
-                </button>
+    const sortedListings = [...listings].sort((x, y) => {
+        switch (sortBy) {
+            case 'mostViewed': return (y.viewsTotal || 0) - (x.viewsTotal || 0)
+            case 'mostShared': return (y.share_count || 0) - (x.share_count || 0)
+            case 'mostCommented': return (y.comments || 0) - (x.comments || 0)
+            default: return new Date(y.created_at).getTime() - new Date(x.created_at).getTime()
+        }
+    })
 
-                {/* Fechado: o card do serviço SEM botões (foto, nome, tipo e endereço) */}
-                {!isExpanded && !loading && listings.length > 0 && (
-                    <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
-                        {listings.slice(0, 6).map((listing) => {
+    // Mesmo corpo de "Serviços da Loja": ordenar, "Adicionar" e os cartões (foto, nome, números). Serviço de perfil NÃO tem valor.
+    const body = (
+        loading ? (
+            <div className="flex justify-center py-8">
+                <div className="w-6 h-6 border-2 border-orange-200 border-t-orange-500 rounded-full animate-spin" />
+            </div>
+        ) : (
+            <>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-1 text-xs" style={{ color: textSecondary }}>
+                        <ArrowUpDown size={14} />
+                        <select
+                            value={sortBy}
+                            onChange={(e) => setSortBy(e.target.value as any)}
+                            className="bg-transparent border rounded-full px-3 py-1 text-xs"
+                            style={{ borderColor: colors.border, color: textPrimary }}
+                        >
+                            <option value="recent">Mais recentes</option>
+                            <option value="mostViewed">Mais vistos</option>
+                            <option value="mostShared">Mais compartilhados</option>
+                            <option value="mostCommented">Mais comentados</option>
+                        </select>
+                    </div>
+                    {!isCreating && (
+                        <button
+                            onClick={() => setIsCreating(true)}
+                            style={{ ...pillButtonStyle, padding: '0.75rem 1.25rem', fontSize: '0.875rem', background: GRADIENT, color: '#ffffff', boxShadow: '0 4px 12px #f9731640' }}
+                            className="hover:scale-105 transition-transform"
+                        >
+                            <Plus size={14} /> Adicionar
+                        </button>
+                    )}
+                </div>
+
+                {listings.length === 0 && !isCreating ? (
+                    <div className="rounded-xl p-6 text-center flex flex-col items-center gap-3" style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`, border: `1px dashed ${colors.border}` }}>
+                        <p className="text-sm font-black" style={{ color: textPrimary }}>
+                            Que tal publicar o seu primeiro serviço{owner?.name ? `, ${owner.name.split(' ')[0]}` : ''}?
+                        </p>
+                        <p className="text-xs" style={{ color: textSecondary }}>Anuncie o que você faz e apareça no mapa de quem está procurando um profissional — o cliente te chama na hora. Serviço de perfil não tem valor: o cliente combina com você.</p>
+                        <button
+                            onClick={() => setIsCreating(true)}
+                            style={{ ...pillButtonStyle, padding: '0.75rem 1.25rem', fontSize: '0.875rem', background: GRADIENT, color: '#ffffff' }}
+                            className="hover:opacity-80 transition-opacity"
+                        >
+                            <Plus size={14} /> Publicar primeiro serviço
+                        </button>
+                    </div>
+                ) : listings.length > 0 && (
+                    <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-gray-400">
+                        {sortedListings.map((listing) => {
                             const imgUrl = getImageUrl(listing.image_url)
+                            const pageUrl = `/${profileSlug}/${listing.slug}`
                             return (
                                 <div
                                     key={listing.id}
-                                    onClick={() => router.push(`/${profileSlug}/${listing.slug}`)}
-                                    className="flex-shrink-0 w-52 rounded-2xl overflow-hidden cursor-pointer transition-transform hover:scale-[1.02]"
-                                    style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.5)`, border: `1px solid ${colors.border}` }}
+                                    className="flex-shrink-0 w-40 rounded-2xl border p-3 flex flex-col gap-2 cursor-pointer hover:shadow-md transition-shadow relative"
+                                    style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`, borderColor: colors.border }}
+                                    onClick={() => router.push(pageUrl)}
                                 >
-                                    <div className="w-full h-24 flex items-center justify-center" style={{ background: '#7c3aed1f', color: '#7c3aed' }}>
-                                        {imgUrl ? <img src={imgUrl} className="w-full h-full object-cover" alt={listing.name} /> : <Wrench size={26} />}
-                                    </div>
-                                    <div className="p-2.5">
-                                        <p className="text-xs font-black truncate" style={{ color: textPrimary }}>{listing.name}</p>
-                                        <p className="text-[11px] font-bold mt-0.5" style={{ color: '#f97316' }}>{serviceLabel(listing.service_type)}</p>
-                                        {listing.address && (
-                                            <p className="flex items-center gap-1 text-[10px] mt-1" style={{ color: textSecondary }}>
-                                                <MapPin size={10} className="flex-shrink-0" />
-                                                <span className="truncate">{listing.address}</span>
-                                            </p>
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); setEditingServiceId(listing.id) }}
+                                        className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center hover:bg-black/50 transition-colors z-10"
+                                        title="Editar serviço"
+                                    >
+                                        <Pencil size={14} color="white" />
+                                    </button>
+                                    <div className="w-full h-28 rounded-xl overflow-hidden bg-gray-100">
+                                        {imgUrl ? (
+                                            <img src={imgUrl} className="w-full h-full object-cover" alt="" />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center" style={{ color: textSecondary }}>
+                                                <Wrench size={28} />
+                                            </div>
                                         )}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-xs font-bold truncate" style={{ color: textPrimary }}>{listing.name}</p>
+                                        <p className="text-[11px] font-bold mt-0.5 truncate" style={{ color: '#f97316' }}>{serviceLabel(listing.service_type)}</p>
+                                        <div className="flex flex-col text-[10px] mt-1 space-y-0.5" style={{ color: textSecondary }}>
+                                            <span>👁 {listing.viewsToday || 0} hoje</span>
+                                            <span>📊 {listing.viewsTotal || 0} views</span>
+                                            <span>↗ {listing.share_count || 0} compartilhamentos</span>
+                                            <span>💬 {listing.comments || 0} comentários</span>
+                                        </div>
                                     </div>
                                 </div>
                             )
                         })}
                     </div>
                 )}
-
-                {isExpanded && (
-                    <div className="flex flex-col gap-5">
-                        {loading ? (
-                            <div className="flex justify-center py-8">
-                                <div className="w-6 h-6 border-2 border-orange-200 border-t-orange-500 rounded-full animate-spin" />
-                            </div>
-                        ) : listings.length === 0 && !isCreating ? (
-                            <div
-                                className="rounded-2xl p-6 text-center flex flex-col items-center gap-4"
-                                style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`, border: `1px dashed ${colors.border}` }}
-                            >
-                                <div className="w-16 h-16 rounded-full flex items-center justify-center" style={{ background: GRADIENT, color: '#ffffff' }}>
-                                    <Wrench size={28} />
-                                </div>
-                                <div>
-                                    <p className="text-sm font-black" style={{ color: textPrimary }}>
-                                        Que tal publicar o seu primeiro serviço{owner?.name ? `, ${owner.name.split(' ')[0]}` : ''}?
-                                    </p>
-                                    <p className="text-xs mt-1" style={{ color: textSecondary }}>Anuncie o que você faz e apareça no mapa de quem está procurando um profissional — o cliente te chama na hora.</p>
-                                </div>
-                                <button
-                                    onClick={() => setIsCreating(true)}
-                                    style={{ ...pillButtonStyle, padding: '0.625rem 1.5rem', background: GRADIENT, color: '#ffffff', boxShadow: `0 4px 12px #f9731640` }}
-                                    className="hover:scale-105 transition-transform"
-                                >
-                                    <Plus size={16} />
-                                    Publicar serviço
-                                </button>
-                            </div>
-                        ) : (
-                            <>
-                                {listings.length > 0 && (
-                                    <div className="flex flex-col gap-4">
-                                        {listings.map(listing => {
-                                            const imgUrl = getImageUrl(listing.image_url)
-                                            const pageUrl = `/${profileSlug}/${listing.slug}`
-                                            return (
-                                                <div
-                                                    key={listing.id}
-                                                    className="rounded-2xl border overflow-hidden flex flex-col"
-                                                    style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.4)`, borderColor: colors.border }}
-                                                >
-                                                    <div
-                                                        className="relative w-full h-44 flex items-center justify-center cursor-pointer"
-                                                        style={{ background: '#7c3aed1f', color: '#7c3aed' }}
-                                                        onClick={() => router.push(pageUrl)}
-                                                    >
-                                                        {imgUrl ? <img src={imgUrl} className="w-full h-full object-cover" alt={listing.name} /> : <Wrench size={40} />}
-                                                        <span className="absolute left-2 top-2 text-[10px] font-black uppercase tracking-wide px-2 py-0.5 rounded-full text-white" style={{ background: '#7c3aed' }}>
-                                                            {serviceLabel(listing.service_type)}
-                                                        </span>
-                                                    </div>
-                                                    <div className="p-4 flex flex-col gap-2">
-                                                        <p className="text-sm font-black" style={{ color: textPrimary }}>{listing.name}</p>
-                                                        {listing.description && (
-                                                            <p className="text-xs line-clamp-3" style={{ color: textSecondary }}>{listing.description}</p>
-                                                        )}
-                                                        <div className="flex items-center flex-wrap gap-x-3 gap-y-1 text-[11px]" style={{ color: textSecondary }}>
-                                                            {listing.address && (
-                                                                <span className="flex items-center gap-1 min-w-0">
-                                                                    <MapPin size={11} className="flex-shrink-0" />
-                                                                    <span className="truncate">{listing.address}</span>
-                                                                </span>
-                                                            )}
-                                                            <span className="flex items-center gap-1"><Eye size={11} /> {listing.view_count || 0}</span>
-                                                        </div>
-                                                        <div className="flex items-center flex-wrap gap-2 pt-2 mt-1 border-t" style={{ borderColor: colors.border }}>
-                                                            <button
-                                                                onClick={() => router.push(pageUrl)}
-                                                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-black text-white transition hover:scale-105"
-                                                                style={{ background: GRADIENT }}
-                                                            >
-                                                                <ExternalLink size={12} /> Ver página
-                                                            </button>
-                                                            <button
-                                                                onClick={() => setEditingServiceId(listing.id)}
-                                                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-black border transition hover:scale-105"
-                                                                style={{ borderColor: colors.border, color: textPrimary }}
-                                                            >
-                                                                <Pencil size={12} /> Editar
-                                                            </button>
-                                                            <button
-                                                                onClick={() => handleShareLink({
-                                                                    title: listing.name,
-                                                                    text: listing.description || 'Confira este serviço no iUser!',
-                                                                    url: `${window.location.origin}${pageUrl}`,
-                                                                })}
-                                                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-black border transition hover:scale-105"
-                                                                style={{ borderColor: colors.border, color: textPrimary }}
-                                                            >
-                                                                <Share2 size={12} /> Compartilhar
-                                                            </button>
-                                                            <button
-                                                                onClick={() => setConfirmDeleteId(listing.id)}
-                                                                className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-black transition hover:scale-105"
-                                                                style={{ color: '#ef4444', background: '#ef444414' }}
-                                                                title="Excluir serviço"
-                                                            >
-                                                                <Trash2 size={12} /> Excluir
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            )
-                                        })}
-                                    </div>
-                                )}
-
-                                {!isCreating && (
-                                    <button
-                                        onClick={() => setIsCreating(true)}
-                                        style={{ ...pillButtonStyle, width: '100%', padding: '0.75rem', background: 'transparent', border: `1px dashed ${colors.border}`, color: '#f97316' }}
-                                        className="hover:bg-white/5 transition-colors"
-                                    >
-                                        <Plus size={16} />
-                                        Novo serviço
-                                    </button>
-                                )}
-                            </>
-                        )}
 
                         {isCreating && (
                             <div
@@ -642,9 +564,76 @@ export default function ProfileServiceListing({ profileId, profileSlug, linkToPr
                                 </div>
                             </div>
                         )}
-                    </div>
-                )}
-            </div>
+            </>
+        )
+    )
+
+    const title = 'Serviços publicados'
+    const subtitle = `${listings.length} ${listings.length === 1 ? 'publicado' : 'publicados'}`
+
+    return (
+        <div className="mb-6 mt-4">
+            {v3 ? (
+                <div data-add-target="service">
+                    <V3Section
+                        title={title}
+                        subtitle={subtitle}
+                        badge={listings.length > 0 ? <span className="text-xs font-black px-2.5 py-1 rounded-full text-white flex-shrink-0" style={{ background: V3_GRADIENT }}>{listings.length}</span> : undefined}
+                        expanded={isExpanded}
+                        onToggle={() => setIsExpanded(!isExpanded)}
+                        className=""
+                    >
+                        {body}
+                    </V3Section>
+                </div>
+            ) : (
+                <div
+                    data-add-target="service"
+                    className={`rounded-2xl relative flex flex-col ${isExpanded ? 'p-6 pt-7 gap-5' : 'p-4'}`}
+                    style={{
+                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
+                        backdropFilter: 'blur(12px)',
+                        WebkitBackdropFilter: 'blur(12px)',
+                        border: `1px solid ${colors.border}`,
+                        boxShadow: colors.shadow,
+                    }}
+                >
+                    <button
+                        onClick={() => setIsExpanded(!isExpanded)}
+                        className="w-full flex items-center justify-between text-left"
+                        style={{ padding: isExpanded ? '0.5rem 0.75rem' : 0, borderRadius: '9999px', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                    >
+                        {linkToProfile ? (
+                            <div
+                                className="flex items-center gap-3"
+                                onClick={(e) => { e.stopPropagation(); router.push(`/${profileSlug}`) }}
+                                style={{ cursor: 'pointer' }}
+                                title="Ir para o meu perfil"
+                            >
+                                <div className="w-12 h-12 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#ffffff' }}>
+                                    {owner?.avatarUrl ? <img src={owner.avatarUrl} className="w-full h-full object-cover" alt="" /> : <span className="text-lg font-black">{(profileSlug || owner?.name || '?').charAt(0).toUpperCase()}</span>}
+                                </div>
+                                <div className="min-w-0">
+                                    <h3 className="text-lg font-black truncate" style={{ color: textPrimary }}>{owner?.name || `@${profileSlug}`}</h3>
+                                    <p className="text-xs mt-0.5" style={{ color: textSecondary }}>@{profileSlug} · {title.toLowerCase()} do perfil (sem valor)</p>
+                                </div>
+                            </div>
+                        ) : (
+                            <div>
+                                <h3 className={`${isExpanded ? 'text-lg' : 'text-sm'} font-black`} style={{ color: textPrimary }}>{title}</h3>
+                                <p className="text-xs mt-0.5" style={{ color: textSecondary }}>{subtitle}</p>
+                            </div>
+                        )}
+                        <div className="flex items-center gap-2">
+                            {listings.length > 0 && (
+                                <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: '#f9731620', color: '#f97316' }}>{listings.length}</span>
+                            )}
+                            {isExpanded ? <ChevronUp size={isExpanded ? 22 : 18} style={{ color: textSecondary }} /> : <ChevronDown size={isExpanded ? 22 : 18} style={{ color: textSecondary }} />}
+                        </div>
+                    </button>
+                    {isExpanded && body}
+                </div>
+            )}
 
             {confirmDeleteId && (
                 <div

@@ -46,7 +46,7 @@ import PlanPromotions from './PlanPromotions'
 import DashboardSection from './DashboardSection'
 import ProfileVisitors from './ProfileVisitors'
 import PublicationProfile from './ProfilePublication'
-import MyServicesBoard from './MyServicesBoard'
+import ProfileServiceListing from './ProfileServiceListing'
 import Commission from './Commission'
 import LastSeenSettings from './LastSeenSettings'
 import ProfileNotification from './ProfileNotification'
@@ -1363,7 +1363,7 @@ export default function ProfileDashboard({
                 profileSlug={profileSlug || ''}
                 onLatestUpdate={onPublicacoesUpdate}
             />
-            <MyServicesBoard profileId={profile.id} profileSlug={profileSlug || ''} heading />
+            <ProfileServiceListing profileId={profile.id} profileSlug={profileSlug || ''} />
         </>
     )
     const indicacoesNode = (
