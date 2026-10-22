@@ -523,6 +523,9 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
     const hasShopping = bagCount > 0
     const hasExtraObject = extraObjectCount > 0
     const hasPet = petCount > 0
+    // Qual adicional está aberto (chip tocado): só ele mostra o contador e os detalhes
+    type ExtraKey = 'adultos' | 'crianca' | 'compras' | 'objeto' | 'pet'
+    const [openExtra, setOpenExtra] = useState<ExtraKey | null>(null)
 
     // ===== DETALHES: OBJETO =====
     const [objectDescription, setObjectDescription] = useState('')
@@ -1273,6 +1276,7 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
         if (missingPhoto) {
             toast.error(missingPhoto.msg)
             setStep('extras')
+            if (missingPhoto.id === 'foto-objeto-extra') setOpenExtra('objeto')
             setTimeout(() => {
                 document.getElementById(missingPhoto.id)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
             }, 150)
@@ -2499,15 +2503,43 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
 
                                         {!isTwoWheels && (
                                         <>
-                                        <CounterRow compact={v3}
-                                            label="Quantas adultos a mais?"
-                                            icon={Users}
-                                            value={extraPeopleCount}
-                                            onChange={setExtraPeopleCount}
-                                            max={29}
-                                            colors={colors}
-                                        />
+                                        {/* Chips compactos: tocar seleciona (começa em 1) e abre o painel; tocar de novo recolhe */}
+                                        <div className="flex flex-wrap gap-2">
+                                            {([
+                                                { key: 'adultos', label: 'Adulto', icon: Users, count: extraPeopleCount, set: setExtraPeopleCount },
+                                                { key: 'crianca', label: 'Criança', icon: Baby, count: childrenCount, set: setChildrenCount },
+                                                { key: 'compras', label: 'Compras', icon: ShoppingCart, count: bagCount, set: setBagCount },
+                                                { key: 'objeto', label: 'Objeto', icon: PackagePlus, count: extraObjectCount, set: setExtraObjectCount },
+                                                { key: 'pet', label: 'Pet', icon: PawPrint, count: petCount, set: setPetCount },
+                                            ] as { key: ExtraKey; label: string; icon: ElementType; count: number; set: (n: number) => void }[]).map(({ key, label, icon: Icon, count, set }) => {
+                                                const selected = count > 0
+                                                const open = openExtra === key
+                                                return (
+                                                    <button
+                                                        key={key}
+                                                        type="button"
+                                                        aria-expanded={open}
+                                                        onClick={() => {
+                                                            if (!selected) { set(1); setOpenExtra(key) } else setOpenExtra(open ? null : key)
+                                                        }}
+                                                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-black transition-all active:scale-95"
+                                                        style={selected
+                                                            ? { background: GRADIENT, color: '#fff', boxShadow: open ? '0 0 0 2px #f9731666' : undefined }
+                                                            : { background: `${colors.border}30`, color: colors.textSecondary, border: v3 ? 'none' : `1px solid ${colors.border}` }}
+                                                    >
+                                                        <Icon size={13} />
+                                                        {label}{selected ? ` · ${count}` : ''}
+                                                    </button>
+                                                )
+                                            })}
+                                        </div>
 
+                                        {openExtra === 'adultos' && (
+                                            <div className="flex flex-col gap-2">
+                                                <CounterRow compact={v3} label="Quantos adultos a mais?" icon={Users} value={extraPeopleCount} onChange={(n) => { setExtraPeopleCount(n); if (n === 0) setOpenExtra(null) }} max={29} colors={colors} />
+                                                
+                                            </div>
+                                        )}
                                         {totalPeople > 4 && (
                                             <div className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold" style={{ background: `${colors.accent}15`, color: colors.accent }}>
                                                 <Bus size={14} />
@@ -2515,8 +2547,10 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                                             </div>
                                         )}
 
-                                        <CounterRow compact={v3} label="Criança" icon={Baby} value={childrenCount} onChange={setChildrenCount} max={10} colors={colors} />
-                                        {hasChild && (
+                                        {openExtra === 'crianca' && (
+                                            <div className="flex flex-col gap-2">
+                                                <CounterRow compact={v3} label="Quantas crianças?" icon={Baby} value={childrenCount} onChange={(n) => { setChildrenCount(n); if (n === 0) setOpenExtra(null) }} max={10} colors={colors} />
+                                                {hasChild && (
                                             <div className="rounded-xl px-3 py-2.5" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
                                                 <span className="text-xs font-bold block mb-1.5" style={{ color: colors.textPrimary }}>
                                                     {childrenCount === 1 ? 'Idade da criança' : 'Idades das crianças'}
@@ -2551,9 +2585,12 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                                                 </div>
                                             </div>
                                         )}
-
-                                        <CounterRow compact={v3} label="Compras de mercado" icon={ShoppingCart} value={bagCount} onChange={setBagCount} max={20} colors={colors} />
-                                        {hasShopping && (
+                                            </div>
+                                        )}
+                                        {openExtra === 'compras' && (
+                                            <div className="flex flex-col gap-2">
+                                                <CounterRow compact={v3} label="Quantas compras de mercado?" icon={ShoppingCart} value={bagCount} onChange={(n) => { setBagCount(n); if (n === 0) setOpenExtra(null) }} max={20} colors={colors} />
+                                                {hasShopping && (
                                             <div className="rounded-xl px-3 py-2.5" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
                                                 <span className="text-xs font-bold block mb-1.5" style={{ color: colors.textSecondary }}>Tamanho da compra</span>
                                                 <div className="flex gap-2">
@@ -2578,9 +2615,12 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                                                 </div>
                                             </div>
                                         )}
-
-                                        <CounterRow compact={v3} label="Objeto" icon={PackagePlus} value={extraObjectCount} onChange={setExtraObjectCount} max={10} colors={colors} />
-                                        {hasExtraObject && (
+                                            </div>
+                                        )}
+                                        {openExtra === 'objeto' && (
+                                            <div className="flex flex-col gap-2">
+                                                <CounterRow compact={v3} label="Quantos objetos?" icon={PackagePlus} value={extraObjectCount} onChange={(n) => { setExtraObjectCount(n); if (n === 0) setOpenExtra(null) }} max={10} colors={colors} />
+                                                {hasExtraObject && (
                                             <div className="rounded-xl px-3 py-2.5" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
                                                 <span className="text-xs font-bold block mb-1.5" style={{ color: colors.textSecondary }}>Tamanho do objeto</span>
                                                 <div className="flex gap-2 mb-2">
@@ -2623,9 +2663,12 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                                                 </div>
                                             </div>
                                         )}
-
-                                        <CounterRow compact={v3} label="Pet" icon={PawPrint} value={petCount} onChange={setPetCount} max={10} colors={colors} />
-                                        {hasPet && (
+                                            </div>
+                                        )}
+                                        {openExtra === 'pet' && (
+                                            <div className="flex flex-col gap-2">
+                                                <CounterRow compact={v3} label="Quantos pets?" icon={PawPrint} value={petCount} onChange={(n) => { setPetCount(n); if (n === 0) setOpenExtra(null) }} max={10} colors={colors} />
+                                                {hasPet && (
                                             <div className="rounded-xl px-3 py-2.5" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
                                                 <span className="text-xs font-bold block mb-2" style={{ color: colors.textPrimary }}>Qual é o animal?</span>
                                                 <input
@@ -2651,6 +2694,8 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                                                     onHasCarrierChange={setPetHasCarrier}
                                                     colors={colors}
                                                 />
+                                            </div>
+                                        )}
                                             </div>
                                         )}
                                         </>
