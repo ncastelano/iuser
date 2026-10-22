@@ -9,6 +9,7 @@
 import { useState, type ReactNode } from 'react'
 import { Package, PawPrint, Star, CalendarClock, Pencil, X, Users, Car, Baby, ShoppingBag, AlertTriangle, Accessibility, Eye, Banknote, CreditCard, QrCode, MapPin, Building2, Truck, type LucideIcon } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
+import { useInsideShell } from '@/components/InsideShell'
 import { Spinner } from '@/components/Spinner'
 import { shortAddress } from '@/lib/serviceBoard'
 import { humanizeRideSpecs, type HumanSpecKind, type RideSpecFields } from '@/lib/rideSpecs'
@@ -16,7 +17,7 @@ import { VEHICLE_TYPE_LABELS, type VehicleType } from '@/lib/rideVehicle'
 import { computeHourlyEarnings } from '@/lib/driverPricing'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
 
-const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
+const GRADIENT_V2 = 'linear-gradient(135deg, #f97316, #dc2626)'
 export const TO_PICKUP_COLOR = '#3b82f6'
 export const TRIP_COLOR = '#ef4444'
 
@@ -108,6 +109,13 @@ const kmText = (v: number) => `${v.toFixed(1).replace('.', ',')} km`
 // falta pra cada trecho e quanto cobrar — sem rótulos em caixa-alta.
 export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, customPrice = null, toPickup, trip, applying = false, onApply, onCounter, miniMap, footer, onBack, onSkip, compact = false, pickup }: RideOfferCardProps) {
     const { colors } = useTheme()
+    // 3.0: laranja sólido, cartões macios sem moldura/sombra e campos em cápsula (só apresentação; as regras são as mesmas)
+    const v3 = useInsideShell()
+    const GRADIENT = v3 ? '#f97316' : GRADIENT_V2
+    const soft = `${colors.border}30`
+    const bd = v3 ? 'none' : `1px solid ${colors.border}`
+    const sh = v3 ? 'none' : colors.shadow
+    const surf = v3 ? soft : colors.surface
     const [editing, setEditing] = useState(false)
     const [value, setValue] = useState('')
 
@@ -131,7 +139,7 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
     const specs = humanizeRideSpecs(ride)
 
     const stat = (color: string, label: string, km: number | null, min: number | null, pending: string) => (
-        <div className="flex-1 min-w-0 rounded-xl px-2.5 py-1.5" style={{ background: `${colors.border}25`, border: `1px solid ${colors.border}` }}>
+        <div className="flex-1 min-w-0 rounded-xl px-2.5 py-1.5" style={{ background: `${colors.border}25`, border: bd }}>
             <span className="flex items-center gap-1 text-[10px] font-semibold" style={{ color: colors.textSecondary }}>
                 <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: color }} />
                 {label}
@@ -246,7 +254,7 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
                                     onClick={onCounter}
                                     disabled={applying}
                                     className="w-full rounded-2xl px-3 py-2 text-center transition-all active:scale-95 disabled:opacity-70"
-                                    style={{ background: 'transparent', border: `1.5px solid ${colors.border}` }}
+                                    style={{ background: 'transparent', border: v3 ? 'none' : `1.5px solid ${colors.border}` }}
                                 >
                                     <span className="block text-[13px] font-black" style={{ color: colors.textPrimary }}>Propor a minha tarifa · {brl(customPrice)}</span>
                                     <span className="block text-[10px] font-semibold" style={{ color: colors.textSecondary }}>O cliente decide se autoriza esse valor</span>
@@ -266,7 +274,7 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
                             onClick={() => onApply(platformPrice)}
                             disabled={applying}
                             className="flex-1 rounded-xl px-3 py-1.5 text-left transition-all active:scale-95 disabled:opacity-70"
-                            style={{ background: `${colors.border}25`, border: `1px solid ${colors.border}` }}
+                            style={{ background: `${colors.border}25`, border: bd }}
                         >
                             <span className="block text-[10px] font-semibold" style={{ color: colors.textSecondary }}>Tarifa iUser</span>
                             <span className="block text-[15px] font-black leading-tight" style={{ color: colors.textPrimary }}>{brl(platformPrice)}</span>
@@ -288,7 +296,7 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
                             onClick={() => customPrice != null && onApply(customPrice)}
                             disabled={applying || customPrice == null}
                             className="flex-1 rounded-xl px-3 py-1.5 text-left transition-all active:scale-95 disabled:opacity-70"
-                            style={customPrice != null ? { background: GRADIENT, color: '#fff' } : { background: `${colors.border}15`, border: `1px dashed ${colors.border}` }}
+                            style={customPrice != null ? { background: GRADIENT, color: '#fff' } : { background: `${colors.border}15`, border: v3 ? 'none' : `1px dashed ${colors.border}` }}
                         >
                             <span className="block text-[10px] font-semibold" style={{ color: customPrice != null ? 'rgba(255,255,255,0.85)' : colors.textSecondary }}>Minha tarifa</span>
                             <span className="block text-[15px] font-black leading-tight" style={{ color: customPrice != null ? '#fff' : colors.textSecondary }}>
@@ -304,7 +312,7 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
                                 else { setEditing(true); setValue((customPrice ?? platformPrice).toFixed(2)) }
                             }}
                             className="w-11 rounded-xl flex flex-col items-center justify-center flex-shrink-0 transition-all active:scale-95"
-                            style={editing ? { background: GRADIENT, color: '#fff' } : { background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                            style={editing ? { background: GRADIENT, color: '#fff' } : { background: `${colors.border}30`, color: colors.textSecondary, border: bd }}
                             title="Digitar outro valor"
                         >
                             <Pencil size={14} />
@@ -321,8 +329,8 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
                                 value={value}
                                 onChange={(e) => setValue(e.target.value)}
                                 placeholder="Quanto você cobra? (R$)"
-                                className="flex-1 min-w-0 px-3 py-2 rounded-full border text-sm"
-                                style={{ background: colors.background, borderColor: colors.border, color: colors.textPrimary }}
+                                className={v3 ? 'flex-1 min-w-0 px-4 py-2.5 rounded-full text-sm font-semibold outline-none' : 'flex-1 min-w-0 px-3 py-2 rounded-full border text-sm'}
+                                style={v3 ? { background: colors.background, color: colors.textPrimary } : { background: colors.background, borderColor: colors.border, color: colors.textPrimary }}
                             />
                             <button
                                 onClick={() => onApply(parseFloat(value) || 0)}

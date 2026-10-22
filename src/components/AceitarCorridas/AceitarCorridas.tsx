@@ -12,6 +12,7 @@ import { supabase } from '@/lib/supabase/client'
 import { getCurrentPosition as getNativeCurrentPosition, watchPosition as watchNativePosition } from '@/lib/nativeGeolocation'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { useTheme } from '@/app/contexts/theme'
+import { useInsideShell } from '@/components/InsideShell'
 import Header, { type Tab } from '@/components/Header'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import LoginAndRegister from '@/components/LoginAndRegister/LoginAndRegister'
@@ -58,7 +59,7 @@ import { submitRideApplication } from '@/lib/rideApplication'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
 import { saveOwnProfile } from '@/lib/saveOwnProfile'
 
-const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
+const GRADIENT_V2 = 'linear-gradient(135deg, #f97316, #dc2626)'
 const REFRESH_INTERVAL_MS = 15000
 
 // Ícone da aba "Me candidatei": sempre no verde-limão do botão "Candidatar-se"
@@ -300,6 +301,13 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
     const focusedRef = useRef(false)
     const { userId: contextUserId, avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
     const { colors } = useTheme()
+    // 3.0: laranja sólido, cartões macios sem moldura/sombra e campos em cápsula (só apresentação; as regras são as mesmas)
+    const v3 = useInsideShell()
+    const GRADIENT = v3 ? '#f97316' : GRADIENT_V2
+    const soft = `${colors.border}30`
+    const bd = v3 ? 'none' : `1px solid ${colors.border}`
+    const sh = v3 ? 'none' : colors.shadow
+    const surf = v3 ? soft : colors.surface
     const { loading: plansLoading, hasDriver } = useActivePlans(contextUserId)
 
     const [loading, setLoading] = useState(true)
@@ -1405,7 +1413,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                     {!loading && !showLogin && !!contextUserId && !plansLoading && !hasDriver && (
                         <div
                             className="rounded-2xl p-3.5 flex items-center gap-3"
-                            style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
+                            style={{ background: surf, border: bd, boxShadow: sh }}
                         >
                             <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#fff' }}>
                                 <Car size={18} />
@@ -1431,7 +1439,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                     {activeTab === 'servicos' && gpsStatus !== 'granted' && (
                         <div
                             className="rounded-2xl p-3.5 flex items-start gap-3"
-                            style={{ background: '#f9731612', border: '1px solid #f9731640' }}
+                            style={{ background: '#f9731612', border: v3 ? 'none' : '1px solid #f9731640' }}
                         >
                             <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#fff' }}>
                                 {gpsStatus === 'asking' ? <Spinner size={18} color="#fff" /> : <LocateFixed size={18} />}
@@ -1468,7 +1476,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                     {activeTab === 'servicos' && visibleRides.length === 0 && (
                         <div
                             className="rounded-2xl p-6 text-center"
-                            style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
+                            style={{ background: surf, border: bd, boxShadow: sh }}
                         >
                             <p className="text-sm" style={{ color: colors.textSecondary }}>
                                 Nenhuma corrida disponível no momento.
@@ -1496,7 +1504,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                                         key={ride.id}
                                         id={`ride-card-${ride.id}`}
                                         className="rounded-2xl p-3.5 overflow-hidden relative transition-shadow duration-500"
-                                        style={{ background: colors.surface, border: `1px solid ${highlightRideId === ride.id || (ride.preferred_driver_id && ride.preferred_driver_id === contextUserId) ? '#f97316' : colors.border}`, boxShadow: highlightRideId === ride.id ? '0 0 0 3px #f9731655' : colors.shadow }}
+                                        style={{ background: surf, border: highlightRideId === ride.id || (ride.preferred_driver_id && ride.preferred_driver_id === contextUserId) ? '1px solid #f97316' : bd, boxShadow: highlightRideId === ride.id ? '0 0 0 3px #f9731655' : colors.shadow }}
                                     >
                                         {ride.preferred_driver_id && ride.preferred_driver_id === contextUserId && (
                                             <span className="inline-flex items-center gap-1 mb-2 text-[11px] font-black uppercase tracking-wide px-2.5 py-1 rounded-full text-white" style={{ background: 'linear-gradient(135deg, #f97316, #dc2626)' }}>
@@ -1540,7 +1548,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                     {!loading && !showLogin && activeTab === 'candidatos' && candidacies.length === 0 && (
                         <div
                             className="rounded-2xl p-6 text-center"
-                            style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
+                            style={{ background: surf, border: bd, boxShadow: sh }}
                         >
                             <p className="text-sm" style={{ color: colors.textSecondary }}>
                                 Você ainda não se candidatou a nenhuma corrida.
@@ -1558,7 +1566,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                                         key={ride.applicationId}
                                         id={`ride-card-${ride.id}`}
                                         className="rounded-2xl p-3.5 overflow-hidden relative transition-shadow duration-500"
-                                        style={{ background: colors.surface, border: `1px solid ${highlightRideId === ride.id ? '#f97316' : colors.border}`, boxShadow: highlightRideId === ride.id ? '0 0 0 3px #f9731655' : colors.shadow }}
+                                        style={{ background: surf, border: highlightRideId === ride.id ? '1px solid #f97316' : bd, boxShadow: highlightRideId === ride.id ? '0 0 0 3px #f9731655' : colors.shadow }}
                                     >
                                         <RideOfferCard
                                             ride={ride}
@@ -1595,7 +1603,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                                                         onClick={() => withdrawApplication(ride.applicationId)}
                                                         disabled={isWithdrawing}
                                                         className="w-full py-2 rounded-full text-xs font-bold transition-all disabled:opacity-70 flex items-center justify-center gap-2"
-                                                        style={{ background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                                                        style={{ background: `${colors.border}30`, color: colors.textSecondary, border: bd }}
                                                     >
                                                         {isWithdrawing ? <Spinner size={14} /> : <>Sair da candidatura</>}
                                                     </button>
@@ -1611,7 +1619,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                     {!loading && !showLogin && activeTab === 'aceita' && acceptedRide && (
                         <div
                             className="rounded-2xl p-4 overflow-hidden relative"
-                            style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
+                            style={{ background: surf, border: bd, boxShadow: sh }}
                         >
                             <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
                                 <span
@@ -1628,7 +1636,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                                         url: `${window.location.origin}/acompanhar-corrida/${acceptedRide.share_token}`,
                                     })}
                                     className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold flex-shrink-0"
-                                    style={{ background: `${colors.border}30`, color: colors.textPrimary, border: `1px solid ${colors.border}` }}
+                                    style={{ background: `${colors.border}30`, color: colors.textPrimary, border: bd }}
                                 >
                                     <Share2 size={11} />
                                     Compartilhar
@@ -1705,7 +1713,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                             </p>
 
                             {acceptedRide.extra_task_fee != null ? (
-                                <div className="flex items-center justify-between gap-2 flex-wrap mb-3 px-3 py-2 rounded-xl" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
+                                <div className="flex items-center justify-between gap-2 flex-wrap mb-3 px-3 py-2 rounded-xl" style={{ background: `${colors.border}30`, border: bd }}>
                                     <span className="text-xs" style={{ color: colors.textSecondary }}>
                                         + Tarefa extra ({acceptedRide.extra_task_minutes} min{acceptedRide.extra_task_description ? ` — ${acceptedRide.extra_task_description}` : ''}): <strong style={{ color: colors.textPrimary }}>R$ {acceptedRide.extra_task_fee.toFixed(2)}</strong>
                                     </span>
@@ -1714,7 +1722,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                                     </button>
                                 </div>
                             ) : showExtraTaskForm ? (
-                                <div className="mb-3 px-3 py-2.5 rounded-xl" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
+                                <div className="mb-3 px-3 py-2.5 rounded-xl" style={{ background: `${colors.border}30`, border: bd }}>
                                     <span className="text-xs font-bold block mb-1.5" style={{ color: colors.textPrimary }}>Registrar tarefa extra</span>
                                     <p className="text-[10px] mb-2" style={{ color: colors.textSecondary }}>
                                         {EXTRA_TASK_FEE_TIERS.map((t) => `${t.label}: R$ ${t.fee.toFixed(2)}`).join(' · ')}
@@ -1726,7 +1734,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                                         onChange={(e) => setExtraTaskMinutesInput(e.target.value.replace(/[^0-9]/g, ''))}
                                         placeholder="Quantos minutos levou?"
                                         className="w-full px-3 py-2 rounded-lg text-sm focus:outline-none mb-2"
-                                        style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                                        style={{ background: colors.surface, border: bd, color: colors.textPrimary }}
                                     />
                                     <input
                                         type="text"
@@ -1734,7 +1742,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                                         onChange={(e) => setExtraTaskDescriptionInput(e.target.value)}
                                         placeholder="O que foi? (opcional) Ex: subiu no apartamento"
                                         className="w-full px-3 py-2 rounded-lg text-sm focus:outline-none mb-2"
-                                        style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                                        style={{ background: colors.surface, border: bd, color: colors.textPrimary }}
                                     />
                                     {extraTaskMinutesInput && Number(extraTaskMinutesInput) > 0 && (
                                         <p className="text-xs font-black mb-2" style={{ color: '#f97316' }}>
@@ -1745,7 +1753,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                                         <button
                                             onClick={() => setShowExtraTaskForm(false)}
                                             className="flex-1 py-2 rounded-lg text-xs font-bold"
-                                            style={{ background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                                            style={{ background: colors.surface, color: colors.textSecondary, border: bd }}
                                         >
                                             Cancelar
                                         </button>
@@ -1928,7 +1936,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
                     <div
                         className="w-full max-w-md rounded-3xl p-6 shadow-2xl space-y-5"
-                        style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                        style={{ background: colors.surface, border: bd, color: colors.textPrimary }}
                     >
                         <div className="flex items-center gap-3">
                             <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: '#22c55e20' }}>
@@ -1948,7 +1956,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                                 onClick={handleDeclineSync}
                                 disabled={activatingSync}
                                 className="flex-1 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all hover:scale-[1.02] disabled:opacity-60"
-                                style={{ background: `${colors.surface}88`, color: colors.textPrimary, border: `1px solid ${colors.border}` }}
+                                style={{ background: `${colors.surface}88`, color: colors.textPrimary, border: bd }}
                             >
                                 Não
                             </button>
