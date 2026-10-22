@@ -6,6 +6,7 @@
 // com adicionais abrem a página do produto. A regra (busca, ranking, o que é "um toque") mora em modules/shopping.
 'use client'
 
+import { flyToCart } from '@/lib/flyToCart'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
@@ -113,6 +114,7 @@ export default function ComprarScreen() {
     const quickAdd = (p: ShopProduct) => {
         addItem(p.storeSlug, { name: p.storeName, logo_url: p.storeLogo }, { id: p.id, name: p.name, price: p.price || 0, image_url: p.imageUrl, slug: p.slug })
         toast.success(`${p.name} no carrinho`)
+        void flyToCart({ imageUrl: p.imageUrl, from: document.activeElement })
     }
     const openProduct = (p: ShopProduct) => router.push(`/${p.storeSlug}/${p.slug}`)
 

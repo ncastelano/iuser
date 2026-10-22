@@ -36,6 +36,7 @@ import {
 } from 'lucide-react'
 import { handleShareLink } from '@/lib/share'
 import { toast } from 'sonner'
+import { flyToCart } from '@/lib/flyToCart'
 import { useCartStore, cartItemUnitPrice, cartItemLineTotal, type CartAddon } from '@/store/useCartStore'
 import { useStoreCheckout } from './useStoreCheckout'
 import { RatingStars } from '@/components/ratings/RatingStars'
@@ -414,6 +415,7 @@ export function ProductClientPage({
                 addItem(ownerSlug, storeDetails, cartProduct, comment, addons.length > 0 ? addons : undefined)
             }
             toast.success(`${product.name} adicionado ao carrinho!`)
+            void flyToCart({ imageUrl, from: document.activeElement })
 
             setAddedToCart(true)
             setTimeout(() => setAddedToCart(false), 3000)
@@ -436,6 +438,7 @@ export function ProductClientPage({
                 addItem(ownerSlug, storeDetails, cartProduct, u.comment, u.addons.length > 0 ? u.addons : undefined)
             }
             toast.success(`${units.length} × ${product.name} adicionados ao carrinho!`)
+            void flyToCart({ imageUrl, from: document.activeElement })
             setAddedToCart(true)
             setTimeout(() => setAddedToCart(false), 3000)
         } catch (error: any) {

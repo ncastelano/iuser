@@ -1,6 +1,7 @@
 // app/src/app/(main)/[ownerSlug]/catalogo/CatalogoClientPage.tsx
 'use client'
 
+import { flyToCart } from '@/lib/flyToCart'
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
@@ -493,6 +494,7 @@ export default function CatalogoClientPage() {
         addItem(ownerSlug, storeDetails, cartProduct as any, comment, addons.length > 0 ? addons : undefined)
 
         toast.success(`Produto adicionado${comment || addons.length > 0 ? ' com personalização!' : '!'}`)
+        void flyToCart({ imageUrl: (cartProduct as any).image_url, from: document.activeElement })
         setShowAddCommentModal(false)
         setPendingProduct(null)
     }
