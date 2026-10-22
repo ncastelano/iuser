@@ -1347,7 +1347,8 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
         if (hasSpecialNeeds) {
             const parts: string[] = []
             if (specialNeedsWheelchair) parts.push(`cadeirante${specialNeedsWheelchairType ? ` (${specialNeedsWheelchairType === 'dobravel' ? 'dobrável' : 'grande'})` : ''}`)
-            if (specialNeedsVisualImpairment) parts.push(`deficiência visual${hasGuideDog ? ' com cão-guia' : ''}`)
+            if (specialNeedsVisualImpairment) parts.push('deficiência visual')
+            if (hasGuideDog) parts.push('vai com animal-guia')
             if (specialNeedsDescription.trim()) parts.push(specialNeedsDescription.trim())
             rows.push({ label: 'Pessoa com deficiência', value: parts.length > 0 ? parts.join('; ') : 'sim' })
         }
@@ -1392,6 +1393,100 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
 
         return items
     })()
+
+    // Animal-guia: marcar que vai com ele já seleciona 1 pet (só no pedido de pessoa); desmarcar desfaz o que foi preenchido sozinho
+    const GUIDE_PET_LABEL = 'Animal-guia'
+    const setGuideAnimal = (yes: boolean) => {
+        setHasGuideDog(yes)
+        if (requestFor !== 'pessoa') return
+        if (yes) {
+            if (petCount === 0) setPetCount(1)
+            if (!petDescription.trim()) setPetDescription(GUIDE_PET_LABEL)
+        } else if (petCount === 1 && petDescription.trim() === GUIDE_PET_LABEL) {
+            setPetCount(0)
+            setPetDescription('')
+            setOpenExtra((o) => (o === 'pet' ? null : o))
+        }
+    }
+
+    // Pergunta de acessibilidade (deve vir ANTES de "Quem vai com você?"): tem deficiência? vai com animal-guia? (informa os motoristas)
+    const renderSpecialNeeds = () => {
+        const yesNo = (on: boolean, yes: () => void, no: () => void) => (
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+                <button type="button" onClick={yes} className="px-3 py-1 rounded-full text-[11px] font-black transition-all"
+                    style={on ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: v3 ? 'none' : `1px solid ${colors.border}` }}>SIM</button>
+                <button type="button" onClick={no} className="px-3 py-1 rounded-full text-[11px] font-black transition-all"
+                    style={!on ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: v3 ? 'none' : `1px solid ${colors.border}` }}>NÃO</button>
+            </div>
+        )
+        const optionStyle = (on: boolean) => on ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: v3 ? 'none' : `1px solid ${colors.border}` }
+        return (
+            <div className="rounded-xl px-3 py-2.5 mb-3" style={{ background: `${colors.border}30`, border: v3 ? 'none' : `1px solid ${colors.border}` }}>
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <span className="flex items-center gap-1.5 text-xs font-bold" style={{ color: colors.textPrimary }}>
+                        <ShieldAlert size={13} style={{ color: colors.accent }} />
+                        Você tem alguma deficiência física?
+                    </span>
+                    {yesNo(
+                        hasSpecialNeeds,
+                        () => setHasSpecialNeeds(true),
+                        () => {
+                            setGuideAnimal(false)
+                            setHasSpecialNeeds(false)
+                            setSpecialNeedsDescription('')
+                            setSpecialNeedsWheelchair(false)
+                            setSpecialNeedsWheelchairType(null)
+                            setSpecialNeedsVisualImpairment(false)
+                        },
+                    )}
+                </div>
+                {hasSpecialNeeds && (
+                    <div className="mt-2 flex flex-col gap-2">
+                        <div className="flex gap-2">
+                            <button type="button" onClick={() => setSpecialNeedsWheelchair((v) => !v)} className="flex-1 py-2 rounded-lg text-xs font-bold transition-all" style={optionStyle(specialNeedsWheelchair)}>
+                                Cadeirante
+                            </button>
+                            <button type="button" onClick={() => setSpecialNeedsVisualImpairment((v) => !v)} className="flex-1 py-2 rounded-lg text-xs font-bold transition-all" style={optionStyle(specialNeedsVisualImpairment)}>
+                                Deficiência visual
+                            </button>
+                        </div>
+
+                        {specialNeedsWheelchair && (
+                            <div>
+                                <span className="text-[11px] font-bold block mb-1" style={{ color: colors.textSecondary }}>Tipo de cadeira de rodas</span>
+                                <div className="flex gap-2">
+                                    {(['dobravel', 'grande'] as const).map((type) => (
+                                        <button key={type} type="button" onClick={() => setSpecialNeedsWheelchairType(type)} className="flex-1 py-2 rounded-lg text-[11px] font-bold transition-all" style={optionStyle(specialNeedsWheelchairType === type)}>
+                                            {type === 'dobravel' ? 'Dobrável / compacta' : 'Grande / elétrica'}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <span className="text-[11px] font-bold" style={{ color: colors.textSecondary }}>Vai com animal-guia?</span>
+                            {yesNo(hasGuideDog, () => setGuideAnimal(true), () => setGuideAnimal(false))}
+                        </div>
+                        {hasGuideDog && (
+                            <p className="text-[10px]" style={{ color: colors.textSecondary }}>
+                                🐕‍🦺 Os motoristas vão ver que você vai com animal-guia. Ele é equipamento de acessibilidade, não conta como animal de estimação — o motorista não pode recusar por causa dele.
+                            </p>
+                        )}
+
+                        <input
+                            type="text"
+                            value={specialNeedsDescription}
+                            onChange={(e) => setSpecialNeedsDescription(e.target.value)}
+                            placeholder="Outras necessidades (opcional)"
+                            className="w-full px-3 py-2 rounded-lg text-sm focus:outline-none"
+                            style={{ background: colors.surface, border: v3 ? 'none' : `1px solid ${colors.border}`, color: colors.textPrimary }}
+                        />
+                    </div>
+                )}
+            </div>
+        )
+    }
 
     const uploadRidePhoto = async (userId: string, file: File): Promise<string | null> => {
         const fileExt = file.name.split('.').pop()
@@ -1490,7 +1585,7 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                 special_needs_wheelchair: hasSpecialNeeds ? specialNeedsWheelchair : false,
                 special_needs_wheelchair_type: hasSpecialNeeds && specialNeedsWheelchair ? specialNeedsWheelchairType : null,
                 special_needs_visual_impairment: hasSpecialNeeds ? specialNeedsVisualImpairment : false,
-                has_guide_dog: hasSpecialNeeds && specialNeedsVisualImpairment ? hasGuideDog : false,
+                has_guide_dog: hasSpecialNeeds ? hasGuideDog : false,
                 payment_method: paymentMethod,
                 cash_change_for: paymentMethod === 'dinheiro' && cashChangeFor.trim() ? Number(cashChangeFor.replace(',', '.')) : null,
                 card_is_contactless: paymentMethod === 'cartao' ? cardIsContactless : null,
@@ -2343,116 +2438,8 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                                 )}
                             </div>
 
-                            {/* Pessoa com deficiência — não se aplica a objeto */}
-                            {requestFor !== 'objeto' && (
-                                <>
-                            <div className="rounded-xl px-3 py-2.5 mt-3" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
-                                <div className="flex items-center justify-between gap-2 flex-wrap">
-                                    <span className="flex items-center gap-1.5 text-xs font-bold" style={{ color: colors.textPrimary }}>
-                                        <ShieldAlert size={13} style={{ color: colors.accent }} />
-                                        Pessoa com deficiência?
-                                    </span>
-                                    <div className="flex items-center gap-1.5 flex-shrink-0">
-                                        <button
-                                            onClick={() => setHasSpecialNeeds(true)}
-                                            className="px-3 py-1 rounded-full text-[11px] font-black transition-all"
-                                            style={hasSpecialNeeds ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
-                                        >
-                                            SIM
-                                        </button>
-                                        <button
-                                            onClick={() => {
-                                                setHasSpecialNeeds(false)
-                                                setSpecialNeedsDescription('')
-                                                setSpecialNeedsWheelchair(false)
-                                                setSpecialNeedsWheelchairType(null)
-                                                setSpecialNeedsVisualImpairment(false)
-                                                setHasGuideDog(false)
-                                            }}
-                                            className="px-3 py-1 rounded-full text-[11px] font-black transition-all"
-                                            style={!hasSpecialNeeds ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
-                                        >
-                                            NÃO
-                                        </button>
-                                    </div>
-                                </div>
-                                {hasSpecialNeeds && (
-                                    <div className="mt-2 flex flex-col gap-2">
-                                        <div className="flex gap-2">
-                                            <button
-                                                onClick={() => setSpecialNeedsWheelchair((v) => !v)}
-                                                className="flex-1 py-2 rounded-lg text-xs font-bold transition-all"
-                                                style={specialNeedsWheelchair ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
-                                            >
-                                                Cadeirante
-                                            </button>
-                                            <button
-                                                onClick={() => setSpecialNeedsVisualImpairment((v) => { const next = !v; if (!next) setHasGuideDog(false); return next })}
-                                                className="flex-1 py-2 rounded-lg text-xs font-bold transition-all"
-                                                style={specialNeedsVisualImpairment ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
-                                            >
-                                                Deficiência visual
-                                            </button>
-                                        </div>
-
-                                        {specialNeedsWheelchair && (
-                                            <div>
-                                                <span className="text-[11px] font-bold block mb-1" style={{ color: colors.textSecondary }}>Tipo de cadeira de rodas</span>
-                                                <div className="flex gap-2">
-                                                    {(['dobravel', 'grande'] as const).map((type) => (
-                                                        <button
-                                                            key={type}
-                                                            onClick={() => setSpecialNeedsWheelchairType(type)}
-                                                            className="flex-1 py-2 rounded-lg text-[11px] font-bold transition-all"
-                                                            style={specialNeedsWheelchairType === type ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
-                                                        >
-                                                            {type === 'dobravel' ? 'Dobrável / compacta' : 'Grande / elétrica'}
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        )}
-
-                                        {specialNeedsVisualImpairment && (
-                                            <div className="flex items-center justify-between gap-2 flex-wrap">
-                                                <span className="text-[11px] font-bold" style={{ color: colors.textSecondary }}>Estará com cão-guia?</span>
-                                                <div className="flex items-center gap-1.5 flex-shrink-0">
-                                                    <button
-                                                        onClick={() => setHasGuideDog(true)}
-                                                        className="px-3 py-1 rounded-full text-[11px] font-black transition-all"
-                                                        style={hasGuideDog ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
-                                                    >
-                                                        SIM
-                                                    </button>
-                                                    <button
-                                                        onClick={() => setHasGuideDog(false)}
-                                                        className="px-3 py-1 rounded-full text-[11px] font-black transition-all"
-                                                        style={!hasGuideDog ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
-                                                    >
-                                                        NÃO
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        )}
-                                        {hasGuideDog && (
-                                            <p className="text-[10px]" style={{ color: colors.textSecondary }}>
-                                                🐕‍🦺 Cão-guia é equipamento de acessibilidade, não conta como animal de estimação — o motorista não pode recusar por causa dele.
-                                            </p>
-                                        )}
-
-                                        <input
-                                            type="text"
-                                            value={specialNeedsDescription}
-                                            onChange={(e) => setSpecialNeedsDescription(e.target.value)}
-                                            placeholder="Outras necessidades (opcional)"
-                                            className="w-full px-3 py-2 rounded-lg text-sm focus:outline-none"
-                                            style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
-                                        />
-                                    </div>
-                                )}
-                            </div>
-                                </>
-                            )}
+                            {/* Pessoa com deficiência: para quem vai a pessoa, a pergunta vem na etapa "Quem vai com você?"; aqui só no pedido de animal */}
+                            {requestFor === 'animal' && renderSpecialNeeds()}
 
                             <div className="flex items-center gap-2 mt-4">
                                 <button
@@ -2484,6 +2471,7 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
 
                             {requestFor === 'pessoa' ? (
                                 <>
+                                    {renderSpecialNeeds()}
                                     {/* Cada adicional é um contador — 0 significa que não tem esse adicional */}
                                     <div className="flex flex-col gap-2">
                                         {isTwoWheels && (
@@ -2564,25 +2552,6 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                                                     className="w-full px-3 py-2 rounded-lg text-sm focus:outline-none"
                                                     style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
                                                 />
-                                                <div className="flex items-center justify-between gap-2 flex-wrap mt-3">
-                                                    <span className="text-xs font-bold" style={{ color: colors.textPrimary }}>Precisa de cadeirinha?</span>
-                                                    <div className="flex items-center gap-1.5 flex-shrink-0">
-                                                        <button
-                                                            onClick={() => setChildNeedsCarSeat(true)}
-                                                            className="px-3 py-1 rounded-full text-[11px] font-black transition-all"
-                                                            style={childNeedsCarSeat === true ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
-                                                        >
-                                                            SIM
-                                                        </button>
-                                                        <button
-                                                            onClick={() => setChildNeedsCarSeat(false)}
-                                                            className="px-3 py-1 rounded-full text-[11px] font-black transition-all"
-                                                            style={childNeedsCarSeat === false ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
-                                                        >
-                                                            NÃO
-                                                        </button>
-                                                    </div>
-                                                </div>
                                             </div>
                                         )}
                                             </div>
