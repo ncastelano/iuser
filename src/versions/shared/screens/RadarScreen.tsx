@@ -17,6 +17,7 @@ import { toast } from 'sonner'
 import { Spinner } from '@/components/Spinner'
 import RadarSonar from '@/components/radar/RadarSonar'
 import RadarItemDetails from '@/components/radar/RadarItemDetails'
+import { createRadarScan, ensureRadarScanStyles, type RadarScan, type ScanEntry, type ScanState } from '@/components/radar/radarScan'
 import { isStoreOpenNow, getStoreStatusText, getNextOpeningInfo } from '@/lib/storeHours'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { getCurrentPosition as getNativeCurrentPosition } from '@/lib/nativeGeolocation'
@@ -138,6 +139,13 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
     const { userId: contextUserId, profileSlug, avatarUrl, loading: profileLoading } = useProfile()
     const mapRef = useRef<mapboxgl.Map | null>(null)
     const mapContainerRef = useRef<HTMLDivElement | null>(null)
+    // Abertura do radar: o "satélite" varre o mapa e só então as marcações aparecem (ver radarScan.ts)
+    const scanOverlayRef = useRef<HTMLDivElement | null>(null)
+    const scanRef = useRef<RadarScan | null>(null)
+    const scanEntriesRef = useRef<ScanEntry[]>([])
+    const introRef = useRef<'pending' | 'running' | 'done'>('pending')
+    const [introDone, setIntroDone] = useState(false)
+    const markIntroDone = () => { introRef.current = 'done'; setIntroDone(true) }
     const markersRef = useRef<mapboxgl.Marker[]>([])
     const userMarkerRef = useRef<mapboxgl.Marker | null>(null)
     const profileMarkerRef = useRef<mapboxgl.Marker | null>(null)
@@ -653,6 +661,45 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
         }
     }
 
+    // ===== ABERTURA DO RADAR (varredura de satélite) =====
+    // Quando os dados chegaram e já há marcações registradas, a varredura começa; sem nada para varrer, termina na hora.
+    const maybeBeginScan = () => {
+        const ctl = scanRef.current
+        // só com o mapa estável: ele é refeito quando a localização chega, e um mapa recém-criado ainda não carregou o estilo
+        if (!ctl || introRef.current !== 'pending' || !dataReady || !mapReady || !mapRef.current?.isStyleLoaded()) return
+        if (scanEntriesRef.current.length === 0) { markIntroDone(); ctl.skip(); return }
+        introRef.current = 'running'
+        ctl.begin()
+    }
+    useEffect(() => {
+        if (!mapReady || loadingLocation || !mapRef.current || !scanOverlayRef.current || !mapRef.current.isStyleLoaded()) return
+        if (introRef.current !== 'pending' || scanRef.current) return
+        if (typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) { markIntroDone(); return }
+        const ref = referenceLocation
+        const ctl = createRadarScan({
+            map: mapRef.current,
+            overlay: scanOverlayRef.current,
+            getEntries: () => scanEntriesRef.current,
+            getCenter: () => (ref ? [ref.lng, ref.lat] : null),
+            onDone: () => { markIntroDone(); scanRef.current = null },
+        })
+        scanRef.current = ctl
+        // quem dá a partida é o efeito das marcações (roda logo depois, no mesmo ciclo, já com as marcações registradas)
+        return () => {
+            // O mapa é refeito quando a localização chega: se a varredura ainda não tinha começado, ela só recomeça no mapa novo.
+            // Se já estava varrendo (ou a pessoa saiu da tela), mostra tudo e segue sem animação.
+            if (scanRef.current === ctl) {
+                ctl.cancel()
+                scanRef.current = null
+                if (introRef.current === 'running') {
+                    markIntroDone()
+                    scanEntriesRef.current.forEach((e) => { e.state = 'shown'; e.apply('shown') })
+                }
+            }
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [mapReady, loadingLocation])
+
     // MARKERS - CORRIGIDO COM LOGS
     useEffect(() => {
         if (!mapReady || !mapRef.current) {
@@ -665,9 +712,13 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
 
         markersRef.current.forEach(m => m.remove())
         markersRef.current = []
+        scanEntriesRef.current = []
+        const intro = introRef.current !== 'done'
+        if (intro) ensureRadarScanStyles()
 
         if (filtered.length === 0) {
             console.log('[MapPage] 📭 Nenhum item para marcar')
+            maybeBeginScan()
             return
         }
 
@@ -700,6 +751,7 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
 
                 const el = document.createElement('div')
                 el.style.zIndex = (100 - index).toString()
+                let badgeEl: HTMLElement | null = null
 
                 const inner = document.createElement('div')
 
@@ -795,6 +847,7 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                         map.flyTo({ center: [lng, lat], zoom: 18, duration: 600 })
                     }
                     // Canto inferior direito do marcador da loja (âncora 'bottom' = base no ponto)
+                    badgeEl = badge
                     const badgeMarker = new mapboxgl.Marker({ element: badge, anchor: 'center', offset: [boxSize / 2 - 2, -2] })
                         .setLngLat([lng, lat])
                         .addTo(map)
@@ -811,11 +864,41 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                     .addTo(map)
 
                 markersRef.current.push(marker)
+
+                // Abertura: a marcação nasce escondida; uma bolinha (eco) marca o lugar até a varredura confirmar
+                if (intro) {
+                    const blipWrap = document.createElement('div')
+                    const blip = document.createElement('div')
+                    blip.className = 'radar-blip'
+                    blipWrap.appendChild(blip)
+                    const blipMarker = new mapboxgl.Marker({ element: blipWrap, anchor: 'center' }).setLngLat([lng, lat]).addTo(map)
+                    markersRef.current.push(blipMarker)
+                    const extras: HTMLElement[] = badgeEl ? [badgeEl] : []
+                    const hideAll = (hidden: boolean) => {
+                        el.style.opacity = hidden ? '0' : '1'
+                        el.style.pointerEvents = hidden ? 'none' : ''
+                        inner.style.transform = hidden ? 'scale(.2)' : 'scale(1)'
+                        extras.forEach((x) => { x.style.opacity = hidden ? '0' : '1'; x.style.pointerEvents = hidden ? 'none' : '' })
+                    }
+                    el.style.transition = 'opacity .5s ease'
+                    inner.style.transition = 'transform .7s cubic-bezier(.34,1.56,.64,1), box-shadow .3s'
+                    extras.forEach((x) => { x.style.transition = 'opacity .5s ease' })
+                    hideAll(true)
+                    scanEntriesRef.current.push({
+                        lng, lat, state: 'hidden',
+                        apply: (st: ScanState) => {
+                            blip.classList.toggle('on', st === 'blip')
+                            blip.classList.toggle('off', st === 'shown')
+                            hideAll(st !== 'shown')
+                        },
+                    })
+                }
             })
         })
 
         console.log('[MapPage] ✅ Marcadores criados:', markersRef.current.length)
-    }, [filtered, mode, stores, mapReady])
+        maybeBeginScan()
+    }, [filtered, mode, stores, mapReady, dataReady, loadingLocation])
 
     // TOP 3 SEMPRE VISÍVEIS: quando a loja está fora da área visível do mapa
     // (ou escondida atrás do cabeçalho/lista), mostra o ícone dela na borda,
@@ -1245,9 +1328,12 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                 </button>
             </div>}
 
-            {/* Sonar: tela de radar enquanto o mapa, a localização e os dados carregam */}
+            {/* Varredura de satélite (abertura): linha de luz, rastro e ondas do avatar, por cima do mapa */}
+            <div ref={scanOverlayRef} className="absolute inset-0 pointer-events-none" style={{ zIndex: 12 }} />
+
+            {/* Sonar: só enquanto o mapa e a localização chegam; depois o mapa aparece com o avatar pulsando e a varredura começa */}
             <RadarSonar
-                loading={!mapReady || loadingLocation || !dataReady}
+                loading={!mapReady || loadingLocation}
                 label={loadingLocation ? 'Buscando sua localização...' : !mapReady ? 'Preparando o mapa...' : 'Procurando ao redor...'}
             />
 
@@ -1425,7 +1511,7 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
 
             {/* Horizontal List — do mais visto ao menos visto (esquerda → direita) */}
             {filtered.length > 0 && !clusterItems && !selectedItem && (
-                <div className={`absolute ${v3 ? 'top-1 z-[55]' : 'top-[190px] z-20'} left-1/2 -translate-x-1/2 w-[95%] max-w-2xl`}>
+                <div className={`absolute ${v3 ? 'top-1 z-[55]' : 'top-[190px] z-20'} left-1/2 -translate-x-1/2 w-[95%] max-w-2xl transition-opacity duration-700`} style={{ opacity: introDone ? 1 : 0, pointerEvents: introDone ? 'auto' : 'none' }}>
                     <div className="flex gap-2.5 overflow-x-auto pt-6 pb-3 scrollbar-hide snap-x items-end">
                         {filtered.map((item, idx) => {
                             const rank = idx < 3 ? idx + 1 : 0
