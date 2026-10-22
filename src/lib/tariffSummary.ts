@@ -5,7 +5,8 @@
 // velocidade média de fareCalculator), então mudar base, km incluídos, preço por km ou velocidade atualiza os textos.
 // Conta: valor da corrida = valor base + (km acima dos km incluídos × valor por km excedente).
 // Funções puras (testadas em scripts/test-tariff-summary.mjs).
-import { calculateFare, calculateHourlyEarning, calculateRidesPerHour, type FareTariff } from './fareCalculator.ts'
+import { calculateFare, calculateTimeFromDistance, type FareTariff } from './fareCalculator.ts'
+import { ridesInOneHour } from './rideCycle.ts'
 
 /** Distância do exemplo mostrado ao motorista */
 export const EXAMPLE_KM = 10
@@ -25,11 +26,13 @@ export function tariffLine(tariff: FareTariff, exampleKm = EXAMPLE_KM): string {
     return `Até ${num(tariff.baseDistanceKm)} km: ${money(tariff.baseFee)} • Depois: + ${money(tariff.pricePerKm)} por km • Ex.: ${num(exampleKm)} km = ${money(price)}`
 }
 
-/** "Em 1 hora: cerca de R$ 84 com 4 corridas de 10 km" (null se não der pra estimar) */
+/**
+ * "Em 1 hora: cerca de R$ 63 com 3 corridas de 10 km" (null se não der pra estimar).
+ * Pelo tempo: 10 km a 40 km/h = 15 min; com 3 min de folga entre corridas, 15n + 3(n − 1) ≤ 60 → 3 corridas.
+ */
 export function hourlyLine(tariff: FareTariff, exampleKm = EXAMPLE_KM): string | null {
-    const rides = calculateRidesPerHour(exampleKm)
-    const earning = calculateHourlyEarning(exampleKm, calculateFare(exampleKm, tariff))
-    if (rides == null || earning == null) return null
-    const ridesText = `${num(rides, 1)} ${rides === 1 ? 'corrida' : 'corridas'}`
-    return `Em 1 hora: cerca de ${money(Math.round(earning))} com ${ridesText} de ${num(exampleKm)} km`
+    const rides = ridesInOneHour(calculateTimeFromDistance(exampleKm))
+    if (rides < 1) return null
+    const earning = rides * calculateFare(exampleKm, tariff)
+    return `Em 1 hora: cerca de ${money(Math.round(earning))} com ${num(rides, 0)} ${rides === 1 ? 'corrida' : 'corridas'} de ${num(exampleKm)} km`
 }
