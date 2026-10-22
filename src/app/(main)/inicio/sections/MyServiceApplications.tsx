@@ -148,7 +148,7 @@ export default function MyServiceApplications({ items }: { items: MyApplication[
                             ) : (
                                 <div className="mt-auto w-full flex items-center justify-center gap-2 py-3 rounded-full font-black text-xs text-center leading-tight" style={{ background: `${colors.accent}15`, color: colors.accent, border: `1px solid ${colors.accent}40` }}>
                                     <Clock size={15} className="flex-shrink-0" />
-                                    Inscrição enviada. Esperando a resposta.
+                                    Aguardando resposta
                                 </div>
                             )}
                             </div>
