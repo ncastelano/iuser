@@ -8,7 +8,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Calendar, Check } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
-import { DEFAULT_OPENING, daySlots, dateKey, freeCount, type BusySlot, type OpeningConfig } from '@/lib/storeSlots'
+import { DEFAULT_OPENING, daySlots, dateKey, freeCount, type BusySlot, type MineBusy, type OpeningConfig } from '@/lib/storeSlots'
 
 const ORANGE = '#f97316'
 const DAYS = 14
@@ -29,6 +29,8 @@ export default function StoreAgendaV3({ storeId, colors, durationMin, onPick }: 
     const soft = `${colors.border}30`
     const [cfg, setCfg] = useState<OpeningConfig | null | undefined>(undefined)
     const [busy, setBusy] = useState<BusySlot[] | null>(null)
+    const [mine, setMine] = useState<MineBusy[]>([])   // meus compromissos (de qualquer lugar) nesses dias
+    const [mineOpen, setMineOpen] = useState<string | null>(null)
     const [showBusy, setShowBusy] = useState(false)
     const [picked, setPicked] = useState<string | null>(null) // dateKey do dia aberto
 
@@ -44,6 +46,10 @@ export default function StoreAgendaV3({ storeId, colors, durationMin, onPick }: 
             if (cancelled) return
             setBusy(error || !data ? [] : (data as { slot_date: string; slot_time: string; duration_minutes: number }[]).map((r) => ({ date: r.slot_date, time: r.slot_time, duration: r.duration_minutes })))
         })
+        supabase.rpc('get_my_busy_slots', { p_from: ymd(from), p_to: ymd(to) }).then(({ data }) => {
+            if (cancelled || !data) return
+            setMine((data as { slot_date: string; slot_time: string; duration_minutes: number; title: string; place: string }[]).map((r) => ({ date: r.slot_date, time: r.slot_time, duration: r.duration_minutes, title: r.title, place: r.place })))
+        })
         return () => { cancelled = true }
     }, [storeId])
 
@@ -52,10 +58,10 @@ export default function StoreAgendaV3({ storeId, colors, durationMin, onPick }: 
         const now = new Date()
         return Array.from({ length: DAYS }, (_, i) => {
             const date = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i)
-            const slots = daySlots(cfg || DEFAULT_OPENING, date, durationMin, busy, now)
+            const slots = daySlots(cfg || DEFAULT_OPENING, date, durationMin, busy, now, mine)
             return { date, key: dateKey(date), slots, free: freeCount(slots) }
         })
-    }, [cfg, busy, durationMin])
+    }, [cfg, busy, mine, durationMin])
 
     // abre no primeiro dia com vaga
     useEffect(() => {
@@ -117,8 +123,22 @@ export default function StoreAgendaV3({ storeId, colors, durationMin, onPick }: 
                         <>
                             <p className="mt-3.5 text-[11px] font-black" style={{ color: colors.textSecondary }}>{longDay(current.date)}</p>
                             <div className="mt-1.5 grid grid-cols-4 gap-2">
-                                {current.slots.filter((s) => showBusy || s.status === 'free').map((s) => {
+                                {current.slots.filter((s) => showBusy || s.status !== 'occupied').map((s) => {
                                     const free = s.status === 'free'
+                                    if (s.status === 'mine') {
+                                        // eu já tenho compromisso nesse horário: fica à vista, marcado; tocar mostra qual é
+                                        return (
+                                            <button
+                                                key={s.time}
+                                                onClick={() => setMineOpen(mineOpen === s.time ? null : s.time)}
+                                                className="min-h-11 py-1.5 rounded-3xl text-[13px] font-black transition active:scale-95 flex flex-col items-center justify-center leading-none"
+                                                style={{ background: mineOpen === s.time ? '#ffedd5' : 'transparent', color: '#c2410c', border: '1.5px dashed #f97316' }}
+                                            >
+                                                {s.time}
+                                                <span className="text-[9px] font-bold mt-0.5">seu compromisso</span>
+                                            </button>
+                                        )
+                                    }
                                     return (
                                         <button
                                             key={s.time}
@@ -132,6 +152,14 @@ export default function StoreAgendaV3({ storeId, colors, durationMin, onPick }: 
                                     )
                                 })}
                             </div>
+                            {(() => {
+                                const open = current.slots.find((x) => x.time === mineOpen)?.mine
+                                return open ? (
+                                    <p className="mt-2 text-[12px] rounded-2xl p-3 font-bold" style={{ background: '#fff7ed', color: '#9a3412' }}>
+                                        Você já tem um compromisso nesse horário: <b>{open.title}</b> · {open.place} · {open.from}–{open.to}.
+                                    </p>
+                                ) : null
+                            })()}
                             {showBusy && <p className="mt-2 text-[10px] flex items-center gap-1" style={{ color: colors.textSecondary }}><Check size={11} /> Os riscados já estão reservados.</p>}
                         </>
                     )}

@@ -412,7 +412,7 @@ export default function StoreSchedule({
     // Horários já tomados por QUALQUER cliente da loja (só data, hora e duração): sem isso o agendador só conhecia os agendamentos do próprio
     // cliente e oferecia vagas já ocupadas. Enquanto não chega (ou se falhar), vale o que o cliente já tinha.
     const [storeBusy, setStoreBusy] = useState<{ date: string; time: string; duration: number }[] | null>(null)
-    const [myBusy, setMyBusy] = useState<{ date: string; time: string; duration: number }[]>([])
+    const [myBusy, setMyBusy] = useState<{ date: string; time: string; duration: number; title: string; place: string }[]>([])
     useEffect(() => {
         if (!target?.id || step === 'search') return
         let cancelled = false
@@ -422,7 +422,7 @@ export default function StoreSchedule({
         // Onde EU já estou ocupado (qualquer loja ou agenda): esses horários também somem — ninguém fica em dois lugares ao mesmo tempo
         supabase.rpc('get_my_busy_slots', { p_from: ymd(from), p_to: ymd(to) }).then(({ data }) => {
             if (cancelled || !data) return
-            setMyBusy((data as { slot_date: string; slot_time: string; duration_minutes: number }[]).map((r) => ({ date: r.slot_date, time: r.slot_time, duration: r.duration_minutes })))
+            setMyBusy((data as { slot_date: string; slot_time: string; duration_minutes: number; title: string; place: string }[]).map((r) => ({ date: r.slot_date, time: r.slot_time, duration: r.duration_minutes, title: r.title, place: r.place })))
         })
         supabase.rpc('get_store_busy_slots', { p_store_id: target.id, p_from: ymd(from), p_to: ymd(to) }).then(({ data, error }) => {
             if (cancelled || error || !data) return
@@ -434,7 +434,8 @@ export default function StoreSchedule({
     const slotAppointments = useMemo(() => {
         if (!target || !storeBusy) return appointments
         // os da loja inteira + os meus (de qualquer lugar): a vaga some se a loja já tem alguém OU se eu já estou ocupado
-        return [...storeBusy, ...myBusy].map((b, i) => ({ id: `busy-${i}`, store_id: target.id, date: b.date, time: b.time, duration_minutes: b.duration, status: 'confirmed' })) as unknown as typeof appointments
+        // (os meus levam `mine` com o compromisso, para o horário mostrar qual é)
+        return [...storeBusy, ...myBusy].map((b, i) => ({ id: `busy-${i}`, store_id: target.id, date: b.date, time: b.time, duration_minutes: b.duration, status: 'confirmed', mine: 'title' in b ? { title: (b as any).title, place: (b as any).place } : undefined })) as unknown as typeof appointments
     }, [storeBusy, myBusy, appointments, target])
 
     const selectedTotal = useMemo(() => selectedItems.reduce((sum, i) => sum + (Number(i.product.price) || 0) * i.quantity, 0), [selectedItems])
@@ -673,7 +674,7 @@ export default function StoreSchedule({
             a.date === dateStr && a.status !== 'cancelled' && a.store_id === target.id
         )
 
-        const slots: { time: string; status: 'free' | 'occupied'; appointment?: typeof relevantAppointments[0] }[] = []
+        const slots: { time: string; status: 'free' | 'occupied'; appointment?: typeof relevantAppointments[0]; mine?: { title: string; place: string; from: string; to: string } }[] = []
         const now = new Date()
         const isToday = selectedDate.toDateString() === now.toDateString()
         const currentMinutes = now.getHours() * 60 + now.getMinutes()
@@ -688,16 +689,20 @@ export default function StoreSchedule({
             const slotEnd = m + selectedDuration
             if (slotEnd > endMinutes) continue
 
-            const overlapping = relevantAppointments.find(a => {
+            const clashes = (a: typeof relevantAppointments[0]) => {
                 const aStart = toMinutes(a.time)
                 const aEnd = aStart + (a.duration_minutes || 60)
                 return m < aEnd && aStart < slotEnd
-            })
+            }
+            // se EU já tenho compromisso nesse horário, o que aparece é o meu compromisso (em vez de só "ocupado")
+            const mineHit = relevantAppointments.find((a) => (a as any).mine && clashes(a))
+            const overlapping = mineHit || relevantAppointments.find(clashes)
 
             slots.push({
                 time: timeStr,
                 status: overlapping ? 'occupied' : 'free',
                 appointment: overlapping || undefined,
+                mine: mineHit ? { ...(mineHit as any).mine, from: mineHit.time.slice(0, 5), to: fromMinutes(toMinutes(mineHit.time) + (mineHit.duration_minutes || 60)) } : undefined,
             })
         }
 
@@ -1947,6 +1952,33 @@ export default function StoreSchedule({
                                                     >
                                                         {slot.time}
                                                     </button>
+                                                )
+                                            } else if (slot.mine) {
+                                                return (
+                                                    <div
+                                                        key={slot.time}
+                                                        title="Você já tem um compromisso nesse horário"
+                                                        style={{
+                                                            padding: '12px 10px',
+                                                            borderRadius: 18,
+                                                            border: '2px dashed #f97316',
+                                                            background: '#fff7ed',
+                                                            display: 'flex',
+                                                            flexDirection: 'column',
+                                                            alignItems: 'center',
+                                                            gap: 4,
+                                                            color: '#9a3412',
+                                                            fontSize: 12,
+                                                            fontWeight: 700,
+                                                            cursor: 'default',
+                                                            textAlign: 'center',
+                                                        }}
+                                                    >
+                                                        <span style={{ fontWeight: 800, fontSize: 14 }}>{slot.time}</span>
+                                                        <span>Seu compromisso</span>
+                                                        <span style={{ fontWeight: 600, fontSize: 11 }}>{slot.mine.title}</span>
+                                                        <span style={{ fontWeight: 600, fontSize: 10, opacity: 0.85 }}>{slot.mine.place} · {slot.mine.from}–{slot.mine.to}</span>
+                                                    </div>
                                                 )
                                             } else {
                                                 const app = slot.appointment

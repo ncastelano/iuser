@@ -8,6 +8,7 @@
 // Só apresentação: as regras de horário, vagas e o envio ficam em StoreSchedule.tsx.
 'use client'
 
+import { useState } from 'react'
 import { ArrowRight, Check, Clock, Minus, Plus } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 
@@ -40,7 +41,7 @@ export default function ScheduleV3(p: {
     days: V3Day[]
     selectedDate: Date | null
     onPickDate: (d: Date) => void
-    slots: { time: string; status: 'free' | 'occupied' }[]
+    slots: { time: string; status: 'free' | 'occupied'; mine?: { title: string; place: string; from: string; to: string } }[]
     selectedTime: string | null
     onPickTime: (t: string) => void
     onPickSuggestion: (s: V3Slot) => void
@@ -58,6 +59,7 @@ export default function ScheduleV3(p: {
     deposit?: { amount: number; rule: string; policy: string | null; holdMinutes: number } | null
 }) {
     const { colors } = p
+    const [mineOpen, setMineOpen] = useState<string | null>(null)
     const soft = `${colors.border}30`
     const hasService = p.items.length > 0
     const total = p.items.reduce((sum, i) => sum + (Number(i.product.price) || 0) * i.quantity, 0)
@@ -240,6 +242,20 @@ export default function ScheduleV3(p: {
                                     {p.slots.map((s) => {
                                         const on = p.selectedTime === s.time
                                         const free = s.status === 'free'
+                                        if (s.mine) {
+                                            // já tenho compromisso nesse horário: fica à vista, marcado; tocar mostra qual é
+                                            return (
+                                                <button
+                                                    key={s.time}
+                                                    onClick={() => setMineOpen(mineOpen === s.time ? null : s.time)}
+                                                    className="min-h-11 py-1.5 rounded-3xl text-sm font-black transition active:scale-95 flex flex-col items-center justify-center leading-none"
+                                                    style={{ background: mineOpen === s.time ? '#ffedd5' : 'transparent', color: '#c2410c', border: '1.5px dashed #f97316' }}
+                                                >
+                                                    {s.time}
+                                                    <span className="text-[9px] font-bold mt-0.5">seu compromisso</span>
+                                                </button>
+                                            )
+                                        }
                                         return (
                                             <button
                                                 key={s.time}
@@ -254,6 +270,14 @@ export default function ScheduleV3(p: {
                                     })}
                                 </div>
                             )}
+                            {(() => {
+                                const open = p.slots.find((x) => x.time === mineOpen)?.mine
+                                return open ? (
+                                    <p className="mt-2 text-[13px] rounded-2xl p-3 font-bold" style={{ background: '#fff7ed', color: '#9a3412' }}>
+                                        Você já tem um compromisso nesse horário: <b>{open.title}</b> · {open.place} · {open.from}–{open.to}. Escolha outro horário.
+                                    </p>
+                                ) : null
+                            })()}
                         </>
                     )}
                 </>

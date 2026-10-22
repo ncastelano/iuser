@@ -74,17 +74,26 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO 'public' AS $$
       AND a.date::date BETWEEN p_from AND p_to;
 $$;
 
--- Os horários em que EU já estou ocupado (como cliente ou como quem recebe): a tela esconde esses horários ao marcar algo novo
+-- Os horários em que EU já estou ocupado (como cliente ou como quem recebe): a tela mostra QUAL é o compromisso (título e com quem/onde)
+-- para a pessoa ver o conflito ao escolher um horário. São dados dela mesma (ela é a cliente ou a prestadora desse agendamento).
+DROP FUNCTION IF EXISTS public.get_my_busy_slots(date, date);
 CREATE OR REPLACE FUNCTION public.get_my_busy_slots(p_from date, p_to date)
-RETURNS TABLE(slot_date text, slot_time text, duration_minutes integer)
+RETURNS TABLE(slot_date text, slot_time text, duration_minutes integer, title text, place text, status text)
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO 'public' AS $$
-    SELECT a.date::text, a.time::text, COALESCE(a.duration_minutes, 60)
+    SELECT a.date::text, a.time::text, COALESCE(a.duration_minutes, 60), a.service_name,
+           CASE
+               WHEN a.store_id IS NOT NULL THEN COALESCE(NULLIF(a.store_name, ''), 'Loja')
+               WHEN a.customer_id = auth.uid() THEN 'com @' || a.owner_slug
+               ELSE 'com @' || a.customer_slug
+           END,
+           a.status::text
     FROM public.appointments a
     WHERE auth.uid() IS NOT NULL
       AND (a.customer_id = auth.uid() OR a.provider_profile_id = auth.uid())
       AND NOT (a.provider_profile_id IS NOT NULL AND a.customer_id IS NOT DISTINCT FROM a.provider_profile_id)
       AND a.status::text IN ('pending', 'confirmed', 'completed')
-      AND a.date::date BETWEEN p_from AND LEAST(p_to, p_from + 62);
+      AND a.date::date BETWEEN p_from AND LEAST(p_to, p_from + 62)
+    ORDER BY a.date, a.time;
 $$;
 REVOKE ALL ON FUNCTION public.get_my_busy_slots(date, date) FROM public, anon;
 GRANT EXECUTE ON FUNCTION public.get_my_busy_slots(date, date) TO authenticated;

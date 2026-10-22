@@ -56,6 +56,9 @@ export default function ProfileScheduleModal({ profileId, profileName, profileSl
     const [hours, setHours] = useState<any>(null)
     const [loading, setLoading] = useState(true)
     const [busy, setBusy] = useState<{ slot_date: string; slot_time: string; duration_minutes: number }[]>([])
+    // meus compromissos (como cliente ou como quem recebe): o horário continua à vista, marcado, mostrando qual é o compromisso
+    const [mine, setMine] = useState<{ slot_date: string; slot_time: string; duration_minutes: number; title: string; place: string }[]>([])
+    const [mineOpen, setMineOpen] = useState<string | null>(null)
     const [duration, setDuration] = useState(60)
     const [dateStr, setDateStr] = useState<string | null>(null)
     const [time, setTime] = useState<string | null>(null)
@@ -73,7 +76,8 @@ export default function ProfileScheduleModal({ profileId, profileName, profileSl
             supabase.rpc('get_my_busy_slots', { p_from: from, p_to: to }),
         ])
         setHours(prof?.working_hours || DEFAULT_HOURS)
-        setBusy([...((slots || []) as any[]), ...((mine || []) as any[])])
+        setBusy((slots || []) as any)
+        setMine((mine || []) as any)
         setLoading(false)
     }
     useEffect(() => { load() }, [profileId])
@@ -81,8 +85,10 @@ export default function ProfileScheduleModal({ profileId, profileName, profileSl
     const cfg = hours || DEFAULT_HOURS
     const interval = Number(cfg.slot_interval) || 60
 
-    // Horários livres de um dia, considerando expediente, almoço, dias bloqueados e ocupados.
-    const slotsFor = (day: Date): string[] => {
+    // Horários de um dia, considerando expediente, almoço, dias bloqueados e ocupados de quem atende. Os horários em que EU já tenho
+    // compromisso continuam na lista, marcados com o compromisso (a pessoa vê o conflito em vez de o horário sumir).
+    type DaySlot = { time: string; mine?: { title: string; place: string; from: string; to: string } }
+    const slotsFor = (day: Date): DaySlot[] => {
         if (cfg.is_active === false) return []
         const ds = localDateStr(day)
         if ((cfg.blocked_dates || []).includes(ds)) return []
@@ -96,7 +102,8 @@ export default function ProfileScheduleModal({ profileId, profileName, profileSl
         const isToday = ds === localDateStr(now)
         const nowMin = now.getHours() * 60 + now.getMinutes()
         const dayBusy = busy.filter((b) => b.slot_date === ds)
-        const out: string[] = []
+        const dayMine = mine.filter((b) => b.slot_date === ds)
+        const out: DaySlot[] = []
         for (let m = start; m + duration <= end; m += interval) {
             const slotEnd = m + duration
             if (lStart !== null && lEnd !== null && m < lEnd && slotEnd > lStart) continue
@@ -105,7 +112,14 @@ export default function ProfileScheduleModal({ profileId, profileName, profileSl
                 const bs = toMin(b.slot_time.slice(0, 5))
                 return m < bs + (b.duration_minutes || 60) && bs < slotEnd
             })
-            if (!clash) out.push(fromMin(m))
+            if (clash) continue
+            const mineHit = dayMine.find((b) => {
+                const bs = toMin(b.slot_time.slice(0, 5))
+                return m < bs + (b.duration_minutes || 60) && bs < slotEnd
+            })
+            out.push(mineHit
+                ? { time: fromMin(m), mine: { title: mineHit.title, place: mineHit.place, from: mineHit.slot_time.slice(0, 5), to: fromMin(toMin(mineHit.slot_time.slice(0, 5)) + (mineHit.duration_minutes || 60)) } }
+                : { time: fromMin(m) })
         }
         return out
     }
@@ -116,22 +130,23 @@ export default function ProfileScheduleModal({ profileId, profileName, profileSl
             const d = new Date()
             d.setHours(0, 0, 0, 0)
             d.setDate(d.getDate() + i)
-            const free = slotsFor(d).length
+            const free = slotsFor(d).filter((x) => !x.mine).length
             if (free > 0) list.push({ date: d, ds: localDateStr(d), free })
         }
         return list
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [hours, busy, duration])
+    }, [hours, busy, mine, duration])
 
     const slots = useMemo(() => {
         if (!dateStr) return []
         const [y, m, d] = dateStr.split('-').map(Number)
         return slotsFor(new Date(y, m - 1, d))
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [dateStr, hours, busy, duration])
+    }, [dateStr, hours, busy, mine, duration])
 
     // Trocar a duração pode invalidar o horário escolhido.
-    useEffect(() => { if (time && !slots.includes(time)) setTime(null) }, [slots, time])
+    useEffect(() => { if (time && !slots.some((x) => x.time === time && !x.mine)) setTime(null) }, [slots, time])
+    useEffect(() => { setMineOpen(null) }, [dateStr])
 
     const handleConfirm = async () => {
         if (!userId) {
@@ -263,17 +278,36 @@ export default function ProfileScheduleModal({ profileId, profileName, profileSl
                             <div>
                                 <p className="text-[11px] font-black uppercase tracking-wider text-gray-500 mb-1.5 flex items-center gap-1"><Clock size={12} /> Horário</p>
                                 <div className="grid grid-cols-4 gap-2">
-                                    {slots.map((s) => (
+                                    {slots.map((sl) => sl.mine ? (
                                         <button
-                                            key={s}
-                                            onClick={() => setTime(s)}
-                                            className="py-2 rounded-xl text-xs font-black border-2 transition"
-                                            style={time === s ? { background: GRADIENT, color: '#fff', borderColor: 'transparent' } : { borderColor: '#e5e7eb', color: '#374151' }}
+                                            key={sl.time}
+                                            onClick={() => setMineOpen(mineOpen === sl.time ? null : sl.time)}
+                                            className="py-2 rounded-xl text-xs font-black border-2 border-dashed transition flex flex-col items-center leading-tight"
+                                            style={{ borderColor: '#f97316', color: '#c2410c', background: mineOpen === sl.time ? '#ffedd5' : '#fff7ed' }}
+                                            title="Você já tem um compromisso nesse horário"
                                         >
-                                            {s}
+                                            {sl.time}
+                                            <span className="text-[9px] font-bold flex items-center gap-0.5"><Calendar size={9} /> seu compromisso</span>
+                                        </button>
+                                    ) : (
+                                        <button
+                                            key={sl.time}
+                                            onClick={() => setTime(sl.time)}
+                                            className="py-2 rounded-xl text-xs font-black border-2 transition"
+                                            style={time === sl.time ? { background: GRADIENT, color: '#fff', borderColor: 'transparent' } : { borderColor: '#e5e7eb', color: '#374151' }}
+                                        >
+                                            {sl.time}
                                         </button>
                                     ))}
                                 </div>
+                                {(() => {
+                                    const open = slots.find((x) => x.time === mineOpen)?.mine
+                                    return open ? (
+                                        <p className="mt-2 text-xs rounded-xl p-3 font-bold" style={{ background: '#fff7ed', color: '#9a3412', border: '1px solid #fdba74' }}>
+                                            Você já tem um compromisso nesse horário: <b>{open.title}</b> · {open.place} · {open.from}–{open.to}. Escolha outro horário.
+                                        </p>
+                                    ) : null
+                                })()}
                             </div>
                         )}
 
