@@ -89,13 +89,17 @@ function SellCta({ colors, onStore, onService, onProduct }: { colors: any; onSto
     )
 }
 
-// "Vender": o que a pessoa quer mostrar — uma loja, um produto (precisa de uma loja) ou um serviço dela.
+// "Vender": produto ou serviço. Produto sempre vive numa loja (sem loja, a gente leva a pessoa a criar uma). Serviço pode ser
+// publicado pelo perfil da pessoa ou por uma loja — então ela escolhe (ou cria uma loja só para isso).
+type SellView = 'root' | 'service' | 'pickStore'
 function SellDialog({ open, onClose, userId, colors, go, mode = 'all' }: { open: boolean; onClose: () => void; userId: string | null; colors: any; go: (p: string) => void; mode?: 'all' | 'product' }) {
     const [myStores, setMyStores] = useState<{ id: string; name: string; storeSlug: string }[] | null>(null)
-    const [pickStore, setPickStore] = useState(false)
+    const [view, setView] = useState<SellView>('root')
+    // O que a escolha de loja vai criar: um produto ou um serviço
+    const [pickFor, setPickFor] = useState<'product' | 'service'>('product')
 
     useEffect(() => {
-        if (!open) { setPickStore(false); return }
+        if (!open) { setView('root'); setPickFor('product'); return }
         if (!userId) { setMyStores([]); return }
         let cancelled = false
         supabase.from('stores').select('id, name, "storeSlug"').eq('owner_id', userId).then(({ data }) => {
@@ -106,7 +110,7 @@ function SellDialog({ open, onClose, userId, colors, go, mode = 'all' }: { open:
 
     // Vindo do "Vender produto": com mais de uma loja, já cai na escolha de qual loja
     useEffect(() => {
-        if (open && mode === 'product' && myStores && myStores.length > 1) setPickStore(true)
+        if (open && mode === 'product' && myStores && myStores.length > 1) { setPickFor('product'); setView('pickStore') }
     }, [open, mode, myStores])
 
     if (!open) return null
@@ -121,34 +125,59 @@ function SellDialog({ open, onClose, userId, colors, go, mode = 'all' }: { open:
         </button>
     )
 
+    const createPath = (slug: string, kind: 'product' | 'service') => `/${slug}/criar-produto${kind === 'service' ? '?type=service' : ''}`
+    const createStore = () => go(userId ? '/criar-loja' : '/criar-loja-com-cadastro')
+
     const product = () => {
         if (!userId) return go('/criar-loja-com-cadastro')
         if (!myStores || myStores.length === 0) return go('/criar-loja')
-        if (myStores.length === 1) return go(`/${myStores[0].storeSlug}/criar-produto`)
-        setPickStore(true)
+        if (myStores.length === 1) return go(createPath(myStores[0].storeSlug, 'product'))
+        setPickFor('product')
+        setView('pickStore')
     }
+
+    const serviceByStore = () => {
+        if (!myStores || myStores.length === 0) return createStore()
+        if (myStores.length === 1) return go(createPath(myStores[0].storeSlug, 'service'))
+        setPickFor('service')
+        setView('pickStore')
+    }
+
+    const hasStores = !!myStores && myStores.length > 0
+    const title = view === 'pickStore' ? 'Em qual loja?' : view === 'service' ? 'Onde publicar o serviço?' : 'O que você quer vender?'
+    const subtitle = view === 'pickStore'
+        ? (pickFor === 'service' ? 'Escolha a loja que vai receber o serviço.' : 'Escolha a loja que vai receber o produto.')
+        : view === 'service' ? 'Pelo seu perfil ou por uma loja.' : 'Escolha o que quer mostrar no iUser.'
+    const back = view === 'root' ? null : () => setView(view === 'pickStore' && pickFor === 'service' ? 'service' : 'root')
 
     return (
         <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-3" style={{ background: 'rgba(0,0,0,0.55)' }} onClick={onClose}>
             <div className="w-full max-w-md rounded-3xl p-5" style={{ background: colors.background }} onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-start justify-between gap-3 mb-3">
                     <div>
-                        <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>{pickStore ? 'Em qual loja?' : 'O que você quer vender?'}</h3>
-                        <p className="text-xs" style={{ color: colors.textSecondary }}>{pickStore ? 'Escolha a loja que vai receber o produto.' : 'Escolha o que quer mostrar no iUser.'}</p>
+                        <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>{title}</h3>
+                        <p className="text-xs" style={{ color: colors.textSecondary }}>{subtitle}</p>
                     </div>
                     <button onClick={onClose} aria-label="Fechar" className="p-1" style={{ color: colors.textSecondary }}><X size={20} /></button>
                 </div>
                 <div className="flex flex-col gap-2.5">
-                    {pickStore
-                        ? (myStores || []).map((st) => option(st.id, <StoreIcon size={20} />, TYPE.loja.color, st.name, `/${st.storeSlug}`, () => go(`/${st.storeSlug}/criar-produto`)))
-                        : (
-                            <>
-                                {option('loja', <StoreIcon size={20} />, TYPE.loja.color, 'Uma loja', 'Crie sua loja e organize tudo num só lugar', () => go(userId ? '/criar-loja' : '/criar-loja-com-cadastro'))}
-                                {option('produto', <Package size={20} />, TYPE.produto.color, 'Um produto', myStores === null || myStores.length > 0 ? 'Publique na sua loja' : 'Precisa de uma loja — a gente leva você pra criar', product)}
-                                {option('servico', <Wrench size={20} />, TYPE.servico.color, 'Um serviço', 'Divulgue o que você faz e seja encontrado', () => go(userId ? '/meus-servicos' : '/login'))}
-                            </>
-                        )}
+                    {view === 'pickStore' && (myStores || []).map((st) => option(st.id, <StoreIcon size={20} />, TYPE.loja.color, st.name, `/${st.storeSlug}`, () => go(createPath(st.storeSlug, pickFor))))}
+                    {view === 'service' && (
+                        <>
+                            {option('perfil', <User size={20} />, TYPE.servico.color, 'Pelo meu perfil', 'Aparece no seu perfil, sem precisar de loja', () => go(userId ? '/meus-servicos' : '/login'))}
+                            {option('loja', <StoreIcon size={20} />, TYPE.loja.color, hasStores ? 'Por uma loja' : 'Criar uma loja', hasStores ? 'Publique em uma loja que você já tem' : 'Crie uma loja para publicar o serviço', serviceByStore)}
+                        </>
+                    )}
+                    {view === 'root' && (
+                        <>
+                            {option('produto', <Package size={20} />, TYPE.produto.color, 'Produto', myStores === null || myStores.length > 0 ? 'Publique na sua loja' : 'Precisa de uma loja — a gente leva você pra criar', product)}
+                            {option('servico', <Wrench size={20} />, TYPE.servico.color, 'Serviço', 'Divulgue o que você faz e seja encontrado', () => setView('service'))}
+                        </>
+                    )}
                 </div>
+                {back && (
+                    <button onClick={back} className="mt-3 w-full py-2 text-xs font-black rounded-full" style={{ color: colors.textSecondary }}>Voltar</button>
+                )}
             </div>
         </div>
     )

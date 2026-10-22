@@ -639,6 +639,14 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
     const stepIndex = orderedSteps.indexOf(step)
     const goNext = () => setStep(orderedSteps[Math.min(orderedSteps.indexOf(step) + 1, orderedSteps.length - 1)])
     const goPrev = () => setStep(orderedSteps[Math.max(orderedSteps.indexOf(step) - 1, 0)])
+    // Escolheu quantas sacolas: o tamanho da compra é obrigatório (abre o painel das sacolas e leva até ele)
+    const shoppingSizeMissing = () => {
+        if (requestFor !== 'pessoa' || !hasShopping || groceryBagSize) return false
+        toast.error('Escolha o tamanho da compra para continuar')
+        setOpenExtra('compras')
+        setTimeout(() => document.getElementById('tamanho-compra')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 150)
+        return true
+    }
 
     // ===== PREVIEW DAS FOTOS =====
     useEffect(() => {
@@ -1272,6 +1280,13 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
             : requestFor === 'animal' && !petPhotoFile ? { msg: 'Adicione uma foto do animal para continuar', id: 'foto-animal' }
             : requestFor === 'pessoa' && hasExtraObject && !extraObjectPhotoFile ? { msg: 'Adicione uma foto do objeto para continuar', id: 'foto-objeto-extra' }
             : null
+        if (requestFor === 'pessoa' && hasShopping && !groceryBagSize) {
+            setStep('extras')
+            setOpenExtra('compras')
+            toast.error('Escolha o tamanho da compra para continuar')
+            setTimeout(() => document.getElementById('tamanho-compra')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 150)
+            return
+        }
         if (missingPhoto) {
             toast.error(missingPhoto.msg)
             setStep('extras')
@@ -2515,10 +2530,10 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                                         )}
                                         {openExtra === 'compras' && (
                                             <div className="flex flex-col gap-2">
-                                                <CounterRow compact={v3} label="Quantas compras de mercado?" icon={ShoppingCart} value={bagCount} onChange={(n) => { setBagCount(n); if (n === 0) setOpenExtra(null) }} max={20} colors={colors} />
+                                                <CounterRow compact={v3} label="Quantas sacolas?" icon={ShoppingCart} value={bagCount} onChange={(n) => { setBagCount(n); if (n === 0) setOpenExtra(null) }} max={20} colors={colors} />
                                                 {hasShopping && (
                                             <div className="rounded-xl px-3 py-2.5" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
-                                                <span className="text-xs font-bold block mb-1.5" style={{ color: colors.textSecondary }}>Tamanho da compra</span>
+                                                <span className="text-xs font-bold block mb-1.5" id="tamanho-compra" style={{ color: colors.textSecondary }}>Tamanho da compra <span style={{ color: '#ef4444' }}>*</span></span>
                                                 <div className="flex gap-2">
                                                     {(['pequeno', 'medio', 'grande'] as ObjectSize[]).map((size) => {
                                                         const active = groceryBagSize === size
@@ -2887,7 +2902,7 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                                     Voltar
                                 </button>
                                 <button
-                                    onClick={goNext}
+                                    onClick={() => { if (!shoppingSizeMissing()) goNext() }}
                                     className={`flex-1 ${v3 ? 'py-2.5' : 'py-3.5'} rounded-xl font-black ${v3 ? 'text-[13px]' : 'uppercase text-sm tracking-wider'} transition-all hover:scale-[1.02] active:scale-95`}
                                     style={{ background: GRADIENT, color: '#fff' }}
                                 >
