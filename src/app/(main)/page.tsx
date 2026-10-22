@@ -819,7 +819,7 @@ function HomePageContent() {
                     />
                 ) : (
                     <div className="mt-2 px-4 md:px-6">
-                        {/* Aviso geral (abaixo da busca): some sozinho na data definida em AnnouncementBanner */}
+                        {/* Aviso geral (abaixo da busca): apresenta a versão 3.0 (AnnouncementBanner) */}
                         {!isSearching && !searchFocused && <AnnouncementBanner />}
                         {/* Enquanto está digitando, "Resultados para..." vem primeiro e
                             "Últimos acessados" fica embaixo. Sem busca ativa, o histórico

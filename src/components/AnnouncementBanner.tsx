@@ -1,34 +1,38 @@
 // src/components/AnnouncementBanner.tsx
 //
-// Aviso fixo da página inicial (abaixo da busca): "estamos evoluindo, pode haver instabilidade". Some sozinho depois de
-// ANNOUNCEMENT_UNTIL, e quem fecha não vê de novo naquela visita (sessionStorage). Para trocar o texto ou tirar do ar,
-// mexa só nas constantes abaixo.
+// Cartão da página inicial da 2.0 (abaixo da busca) que apresenta a NOVA versão do iUser (3.0). Quem já tem acesso à 3.0
+// vê o botão "Conhecer agora" (troca de versão pelo mecanismo único `switchVersion`); quem ainda não tem vê "Em breve".
+// Quem fecha não vê de novo naquela visita (sessionStorage). Para trocar o texto ou tirar do ar, mexa só nas constantes abaixo.
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Layers, Palette, Server, Sparkles, X } from 'lucide-react'
+import { usePathname } from 'next/navigation'
+import { CalendarClock, MessageCircle, Navigation, Rocket, X } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
+import { useProfile } from '@/app/contexts/ProfileContext'
+import { switchVersion, useV3Access } from '@/versions/client'
 
-// Depois desta data o aviso para de aparecer (fim do ciclo de cobrança do Supabase). Ajuste quando quiser.
-const ANNOUNCEMENT_UNTIL = '2026-11-14T00:00:00-03:00'
-const STORAGE_KEY = 'iuser_announcement_2026_10_dismissed'
+const STORAGE_KEY = 'iuser_v3_promo_dismissed'
 
-const TITLE = 'Estamos evoluindo o iUser!'
+const TITLE = 'Conheça o novo iUser'
 const MESSAGE =
-    'Nos próximos dias vamos ampliar nossos serviços e atualizar o banco de dados, o servidor e o design do app. ' +
-    'Por isso, você pode notar algumas instabilidades. É passageiro, e o iUser vai ficar ainda melhor. Obrigado pela paciência!'
+    'A versão 3.0 chegou com um jeito mais rápido e simples de usar: navegação nova, lojas mais bonitas, ' +
+    'agenda com horários livres e conversa direta com lojas e clientes.'
 const HIGHLIGHTS = [
-    { icon: Layers, label: 'Mais serviços' },
-    { icon: Server, label: 'Banco e servidor atualizados' },
-    { icon: Palette, label: 'Novo design' },
+    { icon: Navigation, label: 'Navegação nova' },
+    { icon: CalendarClock, label: 'Agenda com horários livres' },
+    { icon: MessageCircle, label: 'Conversa com a loja' },
 ]
 
 export default function AnnouncementBanner() {
     const { colors } = useTheme()
+    const pathname = usePathname()
+    const { userId } = useProfile()
+    const access = useV3Access()
     const [visible, setVisible] = useState(false)
+    const [switching, setSwitching] = useState(false)
 
     useEffect(() => {
-        if (Date.now() > new Date(ANNOUNCEMENT_UNTIL).getTime()) return
         try { if (sessionStorage.getItem(STORAGE_KEY)) return } catch { /* sem storage: mostra */ }
         setVisible(true)
     }, [])
@@ -43,7 +47,7 @@ export default function AnnouncementBanner() {
     return (
         <section
             role="status"
-            aria-label="Aviso do iUser"
+            aria-label="Novidade do iUser"
             className="relative overflow-hidden rounded-3xl mb-5"
             style={{
                 background: colors.surface,
@@ -71,11 +75,11 @@ export default function AnnouncementBanner() {
                         className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 text-white"
                         style={{ background: 'linear-gradient(135deg, #f97316, #dc2626)', boxShadow: '0 6px 16px -6px rgba(220,38,38,0.6)' }}
                     >
-                        <Sparkles size={22} />
+                        <Rocket size={22} />
                     </span>
                     <div className="min-w-0">
                         <span className="inline-block text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full text-white mb-1" style={{ background: 'linear-gradient(90deg, #f97316, #dc2626)' }}>
-                            Novidades a caminho
+                            Novidade · versão 3.0
                         </span>
                         <h2 className="text-base font-black leading-tight" style={{ color: colors.textPrimary }}>{TITLE}</h2>
                     </div>
@@ -94,6 +98,24 @@ export default function AnnouncementBanner() {
                             {label}
                         </span>
                     ))}
+                </div>
+
+                <div className="mt-4">
+                    {access.allowed ? (
+                        <button
+                            type="button"
+                            disabled={switching}
+                            onClick={async () => { setSwitching(true); await switchVersion('v3', { pathname, loggedIn: !!userId }); setSwitching(false) }}
+                            className="w-full h-11 rounded-full text-sm font-black text-white transition active:scale-[0.98] disabled:opacity-60"
+                            style={{ background: '#f97316' }}
+                        >
+                            {switching ? 'Abrindo…' : 'Conhecer agora'}
+                        </button>
+                    ) : (
+                        <p className="text-[12px] font-bold text-center py-2.5 rounded-full" style={{ color: colors.textSecondary, background: 'rgba(249,115,22,0.10)' }}>
+                            Em breve para todos. Fique de olho!
+                        </p>
+                    )}
                 </div>
             </div>
         </section>
