@@ -17,7 +17,7 @@ import { toast } from 'sonner'
 import { Spinner } from '@/components/Spinner'
 import RadarSonar from '@/components/radar/RadarSonar'
 import RadarItemDetails from '@/components/radar/RadarItemDetails'
-import { createRadarScan, ensureRadarScanStyles, type RadarScan, type ScanEntry, type ScanState } from '@/components/radar/radarScan'
+import { createRadarPulse, ensureRadarPulseStyles, type RadarPulse, type PulseEntry, type PulseState } from '@/components/radar/radarPulse'
 import { isStoreOpenNow, getStoreStatusText, getNextOpeningInfo } from '@/lib/storeHours'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { getCurrentPosition as getNativeCurrentPosition } from '@/lib/nativeGeolocation'
@@ -139,10 +139,10 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
     const { userId: contextUserId, profileSlug, avatarUrl, loading: profileLoading } = useProfile()
     const mapRef = useRef<mapboxgl.Map | null>(null)
     const mapContainerRef = useRef<HTMLDivElement | null>(null)
-    // Abertura do radar: o "satélite" varre o mapa e só então as marcações aparecem (ver radarScan.ts)
+    // Abertura do radar: o avatar pulsa, um pulso de sonar se expande, as marcações nascem como bolinhas e viram ícones (ver radarPulse.ts)
     const scanOverlayRef = useRef<HTMLDivElement | null>(null)
-    const scanRef = useRef<RadarScan | null>(null)
-    const scanEntriesRef = useRef<ScanEntry[]>([])
+    const scanRef = useRef<RadarPulse | null>(null)
+    const scanEntriesRef = useRef<PulseEntry[]>([])
     const introRef = useRef<'pending' | 'running' | 'done'>('pending')
     const [introDone, setIntroDone] = useState(false)
     const markIntroDone = () => { introRef.current = 'done'; setIntroDone(true) }
@@ -676,7 +676,7 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
         if (introRef.current !== 'pending' || scanRef.current) return
         if (typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) { markIntroDone(); return }
         const ref = referenceLocation
-        const ctl = createRadarScan({
+        const ctl = createRadarPulse({
             map: mapRef.current,
             overlay: scanOverlayRef.current,
             getEntries: () => scanEntriesRef.current,
@@ -714,7 +714,7 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
         markersRef.current = []
         scanEntriesRef.current = []
         const intro = introRef.current !== 'done'
-        if (intro) ensureRadarScanStyles()
+        if (intro) ensureRadarPulseStyles()
 
         if (filtered.length === 0) {
             console.log('[MapPage] 📭 Nenhum item para marcar')
@@ -871,7 +871,8 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                     const blip = document.createElement('div')
                     blip.className = 'radar-blip'
                     blipWrap.appendChild(blip)
-                    const blipMarker = new mapboxgl.Marker({ element: blipWrap, anchor: 'center' }).setLngLat([lng, lat]).addTo(map)
+                    // a bolinha fica no CENTRO do ícone (que se apoia no ponto pela base), assim o ícone cresce exatamente dela
+                    const blipMarker = new mapboxgl.Marker({ element: blipWrap, anchor: 'center', offset: [0, -boxSize / 2] }).setLngLat([lng, lat]).addTo(map)
                     markersRef.current.push(blipMarker)
                     const extras: HTMLElement[] = badgeEl ? [badgeEl] : []
                     const hideAll = (hidden: boolean) => {
@@ -886,7 +887,7 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                     hideAll(true)
                     scanEntriesRef.current.push({
                         lng, lat, state: 'hidden',
-                        apply: (st: ScanState) => {
+                        apply: (st: PulseState) => {
                             blip.classList.toggle('on', st === 'blip')
                             blip.classList.toggle('off', st === 'shown')
                             hideAll(st !== 'shown')
@@ -1334,7 +1335,9 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
             {/* Sonar: só enquanto o mapa e a localização chegam; depois o mapa aparece com o avatar pulsando e a varredura começa */}
             <RadarSonar
                 loading={!mapReady || loadingLocation}
-                label={loadingLocation ? 'Buscando sua localização...' : !mapReady ? 'Preparando o mapa...' : 'Procurando ao redor...'}
+                label={loadingLocation ? 'Buscando sua localização...' : 'Preparando o mapa...'}
+                avatarUrl={userAvatar}
+                name={userName}
             />
 
             {/* HEADER - mesmo componente do homepage, com os filtros do radar nas tabs
