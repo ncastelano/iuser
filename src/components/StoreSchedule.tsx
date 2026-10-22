@@ -29,6 +29,7 @@ import {
     Camera,
 } from 'lucide-react'
 import { useInsideShell } from '@/components/InsideShell'
+import { dateKey } from '@/lib/storeSlots'
 import ScheduleV3 from '@/components/v3/ScheduleV3'
 import AppointmentDepositPanel from '@/components/AppointmentDepositPanel'
 import { brl as depositBrl, depositConfigOf, depositRuleLabel, previewDeposit, DEPOSIT_HOLD_MINUTES, type DepositConfig } from '@/lib/appointmentDeposit'
@@ -592,9 +593,9 @@ export default function StoreSchedule({
         const slotInterval = config.slot_interval || 60
 
         for (let d = 0; d < maxDays; d++) {
-            const date = new Date(now)
-            date.setDate(date.getDate() + d)
-            const dateStr = date.toISOString().split('T')[0]
+            // meia-noite do dia local (com a hora de agora a data cairia no dia seguinte, em UTC, depois das 20 h no Brasil)
+            const date = new Date(now.getFullYear(), now.getMonth(), now.getDate() + d)
+            const dateStr = dateKey(date)
 
             if (dateStr < todayStr) continue
             if (config.blocked_dates && config.blocked_dates.includes(dateStr)) continue
@@ -648,7 +649,7 @@ export default function StoreSchedule({
     // ---------- Todos os slots do dia (livres + ocupados) ----------
     const allSlots = useMemo(() => {
         if (!selectedDate || !target) return []
-        const dateStr = selectedDate.toISOString().split('T')[0]
+        const dateStr = dateKey(selectedDate)
         const cfg = config
         if (!cfg.is_active || (cfg.blocked_dates && cfg.blocked_dates.includes(dateStr))) return []
         const dayOfWeek = selectedDate.getDay().toString()
@@ -723,7 +724,7 @@ export default function StoreSchedule({
 
         for (let d = 1; d <= daysInMonth; d++) {
             const date = new Date(year, month, d)
-            const dateStr = date.toISOString().split('T')[0]
+            const dateStr = dateKey(date)
             if (dateStr < todayStr) {
                 map[dateStr] = 0
                 continue
@@ -779,7 +780,7 @@ export default function StoreSchedule({
         const now = new Date()
         for (let d = 0; d < 21; d++) {
             const date = new Date(now.getFullYear(), now.getMonth(), now.getDate() + d)
-            const dateStr = date.toISOString().split('T')[0]
+            const dateStr = dateKey(date)
             let free = 0
             if (!(config.blocked_dates && config.blocked_dates.includes(dateStr))) {
                 const dayConfig = config.weekly?.[date.getDay().toString()]
@@ -883,7 +884,7 @@ export default function StoreSchedule({
             return
         }
 
-        const dateStr = selectedDate.toISOString().split('T')[0]
+        const dateStr = dateKey(selectedDate)
         const note = appointmentNote.trim() || 'Compromisso'
 
         const { data: store } = await supabase
@@ -939,13 +940,14 @@ export default function StoreSchedule({
             fetch('/api/whatsapp/appointment-notice', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ appointmentId: created.id }) }).catch(() => { /* só um aviso a mais */ })
         }
         await refetch()
-        onSuccess?.()
-        // loja que cobra entrada: o agendamento só fica garantido depois de pagar — mostra o Pix e o prazo em vez de fechar
+        // loja que cobra entrada: o agendamento só fica garantido depois de pagar — mostra o Pix e o prazo em vez de fechar.
+        // (onSuccess recarrega a loja e remontaria esta janela: só roda quando ela fecha, no botão "Fechar" da entrada.)
         if (created?.id && depositPreview > 0) {
             setDepositAppt(created.id)
             setSubmitting(false)
             return
         }
+        onSuccess?.()
         toast.success('Compromisso criado com sucesso!')
         onClose?.()
     }
@@ -1046,7 +1048,7 @@ export default function StoreSchedule({
                         <p className="text-sm" style={{ color: textSecondary }}>Seu horário está reservado. Pague a entrada para confirmar o agendamento.</p>
                         <AppointmentDepositPanel appointmentId={depositAppt} role="customer" onChanged={() => { refetch() }} />
                         <button
-                            onClick={() => onClose?.()}
+                            onClick={() => { onSuccess?.(); onClose?.() }}
                             style={v3 ? { height: 48, borderRadius: 9999, background: `${colors.border}40`, color: textPrimary, fontWeight: 900, fontSize: 14 } : { ...pillButtonStyle, background: 'transparent', border: `1px solid ${borderColor}`, color: textSecondary }}
                         >
                             Fechar (pago depois em Compromissos)
@@ -1754,7 +1756,7 @@ export default function StoreSchedule({
                                     {Array.from({ length: diasDoMes }).map((_, i) => {
                                         const dia = i + 1
                                         const date = new Date(calendarYear, calendarMonth, dia)
-                                        const dateStr = date.toISOString().split('T')[0]
+                                        const dateStr = dateKey(date)
                                         const occupiedCount = eventsByDate[dateStr] || 0
                                         const freeCount = freeSlotsByDate[dateStr] || 0
                                         const isPast = dateStr < todayStr
@@ -1889,7 +1891,7 @@ export default function StoreSchedule({
                                         {!config?.is_active
                                             ? 'Loja não está aceitando agendamentos.'
                                             : config?.blocked_dates?.includes(
-                                                selectedDate.toISOString().split('T')[0]
+                                                dateKey(selectedDate)
                                             )
                                                 ? 'Data bloqueada pela loja.'
                                                 : !config?.weekly?.[

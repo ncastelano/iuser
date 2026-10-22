@@ -48,3 +48,4 @@ supabase/.temp/
 # staging (credenciais e diretório de trabalho do CLI)
 .env.staging.local
 /.staging/
+/.local-supabase/
