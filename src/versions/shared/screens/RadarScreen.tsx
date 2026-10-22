@@ -808,8 +808,10 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
 
                 el.appendChild(inner)
 
+                let crownEl: HTMLElement | null = null
                 if (rank) {
                     const crown = document.createElement('div')
+                    crownEl = crown
                     crown.innerHTML = crownSvg(rank, 32)
                     crown.style.cssText = 'position:absolute;top:-26px;left:50%;transform:translateX(-50%);pointer-events:none;line-height:0;filter:drop-shadow(0 2px 3px rgba(0,0,0,0.4));'
                     el.appendChild(crown)
@@ -875,16 +877,23 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                     const blipMarker = new mapboxgl.Marker({ element: blipWrap, anchor: 'center', offset: [0, -boxSize / 2] }).setLngLat([lng, lat]).addTo(map)
                     markersRef.current.push(blipMarker)
                     const extras: HTMLElement[] = badgeEl ? [badgeEl] : []
+                    // IMPORTANTE: o Mapbox reescreve `opacity`/`transform` do elemento da marcação (`el`) a cada movimento do mapa; por isso
+                    // aqui só se mexe nos FILHOS (ícone, coroa) e em `scale`/`visibility` das peças soltas.
+                    // A coroa (status) só aparece DEPOIS do ícone: entra com atraso, quando a marcação já cresceu.
                     const hideAll = (hidden: boolean) => {
-                        el.style.opacity = hidden ? '0' : '1'
                         el.style.pointerEvents = hidden ? 'none' : ''
+                        inner.style.opacity = hidden ? '0' : '1'
                         inner.style.transform = hidden ? 'scale(.2)' : 'scale(1)'
-                        extras.forEach((x) => { x.style.opacity = hidden ? '0' : '1'; x.style.pointerEvents = hidden ? 'none' : '' })
+                        if (crownEl) {
+                            crownEl.style.transition = hidden ? 'opacity .12s ease' : 'opacity .45s ease .6s'
+                            crownEl.style.opacity = hidden ? '0' : '1'
+                        }
+                        extras.forEach((x) => { x.style.visibility = hidden ? 'hidden' : 'visible'; x.style.scale = hidden ? '0.2' : '1'; x.style.pointerEvents = hidden ? 'none' : '' })
                     }
-                    el.style.transition = 'opacity .5s ease'
-                    inner.style.transition = 'transform .7s cubic-bezier(.34,1.56,.64,1), box-shadow .3s'
-                    extras.forEach((x) => { x.style.transition = 'opacity .5s ease' })
+                    // esconde primeiro (sem transição, para não "piscar") e só então liga as transições
                     hideAll(true)
+                    inner.style.transition = 'transform .7s cubic-bezier(.34,1.56,.64,1), opacity .45s ease, box-shadow .3s'
+                    extras.forEach((x) => { x.style.transition = 'scale .5s ease' })
                     scanEntriesRef.current.push({
                         lng, lat, state: 'hidden',
                         apply: (st: PulseState) => {
