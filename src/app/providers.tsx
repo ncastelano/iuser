@@ -65,8 +65,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <PwaCleanup />
         <PwaInstallPrompt />
         <PushNotificationSetup />
+        {/* Avisos EMBAIXO: em cima eles tapavam a barra de navegação (carrinho, conversas...); o recuo deixa a faixa de teste e as barras de baixo livres */}
         <Toaster
-          position="top-center"
+          position="bottom-center"
+          offset={{ bottom: 84 }}
+          mobileOffset={{ bottom: 84 }}
           toastOptions={{
             className: 'rounded-none border-border bg-background text-foreground font-sans shadow-2xl',
           }}
