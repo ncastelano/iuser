@@ -19,7 +19,6 @@ import { fetchSavedRidePlaces, saveRidePlace } from '@/lib/savedRidePlaces'
 import { saveRideDraft, loadRideDraft, clearRideDraft } from '@/lib/rideRequestDraft'
 import { getVehicleTypeForPassengers, VEHICLE_TYPE_LABELS, type VehicleType } from '@/lib/rideVehicle'
 import { createSquareImage } from '@/lib/image'
-import { PLATFORM_DEFAULT_CONDITION_EXTRA_FEES } from '@/lib/driverPricing'
 import {
     Car,
     Users,
@@ -1363,37 +1362,6 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
         return rows
     })()
 
-    // ===== SERVIÇOS QUE COSTUMAM TER CUSTO EXTRA (valores de referência da
-    // plataforma) — só pra deixar a pessoa ciente antes de confirmar; o
-    // valor de verdade é o que o motorista oferecer ao se candidatar. =====
-    const extraServiceFees: { label: string; amount: number }[] = (() => {
-        if (!requestFor) return []
-        const fees = PLATFORM_DEFAULT_CONDITION_EXTRA_FEES
-        const items: { label: string; amount: number }[] = []
-
-        if (originNeedsAccess) items.push({ label: 'Acesso em condomínio (retirada)', amount: fees.condominio })
-
-        if (requestFor === 'objeto') {
-            if (deliveryLocation && deliveryLocation !== 'portaria') {
-                items.push({ label: 'Entrega em área interna/apartamento', amount: fees.entrega_interna })
-            }
-        } else if (destinationNeedsAccess) {
-            items.push({ label: 'Acesso em condomínio (entrega)', amount: fees.condominio })
-        }
-
-        if (requestFor === 'pessoa' && hasShopping) items.push({ label: 'Compras no mercado', amount: fees.compras })
-
-        const specialNeedsActive = hasSpecialNeeds || specialNeedsWheelchair || specialNeedsVisualImpairment || hasGuideDog
-        if (specialNeedsActive) items.push({ label: 'Pessoa com deficiência', amount: fees.necessidade_especial })
-
-        const petPresent = (requestFor === 'pessoa' && hasPet) || requestFor === 'animal'
-        if (petPresent && petHasCarrier === false) items.push({ label: 'Pet sem caixa de transporte', amount: fees.pet_sem_caixa })
-
-        if (wantsAirConditioning) items.push({ label: 'Ar condicionado', amount: fees.ar_condicionado })
-
-        return items
-    })()
-
     // Animal-guia: marcar que vai com ele já seleciona 1 pet (só no pedido de pessoa); desmarcar desfaz o que foi preenchido sozinho
     const GUIDE_PET_LABEL = 'Animal-guia'
     const setGuideAnimal = (yes: boolean) => {
@@ -1470,7 +1438,7 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                         </div>
                         {hasGuideDog && (
                             <p className="text-[10px]" style={{ color: colors.textSecondary }}>
-                                🐕‍🦺 Os motoristas vão ver que você vai com animal-guia. Ele é equipamento de acessibilidade, não conta como animal de estimação — o motorista não pode recusar por causa dele.
+                                🐕‍🦺 Os motoristas vão ver que você vai com animal-guia. Ele é equipamento de acessibilidade, não conta como animal de estimação.
                             </p>
                         )}
 
@@ -1789,23 +1757,6 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                                 </p>
                             ))}
                         </div>
-
-                        {extraServiceFees.length > 0 && (
-                            <div className="w-full rounded-xl px-4 py-3 text-left flex flex-col gap-1.5" style={{ background: '#f9731615', border: '1px solid #f9731640' }}>
-                                <p className="text-[10px] font-black uppercase tracking-wider" style={{ color: colors.accent }}>
-                                    Serviços com custo extra
-                                </p>
-                                {extraServiceFees.map((item) => (
-                                    <div key={item.label} className="flex items-center justify-between gap-2 text-sm">
-                                        <span style={{ color: colors.textPrimary }}>{item.label}</span>
-                                        <span className="font-black" style={{ color: colors.accent }}>+ R$ {item.amount.toFixed(2)}</span>
-                                    </div>
-                                ))}
-                                <p className="text-[10px] mt-0.5" style={{ color: colors.textSecondary }}>
-                                    Valor de referência da plataforma — o motorista pode oferecer um valor diferente ao se candidatar.
-                                </p>
-                            </div>
-                        )}
 
                         <p className="text-xs" style={{ color: colors.textSecondary }}>
                             Sua localização enviada ao motorista é aproximada. Ao encontrar o carro, sempre confira a <strong>placa</strong> e a <strong>cor</strong> do veículo para ter certeza de que é o motorista certo.
@@ -2465,13 +2416,19 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                     {/* ===== ETAPA: QUEM VAI / O QUE LEVA ===== */}
                     {step === 'extras' && requestFor && (
                         <>
-                            <h2 className={`${v3 ? 'text-[15px]' : 'text-lg'} font-black mb-3`} style={{ color: colors.textPrimary }}>
-                                {requestFor === 'pessoa' ? 'Quem vai com você?' : requestFor === 'animal' ? 'Sobre o animal' : 'Sobre o objeto'}
-                            </h2>
+                            {requestFor !== 'pessoa' && (
+                                <h2 className={`${v3 ? 'text-[15px]' : 'text-lg'} font-black mb-3`} style={{ color: colors.textPrimary }}>
+                                    {requestFor === 'animal' ? 'Sobre o animal' : 'Sobre o objeto'}
+                                </h2>
+                            )}
 
                             {requestFor === 'pessoa' ? (
                                 <>
                                     {renderSpecialNeeds()}
+                                    {/* O título vem DEPOIS da pergunta de deficiência, pra não parecer que ela faz parte de "Quem vai com você?" */}
+                                    <h2 className={`${v3 ? 'text-[15px]' : 'text-lg'} font-black mb-3 mt-4`} style={{ color: colors.textPrimary }}>
+                                        Quem vai com você?
+                                    </h2>
                                     {/* Cada adicional é um contador — 0 significa que não tem esse adicional */}
                                     <div className="flex flex-col gap-2">
                                         {isTwoWheels && (
