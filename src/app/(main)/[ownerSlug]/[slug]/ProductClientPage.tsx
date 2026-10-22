@@ -36,7 +36,7 @@ import {
 } from 'lucide-react'
 import { handleShareLink } from '@/lib/share'
 import { toast } from 'sonner'
-import { flyToCart } from '@/lib/flyToCart'
+import { cartAddedFeedback } from '@/lib/cartFeedback'
 import { useCartStore, cartItemUnitPrice, cartItemLineTotal, type CartAddon } from '@/store/useCartStore'
 import { useStoreCheckout } from './useStoreCheckout'
 import { RatingStars } from '@/components/ratings/RatingStars'
@@ -415,7 +415,7 @@ export function ProductClientPage({
                 addItem(ownerSlug, storeDetails, cartProduct, comment, addons.length > 0 ? addons : undefined)
             }
             toast.success(`${product.name} adicionado ao carrinho!`)
-            void flyToCart({ imageUrl, from: document.activeElement })
+            void cartAddedFeedback({ scrollToId: 'carrinho-da-loja' })
 
             setAddedToCart(true)
             setTimeout(() => setAddedToCart(false), 3000)
@@ -438,7 +438,7 @@ export function ProductClientPage({
                 addItem(ownerSlug, storeDetails, cartProduct, u.comment, u.addons.length > 0 ? u.addons : undefined)
             }
             toast.success(`${units.length} × ${product.name} adicionados ao carrinho!`)
-            void flyToCart({ imageUrl, from: document.activeElement })
+            void cartAddedFeedback({ scrollToId: 'carrinho-da-loja' })
             setAddedToCart(true)
             setTimeout(() => setAddedToCart(false), 3000)
         } catch (error: any) {
@@ -599,7 +599,7 @@ export function ProductClientPage({
                     />
                 </div>
                 <div className="flex-1 min-w-0">
-                    <p className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-white/80"><ShoppingCart size={12} strokeWidth={3} />Seu carrinho · {storeCartCount} {storeCartCount === 1 ? 'item' : 'itens'}</p>
+                    <p className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-white/80"><span data-cart-wiggle className="inline-flex"><ShoppingCart size={12} strokeWidth={3} /></span>Seu carrinho · {storeCartCount} {storeCartCount === 1 ? 'item' : 'itens'}</p>
                     <p className="text-sm font-bold text-white truncate">{storeDisplay.name}</p>
                     <p className="text-xl font-black text-white leading-tight">{formattedStoreCartTotal}</p>
                 </div>
@@ -1409,7 +1409,7 @@ export function ProductClientPage({
 
                             {/* Carrinho da loja: abaixo da descrição; "outras pessoas pediram" vem depois */}
                             {storeCartBar && (
-                                <div className="rounded-3xl overflow-hidden" style={{ border: '2px solid #f97316', background: colors.surface, boxShadow: '0 8px 28px #f9731645' }}>
+                                <div id="carrinho-da-loja" className="rounded-3xl overflow-hidden scroll-mt-24" style={{ border: '2px solid #f97316', background: colors.surface, boxShadow: '0 8px 28px #f9731645' }}>
                                     {storeCartBar}
                                 </div>
                             )}
