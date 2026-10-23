@@ -11,12 +11,13 @@ import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
-import { ArrowLeft, Search, Store, ShoppingCart, X, MapPin, Star, Briefcase, Layers, Flame, Navigation, Crosshair, Home, Save, XCircle, Building2, ChevronRight, CheckCircle2, Users, Calendar, MessageCircle, Eye, Clock, AlertCircle, UserCheck, UserPlus, Camera, ChevronDown, Check } from 'lucide-react'
+import { ArrowLeft, Search, Store, ShoppingCart, X, MapPin, Star, Briefcase, Layers, Flame, Navigation, Crosshair, Home, Save, XCircle, Building2, ChevronRight, CheckCircle2, Users, Calendar, MessageCircle, Eye, Clock, AlertCircle, UserCheck, UserPlus, Camera, ChevronDown, Check, Car } from 'lucide-react'
 import { useAppModeStore } from '@/store/useAppModeStore'
 import { toast } from 'sonner'
 import { Spinner } from '@/components/Spinner'
 import RadarSonar from '@/components/radar/RadarSonar'
 import RadarItemDetails from '@/components/radar/RadarItemDetails'
+import RadarDriverDetails, { type RadarDriverItem } from '@/components/radar/RadarDriverDetails'
 import { createRadarPulse, ensureRadarPulseStyles, type RadarPulse, type PulseEntry, type PulseState } from '@/components/radar/radarPulse'
 import { isStoreOpenNow, getStoreStatusText, getNextOpeningInfo } from '@/lib/storeHours'
 import { useProfile } from '@/app/contexts/ProfileContext'
@@ -32,7 +33,7 @@ import { saveOwnProfile } from '@/lib/saveOwnProfile'
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
 
-type Mode = 'lojas' | 'servicos' | 'produtos' | 'pessoas'
+type Mode = 'lojas' | 'servicos' | 'produtos' | 'pessoas' | 'motoristas'
 
 // Coordenadas de um item de loja/produto/serviço: primeiro tenta o campo
 // geográfico `location`, depois `lat`/`lng` soltos (é o que fica preenchido
@@ -43,7 +44,7 @@ type Mode = 'lojas' | 'servicos' | 'produtos' | 'pessoas'
 // loja dona do item. (Number.isFinite, não isFinite: isFinite(null) é true e gerava
 // [null, null], que quebrava o mapa com "Cannot read properties of null (toFixed)".)
 function resolveItemCoords(item: any, mode: Mode, stores: any[]): [number, number] | null {
-    if (mode === 'lojas' || mode === 'pessoas') return parseCoords(item.location)
+    if (mode === 'lojas' || mode === 'pessoas' || mode === 'motoristas') return parseCoords(item.location)
     const ownCoords = parseCoords(item.location)
         || (Number.isFinite(item.lat) && Number.isFinite(item.lng) ? [item.lng, item.lat] as [number, number] : null)
     if (ownCoords) return ownCoords
@@ -154,6 +155,8 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
     const [mode, setMode] = useState<Mode>('lojas')
     // Pessoas que escolheram aparecer no mapa (filtro "Pessoas"), já no mesmo formato dos itens de loja
     const [people, setPeople] = useState<any[]>([])
+    // Motoristas disponíveis agora (só para quem está logado): vêm de get_radar_drivers, com a posição aproximada
+    const [drivers, setDrivers] = useState<any[]>([])
     const [metrics, setMetrics] = useState<RadarMetrics | null>(null)
     const [rankKey, setRankKey] = useState<RankKey>('views_desc')
     const [showRankMenu, setShowRankMenu] = useState(false)
@@ -361,6 +364,60 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
 
     const referenceLocation = profileLocation || deviceLocation
 
+    // MOTORISTAS DISPONÍVEIS: só no filtro "Motoristas" e só logado (a localização é aproximada e vem do banco, nunca o GPS exato).
+    // Atualiza a cada 30 s enquanto o filtro está aberto, porque eles se mexem.
+    const driversRef = referenceLocation ? `${referenceLocation.lat.toFixed(3)},${referenceLocation.lng.toFixed(3)}` : ''
+    useEffect(() => {
+        if (mode !== 'motoristas' || !isLoggedIn) return
+        const center = referenceLocation || { lat: -8.7612, lng: -63.9039 }
+        let cancelled = false
+        const loadDrivers = async () => {
+            const { data, error } = await supabase.rpc('get_radar_drivers', { p_lat: center.lat, p_lng: center.lng, p_radius_km: 30 })
+            if (cancelled) return
+            if (error) { console.error('[Radar] motoristas:', error.message); return }
+            const photo = (p: string | null) => (p ? (p.startsWith('http') ? p : supabase.storage.from('driver-car-photos').getPublicUrl(p).data.publicUrl) : null)
+            setDrivers(((data as any[]) || []).map((d): any => {
+                const driverName = d.name || (d.profile_slug ? `@${d.profile_slug}` : 'Motorista')
+                const item: RadarDriverItem & Record<string, any> = {
+                    id: d.driver_id,
+                    name: driverName,
+                    profileSlug: d.profile_slug,
+                    avatarUrl: d.avatar_url ? (String(d.avatar_url).startsWith('http') ? d.avatar_url : supabase.storage.from('avatars').getPublicUrl(String(d.avatar_url).replace(/^avatars\//, '')).data.publicUrl) : null,
+                    vehicleSlug: d.vehicle_slug,
+                    kind: d.vehicle_kind,
+                    model: d.car_model || (d.vehicle_kind === 'moto' ? 'Moto' : d.vehicle_kind === 'bicicleta' ? 'Bicicleta' : 'Carro'),
+                    color: d.car_color || null,
+                    capacity: d.passenger_capacity ?? null,
+                    babySeat: !!d.has_baby_seat,
+                    services: Array.isArray(d.services) ? d.services : [],
+                    trunk: {
+                        bags: [d.trunk_bags_pequena || 0, d.trunk_bags_media || 0, d.trunk_bags_grande || 0],
+                        cases: [d.trunk_suitcases_pequena || 0, d.trunk_suitcases_media || 0, d.trunk_suitcases_grande || 0],
+                    },
+                    rides: Number(d.rides_completed) || 0,
+                    rating: d.rating_avg != null ? Number(d.rating_avg) : null,
+                    ratingCount: Number(d.rating_count) || 0,
+                    memberSince: d.member_since || null,
+                    pricingRow: { pricing_mode: d.pricing_mode || 'platform', base_distance_km: d.base_distance_km != null ? Number(d.base_distance_km) : null, base_fee: d.base_fee != null ? Number(d.base_fee) : null, price_per_km_after_base: d.price_per_km_after_base != null ? Number(d.price_per_km_after_base) : null } as any,
+                    ageSeconds: Number(d.age_seconds) || 0,
+                }
+                return {
+                    ...item,
+                    // o que o mapa/lista usam em qualquer item: foto do veículo no marcador, posição aproximada e o texto da busca
+                    logo_url: photo(d.car_photo_url),
+                    location: { type: 'Point', coordinates: [d.lng, d.lat] },
+                    ratings_avg: item.rating, ratings_count: item.ratingCount,
+                    searchText: `${driverName} ${item.model} ${item.color || ''} ${d.profile_slug || ''}`.toLowerCase(),
+                    isDriver: true,
+                }
+            }))
+        }
+        loadDrivers()
+        const id = setInterval(loadDrivers, 30000)
+        return () => { cancelled = true; clearInterval(id) }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [mode, isLoggedIn, driversRef])
+
     // INIT MAP - CORRIGIDO COM FALLBACK
     useEffect(() => {
         if (!mapContainerRef.current) return
@@ -484,15 +541,17 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
             items = products.filter(p => p.type === 'physical')
         } else if (mode === 'pessoas') {
             items = people
+        } else if (mode === 'motoristas') {
+            items = drivers
         }
 
         const q = search.toLowerCase()
-        const matched = q ? items.filter(i => i.name?.toLowerCase().includes(q)) : items
-        // Ordena pelo filtro escolhido (padrão: mais vistos → menos vistos).
-        const result = sortByRank(matched, rankKey, mode === 'lojas', metrics)
+        const matched = q ? items.filter(i => i.name?.toLowerCase().includes(q) || i.searchText?.includes(q)) : items
+        // Ordena pelo filtro escolhido (padrão: mais vistos → menos vistos). Motoristas ficam do mais perto pro mais longe (ordem do banco), sem ranking.
+        const result = mode === 'motoristas' ? matched : sortByRank(matched, rankKey, mode === 'lojas', metrics)
         setFiltered(result)
         console.log('[MapPage] 🎯 Filtrados:', { mode, count: result.length, search: q })
-    }, [search, mode, stores, products, people, overrideList, rankKey, metrics])
+    }, [search, mode, stores, products, people, drivers, overrideList, rankKey, metrics])
 
     // Buscar detalhes extras da loja selecionada (seguidores, whatsapp, instagram,
     // se já sigo, produtos mais vistos, comentários)
@@ -722,7 +781,7 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
             return
         }
 
-        const rankOf = new Map<string, number>(filtered.slice(0, 3).map((it, i) => [it.id, i + 1] as [string, number]))
+        const rankOf = new Map<string, number>(mode === 'motoristas' ? [] : filtered.slice(0, 3).map((it, i) => [it.id, i + 1] as [string, number]))
         const coordGroups: Record<string, any[]> = {}
 
         filtered.forEach(item => {
@@ -758,6 +817,8 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                 let borderColor = '#f97316'
                 if (mode === 'lojas') {
                     borderColor = item.is_open ? '#22c55e' : '#ef4444'
+                } else if (mode === 'motoristas') {
+                    borderColor = '#22c55e' // disponível agora
                 }
                 // Top 3: marcador maior, com a cor da coroa e uma coroa numerada em cima.
                 const rank = rankOf.get(item.id)
@@ -793,8 +854,11 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                 const storeSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m2 7 4.41-2.20a2 2 0 0 1 1.76 0l4.23 2.12a2 2 0 0 0 1.76 0L18.4 4.8a2 2 0 0 1 1.76 0L22 7"/><path d="M22 7v11a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7"/><path d="M2 11h20"/><path d="M16 11v9"/><path d="M8 11v9"/></svg>`
 
                 const initial = String(item.name || '?').replace('@', '').charAt(0).toUpperCase().replace(/[<>&]/g, '')
+                const carSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17H3v-4l2-5h14l2 5v4h-2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/><path d="M9 17h6M3 13h18"/></svg>`
                 const fallbackHtml = mode === 'lojas'
                     ? `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;">${storeSvg}</div>`
+                    : mode === 'motoristas'
+                    ? `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#f0fdf4;">${carSvg}</div>`
                     : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#fed7aa,#fecaca);color:#ea580c;font-weight:900;font-style:italic;font-size:${rank ? 22 : 18}px;">${initial}</div>`
                 if (imageUrl) {
                     const img = document.createElement('img')
@@ -844,7 +908,7 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                         setClusterLocation({
                             lng,
                             lat,
-                            name: `${group.length} estabelecimentos nesta localização`
+                            name: mode === 'motoristas' ? `${group.length} motoristas nesta região` : `${group.length} estabelecimentos nesta localização`
                         })
                         map.flyTo({ center: [lng, lat], zoom: 18, duration: 600 })
                     }
@@ -919,7 +983,7 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
         if (v3) { setEdgeIndicators([]); return }
         const map = mapRef.current
 
-        const top3 = filtered.slice(0, 3).map((item, i) => ({
+        const top3 = (mode === 'motoristas' ? [] : filtered.slice(0, 3)).map((item, i) => ({
             item,
             rank: i + 1,
             coords: resolveItemCoords(item, mode, stores),
@@ -1168,7 +1232,7 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
         return distance < 1 ? `${Math.round(distance * 1000)}m` : `${distance.toFixed(1)}km`
     }
 
-    const distanceValue = selectedItem ? calcDistanceKm((mode === 'lojas' || mode === 'pessoas' ? selectedItem : selectedStore)?.location) : null
+    const distanceValue = selectedItem ? calcDistanceKm((mode === 'lojas' || mode === 'pessoas' || mode === 'motoristas' ? selectedItem : selectedStore)?.location) : null
     const distanceFormatted = formatDistance(distanceValue)
 
     const toggleMapStyle = () => {
@@ -1219,6 +1283,10 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
 
     // ===== TABS DO HEADER = FILTROS DO RADAR (lojas/serviços/produtos) =====
     const selectMode = (m: Mode) => {
+        if (m === 'motoristas' && !isLoggedIn) {
+            toast.info('Entre na sua conta para ver os motoristas disponíveis perto de você.')
+            return
+        }
         setMode(m)
         setSelectedItem(null)
         setOverrideList(null)
@@ -1257,6 +1325,7 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
         { id: 'servicos', label: 'Serviços', icon: Briefcase, onClick: () => selectMode('servicos'), isActive: mode === 'servicos' },
         { id: 'produtos', label: 'Produtos', icon: ShoppingCart, onClick: () => selectMode('produtos'), isActive: mode === 'produtos' },
         { id: 'pessoas', label: 'Pessoas', icon: Users, onClick: () => selectMode('pessoas'), isActive: mode === 'pessoas' },
+        { id: 'motoristas', label: 'Motoristas', icon: Car, onClick: () => selectMode('motoristas'), isActive: mode === 'motoristas' },
     ]
 
     return (
@@ -1385,7 +1454,7 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                             <input
                                 value={search}
                                 onChange={(e) => { setSearch(e.target.value); setOverrideList(null) }}
-                                placeholder={mode === 'lojas' ? 'Procurar lojas' : mode === 'servicos' ? 'Procurar serviços' : mode === 'pessoas' ? 'Procurar pessoas' : 'Procurar produtos'}
+                                placeholder={mode === 'lojas' ? 'Procurar lojas' : mode === 'servicos' ? 'Procurar serviços' : mode === 'pessoas' ? 'Procurar pessoas' : mode === 'motoristas' ? 'Procurar motoristas' : 'Procurar produtos'}
                                 className="flex-1 min-w-0 bg-transparent text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none"
                             />
                             {search && <button onClick={() => setSearch('')} aria-label="Limpar busca" className="text-gray-400"><X size={16} /></button>}
@@ -1414,7 +1483,7 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                     loading={profileLoading}
                     tabs={radarTabs}
                     showSearch={true}
-                    searchPlaceholder={mode === 'lojas' ? 'Procurar lojas' : mode === 'servicos' ? 'Procurar serviços' : mode === 'pessoas' ? 'Procurar pessoas' : 'Procurar produtos'}
+                    searchPlaceholder={mode === 'lojas' ? 'Procurar lojas' : mode === 'servicos' ? 'Procurar serviços' : mode === 'pessoas' ? 'Procurar pessoas' : mode === 'motoristas' ? 'Procurar motoristas' : 'Procurar produtos'}
                     searchValue={search}
                     onSearch={(q) => { setSearch(q); setOverrideList(null) }}
                     locationElement={
@@ -1486,7 +1555,7 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                                     setClusterItems(null)
                                     setClusterLocation(null)
                                     let loc = null
-                                    if (mode === 'lojas') {
+                                    if (mode === 'lojas' || mode === 'pessoas' || mode === 'motoristas') {
                                         loc = item.location
                                     } else {
                                         const store = stores.find(s => s.id === item.store_id)
@@ -1526,7 +1595,7 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                 <div className={`absolute ${v3 ? 'top-1 z-[55]' : 'top-[190px] z-20'} left-1/2 -translate-x-1/2 w-[95%] max-w-2xl transition-opacity duration-700`} style={{ opacity: introDone ? 1 : 0, pointerEvents: introDone ? 'auto' : 'none' }}>
                     <div className="flex gap-2.5 overflow-x-auto pt-6 pb-3 scrollbar-hide snap-x items-end">
                         {filtered.map((item, idx) => {
-                            const rank = idx < 3 ? idx + 1 : 0
+                            const rank = idx < 3 && mode !== 'motoristas' ? idx + 1 : 0
                             const size = rank ? 62 : 52
                             const img = item.logo_url || item.image_url
                             return (
@@ -1535,7 +1604,7 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                                     onClick={() => {
                                         setSelectedItem(item)
                                         let loc = null
-                                        if (mode === 'lojas') loc = item.location
+                                        if (mode === 'lojas' || mode === 'pessoas' || mode === 'motoristas') loc = item.location
                                         else {
                                             const store = stores.find(s => s.id === item.store_id)
                                             loc = store?.location
@@ -1580,8 +1649,8 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                         })}
                     </div>
 
-                    {/* Filtro (embaixo da lista, no canto direito): sempre em pares mais/menos */}
-                    <div className="flex justify-end relative -mt-1">
+                    {/* Filtro (embaixo da lista, no canto direito): sempre em pares mais/menos. Motoristas ficam do mais perto pro mais longe, sem filtro. */}
+                    {mode !== 'motoristas' && <div className="flex justify-end relative -mt-1">
                         <button
                             onClick={() => setShowRankMenu(v => !v)}
                             className="flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[11px] font-black text-white shadow-lg"
@@ -1593,7 +1662,7 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                             <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showRankMenu ? 'rotate-180' : ''}`} />
                         </button>
                         {rankMenuNode}
-                    </div>
+                    </div>}
                 </div>
             )}
 
@@ -1679,6 +1748,19 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                                                 {selectedItem.points > 0 && <span className="text-gray-500"> · ⭐ {selectedItem.points} pts</span>}
                                                 {selectedItem.is_live && <span className="text-green-600"> · em tempo real</span>}
                                             </p>
+                                        )}
+                                        {mode === 'motoristas' && (
+                                            <>
+                                                <p className="text-xs font-bold text-orange-500 truncate">
+                                                    {selectedItem.model}{selectedItem.color ? ` · ${selectedItem.color}` : ''}
+                                                </p>
+                                                <p className="text-[11px] font-bold text-gray-600 truncate flex items-center gap-1">
+                                                    {selectedItem.ratingCount > 0
+                                                        ? <><Star size={11} className="fill-yellow-500 text-yellow-500 flex-shrink-0" /> {Number(selectedItem.rating).toFixed(1).replace('.', ',')} ({selectedItem.ratingCount})</>
+                                                        : 'Novo no iUser'}
+                                                    <span className="text-gray-400">·</span> {selectedItem.rides} {selectedItem.rides === 1 ? 'corrida' : 'corridas'}
+                                                </p>
+                                            </>
                                         )}
                                         {mode === 'lojas' && selectedStoreStatusText && (
                                             <span className={`flex items-center gap-1 font-bold text-xs w-fit ${selectedItem.is_open ? 'text-green-600' : 'text-red-600'}`}>
@@ -1836,7 +1918,10 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                             </div>
 
                             {/* Serviços, produtos e pessoas: card completo, no nível do card da loja */}
-                            {mode !== 'lojas' && (
+                            {mode === 'motoristas' && (
+                                <RadarDriverDetails item={selectedItem} go={(path) => router.push(path)} />
+                            )}
+                            {mode !== 'lojas' && mode !== 'motoristas' && (
                                 <RadarItemDetails
                                     mode={mode}
                                     item={selectedItem}
@@ -1907,7 +1992,8 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                         <div className="p-4 pt-0 flex-shrink-0">
                             <button
                                 onClick={() => {
-                                    if (mode === 'pessoas') router.push(`/${selectedItem.profileSlug}`)
+                                    if (mode === 'motoristas') router.push(`/pedir-motorista?motorista=${selectedItem.id}`)
+                                    else if (mode === 'pessoas') router.push(`/${selectedItem.profileSlug}`)
                                     else if (mode === 'lojas') router.push(`/${selectedItem.storeSlug}`)
                                     else {
                                         // serviço/produto: da loja, ou do perfil de quem publicou (serviço de perfil não tem loja)
@@ -1918,7 +2004,7 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                                 }}
                                 className="w-full py-3.5 rounded-full bg-gradient-to-r from-orange-500 to-red-500 text-white font-black uppercase text-xs tracking-wider shadow-lg transition-all hover:shadow-xl hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-1.5"
                             >
-                                {mode === 'pessoas' ? 'Ver perfil' : mode === 'lojas' ? 'Visitar Loja' : mode === 'servicos' ? 'Ver serviço' : 'Ver produto'}
+                                {mode === 'motoristas' ? 'Chamar para corrida' : mode === 'pessoas' ? 'Ver perfil' : mode === 'lojas' ? 'Visitar Loja' : mode === 'servicos' ? 'Ver serviço' : 'Ver produto'}
                                 <ChevronRight className="w-4 h-4" />
                             </button>
                         </div>
@@ -1931,7 +2017,7 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                 <div className="bg-white/95 backdrop-blur-xl rounded-2xl px-4 py-2 shadow-2xl flex items-center gap-2 border border-orange-200">
                     <Flame className="w-4 h-4 text-orange-500" />
                     <span className="text-xs font-black text-gray-700">
-                        {filtered.length} {mode === 'lojas' ? 'Lojas' : mode === 'servicos' ? 'Serviços' : mode === 'pessoas' ? 'Pessoas' : 'Produtos'}
+                        {filtered.length} {mode === 'lojas' ? 'Lojas' : mode === 'servicos' ? 'Serviços' : mode === 'pessoas' ? 'Pessoas' : mode === 'motoristas' ? 'Motoristas' : 'Produtos'}
                     </span>
                 </div>
             </div>
