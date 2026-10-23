@@ -1452,7 +1452,7 @@ export default function Commission({ userId, profileSlug, onLatestUpdate, view =
                     {/* Detalhes da rede: abre/fecha */}
                     <div
                         id="detalhes-da-rede"
-                        className="mt-3 rounded-2xl flex flex-col scroll-mt-24"
+                        className="mt-3 rounded-2xl flex flex-col scroll-mt-44"
                         style={{
                             background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
                             backdropFilter: 'blur(12px)',
