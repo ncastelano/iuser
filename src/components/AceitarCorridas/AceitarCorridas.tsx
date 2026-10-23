@@ -1418,10 +1418,42 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                     {hasDriver && <DriverDebtBanner userId={contextUserId} />}
 
                     {/* Por que pedimos a localização: a Tarifa iUser soma a distância até a partida */}
-                    {activeTab === 'servicos' && gpsStatus !== 'granted' && (
+                    {activeTab === 'servicos' && gpsStatus !== 'granted' && (v3 ? (
+                        <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: surf }}>
+                            <div className="flex items-center gap-3">
+                                <span className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#f973161f', color: '#f97316' }}>
+                                    {gpsStatus === 'asking' ? <Spinner size={18} color="#f97316" /> : <LocateFixed size={20} />}
+                                </span>
+                                <p className="text-sm font-black leading-tight" style={{ color: colors.textPrimary }}>
+                                    {gpsStatus === 'asking' ? 'Localizando você...' : 'Precisamos da sua localização'}
+                                </p>
+                            </div>
+                            <p className="text-xs leading-snug" style={{ color: colors.textSecondary }}>
+                                Usamos sua localização para ajustar o valor da <strong style={{ color: colors.textPrimary }}>Tarifa iUser</strong>: se você estiver longe do ponto de partida, somamos esse deslocamento ao valor para você não perder dinheiro rodando até o passageiro.
+                            </p>
+                            {gpsStatus === 'asking' ? (
+                                <p className="text-xs font-bold" style={{ color: colors.textSecondary }}>Permita a localização quando o navegador perguntar.</p>
+                            ) : (
+                                <>
+                                    <p className="text-xs font-bold" style={{ color: '#ca8a04' }}>
+                                        {gpsStatus === 'denied'
+                                            ? 'A localização está bloqueada. Libere nas configurações do navegador (ou do app) e toque abaixo.'
+                                            : 'Não conseguimos obter sua localização agora.'}
+                                    </p>
+                                    <button
+                                        onClick={requestGps}
+                                        className="w-full h-11 rounded-full text-sm font-black text-white transition active:scale-[0.98]"
+                                        style={{ background: '#f97316' }}
+                                    >
+                                        Permitir localização
+                                    </button>
+                                </>
+                            )}
+                        </div>
+                    ) : (
                         <div
                             className="rounded-2xl p-3.5 flex items-start gap-3"
-                            style={{ background: '#f9731612', border: v3 ? 'none' : '1px solid #f9731640' }}
+                            style={{ background: '#f9731612', border: '1px solid #f9731640' }}
                         >
                             <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#fff' }}>
                                 {gpsStatus === 'asking' ? <Spinner size={18} color="#fff" /> : <LocateFixed size={18} />}
@@ -1454,8 +1486,18 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                                 )}
                             </div>
                         </div>
-                    )}
-                    {activeTab === 'servicos' && visibleRides.length === 0 && (
+                    ))}
+                    {activeTab === 'servicos' && visibleRides.length === 0 && (v3 ? (
+                        <div className="rounded-2xl p-4 flex items-center gap-3" style={{ background: surf }}>
+                            <span className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${colors.border}50`, color: colors.textSecondary }}>
+                                <Car size={20} />
+                            </span>
+                            <span className="min-w-0 flex-1">
+                                <span className="block text-sm font-black" style={{ color: colors.textPrimary }}>Nenhuma corrida disponível no momento</span>
+                                <span className="block text-xs mt-0.5" style={{ color: colors.textSecondary }}>Assim que alguém pedir, a solicitação aparece aqui.</span>
+                            </span>
+                        </div>
+                    ) : (
                         <div
                             className="rounded-2xl p-6 text-center"
                             style={{ background: surf, border: bd, boxShadow: sh }}
@@ -1464,7 +1506,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                                 Nenhuma corrida disponível no momento.
                             </p>
                         </div>
-                    )}
+                    ))}
 
                     {!loading && !showLogin && activeTab === 'servicos' && visibleRides.length > 0 && (
                         <div className="flex flex-col gap-3">
