@@ -766,7 +766,7 @@ function PainelMotoristaContent() {
             // "Me candidatei" só aparece quando tem algo nela (candidatura pendente) ou há corrida aceita.
             ...(rideSummary.candidacies > 0 || rideSummary.hasAccepted ? [{ id: 'candidaturas', label: 'Me candidatei', icon: CandidateiTabIcon as any, isActive: activeTab === 'candidaturas', onClick: () => setActiveTab('candidaturas'), badge: rideSummary.candidacies > 0 ? { count: rideSummary.candidacies } : null }] : []),
             {
-                id: 'veiculo', label: 'Meu veículo', icon: Car, isActive: activeTab === 'veiculo', onClick: () => setActiveTab('veiculo'),
+                id: 'veiculo', label: 'Veículo', icon: Car, isActive: activeTab === 'veiculo', onClick: () => setActiveTab('veiculo'),
                 badge: driverStatus === 'incomplete' ? { count: missingFields.length || 1, color: '#eab308' } : null,
             },
             { id: 'plano', label: 'Tarifa', icon: TrendingUp, isActive: activeTab === 'plano', onClick: () => setActiveTab('plano'), badge: null },

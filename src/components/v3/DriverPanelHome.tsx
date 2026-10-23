@@ -146,8 +146,8 @@ export default function DriverPanelHome({
             {/* 3. Seu cadastro de motorista */}
             {section('Seu cadastro de motorista', (
                 <div className="flex flex-col gap-2.5">
-                    {row(<Car size={20} />, 'Meu veículo', driverStatus === 'incomplete' ? `Falta: ${missingCount} ${missingCount === 1 ? 'item' : 'itens'}` : (vehicleLabel || 'Cadastre seu veículo'), () => goTab('veiculo'), driverStatus === 'incomplete' || !vehicleLabel)}
-                    {row(<TrendingUp size={20} />, 'Minha tarifa', pricingLabel, () => goTab('plano'))}
+                    {row(<Car size={20} />, 'Veículo', driverStatus === 'incomplete' ? `Falta: ${missingCount} ${missingCount === 1 ? 'item' : 'itens'}` : (vehicleLabel || 'Cadastre seu veículo'), () => goTab('veiculo'), driverStatus === 'incomplete' || !vehicleLabel)}
+                    {row(<TrendingUp size={20} />, 'Tarifa', pricingLabel, () => goTab('plano'))}
                     {row(<Star size={20} />, 'Avaliações', reviewsCount > 0 ? `${reviewsAvg != null ? reviewsAvg.toFixed(1).replace('.', ',') : '–'} ★ · ${reviewsCount} ${reviewsCount === 1 ? 'avaliação' : 'avaliações'}` : 'Ainda sem avaliações', () => goTab('avaliacoes'))}
                     {row(<History size={20} />, 'Corridas feitas', ridesDone > 0 ? `${ridesDone} ${ridesDone === 1 ? 'concluída' : 'concluídas'}` : 'Nenhuma concluída ainda', () => goTab('avaliacoes'))}
                 </div>
