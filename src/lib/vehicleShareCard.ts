@@ -1,8 +1,9 @@
 // src/lib/vehicleShareCard.ts
 //
 // Server-only. Reúne o que é PÚBLICO sobre um veículo/motorista pra montar a prévia do link
-// (WhatsApp, Telegram, iMessage): o texto (generateMetadata do layout) e a imagem do cartão
-// (/api/og/veiculo/<slug>). Nada de posição, disponibilidade ao vivo nem dado pessoal: a prévia
+// (WhatsApp, Telegram, iMessage) — o mesmo cartão de perfil/loja (miniatura quadrada + título + descrição),
+// só que a descrição é o STATUS do motorista (nota, avaliações, corridas...) no lugar da bio.
+// Nenhuma imagem é gerada por motorista. Nada de posição, disponibilidade ao vivo nem dado pessoal: a prévia
 // fica guardada em cache pelo app que recebeu o link, então só entra o que não muda de hora em hora.
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { loadPlatformTariffs } from '@/lib/platformTariffs'
@@ -87,23 +88,20 @@ export async function loadVehicleShareData(slug: string): Promise<VehicleShareDa
 
 const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`
 
-// Texto da prévia: tudo numa linha só, do mais forte pro mais fraco (o WhatsApp corta o fim).
+// Texto da prévia: do mais forte pro mais fraco (o WhatsApp corta o fim).
 export function vehicleShareText(d: VehicleShareData) {
     const rating = d.rating != null && d.ratingCount > 0
         ? `⭐ ${d.rating.toFixed(1).replace('.', ',')} (${plural(d.ratingCount, 'avaliação', 'avaliações')})`
         : 'Novo no iUser'
+    const vehicle = `${d.kindLabel} ${d.model}${d.color ? ` ${d.color}` : ''}`
     const parts = [
         rating,
         plural(d.rides, 'corrida feita', 'corridas feitas'),
+        vehicle,
         d.capacity ? plural(d.capacity, 'passageiro', 'passageiros') : null,
         d.fromPrice != null ? `a partir de ${brlShort(d.fromPrice)}` : null,
     ].filter(Boolean)
-    const title = `${d.model}${d.color ? ` ${d.color}` : ''} — ${d.driverName} | iUser`
-    const description = `${parts.join(' · ')} — chame ${d.driverName} pelo iUser.`
+    const title = `${d.driverName} · ${d.model}${d.color ? ` ${d.color}` : ''} | iUser`
+    const description = `${parts.join(' · ')} — chame pelo iUser.`
     return { title, description }
-}
-
-export function vehicleShareImageUrl(d: VehicleShareData): string {
-    // o "v" muda quando os números mudam, pra o WhatsApp buscar a imagem de novo
-    return `${SHARE_BASE_URL}/api/og/veiculo/${d.slug}?v=${d.rides}-${d.ratingCount}-${d.fromPrice ?? 0}`
 }
