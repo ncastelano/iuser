@@ -24,10 +24,10 @@ export default function RadarDriverCard({ driver, distanceKm, primaryLabel, onPr
             </button>
             <div className="overflow-y-auto">
                 <div className="p-4 flex items-center gap-4">
-                    <div className="w-20 h-20 rounded-2xl p-[4px] flex-shrink-0" style={{ background: 'linear-gradient(135deg, #f97316, #dc2626)' }}>
-                        <div className="relative w-full h-full rounded-2xl overflow-hidden bg-gradient-to-br from-orange-100 to-red-100 flex items-center justify-center">
-                            <span className="text-2xl font-black italic text-orange-400">{driver.model.charAt(0).toUpperCase()}</span>
-                            {driver.photoUrl && <img src={driver.photoUrl} className="absolute inset-0 w-full h-full object-cover" alt="" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />}
+                    <div className="w-20 h-20 rounded-full p-[4px] flex-shrink-0" style={{ background: 'linear-gradient(135deg, #22c55e, #16a34a)' }}>
+                        <div className="relative w-full h-full rounded-full overflow-hidden bg-gradient-to-br from-orange-100 to-red-100 flex items-center justify-center">
+                            <span className="text-2xl font-black italic text-orange-400">{driver.name.replace('@', '').charAt(0).toUpperCase()}</span>
+                            {(driver.avatarUrl || driver.photoUrl) && <img src={driver.avatarUrl || driver.photoUrl || ''} className="absolute inset-0 w-full h-full object-cover" alt="" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />}
                         </div>
                     </div>
                     <div className="flex-1 min-w-0 space-y-1 pr-8">

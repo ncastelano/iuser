@@ -19,6 +19,8 @@ import RadarSonar from '@/components/radar/RadarSonar'
 import RadarItemDetails from '@/components/radar/RadarItemDetails'
 import RadarDriverDetails from '@/components/radar/RadarDriverDetails'
 import { fetchRadarDrivers } from '@/lib/radarDrivers'
+import { mountMapAvatarMarker } from '@/components/MapAvatarMarker'
+import { vehicleGlyphSvg } from '@/lib/vehicleMarkerIcon'
 import { createRadarPulse, ensureRadarPulseStyles, type RadarPulse, type PulseEntry, type PulseState } from '@/components/radar/radarPulse'
 import { isStoreOpenNow, getStoreStatusText, getNextOpeningInfo } from '@/lib/storeHours'
 import { useProfile } from '@/app/contexts/ProfileContext'
@@ -149,6 +151,8 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
     const [introDone, setIntroDone] = useState(false)
     const markIntroDone = () => { introRef.current = 'done'; setIntroDone(true) }
     const markersRef = useRef<mapboxgl.Marker[]>([])
+    // pessoas e motoristas são marcadores de avatar (raiz React própria dentro do marcador): desmontar ao refazer
+    const avatarUnmountsRef = useRef<(() => void)[]>([])
     const userMarkerRef = useRef<mapboxgl.Marker | null>(null)
     const profileMarkerRef = useRef<mapboxgl.Marker | null>(null)
     const clusterMarkersRef = useRef<mapboxgl.Marker[]>([])
@@ -378,7 +382,7 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
             setDrivers(list.map((d) => ({
                 ...d,
                 // o que o mapa/lista usam em qualquer item: foto do veículo no marcador, posição aproximada e o texto da busca
-                logo_url: d.photoUrl,
+                logo_url: d.avatarUrl || d.photoUrl,
                 location: { type: 'Point', coordinates: [d.lng, d.lat] },
                 ratings_avg: d.rating, ratings_count: d.ratingCount,
                 searchText: `${d.name} ${d.model} ${d.color || ''} ${d.profileSlug || ''}`.toLowerCase(),
@@ -744,6 +748,8 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
 
         markersRef.current.forEach(m => m.remove())
         markersRef.current = []
+        avatarUnmountsRef.current.forEach(u => u())
+        avatarUnmountsRef.current = []
         scanEntriesRef.current = []
         const intro = introRef.current !== 'done'
         if (intro) ensureRadarPulseStyles()
@@ -800,7 +806,15 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                 const baseZ = rank ? '600' : (100 - index).toString()
                 el.style.zIndex = baseZ
 
-                inner.style.cssText = `
+                // Pessoas e motoristas: avatar REDONDO, com a borda e o anel do perfil (MapAvatarMarker); lojas, produtos e serviços ficam quadrados
+                const asAvatar = !!(item.isPerson || item.isDriver)
+                inner.style.cssText = asAvatar ? `
+                    width: ${boxSize}px;
+                    height: ${boxSize}px;
+                    border-radius: 50%;
+                    cursor: pointer;
+                    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+                ` : `
                     width: ${boxSize}px;
                     height: ${boxSize}px;
                     border-radius: 12px;
@@ -813,14 +827,14 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                 `
 
                 inner.onmouseenter = () => {
-                    inner.style.transform = 'scale(1.15) rotate(3deg)'
-                    inner.style.boxShadow = '0 8px 25px rgba(249,115,22,0.4)'
+                    inner.style.transform = asAvatar ? 'scale(1.12)' : 'scale(1.15) rotate(3deg)'
+                    if (!asAvatar) inner.style.boxShadow = '0 8px 25px rgba(249,115,22,0.4)'
                     el.style.zIndex = "999"
                 }
 
                 inner.onmouseleave = () => {
-                    inner.style.transform = 'scale(1) rotate(0deg)'
-                    inner.style.boxShadow = rank ? `0 0 0 3px ${RANK_COLORS[rank].fill}55, 0 6px 20px rgba(0,0,0,0.4)` : '0 4px 15px rgba(0,0,0,0.3)'
+                    inner.style.transform = asAvatar ? 'scale(1)' : 'scale(1) rotate(0deg)'
+                    if (!asAvatar) inner.style.boxShadow = rank ? `0 0 0 3px ${RANK_COLORS[rank].fill}55, 0 6px 20px rgba(0,0,0,0.4)` : '0 4px 15px rgba(0,0,0,0.3)'
                     el.style.zIndex = baseZ
                 }
 
@@ -833,7 +847,16 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                     : mode === 'motoristas'
                     ? `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#f0fdf4;">${carSvg}</div>`
                     : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#fed7aa,#fecaca);color:#ea580c;font-weight:900;font-style:italic;font-size:${rank ? 22 : 18}px;">${initial}</div>`
-                if (imageUrl) {
+                if (asAvatar) {
+                    avatarUnmountsRef.current.push(mountMapAvatarMarker(inner, {
+                        userId: item.id,
+                        imageUrl: imageUrl || null,
+                        fallbackText: String(item.name || '?'),
+                        size: boxSize,
+                        borderColor: item.isDriver ? '#22c55e' : borderColor,
+                        badgeSvg: item.isDriver ? vehicleGlyphSvg(item.kind, '#16a34a', 13) : null,
+                    }))
+                } else if (imageUrl) {
                     const img = document.createElement('img')
                     img.src = imageUrl
                     img.style.cssText = 'width:100%;height:100%;object-fit:cover;'
@@ -1541,7 +1564,7 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                                 }}
                                 className="w-full p-3 flex items-center gap-3 border-b border-gray-100 hover:bg-orange-50 transition-all"
                             >
-                                <div className="w-10 h-10 rounded-xl overflow-hidden bg-gray-100 flex-shrink-0">
+                                <div className={`w-10 h-10 ${item.isPerson || item.isDriver ? 'rounded-full' : 'rounded-xl'} overflow-hidden bg-gray-100 flex-shrink-0`}>
                                     {(item.logo_url || item.image_url) ? (
                                         <img src={item.logo_url || item.image_url} className="w-full h-full object-cover" alt="" />
                                     ) : (
@@ -1607,7 +1630,7 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                                         ) : null
                                     })()}
                                     <div
-                                        className={`w-full h-full rounded-2xl overflow-hidden shadow-md bg-white ${rank ? '' : `border-2 ${mode === 'lojas'
+                                        className={`w-full h-full ${item.isPerson || item.isDriver ? 'rounded-full' : 'rounded-2xl'} overflow-hidden shadow-md bg-white ${rank ? '' : `border-2 ${mode === 'lojas'
                                             ? (item.is_open ? 'border-green-500' : 'border-red-500')
                                             : 'border-orange-200'}`}`}
                                         style={rank ? { border: `3px solid ${RANK_COLORS[rank].fill}`, boxShadow: `0 0 0 3px ${RANK_COLORS[rank].fill}55, 0 6px 16px rgba(0,0,0,0.35)` } : undefined}
@@ -1696,7 +1719,7 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                                 <div className="flex items-center gap-4">
                                     <div className="flex-shrink-0">
                                         <div
-                                            className={`w-20 h-20 rounded-2xl p-[4px] ${mode === 'lojas' ? (selectedItem.is_open ? 'animate-radar-pulse-glow-open' : 'animate-radar-pulse-glow-closed') : ''}`}
+                                            className={`w-20 h-20 ${mode === 'pessoas' || mode === 'motoristas' ? 'rounded-full' : 'rounded-2xl'} p-[4px] ${mode === 'lojas' ? (selectedItem.is_open ? 'animate-radar-pulse-glow-open' : 'animate-radar-pulse-glow-closed') : ''}`}
                                             style={{
                                                 background: mode === 'lojas'
                                                     ? (selectedItem.is_open
@@ -1705,7 +1728,7 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                                                     : 'linear-gradient(135deg, #f97316, #dc2626)',
                                             }}
                                         >
-                                            <div className="relative w-full h-full rounded-2xl overflow-hidden bg-gradient-to-br from-orange-100 to-red-100 flex items-center justify-center">
+                                            <div className={`relative w-full h-full ${mode === 'pessoas' || mode === 'motoristas' ? 'rounded-full' : 'rounded-2xl'} overflow-hidden bg-gradient-to-br from-orange-100 to-red-100 flex items-center justify-center`}>
                                                 <span className="text-2xl font-black italic text-orange-400">{(selectedItem.name || '?').replace('@', '').charAt(0).toUpperCase()}</span>
                                                 {(selectedItem.logo_url || selectedItem.image_url) && (
                                                     <img src={selectedItem.logo_url || selectedItem.image_url} className="absolute inset-0 w-full h-full object-cover" alt="" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />

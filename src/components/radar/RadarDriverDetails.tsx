@@ -81,6 +81,14 @@ export default function RadarDriverDetails({ item, go }: { item: RadarDriverItem
 
     return (
         <div className="px-4 pb-3 space-y-3">
+            {/* Foto do veículo (o marcador e o cabeçalho mostram o motorista) */}
+            {item.photoUrl && (
+                <div className="relative h-28 rounded-xl overflow-hidden bg-gray-100">
+                    <img src={item.photoUrl} className="absolute inset-0 w-full h-full object-cover" alt="" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />
+                    <span className="absolute left-2 bottom-2 text-[10px] font-black uppercase tracking-wide px-2 py-0.5 rounded-full text-white bg-black/60">{item.model}{item.color ? ` · ${item.color}` : ''}</span>
+                </div>
+            )}
+
             {/* Disponibilidade e veículo */}
             <div className="flex items-center gap-1.5 flex-wrap">
                 <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wide px-2 py-0.5 rounded-full text-white bg-green-600">

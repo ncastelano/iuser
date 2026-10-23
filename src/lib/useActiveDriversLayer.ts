@@ -25,6 +25,7 @@ export function useActiveDriversLayer({ map, mapReady, enabled, focus, onSelect 
     const [drivers, setDrivers] = useState<RadarDriverItem[]>([])
     const [loaded, setLoaded] = useState(false)
     const markersRef = useRef<mapboxgl.Marker[]>([])
+    const unmountsRef = useRef<(() => void)[]>([])
     const fittedRef = useRef(false)
     const onSelectRef = useRef(onSelect)
     onSelectRef.current = onSelect
@@ -59,17 +60,23 @@ export function useActiveDriversLayer({ map, mapReady, enabled, focus, onSelect 
 
     // desenha os marcadores
     useEffect(() => {
-        markersRef.current.forEach((m) => m.remove())
-        markersRef.current = []
+        const clear = () => {
+            markersRef.current.forEach((m) => m.remove())
+            markersRef.current = []
+            unmountsRef.current.forEach((u) => u())
+            unmountsRef.current = []
+        }
+        clear()
         if (!enabled || !map || !mapReady) return
         markersRef.current = drivers.map((d) => {
-            const el = createDriverMarkerElement(d, () => {
+            const { el, unmount } = createDriverMarkerElement(d, () => {
                 map.flyTo({ center: [d.lng, d.lat], zoom: Math.max(map.getZoom(), 15), duration: 600 })
                 onSelectRef.current?.(d)
             })
-            return new mapboxgl.Marker({ element: el, anchor: 'bottom' }).setLngLat([d.lng, d.lat]).addTo(map)
+            unmountsRef.current.push(unmount)
+            return new mapboxgl.Marker({ element: el, anchor: 'center' }).setLngLat([d.lng, d.lat]).addTo(map)
         })
-        return () => { markersRef.current.forEach((m) => m.remove()); markersRef.current = [] }
+        return clear
     }, [drivers, enabled, map, mapReady])
 
     return { drivers, counts: countDriversByKind(drivers), loaded }

@@ -6,6 +6,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { DriverPricingRow } from '@/lib/driverPricing'
 import { vehicleGlyphSvg } from '@/lib/vehicleMarkerIcon'
+import { mountMapAvatarMarker } from '@/components/MapAvatarMarker'
 
 export type RadarDriverKind = 'carro' | 'moto' | 'bicicleta'
 
@@ -99,26 +100,24 @@ export function countDriversByKind(list: { kind: RadarDriverKind }[]): Record<Ra
     return counts
 }
 
-/** Marcador de motorista no mapa (igual nos dois mapas): foto do veículo num quadrado de borda verde ("disponível agora"). */
-export function createDriverMarkerElement(d: Pick<RadarDriverItem, 'photoUrl' | 'kind' | 'name'>, onClick: () => void): HTMLElement {
+/** Marcador de motorista no mapa (igual nos dois mapas): o avatar do perfil, redondo, com borda verde ("disponível agora"), o anel de borda
+ *  que ele equipou e um selo do tipo de veículo. Devolve o elemento e como desmontar (chame ao remover o marcador). */
+export function createDriverMarkerElement(d: Pick<RadarDriverItem, 'id' | 'photoUrl' | 'avatarUrl' | 'kind' | 'name'>, onClick: () => void): { el: HTMLElement; unmount: () => void } {
     const el = document.createElement('div')
     el.setAttribute('aria-label', `Motorista disponível: ${d.name}`)
-    const inner = document.createElement('div')
-    inner.style.cssText = 'width:48px;height:48px;border-radius:12px;overflow:hidden;border:3px solid #22c55e;cursor:pointer;background:#f0fdf4;box-shadow:0 4px 15px rgba(0,0,0,0.3);transition:transform .25s cubic-bezier(.175,.885,.32,1.275),box-shadow .25s;'
-    const glyph = vehicleGlyphSvg(d.kind, '#16a34a', 26)
-    const fallback = `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;">${glyph}</div>`
-    if (d.photoUrl) {
-        const img = document.createElement('img')
-        img.src = d.photoUrl
-        img.style.cssText = 'width:100%;height:100%;object-fit:cover;'
-        img.onerror = () => { inner.innerHTML = fallback }
-        inner.appendChild(img)
-    } else {
-        inner.innerHTML = fallback
-    }
-    inner.onmouseenter = () => { inner.style.transform = 'scale(1.12)'; inner.style.boxShadow = '0 8px 25px rgba(34,197,94,0.45)' }
-    inner.onmouseleave = () => { inner.style.transform = 'scale(1)'; inner.style.boxShadow = '0 4px 15px rgba(0,0,0,0.3)' }
-    el.appendChild(inner)
+    el.style.cursor = 'pointer'
+    const host = document.createElement('div')
+    host.style.cssText = 'transition:transform .25s cubic-bezier(.175,.885,.32,1.275);'
+    host.onmouseenter = () => { host.style.transform = 'scale(1.12)' }
+    host.onmouseleave = () => { host.style.transform = 'scale(1)' }
+    el.appendChild(host)
+    const unmount = mountMapAvatarMarker(host, {
+        userId: d.id,
+        imageUrl: d.avatarUrl || d.photoUrl,
+        fallbackText: d.name,
+        borderColor: '#22c55e',
+        badgeSvg: vehicleGlyphSvg(d.kind, '#16a34a', 13),
+    })
     el.onclick = (e) => { e.stopPropagation(); onClick() }
-    return el
+    return { el, unmount }
 }
