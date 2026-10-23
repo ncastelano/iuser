@@ -10,6 +10,7 @@ import Header from '@/components/Header'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import LoginAndRegister from '@/components/LoginAndRegister/LoginAndRegister'
 import { toast } from 'sonner'
+import { sendFirstDriverPosition } from '@/lib/driverLocationSync'
 import { TrendingUp, Car, Camera, Star, MessageSquare, Clock, CheckCircle2, Volume2, VolumeX, Navigation2, LayoutDashboard, Trash2 } from 'lucide-react'
 import { loadPlatformTariffs } from '@/lib/platformTariffs'
 import { Spinner } from '@/components/Spinner'
@@ -163,7 +164,6 @@ function PainelMotoristaContent() {
     const handleRideTabChange = useCallback((t: AceitarCorridasTab) => {
         setActiveTab(t === 'servicos' ? 'solicitacoes' : t === 'candidatos' ? 'candidaturas' : 'aceita')
     }, [])
-    const handleRideLeave = useCallback(() => setActiveTab('painel'), [])
 
     // O componente embutido só avisa as contagens enquanto está aberto; aqui
     // busca o essencial (candidaturas pendentes e corrida aceita) pra a aba
@@ -398,7 +398,7 @@ function PainelMotoristaContent() {
 
             // Sem nenhum veículo não dá pra rodar: desliga o modo motorista.
             if (remainingKinds.length === 0 && driverModeActive) {
-                await supabase.from('driver_pricing').update({ driver_mode_active: false }).eq('driver_id', user.id)
+                await supabase.from('driver_pricing').update({ driver_mode_active: false, live_location_sync: false }).eq('driver_id', user.id)
                 setDriverModeActive(false)
             }
 
@@ -637,14 +637,15 @@ function PainelMotoristaContent() {
         setTogglingMode(true)
         try {
             const { error } = await supabase.from('driver_pricing').upsert(
-                { ...buildPricingFields(user.id), driver_mode_active: next },
+                { ...buildPricingFields(user.id), driver_mode_active: next, live_location_sync: next },
                 { onConflict: 'driver_id' }
             )
             if (error) throw error
 
             setDriverModeActive(next)
             if (next) {
-                toast.success('/Aceitar-corridas ligado!')
+                toast.success('Modo motorista ligado!')
+                sendFirstDriverPosition(user.id)
                 // Ativando com cadastro incompleto: abre o wizard guiado em
                 // vez de deixar a pessoa perdida numa página cheia de campos.
                 if (!hasCompleteVehicle) {
@@ -652,7 +653,7 @@ function PainelMotoristaContent() {
                     setActiveTab('veiculo')
                 }
             } else {
-                toast.success('/Aceitar-corridas desligado.')
+                toast.success('Modo motorista desligado.')
                 setShowActivationWizard(false)
                 setActiveTab('painel')
             }
@@ -808,7 +809,6 @@ function PainelMotoristaContent() {
                             tab={rideTabFromPanel[activeTab]}
                             onTabChange={handleRideTabChange}
                             onSummaryChange={setRideSummary}
-                            onLeave={handleRideLeave}
                             onRegisterVehicle={() => setActiveTab('veiculo')}
                         />
                     )}
@@ -1598,15 +1598,15 @@ function PainelMotoristaContent() {
                         </div>
                         <h2 className="text-lg font-black" style={{ color: colors.textPrimary }}>Carro cadastrado!</h2>
                         <p className="text-sm" style={{ color: colors.textSecondary }}>
-                            Ligue o /Aceitar-corridas aqui em cima pra aparecer disponível, e vá pra tela de corridas — lá você vê os pedidos em tempo real e pode se candidatar.
+                            Agora ligue o <strong>Modo motorista</strong> no painel pra ficar disponível: sua localização é compartilhada, você vê as solicitações em tempo real e pode se candidatar.
                         </p>
                         <button
-                            onClick={() => { setShowFirstVehicleDialog(false); router.push('/aceitar-corridas') }}
+                            onClick={() => { setShowFirstVehicleDialog(false); setActiveTab('painel') }}
                             className="mt-2 w-full py-3 rounded-full font-bold text-sm flex items-center justify-center gap-2"
                             style={{ background: GRADIENT, color: '#fff' }}
                         >
                             <Car size={18} />
-                            Ir para corridas disponíveis
+                            Ir para o painel
                         </button>
                         <button
                             onClick={() => setShowFirstVehicleDialog(false)}

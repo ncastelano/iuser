@@ -56,12 +56,13 @@ export function DriverLiveLocationBroadcaster() {
         const tick = async () => {
             const { data } = await supabase
                 .from('driver_pricing')
-                .select('live_location_sync')
+                .select('live_location_sync, driver_mode_active')
                 .eq('driver_id', contextUserId)
                 .maybeSingle()
             if (cancelled) return
 
-            const syncOn = !!data?.live_location_sync
+            // Só transmite com o Modo motorista ligado (a sincronização acompanha o modo).
+            const syncOn = !!data?.live_location_sync && !!data?.driver_mode_active
             if (syncOn !== syncOnRef.current) {
                 syncOnRef.current = syncOn
                 if (syncOn) startWatch(contextUserId)

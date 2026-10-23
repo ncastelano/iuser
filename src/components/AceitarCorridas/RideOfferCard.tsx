@@ -81,6 +81,8 @@ interface RideOfferCardProps {
     miniMap?: ReactNode
     // Substitui as tarifas (ex: "Aguardando decisão" nas candidaturas).
     footer?: ReactNode
+    // Valor já definido (proposta enviada / valor combinado): mesmo quadro das tarifas, com o ganho por hora.
+    valueBox?: { label: string; price: number }
     onBack?: () => void
     onSkip?: () => void
     // Deslocamento do motorista até a partida, somado à Tarifa iUser (platformPrice já vem com ele)
@@ -107,7 +109,7 @@ const kmText = (v: number) => `${v.toFixed(1).replace('.', ',')} km`
 
 // Card compacto e em linguagem simples: quem pediu, de onde pra onde, quanto
 // falta pra cada trecho e quanto cobrar — sem rótulos em caixa-alta.
-export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, customPrice = null, toPickup, trip, applying = false, onApply, onCounter, miniMap, footer, onBack, onSkip, compact = false, pickup }: RideOfferCardProps) {
+export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, customPrice = null, toPickup, trip, applying = false, onApply, onCounter, miniMap, footer, valueBox, onBack, onSkip, compact = false, pickup }: RideOfferCardProps) {
     const { colors } = useTheme()
     // 3.0: laranja sólido, cartões macios sem moldura/sombra e campos em cápsula (só apresentação; as regras são as mesmas)
     const v3 = useInsideShell()
@@ -232,6 +234,17 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
                 <p className="text-[11px] -mt-1" style={{ color: colors.textSecondary }}>
                     Se sair agora, termina por volta das <span className="font-black" style={{ color: colors.textPrimary }}>{arrivalTime}</span>
                 </p>
+            )}
+
+            {/* Valor já definido: mesmo desenho das tarifas, com o ganho por hora */}
+            {valueBox && (
+                <div className="rounded-xl px-3 py-1.5" style={{ background: GRADIENT, color: '#fff' }}>
+                    <span className="block text-[10px] font-semibold" style={{ color: 'rgba(255,255,255,0.85)' }}>{valueBox.label}</span>
+                    <span className="block text-[15px] font-black leading-tight">{brl(valueBox.price)}</span>
+                    {perHour(valueBox.price) != null && (
+                        <span className="block text-[9px] leading-tight font-semibold" style={{ color: 'rgba(255,255,255,0.85)' }}>≈ R$ {perHour(valueBox.price)}/h</span>
+                    )}
+                </div>
             )}
 
             {/* Valores: Tarifa iUser · Minha tarifa · outro valor (ou o frete da loja) */}

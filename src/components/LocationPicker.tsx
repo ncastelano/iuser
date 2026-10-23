@@ -295,7 +295,7 @@ export default function LocationPicker({ initialLocation, onSave, onClose, allow
 
             const { error } = await supabase
                 .from('driver_pricing')
-                .update({ driver_mode_active: false })
+                .update({ driver_mode_active: false, live_location_sync: false })
                 .eq('driver_id', user.id)
 
             if (error) throw error
