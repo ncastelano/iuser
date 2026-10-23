@@ -1468,6 +1468,7 @@ function OrderButton({
 
     return (
         <div
+            data-keep-color
             className={`w-full rounded-2xl transition-all duration-200 hover:scale-[1.01] active:scale-[0.99] hover:shadow-xl relative overflow-hidden will-change-transform ${isPaid ? 'opacity-80' : 'cursor-pointer'}`}
             style={{
                 background: getStatusGradient(order.status),

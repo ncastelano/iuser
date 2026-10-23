@@ -101,7 +101,7 @@ export default function FreeTrialGift({ onRequireLogin, onClaimed, hideWhenEnded
         <>
             {/* Só o botão (laranja → vermelho) com o selo "Brinde" por cima; os detalhes
                 (o que libera, regras) aparecem no diálogo de confirmação. */}
-            <div className={`relative pt-2.5 ${className}`}>
+            <div data-keep-color className={`relative pt-2.5 ${className}`}>
                 <span
                     className="absolute top-0 left-1/2 -translate-x-1/2 z-10 text-[9px] font-black uppercase tracking-wider px-3 py-1 rounded-full text-white flex items-center gap-1 whitespace-nowrap"
                     style={{ background: '#111827', border: '1px solid #ffffff' }}
@@ -144,7 +144,7 @@ export default function FreeTrialGift({ onRequireLogin, onClaimed, hideWhenEnded
             `}</style>
 
             {confirmOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)' }}>
+                <div data-keep-color className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)' }}>
                     <div className="w-full max-w-sm max-h-[90vh] overflow-y-auto rounded-2xl p-6 relative" style={{ background: colors.surface }}>
                         <button onClick={() => setConfirmOpen(false)} className="absolute top-4 right-4" style={{ color: colors.textSecondary }} aria-label="Fechar">
                             <X size={20} />
@@ -213,7 +213,7 @@ export default function FreeTrialGift({ onRequireLogin, onClaimed, hideWhenEnded
             )}
 
             {cpfOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)' }}>
+                <div data-keep-color className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)' }}>
                     <div className="w-full max-w-sm rounded-2xl p-6 relative" style={{ background: colors.surface }}>
                         <button onClick={() => { setCpfOpen(false); setCpfInput('') }} className="absolute top-4 right-4" style={{ color: colors.textSecondary }} aria-label="Fechar">
                             <X size={20} />
