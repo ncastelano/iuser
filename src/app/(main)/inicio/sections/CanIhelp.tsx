@@ -74,6 +74,10 @@ interface FeaturedAction {
     label: string
     icon: LucideIcon
     onClick: () => void
+    /** frase curta (só nos atalhos de "Preciso de") */
+    desc?: string
+    /** cor do ícone (a mesma de cada tipo na 3.0) */
+    color: string
 }
 
 // As comunidades têm a própria seção na home (abaixo das publicações): saem do grid de categorias
@@ -89,16 +93,16 @@ export default function CanIhelp({ dragHandle }: CanIhelpProps) {
     // "publicar/vender" sem perfil ainda manda pro login/cadastro, igual em MotoristaSection/OfferAService.
     const go = (path: string) => { startNavProgress(); router.push(path) }
     const needActions: FeaturedAction[] = [
-        { label: 'Comprar', icon: ShoppingBag, onClick: () => go('/lojas') },
-        { label: 'Contratar serviço', icon: Wrench, onClick: () => go('/solicitar-servico') },
-        { label: 'Pedir motorista', icon: Car, onClick: () => go('/pedir-motorista') },
-        { label: 'Ver ao redor', icon: Radar, onClick: () => go('/radar') },
+        { label: 'Comprar', desc: 'Lojas e produtos perto de você', color: '#2563eb', icon: ShoppingBag, onClick: () => go('/lojas') },
+        { label: 'Contratar serviço', desc: 'Descreva o que você precisa', color: '#7c3aed', icon: Wrench, onClick: () => go('/solicitar-servico') },
+        { label: 'Pedir motorista', desc: 'Corrida rápida, preço combinado', color: '#ea580c', icon: Car, onClick: () => go('/pedir-motorista') },
+        { label: 'Ver ao redor', desc: 'Mapa com lojas, serviços e pessoas', color: '#0891b2', icon: Radar, onClick: () => go('/radar') },
     ]
     const earnActions: FeaturedAction[] = [
-        { label: 'Vender', icon: CircleDollarSign, onClick: () => go(profileSlug ? '/criar-loja' : '/criar-loja-com-cadastro') },
-        { label: 'Publicar serviço', icon: Megaphone, onClick: () => go(profileSlug ? '/meus-servicos' : '/login') },
-        { label: 'Ser motorista', icon: Car, onClick: () => go('/painel-motorista') },
-        { label: 'Indicar e ganhar', icon: UserPlus, onClick: () => go(profileSlug ? '/convite' : '/login') },
+        { label: 'Vender', color: '#16a34a', icon: CircleDollarSign, onClick: () => go(profileSlug ? '/criar-loja' : '/criar-loja-com-cadastro') },
+        { label: 'Publicar serviço', color: '#7c3aed', icon: Megaphone, onClick: () => go(profileSlug ? '/meus-servicos' : '/login') },
+        { label: 'Ser motorista', color: '#ea580c', icon: Car, onClick: () => go('/painel-motorista') },
+        { label: 'Indicar e ganhar', color: '#db2777', icon: UserPlus, onClick: () => go(profileSlug ? '/convite' : '/login') },
     ]
 
     // Ordem inicial = ordem padrão (evita divergência de hidratação); depois
@@ -164,31 +168,53 @@ export default function CanIhelp({ dragHandle }: CanIhelpProps) {
 
             {/* Sem card em volta: os botões flutuam direto sobre o fundo da página */}
             <div>
-                {/* Ações em destaque — "o que o app faz", em cards cheios de cor (gradiente) pra se diferenciar
-                    das categorias, que são só ícone/contorno abaixo. Dois blocos, como na 3.0. */}
-                {([['Preciso de', needActions], ['Quero ganhar com o iUser', earnActions]] as [string, FeaturedAction[]][]).map(([heading, actions]) => (
-                    <div key={heading} className="mb-4">
-                        <p className="text-[10px] font-black uppercase tracking-wider mb-2 px-0.5" style={{ color: colors.textSecondary }}>{heading}</p>
-                        <div className="grid grid-cols-4 gap-2">
-                            {actions.map((action) => {
-                                const Icon = action.icon
-                                return (
-                                    <button
-                                        key={action.label}
-                                        onClick={action.onClick}
-                                        className="flex flex-col items-center justify-center gap-1.5 py-3 px-1 rounded-2xl transition-all duration-200 hover:scale-105 active:scale-95 min-w-0"
-                                        style={{ background: GRADIENT, boxShadow: '0 4px 14px #f9731650' }}
-                                    >
-                                        <Icon size={20} color="#fff" strokeWidth={2} />
-                                        <span className="text-[10px] font-black text-center leading-tight text-white">
-                                            {action.label}
-                                        </span>
-                                    </button>
-                                )
-                            })}
-                        </div>
+                {/* O que o app faz, em dois níveis (como na 3.0): o que a pessoa PRECISA, em cartões maiores com uma frase,
+                    e o que ela pode GANHAR, numa faixa compacta logo abaixo. As categorias vêm depois. */}
+                <p className="text-[11px] font-black uppercase tracking-wider mb-2 px-0.5" style={{ color: colors.textSecondary }}>O que você precisa?</p>
+                <div className="grid grid-cols-2 gap-2.5 mb-4">
+                    {needActions.map((action) => {
+                        const Icon = action.icon
+                        return (
+                            <button
+                                key={action.label}
+                                onClick={action.onClick}
+                                className="flex flex-col items-start gap-2.5 p-3.5 rounded-3xl text-left transition-all duration-200 hover:scale-[1.02] active:scale-95 min-w-0"
+                                style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: `0 6px 18px ${action.color}18` }}
+                            >
+                                <span className="w-11 h-11 rounded-2xl flex items-center justify-center" style={{ background: `${action.color}1c`, color: action.color }}>
+                                    <Icon size={22} strokeWidth={2.2} />
+                                </span>
+                                <span className="min-w-0 w-full">
+                                    <span className="block text-[14px] font-black leading-tight" style={{ color: colors.textPrimary }}>{action.label}</span>
+                                    <span className="block text-[11px] leading-snug mt-0.5" style={{ color: colors.textSecondary }}>{action.desc}</span>
+                                </span>
+                            </button>
+                        )
+                    })}
+                </div>
+
+                <div className="rounded-3xl p-3 mb-5" style={{ background: `${colors.accent}12`, border: `1px solid ${colors.accent}30` }}>
+                    <p className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider mb-2.5 px-0.5" style={{ color: colors.accent }}>
+                        <CircleDollarSign size={13} /> Quer ganhar com o iUser?
+                    </p>
+                    <div className="grid grid-cols-4 gap-1">
+                        {earnActions.map((action) => {
+                            const Icon = action.icon
+                            return (
+                                <button
+                                    key={action.label}
+                                    onClick={action.onClick}
+                                    className="flex flex-col items-center gap-1.5 py-1.5 rounded-2xl transition active:scale-95 min-w-0"
+                                >
+                                    <span className="w-11 h-11 rounded-full flex items-center justify-center" style={{ background: colors.surface, color: action.color, boxShadow: `0 4px 12px ${action.color}30` }}>
+                                        <Icon size={20} strokeWidth={2.2} />
+                                    </span>
+                                    <span className="text-[10px] font-black text-center leading-tight" style={{ color: colors.textPrimary }}>{action.label}</span>
+                                </button>
+                            )
+                        })}
                     </div>
-                ))}
+                </div>
 
                 {/* Categorias, 4 por linha - a mais clicada fica primeiro */}
                 <div className="grid grid-cols-4 gap-x-1 gap-y-3">
