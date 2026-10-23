@@ -1,19 +1,24 @@
 // src/components/ShareLinkDialog.tsx
 //
-// O diálogo PADRÃO de "Compartilhar" do iUser (todo botão de compartilhar abre este, via ShareDialogHost/handleShareLink): o link com
-// botão de copiar, atalhos pra WhatsApp, Facebook, Instagram e X e, para links do iUser com a pessoa logada, "No iUser": mandar para uma
-// comunidade em que ela já está ou publicar no próprio perfil. Instagram não tem endereço de compartilhar link (só o app); então ele
-// copia o link e abre o Direct pra pessoa colar. Em quem tem o compartilhar nativo do aparelho, ainda tem "Mais opções".
+// O diálogo PADRÃO de "Compartilhar" do iUser (todo botão de compartilhar abre este, via ShareDialogHost/handleShareLink). Em cima, o que
+// é DENTRO do iUser (só para link do iUser e pessoa logada): sugestões dos últimos lugares para onde ela compartilhou, e as escolhas
+// Comunidade (as que ela já está), Meu perfil (publicação) e Um perfil (a conversa dele). Embaixo, "Convidar": WhatsApp, Facebook,
+// Instagram e X e o link com botão de copiar. Instagram não tem endereço de compartilhar link (só o app); então ele copia o link e abre
+// o Direct pra pessoa colar. Em quem tem o compartilhar nativo do aparelho, ainda tem "Mais opções".
 'use client'
 
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
-import { Check, Copy, Share2, UserSquare2, Users, X } from 'lucide-react'
+import { Check, Copy, MessageCircle, Search, Share2, UserSquare2, Users, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTheme } from '@/app/contexts/theme'
 import { iuserPath } from '@/lib/chatLinks'
-import { listMyCommunities, publishToMyProfile, sendToCommunity, type MyCommunity } from '@/lib/shareToIuser'
+import {
+    getRecentTargets, listMyChats, listMyCommunities, publishToMyProfile, pushRecentTarget, sendToChat, sendToCommunity, startChatWith,
+    type MyChat, type MyCommunity, type RecentTarget,
+} from '@/lib/shareToIuser'
+import { searchShareTargets, type ShareCard } from '@/lib/shareCards'
 
 interface ShareLinkDialogProps {
     open: boolean
@@ -64,52 +69,73 @@ export default function ShareLinkDialog({ open, onClose, url, title, text, image
     // "No iUser": só link do iUser (é o que a comunidade aceita) e com a pessoa logada
     const canInternal = internal && !!url && iuserPath(url) !== null
     const [communities, setCommunities] = useState<MyCommunity[] | null | undefined>(undefined)   // undefined = carregando, null = sem login
-    const [pickCommunity, setPickCommunity] = useState(false)
-    const [sentTo, setSentTo] = useState<Record<string, 'sending' | 'sent'>>({})
-    const [profileState, setProfileState] = useState<'idle' | 'sending' | 'sent'>('idle')
+    const [chats, setChats] = useState<MyChat[]>([])
+    const [recents, setRecents] = useState<RecentTarget[]>([])
+    const [panel, setPanel] = useState<null | 'community' | 'chat'>(null)
+    const [q, setQ] = useState('')
+    const [found, setFound] = useState<ShareCard[]>([])
+    const [state, setState] = useState<Record<string, 'sending' | 'sent'>>({})
 
     useEffect(() => {
         setCanNativeShare(typeof navigator !== 'undefined' && typeof navigator.share === 'function')
     }, [])
     useEffect(() => {
         if (!open) return
-        setCopied(false); setPickCommunity(false); setSentTo({}); setProfileState('idle'); setCommunities(undefined)
-        if (canInternal) listMyCommunities().then(setCommunities, () => setCommunities([]))
+        setCopied(false); setPanel(null); setQ(''); setFound([]); setState({}); setCommunities(undefined); setChats([]); setRecents(getRecentTargets())
+        if (canInternal) {
+            listMyCommunities().then(setCommunities, () => setCommunities([]))
+            listMyChats().then((c) => setChats(c || []), () => setChats([]))
+        }
         const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
         window.addEventListener('keydown', onKey)
         return () => window.removeEventListener('keydown', onKey)
     }, [open, onClose, canInternal])
 
+    // Busca de perfis (para quem ainda não tem conversa)
+    useEffect(() => {
+        if (panel !== 'chat' || q.trim().length < 2) { setFound([]); return }
+        let alive = true
+        const t = setTimeout(() => { searchShareTargets('profile', q.trim()).then((r) => { if (alive) setFound(r) }).catch(() => { if (alive) setFound([]) }) }, 250)
+        return () => { alive = false; clearTimeout(t) }
+    }, [panel, q])
+
     if (!open || typeof document === 'undefined') return null
 
+    const showInternal = canInternal && communities !== null
     const full = `${text}\n${url}`
     const enc = encodeURIComponent
     const openWindow = (href: string) => { onShared?.(); window.open(href, '_blank', 'noopener,noreferrer') }
 
-    const sendCommunity = async (c: MyCommunity) => {
-        setSentTo((m) => ({ ...m, [c.id]: 'sending' }))
+    // Sugestões: os últimos lugares onde ela compartilhou; sem histórico, as conversas e comunidades mais recentes dela
+    const suggestions: RecentTarget[] = recents.length > 0 ? recents : [
+        ...chats.slice(0, 3).map((c): RecentTarget => ({ kind: 'chat', id: c.id, name: c.name, sub: c.sub, avatar: c.avatar })),
+        ...(communities || []).slice(0, 2).map((c): RecentTarget => ({ kind: 'community', id: c.id, name: c.name, sub: c.city })),
+    ]
+
+    const run = async (key: string, target: RecentTarget, action: () => Promise<RecentTarget | void>) => {
+        setState((m) => ({ ...m, [key]: 'sending' }))
         try {
-            await sendToCommunity(c.id, title, url)
+            const done = (await action()) || target
             onShared?.()
-            setSentTo((m) => ({ ...m, [c.id]: 'sent' }))
-            toast.success(`Enviado para ${c.name}!`)
+            pushRecentTarget(done)
+            setRecents(getRecentTargets())
+            setState((m) => ({ ...m, [key]: 'sent' }))
+            toast.success(done.kind === 'profile' ? 'Publicado no seu perfil!' : `Enviado para ${done.name}!`)
         } catch (e: any) {
-            setSentTo((m) => { const n = { ...m }; delete n[c.id]; return n })
-            toast.error(e?.message || 'Não foi possível enviar para a comunidade.')
+            setState((m) => { const n = { ...m }; delete n[key]; return n })
+            toast.error(e?.message || 'Não foi possível compartilhar.')
         }
     }
-    const publishProfile = async () => {
-        setProfileState('sending')
-        try {
-            await publishToMyProfile({ title, text, url, imageUrl })
-            onShared?.()
-            setProfileState('sent')
-            toast.success('Publicado no seu perfil!')
-        } catch (e: any) {
-            setProfileState('idle')
-            toast.error(e?.message || 'Não foi possível publicar no seu perfil.')
-        }
-    }
+    const sendTarget = (t: RecentTarget) => run(`${t.kind}:${t.id}`, t, async () => {
+        if (t.kind === 'community') await sendToCommunity(t.id, title, url)
+        else if (t.kind === 'chat') await sendToChat(t.id, title, url)
+        else await publishToMyProfile({ title, text, url, imageUrl })
+    })
+    const sendToProfile = (c: ShareCard) => run(`found:${c.id}`, { kind: 'chat', id: c.id, name: c.title }, async () => {
+        const convId = await startChatWith(c.id)
+        await sendToChat(convId, title, url)
+        return { kind: 'chat', id: convId, name: c.title, sub: c.subtitle, avatar: c.imageUrl }
+    })
 
     const copy = async () => {
         const ok = await copyText(url)
@@ -139,6 +165,45 @@ export default function ShareLinkDialog({ open, onClose, url, title, text, image
         { id: 'x', label: 'X', bg: '#000000', icon: <Brand d={X_PATH} />, onClick: () => openWindow(`https://x.com/intent/post?text=${enc(text)}&url=${enc(url)}`) },
     ]
 
+    const label = (t: string, extra?: React.ReactNode) => (
+        <p style={{ fontSize: 11, fontWeight: 900, letterSpacing: 0.6, textTransform: 'uppercase', color: colors.textSecondary, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>{t}{extra}</p>
+    )
+    const bigBtn = (active: boolean, icon: React.ReactNode, text: string, onClick: () => void, status?: 'sending' | 'sent') => (
+        <button
+            onClick={onClick}
+            disabled={status === 'sending'}
+            style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, border: `1.5px solid ${active ? '#f97316' : colors.border}`, background: active ? '#f9731618' : colors.surface, color: colors.textPrimary, borderRadius: 16, padding: '12px 6px', fontWeight: 800, fontSize: 12.5, cursor: 'pointer', opacity: status === 'sending' ? 0.6 : 1 }}
+        >
+            {status === 'sent' ? <Check size={20} color="#10b981" /> : icon}
+            <span style={{ lineHeight: 1.1, textAlign: 'center' }}>{text}</span>
+        </button>
+    )
+    const avatarBubble = (src: string | null | undefined, fallback: string) => (
+        <span style={{ width: 34, height: 34, borderRadius: '50%', overflow: 'hidden', background: `${colors.border}80`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 900, flexShrink: 0 }}>
+            {src ? <img src={src} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : fallback.replace('@', '').charAt(0).toUpperCase()}
+        </span>
+    )
+    const row = (key: string, avatar: React.ReactNode, name: string, sub: string | null | undefined, onSend: () => void) => (
+        <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderBottom: `1px solid ${colors.border}60` }}>
+            {avatar}
+            <span style={{ flex: 1, minWidth: 0 }}>
+                <span style={{ display: 'block', fontSize: 13, fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
+                {sub && <span style={{ display: 'block', fontSize: 11, color: colors.textSecondary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sub}</span>}
+            </span>
+            <button
+                onClick={onSend}
+                disabled={!!state[key]}
+                style={{ border: 'none', borderRadius: 999, padding: '7px 14px', fontSize: 12, fontWeight: 900, cursor: state[key] ? 'default' : 'pointer', background: state[key] === 'sent' ? '#10b981' : '#f97316', color: '#fff', opacity: state[key] === 'sending' ? 0.6 : 1 }}
+            >
+                {state[key] === 'sent' ? 'Enviado' : state[key] === 'sending' ? '…' : 'Enviar'}
+            </button>
+        </div>
+    )
+
+    const chatList = chats.filter((c) => !q.trim() || c.name.toLowerCase().includes(q.trim().toLowerCase()) || (c.sub || '').toLowerCase().includes(q.trim().toLowerCase())).slice(0, 12)
+    const knownProfile = new Set(chats.map((c) => (c.sub || '').toLowerCase()))
+    const foundNew = found.filter((c) => !knownProfile.has((c.title || '').toLowerCase()))
+
     return createPortal(
         <div
             onClick={onClose}
@@ -149,18 +214,90 @@ export default function ShareLinkDialog({ open, onClose, url, title, text, image
         >
             <div
                 onClick={(e) => e.stopPropagation()}
-                style={{ width: '100%', maxWidth: 400, background: colors.surface, color: colors.textPrimary, border: `1px solid ${colors.border}`, borderRadius: 24, padding: 20, boxShadow: colors.shadow }}
+                style={{ width: '100%', maxWidth: 420, maxHeight: '92dvh', overflowY: 'auto', background: colors.surface, color: colors.textPrimary, border: `1px solid ${colors.border}`, borderRadius: 24, padding: 20, boxShadow: colors.shadow }}
             >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                     <h2 style={{ fontSize: 18, fontWeight: 900 }}>{title}</h2>
                     <button onClick={onClose} aria-label="Fechar" style={{ width: 34, height: 34, borderRadius: '50%', border: 'none', background: `${colors.border}66`, color: colors.textSecondary, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <X size={16} />
                     </button>
                 </div>
-                <p style={{ fontSize: 13, color: colors.textSecondary, marginBottom: 14 }}>
-                    Escolha onde enviar:
-                </p>
 
+                {/* ===== DENTRO DO iUSER (em destaque, em cima) ===== */}
+                {showInternal && (
+                    <section style={{ borderRadius: 20, padding: 14, marginBottom: 16, background: '#f973161a', border: '1px solid #f9731640' }}>
+                        {label('Compartilhar no iUser')}
+                        {suggestions.length > 0 && (
+                            <div style={{ marginBottom: 12 }}>
+                                <p style={{ fontSize: 11, color: colors.textSecondary, marginBottom: 6, fontWeight: 700 }}>Últimos lugares</p>
+                                <div style={{ display: 'flex', gap: 8, overflowX: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                                    {suggestions.map((t) => {
+                                        const key = `${t.kind}:${t.id}`
+                                        return (
+                                            <button
+                                                key={key}
+                                                onClick={() => sendTarget(t)}
+                                                disabled={!!state[key]}
+                                                style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, maxWidth: 190, padding: '6px 12px 6px 6px', borderRadius: 999, border: `1px solid ${state[key] === 'sent' ? '#10b981' : colors.border}`, background: colors.surface, color: colors.textPrimary, cursor: state[key] ? 'default' : 'pointer', opacity: state[key] === 'sending' ? 0.6 : 1 }}
+                                            >
+                                                {state[key] === 'sent'
+                                                    ? <span style={{ width: 34, height: 34, borderRadius: '50%', background: '#10b98122', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Check size={16} color="#10b981" /></span>
+                                                    : t.kind === 'profile'
+                                                        ? <span style={{ width: 34, height: 34, borderRadius: '50%', background: '#f9731622', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><UserSquare2 size={16} color="#f97316" /></span>
+                                                        : t.kind === 'community'
+                                                            ? <span style={{ width: 34, height: 34, borderRadius: '50%', background: '#f9731622', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Users size={16} color="#f97316" /></span>
+                                                            : avatarBubble(t.avatar, t.name)}
+                                                <span style={{ fontSize: 12.5, fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.kind === 'profile' ? 'Meu perfil' : t.name}</span>
+                                            </button>
+                                        )
+                                    })}
+                                </div>
+                            </div>
+                        )}
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+                            {bigBtn(panel === 'community', <Users size={20} color="#f97316" />, 'Comunidade', () => setPanel((v) => (v === 'community' ? null : 'community')))}
+                            {bigBtn(false, <UserSquare2 size={20} color="#f97316" />, 'Meu perfil', () => sendTarget({ kind: 'profile', id: 'me', name: 'Meu perfil' }), state['profile:me'])}
+                            {bigBtn(panel === 'chat', <MessageCircle size={20} color="#f97316" />, 'Um perfil', () => setPanel((v) => (v === 'chat' ? null : 'chat')))}
+                        </div>
+
+                        {panel === 'community' && (
+                            <div style={{ marginTop: 10, maxHeight: 190, overflowY: 'auto', borderRadius: 14, border: `1px solid ${colors.border}`, background: colors.surface }}>
+                                {communities === undefined && <p style={{ padding: 12, fontSize: 12, color: colors.textSecondary }}>Carregando suas comunidades…</p>}
+                                {communities && communities.length === 0 && (
+                                    <p style={{ padding: 12, fontSize: 12, color: colors.textSecondary }}>
+                                        Você ainda não está em nenhuma comunidade. <Link href="/comunidade" onClick={onClose} style={{ color: '#f97316', fontWeight: 800 }}>Ver comunidades</Link>
+                                    </p>
+                                )}
+                                {communities?.map((c) => row(`community:${c.id}`, <span style={{ width: 34, height: 34, borderRadius: '50%', background: '#f9731622', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Users size={16} color="#f97316" /></span>, c.name, c.city, () => sendTarget({ kind: 'community', id: c.id, name: c.name, sub: c.city })))}
+                            </div>
+                        )}
+
+                        {panel === 'chat' && (
+                            <div style={{ marginTop: 10 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 12px', height: 40, borderRadius: 999, border: `1px solid ${colors.border}`, background: colors.surface }}>
+                                    <Search size={15} color={colors.textSecondary} />
+                                    <input
+                                        autoFocus
+                                        value={q}
+                                        onChange={(e) => setQ(e.target.value)}
+                                        placeholder="Buscar conversa ou perfil"
+                                        style={{ flex: 1, minWidth: 0, background: 'transparent', border: 'none', outline: 'none', color: colors.textPrimary, fontSize: 13 }}
+                                    />
+                                </div>
+                                <div style={{ marginTop: 8, maxHeight: 190, overflowY: 'auto', borderRadius: 14, border: `1px solid ${colors.border}`, background: colors.surface }}>
+                                    {chatList.map((c) => row(`chat:${c.id}`, avatarBubble(c.avatar, c.name), c.name, c.sub, () => sendTarget({ kind: 'chat', id: c.id, name: c.name, sub: c.sub, avatar: c.avatar })))}
+                                    {foundNew.map((c) => row(`found:${c.id}`, avatarBubble(c.imageUrl, c.title), c.title, c.subtitle || 'Abrir conversa', () => sendToProfile(c)))}
+                                    {chatList.length === 0 && foundNew.length === 0 && (
+                                        <p style={{ padding: 12, fontSize: 12, color: colors.textSecondary }}>{q.trim().length < 2 ? 'Você ainda não tem conversas. Busque um perfil pelo nome.' : 'Ninguém encontrado.'}</p>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                    </section>
+                )}
+
+                {/* ===== CONVIDAR (fora do iUser, embaixo) ===== */}
+                {showInternal ? label('Convidar') : <p style={{ fontSize: 13, color: colors.textSecondary, marginBottom: 12 }}>Escolha onde enviar:</p>}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
                     {targets.map((t) => (
                         <button
@@ -173,52 +310,6 @@ export default function ShareLinkDialog({ open, onClose, url, title, text, image
                         </button>
                     ))}
                 </div>
-
-                {canInternal && communities !== null && (
-                    <div style={{ marginTop: 16 }}>
-                        <p style={{ fontSize: 11, fontWeight: 900, letterSpacing: 0.6, textTransform: 'uppercase', color: colors.textSecondary, marginBottom: 8 }}>No iUser</p>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                            <button
-                                onClick={() => setPickCommunity((v) => !v)}
-                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, border: `1px solid ${pickCommunity ? '#f97316' : colors.border}`, background: pickCommunity ? '#f9731618' : 'transparent', color: colors.textPrimary, borderRadius: 14, padding: '11px 8px', fontWeight: 800, fontSize: 13, cursor: 'pointer' }}
-                            >
-                                <Users size={15} color="#f97316" /> Numa comunidade
-                            </button>
-                            <button
-                                onClick={publishProfile}
-                                disabled={profileState !== 'idle'}
-                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, border: `1px solid ${colors.border}`, background: 'transparent', color: colors.textPrimary, borderRadius: 14, padding: '11px 8px', fontWeight: 800, fontSize: 13, cursor: profileState === 'idle' ? 'pointer' : 'default', opacity: profileState === 'sending' ? 0.6 : 1 }}
-                            >
-                                {profileState === 'sent' ? <><Check size={15} color="#10b981" /> No seu perfil</> : <><UserSquare2 size={15} color="#f97316" /> {profileState === 'sending' ? 'Publicando…' : 'No meu perfil'}</>}
-                            </button>
-                        </div>
-                        {pickCommunity && (
-                            <div style={{ marginTop: 8, maxHeight: 176, overflowY: 'auto', borderRadius: 14, border: `1px solid ${colors.border}` }}>
-                                {communities === undefined && <p style={{ padding: 12, fontSize: 12, color: colors.textSecondary }}>Carregando suas comunidades…</p>}
-                                {communities && communities.length === 0 && (
-                                    <p style={{ padding: 12, fontSize: 12, color: colors.textSecondary }}>
-                                        Você ainda não está em nenhuma comunidade. <Link href="/comunidade" onClick={onClose} style={{ color: '#f97316', fontWeight: 800 }}>Ver comunidades</Link>
-                                    </p>
-                                )}
-                                {communities?.map((c) => (
-                                    <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderBottom: `1px solid ${colors.border}60` }}>
-                                        <span style={{ flex: 1, minWidth: 0 }}>
-                                            <span style={{ display: 'block', fontSize: 13, fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</span>
-                                            <span style={{ display: 'block', fontSize: 11, color: colors.textSecondary }}>{c.city}</span>
-                                        </span>
-                                        <button
-                                            onClick={() => sendCommunity(c)}
-                                            disabled={!!sentTo[c.id]}
-                                            style={{ border: 'none', borderRadius: 999, padding: '7px 14px', fontSize: 12, fontWeight: 900, cursor: sentTo[c.id] ? 'default' : 'pointer', background: sentTo[c.id] === 'sent' ? '#10b981' : '#f97316', color: '#fff', opacity: sentTo[c.id] === 'sending' ? 0.6 : 1 }}
-                                        >
-                                            {sentTo[c.id] === 'sent' ? 'Enviado' : sentTo[c.id] === 'sending' ? '…' : 'Enviar'}
-                                        </button>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                )}
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 16, padding: 6, paddingLeft: 12, borderRadius: 14, border: `1px solid ${colors.border}`, background: `${colors.border}22` }}>
                     <span style={{ flex: 1, minWidth: 0, fontSize: 12, color: colors.textSecondary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{url}</span>
