@@ -52,6 +52,7 @@ import LastSeenSettings from './LastSeenSettings'
 import ProfileNotification from './ProfileNotification'
 import MyComments from './MyComments'
 import ProfileLocationSettings from './ProfileLocationSettings'
+import ProfileRadarVisibility from './ProfileRadarVisibility'
 import ProfileLinkButtons from './ProfileLinkButtons'
 import UiVersionCard from './UiVersionCard'
 import MyTasks from './MyTasks'
@@ -1727,6 +1728,7 @@ export default function ProfileDashboard({
                         )}
                 </DashboardSection>
 
+                {profile?.id && <ProfileRadarVisibility profileId={profile.id} />}
                 {profile?.id && <ProfileLocationSettings profileId={profile.id} />}
                 {profile?.id && <LastSeenSettings userId={profile.id} />}
 

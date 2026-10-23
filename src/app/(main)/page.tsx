@@ -950,6 +950,7 @@ function HomePageContent() {
                         onClose={() => setShowLocationDialog(false)}
                         allowDriverSync={false}
                         allowGuest
+                        askRadarVisibility
                         onClear={savedLocation ? handleLocationClear : undefined}
                     />
                 )}

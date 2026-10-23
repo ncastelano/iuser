@@ -9,6 +9,7 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { getCurrentPosition as getNativeCurrentPosition, watchPosition as watchNativePosition, GeoWatchHandle } from '@/lib/nativeGeolocation'
+import { saveOwnProfile } from '@/lib/saveOwnProfile'
 
 interface LocationPickerProps {
     initialLocation: {
@@ -34,6 +35,9 @@ interface LocationPickerProps {
     allowGuest?: boolean
     /** Quando passado, a localização salva ganha o botão "Remover localização" (pra recomeçar do zero). O chamador apaga de onde ela está guardada. */
     onClear?: () => void | Promise<void>
+    /** Primeira etapa: a pessoa escolhe entre aparecer no Radar ou só guardar o endereço para os pedidos nas lojas (grava profiles.show_on_map).
+     *  Só vale pra localização da PESSOA, logada. Use onde "definir local" é do perfil (home, Radar, Informações do Perfil). */
+    askRadarVisibility?: boolean
 }
 
 const geocodeCache: Map<string, { lat: number; lng: number; address: string } | null> = new Map()
@@ -134,7 +138,7 @@ function extractStreetDisplay(fullAddress: string): string {
     return parts[0].trim()
 }
 
-export default function LocationPicker({ initialLocation, onSave, onClose, allowDriverSync = true, subject = 'profile', allowGuest = false, onClear }: LocationPickerProps) {
+export default function LocationPicker({ initialLocation, onSave, onClose, allowDriverSync = true, subject = 'profile', allowGuest = false, onClear, askRadarVisibility = false }: LocationPickerProps) {
     const isStore = subject === 'store'
     const { colors } = useTheme()
     const router = useRouter()
@@ -178,7 +182,23 @@ export default function LocationPicker({ initialLocation, onSave, onClose, allow
     // 'choose' pergunta como a pessoa quer definir o local (escrever ou
     // marcar no mapa); 'address' mostra a busca/mapa; 'number' e
     // 'complement' vêm depois, em sequência, só depois do endereço definido.
-    const [step, setStep] = useState<'choose' | 'address' | 'number' | 'complement'>('choose')
+    // Com askRadarVisibility (e logada), a 1ª etapa é a pergunta "aparecer no Radar ou só salvar o endereço".
+    const askVisibility = askRadarVisibility && !isStore && !!userId
+    const [step, setStep] = useState<'visibility' | 'choose' | 'address' | 'number' | 'complement'>(askVisibility ? 'visibility' : 'choose')
+    const [radarChoice, setRadarChoice] = useState<boolean | null>(null)
+    const [savingChoice, setSavingChoice] = useState(false)
+    // o que a pessoa já tinha escolhido (se já tem localização salva, vem marcado)
+    useEffect(() => {
+        if (!askVisibility || !userId) return
+        let cancelled = false
+        supabase.from('profiles').select('show_on_map').eq('id', userId).maybeSingle().then(({ data }) => {
+            if (!cancelled && data && initialLocation) setRadarChoice(!!(data as any).show_on_map)
+        })
+        return () => { cancelled = true }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [askVisibility, userId])
+    const totalSteps = askVisibility ? 5 : 4
+    const stepNo = (n: number) => (askVisibility ? n + 1 : n)
     const [method, setMethod] = useState<'search' | 'map' | null>(null)
     // Enquanto busca o GPS do aparelho antes de abrir o mapa (só quando não
     // há localização salva pra centralizar nela) - sem isso o mapa abriria
@@ -704,13 +724,19 @@ export default function LocationPicker({ initialLocation, onSave, onClose, allow
     }, [newNumber])
 
     // ===== CONFIRM SAVE =====
-    const confirmSave = useCallback(() => {
+    const confirmSave = useCallback(async () => {
         if (pendingLocation) {
+            // Escolheu aparecer no Radar: liga o mapa (e o perfil, que é a chave geral). Só guardar o endereço: fica oculto no Radar.
+            if (askVisibility && userId && radarChoice !== null) {
+                setSavingChoice(true)
+                await saveOwnProfile(supabase, userId, radarChoice ? { show_on_map: true, show_location: true } : { show_on_map: false })
+                setSavingChoice(false)
+            }
             onSave(pendingLocation)
             setShowConfirmDialog(false)
             setPendingLocation(null)
         }
-    }, [pendingLocation, onSave])
+    }, [pendingLocation, onSave, askVisibility, userId, radarChoice])
 
     // ===== CANCEL CONFIRMATION =====
     const cancelConfirmation = useCallback(() => {
@@ -762,12 +788,59 @@ export default function LocationPicker({ initialLocation, onSave, onClose, allow
                         {isStore ? 'Localização da loja' : 'Definir localização'}
                     </h3>
 
-                    {/* ===== ETAPA 1 DE 4 · COMO DEFINIR ===== */}
+                    {/* ===== ETAPA 1 · APARECER NO RADAR OU SÓ GUARDAR O ENDEREÇO ===== */}
+                    {step === 'visibility' && (
+                        <>
+                            <div className="flex items-center justify-between mb-3">
+                                <p className="text-[10px] font-black uppercase tracking-wider" style={{ color: '#f97316' }}>
+                                    Etapa 1 de {totalSteps} · Visibilidade
+                                </p>
+                                <button onClick={onClose} className="p-1 rounded-full hover:bg-black/5 transition" style={{ color: colors.textSecondary }}>
+                                    <X size={16} />
+                                </button>
+                            </div>
+                            <p className="text-sm font-black mb-1" style={{ color: colors.textPrimary }}>O que você quer fazer com essa localização?</p>
+                            <p className="text-xs mb-3" style={{ color: colors.textSecondary }}>Você pode mudar isso quando quiser em Painel do perfil → Visível no Radar.</p>
+                            <div className="flex flex-col gap-2">
+                                {([
+                                    { value: true, icon: <Radio size={18} />, title: 'Aparecer no Radar', text: 'Você e seus serviços aparecem no mapa do Radar, perto de quem procura.' },
+                                    { value: false, icon: <Home size={18} />, title: 'Só salvar meu endereço', text: 'Fica guardado para os pedidos que você fizer nas lojas. Ninguém vê você no Radar.' },
+                                ] as const).map((o) => {
+                                    const on = radarChoice === o.value
+                                    return (
+                                        <button
+                                            key={String(o.value)}
+                                            onClick={() => setRadarChoice(o.value)}
+                                            className="flex items-center gap-3 p-3 rounded-2xl border-2 text-left transition active:scale-[0.99]"
+                                            style={{ borderColor: on ? '#f97316' : colors.border, background: on ? '#f973161a' : 'transparent' }}
+                                        >
+                                            <span className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-white" style={{ background: on ? 'linear-gradient(135deg, #f97316, #dc2626)' : `${colors.border}` , color: on ? '#fff' : colors.textSecondary }}>{o.icon}</span>
+                                            <span className="min-w-0 flex-1">
+                                                <span className="block text-sm font-black" style={{ color: colors.textPrimary }}>{o.title}</span>
+                                                <span className="block text-[11px] leading-snug" style={{ color: colors.textSecondary }}>{o.text}</span>
+                                            </span>
+                                            {on && <Check size={18} style={{ color: '#f97316' }} className="flex-shrink-0" />}
+                                        </button>
+                                    )
+                                })}
+                            </div>
+                            <button
+                                onClick={() => setStep('choose')}
+                                disabled={radarChoice === null}
+                                className="mt-3 w-full py-3 rounded-full text-sm font-black text-white disabled:opacity-40"
+                                style={{ background: 'linear-gradient(135deg, #f97316, #dc2626)' }}
+                            >
+                                Continuar
+                            </button>
+                        </>
+                    )}
+
+                    {/* ===== ETAPA · COMO DEFINIR ===== */}
                     {step === 'choose' && (
                         <>
                             <div className="flex items-center justify-between mb-3">
                                 <p className="text-[10px] font-black uppercase tracking-wider" style={{ color: '#f97316' }}>
-                                    Etapa 1 de 4 · Localização
+                                    Etapa {stepNo(1)} de {totalSteps} · Localização
                                 </p>
                                 <button onClick={onClose} className="p-1 rounded-full hover:bg-black/5 transition" style={{ color: colors.textSecondary }}>
                                     <X size={16} />
@@ -932,7 +1005,7 @@ export default function LocationPicker({ initialLocation, onSave, onClose, allow
                         <>
                             <div className="flex items-center justify-between mb-3">
                                 <p className="text-[10px] font-black uppercase tracking-wider" style={{ color: '#f97316' }}>
-                                    Etapa 2 de 4 · Endereço
+                                    Etapa {stepNo(2)} de {totalSteps} · Endereço
                                 </p>
                                 <button onClick={onClose} className="p-1 rounded-full hover:bg-black/5 transition" style={{ color: colors.textSecondary }}>
                                     <X size={16} />
@@ -1099,7 +1172,7 @@ export default function LocationPicker({ initialLocation, onSave, onClose, allow
                         <>
                             <div className="flex items-center justify-between mb-3">
                                 <p className="text-[10px] font-black uppercase tracking-wider" style={{ color: '#f97316' }}>
-                                    Etapa 3 de 4 · Número
+                                    Etapa {stepNo(3)} de {totalSteps} · Número
                                 </p>
                                 <button onClick={onClose} className="p-1 rounded-full hover:bg-black/5 transition" style={{ color: colors.textSecondary }}>
                                     <X size={16} />
@@ -1178,7 +1251,7 @@ export default function LocationPicker({ initialLocation, onSave, onClose, allow
                         <>
                             <div className="flex items-center justify-between mb-3">
                                 <p className="text-[10px] font-black uppercase tracking-wider" style={{ color: '#f97316' }}>
-                                    Etapa 4 de 4 · Complemento
+                                    Etapa {stepNo(4)} de {totalSteps} · Complemento
                                 </p>
                                 <button onClick={onClose} className="p-1 rounded-full hover:bg-black/5 transition" style={{ color: colors.textSecondary }}>
                                     <X size={16} />

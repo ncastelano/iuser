@@ -1517,6 +1517,7 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
                     onSave={handleLocationSave}
                     onClose={() => setShowLocationDialog(false)}
                     onClear={profileLocation ? handleLocationClear : undefined}
+                    askRadarVisibility
                 />
             )}
 
