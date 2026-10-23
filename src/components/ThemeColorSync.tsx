@@ -11,6 +11,12 @@ import { useTheme } from '@/app/contexts/theme'
 // então a cor do navegador muda junto, sem precisar recarregar a página.
 export function ThemeColorSync() {
     const background = useTheme((s) => s.colors.background)
+    const theme = useTheme((s) => s.current)
+
+    // O tema vira um atributo da página: o "Preto e branco" (escuro-cinza) é feito em globals.css, com um filtro em tons de cinza
+    useEffect(() => {
+        document.documentElement.dataset.iuserTheme = theme
+    }, [theme])
 
     useEffect(() => {
         let meta = document.querySelector('meta[name="theme-color"]')

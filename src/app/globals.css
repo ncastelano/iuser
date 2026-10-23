@@ -312,3 +312,11 @@ svg,
     .iuser-shimmer { animation: none; }
     .iuser-skeleton-in { animation: none; }
 }
+
+
+/* Tema "Preto e branco" (escuro-cinza): a interface inteira em tons de cinza. Os botões laranja→vermelho com texto branco viram um degradê de
+   cinza com texto branco, e qualquer cor nova do app já nasce certa, sem tocar nos ~1000 pontos que usam laranja. O filtro fica na raiz
+   (<html>), que não vira "caixa" para os elementos fixos (barras, diálogos, mapa), então o layout não muda. */
+html[data-iuser-theme="escuro-cinza"] {
+    filter: grayscale(1);
+}

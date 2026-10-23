@@ -249,6 +249,11 @@ O plano gratuito do Supabase limita o **Cached Egress** (5 GB/mês), e quase tod
 - O diálogo tem: redes (WhatsApp, Facebook, Instagram, X), copiar link, "Mais opções do aparelho" e, **só para link do iUser com a pessoa logada**, "No iUser": **Numa comunidade** (lista as comunidades em que ela já está e manda a mensagem com o link) e **No meu perfil** (cria uma publicação com o link). Lógica em `lib/shareToIuser.ts`; as permissões são do banco (RLS de `community_messages`/`products`). Convite passa `internal={false}`.
 - **Pedido de serviço** (Procurar serviço): botão `ServiceRequestShareButton` (home v2/v3, lista, janela do pedido); link = `/procurar-servico?pedido=<id>` (`serviceRequestLink`). Na comunidade o link vira o cartão "Pedido de serviço" (`fetchRequestCard`, só rua/bairro, sem número).
 
+## Tema "Preto e branco" (escuro-cinza) e "Indicar e ganhar"
+
+- O tema `escuro-cinza` (rótulo **Preto e branco**, o id continua o mesmo no banco) é feito por **um filtro `grayscale(1)` na raiz** (`html[data-iuser-theme="escuro-cinza"]` em `globals.css`; o atributo é posto por `ThemeColorSync`). Por isso o degradê laranja→vermelho com texto branco vira cinza com texto branco sozinho, sem trocar as ~1000 ocorrências de laranja no código, e as fotos também ficam em cinza. O filtro fica no `<html>` de propósito (em `body` ou numa div, ele viraria a "caixa" dos elementos fixos e quebraria barras, diálogos e mapa). Não crie tema novo por `if (theme === ...)` nas telas.
+- **Indicar e ganhar** (home 2.0, `CanIhelp`) abre `InviteChoiceDialog`: "Convidar agora" (copia e abre o diálogo padrão de compartilhar com `/convite?ref=<perfil>`) ou "Ver detalhes da rede" (`/?view=perfil&secao=rede`: o painel do perfil abre "Detalhes da rede" e rola até ele, `Commission` view `rede`).
+
 ## Telemetria própria de Egress/Realtime — não mexer sem saber
 
 O Supabase não expõe Egress nem Realtime Messages por nenhuma API pública documentada (confirmado testando ao vivo os endpoints da Management API — ver commit `b1b81d8`). Por isso o iUser mede isso sozinho:

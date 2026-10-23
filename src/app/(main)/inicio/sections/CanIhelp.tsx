@@ -11,6 +11,7 @@ import { categorias, resolveCategoria, type Categoria } from '@/lib/categorias'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
 import { HOME_GRADIENT } from './HomeSectionKit'
 import { supabase } from '@/lib/supabase/client'
+import InviteChoiceDialog from '@/components/InviteChoiceDialog'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = HOME_GRADIENT
@@ -91,6 +92,7 @@ export default function CanIhelp({ dragHandle }: CanIhelpProps) {
 
     // Os mesmos atalhos da página inicial da 3.0, em dois blocos: quem PRECISA e quem quer GANHAR.
     // "publicar/vender" sem perfil ainda manda pro login/cadastro, igual em MotoristaSection/OfferAService.
+    const [inviteChoiceOpen, setInviteChoiceOpen] = useState(false)
     const go = (path: string) => { startNavProgress(); router.push(path) }
     const needActions: FeaturedAction[] = [
         { label: 'Comprar', desc: 'Lojas e produtos perto de você', color: '#2563eb', icon: ShoppingBag, onClick: () => go('/lojas') },
@@ -102,7 +104,7 @@ export default function CanIhelp({ dragHandle }: CanIhelpProps) {
         { label: 'Vender', color: '#16a34a', icon: CircleDollarSign, onClick: () => go(profileSlug ? '/criar-loja' : '/criar-loja-com-cadastro') },
         { label: 'Publicar serviço', color: '#7c3aed', icon: Megaphone, onClick: () => go(profileSlug ? '/meus-servicos' : '/login') },
         { label: 'Ser motorista', color: '#ea580c', icon: Car, onClick: () => go('/painel-motorista') },
-        { label: 'Indicar e ganhar', color: '#db2777', icon: UserPlus, onClick: () => go(profileSlug ? '/convite' : '/login') },
+        { label: 'Indicar e ganhar', color: '#db2777', icon: UserPlus, onClick: () => (profileSlug ? setInviteChoiceOpen(true) : go('/login')) },
     ]
 
     // Ordem inicial = ordem padrão (evita divergência de hidratação); depois
@@ -164,6 +166,7 @@ export default function CanIhelp({ dragHandle }: CanIhelpProps) {
 
     return (
         <section>
+            <InviteChoiceDialog open={inviteChoiceOpen} onClose={() => setInviteChoiceOpen(false)} />
             {dragHandle && <div className="flex mb-2">{dragHandle}</div>}
 
             {/* Sem card em volta: os botões flutuam direto sobre o fundo da página */}
