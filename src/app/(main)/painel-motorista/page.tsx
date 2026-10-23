@@ -829,7 +829,15 @@ function PainelMotoristaContent() {
                                     hasAccepted={rideSummary.hasAccepted}
                                     goTab={setActiveTab}
                                     vehicleLabel={carModel.trim() ? `${VEHICLE_KIND_LABELS[vehicleKind]} · ${carModel.trim()}${carPlate.trim() ? ` · ${carPlate.trim().toUpperCase()}` : ''}` : null}
+                                    vehicles={(Object.entries(vehiclesByKind) as [VehicleKind, VehicleRow][])
+                                        .filter(([, v]) => v?.car_model?.trim())
+                                        .map(([kind, v]) => ({
+                                            id: kind,
+                                            label: `${VEHICLE_KIND_LABELS[kind]} · ${v.car_model!.trim()}${v.car_plate?.trim() ? ` · ${v.car_plate.trim().toUpperCase()}` : ''}`,
+                                            photoUrl: v.car_photo_url ? supabase.storage.from('driver-car-photos').getPublicUrl(v.car_photo_url).data.publicUrl : null,
+                                        }))}
                                     pricingLabel={pricingMode === 'platform' ? 'Tarifa iUser' : 'Minha tarifa própria'}
+                                    tariffLines={[tariffLine(fareTariff, previewDistance), summaryHourly].filter((l): l is string => !!l)}
                                     reviewsAvg={reviewsAvg}
                                     reviewsCount={reviews.length}
                                     ridesDone={rideHistory.length}

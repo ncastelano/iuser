@@ -5,7 +5,7 @@
 // avaliações, corridas feitas) e (4) as preferências (som, voz, raio das entregas). Só apresentação: o estado e as ações vêm da página.
 'use client'
 
-import type { ReactNode } from 'react'
+import { Fragment, type ReactNode } from 'react'
 import { Car, CheckCircle2, ChevronRight, Hand, Navigation2, Radar, Star, TrendingUp, Volume2, VolumeX, History } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 
@@ -24,7 +24,7 @@ function Switch({ on, color = ORANGE, label, onClick, busy }: { on: boolean; col
 export default function DriverPanelHome({
     colors, driverStatus, driverModeActive, togglingMode, onToggleMode, missingCount, onContinueSignup,
     rides, candidacies, hasAccepted, goTab,
-    vehicleLabel, pricingLabel, reviewsAvg, reviewsCount, ridesDone,
+    vehicleLabel, vehicles, pricingLabel, tariffLines, reviewsAvg, reviewsCount, ridesDone,
     alertSound, onToggleAlert, voiceNav, onToggleVoice, deliveryRadius, onDeliveryRadius,
     debt, invite,
 }: {
@@ -40,7 +40,11 @@ export default function DriverPanelHome({
     hasAccepted: boolean
     goTab: (t: Tab) => void
     vehicleLabel: string | null
+    // Veículos cadastrados (um por tipo), com a foto de cada um
+    vehicles: { id: string; label: string; photoUrl: string | null }[]
     pricingLabel: string
+    // Valores da tarifa em linguagem simples (as mesmas duas linhas da aba Tarifa)
+    tariffLines: string[]
     reviewsAvg: number | null
     reviewsCount: number
     ridesDone: number
@@ -66,12 +70,16 @@ export default function DriverPanelHome({
             <div className="mt-3">{children}</div>
         </section>
     )
-    const row = (icon: ReactNode, title: string, value: ReactNode, onClick: () => void, warn = false) => (
+    const row = (icon: ReactNode, title: string, value: ReactNode, onClick: () => void, warn = false, photoUrl?: string | null, multiline = false) => (
         <button onClick={onClick} className="w-full rounded-2xl p-3.5 flex items-center gap-3 text-left transition active:scale-[0.99]" style={{ background: soft }}>
-            <span className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: warn ? '#eab30822' : `${ORANGE}1f`, color: warn ? '#ca8a04' : ORANGE }}>{icon}</span>
+            {photoUrl ? (
+                <img src={photoUrl} alt="" className="w-14 h-14 rounded-xl object-cover flex-shrink-0" />
+            ) : (
+                <span className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: warn ? '#eab30822' : `${ORANGE}1f`, color: warn ? '#ca8a04' : ORANGE }}>{icon}</span>
+            )}
             <span className="min-w-0 flex-1">
                 <span className="block text-sm font-black" style={{ color: colors.textPrimary }}>{title}</span>
-                <span className="block text-xs mt-0.5 truncate" style={{ color: warn ? '#ca8a04' : colors.textSecondary }}>{value}</span>
+                <span className={`block text-xs mt-0.5 ${multiline ? 'leading-snug' : 'truncate'}`} style={{ color: warn ? '#ca8a04' : colors.textSecondary }}>{value}</span>
             </span>
             <ChevronRight size={16} style={{ color: colors.textSecondary }} />
         </button>
@@ -146,8 +154,15 @@ export default function DriverPanelHome({
             {/* 3. Seu cadastro de motorista */}
             {section('Seu cadastro de motorista', (
                 <div className="flex flex-col gap-2.5">
-                    {row(<Car size={20} />, 'Veículo', driverStatus === 'incomplete' ? `Falta: ${missingCount} ${missingCount === 1 ? 'item' : 'itens'}` : (vehicleLabel || 'Cadastre seu veículo'), () => goTab('veiculo'), driverStatus === 'incomplete' || !vehicleLabel)}
-                    {row(<TrendingUp size={20} />, 'Tarifa', pricingLabel, () => goTab('plano'))}
+                    {driverStatus === 'incomplete' || vehicles.length === 0
+                        ? row(<Car size={20} />, 'Veículo', driverStatus === 'incomplete' ? `Falta: ${missingCount} ${missingCount === 1 ? 'item' : 'itens'}` : (vehicleLabel || 'Cadastre seu veículo'), () => goTab('veiculo'), true, vehicles[0]?.photoUrl)
+                        : vehicles.map((v) => <Fragment key={v.id}>{row(<Car size={20} />, 'Veículo', v.label, () => goTab('veiculo'), false, v.photoUrl)}</Fragment>)}
+                    {row(<TrendingUp size={20} />, 'Tarifa', (
+                        <>
+                            <span className="block font-bold" style={{ color: colors.textPrimary }}>{pricingLabel}</span>
+                            {tariffLines.map((l, i) => <span key={i} className="block">{l}</span>)}
+                        </>
+                    ), () => goTab('plano'), false, null, true)}
                     {row(<Star size={20} />, 'Avaliações', reviewsCount > 0 ? `${reviewsAvg != null ? reviewsAvg.toFixed(1).replace('.', ',') : '–'} ★ · ${reviewsCount} ${reviewsCount === 1 ? 'avaliação' : 'avaliações'}` : 'Ainda sem avaliações', () => goTab('avaliacoes'))}
                     {row(<History size={20} />, 'Corridas feitas', ridesDone > 0 ? `${ridesDone} ${ridesDone === 1 ? 'concluída' : 'concluídas'}` : 'Nenhuma concluída ainda', () => goTab('avaliacoes'))}
                 </div>
