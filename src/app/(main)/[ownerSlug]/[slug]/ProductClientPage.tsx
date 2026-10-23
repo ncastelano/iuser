@@ -580,16 +580,18 @@ export function ProductClientPage({
     const storeCartTotal = storeCartItems.reduce((sum, item) => sum + cartItemLineTotal(item), 0)
     const formattedStoreCartTotal = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(storeCartTotal)
 
-    const storeCartBar = storeCartCount > 0 ? (
+    // 'head' = só a linha compacta do carrinho, que se funde à barra fixa do topo (v2 no celular, logo abaixo de "Adicionar"); 'body' = o que abre
+    // dela (itens, recebimento, pagamento), que desce junto com a página; 'full' = o cartão grande da coluna (v3 e computador)
+    const renderStoreCartBar = (part: 'full' | 'head' | 'body', compact = part === 'head') => storeCartCount > 0 ? (
         <div className="animate-slide-in">
-            <button
+            {part !== 'body' && <button
                 onClick={() => { if (checkout.checkoutStep) setShowStoreCart((v) => !v) }}
-                className={`w-full flex items-center gap-4 px-4 py-4 text-left transition ${checkout.checkoutStep ? 'active:scale-[0.99]' : 'cursor-default'}`}
+                className={`w-full flex items-center text-left transition ${compact ? 'gap-3 px-3 py-2.5 rounded-2xl' : 'gap-4 px-4 py-4'} ${checkout.checkoutStep ? 'active:scale-[0.99]' : 'cursor-default'}`}
                 style={{ background: GRADIENT }}
                 aria-expanded={showStoreCart}
             >
                 {/* Quem vende: a imagem da loja. As fotos dos produtos ficam na lista logo abaixo */}
-                <div className="w-14 h-14 rounded-full overflow-hidden flex-shrink-0" style={{ border: '3px solid #ffffff', background: '#ffffff', boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }}>
+                <div className={`${compact ? 'w-9 h-9' : 'w-14 h-14'} rounded-full overflow-hidden flex-shrink-0`} style={{ border: compact ? '2px solid #ffffff' : '3px solid #ffffff', background: '#ffffff', boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }}>
                     <FallbackImage
                         srcs={[finalStoreImage]}
                         alt={storeDisplay.name}
@@ -600,8 +602,14 @@ export function ProductClientPage({
                 </div>
                 <div className="flex-1 min-w-0">
                     <p className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-white/80"><span data-cart-wiggle className="inline-flex"><ShoppingCart size={12} strokeWidth={3} /></span>Seu carrinho · {storeCartCount} {storeCartCount === 1 ? 'item' : 'itens'}</p>
-                    <p className="text-sm font-bold text-white truncate">{storeDisplay.name}</p>
-                    <p className="text-xl font-black text-white leading-tight">{formattedStoreCartTotal}</p>
+                    {compact ? (
+                        <p className="text-sm font-black text-white leading-tight truncate">{storeDisplay.name} · {formattedStoreCartTotal}</p>
+                    ) : (
+                        <>
+                            <p className="text-sm font-bold text-white truncate">{storeDisplay.name}</p>
+                            <p className="text-xl font-black text-white leading-tight">{formattedStoreCartTotal}</p>
+                        </>
+                    )}
                 </div>
                 {checkout.checkoutStep && (
                     <span className="flex items-center gap-1 flex-shrink-0 px-4 py-2 rounded-full text-xs font-black" style={{ background: '#ffffff', color: '#dc2626' }}>
@@ -609,8 +617,9 @@ export function ProductClientPage({
                         <ChevronRight size={16} style={{ transform: showStoreCart ? 'rotate(90deg)' : undefined, transition: 'transform 0.2s' }} />
                     </span>
                 )}
-            </button>
+            </button>}
 
+            {part !== 'head' && <>
             {showStoreCart && checkout.checkoutStep === 'delivery' && (
                 <div className="px-4 pb-3 max-h-[70vh] overflow-y-auto">
                     <div className="flex items-center justify-between mb-3">
@@ -1081,8 +1090,13 @@ export function ProductClientPage({
                     </button>
                 </div>
             )}
+            </>}
         </div>
     ) : null
+    const storeCartBar = renderStoreCartBar('full')
+    // v2 no celular: o carrinho vira uma linha da própria barra do topo (fundida a ela); na v3 e no computador fica onde estava
+    const mobileCartBar = !v3 ? renderStoreCartBar('head') : null
+    const mobileCartBody = !v3 ? renderStoreCartBar('body') : null
 
     return (
         <div className="relative min-h-dvh" style={{ background: colors.background }}>
@@ -1131,7 +1145,12 @@ export function ProductClientPage({
                     </button>
                     {cartControls}
                 </div>
+                {mobileCartBar && (
+                    <div id="carrinho-da-loja-topo" className="px-4 pb-3 -mt-1">{mobileCartBar}</div>
+                )}
             </div>
+            {/* O que abre do carrinho desce junto com a página (não fica preso no topo) */}
+            {mobileCartBody && <div className="md:hidden" style={{ background: colors.background, borderBottom: `1px solid ${colors.border}` }}>{mobileCartBody}</div>}
 
             {/* Nome do produto (mobile) - em cima da imagem */}
             <div className="md:hidden px-5 pt-4 pb-3">
@@ -1409,7 +1428,7 @@ export function ProductClientPage({
 
                             {/* Carrinho da loja: abaixo da descrição; "outras pessoas pediram" vem depois */}
                             {storeCartBar && (
-                                <div id="carrinho-da-loja" className="rounded-3xl overflow-hidden scroll-mt-24" style={{ border: '2px solid #f97316', background: colors.surface, boxShadow: '0 8px 28px #f9731645' }}>
+                                <div id="carrinho-da-loja" className={`${v3 ? '' : 'hidden md:block '}rounded-3xl overflow-hidden scroll-mt-24`} style={{ border: '2px solid #f97316', background: colors.surface, boxShadow: '0 8px 28px #f9731645' }}>
                                     {storeCartBar}
                                 </div>
                             )}

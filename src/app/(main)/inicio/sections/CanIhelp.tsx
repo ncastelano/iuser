@@ -4,7 +4,7 @@
 import Link from 'next/link'
 import { ReactNode, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Car, Wrench, Megaphone, Sparkles, type LucideIcon } from 'lucide-react'
+import { Car, Wrench, Megaphone, ShoppingBag, Radar, CircleDollarSign, UserPlus, type LucideIcon } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { categorias, resolveCategoria, type Categoria } from '@/lib/categorias'
@@ -85,24 +85,20 @@ export default function CanIhelp({ dragHandle }: CanIhelpProps) {
     const { profileSlug } = useProfile()
     const startNavProgress = useNavProgressStore((s) => s.start)
 
-    // Mesmas rotas já usadas em MotoristaSection/OfferAService — "publicar"
-    // sem perfil ainda manda pro login, igual lá.
-    const featuredActions: FeaturedAction[] = [
-        {
-            label: 'Pedir motorista',
-            icon: Car,
-            onClick: () => { startNavProgress(); router.push('/pedir-motorista') },
-        },
-        {
-            label: 'Solicitar serviço',
-            icon: Wrench,
-            onClick: () => { startNavProgress(); router.push('/solicitar-servico') },
-        },
-        {
-            label: 'Publicar serviço',
-            icon: Megaphone,
-            onClick: () => { startNavProgress(); router.push(profileSlug ? '/meus-servicos' : '/login') },
-        },
+    // Os mesmos atalhos da página inicial da 3.0, em dois blocos: quem PRECISA e quem quer GANHAR.
+    // "publicar/vender" sem perfil ainda manda pro login/cadastro, igual em MotoristaSection/OfferAService.
+    const go = (path: string) => { startNavProgress(); router.push(path) }
+    const needActions: FeaturedAction[] = [
+        { label: 'Comprar', icon: ShoppingBag, onClick: () => go('/lojas') },
+        { label: 'Contratar serviço', icon: Wrench, onClick: () => go('/solicitar-servico') },
+        { label: 'Pedir motorista', icon: Car, onClick: () => go('/pedir-motorista') },
+        { label: 'Ver ao redor', icon: Radar, onClick: () => go('/radar') },
+    ]
+    const earnActions: FeaturedAction[] = [
+        { label: 'Vender', icon: CircleDollarSign, onClick: () => go(profileSlug ? '/criar-loja' : '/criar-loja-com-cadastro') },
+        { label: 'Publicar serviço', icon: Megaphone, onClick: () => go(profileSlug ? '/meus-servicos' : '/login') },
+        { label: 'Ser motorista', icon: Car, onClick: () => go('/painel-motorista') },
+        { label: 'Indicar e ganhar', icon: UserPlus, onClick: () => go(profileSlug ? '/convite' : '/login') },
     ]
 
     // Ordem inicial = ordem padrão (evita divergência de hidratação); depois
@@ -168,27 +164,31 @@ export default function CanIhelp({ dragHandle }: CanIhelpProps) {
 
             {/* Sem card em volta: os botões flutuam direto sobre o fundo da página */}
             <div>
-                {/* Ações em destaque — os 3 principais "o que o app faz",
-                    em cards cheios de cor (gradiente) pra se diferenciar
-                    das categorias, que são só ícone/contorno abaixo. */}
-                <div className="grid grid-cols-3 gap-2.5 mb-5">
-                    {featuredActions.map((action) => {
-                        const Icon = action.icon
-                        return (
-                            <button
-                                key={action.label}
-                                onClick={action.onClick}
-                                className="flex flex-col items-center justify-center gap-2 py-4 px-2 rounded-2xl transition-all duration-200 hover:scale-105 active:scale-95"
-                                style={{ background: GRADIENT, boxShadow: '0 4px 14px #f9731650' }}
-                            >
-                                <Icon size={22} color="#fff" strokeWidth={2} />
-                                <span className="text-[11px] font-black text-center leading-tight text-white">
-                                    {action.label}
-                                </span>
-                            </button>
-                        )
-                    })}
-                </div>
+                {/* Ações em destaque — "o que o app faz", em cards cheios de cor (gradiente) pra se diferenciar
+                    das categorias, que são só ícone/contorno abaixo. Dois blocos, como na 3.0. */}
+                {([['Preciso de', needActions], ['Quero ganhar com o iUser', earnActions]] as [string, FeaturedAction[]][]).map(([heading, actions]) => (
+                    <div key={heading} className="mb-4">
+                        <p className="text-[10px] font-black uppercase tracking-wider mb-2 px-0.5" style={{ color: colors.textSecondary }}>{heading}</p>
+                        <div className="grid grid-cols-4 gap-2">
+                            {actions.map((action) => {
+                                const Icon = action.icon
+                                return (
+                                    <button
+                                        key={action.label}
+                                        onClick={action.onClick}
+                                        className="flex flex-col items-center justify-center gap-1.5 py-3 px-1 rounded-2xl transition-all duration-200 hover:scale-105 active:scale-95 min-w-0"
+                                        style={{ background: GRADIENT, boxShadow: '0 4px 14px #f9731650' }}
+                                    >
+                                        <Icon size={20} color="#fff" strokeWidth={2} />
+                                        <span className="text-[10px] font-black text-center leading-tight text-white">
+                                            {action.label}
+                                        </span>
+                                    </button>
+                                )
+                            })}
+                        </div>
+                    </div>
+                ))}
 
                 {/* Categorias, 4 por linha - a mais clicada fica primeiro */}
                 <div className="grid grid-cols-4 gap-x-1 gap-y-3">

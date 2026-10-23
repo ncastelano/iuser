@@ -11,7 +11,7 @@ import { Package, PawPrint, Star, CalendarClock, Pencil, X, Users, Car, Baby, Sh
 import { useTheme } from '@/app/contexts/theme'
 import { useInsideShell } from '@/components/InsideShell'
 import { Spinner } from '@/components/Spinner'
-import { shortAddress } from '@/lib/serviceBoard'
+import { placeLabel } from '@/lib/serviceBoard'
 import { humanizeRideSpecs, type HumanSpecKind, type RideSpecFields } from '@/lib/rideSpecs'
 import { VEHICLE_TYPE_LABELS, type VehicleType } from '@/lib/rideVehicle'
 import { computeHourlyEarnings } from '@/lib/driverPricing'
@@ -211,15 +211,15 @@ export function RideOfferCard({ ride, requester, storeName, platformPrice = 0, c
                 </div>
                 <div className="min-w-0 flex flex-col justify-between gap-1">
                     <p className="text-xs font-semibold leading-tight" style={{ color: colors.textPrimary }}>
-                        <span className="font-normal" style={{ color: colors.textSecondary }}>Busca em </span>{shortAddress(ride.origin_address)}
+                        <span className="font-normal" style={{ color: colors.textSecondary }}>Busca em </span>{placeLabel(ride.origin_address)}
                     </p>
                     {(ride.stop1_address || ride.stop2_address) && (
                         <p className="text-[11px] leading-tight" style={{ color: colors.textSecondary }}>
-                            Paradas: {[ride.stop1_address, ride.stop2_address].filter(Boolean).map((a) => shortAddress(a as string)).join(' · ')}
+                            Paradas: {[ride.stop1_address, ride.stop2_address].filter(Boolean).map((a) => placeLabel(a as string)).join(' · ')}
                         </p>
                     )}
                     <p className="text-xs font-semibold leading-tight" style={{ color: colors.textPrimary }}>
-                        <span className="font-normal" style={{ color: colors.textSecondary }}>Leva até </span>{shortAddress(ride.destination_address)}
+                        <span className="font-normal" style={{ color: colors.textSecondary }}>Leva até </span>{placeLabel(ride.destination_address)}
                     </p>
                 </div>
             </div>
