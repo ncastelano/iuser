@@ -22,7 +22,7 @@ import ServiceRequestViewDialog from '@/components/ServiceRequestViewDialog'
 import ServiceRequestDetailsDialog from '@/components/ServiceRequestDetailsDialog'
 import ServiceExchangePanel from '@/components/ServiceExchangePanel'
 import { getServiceIcon } from '@/lib/serviceTypes'
-import { useMyServiceApplications } from '@/hooks/useMyServiceApplications'
+import { useMyServiceApplications, type MyApplication } from '@/hooks/useMyServiceApplications'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
 import {
     BoardItem,
@@ -233,6 +233,7 @@ function SerParceiroContent() {
         if (appliedKeys.has(itemKey(job))) {
             toast.info('Você já se inscreveu nesse serviço.')
             setActiveTab('inscrevi')
+            setViewJob(job)   // quem abre o link do pedido quer ver os detalhes dele
             setTimeout(() => {
                 document.getElementById(`application-card-${job.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
             }, 200)
@@ -248,6 +249,22 @@ function SerParceiroContent() {
         }, 1000)
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [focusId, loading, profileLoading, userId, jobs])
+
+    // "Me inscrevi": tocar no card abre o pedido inteiro (fotos, descrição, onde). Busca o pedido completo; se não der, monta com o que o card já tem.
+    const openApplication = async (app: MyApplication) => {
+        const requester = { name: app.requesterName, profileSlug: app.requesterSlug, avatarUrl: app.requesterAvatarUrl }
+        const { data } = await supabase.from('service_requests')
+            .select('id, requester_id, service_type, custom_service, custom_icon, location_address, location_needs_access, location_access_notes, description, photo_urls, created_at, view_count')
+            .eq('id', app.requestId).maybeSingle()
+        setViewJob({
+            kind: 'service', requester,
+            ...(data || {
+                id: app.requestId, requester_id: app.requesterId || '', service_type: app.serviceType, custom_service: null, location_address: app.locationAddress,
+                location_needs_access: false, location_access_notes: null, description: app.description, photo_urls: app.photoUrl ? [app.photoUrl] : [],
+                created_at: app.appliedAt, view_count: 0,
+            }),
+        } as BoardItem)
+    }
 
     // Editar um pedido meu abre o mesmo componente de "Seus pedidos em aberto" (editar, candidatos, visitantes...)
     const openEdit = (item: BoardItem) => setDetailsId(item.id)
@@ -527,7 +544,8 @@ function SerParceiroContent() {
                                     <div
                                         key={app.applicationId}
                                         id={`application-card-${app.requestId}`}
-                                        className="rounded-2xl p-4 scroll-mt-32"
+                                        onClick={(e) => { if (!(e.target as HTMLElement).closest('button, a, input, textarea, [data-no-open]')) void openApplication(app) }}
+                                        className="rounded-2xl p-4 scroll-mt-32 cursor-pointer"
                                         style={{
                                             background: colors.surface,
                                             border: `1px solid ${app.status === 'accepted' ? '#22c55e' : focusId === app.requestId ? colors.accent : colors.border}`,
@@ -567,7 +585,7 @@ function SerParceiroContent() {
                                             </div>
                                         </div>
 
-                                        <div className="mt-3">
+                                        <div className="mt-3" data-no-open>
                                             {app.status === 'accepted' ? (
                                                 <div>
                                                     <div className="flex items-center gap-2 rounded-xl px-3 py-2.5" style={{ background: '#22c55e18' }}>
