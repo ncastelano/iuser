@@ -217,15 +217,29 @@ export default function ShareLinkDialog({ open, onClose, url, title, text, image
                 style={{ width: '100%', maxWidth: 420, maxHeight: '92dvh', overflowY: 'auto', background: colors.surface, color: colors.textPrimary, border: `1px solid ${colors.border}`, borderRadius: 24, padding: 20, boxShadow: colors.shadow }}
             >
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                    <h2 style={{ fontSize: 18, fontWeight: 900 }}>{title}</h2>
+                    <h2 style={{ fontSize: 18, fontWeight: 900 }}>Compartilhar</h2>
                     <button onClick={onClose} aria-label="Fechar" style={{ width: 34, height: 34, borderRadius: '50%', border: 'none', background: `${colors.border}66`, color: colors.textSecondary, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <X size={16} />
                     </button>
                 </div>
 
-                {/* ===== DENTRO DO iUSER (em destaque, em cima) ===== */}
+                {/* ===== O QUE ESTÁ SENDO COMPARTILHADO ===== */}
+                <div style={{ display: 'flex', gap: 12, padding: 10, marginBottom: 16, borderRadius: 18, border: `1px solid ${colors.border}`, background: `${colors.border}25` }}>
+                    <span style={{ width: 72, height: 72, borderRadius: 14, overflow: 'hidden', flexShrink: 0, background: '#f9731622', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        {imageUrl ? <img src={imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <Share2 size={24} color="#f97316" />}
+                    </span>
+                    <span style={{ minWidth: 0, flex: 1 }}>
+                        <span style={{ display: 'block', fontSize: 15, fontWeight: 900, lineHeight: 1.25 }}>{title}</span>
+                        {text && text.trim() !== title.trim() && (
+                            <span style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', fontSize: 12.5, lineHeight: 1.35, color: colors.textSecondary, marginTop: 3 }}>{text}</span>
+                        )}
+                        <span style={{ display: 'block', fontSize: 11, color: colors.textSecondary, marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', opacity: 0.8 }}>{url.replace(/^https?:\/\//, '')}</span>
+                    </span>
+                </div>
+
+                {/* ===== DENTRO DO iUSER (em cima) ===== */}
                 {showInternal && (
-                    <section style={{ borderRadius: 20, padding: 14, marginBottom: 16, background: '#f973161a', border: '1px solid #f9731640' }}>
+                    <section style={{ marginBottom: 16 }}>
                         {label('Compartilhar no iUser')}
                         {suggestions.length > 0 && (
                             <div style={{ marginBottom: 12 }}>
@@ -296,8 +310,9 @@ export default function ShareLinkDialog({ open, onClose, url, title, text, image
                     </section>
                 )}
 
-                {/* ===== CONVIDAR (fora do iUser, embaixo) ===== */}
-                {showInternal ? label('Convidar') : <p style={{ fontSize: 13, color: colors.textSecondary, marginBottom: 12 }}>Escolha onde enviar:</p>}
+                {/* ===== CONVIDAR (fora do iUser, embaixo, no cartão laranja) ===== */}
+                <section style={{ borderRadius: 20, padding: 14, background: '#f973161a', border: '1px solid #f9731640' }}>
+                {label('Convidar')}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
                     {targets.map((t) => (
                         <button
@@ -329,6 +344,7 @@ export default function ShareLinkDialog({ open, onClose, url, title, text, image
                         <Share2 size={14} /> Mais opções do aparelho
                     </button>
                 )}
+                </section>
             </div>
         </div>,
         document.body,

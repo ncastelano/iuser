@@ -256,8 +256,8 @@ export default function Header({
         const titleRow = hasTitleRow ? (
             <div
                 // Parado onde nasce (não sobe com a rolagem): sobe 1rem para dentro do respiro do cartão (-mt-4) e o devolve em padding (pt-5), então
-                // o botão fica na mesma altura de sempre e o fundo da faixa cobre o respiro acima dele; os cantos de cima seguem a curva do cartão.
-                className={`flex items-center gap-2 ${pinned ? '' : 'sticky z-30 pt-5 pb-2.5 -mt-4 rounded-t-[28px]'}`}
+                // o botão fica na mesma altura de sempre e o fundo da faixa cobre o respiro acima dele e as laterais (-mx-4 px-4: a largura toda do cartão, que recorta os cantos).
+                className={`flex items-center gap-2 ${pinned ? '' : 'sticky z-30 pt-5 pb-2.5 -mt-4 -mx-4 px-4'}`}
                 style={{ color: colors.textPrimary, ...(pinned ? {} : stickStyle) }}
             >
                 {showBack && (
