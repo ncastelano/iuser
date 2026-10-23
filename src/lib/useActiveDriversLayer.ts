@@ -1,15 +1,15 @@
-// Camada "motoristas ativos" do mapa do /pedir-motorista (v3): busca perto do ponto de interesse (partida, ou o centro do mapa),
-// atualiza a cada 30 s enquanto a aba está visível e desenha um marcador por motorista (carro/moto/bicicleta) na posição aproximada.
+// Camada "motoristas disponíveis" do mapa do /pedir-motorista (v3): busca perto do ponto de interesse (partida, ou o centro do mapa),
+// atualiza a cada 30 s enquanto a aba está visível e desenha um marcador por motorista no MESMO estilo do /radar (foto do veículo num
+// quadrado de borda verde). Tocar no marcador seleciona o motorista (o card com os detalhes e o "chamar" é da tela). Posição aproximada;
+// fonte e regras de privacidade em lib/radarDrivers.ts.
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
 import mapboxgl from 'mapbox-gl'
 import { supabase } from '@/lib/supabase/client'
-import { vehicleMarkerHtml } from '@/lib/vehicleMarkerIcon'
-import { countByKind, fetchActiveDrivers, type ActiveDriver } from '@/lib/activeDrivers'
+import { countDriversByKind, createDriverMarkerElement, fetchRadarDrivers, type RadarDriverItem } from '@/lib/radarDrivers'
 
 const REFRESH_MS = 30_000
-const MARKER_COLOR = '#2563eb'
 
 interface Options {
     map: mapboxgl.Map | null
@@ -17,13 +17,17 @@ interface Options {
     enabled: boolean
     /** [lng, lat] do ponto de partida, se já houver; senão usa o centro do mapa */
     focus: [number, number] | null
+    /** tocou no marcador de um motorista */
+    onSelect?: (driver: RadarDriverItem) => void
 }
 
-export function useActiveDriversLayer({ map, mapReady, enabled, focus }: Options) {
-    const [drivers, setDrivers] = useState<ActiveDriver[]>([])
+export function useActiveDriversLayer({ map, mapReady, enabled, focus, onSelect }: Options) {
+    const [drivers, setDrivers] = useState<RadarDriverItem[]>([])
     const [loaded, setLoaded] = useState(false)
     const markersRef = useRef<mapboxgl.Marker[]>([])
     const fittedRef = useRef(false)
+    const onSelectRef = useRef(onSelect)
+    onSelectRef.current = onSelect
 
     // busca (e repete a cada 30 s com a aba visível)
     useEffect(() => {
@@ -32,7 +36,7 @@ export function useActiveDriversLayer({ map, mapReady, enabled, focus }: Options
         const run = async () => {
             if (document.visibilityState !== 'visible') return
             const c = focus ? { lng: focus[0], lat: focus[1] } : map.getCenter()
-            const list = await fetchActiveDrivers(supabase, c.lat, c.lng, 30)
+            const list = await fetchRadarDrivers(supabase, c.lat, c.lng, 30)
             if (!cancelled && list) { setDrivers(list); setLoaded(true) }   // falha da consulta: mantém o que já havia e não afirma "sem motoristas"
         }
         void run()
@@ -59,13 +63,14 @@ export function useActiveDriversLayer({ map, mapReady, enabled, focus }: Options
         markersRef.current = []
         if (!enabled || !map || !mapReady) return
         markersRef.current = drivers.map((d) => {
-            const el = document.createElement('div')
-            el.setAttribute('aria-label', `Motorista ativo (${d.kind})`)
-            el.innerHTML = vehicleMarkerHtml(d.kind, MARKER_COLOR)
-            return new mapboxgl.Marker({ element: el, anchor: 'center' }).setLngLat([d.lng, d.lat]).addTo(map)
+            const el = createDriverMarkerElement(d, () => {
+                map.flyTo({ center: [d.lng, d.lat], zoom: Math.max(map.getZoom(), 15), duration: 600 })
+                onSelectRef.current?.(d)
+            })
+            return new mapboxgl.Marker({ element: el, anchor: 'bottom' }).setLngLat([d.lng, d.lat]).addTo(map)
         })
         return () => { markersRef.current.forEach((m) => m.remove()); markersRef.current = [] }
     }, [drivers, enabled, map, mapReady])
 
-    return { drivers, counts: countByKind(drivers), loaded }
+    return { drivers, counts: countDriversByKind(drivers), loaded }
 }

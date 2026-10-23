@@ -11,7 +11,6 @@ import { useTheme, ThemeColors } from '@/app/contexts/theme'
 import { formatBrazilianPhoneSpaced } from '@/lib/phone'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { toast } from 'sonner'
-import { haversineKm } from '@/lib/mapboxRoute'
 import { notifyNewRide } from '@/lib/notifyRideStatus'
 import { addRecentRideDestination, getRecentRideDestinations, RecentRideDestination } from '@/lib/recentRideDestinations'
 import { addRecentRideOrigin, getRecentRideOrigins, RecentRideOrigin } from '@/lib/recentRideOrigins'
@@ -58,6 +57,9 @@ import { Spinner } from '@/components/Spinner'
 import RideTrackingPanel from './RideTrackingPanel'
 import { addRecentClick } from '@/components/LastSearched'
 import { useActiveDriversLayer } from '@/lib/useActiveDriversLayer'
+import RadarDriverCard from '@/components/radar/RadarDriverCard'
+import type { RadarDriverItem } from '@/lib/radarDrivers'
+import { haversineKm } from '@/lib/mapboxRoute'
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
 
@@ -1626,13 +1628,26 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
 
     // v3: motoristas ativos no mapa (carro/moto/bicicleta, posição aproximada; ver lib/activeDrivers.ts). Some quando há corrida em andamento.
     const [rideStatus, setRideStatus] = useState<string | null>(null)
-    const { counts: driverCounts, loaded: driversLoaded } = useActiveDriversLayer({
+    // Tocar num motorista no mapa abre o card dele (os mesmos detalhes do /radar); "Chamar" o escolhe pro pedido (como ?motorista=<id>)
+    const [pickedDriver, setPickedDriver] = useState<RadarDriverItem | null>(null)
+    const driversEnabled = v3 && ((!activeRideId && !checkingActiveRide) || rideStatus === 'pending')
+    const { drivers: mapDrivers, counts: driverCounts, loaded: driversLoaded } = useActiveDriversLayer({
         map: mapRef.current,
         mapReady,
         // também enquanto o pedido está pendente ("buscando motorista"): mostra quem está por perto
-        enabled: v3 && ((!activeRideId && !checkingActiveRide) || rideStatus === 'pending'),
+        enabled: driversEnabled,
         focus: origin.coords,
+        onSelect: setPickedDriver,
     })
+    useEffect(() => { if (!driversEnabled) setPickedDriver(null) }, [driversEnabled])
+    // o card acompanha o motorista (posição/nota atualizadas a cada 30 s); se ele saiu do ar, o card fecha
+    useEffect(() => {
+        if (!pickedDriver) return
+        const fresh = mapDrivers.find((d) => d.id === pickedDriver.id)
+        if (fresh && fresh !== pickedDriver) setPickedDriver(fresh)
+        else if (!fresh && driversLoaded) setPickedDriver(null)
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [mapDrivers])
     const driversTotal = driverCounts.carro + driverCounts.moto + driverCounts.bicicleta
 
     const inputStyle = { color: colors.textPrimary }
@@ -1673,6 +1688,24 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                                 <span className="text-[10px] font-bold" style={{ color: colors.textSecondary }}>ativos</span>
                             </>
                         )}
+                    </div>
+                )}
+
+                {/* Card do motorista escolhido no mapa */}
+                {pickedDriver && driversEnabled && (
+                    <div className="absolute inset-x-3 bottom-3 z-30 max-w-md mx-auto flex flex-col justify-end max-h-[calc(100%-5rem)]">
+                        <RadarDriverCard
+                            driver={pickedDriver}
+                            distanceKm={origin.coords ? haversineKm(origin.coords, [pickedDriver.lng, pickedDriver.lat]) : null}
+                            primaryLabel={calledDriver?.id === pickedDriver.id ? 'Motorista escolhido' : 'Chamar este motorista'}
+                            onPrimary={() => {
+                                setCalledDriver({ id: pickedDriver.id, slug: pickedDriver.profileSlug, name: pickedDriver.name })
+                                setPickedDriver(null)
+                                toast.success(`Você vai chamar ${pickedDriver.name}`)
+                            }}
+                            onClose={() => setPickedDriver(null)}
+                            go={(path) => router.push(path)}
+                        />
                     </div>
                 )}
 

@@ -17,7 +17,8 @@ import { toast } from 'sonner'
 import { Spinner } from '@/components/Spinner'
 import RadarSonar from '@/components/radar/RadarSonar'
 import RadarItemDetails from '@/components/radar/RadarItemDetails'
-import RadarDriverDetails, { type RadarDriverItem } from '@/components/radar/RadarDriverDetails'
+import RadarDriverDetails from '@/components/radar/RadarDriverDetails'
+import { fetchRadarDrivers } from '@/lib/radarDrivers'
 import { createRadarPulse, ensureRadarPulseStyles, type RadarPulse, type PulseEntry, type PulseState } from '@/components/radar/radarPulse'
 import { isStoreOpenNow, getStoreStatusText, getNextOpeningInfo } from '@/lib/storeHours'
 import { useProfile } from '@/app/contexts/ProfileContext'
@@ -372,45 +373,17 @@ export default function RadarScreen({ ui = 'v3' }: { ui?: UiVersion }) {
         const center = referenceLocation || { lat: -8.7612, lng: -63.9039 }
         let cancelled = false
         const loadDrivers = async () => {
-            const { data, error } = await supabase.rpc('get_radar_drivers', { p_lat: center.lat, p_lng: center.lng, p_radius_km: 30 })
-            if (cancelled) return
-            if (error) { console.error('[Radar] motoristas:', error.message); return }
-            const photo = (p: string | null) => (p ? (p.startsWith('http') ? p : supabase.storage.from('driver-car-photos').getPublicUrl(p).data.publicUrl) : null)
-            setDrivers(((data as any[]) || []).map((d): any => {
-                const driverName = d.name || (d.profile_slug ? `@${d.profile_slug}` : 'Motorista')
-                const item: RadarDriverItem & Record<string, any> = {
-                    id: d.driver_id,
-                    name: driverName,
-                    profileSlug: d.profile_slug,
-                    avatarUrl: d.avatar_url ? (String(d.avatar_url).startsWith('http') ? d.avatar_url : supabase.storage.from('avatars').getPublicUrl(String(d.avatar_url).replace(/^avatars\//, '')).data.publicUrl) : null,
-                    vehicleSlug: d.vehicle_slug,
-                    kind: d.vehicle_kind,
-                    model: d.car_model || (d.vehicle_kind === 'moto' ? 'Moto' : d.vehicle_kind === 'bicicleta' ? 'Bicicleta' : 'Carro'),
-                    color: d.car_color || null,
-                    capacity: d.passenger_capacity ?? null,
-                    babySeat: !!d.has_baby_seat,
-                    services: Array.isArray(d.services) ? d.services : [],
-                    trunk: {
-                        bags: [d.trunk_bags_pequena || 0, d.trunk_bags_media || 0, d.trunk_bags_grande || 0],
-                        cases: [d.trunk_suitcases_pequena || 0, d.trunk_suitcases_media || 0, d.trunk_suitcases_grande || 0],
-                    },
-                    rides: Number(d.rides_completed) || 0,
-                    rating: d.rating_avg != null ? Number(d.rating_avg) : null,
-                    ratingCount: Number(d.rating_count) || 0,
-                    memberSince: d.member_since || null,
-                    pricingRow: { pricing_mode: d.pricing_mode || 'platform', base_distance_km: d.base_distance_km != null ? Number(d.base_distance_km) : null, base_fee: d.base_fee != null ? Number(d.base_fee) : null, price_per_km_after_base: d.price_per_km_after_base != null ? Number(d.price_per_km_after_base) : null } as any,
-                    ageSeconds: Number(d.age_seconds) || 0,
-                }
-                return {
-                    ...item,
-                    // o que o mapa/lista usam em qualquer item: foto do veículo no marcador, posição aproximada e o texto da busca
-                    logo_url: photo(d.car_photo_url),
-                    location: { type: 'Point', coordinates: [d.lng, d.lat] },
-                    ratings_avg: item.rating, ratings_count: item.ratingCount,
-                    searchText: `${driverName} ${item.model} ${item.color || ''} ${d.profile_slug || ''}`.toLowerCase(),
-                    isDriver: true,
-                }
-            }))
+            const list = await fetchRadarDrivers(supabase, center.lat, center.lng, 30)
+            if (cancelled || !list) return // falha da consulta: mantém o que já havia
+            setDrivers(list.map((d) => ({
+                ...d,
+                // o que o mapa/lista usam em qualquer item: foto do veículo no marcador, posição aproximada e o texto da busca
+                logo_url: d.photoUrl,
+                location: { type: 'Point', coordinates: [d.lng, d.lat] },
+                ratings_avg: d.rating, ratings_count: d.ratingCount,
+                searchText: `${d.name} ${d.model} ${d.color || ''} ${d.profileSlug || ''}`.toLowerCase(),
+                isDriver: true,
+            })))
         }
         loadDrivers()
         const id = setInterval(loadDrivers, 30000)

@@ -11,7 +11,8 @@ import { Baby, Calendar, ChevronRight, Luggage, Route, Star, Users, Wallet } fro
 import { supabase } from '@/lib/supabase/client'
 import { DRIVER_SERVICE_OPTIONS, driverServiceLabel } from '@/lib/driverServices'
 import { loadPlatformTariffs } from '@/lib/platformTariffs'
-import { computeSuggestedPrice, getEffectivePricing, type DriverPricingRow } from '@/lib/driverPricing'
+import { computeSuggestedPrice, getEffectivePricing } from '@/lib/driverPricing'
+import type { RadarDriverItem } from '@/lib/radarDrivers'
 
 const KIND_LABEL: Record<string, string> = { carro: 'Carro', moto: 'Moto', bicicleta: 'Bicicleta' }
 
@@ -24,26 +25,7 @@ const coarseAddress = (a: string | null): string => {
     return (parts[0] || '').replace(/\d+/g, '').replace(/\s+/g, ' ').trim() || 'um local'
 }
 
-export interface RadarDriverItem {
-    id: string
-    name: string
-    profileSlug: string | null
-    avatarUrl: string | null
-    vehicleSlug: string
-    kind: 'carro' | 'moto' | 'bicicleta'
-    model: string
-    color: string | null
-    capacity: number | null
-    babySeat: boolean
-    services: string[]
-    trunk: { bags: [number, number, number]; cases: [number, number, number] }
-    rides: number
-    rating: number | null
-    ratingCount: number
-    memberSince: string | null
-    pricingRow: DriverPricingRow
-    ageSeconds: number
-}
+export type { RadarDriverItem }
 
 interface Recent { at: string; km: number | null; from: string; to: string; rating: number | null; comment: string | null; who: string | null }
 
