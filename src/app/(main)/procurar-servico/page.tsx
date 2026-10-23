@@ -115,12 +115,27 @@ function SerParceiroContent() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [profileLoading, userId])
 
+    // Pedidos novos aparecem sozinhos (a cada 10 s, com a aba aberta), sem piscar a tela: só troca a lista se algo mudou
+    const trackedViewsRef = useRef<Set<string>>(new Set())
+    useEffect(() => {
+        if (profileLoading) return
+        const id = setInterval(async () => {
+            if (document.hidden) return
+            try {
+                const fresh = await fetchOpenBoardItems()
+                setJobs((prev) => (prev.map((j) => j.id).join('|') === fresh.map((j) => j.id).join('|') ? prev : fresh))
+            } catch { /* falha de rede: tenta de novo no próximo ciclo */ }
+        }, 10000)
+        return () => clearInterval(id)
+    }, [profileLoading])
+
     // Conta visita quando os cards aparecem na tela (qualquer pessoa vê a lista, com ou sem
     // plano) e só pra quem não é o dono do pedido.
     useEffect(() => {
         if (loading || profileLoading || jobs.length === 0) return
         for (const job of jobs) {
-            if (job.requester_id !== userId) {
+            if (job.requester_id !== userId && !trackedViewsRef.current.has(job.id)) {
+                trackedViewsRef.current.add(job.id)
                 trackServiceRequestView(job.id)
             }
         }

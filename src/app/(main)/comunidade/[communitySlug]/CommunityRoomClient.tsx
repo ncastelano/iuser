@@ -45,7 +45,7 @@ const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 const MESSAGE_SELECT = 'id, content, created_at, edited_at, profile_id, ref_product_id, ref_store_id, ref_profile_id, reply_to_id, profiles!profile_id(name, avatar_url, "profileSlug")'
 // Conversa ao vivo: quem está na sala avisa as mensagens na hora (broadcast) e, por garantia, a sala confere as novas a cada
 // POLL_MS e refaz a lista inteira a cada RESYNC_MS (pega edições e exclusões).
-const POLL_MS = 3000
+const POLL_MS = 1500
 const RESYNC_MS = 20000
 const TYPING_IDLE_MS = 3000
 const normalizeMessage = (m: any): CommunityMessage => ({ ...m, profiles: Array.isArray(m.profiles) ? m.profiles[0] : m.profiles })
@@ -131,9 +131,12 @@ export default function CommunityRoomClient() {
     const atBottomRef = useRef(true)
     const [newBelow, setNewBelow] = useState(false)
 
+    // Só a PRIMEIRA carga mostra o "carregando" (que desmonta a conversa): quando a conta termina de carregar, `currentUserId` muda e a sala é
+    // recarregada por baixo — sem desmontar a lista, senão a conversa voltava para o começo sozinha depois de alguns segundos.
+    const firstLoadRef = useRef(true)
     const loadRoom = useCallback(async () => {
         if (!communitySlug) return
-        setLoading(true)
+        if (firstLoadRef.current) setLoading(true)
         setError(null)
         try {
             const { data: communityData, error: communityErr } = await supabase
@@ -182,6 +185,7 @@ export default function CommunityRoomClient() {
             console.error('[CommunityRoom] Erro ao carregar sala:', err)
             setError(err.message || 'Comunidade não encontrada')
         } finally {
+            firstLoadRef.current = false
             setLoading(false)
         }
     }, [communitySlug, currentUserId])
@@ -200,19 +204,40 @@ export default function CommunityRoomClient() {
 
     useEffect(() => { messagesRef.current = messages }, [messages])
 
+    // Na 2.0 a sala não tem altura fixa: quem rola é a PÁGINA, não a lista (só na 3.0 a lista é a própria área de rolagem)
+    const pageScrolls = () => {
+        const el = scrollRef.current
+        return !!el && el.scrollHeight - el.clientHeight < 4
+    }
     const scrollToBottom = useCallback((smooth = true) => {
         const el = scrollRef.current
         if (!el) return
-        el.scrollTo({ top: el.scrollHeight, behavior: smooth ? 'smooth' : 'auto' })
+        if (el.scrollHeight - el.clientHeight < 4) window.scrollTo({ top: document.documentElement.scrollHeight, behavior: smooth ? 'smooth' : 'auto' })
+        else el.scrollTo({ top: el.scrollHeight, behavior: smooth ? 'smooth' : 'auto' })
         atBottomRef.current = true
         setNewBelow(false)
     }, [])
     const onScrollList = () => {
         const el = scrollRef.current
         if (!el) return
+        if (openedRef.current && el.scrollHeight - el.scrollTop - el.clientHeight > 200) userScrolledRef.current = true
         atBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80
         if (atBottomRef.current) setNewBelow(false)
     }
+
+    // 2.0: a página rola (não a lista) — acompanha se a pessoa está no fim da página
+    useEffect(() => {
+        const onWin = () => {
+            if (!pageScrolls()) return
+            const dist = document.documentElement.scrollHeight - window.scrollY - window.innerHeight
+            if (openedRef.current && dist > 200) userScrolledRef.current = true
+            atBottomRef.current = dist < 120
+            if (atBottomRef.current) setNewBelow(false)
+        }
+        window.addEventListener('scroll', onWin, { passive: true })
+        return () => window.removeEventListener('scroll', onWin)
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
 
     // Fotos e cartões carregam depois das mensagens e esticam a conversa: quem está no fim continua no fim
     useEffect(() => {
@@ -220,7 +245,9 @@ export default function CommunityRoomClient() {
         if (!content || typeof ResizeObserver === 'undefined') return
         const ro = new ResizeObserver(() => {
             const el = scrollRef.current
-            if (el && atBottomRef.current) el.scrollTop = el.scrollHeight
+            if (!el || !atBottomRef.current) return
+            if (pageScrolls()) window.scrollTo(0, document.documentElement.scrollHeight)
+            else el.scrollTop = el.scrollHeight
         })
         ro.observe(content)
         return () => ro.disconnect()
@@ -239,6 +266,22 @@ export default function CommunityRoomClient() {
         else if (grew) setNewBelow(true)
     }, [messages, currentUserId, scrollToBottom])
     useEffect(() => { if (typers.length > 0 && atBottomRef.current) scrollToBottom() }, [typers.length, scrollToBottom])
+
+    // Ao ENTRAR na conversa: abre na última mensagem. As mensagens chegam antes de a lista existir na tela (ela só aparece quando `loading`
+    // acaba), então o efeito acima não achava a lista para rolar e a sala abria no começo; aqui rola assim que a lista aparece e de novo quando
+    // as fotos e cartões esticam a conversa (a pessoa ainda não mexeu no scroll).
+    const openedRef = useRef(false)
+    const userScrolledRef = useRef(false)
+    useEffect(() => {
+        if (loading || openedRef.current || messages.length === 0) return
+        openedRef.current = true
+        atBottomRef.current = true
+        const go = () => { if (!userScrolledRef.current) scrollToBottom(false) }
+        go()
+        const timers = [60, 250, 800, 1800].map((ms) => setTimeout(go, ms))
+        return () => timers.forEach(clearTimeout)
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [loading, messages.length, scrollToBottom])
 
     // ----- ao vivo: mensagens novas, edições/exclusões e "escrevendo..." -----
     const readable = !!community && (!community.requires_password || isMember)

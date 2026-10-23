@@ -204,6 +204,116 @@ def do_action(name, p=None):
         return name, False
 
 
+
+# ---------------------------------------------------------------- pedidos de serviço ("procurar serviço") e conversa das comunidades
+REQUESTS = [
+    ('eletricista', 'Preciso trocar o disjuntor e revisar a fiação da cozinha. O chuveiro desarma sempre.', 'Rua Rafael Vaz e Silva, 410, São Cristóvão, Porto Velho - RO'),
+    ('eletricista', 'Instalação de luminárias de LED e tomadas novas na sala comercial.', 'Av. Calama, 880, Embratel, Porto Velho - RO'),
+    ('encanador', 'Vazamento embaixo da pia da cozinha e torneira do tanque pingando.', 'Av. Jorge Teixeira, 1500, Industrial, Porto Velho - RO'),
+    ('pintor', 'Pintura de apartamento de 2 quartos, paredes já preparadas.', 'Rua Euclides da Cunha, 77, Liberdade, Porto Velho - RO'),
+    ('diarista', 'Diarista para limpeza pesada antes de uma mudança, uma vez só.', 'Rua das Palmeiras, 230, Porto Velho - RO'),
+    ('jardineiro', 'Poda de duas árvores e limpeza do quintal (cerca de 120 m²).', 'Rua Campos Sales, 45, Centro, Porto Velho - RO'),
+    ('montador', 'Montagem de guarda-roupa de 6 portas e uma cômoda, móveis já no local.', 'Av. Rio Madeira, 700, Mato Grosso, Porto Velho - RO'),
+    ('instrutor', 'Aulas de violão para iniciante, duas vezes por semana.', 'Rua Almirante Barroso, 150, Centro, Porto Velho - RO'),
+    ('personal', 'Personal para treino de força 3x por semana, foco em ganho de massa.', 'Academia perto do Shopping, Porto Velho - RO'),
+    ('veterinario', 'Minha cachorrinha está sem apetite, preciso de consulta a domicílio.', 'Rua Dom Pedro II, 320, Centro, Porto Velho - RO'),
+    ('dentista', 'Dor no dente do fundo há dois dias, preciso de avaliação ainda esta semana.', 'Av. Sete de Setembro, 900, Porto Velho - RO'),
+    ('cabeleireiro', 'Corte e coloração em casa para minha mãe, que tem dificuldade de locomoção.', 'Rua José Bonifácio, 120, Olaria, Porto Velho - RO'),
+    ('massageador', 'Massagem relaxante para dor nas costas no meu escritório.', 'Rua Tenreiro Aranha, 90, Centro, Porto Velho - RO'),
+    ('psicologa', 'Busco psicóloga para acompanhamento semanal, de preferência online à noite.', 'Atendimento online'),
+]
+REQ_NOTES = ['Posso receber a partir das 14h.', 'Urgente, se possível ainda hoje.', 'Material por minha conta.', 'Combinamos o valor antes.', None, None]
+CHAT_MORE = ['Pessoal, alguém já usou o agendamento do iUser?', 'Acabei de fazer um pedido e o frete foi rapidinho', 'Quem tem indicação de mecânico de confiança?', 'Bom dia, comunidade! ☀️',
+             'Hoje é dia de feira, quem vai?', 'Esse app tá ajudando muito meu negócio', 'Passando pra agradecer as dicas de ontem', 'Alguém sabe se a padaria do centro abre domingo?',
+             'Consegui um eletricista em menos de uma hora pelo iUser', 'Vendi tudo que fiz hoje, gratidão!', 'Alguém quer dividir uma corrida pro aeroporto?', 'Quem mais tá ouvindo o show da praça daqui?']
+OWN_STORE_LINES = ['Pessoal, conheçam a minha loja:', 'Minha loja tá com novidades, dá uma olhada!', 'Quem precisa, é aqui:', 'Atendimento top, venham conhecer']
+PRODUCT_LINES = ['Olha o que acabou de chegar:', 'Esse é o mais pedido da semana', 'Recomendo demais:', 'Promoção até sexta, vale a pena', 'Dá uma olhada nesse serviço:']
+PROFILE_LINES = ['Me sigam por lá!', 'Meu perfil no iUser:', 'Quem quiser trocar uma ideia, me chama', 'Estou oferecendo serviços, dá uma olhada no meu perfil']
+ASK_LINES = ['Acabei de pedir um {t} no iUser, alguém pode me indicar também?', 'Procurando {t} aqui em Porto Velho, publiquei o pedido no iUser', 'Quem é {t} e quer pegar um serviço? Está no procurar serviço do iUser',
+             'Publiquei um pedido de {t} agora, quem atender fecha na hora']
+
+
+def post_service_request():
+    p = R.choice(POOL.customers)
+    t, desc, addr = R.choice(REQUESTS)
+    note = R.choice(REQ_NOTES)
+    as_user(p['id'], f"""insert into service_requests (requester_id, service_type, location_address, location_needs_access, description, notes, photo_urls, status)
+        values ({esc(p['id'])}::uuid, {esc(t)}, {esc(addr)}, {'true' if R.random() < 0.2 else 'false'}, {esc(desc)}, {esc(note) if note else 'null'}, '{{}}', 'pending');""")
+    log(f"  🧰 {p['name']} publicou um pedido de {t} em Procurar serviço")
+    return p, t
+
+
+def apply_to_service_request():
+    row = q_local("select id, service_type, requester_id from service_requests where status = 'pending' order by random() limit 1")
+    if not row or not POOL.owners:
+        return
+    r = row[0]
+    o = R.choice([x for x in POOL.owners if x['id'] != r['requester_id']] or POOL.owners)
+    try:
+        as_user(o['id'], f"insert into service_applications (service_request_id, applicant_id, status) values ({esc(r['id'])}::uuid, {esc(o['id'])}::uuid, 'pending');")
+        log(f"  🤝 {o['name']} se candidatou a um pedido de {r['service_type']}")
+    except Exception as e:  # noqa: BLE001
+        msg = str(e).splitlines()[0][:110]
+        if 'duplicate' not in msg:
+            log(f"  ✗ candidatura ao pedido de serviço: {msg}")
+
+
+def chat_message():
+    """Uma mensagem numa comunidade: conversa, resposta ou o próprio link compartilhado (loja, produto, serviço, perfil, pedido de serviço)."""
+    c = R.choice(POOL.comms)
+    kind = R.choices(['chat', 'reply', 'store', 'product', 'profile', 'ask'], [38, 18, 12, 14, 8, 10])[0]
+    ref_store = ref_product = ref_profile = reply = None
+    who, content = None, None
+    if kind in ('chat', 'reply', 'ask'):
+        who = R.choice(c['members'])
+        content = R.choice(CHAT + CHAT_MORE)
+        if kind == 'reply':
+            rows = q_local(f"select id from community_messages where community_id = {esc(c['id'])}::uuid order by created_at desc limit 8")
+            if rows:
+                reply = R.choice(rows)['id']
+                content = R.choice(REPLIES)
+        elif kind == 'ask':
+            content = R.choice(ASK_LINES).format(t=R.choice(REQUESTS)[0])
+    elif kind == 'store':
+        s = R.choice(POOL.stores)
+        who, ref_store, content = s['owner_id'], s['id'], R.choice(OWN_STORE_LINES)
+    elif kind == 'product':
+        it = R.choice(POOL.goods + POOL.services)
+        s = POOL.by_store.get(it['store_id'])
+        who = s['owner_id'] if s and R.random() < 0.75 else R.choice(c['members'])
+        ref_product, content = it['id'], R.choice(PRODUCT_LINES)
+    else:
+        who = R.choice(POOL.people)['id']
+        ref_profile, content = who, R.choice(PROFILE_LINES)
+    as_user(who, f"""insert into community_members (community_id, profile_id) select {esc(c['id'])}::uuid, {esc(who)}::uuid
+        where not exists (select 1 from community_members where community_id = {esc(c['id'])}::uuid and profile_id = {esc(who)}::uuid);
+        insert into community_messages (community_id, profile_id, content, ref_store_id, ref_product_id, ref_profile_id, reply_to_id)
+        values ({esc(c['id'])}::uuid, {esc(who)}::uuid, {esc(content)}, {esc(ref_store) + '::uuid' if ref_store else 'null'}, {esc(ref_product) + '::uuid' if ref_product else 'null'},
+                {esc(ref_profile) + '::uuid' if ref_profile else 'null'}, {esc(reply) + '::uuid' if reply else 'null'});""")
+    tag = {'store': ' [compartilhou a própria loja]', 'product': ' [compartilhou um item]', 'profile': ' [compartilhou o perfil]', 'reply': ' [resposta]'}.get(kind, '')
+    log(f"  💬 #{c['slug']}: “{content[:60]}”{tag}")
+
+
+def loop_forever(name, every, fn, stop):
+    """Roda `fn` a cada `every` segundos numa thread, sem deixar um erro parar o simulador."""
+    def run():
+        while not stop.is_set():
+            t0 = time.time()
+            try:
+                fn()
+            except Exception as e:  # noqa: BLE001
+                log(f"  ✗ {name}: {str(e).splitlines()[0][:120]}")
+            stop.wait(max(0.2, every - (time.time() - t0)))
+    th = threading.Thread(target=run, daemon=True, name=name)
+    th.start()
+    return th
+
+
+def requests_round():
+    post_service_request()
+    if R.random() < 0.7:
+        apply_to_service_request()
+
 # ---------------------------------------------------------------- relógio das lojas e agendas
 def tick_orders():
     rows = q_local("select o.id, o.status, s.owner_id from orders o join stores s on s.id = o.store_id where o.status in ('pending','preparing','ready') order by random() limit 8")
@@ -335,13 +445,13 @@ STAT_SQL = """select json_build_object(
   'comentarios', (select count(*) from comments), 'msgs_comunidade', (select count(*) from community_messages),
   'publicacoes', (select count(*) from products where listing_type = 'publication'), 'servicos', (select count(*) from products where type = 'service'),
   'seguidores', (select count(*) from follows), 'curtidas', (select count(*) from likes),
-  'nota_motoristas', (select coalesce(round(avg(rating)::numeric, 2), 0) from ride_reviews)
+  'nota_motoristas', (select coalesce(round(avg(rating)::numeric, 2), 0) from ride_reviews), 'pedidos_servico', (select count(*) from service_requests)
 )"""
 COLS = ['pedidos', 'receita', 'agendamentos', 'ag_concluidos', 'corridas_pedidas', 'corridas_ativas', 'corridas_concluidas', 'aval_corridas', 'aval_compras', 'comentarios', 'msgs_comunidade',
-        'publicacoes', 'servicos', 'seguidores', 'curtidas', 'nota_motoristas']
+        'publicacoes', 'servicos', 'seguidores', 'curtidas', 'nota_motoristas', 'pedidos_servico']
 LABELS = {'pedidos': 'pedidos', 'receita': 'receita R$', 'agendamentos': 'agendam.', 'ag_concluidos': 'ag.concl.', 'corridas_pedidas': 'corridas', 'corridas_ativas': 'ativas',
           'corridas_concluidas': 'concluídas', 'aval_corridas': 'aval.corr.', 'aval_compras': 'aval.compra', 'comentarios': 'coment.', 'msgs_comunidade': 'msgs',
-          'publicacoes': 'public.', 'servicos': 'serviços', 'seguidores': 'seguid.', 'curtidas': 'curtidas', 'nota_motoristas': 'nota mot.'}
+          'publicacoes': 'public.', 'servicos': 'serviços', 'seguidores': 'seguid.', 'curtidas': 'curtidas', 'nota_motoristas': 'nota mot.', 'pedidos_servico': 'ped.serv.'}
 
 
 def stats():
@@ -371,7 +481,9 @@ def main():
     ap.add_argument('--interval', type=float, default=10, help='segundos entre ticks')
     ap.add_argument('--rides', type=int, default=20, help='pessoas com corrida ativa o tempo todo')
     ap.add_argument('--ticks', type=int, default=0, help='0 = até Ctrl-C')
-    ap.add_argument('--once', choices=list(ACTIONS), help='roda uma ação só e sai')
+    ap.add_argument('--requests-every', type=float, default=20, help='segundos entre pedidos de serviço publicados (Procurar serviço)')
+    ap.add_argument('--chat-every', type=float, default=4, help='segundos entre mensagens nas comunidades')
+    ap.add_argument('--once', choices=list(ACTIONS) + ['request', 'chat'], help='roda uma ação só e sai')
     ap.add_argument('--stats', action='store_true')
     ap.add_argument('--seed', type=int)
     args = ap.parse_args()
@@ -382,11 +494,18 @@ def main():
     ensure_driver_plans()
     POOL.load()
     log(f"Simulador (banco LOCAL): {len(POOL.customers)} clientes · {len(POOL.owners)} donos · {len(POOL.stores)} lojas · {len(POOL.drivers)} motoristas · {len(POOL.pubs)} publicações · {len(POOL.comms)} comunidades")
+    if args.once == 'request':
+        requests_round(); return
+    if args.once == 'chat':
+        chat_message(); return
     if args.once:
         do_action(args.once); return
     names, weights = list(ACTIONS), [ACTIONS[k][1] for k in ACTIONS]
     first = prev = stats()
     tick = 0
+    stop = threading.Event()
+    loop_forever('pedidos de serviço', args.requests_every, requests_round, stop)
+    loop_forever('conversa das comunidades', args.chat_every, chat_message, stop)
     try:
         while True:
             t0 = time.time()
@@ -412,6 +531,8 @@ def main():
             time.sleep(max(0, args.interval - (time.time() - t0)))
     except KeyboardInterrupt:
         log('Parado.')
+    finally:
+        stop.set()
 
 
 if __name__ == '__main__':
