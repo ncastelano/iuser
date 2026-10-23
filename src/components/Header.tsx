@@ -248,31 +248,40 @@ export default function Header({
         return tab.isActive ? '#f97316' : '#ffffff'
     }
 
-    // Dentro da casca da 3.0 a navbar e o menu já existem: aqui sobram só o voltar/título, as abas e a busca da página
+    // Dentro da casca da 3.0 a navbar e o menu já existem: aqui sobram só o voltar/título, as abas e a busca da página.
+    // A linha do voltar + título fica SEMPRE fixa logo abaixo da navbar (não anda com a rolagem); com `pinned`, o bloco inteiro (abas e busca) fica.
     if (insideShell) {
-        return (
+        const hasTitleRow = showBack || (title && title !== 'iUser') || locationElement
+        const stickStyle = { background: colors.background, top: 'var(--shell-top, 0px)' }
+        const titleRow = hasTitleRow ? (
             <div
-                className={`flex flex-col gap-2.5 pb-3 ${pinned ? 'sticky z-30 pt-1' : 'relative z-10'}`}
-                style={{ color: colors.textPrimary, ...(pinned ? { background: colors.background, top: 'var(--shell-top, 0px)' } : {}) }}
+                className={`flex items-center gap-2 ${pinned ? '' : 'sticky z-30 pt-1 pb-2.5'}`}
+                style={{ color: colors.textPrimary, ...(pinned ? {} : stickStyle) }}
             >
-                {(showBack || (title && title !== 'iUser') || locationElement) && (
-                    <div className="flex items-center gap-2">
-                        {showBack && (
-                            <button
-                                onClick={handleBack}
-                                aria-label="Voltar"
-                                className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 transition active:scale-95"
-                                style={{ background: `${colors.border}50` }}
-                            >
-                                <ArrowLeft size={18} color={colors.textPrimary} />
-                            </button>
-                        )}
-                        {title && title !== 'iUser' && (
-                            <span className="text-lg font-black truncate" style={{ color: colors.textPrimary }}>{title}</span>
-                        )}
-                        {locationElement && <div className="ml-auto flex-shrink-0">{locationElement}</div>}
-                    </div>
+                {showBack && (
+                    <button
+                        onClick={handleBack}
+                        aria-label="Voltar"
+                        className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 transition active:scale-95"
+                        style={{ background: `${colors.border}50` }}
+                    >
+                        <ArrowLeft size={18} color={colors.textPrimary} />
+                    </button>
                 )}
+                {title && title !== 'iUser' && (
+                    <span className="text-lg font-black truncate" style={{ color: colors.textPrimary }}>{title}</span>
+                )}
+                {locationElement && <div className="ml-auto flex-shrink-0">{locationElement}</div>}
+            </div>
+        ) : null
+        return (
+            <>
+                {!pinned && titleRow}
+                <div
+                    className={`flex flex-col gap-2.5 pb-3 ${pinned ? 'sticky z-30 pt-1' : 'relative z-10'}`}
+                    style={{ color: colors.textPrimary, ...(pinned ? stickStyle : {}) }}
+                >
+                {pinned && titleRow}
 
                 {enhancedTabs.length > 0 && <PageTabs tabs={enhancedTabs} />}
 
@@ -304,7 +313,8 @@ export default function Header({
                         )}
                     </div>
                 )}
-            </div>
+                </div>
+            </>
         )
     }
 
