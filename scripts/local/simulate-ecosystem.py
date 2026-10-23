@@ -527,19 +527,24 @@ def main():
             if tick % 30 == 0:
                 POOL.load()
             log(f"── tick {tick}: {args.people} pessoas agindo + {args.rides} corridas ativas ──")
-            refresh_drivers()
-            people = R.sample(POOL.customers, args.people)
-            with ThreadPoolExecutor(max_workers=5) as ex:
-                futs = [ex.submit(do_action, R.choices(names, weights)[0], p) for p in people]
-                for f in futs:
-                    f.result()
-            tick_orders()
-            tick_appointments()
-            request_rides(args.rides)
-            drive_rides()
-            now = stats()
-            print_growth(tick, now, prev, first)
-            prev = now
+            try:
+                refresh_drivers()
+                people = R.sample(POOL.customers, args.people)
+                with ThreadPoolExecutor(max_workers=5) as ex:
+                    futs = [ex.submit(do_action, R.choices(names, weights)[0], p) for p in people]
+                    for f in futs:
+                        f.result()
+                tick_orders()
+                tick_appointments()
+                request_rides(args.rides)
+                drive_rides()
+                now = stats()
+                print_growth(tick, now, prev, first)
+                prev = now
+            except RuntimeError as e:  # banco/Docker caiu (OrbStack reiniciou, por ex.): espera e tenta no próximo ciclo em vez de morrer
+                log(f"  ⚠ banco indisponível, tentando de novo em 15 s: {str(e).splitlines()[0][:120]}")
+                time.sleep(15)
+                continue
             if args.ticks and tick >= args.ticks:
                 break
             time.sleep(max(0, args.interval - (time.time() - t0)))
