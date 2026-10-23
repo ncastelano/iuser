@@ -3,9 +3,12 @@
 // Uma mensagem cita no máximo um item: `ref_store_id`, `ref_profile_id` ou `ref_product_id` (produto, serviço e publicação são `products`).
 import { supabase } from '@/lib/supabase/client'
 import { getAvatarUrl } from '@/lib/avatar'
+import { getRequestTitle, getServiceLabel } from '@/lib/serviceTypes'
+import { shortAddress } from '@/lib/serviceBoard'
 import { isStoreOpenNow, type BusinessHours } from '@/lib/storeHours'
 
-export type ShareKind = 'store' | 'service' | 'product' | 'publication' | 'profile'
+// 'request' (pedido de serviço do Procurar serviço) só chega por LINK colado/compartilhado; não está no seletor nem tem coluna de referência.
+export type ShareKind = 'store' | 'service' | 'product' | 'publication' | 'profile' | 'request'
 
 export interface ShareCard {
     kind: ShareKind
@@ -35,6 +38,7 @@ export const SHARE_DEFAULT_TEXT: Record<ShareKind, string> = {
     product: 'Compartilhou um produto',
     publication: 'Compartilhou uma publicação',
     profile: 'Compartilhou um perfil',
+    request: 'Compartilhou um pedido de serviço',
 }
 const DEFAULT_TEXTS = new Set(Object.values(SHARE_DEFAULT_TEXT))
 export const isDefaultShareText = (t: string) => DEFAULT_TEXTS.has((t || '').trim())
@@ -81,6 +85,23 @@ function fromRpc(json: any): ShareCard[] {
         })
     }
     return out
+}
+
+/** Cartão de um pedido de serviço (link /procurar-servico?pedido=<id>): só o que a vitrine pública já mostra (rua/bairro, sem número). */
+export async function fetchRequestCard(id: string): Promise<ShareCard | null> {
+    if (!/^[0-9a-f-]{36}$/i.test(id)) return null
+    const { data: r } = await supabase.from('service_requests')
+        .select('id, requester_id, service_type, custom_service, description, location_address, photo_urls, status').eq('id', id).maybeSingle()
+    if (!r) return null
+    const { data: p } = await supabase.from('profiles').select('name, profileSlug').eq('id', r.requester_id).maybeSingle()
+    const place = shortAddress(r.location_address || '').replace(/[,\s]+\d+\s*\w*$/, '')
+    const status = r.status === 'pending' ? null : r.status === 'accepted' ? 'Contratado' : r.status === 'completed' ? 'Concluído' : null
+    return {
+        kind: 'request', id: r.id, title: getRequestTitle(r.description, r.service_type, r.custom_service, 120),
+        subtitle: [getServiceLabel(r.service_type, r.custom_service), place, status].filter(Boolean).join(' · '),
+        detail: p ? (p.profileSlug ? `@${p.profileSlug}` : p.name) : null,
+        imageUrl: (r.photo_urls as string[] | null)?.[0] || null, href: `/procurar-servico?pedido=${r.id}`, rating: null, ratingsCount: 0,
+    }
 }
 
 export const cardKey = (c: ShareCard) => `${c.kind === 'store' ? 'store' : c.kind === 'profile' ? 'profile' : 'product'}:${c.id}`

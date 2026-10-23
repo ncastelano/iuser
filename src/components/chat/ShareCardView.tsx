@@ -5,7 +5,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Megaphone, ShoppingBag, Star, Store, User, Wrench } from 'lucide-react'
+import { Briefcase, Megaphone, ShoppingBag, Star, Store, User, Wrench } from 'lucide-react'
 import type { ShareCard, ShareKind } from '@/lib/shareCards'
 
 const KIND: Record<ShareKind, { label: string; color: string; Icon: any; cta: string }> = {
@@ -14,6 +14,7 @@ const KIND: Record<ShareKind, { label: string; color: string; Icon: any; cta: st
     product: { label: 'Produto', color: '#0ea5e9', Icon: ShoppingBag, cta: 'Ver produto' },
     publication: { label: 'Publicação', color: '#10b981', Icon: Megaphone, cta: 'Ver publicação' },
     profile: { label: 'Perfil', color: '#ec4899', Icon: User, cta: 'Ver perfil' },
+    request: { label: 'Pedido de serviço', color: '#f59e0b', Icon: Briefcase, cta: 'Ver pedido' },
 }
 
 export default function ShareCardView({ card, mine = false, colors, compact = false }: { card: ShareCard; mine?: boolean; colors: any; compact?: boolean }) {
@@ -33,7 +34,7 @@ export default function ShareCardView({ card, mine = false, colors, compact = fa
                 <span className="block text-[13px] font-black leading-snug line-clamp-2 mt-0.5">{card.title}</span>
                 {card.subtitle && <span className="block text-[11px] opacity-80 line-clamp-1">{card.subtitle}</span>}
                 {(card.kind === 'service' || card.kind === 'product') && card.detail && <span className="block text-[12px] font-black mt-0.5">{card.detail}</span>}
-                {(card.kind === 'publication' || card.kind === 'profile') && card.detail && !compact && <span className="block text-[11px] opacity-80 line-clamp-2 mt-0.5">{card.detail}</span>}
+                {(card.kind === 'publication' || card.kind === 'profile' || card.kind === 'request') && card.detail && !compact && <span className="block text-[11px] opacity-80 line-clamp-2 mt-0.5">{card.detail}</span>}
                 {card.ratingsCount > 0 && card.rating ? (
                     <span className="flex items-center gap-0.5 text-[11px] font-bold mt-0.5"><Star size={11} className="fill-yellow-400 text-yellow-400" />{card.rating.toFixed(1)} <span className="opacity-70 font-medium">({card.ratingsCount})</span></span>
                 ) : null}

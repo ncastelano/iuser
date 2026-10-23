@@ -6,13 +6,17 @@
 
 import { useEffect, useState } from 'react'
 import ShareCardView from './ShareCardView'
-import { fetchShareCards, type ShareCard } from '@/lib/shareCards'
-import { isImageUrl, iuserPath, resolveIuserLink, urlsIn } from '@/lib/chatLinks'
+import { fetchRequestCard, fetchShareCards, type ShareCard } from '@/lib/shareCards'
+import { isImageUrl, iuserTarget, resolveIuserLink, urlsIn } from '@/lib/chatLinks'
 
-function IuserCard({ path, colors, compact }: { path: string; colors: any; compact: boolean }) {
+function IuserCard({ path, request, colors, compact }: { path: string; request: string | null; colors: any; compact: boolean }) {
     const [card, setCard] = useState<ShareCard | null>(null)
     useEffect(() => {
         let alive = true
+        if (request) {   // /procurar-servico?pedido=<id>
+            fetchRequestCard(request).then((c) => { if (alive) setCard(c) }, () => {})
+            return () => { alive = false }
+        }
         resolveIuserLink(path).then(async (r) => {
             if (!r || !alive) return
             const key = r.kind === 'store' ? { ref_store_id: r.id } : r.kind === 'profile' ? { ref_profile_id: r.id } : { ref_product_id: r.id }
@@ -20,7 +24,7 @@ function IuserCard({ path, colors, compact }: { path: string; colors: any; compa
             if (alive) setCard(Object.values(cards)[0] || null)
         })
         return () => { alive = false }
-    }, [path])
+    }, [path, request])
     if (!card) return null
     return (
         <div className="w-full max-w-[320px] rounded-2xl overflow-hidden pt-2" style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}>
@@ -45,8 +49,9 @@ export default function ChatLinkPreviews({ content, colors, compact = false, max
                         </a>
                     )
                 }
-                const path = iuserPath(u)
-                return path ? <IuserCard key={u} path={path} colors={colors} compact={compact} /> : null
+                const t = iuserTarget(u)
+                const request = t && t.path === '/procurar-servico' ? t.search.get('pedido') : null
+                return t ? <IuserCard key={u} path={t.path} request={request} colors={colors} compact={compact} /> : null
             })}
         </>
     )

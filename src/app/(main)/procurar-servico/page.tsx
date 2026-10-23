@@ -17,6 +17,7 @@ import { Spinner } from '@/components/Spinner'
 import DriverDebtBanner from '@/components/DriverDebtBanner'
 import { notifyServiceApplication } from '@/lib/notifyRideStatus'
 import { trackServiceRequestView } from '@/lib/trackServiceRequestView'
+import ServiceRequestShareButton from '@/components/ServiceRequestShareButton'
 import ServiceRequestViewDialog from '@/components/ServiceRequestViewDialog'
 import ServiceRequestDetailsDialog from '@/components/ServiceRequestDetailsDialog'
 import ServiceExchangePanel from '@/components/ServiceExchangePanel'
@@ -455,6 +456,7 @@ function SerParceiroContent() {
                                                     >
                                                         Seu pedido
                                                     </div>
+                                                    <ServiceRequestShareButton item={job} />
                                                     <button
                                                         onClick={() => openEdit(job)}
                                                         aria-label="Editar pedido"
@@ -475,12 +477,13 @@ function SerParceiroContent() {
                                                     </button>
                                                 </div>
                                             ) : (
+                                                <div className={v3 ? 'mt-1 flex items-center gap-2' : 'mt-auto flex items-center gap-2'}>
                                                 <button
                                                     onClick={() => handleApply(job)}
                                                     disabled={applied || applyingKey === key || autoApplyingId === job.id}
                                                     className={v3
-                                                        ? 'mt-1 self-start h-9 px-6 rounded-full text-[13px] font-black transition active:scale-95 disabled:opacity-70 flex items-center justify-center gap-2'
-                                                        : 'mt-auto w-full py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all disabled:opacity-70 flex items-center justify-center gap-2'}
+                                                        ? 'h-9 px-6 rounded-full text-[13px] font-black transition active:scale-95 disabled:opacity-70 flex items-center justify-center gap-2'
+                                                        : 'flex-1 py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all disabled:opacity-70 flex items-center justify-center gap-2'}
                                                     style={
                                                         applied
                                                             ? { background: `${colors.border}30`, color: colors.textSecondary, border: v3 ? 'none' : `1px solid ${colors.border}` }
@@ -497,6 +500,8 @@ function SerParceiroContent() {
                                                         <>{!v3 && <Briefcase size={14} />}Inscrever-se</>
                                                     )}
                                                 </button>
+                                                <ServiceRequestShareButton item={job} size={v3 ? 36 : 40} />
+                                                </div>
                                             )}
                                         </div>
                                     </div>

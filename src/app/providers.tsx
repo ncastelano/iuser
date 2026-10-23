@@ -21,6 +21,7 @@ import { ProfileProvider } from './contexts/ProfileContext'
 import { VersionSync } from '@/versions/client'
 import AdminV3Button from '@/components/AdminV3Button'
 import { MaintenanceBanner } from '@/components/MaintenanceNotice'
+import ShareDialogHost from '@/components/ShareDialogHost'
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => new QueryClient())
@@ -64,6 +65,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <DriverRideAlertListener />
         <PwaCleanup />
         <PwaInstallPrompt />
+        <ShareDialogHost />
         <PushNotificationSetup />
         {/* Avisos EMBAIXO: em cima eles tapavam a barra de navegação (carrinho, conversas...); o recuo deixa a faixa de teste e as barras de baixo livres */}
         <Toaster

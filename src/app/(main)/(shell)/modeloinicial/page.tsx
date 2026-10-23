@@ -36,6 +36,7 @@ import NearbyAroundCard from '@/components/v3/NearbyAroundCard'
 import { loadServiceCards } from '@/lib/serviceCards'
 import SearchResultsSection from '../../inicio/SearchResultsSection'
 import { rankStyle } from '../../social/SocialProfileCard'
+import ServiceRequestShareButton from '@/components/ServiceRequestShareButton'
 import ShareLinkDialog, { copyText } from '@/components/ShareLinkDialog'
 import { toast } from 'sonner'
 import { useShellSearch } from '@/versions/v3/shell/ShellFrame'
@@ -935,18 +936,18 @@ export default function ModeloInicialPage() {
                                                     <span className="flex-shrink-0">· {askedAgo(r.created_at).replace('pediu ', '').replace('há ', '')}</span>
                                                 </span>
                                             }
-                                            action={r.requester_id === userId ? (
-                                                <span className="w-full h-8 rounded-full flex items-center justify-center text-[12px] font-black" style={{ background: `${colors.border}40`, color: colors.textSecondary }}>Seu pedido</span>
+                                            action={<div className="w-full flex items-center gap-1.5">{r.requester_id === userId ? (
+                                                <span className="flex-1 h-8 rounded-full flex items-center justify-center text-[12px] font-black" style={{ background: `${colors.border}40`, color: colors.textSecondary }}>Seu pedido</span>
                                             ) : (
                                                 <button
                                                     onClick={(e) => { e.stopPropagation(); if (!applied.has(r.id)) applyTo(r.id) }}
                                                     disabled={applied.has(r.id) || applying === r.id}
-                                                    className="w-full h-8 rounded-full text-[12px] font-black transition active:scale-95 disabled:opacity-70"
+                                                    className="flex-1 min-w-0 h-8 rounded-full text-[12px] font-black transition active:scale-95 disabled:opacity-70"
                                                     style={applied.has(r.id) ? { background: `${colors.border}40`, color: colors.textSecondary } : { background: '#f97316', color: '#fff' }}
                                                 >
                                                     {applying === r.id ? '...' : applied.has(r.id) ? 'Inscrição enviada' : 'Quero me inscrever'}
                                                 </button>
-                                            )}
+                                            )}<ServiceRequestShareButton item={r} size={32} /></div>}
                                         />
                                     ))}
                                 </Strip>

@@ -6,6 +6,7 @@
 // Prestador); aqui é só a vitrine.
 'use client'
 
+import ServiceRequestShareButton from '@/components/ServiceRequestShareButton'
 import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
@@ -177,7 +178,10 @@ export default function NeedAService({ dragHandle, limit = 8 }: { dragHandle?: R
                                         <MapPin size={11} className="flex-shrink-0" />
                                         <span className="truncate">{publicPlace(item.location_address)}</span>
                                     </span>
-                                    <span className="flex-shrink-0">{askedAgo(item.created_at).replace('pediu ', '')}</span>
+                                    <span className="flex-shrink-0 flex items-center gap-1.5">
+                                        {askedAgo(item.created_at).replace('pediu ', '')}
+                                        <ServiceRequestShareButton item={item} size={26} />
+                                    </span>
                                 </div>
 
                                 {!mine && applied?.has(item.id) && applied.get(item.id) !== 'rejected' && (

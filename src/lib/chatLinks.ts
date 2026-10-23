@@ -42,6 +42,14 @@ export function iuserPath(url: string): string | null {
     } catch { return null }
 }
 
+/** Caminho + parâmetros de um link do iUser (ex.: "/procurar-servico", "?pedido=<id>"); senão null. */
+export function iuserTarget(url: string): { path: string; search: URLSearchParams } | null {
+    try {
+        const u = new URL(url)
+        return (u.protocol === 'https:' || u.protocol === 'http:') && isIuserHost(u.host) ? { path: u.pathname, search: u.searchParams } : null
+    } catch { return null }
+}
+
 export const isAllowedChatLink = (url: string) => isImageUrl(url) || iuserPath(url) !== null
 
 /** Primeiro link que NÃO é imagem nem do iUser (para recusar o envio), ou null se está tudo certo. */

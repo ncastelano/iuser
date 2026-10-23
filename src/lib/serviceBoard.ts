@@ -135,3 +135,19 @@ export const SERVICE_REQUESTS_CHANGED = 'iuser:service-requests-changed'
 export function notifyServiceRequestsChanged() {
     if (typeof window !== 'undefined') window.dispatchEvent(new Event(SERVICE_REQUESTS_CHANGED))
 }
+
+// ===== Compartilhar um pedido de serviço =====
+// O link é o da própria vitrine (/procurar-servico?pedido=<id>): abre a lista já na altura do pedido. Na comunidade ele vira cartão.
+export function serviceRequestLink(id: string): string {
+    return `${typeof window !== 'undefined' ? window.location.origin : 'https://www.iuser.com.br'}/procurar-servico?pedido=${id}`
+}
+
+export function serviceRequestShare(item: Pick<BoardItem, 'id' | 'service_type' | 'custom_service' | 'description' | 'photo_urls'>) {
+    const label = getServiceLabel(item.service_type, item.custom_service)
+    return {
+        title: `Procura-se ${label}`,
+        text: item.description ? `${label}: ${item.description}` : `Alguém precisa de ${label} no iUser`,
+        url: serviceRequestLink(item.id),
+        imageUrl: item.photo_urls?.[0] || null,
+    }
+}

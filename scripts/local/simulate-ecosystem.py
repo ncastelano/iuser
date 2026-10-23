@@ -61,11 +61,20 @@ PASSENGER_COMMENTS = ['Passageiro pontual', 'Tudo certo, obrigado', '', '']
 SERVICE_NAMES = ['Aula particular de violão', 'Manicure e pedicure em casa', 'Reparo de ar-condicionado', 'Personal trainer', 'Fotografia de eventos', 'Limpeza residencial', 'Pintura de paredes', 'Banho e tosa a domicílio', 'Conserto de celular', 'Marmitas fit sob encomenda']
 PUB_TEXTS = ['Novidade chegando essa semana!', 'Bastidores do nosso trabalho de hoje', 'Resultado de um cliente satisfeito', 'Promoção só até sexta', 'Olha o que preparamos pra vocês', 'Agenda aberta para a próxima semana']
 
+# (rua ou lugar, lat, lng, bairro): o endereço sai como "Rua, nº, Bairro, Porto Velho - RO", como o geocoder devolve; a oferta pública mostra só o bairro
 POINTS = [
-    ('Av. Sete de Setembro', -8.7625, -63.9030), ('Rua Dom Pedro II', -8.7640, -63.9050), ('Av. Presidente Dutra', -8.7635, -63.9035), ('Av. Carlos Gomes', -8.7630, -63.9060),
-    ('Av. Farquar', -8.7600, -63.9000), ('Av. Jorge Teixeira', -8.7480, -63.8900), ('Shopping Porto Velho', -8.7550, -63.9300), ('Rodoviária', -8.7700, -63.9100),
-    ('Rua Júlio de Castilho', -8.7650, -63.9020), ('Av. Campos Sales', -8.7610, -63.9080), ('Mercado Cultural', -8.7655, -63.9045), ('Av. Calama', -8.7510, -63.9150),
+    ('Av. Sete de Setembro', -8.7625, -63.9030, 'Centro'), ('Rua Dom Pedro II', -8.7640, -63.9050, 'Centro'), ('Av. Presidente Dutra', -8.7635, -63.9035, 'Olaria'),
+    ('Av. Carlos Gomes', -8.7630, -63.9060, 'São Cristóvão'), ('Av. Farquar', -8.7600, -63.9000, 'Pedrinhas'), ('Av. Jorge Teixeira', -8.7480, -63.8900, 'Industrial'),
+    ('Shopping Porto Velho', -8.7550, -63.9300, 'Embratel'), ('Rodoviária', -8.7700, -63.9100, 'Nova Porto Velho'), ('Rua Júlio de Castilho', -8.7650, -63.9020, 'Arigolândia'),
+    ('Av. Campos Sales', -8.7610, -63.9080, 'Liberdade'), ('Mercado Cultural', -8.7655, -63.9045, 'Caiari'), ('Av. Calama', -8.7510, -63.9150, 'Mato Grosso'),
 ]
+LANDMARKS = {'Shopping Porto Velho', 'Rodoviária', 'Mercado Cultural'}
+
+
+def point_address(pt):
+    street, bairro = pt[0], pt[3]
+    num = '' if street in LANDMARKS else '%d, ' % R.randint(50, 900)
+    return '%s, %s%s, Porto Velho - RO' % (street, num, bairro)
 
 
 def hav(a, b, c, d):
@@ -167,7 +176,7 @@ def act_review(p):
 def act_publish(p):
     o = R.choice(POOL.owners)
     slug = 'sim-' + ''.join(R.choices('abcdefghijklmnopqrstuvwxyz0123456789', k=8))
-    lat, lng = R.choice(POINTS)[1:]
+    lat, lng = R.choice(POINTS)[1:3]
     if R.random() < 0.5:
         name = R.choice(SERVICE_NAMES)
         as_user(o['id'], f"""insert into products (name, slug, description, price, type, is_active, owner_id, listing_type, service_type, lat, lng, duration_minutes)
@@ -274,6 +283,11 @@ def chat_message():
                 content = R.choice(REPLIES)
         elif kind == 'ask':
             content = R.choice(ASK_LINES).format(t=R.choice(REQUESTS)[0])
+            # com o link do pedido de verdade (vira cartão na sala): quem pediu fala do próprio pedido
+            req = q_local(f"select id, requester_id from service_requests where status = 'pending' and requester_id in (select profile_id from community_members where community_id = {esc(c['id'])}::uuid) order by random() limit 1")
+            if req:
+                who = req[0]['requester_id']
+                content += '\nhttp://localhost:3100/procurar-servico?pedido=' + req[0]['id']
     elif kind == 'store':
         s = R.choice(POOL.stores)
         who, ref_store, content = s['owner_id'], s['id'], R.choice(OWN_STORE_LINES)
@@ -369,9 +383,9 @@ def request_rides(target):
         try:
             as_user(p['id'], f"""insert into ride_requests (requester_id, ride_type, origin_address, destination_address, status, passenger_count, vehicle_type, origin_lat, origin_lng,
                 destination_lat, destination_lng, distance_km, duration_min)
-                values ({esc(p['id'])}::uuid, 'pessoa', {esc('%s, %d, Porto Velho' % (a[0], R.randint(50, 900)))}, {esc('%s, %d, Porto Velho' % (b[0], R.randint(50, 900)))}, 'pending',
+                values ({esc(p['id'])}::uuid, 'pessoa', {esc(point_address(a))}, {esc(point_address(b))}, 'pending',
                        {R.choice([1, 1, 1, 2, 3])}, 'carro', {a[1]}, {a[2]}, {b[1]}, {b[2]}, {km}, {max(3, round(km * 2.4))});""")
-            log(f"  🚗 {p['name']} pediu um motorista: {a[0]} → {b[0]} ({km} km)")
+            log(f"  🚗 {p['name']} pediu um motorista: {a[3]} → {b[3]} ({km} km)")
         except Exception as e:  # noqa: BLE001
             log(f"  ✗ {p['name']} não conseguiu pedir motorista: {str(e).splitlines()[0][:140]}")
 
