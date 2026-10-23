@@ -2442,7 +2442,7 @@ export default function PedirMotoristaScreen({ ui = 'v2' }: { ui?: PedirMotorist
                                     {renderSpecialNeeds()}
                                     {/* O título vem DEPOIS da pergunta de deficiência, pra não parecer que ela faz parte de "Quem vai com você?" */}
                                     <h2 className={`${v3 ? 'text-[15px]' : 'text-lg'} font-black mb-3 mt-4`} style={{ color: colors.textPrimary }}>
-                                        Quem vai com você?
+                                        Quem ou o que vai com você?
                                     </h2>
                                     {/* Cada adicional é um contador — 0 significa que não tem esse adicional */}
                                     <div className="flex flex-col gap-2">
