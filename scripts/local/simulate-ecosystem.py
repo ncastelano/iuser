@@ -340,15 +340,46 @@ def tick_orders():
             log(f"  ✗ pedido {r['id'][:8]} ({r['status']}→{nxt}): {str(e).splitlines()[0][:100]}")
 
 
+SERVICE_COMMENTS = ['Atendimento excelente, super recomendo', 'Tudo certo, voltarei', 'Bom serviço, preço justo', 'Poderia ser mais rápido, mas ficou bom', 'Profissional atencioso', '']
+CLIENT_COMMENTS = ['Cliente pontual e educado', 'Tudo tranquilo', 'Chegou um pouco atrasado', 'Recomendo atender', 'Respeitoso e objetivo', '']
+
+
 def tick_appointments():
-    rows = q_local("select a.id, a.status, a.owner_id, a.service_name from appointments a where a.status in ('pending','confirmed') and a.created_at > now() - interval '2 hours' order by random() limit 8")
+    """Agendamentos: o dono confirma, depois marca "serviço feito" (RPC complete_appointment) e os dois lados se avaliam (RPC submit_appointment_review)."""
+    rows = q_local("""select a.id, a.status, a.service_name, a.customer_id,
+        case when a.store_id is not null then (select s.owner_id from stores s where s.id = a.store_id) else a.provider_profile_id end as svc_owner
+        from appointments a where a.status in ('pending','confirmed') and a.created_at > now() - interval '2 hours' order by random() limit 8""")
     for r in rows:
+        if not r['svc_owner']:
+            continue
         nxt = 'confirmed' if r['status'] == 'pending' else 'completed'
         try:
-            as_user(r['owner_id'], f"update appointments set status = {esc(nxt)} where id = {esc(r['id'])}::uuid;")
-            log(f"  📅 agendamento “{r['service_name']}”: {r['status']} → {nxt}" + (' (cliente foi ao local)' if nxt == 'completed' else ''))
+            if nxt == 'confirmed':
+                as_user(r['svc_owner'], f"update appointments set status = 'confirmed' where id = {esc(r['id'])}::uuid;")
+            else:
+                as_user(r['svc_owner'], f"select complete_appointment({esc(r['id'])}::uuid);")
+            log(f"  📅 agendamento “{r['service_name']}”: {r['status']} → {nxt}" + (' (serviço feito)' if nxt == 'completed' else ''))
         except Exception as e:  # noqa: BLE001
             log(f"  ✗ agendamento {r['id'][:8]} ({r['status']}→{nxt}): {str(e).splitlines()[0][:100]}")
+    # serviços feitos que ainda não foram avaliados: o cliente avalia o serviço e o dono avalia o cliente
+    done = q_local("""select a.id, a.customer_id, a.service_name,
+        case when a.store_id is not null then (select s.owner_id from stores s where s.id = a.store_id) else a.provider_profile_id end as svc_owner,
+        exists (select 1 from appointment_reviews r where r.appointment_id = a.id and r.kind = 'service') as has_service,
+        exists (select 1 from appointment_reviews r where r.appointment_id = a.id and r.kind = 'client') as has_client
+        from appointments a where a.status = 'completed' and a.completed_at is not null and a.completed_at > now() - interval '3 hours'
+        order by random() limit 6""")
+    for r in done:
+        if not r['svc_owner'] or r['svc_owner'] == r['customer_id']:
+            continue
+        for who, kind, has, comments in ((r['customer_id'], 'serviço', r['has_service'], SERVICE_COMMENTS), (r['svc_owner'], 'cliente', r['has_client'], CLIENT_COMMENTS)):
+            if has or R.random() > 0.6:
+                continue
+            stars = R.choices([5, 4, 3, 2], [60, 28, 8, 4])[0]
+            try:
+                as_user(who, f"select submit_appointment_review({esc(r['id'])}::uuid, {stars}, {esc(R.choice(comments))});")
+                log(f"  ⭐ avaliou o {kind} “{r['service_name']}” com {stars}★")
+            except Exception as e:  # noqa: BLE001
+                log(f"  ✗ avaliação do {kind}: {str(e).splitlines()[0][:100]}")
 
 
 # ---------------------------------------------------------------- corridas
