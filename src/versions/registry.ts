@@ -55,5 +55,5 @@ export const INTERNAL_PREFIX: Partial<Record<UiVersion, string>> = { v3: '/v3' }
 export const SHELL_EXCLUDED = ['/entregador']
 
 /** Páginas que só existem na v3 (não há equivalente na v2: voltar para a v2 leva à home da v2) */
-export const V3_ONLY_ROUTES = ['/modeloinicial', '/painel-perfil', '/modoprestador', '/comprar']
-export const V3_ONLY_PREFIXES = ['/painel-loja/', '/veiculo/']
+export const V3_ONLY_ROUTES = ['/modeloinicial', '/painel-perfil', '/modoprestador', '/comprar', '/imoveis', '/anunciar-imovel', '/meus-imoveis']
+export const V3_ONLY_PREFIXES = ['/painel-loja/', '/veiculo/', '/imoveis/']

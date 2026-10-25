@@ -12,7 +12,7 @@ import { ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
     Search, ShoppingBag, Store as StoreIcon, Car, Wrench, Briefcase, Users, MessageCircle,
-    ChevronRight, Star, MapPin, Eye, User, LogIn, LogOut, Radar, UserPlus, X, Plus, Package, ShoppingCart, Scissors, Check,
+    Home as HomeIcon, ChevronRight, Star, MapPin, Eye, User, LogIn, LogOut, Radar, UserPlus, X, Plus, Package, ShoppingCart, Scissors, Check,
     UtensilsCrossed, Shirt, Smartphone, Hand, Sparkles, Bike, Motorbike, CircleDollarSign, type LucideIcon,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
@@ -639,11 +639,13 @@ export default function ModeloInicialPage() {
         { title: 'Pedir motorista', desc: rideStatus ?? 'Corrida rápida, preço combinado', live: !!activeRide,
             wide: activeRide ? { images: [], cta: activeRide.status === 'pending' ? (activeRide.candidates > 0 ? 'Escolher' : 'Ver') : 'Acompanhar', hot: activeRide.candidates > 0 || activeRide.arrived, sub: activeRide.destination ? `Para ${shortAddress(activeRide.destination)}` : undefined } : undefined,
             icon: Car, icons: [Car, Bike, Motorbike, Package], color: '#ea580c', onClick: () => go('/pedir-motorista') },
+        { title: 'Alugar imóvel', desc: 'Casas, aptos e salas, com visita marcada', icon: HomeIcon, color: '#16a34a', onClick: () => go('/imoveis') },
         { title: 'Ver ao redor', desc: 'Mapa com lojas, serviços e pessoas', nearby: true, icon: Radar, icons: [Radar, MapPin, StoreIcon, Users], color: '#0891b2', onClick: () => go('/radar') },
     ]
     // Quem QUER GANHAR com o iUser
     const earns: Action[] = [
         { title: 'Vender', desc: 'Mostre seu produto, serviço ou loja', icon: CircleDollarSign, color: '#16a34a', onClick: () => setSellOpen(true) },
+        { title: 'Anunciar imóvel', desc: 'Alugue sua casa, apto ou sala', icon: HomeIcon, color: '#16a34a', onClick: () => go('/anunciar-imovel') },
         { title: 'Ser motorista', desc: 'Receba corridas na sua região', icon: Car, color: '#ea580c', onClick: () => go('/painel-motorista') },
         {
             title: 'Indicar e ganhar', desc: 'Convide e receba comissão', icon: UserPlus, color: '#7c3aed',

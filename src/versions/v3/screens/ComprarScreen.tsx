@@ -10,7 +10,7 @@ import { cartAddedFeedback } from '@/lib/cartFeedback'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { ArrowLeft, CalendarCheck, Car, ChevronRight, Clock, Flame, LayoutGrid, Package, Plus, Radar, RotateCcw, Search, ShoppingCart, Sparkles, Store as StoreIcon, Truck, Users, Wrench, X } from 'lucide-react'
+import { ArrowLeft, CalendarCheck, Car, ChevronRight, Home as HomeIcon, Clock, Flame, LayoutGrid, Package, Plus, Radar, RotateCcw, Search, ShoppingCart, Sparkles, Store as StoreIcon, Truck, Users, Wrench, X } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme, type ThemeColors } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
@@ -269,6 +269,7 @@ export default function ComprarScreen() {
     )
     // Além de comprar: o que mais se pede no iUser
     const quick: { label: string; desc: string; icon: any; color: string; to: string }[] = [
+        { label: 'Alugar imóvel', desc: 'Casa, apartamento, sala', icon: HomeIcon, color: '#16a34a', to: '/imoveis' },
         { label: 'Pedir motorista', desc: 'Corrida ou entrega', icon: Car, color: '#ea580c', to: '/pedir-motorista' },
         { label: 'Contratar profissional', desc: 'Descreva o que precisa', icon: Wrench, color: '#7c3aed', to: '/solicitar-servico' },
         { label: 'Ver ao redor', desc: 'Lojas e serviços no mapa', icon: Radar, color: '#0891b2', to: '/radar' },

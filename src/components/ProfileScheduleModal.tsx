@@ -41,6 +41,10 @@ interface Props {
     profileName: string
     profileSlug: string
     onClose: () => void
+    /** Visita a um imóvel anunciado por esse perfil: liga o agendamento ao imóvel (o banco confere que é de quem anuncia) */
+    rentalListingId?: string
+    /** Título do que está sendo agendado (vira o nome do compromisso); padrão: o que a pessoa escrever ou "Atendimento" */
+    serviceTitle?: string
 }
 
 const toMin = (t: string) => {
@@ -50,7 +54,7 @@ const toMin = (t: string) => {
 const fromMin = (m: number) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
 const localDateStr = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
-export default function ProfileScheduleModal({ profileId, profileName, profileSlug, onClose }: Props) {
+export default function ProfileScheduleModal({ profileId, profileName, profileSlug, onClose, rentalListingId, serviceTitle }: Props) {
     const router = useRouter()
     const { userId } = useProfile()
     const [hours, setHours] = useState<any>(null)
@@ -176,7 +180,8 @@ export default function ProfileScheduleModal({ profileId, profileName, profileSl
                 date: dateStr,
                 time,
                 duration_minutes: duration,
-                service_name: note.trim() || 'Atendimento',
+                service_name: serviceTitle ? (note.trim() ? `${serviceTitle} — ${note.trim()}`.slice(0, 120) : serviceTitle) : (note.trim() || 'Atendimento'),
+                ...(rentalListingId ? { rental_listing_id: rentalListingId } : {}),
                 service_type: 'service',
                 people_count: 1,
                 status: 'pending',
@@ -319,11 +324,11 @@ export default function ProfileScheduleModal({ profileId, profileName, profileSl
                         )}
 
                         <div>
-                            <p className="text-[11px] font-black uppercase tracking-wider text-gray-500 mb-1.5">O que você precisa? (opcional)</p>
+                            <p className="text-[11px] font-black uppercase tracking-wider text-gray-500 mb-1.5">{rentalListingId ? 'Recado para quem anuncia (opcional)' : 'O que você precisa? (opcional)'}</p>
                             <textarea
                                 value={note}
                                 onChange={(e) => setNote(e.target.value)}
-                                placeholder="Ex: Consulta, aula, reunião..."
+                                placeholder={rentalListingId ? 'Ex: vou com minha família (3 pessoas)' : 'Ex: Consulta, aula, reunião...'}
                                 rows={2}
                                 className="w-full p-3 rounded-xl border-2 border-gray-200 text-sm text-gray-900 focus:outline-none focus:border-orange-400 resize-none"
                             />

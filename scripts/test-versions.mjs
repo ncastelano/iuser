@@ -77,3 +77,7 @@ test('na v2 só as páginas exclusivas da 3.0 usam a casca', () => {
 test('/comprar existe só na 3.0', () => {
     assert.equal(isV3OnlyPath('/comprar'), true)
 })
+
+test('aluguel de imóveis existe só na 3.0', () => {
+    for (const p of ['/imoveis', '/imoveis/apto-centro-x1y2z', '/anunciar-imovel', '/meus-imoveis']) assert.equal(isV3OnlyPath(p), true, p)
+})
