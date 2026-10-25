@@ -11,7 +11,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { ArrowLeft, Check, CheckCircle2, ChevronDown, ChevronRight, Clock, Eye, MapPin, Plus, Radar, Star, Users, X } from 'lucide-react'
+import { ArrowLeft, Check, CheckCircle2, ChevronRight, Clock, Eye, MapPin, Plus, Radar, Star, Users, X } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
@@ -42,8 +42,7 @@ export default function SolicitarServicoScreen() {
     const [requests, setRequests] = useState<MyRequest[] | null>(null)
     const [stage, setStage] = useState<RequestStage>('buscando')
     const [openId, setOpenId] = useState<string | null>(null)
-    // Pedido com a lista de quem quer fazer aberta, e a candidatura que está sendo decidida agora
-    const [expandedId, setExpandedId] = useState<string | null>(null)
+    // A candidatura que está sendo decidida agora
     const [decidingId, setDecidingId] = useState<string | null>(null)
 
     // ----- pedido novo -----
@@ -136,7 +135,6 @@ export default function SolicitarServicoScreen() {
             toast.success(status === 'accepted' ? 'Profissional escolhido!' : 'Profissional recusado.')
             if (status === 'accepted') {
                 notifyServiceDecision(applicationId, 'selected')
-                setExpandedId(null)
                 setStage('contratado')
             }
             notifyServiceRequestsChanged() // recarrega a lista (o evento volta pra cá)
@@ -176,72 +174,59 @@ export default function SolicitarServicoScreen() {
                 {/* Como está, em palavras */}
                 <div className="px-3 pb-3">
                     {r.stage === 'buscando' && (waiting.length > 0 ? (
-                        <>
-                            <button
-                                onClick={() => setExpandedId(expandedId === r.id ? null : r.id)}
-                                aria-expanded={expandedId === r.id}
-                                className="w-full flex items-center gap-2 rounded-2xl px-3 py-2 text-left transition active:scale-[0.99]"
-                                style={{ background: `${colors.accent}15` }}
-                            >
-                                <span className="flex -space-x-2 flex-shrink-0">
-                                    {waiting.slice(0, 3).map((c) => c.avatarUrl
-                                        ? <img key={c.applicationId} src={c.avatarUrl} alt="" className="w-6 h-6 rounded-full object-cover" style={{ border: `2px solid ${colors.surface}` }} />
-                                        : <span key={c.applicationId} className="w-6 h-6 rounded-full flex items-center justify-center" style={{ background: GRADIENT, border: `2px solid ${colors.surface}` }}><Users size={11} color="#fff" /></span>)}
-                                </span>
-                                <span className="flex-1 text-xs font-black leading-tight" style={{ color: colors.accent }}>
-                                    {waiting.length} {waiting.length === 1 ? 'profissional quer' : 'profissionais querem'} fazer. Escolha!
-                                </span>
-                                <ChevronDown size={16} style={{ color: colors.accent, transition: 'transform .2s', transform: expandedId === r.id ? 'rotate(180deg)' : 'none' }} />
-                            </button>
-
-                            {expandedId === r.id && (
-                                <div className="mt-2 flex flex-col gap-2">
-                                    {waiting.map((c) => {
-                                        const busy = decidingId === c.applicationId
-                                        const who = c.slug ? `@${c.slug}` : c.name || 'Profissional'
-                                        return (
-                                            <div key={c.applicationId} className="rounded-2xl p-2.5" style={{ background: soft }}>
-                                                <button
-                                                    onClick={() => c.slug && router.push(`/${c.slug}`)}
-                                                    disabled={!c.slug}
-                                                    className="w-full flex items-center gap-2.5 text-left"
-                                                >
-                                                    {c.avatarUrl
-                                                        ? <img src={c.avatarUrl} alt="" className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
-                                                        : <span className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT }}><Users size={16} color="#fff" /></span>}
-                                                    <span className="min-w-0 flex-1">
-                                                        <span className="block text-sm font-black truncate" style={{ color: colors.textPrimary }}>{c.name || who}</span>
-                                                        {c.name && c.slug && <span className="block text-[11px] truncate" style={{ color: colors.textSecondary }}>@{c.slug}</span>}
+                        <div>
+                            <p className="px-1 mb-2 text-xs font-black" style={{ color: colors.accent }}>
+                                {waiting.length} {waiting.length === 1 ? 'profissional quer' : 'profissionais querem'} fazer · escolha quem vai
+                            </p>
+                            <div className="flex flex-col gap-2.5">
+                                {waiting.map((c) => {
+                                    const busy = decidingId === c.applicationId
+                                    const who = c.name || (c.slug ? `@${c.slug}` : 'Profissional')
+                                    return (
+                                        <div key={c.applicationId} className="rounded-2xl p-3" style={{ background: soft }}>
+                                            <button onClick={() => c.slug && router.push(`/${c.slug}`)} disabled={!c.slug} className="w-full flex items-start gap-3 text-left">
+                                                {c.avatarUrl
+                                                    ? <img src={c.avatarUrl} alt="" className="w-12 h-12 rounded-full object-cover flex-shrink-0" />
+                                                    : <span className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT }}><Users size={18} color="#fff" /></span>}
+                                                <span className="min-w-0 flex-1">
+                                                    <span className="block text-[15px] font-black leading-tight truncate" style={{ color: colors.textPrimary }}>{who}</span>
+                                                    <span className="mt-0.5 flex items-center gap-1.5 text-[11px] font-bold" style={{ color: colors.textSecondary }}>
+                                                        {c.rating != null
+                                                            ? <span className="flex items-center gap-0.5" style={{ color: colors.textPrimary }}><Star size={11} className="text-amber-500 fill-amber-400" />{c.rating.toFixed(1).replace('.', ',')} <span style={{ color: colors.textSecondary }}>({c.ratingCount})</span></span>
+                                                            : <span>Novo no iUser</span>}
+                                                        {c.slug && <span className="truncate">· @{c.slug}</span>}
                                                     </span>
-                                                    {c.slug && <span className="text-[11px] font-black flex-shrink-0" style={{ color: colors.accent }}>Ver perfil</span>}
+                                                    {c.bio && <span className="mt-1 block text-xs leading-snug line-clamp-2" style={{ color: colors.textSecondary }}>{c.bio}</span>}
+                                                    {c.slug && <span className="mt-1 block text-[11px] font-black underline" style={{ color: colors.textSecondary }}>Ver perfil</span>}
+                                                </span>
+                                            </button>
+                                            <div className="mt-3 flex items-center gap-2">
+                                                <button
+                                                    onClick={() => decide(c.applicationId, 'accepted')}
+                                                    disabled={busy}
+                                                    className="flex-1 h-11 rounded-full flex items-center justify-center gap-1.5 text-sm font-black text-white transition active:scale-95 disabled:opacity-60"
+                                                    style={{ background: '#f97316' }}
+                                                >
+                                                    {busy ? <Spinner size={15} color="#fff" /> : <><Check size={16} strokeWidth={3} /> Escolher</>}
                                                 </button>
-                                                <div className="mt-2 grid grid-cols-3 gap-1.5">
-                                                    <div className="[&>button]:!py-0 [&>button]:h-9 [&>button]:text-[11px] [&>button]:gap-1 [&>button]:hover:!scale-100 [&_svg]:w-[14px] [&_svg]:h-[14px]">
-                                                        <ChatContactButton profileId={c.applicantId} requestApplicationId={c.applicationId} colors={colors} variant="pill" label="Conversar" />
-                                                    </div>
-                                                    <button
-                                                        onClick={() => decide(c.applicationId, 'accepted')}
-                                                        disabled={busy}
-                                                        className="h-9 rounded-full flex items-center justify-center gap-1 text-[11px] font-black text-white disabled:opacity-60"
-                                                        style={{ background: '#22c55e' }}
-                                                    >
-                                                        {busy ? <Spinner size={13} color="#fff" /> : <><Check size={13} strokeWidth={3} /> Aceitar</>}
-                                                    </button>
-                                                    <button
-                                                        onClick={() => decide(c.applicationId, 'rejected')}
-                                                        disabled={busy}
-                                                        className="h-9 rounded-full flex items-center justify-center gap-1 text-[11px] font-black text-white disabled:opacity-60"
-                                                        style={{ background: '#ef4444' }}
-                                                    >
-                                                        <X size={13} strokeWidth={3} /> Recusar
-                                                    </button>
+                                                <div className="[&>button]:!py-0 [&>button]:h-11 [&>button]:px-4 [&>button]:text-[13px] [&>button]:gap-1 [&>button]:hover:!scale-100">
+                                                    <ChatContactButton profileId={c.applicantId} requestApplicationId={c.applicationId} colors={colors} variant="v3quiet" label="Conversar" />
                                                 </div>
+                                                <button
+                                                    onClick={() => decide(c.applicationId, 'rejected')}
+                                                    disabled={busy}
+                                                    aria-label={`Recusar ${who}`}
+                                                    className="w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 transition active:scale-95 disabled:opacity-60"
+                                                    style={{ background: '#ef44441a', color: '#ef4444' }}
+                                                >
+                                                    <X size={17} strokeWidth={3} />
+                                                </button>
                                             </div>
-                                        )
-                                    })}
-                                </div>
-                            )}
-                        </>
+                                        </div>
+                                    )
+                                })}
+                            </div>
+                        </div>
                     ) : (
                         <button onClick={() => setOpenId(r.id)} className="w-full flex items-center gap-2 rounded-2xl px-3 py-2 text-xs text-left" style={{ background: soft, color: colors.textSecondary }}>
                             <Eye size={13} className="flex-shrink-0" />

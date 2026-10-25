@@ -1,6 +1,7 @@
 // app/(main)/procurar-servico/page.tsx
 'use client'
 
+import { useInsideShell } from '@/components/InsideShell'
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { getRequestTitle } from '@/lib/serviceTypes'
@@ -16,11 +17,12 @@ import { Spinner } from '@/components/Spinner'
 import DriverDebtBanner from '@/components/DriverDebtBanner'
 import { notifyServiceApplication } from '@/lib/notifyRideStatus'
 import { trackServiceRequestView } from '@/lib/trackServiceRequestView'
+import ServiceRequestShareButton from '@/components/ServiceRequestShareButton'
 import ServiceRequestViewDialog from '@/components/ServiceRequestViewDialog'
 import ServiceRequestDetailsDialog from '@/components/ServiceRequestDetailsDialog'
 import ServiceExchangePanel from '@/components/ServiceExchangePanel'
 import { getServiceIcon } from '@/lib/serviceTypes'
-import { useMyServiceApplications } from '@/hooks/useMyServiceApplications'
+import { useMyServiceApplications, type MyApplication } from '@/hooks/useMyServiceApplications'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
 import {
     BoardItem,
@@ -47,6 +49,7 @@ export default function SerParceiroPage() {
 }
 
 function SerParceiroContent() {
+    const v3 = useInsideShell()   // v3: lista corrida (sem cartões), foto/ícone pequenos e botão laranja sólido
     const router = useRouter()
     const searchParams = useSearchParams()
     // Vem de "Quero fazer esse serviço" na home: foca o card desse pedido e
@@ -113,12 +116,27 @@ function SerParceiroContent() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [profileLoading, userId])
 
+    // Pedidos novos aparecem sozinhos (a cada 10 s, com a aba aberta), sem piscar a tela: só troca a lista se algo mudou
+    const trackedViewsRef = useRef<Set<string>>(new Set())
+    useEffect(() => {
+        if (profileLoading) return
+        const id = setInterval(async () => {
+            if (document.hidden) return
+            try {
+                const fresh = await fetchOpenBoardItems()
+                setJobs((prev) => (prev.map((j) => j.id).join('|') === fresh.map((j) => j.id).join('|') ? prev : fresh))
+            } catch { /* falha de rede: tenta de novo no próximo ciclo */ }
+        }, 10000)
+        return () => clearInterval(id)
+    }, [profileLoading])
+
     // Conta visita quando os cards aparecem na tela (qualquer pessoa vê a lista, com ou sem
     // plano) e só pra quem não é o dono do pedido.
     useEffect(() => {
         if (loading || profileLoading || jobs.length === 0) return
         for (const job of jobs) {
-            if (job.requester_id !== userId) {
+            if (job.requester_id !== userId && !trackedViewsRef.current.has(job.id)) {
+                trackedViewsRef.current.add(job.id)
                 trackServiceRequestView(job.id)
             }
         }
@@ -215,6 +233,7 @@ function SerParceiroContent() {
         if (appliedKeys.has(itemKey(job))) {
             toast.info('Você já se inscreveu nesse serviço.')
             setActiveTab('inscrevi')
+            setViewJob(job)   // quem abre o link do pedido quer ver os detalhes dele
             setTimeout(() => {
                 document.getElementById(`application-card-${job.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
             }, 200)
@@ -230,6 +249,22 @@ function SerParceiroContent() {
         }, 1000)
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [focusId, loading, profileLoading, userId, jobs])
+
+    // "Me inscrevi": tocar no card abre o pedido inteiro (fotos, descrição, onde). Busca o pedido completo; se não der, monta com o que o card já tem.
+    const openApplication = async (app: MyApplication) => {
+        const requester = { name: app.requesterName, profileSlug: app.requesterSlug, avatarUrl: app.requesterAvatarUrl }
+        const { data } = await supabase.from('service_requests')
+            .select('id, requester_id, service_type, custom_service, custom_icon, location_address, location_needs_access, location_access_notes, description, photo_urls, created_at, view_count')
+            .eq('id', app.requestId).maybeSingle()
+        setViewJob({
+            kind: 'service', requester,
+            ...(data || {
+                id: app.requestId, requester_id: app.requesterId || '', service_type: app.serviceType, custom_service: null, location_address: app.locationAddress,
+                location_needs_access: false, location_access_notes: null, description: app.description, photo_urls: app.photoUrl ? [app.photoUrl] : [],
+                created_at: app.appliedAt, view_count: 0,
+            }),
+        } as BoardItem)
+    }
 
     // Editar um pedido meu abre o mesmo componente de "Seus pedidos em aberto" (editar, candidatos, visitantes...)
     const openEdit = (item: BoardItem) => setDetailsId(item.id)
@@ -359,8 +394,11 @@ function SerParceiroContent() {
                                         id={`job-card-${job.id}`}
                                         // Tocar no card (fora dos botões) abre o pedido em tamanho grande e já conta a visita
                                         onClick={(e) => { if (!(e.target as HTMLElement).closest('button, a, input, textarea')) setViewJob(job) }}
-                                        className="rounded-3xl p-3 scroll-mt-32 flex gap-3 cursor-pointer"
-                                        style={{
+                                        className={v3 ? 'py-3 scroll-mt-32 flex gap-3 cursor-pointer' : 'rounded-3xl p-3 scroll-mt-32 flex gap-3 cursor-pointer'}
+                                        style={v3 ? {
+                                            borderBottom: `1px solid ${colors.border}50`,
+                                            background: focusId === job.id ? `${colors.accent}10` : undefined,
+                                        } : {
                                             background: colors.surface,
                                             border: `1px solid ${focusId === job.id ? colors.accent : colors.border}`,
                                             boxShadow: focusId === job.id ? `0 0 0 3px ${colors.accent}40` : colors.shadow,
@@ -368,14 +406,14 @@ function SerParceiroContent() {
                                     >
                                         {/* Foto do pedido em destaque, à esquerda (sem foto: o ícone do tipo) */}
                                         <div
-                                            className="relative w-28 sm:w-32 flex-shrink-0 rounded-2xl overflow-hidden self-stretch min-h-[132px]"
-                                            style={{ background: photo ? '#0b1220' : GRADIENT, boxShadow: '0 8px 18px rgba(0,0,0,0.18)' }}
+                                            className={v3 ? 'relative w-20 h-20 flex-shrink-0 rounded-2xl overflow-hidden' : 'relative w-28 sm:w-32 flex-shrink-0 rounded-2xl overflow-hidden self-stretch min-h-[132px]'}
+                                            style={v3 ? { background: photo ? '#0b1220' : '#f9731620' } : { background: photo ? '#0b1220' : GRADIENT, boxShadow: '0 8px 18px rgba(0,0,0,0.18)' }}
                                         >
                                             {photo ? (
                                                 <img src={photo} alt={title} className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
                                             ) : (
                                                 <div className="absolute inset-0 flex items-center justify-center">
-                                                    <Icon size={38} color="rgba(255,255,255,0.9)" />
+                                                    <Icon size={v3 ? 28 : 38} color={v3 ? '#f97316' : 'rgba(255,255,255,0.9)'} />
                                                 </div>
                                             )}
                                             {job.photo_urls.length > 1 && (
@@ -409,7 +447,7 @@ function SerParceiroContent() {
                                                 </span>
                                             </div>
 
-                                            <p className="text-base font-black leading-snug" style={{ color: colors.textPrimary, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                                            <p className={`${v3 ? 'text-[15px]' : 'text-base'} font-black leading-snug`} style={{ color: colors.textPrimary, display: '-webkit-box', WebkitLineClamp: v3 ? 2 : 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                                                 {title}
                                             </p>
 
@@ -435,6 +473,7 @@ function SerParceiroContent() {
                                                     >
                                                         Seu pedido
                                                     </div>
+                                                    <ServiceRequestShareButton item={job} />
                                                     <button
                                                         onClick={() => openEdit(job)}
                                                         aria-label="Editar pedido"
@@ -455,14 +494,17 @@ function SerParceiroContent() {
                                                     </button>
                                                 </div>
                                             ) : (
+                                                <div className={v3 ? 'mt-1 flex items-center gap-2' : 'mt-auto flex items-center gap-2'}>
                                                 <button
                                                     onClick={() => handleApply(job)}
                                                     disabled={applied || applyingKey === key || autoApplyingId === job.id}
-                                                    className="mt-auto w-full py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all disabled:opacity-70 flex items-center justify-center gap-2"
+                                                    className={v3
+                                                        ? 'h-9 px-6 rounded-full text-[13px] font-black transition active:scale-95 disabled:opacity-70 flex items-center justify-center gap-2'
+                                                        : 'flex-1 py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all disabled:opacity-70 flex items-center justify-center gap-2'}
                                                     style={
                                                         applied
-                                                            ? { background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }
-                                                            : { background: GRADIENT, color: '#fff', boxShadow: '0 4px 12px #f9731640' }
+                                                            ? { background: `${colors.border}30`, color: colors.textSecondary, border: v3 ? 'none' : `1px solid ${colors.border}` }
+                                                            : v3 ? { background: '#f97316', color: '#fff' } : { background: GRADIENT, color: '#fff', boxShadow: '0 4px 12px #f9731640' }
                                                     }
                                                 >
                                                     {autoApplyingId === job.id && !applied ? (
@@ -472,9 +514,11 @@ function SerParceiroContent() {
                                                     ) : applied ? (
                                                         'Inscrição enviada'
                                                     ) : (
-                                                        <><Briefcase size={14} />Inscrever-se</>
+                                                        <>{!v3 && <Briefcase size={14} />}Inscrever-se</>
                                                     )}
                                                 </button>
+                                                <ServiceRequestShareButton item={job} size={v3 ? 36 : 40} />
+                                                </div>
                                             )}
                                         </div>
                                     </div>
@@ -500,7 +544,8 @@ function SerParceiroContent() {
                                     <div
                                         key={app.applicationId}
                                         id={`application-card-${app.requestId}`}
-                                        className="rounded-2xl p-4 scroll-mt-32"
+                                        onClick={(e) => { if (!(e.target as HTMLElement).closest('button, a, input, textarea, [data-no-open]')) void openApplication(app) }}
+                                        className="rounded-2xl p-4 scroll-mt-32 cursor-pointer"
                                         style={{
                                             background: colors.surface,
                                             border: `1px solid ${app.status === 'accepted' ? '#22c55e' : focusId === app.requestId ? colors.accent : colors.border}`,
@@ -540,7 +585,7 @@ function SerParceiroContent() {
                                             </div>
                                         </div>
 
-                                        <div className="mt-3">
+                                        <div className="mt-3" data-no-open>
                                             {app.status === 'accepted' ? (
                                                 <div>
                                                     <div className="flex items-center gap-2 rounded-xl px-3 py-2.5" style={{ background: '#22c55e18' }}>

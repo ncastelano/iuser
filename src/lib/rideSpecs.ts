@@ -93,7 +93,7 @@ export function buildRideSpecRows(ride: RideSpecFields): RideSpecRow[] {
             rows.push({ label: 'Objeto extra', value: ride.extra_object_description || 'não especificado' })
         }
 
-        if (ride.has_pet) {
+        if (ride.has_pet && !(ride.has_guide_dog && (ride.pet_description || '').trim() === 'Animal-guia')) {
             rows.push({ label: 'Pet', value: ride.pet_description || 'não especificado' })
             const petDetails = petWeightCarrierText(ride)
             if (petDetails) rows.push({ label: 'Peso/transporte', value: petDetails })
@@ -117,13 +117,13 @@ export function buildRideSpecRows(ride: RideSpecFields): RideSpecRow[] {
             parts.push(`cadeirante${ride.special_needs_wheelchair_type ? ` (${ride.special_needs_wheelchair_type === 'dobravel' ? 'dobrável' : 'grande'})` : ''}`)
         }
         if (ride.special_needs_visual_impairment) {
-            parts.push(`deficiência visual${ride.has_guide_dog ? ' — vem com cão-guia' : ''}`)
+            parts.push('deficiência visual')
         }
         if (ride.special_needs_description) parts.push(ride.special_needs_description)
         rows.push({ label: 'Pessoa com deficiência', value: parts.length > 0 ? parts.join('; ') : 'sim' })
 
         if (ride.has_guide_dog) {
-            rows.push({ label: 'Atenção', value: 'Cão-guia — não é pet comum, não recuse por causa dele' })
+            rows.push({ label: 'Atenção', value: 'Vai com animal-guia — não é pet comum, não recuse por causa dele' })
         }
     }
 
@@ -188,7 +188,7 @@ export function humanizeRideSpecs(ride: RideSpecFields): HumanSpec[] {
             out.push({ kind: 'shopping', text: `Levar compras de mercado${bags}` })
         }
         if (ride.has_extra_object) out.push({ kind: 'cargo', text: ride.extra_object_description ? `Levar: ${ride.extra_object_description}` : 'Levar um objeto' })
-        if (ride.has_pet) {
+        if (ride.has_pet && !(ride.has_guide_dog && (ride.pet_description || '').trim() === 'Animal-guia')) {
             const d = petDetails(ride)
             out.push({ kind: 'pet', text: `Levar um pet${ride.pet_description ? `: ${ride.pet_description}` : ''}${d ? ` (${d})` : ''}` })
         }
@@ -209,7 +209,7 @@ export function humanizeRideSpecs(ride: RideSpecFields): HumanSpec[] {
         if (ride.special_needs_visual_impairment) parts.push('deficiência visual')
         if (ride.special_needs_description) parts.push(ride.special_needs_description)
         out.push({ kind: 'accessibility', text: `Pessoa com deficiência${parts.length ? `: ${parts.join(', ')}` : ''}` })
-        if (ride.has_guide_dog) out.push({ kind: 'guide', text: 'Cão-guia junto — não é pet comum' })
+        if (ride.has_guide_dog) out.push({ kind: 'guide', text: 'Vai com animal-guia — não é pet comum' })
     }
 
     if (ride.payment_method) {

@@ -25,6 +25,8 @@ if (pointsAtProd && process.env.NODE_ENV === 'development' && process.env.ALLOW_
 // Host do Storage do Supabase do ambiente atual (produção ou staging) para o next/image
 let supabaseHost = 'mqtwehsmkuknkrtrqbnf.supabase.co'
 try { if (supabaseUrl) supabaseHost = new URL(supabaseUrl).hostname } catch {}
+// Supabase LOCAL (Docker, scripts/local): as imagens vêm de http://127.0.0.1:54321 — só nesse caso libera o host (e o IP local) no next/image
+const localSupabase = /^http:\/\/(127\.0\.0\.1|localhost):\d+/.test(supabaseUrl)
 
 // Endereço de imagens do próprio site (/img/..., rota src/app/img/[...path]/route.ts): a Vercel busca no Storage do Supabase uma vez e
 // guarda a cópia (cache), então as visualizações seguintes não gastam o Cached Egress do Supabase. Ver src/lib/imageProxy.ts. Base ABSOLUTA: produção usa o domínio
@@ -46,7 +48,9 @@ const nextConfig = {
   env: { NEXT_PUBLIC_IMAGE_BASE: imageBase },
 
   images: {
+    ...(localSupabase ? { dangerouslyAllowLocalIP: true } : {}),
     remotePatterns: [
+      ...(localSupabase ? [{ protocol: 'http', hostname: new URL(supabaseUrl).hostname, port: new URL(supabaseUrl).port, pathname: '/storage/v1/object/public/**' }] : []),
       {
         protocol: 'https',
         hostname: 'images.unsplash.com',

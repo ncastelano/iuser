@@ -12,12 +12,13 @@ import { supabase } from '@/lib/supabase/client'
 import { getCurrentPosition as getNativeCurrentPosition, watchPosition as watchNativePosition } from '@/lib/nativeGeolocation'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { useTheme } from '@/app/contexts/theme'
+import { useInsideShell } from '@/components/InsideShell'
 import Header, { type Tab } from '@/components/Header'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import LoginAndRegister from '@/components/LoginAndRegister/LoginAndRegister'
 import LocationPicker from '@/components/LocationPicker'
 import { toast } from 'sonner'
-import { MapPin, Star, Pencil, X, Package, CalendarClock, PawPrint, Car, CheckCircle2, Navigation, Ban, Flag, Share2, AlertCircle, Map as MapIcon, LocateFixed } from 'lucide-react'
+import { MapPin, Star, Pencil, X, Package, CalendarClock, PawPrint, Car, CheckCircle2, Navigation, Ban, Flag, Share2, Map as MapIcon, LocateFixed } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import { loadPlatformTariffs } from '@/lib/platformTariffs'
 import { shortAddress } from '@/lib/serviceBoard'
@@ -41,7 +42,7 @@ function vehicleIconForRide(rideVehicleType: VehicleType, myKinds: VehicleKind[]
     }
     return 'carro'
 }
-import { buildRideSpecRows } from '@/lib/rideSpecs'
+import { buildRideSpecRows, type RideSpecFields } from '@/lib/rideSpecs'
 import { notifyRideStatus } from '@/lib/notifyRideStatus'
 import { handleShareLink } from '@/lib/share'
 import { computeExtraTaskFee, EXTRA_TASK_FEE_TIERS } from '@/lib/extraTaskFees'
@@ -58,7 +59,7 @@ import { submitRideApplication } from '@/lib/rideApplication'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
 import { saveOwnProfile } from '@/lib/saveOwnProfile'
 
-const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
+const GRADIENT_V2 = 'linear-gradient(135deg, #f97316, #dc2626)'
 const REFRESH_INTERVAL_MS = 15000
 
 // Ícone da aba "Me candidatei": sempre no verde-limão do botão "Candidatar-se"
@@ -236,10 +237,15 @@ interface CandidacyCardData extends RideRow {
     hasDistance: boolean
 }
 
-interface AcceptedRideDetail {
+interface AcceptedRideDetail extends RideSpecFields {
     id: string
     share_token: string
     vehicle_type: VehicleType
+    scheduled_for: string | null
+    created_at: string
+    offered_price: number | null
+    order_id: string | null
+    storeName: string | null
     origin_address: string
     destination_address: string
     origin_complement: string | null
@@ -283,13 +289,11 @@ export interface AceitarCorridasProps {
     onTabChange?: (tab: AceitarCorridasTab) => void
     // Contagens/estado pras abas do painel (badges e "Corrida aceita").
     onSummaryChange?: (summary: { rides: number; candidacies: number; hasAccepted: boolean }) => void
-    // Sair da tela (ex: recusou a sincronização) — no painel volta pra aba Painel.
-    onLeave?: () => void
     // Abrir o cadastro de veículo (no painel: troca pra aba Meu veículo).
     onRegisterVehicle?: () => void
 }
 
-export default function AceitarCorridas({ embedded = false, tab, onTabChange, onSummaryChange, onLeave, onRegisterVehicle }: AceitarCorridasProps = {}) {
+export default function AceitarCorridas({ embedded = false, tab, onTabChange, onSummaryChange, onRegisterVehicle }: AceitarCorridasProps = {}) {
     const router = useRouter()
     // ?ride=<id> (clique num card do Canal do Motorista na home): rola até o card
     // dessa corrida e destaca; ?tab=candidatos abre em "Me candidatei".
@@ -300,6 +304,13 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
     const focusedRef = useRef(false)
     const { userId: contextUserId, avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
     const { colors } = useTheme()
+    // 3.0: laranja sólido, cartões macios sem moldura/sombra e campos em cápsula (só apresentação; as regras são as mesmas)
+    const v3 = useInsideShell()
+    const GRADIENT = v3 ? '#f97316' : GRADIENT_V2
+    const soft = `${colors.border}30`
+    const bd = v3 ? 'none' : `1px solid ${colors.border}`
+    const sh = v3 ? 'none' : colors.shadow
+    const surf = v3 ? soft : colors.surface
     const { loading: plansLoading, hasDriver } = useActivePlans(contextUserId)
 
     const [loading, setLoading] = useState(true)
@@ -375,13 +386,6 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
     // Km/tempo de cada trecho, calculados pelo mini mapa de cada card.
     const [routeInfoById, setRouteInfoById] = useState<Record<string, { toPickupKm: number | null; toPickupMin: number | null; tripKm: number; tripMin: number }>>({})
 
-    // ===== DIALOG "ATIVAR SINCRONIZAÇÃO" AO ENTRAR NA PÁGINA =====
-    // Pra aceitar corridas o motorista precisa estar com a sincronização
-    // ligada — em vez de deixar isso implícito (só ligava sozinho ao
-    // candidatar-se numa corrida), pergunta logo na entrada da página.
-    const [showSyncPrompt, setShowSyncPrompt] = useState(false)
-    const [activatingSync, setActivatingSync] = useState(false)
-    const syncPromptedRef = useRef(false)
 
     const [savedLocation, setSavedLocation] = useState<{ lat: number; lng: number; address: string; addressNumber?: string; addressComplement?: string } | null>(null)
     const [showLocationDialog, setShowLocationDialog] = useState(false)
@@ -581,24 +585,23 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
 
         // Consulta separada e best-effort: se a coluna ainda não existir (migração
         // pendente), isso não pode derrubar a checagem de tarifa acima.
+        // A localização ao vivo acompanha o Modo motorista: ligado = sincronizado
+        // (quem já estava ligado de antes, sem a sincronização, é corrigido aqui).
         if (contextUserId) supabase
             .from('driver_pricing')
-            .select('live_location_sync')
+            .select('live_location_sync, driver_mode_active')
             .eq('driver_id', contextUserId)
             .maybeSingle()
             .then(({ data }) => {
-                const syncOn = !!data?.live_location_sync
-                setLiveLocationSync(syncOn)
-                if (!syncPromptedRef.current) {
-                    syncPromptedRef.current = true
-                    // Só pergunta pra quem já tem cadastro de motorista (driver_pricing);
-                    // quem está só vendo as corridas não é barrado por esse aviso.
-                    if (!syncOn && data) setShowSyncPrompt(true)
+                const modeOn = !!data?.driver_mode_active
+                if (modeOn && !data?.live_location_sync) {
+                    supabase.from('driver_pricing').update({ live_location_sync: true }).eq('driver_id', contextUserId).then(() => {})
                 }
+                setLiveLocationSync(modeOn)
                 // Enquanto a sincronização ao vivo não está ligada, a posição
                 // exibida é sempre a localização definida em "Definir local"
                 // desta conta — nunca a de outra conta nem um GPS "grudado".
-                if (!syncOn && !gpsFixRef.current) {
+                if (!modeOn && !gpsFixRef.current) {
                     setDriverCoords(
                         profile?.store_lat != null && profile?.store_lng != null
                             ? [profile.store_lng, profile.store_lat]
@@ -768,7 +771,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
         // definido no momento em que o pedido dele vira "accepted".
         const { data: acceptedRow } = !contextUserId ? { data: null as any } : await supabase
             .from('ride_requests')
-            .select('id, requester_id, vehicle_type, origin_address, destination_address, origin_complement, destination_complement, origin_lat, origin_lng, destination_lat, destination_lng, stop1_address, stop1_complement, stop1_lat, stop1_lng, stop1_reached_at, stop2_address, stop2_complement, stop2_lat, stop2_lng, stop2_reached_at, distance_km, duration_min, driver_en_route, driver_arrived_at, ride_started_at, extra_task_minutes, extra_task_fee, extra_task_description, share_token')
+            .select('id, requester_id, vehicle_type, ride_type, passenger_count, object_description, object_is_sensitive, delivery_location, payment_method, cash_change_for, card_is_contactless, origin_needs_access, origin_access_notes, destination_needs_access, destination_access_notes, pet_description, has_child, children_count, child_age, child_needs_car_seat, has_shopping, bag_count, grocery_bag_size, has_extra_object, extra_object_description, has_pet, pet_weight_range, pet_has_carrier, has_special_needs, special_needs_description, special_needs_wheelchair, special_needs_wheelchair_type, special_needs_visual_impairment, has_guide_dog, scheduled_for, created_at, offered_price, order_id, store_id, origin_address, destination_address, origin_complement, destination_complement, origin_lat, origin_lng, destination_lat, destination_lng, stop1_address, stop1_complement, stop1_lat, stop1_lng, stop1_reached_at, stop2_address, stop2_complement, stop2_lat, stop2_lng, stop2_reached_at, distance_km, duration_min, driver_en_route, driver_arrived_at, ride_started_at, extra_task_minutes, extra_task_fee, extra_task_description, share_token')
             .eq('driver_id', contextUserId)
             .eq('status', 'accepted')
             .order('created_at', { ascending: false })
@@ -777,12 +780,19 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
 
         let acceptedDetail: AcceptedRideDetail | null = null
         if (acceptedRow) {
-            const [{ data: reqProfile }, { data: acceptedApp }, requesterRatings] = await Promise.all([
+            const [{ data: reqProfile }, { data: acceptedApp }, requesterRatings, { data: acceptedStore }] = await Promise.all([
                 supabase.from('profiles').select('name, profileSlug, avatar_url').eq('id', acceptedRow.requester_id).maybeSingle(),
                 supabase.from('ride_applications').select('proposed_price').eq('ride_request_id', acceptedRow.id).eq('applicant_id', contextUserId).eq('status', 'accepted').maybeSingle(),
                 getProfileRideRatingsBatch(supabase, [acceptedRow.requester_id]),
+                acceptedRow.store_id ? supabase.from('stores').select('name').eq('id', acceptedRow.store_id).maybeSingle() : Promise.resolve({ data: null as { name: string } | null }),
             ])
             acceptedDetail = {
+                ...(acceptedRow as RideSpecFields),
+                scheduled_for: acceptedRow.scheduled_for,
+                created_at: acceptedRow.created_at,
+                offered_price: acceptedRow.offered_price,
+                order_id: acceptedRow.order_id,
+                storeName: acceptedStore?.name || null,
                 id: acceptedRow.id,
                 share_token: acceptedRow.share_token,
                 vehicle_type: acceptedRow.vehicle_type,
@@ -1329,27 +1339,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
         }
     }
 
-    const handleActivateSync = useCallback(async () => {
-        setActivatingSync(true)
-        try {
-            const { data: { user } } = await supabase.auth.getUser()
-            if (!user) return
-            const { error } = await supabase.from('driver_pricing').update({ live_location_sync: true }).eq('driver_id', user.id)
-            if (error) throw error
-            setLiveLocationSync(true)
-            setShowSyncPrompt(false)
-        } catch (err: any) {
-            toast.error('Erro ao ativar sincronização: ' + (err.message || 'tente novamente'))
-        } finally {
-            setActivatingSync(false)
-        }
-    }, [])
-
-    const handleDeclineSync = useCallback(() => {
-        setShowSyncPrompt(false)
-        if (embedded) onLeave?.()
-        else router.back()
-    }, [router, embedded, onLeave])
+    const acceptedInfo = acceptedRide ? routeInfoById[acceptedRide.id] : undefined
 
     const locationButton = (
 
@@ -1405,7 +1395,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                     {!loading && !showLogin && !!contextUserId && !plansLoading && !hasDriver && (
                         <div
                             className="rounded-2xl p-3.5 flex items-center gap-3"
-                            style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
+                            style={{ background: surf, border: bd, boxShadow: sh }}
                         >
                             <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#fff' }}>
                                 <Car size={18} />
@@ -1428,7 +1418,39 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                     {hasDriver && <DriverDebtBanner userId={contextUserId} />}
 
                     {/* Por que pedimos a localização: a Tarifa iUser soma a distância até a partida */}
-                    {activeTab === 'servicos' && gpsStatus !== 'granted' && (
+                    {activeTab === 'servicos' && gpsStatus !== 'granted' && (v3 ? (
+                        <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: surf }}>
+                            <div className="flex items-center gap-3">
+                                <span className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#f973161f', color: '#f97316' }}>
+                                    {gpsStatus === 'asking' ? <Spinner size={18} color="#f97316" /> : <LocateFixed size={20} />}
+                                </span>
+                                <p className="text-sm font-black leading-tight" style={{ color: colors.textPrimary }}>
+                                    {gpsStatus === 'asking' ? 'Localizando você...' : 'Precisamos da sua localização'}
+                                </p>
+                            </div>
+                            <p className="text-xs leading-snug" style={{ color: colors.textSecondary }}>
+                                Usamos sua localização para ajustar o valor da <strong style={{ color: colors.textPrimary }}>Tarifa iUser</strong>: se você estiver longe do ponto de partida, somamos esse deslocamento ao valor para você não perder dinheiro rodando até o passageiro.
+                            </p>
+                            {gpsStatus === 'asking' ? (
+                                <p className="text-xs font-bold" style={{ color: colors.textSecondary }}>Permita a localização quando o navegador perguntar.</p>
+                            ) : (
+                                <>
+                                    <p className="text-xs font-bold" style={{ color: '#ca8a04' }}>
+                                        {gpsStatus === 'denied'
+                                            ? 'A localização está bloqueada. Libere nas configurações do navegador (ou do app) e toque abaixo.'
+                                            : 'Não conseguimos obter sua localização agora.'}
+                                    </p>
+                                    <button
+                                        onClick={requestGps}
+                                        className="w-full h-11 rounded-full text-sm font-black text-white transition active:scale-[0.98]"
+                                        style={{ background: '#f97316' }}
+                                    >
+                                        Permitir localização
+                                    </button>
+                                </>
+                            )}
+                        </div>
+                    ) : (
                         <div
                             className="rounded-2xl p-3.5 flex items-start gap-3"
                             style={{ background: '#f9731612', border: '1px solid #f9731640' }}
@@ -1464,17 +1486,27 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                                 )}
                             </div>
                         </div>
-                    )}
-                    {activeTab === 'servicos' && visibleRides.length === 0 && (
+                    ))}
+                    {activeTab === 'servicos' && visibleRides.length === 0 && (v3 ? (
+                        <div className="rounded-2xl p-4 flex items-center gap-3" style={{ background: surf }}>
+                            <span className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${colors.border}50`, color: colors.textSecondary }}>
+                                <Car size={20} />
+                            </span>
+                            <span className="min-w-0 flex-1">
+                                <span className="block text-sm font-black" style={{ color: colors.textPrimary }}>Nenhuma corrida disponível no momento</span>
+                                <span className="block text-xs mt-0.5" style={{ color: colors.textSecondary }}>Assim que alguém pedir, a solicitação aparece aqui.</span>
+                            </span>
+                        </div>
+                    ) : (
                         <div
                             className="rounded-2xl p-6 text-center"
-                            style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
+                            style={{ background: surf, border: bd, boxShadow: sh }}
                         >
                             <p className="text-sm" style={{ color: colors.textSecondary }}>
                                 Nenhuma corrida disponível no momento.
                             </p>
                         </div>
-                    )}
+                    ))}
 
                     {!loading && !showLogin && activeTab === 'servicos' && visibleRides.length > 0 && (
                         <div className="flex flex-col gap-3">
@@ -1496,7 +1528,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                                         key={ride.id}
                                         id={`ride-card-${ride.id}`}
                                         className="rounded-2xl p-3.5 overflow-hidden relative transition-shadow duration-500"
-                                        style={{ background: colors.surface, border: `1px solid ${highlightRideId === ride.id || (ride.preferred_driver_id && ride.preferred_driver_id === contextUserId) ? '#f97316' : colors.border}`, boxShadow: highlightRideId === ride.id ? '0 0 0 3px #f9731655' : colors.shadow }}
+                                        style={{ background: surf, border: highlightRideId === ride.id || (ride.preferred_driver_id && ride.preferred_driver_id === contextUserId) ? '1px solid #f97316' : bd, boxShadow: highlightRideId === ride.id ? '0 0 0 3px #f9731655' : colors.shadow }}
                                     >
                                         {ride.preferred_driver_id && ride.preferred_driver_id === contextUserId && (
                                             <span className="inline-flex items-center gap-1 mb-2 text-[11px] font-black uppercase tracking-wide px-2.5 py-1 rounded-full text-white" style={{ background: 'linear-gradient(135deg, #f97316, #dc2626)' }}>
@@ -1540,7 +1572,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                     {!loading && !showLogin && activeTab === 'candidatos' && candidacies.length === 0 && (
                         <div
                             className="rounded-2xl p-6 text-center"
-                            style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
+                            style={{ background: surf, border: bd, boxShadow: sh }}
                         >
                             <p className="text-sm" style={{ color: colors.textSecondary }}>
                                 Você ainda não se candidatou a nenhuma corrida.
@@ -1558,7 +1590,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                                         key={ride.applicationId}
                                         id={`ride-card-${ride.id}`}
                                         className="rounded-2xl p-3.5 overflow-hidden relative transition-shadow duration-500"
-                                        style={{ background: colors.surface, border: `1px solid ${highlightRideId === ride.id ? '#f97316' : colors.border}`, boxShadow: highlightRideId === ride.id ? '0 0 0 3px #f9731655' : colors.shadow }}
+                                        style={{ background: surf, border: highlightRideId === ride.id ? '1px solid #f97316' : bd, boxShadow: highlightRideId === ride.id ? '0 0 0 3px #f9731655' : colors.shadow }}
                                     >
                                         <RideOfferCard
                                             ride={ride}
@@ -1581,21 +1613,22 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                                                     onInfo={(i) => setRouteInfoById((prev) => ({ ...prev, [ride.id]: i }))}
                                                 />
                                             ) : null}
+                                            valueBox={ride.myProposedPrice != null ? { label: 'Sua proposta', price: ride.myProposedPrice } : undefined}
                                             footer={(
                                                 <div className="flex flex-col gap-2">
                                                     <div className="flex items-center justify-between gap-2">
                                                         <span className="text-[11px] font-black px-2 py-0.5 rounded-full" style={{ background: '#eab30815', color: '#eab308' }}>
                                                             Aguardando decisão
                                                         </span>
-                                                        <span className="text-sm font-black" style={{ color: '#f97316' }}>
-                                                            {ride.myProposedPrice != null ? `Sua proposta: R$ ${ride.myProposedPrice.toFixed(2).replace('.', ',')}` : 'Proposta enviada'}
-                                                        </span>
+                                                        {ride.myProposedPrice == null && (
+                                                            <span className="text-sm font-black" style={{ color: '#f97316' }}>Proposta enviada</span>
+                                                        )}
                                                     </div>
                                                     <button
                                                         onClick={() => withdrawApplication(ride.applicationId)}
                                                         disabled={isWithdrawing}
                                                         className="w-full py-2 rounded-full text-xs font-bold transition-all disabled:opacity-70 flex items-center justify-center gap-2"
-                                                        style={{ background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                                                        style={{ background: `${colors.border}30`, color: colors.textSecondary, border: bd }}
                                                     >
                                                         {isWithdrawing ? <Spinner size={14} /> : <>Sair da candidatura</>}
                                                     </button>
@@ -1611,7 +1644,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                     {!loading && !showLogin && activeTab === 'aceita' && acceptedRide && (
                         <div
                             className="rounded-2xl p-4 overflow-hidden relative"
-                            style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
+                            style={{ background: surf, border: bd, boxShadow: sh }}
                         >
                             <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
                                 <span
@@ -1628,52 +1661,42 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                                         url: `${window.location.origin}/acompanhar-corrida/${acceptedRide.share_token}`,
                                     })}
                                     className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold flex-shrink-0"
-                                    style={{ background: `${colors.border}30`, color: colors.textPrimary, border: `1px solid ${colors.border}` }}
+                                    style={{ background: `${colors.border}30`, color: colors.textPrimary, border: bd }}
                                 >
                                     <Share2 size={11} />
                                     Compartilhar
                                 </button>
                             </div>
 
-                            <div className="flex items-center gap-2 mb-2">
-                                <PlanAvatarRing userId={acceptedRide.requesterId}>
-                                {acceptedRide.requesterAvatarUrl ? (
-                                    <img src={acceptedRide.requesterAvatarUrl} className="w-8 h-8 rounded-full object-cover flex-shrink-0" alt="" />
-                                ) : (
-                                    <span className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-black" style={{ background: GRADIENT, color: '#fff' }}>
-                                        {(acceptedRide.requesterName || acceptedRide.requesterSlug || '?').charAt(0).toUpperCase()}
-                                    </span>
-                                )}
-                                </PlanAvatarRing>
-                                <div className="min-w-0">
-                                    <p className="text-xs font-black truncate" style={{ color: colors.textPrimary }}>
-                                        {acceptedRide.requesterName || (acceptedRide.requesterSlug ? `@${acceptedRide.requesterSlug}` : 'Passageiro')}
-                                    </p>
-                                    {acceptedRide.requesterRating.count > 0 && (
-                                        <span className="flex items-center gap-1 text-[10px]" style={{ color: colors.textSecondary }}>
-                                            <Star size={10} className="fill-current" style={{ color: '#eab308' }} />
-                                            {acceptedRide.requesterRating.avg.toFixed(2)} ({acceptedRide.requesterRating.count})
-                                        </span>
-                                    )}
-                                </div>
-                            </div>
-
-                            {acceptedRide.origin_lat != null && acceptedRide.origin_lng != null && acceptedRide.destination_lat != null && acceptedRide.destination_lng != null && (
-                                <RideMiniMap
-                                    originLat={acceptedRide.origin_lat}
-                                    originLng={acceptedRide.origin_lng}
-                                    destLat={acceptedRide.destination_lat}
-                                    destLng={acceptedRide.destination_lng}
-                                    stops={rideStopsOf(acceptedRide)}
-                                    driverLat={driverCoords ? driverCoords[1] : null}
-                                    driverLng={driverCoords ? driverCoords[0] : null}
-                                    onExpand={() => router.push('/aceitar-corridas/mapa')}
+                            {/* Mesmo card das Solicitações: quem pediu, o que leva, mapa, trajeto, tempos, horário e valor (com ganho por hora) */}
+                            <div className="mb-3">
+                                <RideOfferCard
+                                    ride={acceptedRide}
+                                    requester={{ id: acceptedRide.requesterId, name: acceptedRide.requesterName, slug: acceptedRide.requesterSlug, avatarUrl: acceptedRide.requesterAvatarUrl, rating: acceptedRide.requesterRating }}
+                                    storeName={acceptedRide.storeName}
+                                    compact={!!acceptedRide.ride_started_at}
+                                    toPickup={{ km: acceptedInfo?.toPickupKm ?? null, min: acceptedInfo?.toPickupMin ?? null, hasGps: driverCoords != null }}
+                                    trip={{ km: acceptedInfo?.tripKm ?? acceptedRide.distance_km, min: acceptedInfo?.tripMin ?? acceptedRide.duration_min }}
+                                    miniMap={acceptedRide.origin_lat != null && acceptedRide.origin_lng != null && acceptedRide.destination_lat != null && acceptedRide.destination_lng != null ? (
+                                        <RideMiniMap
+                                            compact
+                                            transition={false}
+                                            originLat={acceptedRide.origin_lat}
+                                            originLng={acceptedRide.origin_lng}
+                                            destLat={acceptedRide.destination_lat}
+                                            destLng={acceptedRide.destination_lng}
+                                            stops={rideStopsOf(acceptedRide)}
+                                            driverLat={driverCoords ? driverCoords[1] : null}
+                                            driverLng={driverCoords ? driverCoords[0] : null}
+                                            onExpand={() => router.push('/aceitar-corridas/mapa')}
+                                            onInfo={(i) => setRouteInfoById((prev) => ({ ...prev, [acceptedRide.id]: i }))}
+                                        />
+                                    ) : null}
+                                    valueBox={acceptedRide.proposedPrice != null ? { label: 'Valor combinado', price: acceptedRide.proposedPrice } : undefined}
                                 />
-                            )}
-
-                            <div className="flex items-start gap-2 text-xs mb-1" style={{ color: colors.textSecondary }}>
-                                <MapPin size={12} className="flex-shrink-0 mt-0.5" />
-                                <span>{shortAddress(acceptedRide.origin_address)}{acceptedRide.stop1_address ? ` → ${shortAddress(acceptedRide.stop1_address)}` : ''}{acceptedRide.stop2_address ? ` → ${shortAddress(acceptedRide.stop2_address)}` : ''} → {shortAddress(acceptedRide.destination_address)}</span>
+                                {acceptedRide.proposedPrice == null && (
+                                    <p className="text-sm font-black mt-1" style={{ color: '#f97316' }}>Valor não definido</p>
+                                )}
                             </div>
                             {(acceptedRide.origin_complement || acceptedRide.stop1_complement || acceptedRide.stop2_complement || acceptedRide.destination_complement) && (
                                 <div className="flex flex-col gap-0.5 text-[11px] mb-2" style={{ color: colors.textSecondary }}>
@@ -1692,20 +1715,9 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                                 </div>
                             )}
 
-                            <div className="flex items-center gap-2 text-[11px] mb-2" style={{ color: colors.textSecondary }}>
-                                {acceptedRide.distance_km != null ? (
-                                    <span>{acceptedRide.distance_km.toFixed(1)} km · {Math.round(acceptedRide.duration_min || 0)} min</span>
-                                ) : (
-                                    <span>Distância não calculada</span>
-                                )}
-                            </div>
-
-                            <p className="text-sm font-black mb-1" style={{ color: '#f97316' }}>
-                                {acceptedRide.proposedPrice != null ? `Valor combinado: R$ ${acceptedRide.proposedPrice.toFixed(2)}` : 'Valor não definido'}
-                            </p>
 
                             {acceptedRide.extra_task_fee != null ? (
-                                <div className="flex items-center justify-between gap-2 flex-wrap mb-3 px-3 py-2 rounded-xl" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
+                                <div className="flex items-center justify-between gap-2 flex-wrap mb-3 px-3 py-2 rounded-xl" style={{ background: `${colors.border}30`, border: bd }}>
                                     <span className="text-xs" style={{ color: colors.textSecondary }}>
                                         + Tarefa extra ({acceptedRide.extra_task_minutes} min{acceptedRide.extra_task_description ? ` — ${acceptedRide.extra_task_description}` : ''}): <strong style={{ color: colors.textPrimary }}>R$ {acceptedRide.extra_task_fee.toFixed(2)}</strong>
                                     </span>
@@ -1714,7 +1726,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                                     </button>
                                 </div>
                             ) : showExtraTaskForm ? (
-                                <div className="mb-3 px-3 py-2.5 rounded-xl" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
+                                <div className="mb-3 px-3 py-2.5 rounded-xl" style={{ background: `${colors.border}30`, border: bd }}>
                                     <span className="text-xs font-bold block mb-1.5" style={{ color: colors.textPrimary }}>Registrar tarefa extra</span>
                                     <p className="text-[10px] mb-2" style={{ color: colors.textSecondary }}>
                                         {EXTRA_TASK_FEE_TIERS.map((t) => `${t.label}: R$ ${t.fee.toFixed(2)}`).join(' · ')}
@@ -1726,7 +1738,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                                         onChange={(e) => setExtraTaskMinutesInput(e.target.value.replace(/[^0-9]/g, ''))}
                                         placeholder="Quantos minutos levou?"
                                         className="w-full px-3 py-2 rounded-lg text-sm focus:outline-none mb-2"
-                                        style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                                        style={{ background: colors.surface, border: bd, color: colors.textPrimary }}
                                     />
                                     <input
                                         type="text"
@@ -1734,7 +1746,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                                         onChange={(e) => setExtraTaskDescriptionInput(e.target.value)}
                                         placeholder="O que foi? (opcional) Ex: subiu no apartamento"
                                         className="w-full px-3 py-2 rounded-lg text-sm focus:outline-none mb-2"
-                                        style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                                        style={{ background: colors.surface, border: bd, color: colors.textPrimary }}
                                     />
                                     {extraTaskMinutesInput && Number(extraTaskMinutesInput) > 0 && (
                                         <p className="text-xs font-black mb-2" style={{ color: '#f97316' }}>
@@ -1745,7 +1757,7 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                                         <button
                                             onClick={() => setShowExtraTaskForm(false)}
                                             className="flex-1 py-2 rounded-lg text-xs font-bold"
-                                            style={{ background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                                            style={{ background: colors.surface, color: colors.textSecondary, border: bd }}
                                         >
                                             Cancelar
                                         </button>
@@ -1922,47 +1934,6 @@ export default function AceitarCorridas({ embedded = false, tab, onTabChange, on
                         else router.push('/painel-motorista?aba=veiculo&veiculo=carro')
                     }}
                 />
-            )}
-
-            {showSyncPrompt && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-                    <div
-                        className="w-full max-w-md rounded-3xl p-6 shadow-2xl space-y-5"
-                        style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
-                    >
-                        <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: '#22c55e20' }}>
-                                <AlertCircle size={20} style={{ color: '#22c55e' }} />
-                            </div>
-                            <h2 className="text-lg font-black" style={{ color: colors.textPrimary }}>
-                                Ativar sincronização
-                            </h2>
-                        </div>
-
-                        <p className="text-xs font-medium" style={{ color: colors.textSecondary }}>
-                            Para aceitar corridas você precisa ativar a <strong>sincronização para motorista</strong> — é ela que mostra sua localização em tempo real pros passageiros. Ativar agora?
-                        </p>
-
-                        <div className="flex gap-2 pt-2">
-                            <button
-                                onClick={handleDeclineSync}
-                                disabled={activatingSync}
-                                className="flex-1 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all hover:scale-[1.02] disabled:opacity-60"
-                                style={{ background: `${colors.surface}88`, color: colors.textPrimary, border: `1px solid ${colors.border}` }}
-                            >
-                                Não
-                            </button>
-                            <button
-                                onClick={handleActivateSync}
-                                disabled={activatingSync}
-                                className="flex-1 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all hover:scale-[1.02] disabled:opacity-60 flex items-center justify-center gap-2"
-                                style={{ background: '#22c55e', color: '#ffffff', boxShadow: '0 4px 14px rgba(34, 197, 94, 0.4)' }}
-                            >
-                                {activatingSync ? <Spinner size={14} color="#ffffff" /> : 'Sim'}
-                            </button>
-                        </div>
-                    </div>
-                </div>
             )}
 
             <style jsx>{`

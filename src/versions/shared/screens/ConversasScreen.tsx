@@ -26,6 +26,9 @@ import { Spinner } from '@/components/Spinner'
 import { getAvatarUrl } from '@/lib/avatar'
 import { notifyChatMessage } from '@/lib/notifyRideStatus'
 import RequestCard, { type RequestRef } from '@/components/RequestCard'
+import ShareCardView from '@/components/chat/ShareCardView'
+import ShareSheet from '@/components/chat/ShareSheet'
+import { SHARE_DEFAULT_TEXT, cardKeyOf, fetchShareCards, isDefaultShareText, refColumns, type ShareCard } from '@/lib/shareCards'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -54,7 +57,7 @@ function otherLabel(r: { other_name: string | null; other_slug: string | null; o
 
 interface MyStore { id: string; name: string; storeSlug: string; logoUrl: string | null }
 
-interface Message { id: string; conversation_id: string; sender_id: string; content: string; created_at: string; ref_product_id?: string | null; ref_request_id?: string | null }
+interface Message { id: string; conversation_id: string; sender_id: string; content: string; created_at: string; ref_product_id?: string | null; ref_request_id?: string | null; ref_store_id?: string | null; ref_profile_id?: string | null }
 
 interface ProductRef { id: string; name: string; slug: string | null; image_url: string | null; owner_slug: string | null }
 
@@ -96,6 +99,10 @@ function Thread({ conversation, userId, onBack, onRead, colors, modern = false, 
     const [refs, setRefs] = useState<Record<string, ProductRef>>({})
     // Pedidos de serviço citados: viram um cartão próprio (outro desenho do que o da postagem)
     const [requestRefs, setRequestRefs] = useState<Record<string, RequestRef>>({})
+    // Cartões de loja, serviço, produto, publicação e perfil citados nas mensagens (dado público, uma chamada só)
+    const [shareCards, setShareCards] = useState<Record<string, ShareCard>>({})
+    const [shareOpen, setShareOpen] = useState(false)
+    const [pending, setPending] = useState<ShareCard | null>(null)
     const [loading, setLoading] = useState(true)
     // Grupo: nome de quem escreveu cada mensagem
     const [senderNames, setSenderNames] = useState<Record<string, string>>({})
@@ -120,12 +127,20 @@ function Thread({ conversation, userId, onBack, onRead, colors, modern = false, 
         setRequestRefs(Object.fromEntries(((reqs as RequestRef[]) || []).map((r) => [r.id, r])))
     }, [convId])
 
+    // cartões compartilhados: refaz quando chega mensagem nova com referência
+    const messagesRef = useRef<Message[]>([])
+    useEffect(() => { messagesRef.current = messages }, [messages])
+    const loadShareCards = useCallback(async (list?: Message[]) => {
+        const cards = await fetchShareCards(list ?? messagesRef.current)
+        setShareCards((prev) => ({ ...prev, ...cards }))
+    }, [])
+
     useEffect(() => {
         let cancelled = false
         setLoading(true)
         supabase
             .from('direct_messages')
-            .select('id, conversation_id, sender_id, content, created_at, ref_product_id, ref_request_id')
+            .select('id, conversation_id, sender_id, content, created_at, ref_product_id, ref_request_id, ref_store_id, ref_profile_id')
             .eq('conversation_id', convId)
             .order('created_at', { ascending: true })
             .limit(300)
@@ -135,6 +150,7 @@ function Thread({ conversation, userId, onBack, onRead, colors, modern = false, 
                 setLoading(false)
                 markRead()
                 loadRefs()
+                loadShareCards((data as Message[]) || [])
             })
 
         const channel = supabase
@@ -143,11 +159,12 @@ function Thread({ conversation, userId, onBack, onRead, colors, modern = false, 
                 const m = payload.new as Message
                 setMessages((prev) => (prev.some((x) => x.id === m.id) ? prev : [...prev, m]))
                 if (m.ref_product_id || m.ref_request_id) loadRefs()
+                if (m.ref_product_id || m.ref_store_id || m.ref_profile_id) loadShareCards([m])
                 if (m.sender_id !== userId) markRead()
             })
             .subscribe()
         return () => { cancelled = true; supabase.removeChannel(channel) }
-    }, [convId, userId, markRead, loadRefs])
+    }, [convId, userId, markRead, loadRefs, loadShareCards])
 
     useEffect(() => { endRef.current?.scrollIntoView({ block: 'end' }) }, [messages])
 
@@ -167,16 +184,18 @@ function Thread({ conversation, userId, onBack, onRead, colors, modern = false, 
     }, [messages, conversation.is_group, userId, infoVersion])
 
     const send = async () => {
-        const content = text.trim()
+        const content = text.trim() || (pending ? SHARE_DEFAULT_TEXT[pending.kind] : '')
         if (!content || sending) return
         setSending(true)
         const { data, error } = await supabase
             .from('direct_messages')
-            .insert({ conversation_id: convId, sender_id: userId, content })
-            .select('id, conversation_id, sender_id, content, created_at')
+            .insert({ conversation_id: convId, sender_id: userId, content, ...(pending ? refColumns(pending) : {}) })
+            .select('id, conversation_id, sender_id, content, created_at, ref_product_id, ref_store_id, ref_profile_id')
             .single()
         setSending(false)
         if (error) return
+        if (pending) setShareCards((prev) => ({ ...prev, [`${pending.kind === 'store' ? 'store' : pending.kind === 'profile' ? 'profile' : 'product'}:${pending.id}`]: pending }))
+        setPending(null)
         setText('')
         setMessages((prev) => (prev.some((x) => x.id === data.id) ? prev : [...prev, data as Message]))
         onReadRef.current()
@@ -238,7 +257,12 @@ function Thread({ conversation, userId, onBack, onRead, colors, modern = false, 
                                 {conversation.is_group && !mine && (
                                     <span className="block text-[11px] font-black mb-0.5" style={{ color: colors.accent }}>{senderNames[m.sender_id] || 'Alguém'}</span>
                                 )}
-                                {m.ref_product_id && refs[m.ref_product_id] && (() => {
+                                {(() => {
+                                    const key = cardKeyOf(m)
+                                    const card = key ? shareCards[key] : null
+                                    return card ? <ShareCardView card={card} mine={mine} colors={colors} /> : null
+                                })()}
+                                {m.ref_product_id && !shareCards[`product:${m.ref_product_id}`] && refs[m.ref_product_id] && (() => {
                                     const r = refs[m.ref_product_id!]
                                     const img = r.image_url ? (r.image_url.startsWith('http') ? r.image_url : supabase.storage.from('product-images').getPublicUrl(r.image_url).data.publicUrl) : null
                                     const href = r.owner_slug ? `/${r.owner_slug}/${r.slug || r.id}` : null
@@ -259,7 +283,7 @@ function Thread({ conversation, userId, onBack, onRead, colors, modern = false, 
                                 {m.ref_request_id && requestRefs[m.ref_request_id] && (
                                     <RequestCard r={requestRefs[m.ref_request_id]} mine={mine} colors={colors} />
                                 )}
-                                {m.content}
+                                {(() => { const k = cardKeyOf(m); return k && shareCards[k] && isDefaultShareText(m.content) ? null : m.content })()}
                                 <span className="block text-[10px] mt-0.5 text-right" style={{ opacity: 0.7 }}>
                                     {new Date(m.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                                 </span>
@@ -270,7 +294,16 @@ function Thread({ conversation, userId, onBack, onRead, colors, modern = false, 
                 <div ref={endRef} />
             </div>
 
+            {pending && (
+                <div className="px-3 pt-2 flex items-start gap-2 flex-shrink-0">
+                    <div className="flex-1 min-w-0 rounded-xl overflow-hidden" style={{ background: `${colors.border}30`, color: colors.textPrimary }}>
+                        <ShareCardView card={{ ...pending, href: '#' }} colors={colors} compact />
+                    </div>
+                    <button onClick={() => setPending(null)} aria-label="Tirar o item" className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-1" style={{ background: `${colors.border}50`, color: colors.textPrimary }}>×</button>
+                </div>
+            )}
             <div className={`flex items-end gap-2 px-3 py-3 flex-shrink-0 ${modern ? '' : 'border-t'}`} style={modern ? undefined : { borderColor: colors.border }}>
+                <button onClick={() => setShareOpen(true)} aria-label="Compartilhar loja, serviço, publicação ou perfil" className="w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 text-lg font-black transition active:scale-95" style={{ background: `${colors.border}40`, color: '#f97316' }}>+</button>
                 <textarea
                     value={text}
                     onChange={(e) => setText(e.target.value)}
@@ -285,7 +318,7 @@ function Thread({ conversation, userId, onBack, onRead, colors, modern = false, 
                 />
                 <button
                     onClick={send}
-                    disabled={!text.trim() || sending}
+                    disabled={(!text.trim() && !pending) || sending}
                     className="w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 text-white disabled:opacity-40 transition-transform active:scale-95"
                     style={{ background: GRADIENT, boxShadow: '0 4px 12px #f9731640' }}
                     aria-label="Enviar"
@@ -293,6 +326,7 @@ function Thread({ conversation, userId, onBack, onRead, colors, modern = false, 
                     <Send size={18} />
                 </button>
             </div>
+            <ShareSheet open={shareOpen} onClose={() => setShareOpen(false)} onPick={setPending} colors={colors} />
         </div>
     )
 }

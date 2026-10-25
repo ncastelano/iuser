@@ -134,3 +134,19 @@ do escopo `workflow` (`gh auth refresh -h github.com -s workflow`, já feito nes
 - O link do Supabase CLI deste repositório (`supabase/.temp`) é o da **produção**. Para falar com o staging use `--workdir .staging`
   (os scripts de `scripts/staging/` já fazem isso).
 - Segredos (senha do banco, service_role, tokens) ficam na Vercel, no GitHub Secrets ou em `.env.staging.local` — nunca no repositório nem em conversa.
+
+
+---
+
+## Ambiente LOCAL (Supabase no Docker/OrbStack) — sem cota, sem internet, dados descartáveis
+
+Criado em 2026-10-21, quando os projetos de produção e de staging foram bloqueados pelo Supabase (`exceed_cached_egress_quota`, erro 402) e não havia plano pago.
+Roda um Supabase inteiro (Postgres, Auth, Storage, Realtime, Studio) em contêineres, com o MESMO esquema e a MESMA massa de teste do staging.
+
+- **Pré-requisito:** OrbStack (ou Docker) aberto. Instalado em `/Applications/OrbStack.app`; o `docker` fica em `~/.orbstack/bin`.
+- **Montar (uma vez, ou `--reset` para recomeçar):** `python3 scripts/local/setup.py` — sobe os contêineres (pasta `.local-supabase/`, ignorada pelo git), cria o esquema a partir de `supabase/staging/baseline.sql`, aplica os dados de configuração (`reference-data.sql`), as migrations MAIS NOVAS que o baseline (`> 20261107`), os jobs do `pg_cron` e a massa de teste (`seed.mjs` + `seed-ecosystem.mjs`).
+  Senha das contas de teste locais: `Teste-local-123` (ou `STAGING_TEST_PASSWORD` se definida); e-mails iguais aos do staging (`ncastelano@gmail.com` = admin, `owner-<segmento>@staging.iuser.test`, `cliente-NNN@staging.iuser.test`).
+- **Rodar o app:** `npm run dev:local` (porta **3100**; aponta para o banco LOCAL por variáveis de ambiente — nunca para a produção). Painel de dados (Studio): http://127.0.0.1:54323.
+- **Banco direto:** `docker exec -i supabase_db_iuser-local psql -U postgres` ou `python3` com `scripts/local/_common.py` (`q_local`, `sql_file_local`). Migration nova: `scripts/local/_common.py: sql_file_local(<arquivo>)` (ou rode `setup.py` de novo — só aplica as que faltam).
+- **Cuidados:** só **um** `next dev` por pasta (o antigo na porta 3000 aponta para a produção: não use). Cookies de `localhost` são compartilhados entre portas: apague `sb-mqtwehsmkuknkrtrqbnf-auth-token` (sessão da produção) se o login local ficar estranho. O link do staging na Vercel continua apontando para o Supabase de staging (bloqueado enquanto a cota não voltar).
+- Nada daqui vai para a produção: migrations seguem o fluxo aprovado (staging → workflow *Banco de produção*).

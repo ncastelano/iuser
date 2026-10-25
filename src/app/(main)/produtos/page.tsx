@@ -13,6 +13,7 @@ import Header from '@/components/Header'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import ListingRowCard from '@/components/ListingRowCard'
 import { Spinner } from '@/components/Spinner'
+import { useInsideShell } from '@/components/InsideShell'
 import { loadProductCards, type ProductCard } from '../inicio/sections/ProductShowcase'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -22,6 +23,7 @@ const formatPrice = (price: number | null) => (price == null ? null : price.toLo
 
 export default function ProdutosPage() {
     const router = useRouter()
+    const v3 = useInsideShell()
     const { colors } = useTheme()
     const { avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
 
@@ -83,7 +85,7 @@ export default function ProdutosPage() {
                             <p className="text-xs mb-3" style={{ color: colors.textSecondary }}>
                                 {filtered.length} {filtered.length === 1 ? 'produto' : 'produtos'}{search ? ` para “${search}”` : ''}
                             </p>
-                            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                            <div className={v3 ? 'flex flex-col' : 'grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3'}>
                                 {filtered.slice(0, shown).map((p) => (
                                     <ListingRowCard
                                         key={p.id}
@@ -105,7 +107,7 @@ export default function ProdutosPage() {
                                     <button
                                         onClick={() => setShown((n) => n + PAGE_SIZE)}
                                         className="px-6 py-3 rounded-full font-black text-sm text-white transition-transform hover:scale-105 active:scale-95"
-                                        style={{ background: GRADIENT, boxShadow: '0 4px 12px #f9731640' }}
+                                        style={v3 ? { background: '#f97316' } : { background: GRADIENT, boxShadow: '0 4px 12px #f9731640' }}
                                     >
                                         Mostrar mais
                                     </button>

@@ -10,6 +10,7 @@ import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { X, MapPin, Eye, Briefcase, Check } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
+import ServiceRequestShareButton from '@/components/ServiceRequestShareButton'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
 import { getRequestTitle } from '@/lib/serviceTypes'
 import { askedAgo, getItemIcon, getItemLabel, shortAddress, type BoardItem } from '@/lib/serviceBoard'
@@ -143,6 +144,8 @@ export default function ServiceRequestViewDialog({ item, isMine, applied, onAppl
                         <p className="text-sm leading-relaxed whitespace-pre-wrap break-words" style={{ color: colors.textPrimary }}>{item.description}</p>
                     )}
 
+                    <ServiceRequestShareButton item={item} size={44} label="Compartilhar" className="w-full" />
+
                     {isMine ? (
                         <p className="text-sm font-bold text-center py-2" style={{ color: colors.textSecondary }}>Este pedido é seu</p>
                     ) : applied ? (
@@ -155,7 +158,7 @@ export default function ServiceRequestViewDialog({ item, isMine, applied, onAppl
                             className="w-full py-3.5 rounded-full text-sm font-black flex items-center justify-center gap-2 text-white transition hover:scale-[1.01] active:scale-95"
                             style={{ background: GRADIENT, boxShadow: '0 6px 16px #f9731655' }}
                         >
-                            <Briefcase size={16} /> Quero fazer esse serviço
+                            <Briefcase size={16} /> Quero me inscrever
                         </button>
                     ) : null}
                 </div>

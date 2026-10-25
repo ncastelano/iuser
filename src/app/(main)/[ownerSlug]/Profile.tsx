@@ -5,6 +5,8 @@ import DeleteCommentButton from '@/components/DeleteCommentButton'
 import { profileLabel } from '@/lib/profileDisplay'
 import { useLevelsFor } from '@/hooks/useLevelsFor'
 import LevelBadge from '@/components/Graduation/LevelBadge'
+import ProfileHeaderV3 from '@/components/v3/ProfileHeaderV3'
+import { buildSocialLinks } from '@/lib/socialLinks'
 import { notifyNewFollower } from '@/lib/notifyRideStatus'
 import { useCallback, useEffect, useState, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
@@ -50,6 +52,7 @@ import {
     Calendar,
 } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
+import ProfileSkeleton from '@/components/v3/ProfileSkeleton'
 import ProfileScheduleModal from '@/components/ProfileScheduleModal'
 import { toast } from 'sonner'
 import { getAvatarUrl } from '@/lib/avatar'
@@ -70,6 +73,8 @@ interface ProfileProps {
     bgMode: string
     customBgUrl?: string | null
     loggedUserSlug?: string | null
+    /** v3 = cabeçalho compacto e abas em cápsulas (mesma lógica da v2) */
+    ui?: 'v2' | 'v3'
 }
 
 interface OwnerData {
@@ -83,6 +88,9 @@ interface OwnerData {
     address?: string | null
     whatsapp?: string | null
     instagram?: string | null
+    youtube?: string | null
+    facebook?: string | null
+    x?: string | null
     view_count?: number
     ratings_avg?: number
     ratings_count?: number
@@ -242,7 +250,8 @@ export function extractStreetDisplay(fullAddress: string): string {
 }
 // ========== FIM DA LOGICA DO LOCATION PICKER ==========
 
-export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug }: ProfileProps) {
+export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, ui = 'v2' }: ProfileProps) {
+    const v3 = ui === 'v3'
     const router = useRouter()
     const fileInputRef = useRef<HTMLInputElement>(null)
     const { userId: currentUserId, loading: profileCtxLoading } = useProfile()
@@ -382,6 +391,9 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                 address: viewerIsOwner ? (privateRow?.address ?? null) : (profile.public_address ?? null),
                 whatsapp,
                 instagram: profile.instagram,
+                youtube: profile.youtube,
+                facebook: profile.facebook,
+                x: profile.x,
                 view_count: profile.view_count || 0,
                 ratings_avg: avg,
                 ratings_count: count,
@@ -1383,13 +1395,7 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
     }
 
     // ========== RENDER ==========
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center min-h-[400px]">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2" style={{ borderColor: colors.accent }}></div>
-            </div>
-        )
-    }
+    if (loading) return <ProfileSkeleton />
 
     if (error || !owner) {
         return (
@@ -1411,6 +1417,151 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
             </div>
         )
     }
+
+    // Pedaços do cabeçalho reaproveitados pela v2 (cartão grande) e pela v3 (ProfileHeaderV3): mesma lógica, só muda quem os posiciona
+    const renderAvatar = (sizeCls: string, textCls: string) => (
+                    <div className="relative">
+                        {/* Plano Pré-pago (ou hierarquia): a borda laranja dá lugar à moldura colorida que gira */}
+                        <PlanAvatarRing userId={owner.id} width={4}>
+                            <div
+                                className={`${sizeCls} rounded-full p-[3px] ${ownerHasRing ? '' : 'animate-pulse-glow'}`}
+                                style={{ background: ownerHasRing ? 'transparent' : GRADIENT }}
+                            >
+                                <div
+                                    className={`w-full h-full rounded-full overflow-hidden bg-white flex items-center justify-center ${imageUrl ? 'cursor-zoom-in' : ''}`}
+                                    onClick={imageUrl ? () => setZoomAvatar(true) : undefined}
+                                    role={imageUrl ? 'button' : undefined}
+                                    aria-label={imageUrl ? 'Ampliar foto' : undefined}
+                                >
+                                    {imageUrl ? (
+                                        <img src={imageUrl} alt={owner.name} className="w-full h-full object-cover" />
+                                    ) : (
+                                        <span className={`${textCls} font-black`} style={{ color: '#f97316' }}>
+                                            {owner.name?.charAt(0) || '?'}
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                        </PlanAvatarRing>
+                        {zoomAvatar && imageUrl && <ImageZoomDialog src={imageUrl} alt={owner.name} onClose={() => setZoomAvatar(false)} />}
+                        {isOwner && (
+                            <>
+                                <input type="file" ref={fileInputRef} onChange={handleAvatarChange} accept="image/*" style={{ display: 'none' }} />
+                                <button
+                                    onClick={handleAvatarButtonClick}
+                                    className="absolute -bottom-1 -right-1 p-1.5 rounded-full transition-all hover:scale-110"
+                                    style={{ background: GRADIENT, color: '#fff' }}
+                                >
+                                    <Camera size={14} />
+                                </button>
+                            </>
+                        )}
+                    </div>
+    )
+    const agendaDialogs = (
+        <>
+                    {showAgendaDialog && isOwner && typeof document !== 'undefined' && createPortal(
+                        <div
+                            className="fixed inset-0 z-[1000] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4"
+                            onClick={() => !agendaSaving && setShowAgendaDialog(false)}
+                        >
+                            <div
+                                onClick={(e) => e.stopPropagation()}
+                                className="w-full max-w-sm rounded-2xl p-5 space-y-4 shadow-xl"
+                                style={{ background: colors.surface, border: `1px solid ${colors.border}` }}
+                            >
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#fff' }}>
+                                        <Calendar size={18} />
+                                    </div>
+                                    <h3 className="text-base font-black" style={{ color: colors.textPrimary }}>
+                                        {owner.allow_scheduling ? 'Agenda ativa' : 'Ativar agenda'}
+                                    </h3>
+                                </div>
+                                <p className="text-sm" style={{ color: colors.textSecondary }}>
+                                    A agenda é recomendada para quem precisa marcar compromisso, como psicólogos, professores, personal trainers, barbeiros e afins.
+                                </p>
+                                <div className="rounded-xl p-3 text-xs space-y-1" style={{ background: 'rgba(249,115,22,0.08)', border: '1px dashed #f97316', color: colors.textPrimary }}>
+                                    <p className="font-black" style={{ color: '#f97316' }}>Custo (só no plano Pós-pago)</p>
+                                    <p>• Ativar a agenda: valor único cobrado uma vez</p>
+                                    <p>• Cada pessoa que agendar com você e você aceitar: valor por agendamento</p>
+                                    <p style={{ color: colors.textSecondary }}>
+                                        Os valores são somados à sua dívida do plano pós-pago e pagos via Pix quando ela chegar a R$ 50 — veja os valores atuais em Planos → Pós-pago.
+                                    </p>
+                                </div>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => setShowAgendaDialog(false)}
+                                        disabled={agendaSaving}
+                                        className="flex-1 py-2.5 rounded-full text-sm font-bold border"
+                                        style={{ borderColor: colors.border, color: colors.textPrimary, background: 'transparent' }}
+                                    >
+                                        Cancelar
+                                    </button>
+                                    {owner.allow_scheduling ? (
+                                        <button
+                                            onClick={() => handleToggleAgenda(false)}
+                                            disabled={agendaSaving}
+                                            className="flex-1 py-2.5 rounded-full text-sm font-bold disabled:opacity-60"
+                                            style={{ background: '#ef4444', color: '#fff' }}
+                                        >
+                                            {agendaSaving ? 'Salvando...' : 'Desativar agenda'}
+                                        </button>
+                                    ) : (
+                                        <button
+                                            onClick={() => handleToggleAgenda(true)}
+                                            disabled={agendaSaving}
+                                            className="flex-1 py-2.5 rounded-full text-sm font-bold disabled:opacity-60"
+                                            style={{ background: GRADIENT, color: '#fff', boxShadow: '0 4px 12px #f9731640' }}
+                                        >
+                                            {agendaSaving ? 'Ativando...' : 'Ativar agenda'}
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        </div>,
+                        document.body
+                    )}
+
+                    {showScheduleModal && (
+                        <ProfileScheduleModal
+                            profileId={owner.id}
+                            profileName={owner.name}
+                            profileSlug={owner.slug}
+                            onClose={() => setShowScheduleModal(false)}
+                        />
+                    )}
+        </>
+    )
+    const liveLocCard = (
+        <>
+                    {liveLoc && owner.show_location !== false && process.env.NEXT_PUBLIC_MAPBOX_TOKEN && (
+                        <a
+                            href={`https://www.google.com/maps/search/?api=1&query=${liveLoc.lat},${liveLoc.lng}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="block rounded-xl overflow-hidden transition-all hover:scale-[1.01]"
+                            style={{ background: glassBg, border: `1px solid ${colors.border}` }}
+                        >
+                            <img
+                                src={`https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/pin-l+f97316(${liveLoc.lng},${liveLoc.lat})/${liveLoc.lng},${liveLoc.lat},14,0/600x220@2x?access_token=${process.env.NEXT_PUBLIC_MAPBOX_TOKEN}`}
+                                alt="Localização em tempo real"
+                                className="w-full h-36 object-cover"
+                                loading="lazy"
+                            />
+                            <div className="flex items-center gap-2 p-3">
+                                <span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse flex-shrink-0" />
+                                <div className="min-w-0">
+                                    <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>Localização em tempo real</p>
+                                    <p className="text-xs" style={{ color: colors.textSecondary }}>
+                                        Posição aproximada · atualizada {new Date(liveLoc.updated_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                    </p>
+                                </div>
+                            </div>
+                        </a>
+                    )}
+        </>
+    )
 
     return (
         <div className="w-full px-4 md:px-6 py-4 md:max-w-3xl md:mx-auto flex flex-col gap-4">
@@ -1439,6 +1590,49 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
             `}</style>
 
             {/* ===== HEADER DO PERFIL ===== */}
+            {v3 ? (
+                <ProfileHeaderV3
+                    colors={colors}
+                    name={owner.name}
+                    avatarSlot={renderAvatar('w-[84px] h-[84px]', 'text-3xl')}
+                    levelSlot={ownerLevel ? <LevelBadge level={ownerLevel} size="sm" /> : undefined}
+                    seen={ownerSeen}
+                    description={owner.description}
+                    address={owner.address && (owner.show_location !== false || isOwner) ? owner.address : null}
+                    onOpenMaps={() => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(owner.address || '')}`, '_blank')}
+                    visits={totalVisitors}
+                    followers={followersCount}
+                    following={followingCount}
+                    onOpenFollowers={() => { setFollowType('followers'); setShowFollows(true) }}
+                    onOpenFollowing={() => { setFollowType('following'); setShowFollows(true) }}
+                    canFollow={!!currentUserId && currentUserId !== owner.id}
+                    isFollowing={isFollowing}
+                    onFollowToggle={handleFollowToggle}
+                    whatsappLink={whatsappLink}
+                    socialLinks={buildSocialLinks({ instagram: owner.instagram, youtube: owner.youtube, facebook: owner.facebook, x: owner.x })}
+                    contactSlot={owner.chat_enabled && owner.id !== currentUserId ? <ChatContactButton profileId={owner.id} colors={colors} variant="v3" label="Enviar mensagem" /> : undefined}
+                    liveLocSlot={liveLoc && owner.show_location !== false && process.env.NEXT_PUBLIC_MAPBOX_TOKEN ? liveLocCard : undefined}
+                    dialogsSlot={agendaDialogs}
+                    isOwner={isOwner}
+                    onEdit={() => setShowEditDialog(true)}
+                    chatEnabled={!!owner.chat_enabled}
+                    chatSaving={chatSaving}
+                    onToggleChat={() => handleToggleChat(!owner.chat_enabled)}
+                    allowScheduling={!!owner.allow_scheduling}
+                    onOpenAgendaDialog={() => setShowAgendaDialog(true)}
+                    onOpenOwnerAgenda={() => router.push('/compromissos?tab=agenda-perfil')}
+                    onOpenSchedule={() => setShowScheduleModal(true)}
+                    ownerFirstName={(owner.name || '').split(' ')[0]}
+                    stores={stores.map((st) => ({
+                        id: st.id,
+                        name: st.name,
+                        slug: st.storeSlug,
+                        logoUrl: st.logo_url ? supabase.storage.from('store-logos').getPublicUrl(st.logo_url).data.publicUrl : null,
+                    }))}
+                    onOpenStore={(slug) => router.push(`/${slug}`)}
+                />
+            ) : (
+            <>
             <div className="relative rounded-2xl p-5" style={cardStyle}>
                 <button
                     onClick={handleShareProfile}
@@ -1459,43 +1653,7 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                 </button>
 
                 <div className="flex flex-col items-center text-center">
-                    <div className="relative">
-                        {/* Plano Pré-pago (ou hierarquia): a borda laranja dá lugar à moldura colorida que gira */}
-                        <PlanAvatarRing userId={owner.id} width={4}>
-                            <div
-                                className={`w-28 h-28 rounded-full p-[3px] ${ownerHasRing ? '' : 'animate-pulse-glow'}`}
-                                style={{ background: ownerHasRing ? 'transparent' : GRADIENT }}
-                            >
-                                <div
-                                    className={`w-full h-full rounded-full overflow-hidden bg-white flex items-center justify-center ${imageUrl ? 'cursor-zoom-in' : ''}`}
-                                    onClick={imageUrl ? () => setZoomAvatar(true) : undefined}
-                                    role={imageUrl ? 'button' : undefined}
-                                    aria-label={imageUrl ? 'Ampliar foto' : undefined}
-                                >
-                                    {imageUrl ? (
-                                        <img src={imageUrl} alt={owner.name} className="w-full h-full object-cover" />
-                                    ) : (
-                                        <span className="text-5xl font-black" style={{ color: '#f97316' }}>
-                                            {owner.name?.charAt(0) || '?'}
-                                        </span>
-                                    )}
-                                </div>
-                            </div>
-                        </PlanAvatarRing>
-                        {zoomAvatar && imageUrl && <ImageZoomDialog src={imageUrl} alt={owner.name} onClose={() => setZoomAvatar(false)} />}
-                        {isOwner && (
-                            <>
-                                <input type="file" ref={fileInputRef} onChange={handleAvatarChange} accept="image/*" style={{ display: 'none' }} />
-                                <button
-                                    onClick={handleAvatarButtonClick}
-                                    className="absolute -bottom-1 -right-1 p-1.5 rounded-full transition-all hover:scale-110"
-                                    style={{ background: GRADIENT, color: '#fff' }}
-                                >
-                                    <Camera size={14} />
-                                </button>
-                            </>
-                        )}
-                    </div>
+                    {renderAvatar('w-28 h-28', 'text-5xl')}
 
                     <h1 className="text-2xl font-black mt-3 tracking-tight" style={{ color: colors.textPrimary }}>
                         {owner.name}
@@ -1618,103 +1776,9 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                         </button>
                     )}
 
-                    {showAgendaDialog && isOwner && typeof document !== 'undefined' && createPortal(
-                        <div
-                            className="fixed inset-0 z-[1000] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4"
-                            onClick={() => !agendaSaving && setShowAgendaDialog(false)}
-                        >
-                            <div
-                                onClick={(e) => e.stopPropagation()}
-                                className="w-full max-w-sm rounded-2xl p-5 space-y-4 shadow-xl"
-                                style={{ background: colors.surface, border: `1px solid ${colors.border}` }}
-                            >
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#fff' }}>
-                                        <Calendar size={18} />
-                                    </div>
-                                    <h3 className="text-base font-black" style={{ color: colors.textPrimary }}>
-                                        {owner.allow_scheduling ? 'Agenda ativa' : 'Ativar agenda'}
-                                    </h3>
-                                </div>
-                                <p className="text-sm" style={{ color: colors.textSecondary }}>
-                                    A agenda é recomendada para quem precisa marcar compromisso, como psicólogos, professores, personal trainers, barbeiros e afins.
-                                </p>
-                                <div className="rounded-xl p-3 text-xs space-y-1" style={{ background: 'rgba(249,115,22,0.08)', border: '1px dashed #f97316', color: colors.textPrimary }}>
-                                    <p className="font-black" style={{ color: '#f97316' }}>Custo (só no plano Pós-pago)</p>
-                                    <p>• Ativar a agenda: valor único cobrado uma vez</p>
-                                    <p>• Cada pessoa que agendar com você e você aceitar: valor por agendamento</p>
-                                    <p style={{ color: colors.textSecondary }}>
-                                        Os valores são somados à sua dívida do plano pós-pago e pagos via Pix quando ela chegar a R$ 50 — veja os valores atuais em Planos → Pós-pago.
-                                    </p>
-                                </div>
-                                <div className="flex gap-2">
-                                    <button
-                                        onClick={() => setShowAgendaDialog(false)}
-                                        disabled={agendaSaving}
-                                        className="flex-1 py-2.5 rounded-full text-sm font-bold border"
-                                        style={{ borderColor: colors.border, color: colors.textPrimary, background: 'transparent' }}
-                                    >
-                                        Cancelar
-                                    </button>
-                                    {owner.allow_scheduling ? (
-                                        <button
-                                            onClick={() => handleToggleAgenda(false)}
-                                            disabled={agendaSaving}
-                                            className="flex-1 py-2.5 rounded-full text-sm font-bold disabled:opacity-60"
-                                            style={{ background: '#ef4444', color: '#fff' }}
-                                        >
-                                            {agendaSaving ? 'Salvando...' : 'Desativar agenda'}
-                                        </button>
-                                    ) : (
-                                        <button
-                                            onClick={() => handleToggleAgenda(true)}
-                                            disabled={agendaSaving}
-                                            className="flex-1 py-2.5 rounded-full text-sm font-bold disabled:opacity-60"
-                                            style={{ background: GRADIENT, color: '#fff', boxShadow: '0 4px 12px #f9731640' }}
-                                        >
-                                            {agendaSaving ? 'Ativando...' : 'Ativar agenda'}
-                                        </button>
-                                    )}
-                                </div>
-                            </div>
-                        </div>,
-                        document.body
-                    )}
+                    {agendaDialogs}
 
-                    {showScheduleModal && (
-                        <ProfileScheduleModal
-                            profileId={owner.id}
-                            profileName={owner.name}
-                            profileSlug={owner.slug}
-                            onClose={() => setShowScheduleModal(false)}
-                        />
-                    )}
-
-                    {liveLoc && owner.show_location !== false && process.env.NEXT_PUBLIC_MAPBOX_TOKEN && (
-                        <a
-                            href={`https://www.google.com/maps/search/?api=1&query=${liveLoc.lat},${liveLoc.lng}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="block rounded-xl overflow-hidden transition-all hover:scale-[1.01]"
-                            style={{ background: glassBg, border: `1px solid ${colors.border}` }}
-                        >
-                            <img
-                                src={`https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/pin-l+f97316(${liveLoc.lng},${liveLoc.lat})/${liveLoc.lng},${liveLoc.lat},14,0/600x220@2x?access_token=${process.env.NEXT_PUBLIC_MAPBOX_TOKEN}`}
-                                alt="Localização em tempo real"
-                                className="w-full h-36 object-cover"
-                                loading="lazy"
-                            />
-                            <div className="flex items-center gap-2 p-3">
-                                <span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse flex-shrink-0" />
-                                <div className="min-w-0">
-                                    <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>Localização em tempo real</p>
-                                    <p className="text-xs" style={{ color: colors.textSecondary }}>
-                                        Posição aproximada · atualizada {new Date(liveLoc.updated_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                                    </p>
-                                </div>
-                            </div>
-                        </a>
-                    )}
+                    {liveLocCard}
 
                     {owner.chat_enabled && owner.id !== currentUserId && (
                         <ChatContactButton profileId={owner.id} colors={colors} background={glassBg} />
@@ -1867,9 +1931,11 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                     </div>
                 )}
             </div>
+            </>
+            )}
 
             {/* ===== TABS ===== */}
-            <div className="flex rounded-2xl p-1.5 gap-1" style={cardStyle}>
+            <div className={v3 ? 'flex gap-1.5' : 'flex rounded-2xl p-1.5 gap-1'} style={v3 ? undefined : cardStyle}>
                 {[
                     { id: 'publications', label: 'Publicações', icon: Megaphone, count: publications.length },
                     { id: 'services', label: 'Serviços', icon: Wrench, count: services.length },
@@ -1881,9 +1947,12 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                         <button
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id as ProfileTab)}
-                            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-black uppercase tracking-wide transition-all duration-300 ${isActive ? 'shadow-lg scale-[1.02]' : 'hover:bg-white/5'}`}
-                            style={
-                                isActive
+                            className={v3
+                                ? 'flex-1 h-10 flex items-center justify-center gap-1.5 rounded-full text-[12px] font-black transition active:scale-95'
+                                : `flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-black uppercase tracking-wide transition-all duration-300 ${isActive ? 'shadow-lg scale-[1.02]' : 'hover:bg-white/5'}`}
+                            style={v3
+                                ? (isActive ? { background: '#f97316', color: '#fff' } : { background: `${colors.border}40`, color: colors.textPrimary })
+                                : isActive
                                     ? {
                                         background: GRADIENT,
                                         color: '#ffffff',
@@ -2311,8 +2380,16 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                         )}
 
                         {loadingComments ? (
-                            <div className="flex justify-center py-8">
-                                <Spinner size={24} color={colors.textSecondary} />
+                            <div className="flex flex-col gap-4 py-2" aria-hidden>
+                                {[0, 1, 2].map((i) => (
+                                    <div key={i} className="flex gap-3">
+                                        <span className="block w-9 h-9 rounded-full animate-pulse flex-shrink-0" style={{ background: colors.border }} />
+                                        <div className="flex-1 flex flex-col gap-2">
+                                            <span className="block h-3 rounded animate-pulse" style={{ width: '34%', background: colors.border }} />
+                                            <span className="block h-3 rounded animate-pulse" style={{ width: i === 1 ? '88%' : '66%', background: colors.border }} />
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
                         ) : profileComments.length === 0 ? (
                             <div className="py-10 text-center rounded-xl" style={{

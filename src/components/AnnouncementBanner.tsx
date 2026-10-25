@@ -1,39 +1,33 @@
 // src/components/AnnouncementBanner.tsx
 //
-// Aviso fixo da página inicial (abaixo da busca): "estamos evoluindo, pode haver instabilidade". Some sozinho depois de
-// ANNOUNCEMENT_UNTIL, e quem fecha não vê de novo naquela visita (sessionStorage). Para trocar o texto ou tirar do ar,
-// mexa só nas constantes abaixo.
+// Convite da página inicial da 2.0 (abaixo da busca) para a NOVA versão do iUser (3.0): uma linha só, com o botão que troca de versão
+// pelo mecanismo único `switchVersion`. A 3.0 está liberada para todos; se por algum motivo a pessoa não tiver acesso (ou ainda
+// estiver carregando), nada aparece. Quem fecha não vê de novo naquela visita (sessionStorage).
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Layers, Palette, Server, Sparkles, X } from 'lucide-react'
+import { usePathname } from 'next/navigation'
+import { Rocket, X } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
+import { useProfile } from '@/app/contexts/ProfileContext'
+import { switchVersion, useV3Access } from '@/versions/client'
 
-// Depois desta data o aviso para de aparecer (fim do ciclo de cobrança do Supabase). Ajuste quando quiser.
-const ANNOUNCEMENT_UNTIL = '2026-11-14T00:00:00-03:00'
-const STORAGE_KEY = 'iuser_announcement_2026_10_dismissed'
-
-const TITLE = 'Estamos evoluindo o iUser!'
-const MESSAGE =
-    'Nos próximos dias vamos ampliar nossos serviços e atualizar o banco de dados, o servidor e o design do app. ' +
-    'Por isso, você pode notar algumas instabilidades. É passageiro, e o iUser vai ficar ainda melhor. Obrigado pela paciência!'
-const HIGHLIGHTS = [
-    { icon: Layers, label: 'Mais serviços' },
-    { icon: Server, label: 'Banco e servidor atualizados' },
-    { icon: Palette, label: 'Novo design' },
-]
+const STORAGE_KEY = 'iuser_v3_promo_dismissed'
 
 export default function AnnouncementBanner() {
     const { colors } = useTheme()
+    const pathname = usePathname()
+    const { userId } = useProfile()
+    const access = useV3Access()
     const [visible, setVisible] = useState(false)
+    const [switching, setSwitching] = useState(false)
 
     useEffect(() => {
-        if (Date.now() > new Date(ANNOUNCEMENT_UNTIL).getTime()) return
         try { if (sessionStorage.getItem(STORAGE_KEY)) return } catch { /* sem storage: mostra */ }
         setVisible(true)
     }, [])
 
-    if (!visible) return null
+    if (!visible || !access.allowed) return null
 
     const dismiss = () => {
         setVisible(false)
@@ -43,59 +37,29 @@ export default function AnnouncementBanner() {
     return (
         <section
             role="status"
-            aria-label="Aviso do iUser"
-            className="relative overflow-hidden rounded-3xl mb-5"
-            style={{
-                background: colors.surface,
-                border: `1px solid ${colors.border}`,
-                boxShadow: '0 10px 30px -12px rgba(249,115,22,0.45)',
-            }}
+            aria-label="Novo iUser"
+            className="relative flex items-center gap-3 rounded-full mb-5 pl-3 pr-2 py-2"
+            style={{ background: colors.surface, border: `1px solid ${colors.border}` }}
         >
-            {/* faixa de degradê da marca no topo */}
-            <div aria-hidden className="h-1.5 w-full" style={{ background: 'linear-gradient(90deg, #f97316, #dc2626, #f97316)' }} />
-            {/* brilho suave de fundo */}
-            <div aria-hidden className="pointer-events-none absolute -top-10 -right-10 w-40 h-40 rounded-full" style={{ background: 'radial-gradient(circle, rgba(249,115,22,0.22), transparent 70%)' }} />
-
+            <span className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 text-white" style={{ background: 'linear-gradient(135deg, #f97316, #dc2626)' }}>
+                <Rocket size={17} />
+            </span>
+            <p className="flex-1 min-w-0 text-[13px] font-black leading-tight" style={{ color: colors.textPrimary }}>
+                Conheça o novo iUser
+                <span className="block text-[11px] font-medium" style={{ color: colors.textSecondary }}>Mais rápido, simples e bonito</span>
+            </p>
             <button
-                onClick={dismiss}
-                aria-label="Fechar aviso"
-                className="absolute top-3.5 right-3 w-7 h-7 rounded-full flex items-center justify-center"
-                style={{ color: colors.textSecondary, background: 'rgba(127,127,127,0.12)' }}
+                type="button"
+                disabled={switching}
+                onClick={async () => { setSwitching(true); await switchVersion('v3', { pathname, loggedIn: !!userId }); setSwitching(false) }}
+                className="h-9 px-4 rounded-full text-[13px] font-black text-white flex-shrink-0 transition active:scale-95 disabled:opacity-60"
+                style={{ background: '#f97316' }}
             >
+                {switching ? 'Abrindo…' : 'Ir para a v3'}
+            </button>
+            <button onClick={dismiss} aria-label="Fechar" className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0" style={{ color: colors.textSecondary }}>
                 <X size={15} />
             </button>
-
-            <div className="relative p-4 pr-11">
-                <div className="flex items-center gap-3">
-                    <span
-                        className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 text-white"
-                        style={{ background: 'linear-gradient(135deg, #f97316, #dc2626)', boxShadow: '0 6px 16px -6px rgba(220,38,38,0.6)' }}
-                    >
-                        <Sparkles size={22} />
-                    </span>
-                    <div className="min-w-0">
-                        <span className="inline-block text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full text-white mb-1" style={{ background: 'linear-gradient(90deg, #f97316, #dc2626)' }}>
-                            Novidades a caminho
-                        </span>
-                        <h2 className="text-base font-black leading-tight" style={{ color: colors.textPrimary }}>{TITLE}</h2>
-                    </div>
-                </div>
-
-                <p className="mt-3 text-[13px] leading-relaxed" style={{ color: colors.textSecondary }}>{MESSAGE}</p>
-
-                <div className="mt-3 flex flex-wrap gap-2">
-                    {HIGHLIGHTS.map(({ icon: Icon, label }) => (
-                        <span
-                            key={label}
-                            className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1.5 rounded-full"
-                            style={{ color: colors.textPrimary, background: 'rgba(249,115,22,0.10)', border: '1px solid rgba(249,115,22,0.30)' }}
-                        >
-                            <Icon size={13} style={{ color: '#f97316' }} />
-                            {label}
-                        </span>
-                    ))}
-                </div>
-            </div>
         </section>
     )
 }

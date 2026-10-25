@@ -1,42 +1,35 @@
-// Prévia do link (WhatsApp, Telegram, iMessage...) da página pública de um veículo/motorista:
-// título com o modelo, quem é o motorista e a foto do carro. A página em si é client ('use client').
+// Prévia do link (WhatsApp, Telegram, iMessage...) da página pública de um veículo/motorista: o mesmo cartão de
+// perfil/loja (miniatura quadrada pequena do lado do texto), com a foto do motorista e o STATUS dele (nota,
+// avaliações, corridas, veículo, a partir de) no lugar da bio. Não gera imagem: a miniatura passa por /api/og-thumb
+// (200x200 + selo do iUser), igual aos outros links. Dados públicos em lib/vehicleShareCard.ts. A página em si é client.
 import type { Metadata } from 'next'
-import { supabaseAdmin } from '@/lib/supabase/admin'
+import { SHARE_BASE_URL, loadVehicleShareData, vehicleShareText } from '@/lib/vehicleShareCard'
 
-const BASE_URL = 'https://www.iuser.com.br'
+const THUMB_SIZE = 200 // menos de 300px = o WhatsApp mostra a miniatura do lado esquerdo
+const DEFAULT_THUMB = `${SHARE_BASE_URL}/logo-preview-thumb.png`
+const toThumbUrl = (src: string) => `${SHARE_BASE_URL}/api/og-thumb?src=${encodeURIComponent(src)}`
 
 export async function generateMetadata({ params }: { params: Promise<{ vehicleSlug: string }> }): Promise<Metadata> {
     const { vehicleSlug } = await params
     const fallback: Metadata = { title: 'Motorista | iUser', robots: { index: false } }
     try {
-        const { data: v } = await supabaseAdmin
-            .from('driver_vehicles')
-            .select('car_model, car_color, car_photo_url, vehicle_kind, vehicle_slug, driver_id')
-            .ilike('vehicle_slug', vehicleSlug)
-            .maybeSingle()
-        if (!v) return fallback
-        const { data: p } = await supabaseAdmin.from('profiles').select('name, profileSlug').eq('id', v.driver_id).maybeSingle()
-
-        const kind = v.vehicle_kind === 'moto' ? 'Moto' : v.vehicle_kind === 'bicicleta' ? 'Bicicleta' : 'Carro'
-        const model = v.car_model || kind
-        const who = p?.name || (p?.profileSlug ? `@${p.profileSlug}` : 'motorista')
-        const title = `${model}${v.car_color ? ` ${v.car_color}` : ''} — ${who} | iUser`
-        const description = `Chame ${who} em tempo real: veja onde ele está, quanto custa a corrida e peça direto pelo iUser.`
-        const url = `${BASE_URL}/${v.vehicle_slug}`
-        const photo = v.car_photo_url
-            ? (String(v.car_photo_url).startsWith('http')
-                ? v.car_photo_url
-                : supabaseAdmin.storage.from('driver-car-photos').getPublicUrl(v.car_photo_url).data.publicUrl)
-            : `${BASE_URL}/logo-preview-thumb.png`
+        const d = await loadVehicleShareData(vehicleSlug)
+        if (!d) return fallback
+        const { title, description } = vehicleShareText(d)
+        const url = `${SHARE_BASE_URL}/${d.slug}`
+        // imagem do motorista; sem foto de perfil, a do veículo; sem nenhuma, a logo
+        const src = d.avatarUrl || d.carPhotoUrl
+        const image = src ? toThumbUrl(src) : DEFAULT_THUMB
+        const shortTitle = title.replace(/ \| iUser$/, '')
         return {
             title,
             description,
             alternates: { canonical: url },
             openGraph: {
-                title, description, url, siteName: 'iUser', type: 'website', locale: 'pt_BR',
-                images: [{ url: photo, alt: model }],
+                title: shortTitle, description, url, siteName: 'iUser', type: 'website', locale: 'pt_BR',
+                images: [{ url: image, width: THUMB_SIZE, height: THUMB_SIZE, alt: d.driverName, type: 'image/png' }],
             },
-            twitter: { card: 'summary_large_image', title, description, images: [photo] },
+            twitter: { card: 'summary', title: shortTitle, description, images: [image] },
         }
     } catch {
         return fallback

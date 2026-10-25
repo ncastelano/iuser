@@ -36,6 +36,7 @@ import {
 } from 'lucide-react'
 import { handleShareLink } from '@/lib/share'
 import { toast } from 'sonner'
+import { cartAddedFeedback } from '@/lib/cartFeedback'
 import { useCartStore, cartItemUnitPrice, cartItemLineTotal, type CartAddon } from '@/store/useCartStore'
 import { useStoreCheckout } from './useStoreCheckout'
 import { RatingStars } from '@/components/ratings/RatingStars'
@@ -46,9 +47,11 @@ import EditProductDialog from '@/components/EditProductDialog'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { trackProductView } from '@/lib/trackProductView'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
+import ProductReviewsV3, { type ProductReviewV3 } from '@/components/v3/ProductReviewsV3'
+import { useInsideShell } from '@/components/InsideShell'
 import { V2CheckoutReview } from '@/components/DeliveryEstimate/V2CheckoutReview'
 
-const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
+const GRADIENT_V2 = 'linear-gradient(135deg, #f97316, #dc2626)'
 
 // ===== TIPOS =====
 interface ProductWithStore {
@@ -125,6 +128,9 @@ export function ProductClientPage({
     initialStore,
 }: ProductClientPageProps) {
     const router = useRouter()
+    // v3 (dentro da casca): laranja sólido no lugar do degradê laranja→vermelho, e cartões sem moldura (só apresentação)
+    const v3 = useInsideShell()
+    const GRADIENT = v3 ? '#f97316' : GRADIENT_V2
     const { userId: currentUserId } = useProfile()
     const [editingProduct, setEditingProduct] = useState(false)
 
@@ -162,7 +168,9 @@ export function ProductClientPage({
         comment: string | null
         is_anonymous: boolean
         created_at: string
-        profiles: { id?: string; name: string | null; avatar_url: string | null } | null
+        profiles: { id?: string; name: string | null; avatar_url: string | null; profileSlug?: string | null } | null
+        like_count: number
+        is_liked: boolean
     }[]>([])
     const [showReviews, setShowReviews] = useState(false)
 
@@ -286,17 +294,48 @@ export function ProductClientPage({
             .select('id, rating, comment, is_anonymous, created_at, profiles(id, name, avatar_url, "profileSlug")')
             .eq('product_id', productId)
             .order('created_at', { ascending: false })
-            .then(({ data }) => {
+            .then(async ({ data }) => {
                 if (!isMounted) return
                 const rows = (data || []).map((r: any) => ({
                     ...r,
                     profiles: Array.isArray(r.profiles) ? r.profiles[0] : r.profiles,
+                    like_count: 0,
+                    is_liked: false,
                 }))
+                // curtidas das avaliações (contagem pública; "curtiu" só para quem está logado), em lote
+                if (rows.length > 0) {
+                    const { data: likes } = await supabase
+                        .from('product_review_likes')
+                        .select('review_id, profile_id')
+                        .in('review_id', rows.map((r: any) => r.id))
+                    const counts = new Map<string, number>()
+                    const mine = new Set<string>()
+                    for (const l of (likes || []) as { review_id: string; profile_id: string }[]) {
+                        counts.set(l.review_id, (counts.get(l.review_id) || 0) + 1)
+                        if (currentUserId && l.profile_id === currentUserId) mine.add(l.review_id)
+                    }
+                    for (const r of rows as any[]) { r.like_count = counts.get(r.id) || 0; r.is_liked = mine.has(r.id) }
+                }
+                if (!isMounted) return
                 setProductReviews(rows)
             })
 
         return () => { isMounted = false }
-    }, [product?.id])
+    }, [product?.id, currentUserId])
+
+    // curtir/descurtir uma avaliação (otimista; desfaz se o banco recusar)
+    const toggleReviewLike = async (reviewId: string) => {
+        if (!currentUserId) { toast.error('Faça login para curtir'); return }
+        const target = productReviews.find((r) => r.id === reviewId)
+        if (!target) return
+        const next = !target.is_liked
+        const apply = (liked: boolean) => setProductReviews((list) => list.map((r) => r.id === reviewId ? { ...r, is_liked: liked, like_count: Math.max(0, r.like_count + (liked ? 1 : -1)) } : r))
+        apply(next)
+        const { error } = next
+            ? await supabase.from('product_review_likes').insert({ review_id: reviewId, profile_id: currentUserId })
+            : await supabase.from('product_review_likes').delete().eq('review_id', reviewId).eq('profile_id', currentUserId)
+        if (error) { apply(!next); toast.error('Não foi possível curtir agora') }
+    }
 
     // ===== FUNÇÃO PARA IR PARA A LOJA =====
     const goToStore = () => {
@@ -376,6 +415,7 @@ export function ProductClientPage({
                 addItem(ownerSlug, storeDetails, cartProduct, comment, addons.length > 0 ? addons : undefined)
             }
             toast.success(`${product.name} adicionado ao carrinho!`)
+            void cartAddedFeedback({ scrollToId: 'carrinho-da-loja' })
 
             setAddedToCart(true)
             setTimeout(() => setAddedToCart(false), 3000)
@@ -398,6 +438,7 @@ export function ProductClientPage({
                 addItem(ownerSlug, storeDetails, cartProduct, u.comment, u.addons.length > 0 ? u.addons : undefined)
             }
             toast.success(`${units.length} × ${product.name} adicionados ao carrinho!`)
+            void cartAddedFeedback({ scrollToId: 'carrinho-da-loja' })
             setAddedToCart(true)
             setTimeout(() => setAddedToCart(false), 3000)
         } catch (error: any) {
@@ -475,23 +516,23 @@ export function ProductClientPage({
         <>
             <div
                 className="flex items-center gap-1 rounded-full p-1 flex-shrink-0"
-                style={{ border: `1px solid ${colors.border}` }}
+                style={v3 ? { background: `${colors.border}40` } : { border: `1px solid ${colors.border}` }}
             >
                 <button
                     onClick={() => handleQuantityChange(quantity - 1)}
                     aria-label="Diminuir quantidade"
-                    className="w-9 h-9 rounded-full flex items-center justify-center transition hover:scale-105"
+                    className={`${v3 ? 'w-8 h-8' : 'w-9 h-9'} rounded-full flex items-center justify-center transition hover:scale-105`}
                     style={{ color: colors.textPrimary }}
                 >
                     <Minus size={16} />
                 </button>
-                <span className="w-6 text-center font-black" style={{ color: colors.textPrimary }}>
+                <span className={`${v3 ? 'w-5' : 'w-6'} text-center font-black`} style={{ color: colors.textPrimary }}>
                     {quantity}
                 </span>
                 <button
                     onClick={() => handleQuantityChange(quantity + 1)}
                     aria-label="Aumentar quantidade"
-                    className="w-9 h-9 rounded-full flex items-center justify-center transition hover:scale-105"
+                    className={`${v3 ? 'w-8 h-8' : 'w-9 h-9'} rounded-full flex items-center justify-center transition hover:scale-105`}
                     style={{ color: colors.textPrimary }}
                 >
                     <Plus size={16} />
@@ -501,11 +542,13 @@ export function ProductClientPage({
             <button
                 onClick={openAddModal}
                 disabled={addingToCart || addedToCart}
-                className="flex-1 min-w-0 flex items-center justify-center gap-2 px-3 py-3 md:py-3.5 rounded-2xl text-sm md:text-base font-bold whitespace-nowrap transition-all hover:scale-[1.01] disabled:opacity-60"
+                className={v3
+                    ? 'flex-1 min-w-0 h-11 flex items-center justify-center gap-2 px-3 rounded-full text-[13px] font-black whitespace-nowrap transition active:scale-95 disabled:opacity-60'
+                    : 'flex-1 min-w-0 flex items-center justify-center gap-2 px-3 py-3 md:py-3.5 rounded-2xl text-sm md:text-base font-bold whitespace-nowrap transition-all hover:scale-[1.01] disabled:opacity-60'}
                 style={{
                     background: addedToCart ? '#22c55e' : GRADIENT,
                     color: '#ffffff',
-                    boxShadow: addedToCart ? '0 4px 14px rgba(34, 197, 94, 0.4)' : '0 4px 14px rgba(249, 115, 22, 0.4)',
+                    ...(v3 ? {} : { boxShadow: addedToCart ? '0 4px 14px rgba(34, 197, 94, 0.4)' : '0 4px 14px rgba(249, 115, 22, 0.4)' }),
                 }}
             >
                 {addedToCart ? (
@@ -537,16 +580,18 @@ export function ProductClientPage({
     const storeCartTotal = storeCartItems.reduce((sum, item) => sum + cartItemLineTotal(item), 0)
     const formattedStoreCartTotal = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(storeCartTotal)
 
-    const storeCartBar = storeCartCount > 0 ? (
+    // 'head' = só a linha compacta do carrinho, que se funde à barra fixa do topo (v2 no celular, logo abaixo de "Adicionar"); 'body' = o que abre
+    // dela (itens, recebimento, pagamento), que desce junto com a página; 'full' = o cartão grande da coluna (v3 e computador)
+    const renderStoreCartBar = (part: 'full' | 'head' | 'body', compact = part === 'head') => storeCartCount > 0 ? (
         <div className="animate-slide-in">
-            <button
+            {part !== 'body' && <button
                 onClick={() => { if (checkout.checkoutStep) setShowStoreCart((v) => !v) }}
-                className={`w-full flex items-center gap-4 px-4 py-4 text-left transition ${checkout.checkoutStep ? 'active:scale-[0.99]' : 'cursor-default'}`}
+                className={`w-full flex items-center text-left transition ${compact ? 'gap-3 px-3 py-2.5 rounded-2xl' : 'gap-4 px-4 py-4'} ${checkout.checkoutStep ? 'active:scale-[0.99]' : 'cursor-default'}`}
                 style={{ background: GRADIENT }}
                 aria-expanded={showStoreCart}
             >
                 {/* Quem vende: a imagem da loja. As fotos dos produtos ficam na lista logo abaixo */}
-                <div className="w-14 h-14 rounded-full overflow-hidden flex-shrink-0" style={{ border: '3px solid #ffffff', background: '#ffffff', boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }}>
+                <div className={`${compact ? 'w-9 h-9' : 'w-14 h-14'} rounded-full overflow-hidden flex-shrink-0`} style={{ border: compact ? '2px solid #ffffff' : '3px solid #ffffff', background: '#ffffff', boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }}>
                     <FallbackImage
                         srcs={[finalStoreImage]}
                         alt={storeDisplay.name}
@@ -556,9 +601,15 @@ export function ProductClientPage({
                     />
                 </div>
                 <div className="flex-1 min-w-0">
-                    <p className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-white/80"><ShoppingCart size={12} strokeWidth={3} />Seu carrinho · {storeCartCount} {storeCartCount === 1 ? 'item' : 'itens'}</p>
-                    <p className="text-sm font-bold text-white truncate">{storeDisplay.name}</p>
-                    <p className="text-xl font-black text-white leading-tight">{formattedStoreCartTotal}</p>
+                    <p className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-white/80"><span data-cart-wiggle className="inline-flex"><ShoppingCart size={12} strokeWidth={3} /></span>Seu carrinho · {storeCartCount} {storeCartCount === 1 ? 'item' : 'itens'}</p>
+                    {compact ? (
+                        <p className="text-sm font-black text-white leading-tight truncate">{storeDisplay.name} · {formattedStoreCartTotal}</p>
+                    ) : (
+                        <>
+                            <p className="text-sm font-bold text-white truncate">{storeDisplay.name}</p>
+                            <p className="text-xl font-black text-white leading-tight">{formattedStoreCartTotal}</p>
+                        </>
+                    )}
                 </div>
                 {checkout.checkoutStep && (
                     <span className="flex items-center gap-1 flex-shrink-0 px-4 py-2 rounded-full text-xs font-black" style={{ background: '#ffffff', color: '#dc2626' }}>
@@ -566,8 +617,9 @@ export function ProductClientPage({
                         <ChevronRight size={16} style={{ transform: showStoreCart ? 'rotate(90deg)' : undefined, transition: 'transform 0.2s' }} />
                     </span>
                 )}
-            </button>
+            </button>}
 
+            {part !== 'head' && <>
             {showStoreCart && checkout.checkoutStep === 'delivery' && (
                 <div className="px-4 pb-3 max-h-[70vh] overflow-y-auto">
                     <div className="flex items-center justify-between mb-3">
@@ -1038,8 +1090,13 @@ export function ProductClientPage({
                     </button>
                 </div>
             )}
+            </>}
         </div>
     ) : null
+    const storeCartBar = renderStoreCartBar('full')
+    // v2 no celular: o carrinho vira uma linha da própria barra do topo (fundida a ela); na v3 e no computador fica onde estava
+    const mobileCartBar = !v3 ? renderStoreCartBar('head') : null
+    const mobileCartBody = !v3 ? renderStoreCartBar('body') : null
 
     return (
         <div className="relative min-h-dvh" style={{ background: colors.background }}>
@@ -1065,7 +1122,12 @@ export function ProductClientPage({
                 do iPhone atrapalha). */}
             <div
                 className="md:hidden sticky top-0 z-30"
-                style={{
+                style={v3 ? {
+                    // v3: header parado logo abaixo da navbar, sem sombra
+                    background: colors.background,
+                    top: 'var(--shell-top, 0px)',
+                    borderBottom: `1px solid ${colors.border}50`,
+                } : {
                     background: colors.background,
                     borderBottom: `1px solid ${colors.border}`,
                     boxShadow: '0 8px 24px rgba(0,0,0,0.08)',
@@ -1076,14 +1138,19 @@ export function ProductClientPage({
                     <button
                         onClick={() => router.back()}
                         aria-label="Voltar"
-                        className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition hover:scale-105"
-                        style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                        className={`${v3 ? 'w-11 h-11' : 'w-10 h-10'} rounded-full flex items-center justify-center flex-shrink-0 transition ${v3 ? 'active:scale-95' : 'hover:scale-105'}`}
+                        style={v3 ? { background: `${colors.border}40`, color: colors.textPrimary } : { background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
                     >
                         <ArrowLeft size={20} />
                     </button>
                     {cartControls}
                 </div>
+                {mobileCartBar && (
+                    <div id="carrinho-da-loja-topo" className="px-4 pb-3 -mt-1">{mobileCartBar}</div>
+                )}
             </div>
+            {/* O que abre do carrinho desce junto com a página (não fica preso no topo) */}
+            {mobileCartBody && <div className="md:hidden" style={{ background: colors.background, borderBottom: `1px solid ${colors.border}` }}>{mobileCartBody}</div>}
 
             {/* Nome do produto (mobile) - em cima da imagem */}
             <div className="md:hidden px-5 pt-4 pb-3">
@@ -1125,8 +1192,9 @@ export function ProductClientPage({
                             </div>
                         )}
 
-                        {/* Loja + data + compartilhar - no rodapé da foto. Tocar na loja (avatar/nome)
-                            abre a loja; o compartilhar ocupa o lugar do antigo botão "ir pra loja". */}
+                        {/* Loja + data + compartilhar - no rodapé da foto (v2). Tocar na loja (avatar/nome)
+                            abre a loja; o compartilhar ocupa o lugar do antigo botão "ir pra loja". Na v3 isso vira uma linha abaixo da foto. */}
+                        {!v3 && (
                         <div
                             className="absolute bottom-0 inset-x-0 flex items-center gap-2 px-4 pb-4 pt-8"
                             style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.72), transparent)' }}
@@ -1158,10 +1226,12 @@ export function ProductClientPage({
                                 </div>
                             </button>
                             <button
-                                onClick={() => handleShareLink({
-                                    title: `${product.name || 'Produto'} | ${storeDisplay.name}`,
-                                    text: product.description || 'Confira no iUser!'
-                                })}
+                                onClick={async () => {
+                                    if (await handleShareLink({
+                                        title: `${product.name || 'Produto'} | ${storeDisplay.name}`,
+                                        text: product.description || 'Confira no iUser!'
+                                    })) void supabase.rpc('increment_product_share_count', { p_product: product.id })
+                                }}
                                 aria-label="Compartilhar"
                                 className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 backdrop-blur-md transition hover:scale-105"
                                 style={{ background: 'rgba(17,17,17,0.4)' }}
@@ -1180,11 +1250,45 @@ export function ProductClientPage({
                                 </button>
                             )}
                         </div>
+                        )}
                     </div>
 
                     {/* Sheet de conteúdo (mobile: sobreposto à imagem / web: coluna ao lado) */}
                     <main className="relative z-10" style={{ background: colors.background }}>
                         <div className="px-5 pt-4 md:px-0 md:pt-0 space-y-3">
+                            {/* v3: loja, data e ações numa linha limpa (a foto fica sem camada escura por cima) */}
+                            {v3 && (
+                                <div className="flex items-center gap-2.5">
+                                    <button onClick={goToStore} className="flex items-center gap-2.5 min-w-0 flex-1 text-left transition active:opacity-70">
+                                        <div className="w-9 h-9 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center" style={{ background: `${colors.border}60` }}>
+                                            {finalStoreImage ? <img src={finalStoreImage} alt={storeDisplay.name} className="w-full h-full object-cover" /> : <Store size={16} style={{ color: colors.textSecondary }} />}
+                                        </div>
+                                        <div className="min-w-0">
+                                            <p className="text-[13px] font-black truncate" style={{ color: colors.textPrimary }}>{storeDisplay.name}</p>
+                                            <p className="text-[11px]" style={{ color: colors.textSecondary }}>{formattedDate}</p>
+                                        </div>
+                                    </button>
+                                    <button
+                                        onClick={() => handleShareLink({ title: `${product.name || 'Produto'} | ${storeDisplay.name}`, text: product.description || 'Confira no iUser!' })}
+                                        aria-label="Compartilhar"
+                                        className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition active:scale-95"
+                                        style={{ background: `${colors.border}40`, color: colors.textPrimary }}
+                                    >
+                                        <Share2 size={17} />
+                                    </button>
+                                    {!!currentUserId && currentUserId === product.store?.owner_id && (
+                                        <button
+                                            onClick={() => setEditingProduct(true)}
+                                            aria-label="Editar produto"
+                                            className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition active:scale-95"
+                                            style={{ background: `${colors.border}40`, color: colors.textPrimary }}
+                                        >
+                                            <MoreHorizontal size={17} />
+                                        </button>
+                                    )}
+                                </div>
+                            )}
+
                             {/* Preço - o nome do produto já está no cabeçalho flutuante */}
                             <div className="flex items-center gap-3">
                                 <span className="text-2xl md:text-3xl font-black" style={{ color: colors.accent }}>
@@ -1210,8 +1314,30 @@ export function ProductClientPage({
                                 </div>
                             )}
 
-                            {/* Avaliações - resumo compacto, expande sob demanda */}
-                            {productReviews.length > 0 && (
+                            {/* v3: avaliações em cartão que gira (mais curtidas primeiro) e abre a lista completa */}
+                            {v3 && productReviews.length > 0 && (
+                                <ProductReviewsV3
+                                    reviews={productReviews as ProductReviewV3[]}
+                                    colors={colors}
+                                    avgRating={avgRating}
+                                    onToggleLike={toggleReviewLike}
+                                    renderAvatar={(r) => {
+                                        const a = getAvatarUrl(supabase, r.profiles?.avatar_url)
+                                        return (
+                                            <PlanAvatarRing userId={r.is_anonymous ? null : r.profiles?.id}>
+                                                <div className="w-9 h-9 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0" style={{ background: `${colors.border}60` }}>
+                                                    {a && !r.is_anonymous
+                                                        ? <img src={a} alt="" className="w-full h-full object-cover" />
+                                                        : <span className="text-xs font-black" style={{ color: '#f97316' }}>{r.is_anonymous ? '?' : (r.profiles?.profileSlug || r.profiles?.name || '?').slice(0, 1).toUpperCase()}</span>}
+                                                </div>
+                                            </PlanAvatarRing>
+                                        )
+                                    }}
+                                />
+                            )}
+
+                            {/* Avaliações - resumo compacto, expande sob demanda (v2) */}
+                            {!v3 && productReviews.length > 0 && (
                                 <div className="border-t pt-2" style={{ borderColor: colors.border }}>
                                     <button
                                         onClick={() => setShowReviews((v) => !v)}
@@ -1248,6 +1374,11 @@ export function ProductClientPage({
                                                         className="flex gap-2 p-2.5 rounded-xl"
                                                         style={{ background: `${colors.surface}66` }}
                                                     >
+                                                        <a
+                                                            href={!r.is_anonymous && r.profiles?.profileSlug ? `/${r.profiles.profileSlug}` : undefined}
+                                                            aria-label={`Ver perfil de ${reviewerName}`}
+                                                            className="flex-shrink-0 self-start"
+                                                        >
                                                         <PlanAvatarRing userId={r.is_anonymous ? null : r.profiles?.id}>
                                                         <div className="w-7 h-7 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center" style={{ background: colors.border }}>
                                                             {reviewerAvatar ? (
@@ -1259,11 +1390,18 @@ export function ProductClientPage({
                                                             )}
                                                         </div>
                                                         </PlanAvatarRing>
+                                                        </a>
                                                         <div className="flex-1 min-w-0">
                                                             <div className="flex items-center justify-between gap-2">
-                                                                <p className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>
-                                                                    {reviewerName}
-                                                                </p>
+                                                                {!r.is_anonymous && r.profiles?.profileSlug ? (
+                                                                    <a href={`/${r.profiles.profileSlug}`} className="text-xs font-bold truncate hover:underline" style={{ color: colors.textPrimary }}>
+                                                                        {reviewerName}
+                                                                    </a>
+                                                                ) : (
+                                                                    <p className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>
+                                                                        {reviewerName}
+                                                                    </p>
+                                                                )}
                                                                 <span className="text-[9px] flex-shrink-0" style={{ color: colors.textSecondary, opacity: 0.75 }}>
                                                                     {new Date(r.created_at).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short' })}
                                                                 </span>
@@ -1290,7 +1428,7 @@ export function ProductClientPage({
 
                             {/* Carrinho da loja: abaixo da descrição; "outras pessoas pediram" vem depois */}
                             {storeCartBar && (
-                                <div className="rounded-3xl overflow-hidden" style={{ border: '2px solid #f97316', background: colors.surface, boxShadow: '0 8px 28px #f9731645' }}>
+                                <div id="carrinho-da-loja" className={`${v3 ? '' : 'hidden md:block '}rounded-3xl overflow-hidden scroll-mt-24`} style={{ border: '2px solid #f97316', background: colors.surface, boxShadow: '0 8px 28px #f9731645' }}>
                                     {storeCartBar}
                                 </div>
                             )}
@@ -1314,14 +1452,16 @@ export function ProductClientPage({
                             <button
                                 key={other.id}
                                 onClick={() => router.push(`/${ownerSlug}/${other.slug}`)}
-                                className="text-left rounded-3xl overflow-hidden flex-shrink-0 w-44 md:w-48 flex flex-col transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl"
-                                style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
+                                className={v3
+                                    ? 'text-left flex-shrink-0 w-40 flex flex-col transition active:scale-95'
+                                    : 'text-left rounded-3xl overflow-hidden flex-shrink-0 w-44 md:w-48 flex flex-col transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl'}
+                                style={v3 ? undefined : { background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
                             >
-                                <div className="relative w-full h-32 overflow-hidden" style={{ background: GRADIENT }}>
+                                <div className={`relative w-full overflow-hidden ${v3 ? 'aspect-square rounded-2xl' : 'h-32'}`} style={{ background: GRADIENT }}>
                                     {otherImageUrl ? (
                                         <>
                                             <img src={otherImageUrl} alt="" aria-hidden className="absolute inset-0 w-full h-full object-cover scale-125 blur-xl opacity-70" />
-                                            <img src={otherImageUrl} alt={other.name} className={`relative w-full h-full ${other.image_url ? 'object-contain' : 'object-contain p-4'}`} />
+                                            <img src={otherImageUrl} alt={other.name} className={`relative w-full h-full ${v3 && other.image_url ? 'object-cover' : other.image_url ? 'object-contain' : 'object-contain p-4'}`} />
                                         </>
                                     ) : (
                                         <div className="w-full h-full flex items-center justify-center">
@@ -1334,9 +1474,9 @@ export function ProductClientPage({
                                         </span>
                                     ) : null}
                                 </div>
-                                <div className="p-3 flex flex-col gap-1">
-                                    <p className="text-sm font-black leading-snug line-clamp-2" style={{ color: colors.textPrimary }}>{other.name}</p>
-                                    <p className="text-base font-black" style={{ color: '#f97316' }}>{otherPrice}</p>
+                                <div className={`${v3 ? 'pt-1.5 px-0.5' : 'p-3'} flex flex-col gap-1`}>
+                                    <p className={`${v3 ? 'text-[13px]' : 'text-sm'} font-black leading-snug line-clamp-2`} style={{ color: colors.textPrimary }}>{other.name}</p>
+                                    <p className={`${v3 ? 'text-sm' : 'text-base'} font-black`} style={{ color: '#f97316' }}>{otherPrice}</p>
                                 </div>
                             </button>
                         )

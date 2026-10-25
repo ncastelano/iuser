@@ -27,12 +27,14 @@ function db(): SupabaseClient | null {
 // Cache curto em memória: o proxy roda em toda navegação.
 const TTL = 30_000
 const cache = new Map<string, { v: unknown; at: number }>()
-async function cached<T>(key: string, fn: () => Promise<T>): Promise<T> {
+async function cached<T>(key: string, fn: () => Promise<T>, shouldCache: (v: T) => boolean = () => true): Promise<T> {
     const hit = cache.get(key)
     if (hit && Date.now() - hit.at < TTL) return hit.v as T
     const v = await fn()
-    if (cache.size > 500) cache.clear()
-    cache.set(key, { v, at: Date.now() })
+    if (shouldCache(v)) {
+        if (cache.size > 500) cache.clear()
+        cache.set(key, { v, at: Date.now() })
+    }
     return v
 }
 
@@ -52,7 +54,8 @@ export async function identifyUser(cookies: CookieList): Promise<RequestUser | n
         } catch {
             return null
         }
-    })
+        // "ninguém" não fica guardado: uma falha passageira do Supabase (limite, queda) não pode derrubar a pessoa para a 2.0 por 30 s
+    }, (u) => u !== null)
 }
 
 export async function getV3Access(user: RequestUser | null): Promise<V3Access> {

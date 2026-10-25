@@ -1,4 +1,4 @@
-// app/(main)/pedir-motorista/RideTrackingPanel.tsx
+// versions/shared/screens/RideTrackingPanel.tsx (painel de acompanhamento do /pedir-motorista)
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -106,12 +106,18 @@ interface RideTrackingPanelProps {
     // conseguir reaplicar sozinha (sem animação) sempre que o card embaixo
     // mudar de altura e encolher/esticar a área visível do mapa em cima.
     onFitBounds?: (bounds: mapboxgl.LngLatBounds, padding: { top: number; bottom: number; left: number; right: number }) => void
+    /** v3: cartões de candidatos em linha (compactos) */
+    compact?: boolean
+    /** avisa a tela do status da corrida (a v3 mantém os motoristas ativos no mapa enquanto ela está pendente) */
+    onRideStatus?: (status: string | null) => void
 }
 
-export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFitBounds }: RideTrackingPanelProps) {
+export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFitBounds, compact = false, onRideStatus }: RideTrackingPanelProps) {
     const { colors } = useTheme()
     const [loading, setLoading] = useState(true)
     const [ride, setRide] = useState<RideRow | null>(null)
+    const rideStatusForPage = ride?.status ?? null
+    useEffect(() => { onRideStatus?.(rideStatusForPage); return () => onRideStatus?.(null) }, [rideStatusForPage, onRideStatus])
     const [candidates, setCandidates] = useState<Candidate[]>([])
     const [tripRouteCoords, setTripRouteCoords] = useState<[number, number][] | null>(null)
     const [driver, setDriver] = useState<DriverInfo | null>(null)
@@ -871,7 +877,56 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
                             <span className="text-xs" style={{ color: colors.textSecondary }}>Assim que um motorista se candidatar, ele aparece aqui.</span>
                         </div>
                     ) : (
-                        <div className="grid grid-cols-2 gap-2">
+                        <>
+                        {compact && (
+                            <div className="flex flex-col gap-2">
+                                {candidates.map((c, i) => {
+                                    const pickupEtaMin = c.etaMin != null ? Math.max(1, Math.round(c.etaMin)) : null
+                                    const color = CANDIDATE_COLORS[i % CANDIDATE_COLORS.length]
+                                    const rating = c.ratingCount > 0 ? (c.ratingAvg || 0).toFixed(1) : null
+                                    const vehicle = [c.carModel, c.carColor].filter(Boolean).join(' · ')
+                                    return (
+                                        <div key={c.applicationId} className="flex items-center gap-2.5 rounded-2xl px-2.5 py-2 min-w-0" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
+                                            <PlanAvatarRing userId={c.applicantId}>
+                                                {c.avatarUrl ? (
+                                                    <img src={c.avatarUrl} className="w-9 h-9 rounded-full object-cover" style={{ border: `2px solid ${color}` }} alt="" />
+                                                ) : (
+                                                    <span className="w-9 h-9 rounded-full flex items-center justify-center" style={{ background: color }}>
+                                                        <MapPin size={14} color="#fff" />
+                                                    </span>
+                                                )}
+                                            </PlanAvatarRing>
+                                            <div className="flex-1 min-w-0">
+                                                <span className="text-[12px] font-black block truncate" style={{ color: colors.textPrimary }}>{c.profileSlug ? `@${c.profileSlug}` : c.name || 'Candidato'}</span>
+                                                <div className="flex items-center gap-1.5 text-[10px] font-bold min-w-0" style={{ color: colors.textSecondary }}>
+                                                    <span className="text-[12px] font-black flex-shrink-0" style={{ color: '#f97316' }}>{c.proposedPrice != null ? `R$ ${c.proposedPrice.toFixed(2)}` : 'Sem valor'}</span>
+                                                    {pickupEtaMin != null && <span className="flex items-center gap-0.5 flex-shrink-0"><Clock size={9} />{pickupEtaMin} min</span>}
+                                                    {rating && <span className="flex-shrink-0" style={{ color: '#f97316' }}>★ {rating}</span>}
+                                                    {(vehicle || c.carPlate) && <span className="truncate">{[vehicle, c.carPlate].filter(Boolean).join(' · ')}</span>}
+                                                </div>
+                                            </div>
+                                            {c.status === 'pending' ? (
+                                                decidingId === c.applicationId ? (
+                                                    <Spinner size={14} color={colors.textSecondary} />
+                                                ) : (
+                                                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                                                        <button onClick={() => acceptCandidate(c.applicationId, c.applicantId)} className="h-8 px-2.5 rounded-full text-[11px] font-black flex items-center gap-1" style={{ background: '#22c55e', color: '#fff' }}>
+                                                            <Check size={12} />Aceitar
+                                                        </button>
+                                                        <button onClick={() => rejectCandidate(c.applicationId)} className="w-8 h-8 flex items-center justify-center rounded-full" style={{ background: '#ef44441a', color: '#ef4444' }} aria-label="Recusar">
+                                                            <X size={13} />
+                                                        </button>
+                                                    </div>
+                                                )
+                                            ) : (
+                                                <span className="text-[10px] font-black uppercase flex-shrink-0" style={{ color: c.status === 'accepted' ? '#22c55e' : colors.textSecondary }}>{c.status === 'accepted' ? 'Aceito' : 'Recusado'}</span>
+                                            )}
+                                        </div>
+                                    )
+                                })}
+                            </div>
+                        )}
+                        <div className={compact ? 'hidden' : 'grid grid-cols-2 gap-2'}>
                             {candidates.map((c, i) => {
                                 const pickupEtaMin = c.etaMin != null ? Math.max(1, Math.round(c.etaMin)) : null
                                 const destArrival = pickupEtaMin != null
@@ -1034,6 +1089,7 @@ export default function RideTrackingPanel({ rideId, onExit, map, mapReady, onFit
                                 )
                             })}
                         </div>
+                        </>
                     )}
                 </div>
             )}

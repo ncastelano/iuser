@@ -215,6 +215,14 @@ export default function Commission({ userId, profileSlug, onLatestUpdate, view =
     // Graduação de cada indicado (selo ao lado do nome)
     const memberLevels = useLevelsFor(members.map((m) => m.id))
     const [isExpanded, setIsExpanded] = usePersistedExpanded(view === 'rede' ? 'minhaRede' : 'commission', view !== 'rede')
+    // Link "?secao=rede" (ex.: "Indicar e ganhar" → Ver detalhes da rede): abre "Detalhes da rede" e leva a tela até ele
+    useEffect(() => {
+        if (view !== 'rede' || new URLSearchParams(window.location.search).get('secao') !== 'rede') return
+        setIsExpanded(true)
+        const t = setTimeout(() => document.getElementById('detalhes-da-rede')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 700)
+        return () => clearTimeout(t)
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [view])
     const [copied, setCopied] = useState(false)
     const [showShareModal, setShowShareModal] = useState(false)
     const [shareLink, setShareLink] = useState('')
@@ -1443,7 +1451,8 @@ export default function Commission({ userId, profileSlug, onLatestUpdate, view =
 
                     {/* Detalhes da rede: abre/fecha */}
                     <div
-                        className="mt-3 rounded-2xl flex flex-col"
+                        id="detalhes-da-rede"
+                        className="mt-3 rounded-2xl flex flex-col scroll-mt-44"
                         style={{
                             background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
                             backdropFilter: 'blur(12px)',

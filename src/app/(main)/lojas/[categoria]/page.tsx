@@ -1,6 +1,7 @@
 // app/(main)/lojas/[categoria]/page.tsx
 'use client'
 
+import { useInsideShell } from '@/components/InsideShell'
 import { useMemo, useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
@@ -57,6 +58,7 @@ interface StoreCardData {
     top_products?: {
         id: string
         name: string
+        slug?: string | null
         image_url?: string | null
         price: number
         listing_type?: 'sale' | 'publication' | null
@@ -80,6 +82,7 @@ interface CategoryPublication {
 
 // ===== COMPONENTE CARD PARA CRIAR LOJA =====
 function CreateStoreCard({ colors, category }: { colors: any; category: string }) {
+    const v3 = useInsideShell()
     const router = useRouter()
     const { userId } = useProfile()
 
@@ -92,6 +95,19 @@ function CreateStoreCard({ colors, category }: { colors: any; category: string }
         } else {
             router.push(`/login?redirect=/criar-loja&category=${encodeURIComponent(category)}`)
         }
+    }
+
+    // v3: um convite em linha, não um cartão gigante
+    if (v3) {
+        return (
+            <button onClick={handleCreateStore} className="w-full py-4 flex items-center gap-3 text-left transition active:opacity-80">
+                <span className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: '#f9731620', color: '#f97316' }}><PlusCircle size={22} /></span>
+                <span className="min-w-0">
+                    <span className="block text-[14px] font-black" style={{ color: colors.textPrimary }}>Cadastrar loja</span>
+                    <span className="block text-[12px]" style={{ color: colors.textSecondary }}>Coloque a sua loja aqui também. Leva só alguns minutos.</span>
+                </span>
+            </button>
+        )
     }
 
     return (
@@ -160,6 +176,7 @@ const convertBusinessHours = (data: any): BusinessHours | null => {
 
 // ===== COMPONENTE PRINCIPAL =====
 export default function ListaCategoriaPage() {
+    const v3 = useInsideShell()
     const params = useParams()
     const router = useRouter()
     const categoriaRaw = params.categoria
@@ -310,7 +327,7 @@ export default function ListaCategoriaPage() {
             const [productsResult, reviewsResult] = await Promise.all([
                 supabase
                     .from('products')
-                    .select('id, name, image_url, price, listing_type, store_id')
+                    .select('id, name, slug, image_url, price, listing_type, store_id')
                     .in('store_id', storeIds)
                     .order('created_at', { ascending: false }),
                 supabase
@@ -340,6 +357,7 @@ export default function ListaCategoriaPage() {
                 const mappedProducts = (productsByStore.get(store.id) || []).map((p: any) => ({
                     id: p.id,
                     name: p.name,
+                    slug: p.slug || null,
                     image_url: p.image_url ? supabase.storage.from('product-images').getPublicUrl(p.image_url).data.publicUrl : null,
                     price: p.price,
                     listing_type: p.listing_type || 'sale',
@@ -652,7 +670,7 @@ export default function ListaCategoriaPage() {
                                         </span>
                                     </div>
 
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                    <div className={v3 ? 'flex flex-col gap-3' : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4'}>
                                         {currentItems.map((store) => (
                                             <StoreCard
                                                 key={store.id}

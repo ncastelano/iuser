@@ -12,6 +12,8 @@ import { supabase } from '@/lib/supabase/client'
 import LocationPicker from '@/components/LocationPicker'
 import { useInsideShell } from '@/components/InsideShell'
 import V3Section, { V3_GRADIENT } from './V3Section'
+import StoreLinksEditor from './StoreLinksEditor'
+import StoreModelEditor from './StoreModelEditor'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -421,6 +423,12 @@ export function StoreDescription({
                                 {description.length}/500 caracteres
                             </p>
                         </div>
+
+                        {/* Links (texto + endereço) que aparecem embaixo da descrição na página da loja */}
+                        {location?.storeId && <StoreLinksEditor storeId={location.storeId} />}
+
+                        {/* Modelo da loja: produtos, atendimento ou mista (muda o botão central da página) */}
+                        {location?.storeId && <StoreModelEditor storeId={location.storeId} />}
                     </div>
 
                     {/* ===== Endereço e localização (embutido em Informações da Loja) ===== */}

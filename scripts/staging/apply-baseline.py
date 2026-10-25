@@ -30,6 +30,9 @@ if not q_staging("select count(*)::int n from pg_namespace where nspname = 'supa
     q_staging("create schema if not exists supabase_functions; grant usage on schema supabase_functions to postgres, anon, authenticated, service_role; " + fn)
     print('schema supabase_functions criado no staging')
 
+# A http_request grava cada disparo em supabase_functions.hooks; sem essa tabela, qualquer INSERT em orders (gatilho order_push_notificatio) falha.
+q_staging("create table if not exists supabase_functions.hooks (id bigserial primary key, hook_table_id integer not null, hook_name text not null, created_at timestamptz default now(), request_id bigint); create index if not exists supabase_functions_hooks_request_id_idx on supabase_functions.hooks using btree (request_id); create index if not exists supabase_functions_hooks_h_table_id_h_name_idx on supabase_functions.hooks using btree (hook_table_id, hook_name); grant all on supabase_functions.hooks to postgres, service_role; grant usage, select on sequence supabase_functions.hooks_id_seq to postgres, service_role")
+
 app_url = os.environ.get('STAGING_APP_URL', 'https://staging.invalid').rstrip('/')
 secret = os.environ.get('STAGING_WEBHOOK_SECRET') or secrets.token_urlsafe(32)
 

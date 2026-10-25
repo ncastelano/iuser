@@ -48,6 +48,7 @@ import Header from '@/components/Header' // ajuste o caminho conforme necessári
 import PlanAvatarRing from '@/components/PlanAvatarRing'
 import { useProfilesById } from '@/hooks/useProfilesById'
 import ShareAppointmentButton from '@/components/ShareAppointmentButton'
+import AppointmentDepositPanel from '@/components/AppointmentDepositPanel'
 
 type BgMode = 'animated' | 'black' | 'custom'
 
@@ -533,7 +534,7 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
                 subtitle={subtitle}
                 isPublic={personInvite ? undefined : a.is_public}
                 time={formatTime(a.time)}
-                badge={o.highlight ?? (answerable ? 'Novo' : undefined)}
+                badge={o.highlight ?? (a.deposit_status === 'awaiting' ? (a.owner_id === userId ? 'Aguardando entrada' : 'Pagar entrada') : a.deposit_status === 'reported' ? (a.owner_id === userId ? 'Conferir Pix' : 'Entrada informada') : (answerable ? 'Novo' : undefined))}
                 highlight={!!o.highlight}
                 onClick={() => openDetailModal(a)}
                 actions={
@@ -1228,6 +1229,16 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
                                         </span>
                                     </div>
                                 </div>
+                                {selectedAppointment.store_id && selectedAppointment.deposit_status && selectedAppointment.deposit_status !== 'none' && (
+                                    <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 20, marginBottom: 20 }}>
+                                        <AppointmentDepositPanel
+                                            appointmentId={selectedAppointment.id}
+                                            role={selectedAppointment.owner_id === userId ? 'owner' : 'customer'}
+                                            palette={{ textPrimary: '#fff', textSecondary: '#94a3b8', surface: 'rgba(255,255,255,0.1)', border: '#94a3b8', accent: colors.accent }}
+                                            onChanged={() => { refetch(); setDetailModalOpen(false) }}
+                                        />
+                                    </div>
+                                )}
                                 <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 20, marginBottom: 20 }}>
                                     <h4 style={{ fontWeight: 700, fontSize: 16, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8, color: '#a78bfa' }}><Users size={18} /> Participantes</h4>
                                     {participants.length === 0 ? <p style={{ color: '#94a3b8', fontSize: 14 }}>Nenhum participante encontrado.</p> : (

@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { Spinner } from '@/components/Spinner'
+import StoreSkeleton from '@/components/v3/StoreSkeleton'
 import CreatePublicationDialog from '@/components/CreatePublicationDialog'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import ChatContactButton from '@/components/ChatContactButton'
@@ -49,6 +50,11 @@ import StoreOperatingDays from '@/components/StoreDashboard/StoreOperatingDays'
 import { handleShareLink } from '@/lib/share'
 import { Follows } from './Follows'
 import StoreVipClubMember from './StoreVipClubMember'
+import StoreHeaderV3 from '@/components/v3/StoreHeaderV3'
+import StoreAgendaV3 from '@/components/v3/StoreAgendaV3'
+import ReviewsV3 from '@/components/v3/ReviewsV3'
+import { pageActions, parseStoreModel, type StoreModel } from '@/lib/storeModel'
+import { sanitizeStoreLinks, type StoreLink } from '@/lib/storeLinks'
 import EditProductDialog from '@/components/EditProductDialog'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
 import { STORE_PUBLIC_SELECT } from '@/lib/publicColumns'
@@ -61,6 +67,8 @@ interface StoreProps {
     loggedUserSlug?: string | null
     onOpenPublications?: (publications: any[], initialIndex: number, storeSlug: string) => void
     onDialogOpenChange?: (open: boolean) => void
+    /** v3 = cabeçalho compacto, abas em cápsulas e produtos sem moldura (mesma lógica da v2) */
+    ui?: 'v2' | 'v3'
 }
 
 interface OwnerData {
@@ -75,6 +83,11 @@ interface OwnerData {
     whatsapp?: string | null
     show_whatsapp?: boolean
     instagram?: string | null
+    youtube?: string | null
+    facebook?: string | null
+    x?: string | null
+    links?: StoreLink[]
+    store_model?: StoreModel
     view_count?: number
     ratings_avg?: number
     ratings_count?: number
@@ -120,8 +133,10 @@ export function Store({
     customBgUrl,
     loggedUserSlug,
     onOpenPublications,
-    onDialogOpenChange
+    onDialogOpenChange,
+    ui = 'v2',
 }: StoreProps) {
+    const v3 = ui === 'v3'
     const router = useRouter()
     const { userId: currentUserId } = useProfile()
 
@@ -151,8 +166,9 @@ export function Store({
     const DESC_LIMIT = 80
     const [showAllHours, setShowAllHours] = useState(false)
     const [showScheduleModal, setShowScheduleModal] = useState(false)
-    // serviço já escolhido ao abrir a agenda (vindo do link do bot do WhatsApp: ?agendar=<id do serviço>)
     const [scheduleProductId, setScheduleProductId] = useState<string | null>(null)
+    // dia e horário escolhidos na agenda da página (abrem o agendador já preenchido)
+    const [schedulePick, setSchedulePick] = useState<{ date: Date; time: string } | null>(null)
     const [showAgendaDialog, setShowAgendaDialog] = useState(false)
     const [agendaSaving, setAgendaSaving] = useState(false)
     const [chatSaving, setChatSaving] = useState(false)
@@ -241,6 +257,9 @@ export function Store({
     const goods = useMemo(() => products.filter(p => p.type !== 'service'), [products])
     const services = useMemo(() => products.filter(p => p.type === 'service'), [products])
     const catalogList = activeTab === 'services' ? services : goods
+    // Modelo da loja (produtos / atendimento / mista): define o botão central, a ordem das abas e se os serviços viram linhas
+    const model = parseStoreModel(owner?.store_model)
+    const actions = pageActions(model, !!owner?.allow_scheduling, goods.length > 0)
 
     // Se a loja só tem serviços (nenhum produto), a aba de serviços já abre na frente
     const defaultTabPickedRef = useRef(false)
@@ -248,8 +267,42 @@ export function Store({
         if (loading || defaultTabPickedRef.current) return
         if (goods.length + services.length === 0) return // ainda carregando (ou loja vazia): espera
         defaultTabPickedRef.current = true
-        if (goods.length === 0 && services.length > 0) setActiveTab('services')
-    }, [loading, goods.length, services.length])
+        if ((goods.length === 0 || actions.servicesFirst) && services.length > 0) setActiveTab('services')
+    }, [loading, goods.length, services.length, actions.servicesFirst])
+
+    // Veio de um cartão de loja (?produto=<id>): abre a aba certa, rola suave até o item (a "câmera" vai até ele) e o destaca
+    const focusProductRef = useRef<string | null>(null)
+    useEffect(() => {
+        if (loading || products.length === 0) return
+        let id: string | null = null
+        try { id = new URLSearchParams(window.location.search).get('produto') } catch { /* sem window */ }
+        if (!id || focusProductRef.current === id) return
+        const target = products.find((p) => p.id === id)
+        if (!target) return
+        focusProductRef.current = id
+        defaultTabPickedRef.current = true
+        setSearchQuery('')
+        setActiveTab(target.type === 'service' ? 'services' : 'products')
+        const timers: ReturnType<typeof setTimeout>[] = []
+        const tryFocus = (tries: number) => {
+            const el = document.getElementById(`produto-${id}`)
+            if (!el) { if (tries > 0) timers.push(setTimeout(() => tryFocus(tries - 1), 150)); return }
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+            // depois de chegar, um brilho laranja pulsa no item
+            timers.push(setTimeout(() => {
+                el.animate(
+                    [
+                        { boxShadow: '0 0 0 0 rgba(249,115,22,0)', transform: 'scale(1)', borderRadius: '16px' },
+                        { boxShadow: '0 0 0 6px rgba(249,115,22,0.6)', transform: 'scale(1.04)', borderRadius: '16px' },
+                        { boxShadow: '0 0 0 0 rgba(249,115,22,0)', transform: 'scale(1)', borderRadius: '16px' },
+                    ],
+                    { duration: 900, iterations: 3, easing: 'ease-in-out' },
+                )
+            }, 650))
+        }
+        // sem cleanup de propósito: se a lista de produtos atualizar no meio, a rolagem já agendada continua
+        timers.push(setTimeout(() => tryFocus(12), 350))
+    }, [loading, products])
 
     // Veio do bot do WhatsApp (?agendar=<id do serviço> ou ?agendar=1): abre a janela de agendar (já com o serviço escolhido)
     const openedScheduleFromLinkRef = useRef(false)
@@ -522,6 +575,11 @@ export function Store({
                 whatsapp: storeWhatsapp,
                 show_whatsapp: store.show_whatsapp ?? true,
                 instagram: storeInstagram,
+                youtube: store.youtube,
+                facebook: store.facebook,
+                x: store.x,
+                links: sanitizeStoreLinks(store.links),
+                store_model: parseStoreModel(store.store_model),
                 view_count: store.view_count || 0,
                 ratings_avg: avg,
                 ratings_count: count,
@@ -643,13 +701,7 @@ export function Store({
     }
 
     // ========== RENDER ==========
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center min-h-[400px]">
-                <Spinner size={48} color={colors.accent} />
-            </div>
-        )
-    }
+    if (loading) return <StoreSkeleton />
 
     if (error || !owner) {
         return (
@@ -800,7 +852,9 @@ export function Store({
                             storeName={owner.name}
                             storeSlug={owner.slug}
                             preselectProductId={scheduleProductId}
-                            onClose={() => { setShowScheduleModal(false); setScheduleProductId(null) }}
+                            preselectDate={schedulePick?.date ?? null}
+                            preselectTime={schedulePick?.time ?? null}
+                            onClose={() => { setShowScheduleModal(false); setScheduleProductId(null); setSchedulePick(null) }}
                             onSuccess={() => {
                                 loadStoreData()
                             }}
@@ -852,9 +906,9 @@ export function Store({
                         {/* Preço */}
                         <div className="mt-2">
                             <span className="text-2xl font-extrabold" style={{ color: '#f97316' }}>
-                                R$ {(selectedProduct.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                {selectedProduct.type === 'service' && !((selectedProduct.price || 0) > 0) ? 'Valor a combinar' : `R$ ${(selectedProduct.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
                             </span>
-                            {selectedProduct.price_type === 'hourly' && (
+                            {selectedProduct.price_type === 'hourly' && (selectedProduct.price || 0) > 0 && (
                                 <span className="text-sm ml-1 opacity-75" style={{ color: colors.textSecondary }}>/h</span>
                             )}
                         </div>
@@ -938,6 +992,61 @@ export function Store({
             )}
 
             {/* ===== CARD DA LOJA (CABEÇALHO) ===== */}
+            {v3 ? (
+                <StoreHeaderV3
+                    colors={colors}
+                    name={owner.name}
+                    imageUrl={imageUrl}
+                    description={owner.description}
+                    isOpen={isStoreOpen}
+                    statusText={statusText}
+                    nextOpen={nextAvailable}
+                    hasHours={!!(owner.business_hours && Object.keys(owner.business_hours).length > 0)}
+                    onOpenHours={() => setShowAllHours(true)}
+                    address={owner.address}
+                    onOpenMaps={openGoogleMaps}
+                    rating={owner.ratings_avg || 0}
+                    ratingsCount={owner.ratings_count || 0}
+                    visitors={totalVisitors}
+                    followers={followersCount}
+                    onOpenFollowers={() => setShowFollowers(true)}
+                    canFollow={!!currentUserId && currentUserId !== owner.id}
+                    isFollowing={isFollowing}
+                    onFollowToggle={handleFollowToggle}
+                    onOpenCatalog={() => router.push(`/${ownerSlug}/catalogo`)}
+                    whatsappLink={whatsappLink}
+                    links={owner.links ?? []}
+                    allowScheduling={!!owner.allow_scheduling}
+                    onOpenSchedule={() => { setScheduleProductId(null); setSchedulePick(null); setShowScheduleModal(true) }}
+                    onBack={() => (window.history.length > 1 ? router.back() : router.push('/'))}
+                    agendaSlot={owner.allow_scheduling && model !== 'products' ? (
+                        <StoreAgendaV3
+                            storeId={owner.id}
+                            colors={colors}
+                            durationMin={Math.max(15, Math.min(...services.map((sv: any) => Number(sv.duration_minutes) || 60), 60))}
+                            onPick={(date, time) => { setScheduleProductId(null); setSchedulePick({ date, time }); setShowScheduleModal(true) }}
+                        />
+                    ) : undefined}
+                    showBuy={actions.buy}
+                    showSchedule={actions.schedule}
+                    productsSecondary={actions.productsSecondary}
+                    model={model}
+                    isOwner={isOwner}
+                    chatEnabled={!!owner.chat_enabled}
+                    chatSaving={chatSaving}
+                    onToggleChat={() => handleToggleChat(!owner.chat_enabled)}
+                    onOpenAgendaDialog={() => setShowAgendaDialog(true)}
+                    contactSlot={owner.chat_enabled && !isOwner ? <ChatContactButton storeId={owner.id} colors={colors} variant="v3quiet" label="Falar com a loja" /> : undefined}
+                    extraSlot={<StoreVipClubMember storeId={owner.id} userId={currentUserId} />}
+                    ownerToolsSlot={isOwner && !isStoreOpen ? (
+                        <StoreOperatingDays
+                            storeId={owner.id}
+                            onSaved={(config) => setOwner(prev => prev ? { ...prev, business_hours: config as any } : prev)}
+                        />
+                    ) : undefined}
+                />
+            ) : (
+            <>
             <div className="relative rounded-2xl p-6 space-y-4" style={cardStyle}>
                 <button
                     onClick={handleShareStore}
@@ -1223,6 +1332,8 @@ export function Store({
                     />
                 )}
             </div>
+            </>
+            )}
 
             {/* ===== PUBLICAÇÕES (círculos estilo stories, acima das tabs) ===== */}
             {(publications.length > 0 || isOwner) && (
@@ -1232,8 +1343,13 @@ export function Store({
                     </h3>
 
                     {pubLoading ? (
-                        <div className="flex justify-center py-4">
-                            <Spinner size={20} color="#f97316" />
+                        <div className="flex gap-3.5 overflow-hidden py-1" aria-hidden>
+                            {[0, 1, 2, 3].map((i) => (
+                                <div key={i} className="flex flex-col items-center gap-1.5 flex-shrink-0">
+                                    <span className="block w-16 h-16 rounded-full animate-pulse" style={{ background: colors.border }} />
+                                    <span className="block w-12 h-2 rounded animate-pulse" style={{ background: colors.border }} />
+                                </div>
+                            ))}
                         </div>
                     ) : (
                         <div className={`flex items-start gap-3 overflow-x-auto pb-1 scrollbar-hide ${publications.length + (isOwner ? 1 : 0) <= 4 ? 'justify-center' : ''}`}>
@@ -1301,12 +1417,12 @@ export function Store({
             )}
 
             {/* ===== TABS ===== */}
-            <div className="flex rounded-2xl p-1.5 gap-1" style={cardStyle}>
+            <div className={v3 ? 'flex' : 'flex rounded-2xl p-1.5 gap-1'} style={v3 ? { borderBottom: `1px solid ${colors.border}60` } : cardStyle}>
                 {(() => {
                     const productsTab = { id: 'products', label: 'Produtos', count: goods.length }
                     const servicesTab = { id: 'services', label: 'Serviços', count: services.length }
                     // Normal: Produtos, Serviços, Avaliações. Sem produtos, mas com serviços: Serviços vem na frente.
-                    const catalogTabs = goods.length === 0 && services.length > 0 ? [servicesTab, productsTab] : [productsTab, servicesTab]
+                    const catalogTabs = (goods.length === 0 || actions.servicesFirst) && services.length > 0 ? [servicesTab, productsTab] : [productsTab, servicesTab]
                     return [...catalogTabs, { id: 'reviews', label: 'Avaliações', count: ratings.length }]
                 })().map(tab => {
                     const isActive = activeTab === tab.id
@@ -1314,9 +1430,12 @@ export function Store({
                         <button
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id as TabType)}
-                            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-black uppercase tracking-wide transition-all duration-300 ${isActive ? 'shadow-lg scale-[1.02]' : 'hover:bg-white/5'}`}
-                            style={
-                                isActive
+                            className={v3
+                                ? 'flex-1 h-10 -mb-px flex items-center justify-center gap-1.5 text-[13px] font-black transition active:scale-95'
+                                : `flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-black uppercase tracking-wide transition-all duration-300 ${isActive ? 'shadow-lg scale-[1.02]' : 'hover:bg-white/5'}`}
+                            style={v3
+                                ? { background: 'transparent', color: isActive ? colors.textPrimary : colors.textSecondary, borderBottom: `3px solid ${isActive ? '#f97316' : 'transparent'}` }
+                                : isActive
                                     ? {
                                         background: GRADIENT,
                                         color: '#ffffff',
@@ -1343,13 +1462,16 @@ export function Store({
             <div className="space-y-4">
                 {/* TAB PRODUTOS / SERVIÇOS (mesmo layout, listas separadas) */}
                 {(activeTab === 'products' || activeTab === 'services') && (
-                    <div className="rounded-2xl p-4" style={cardStyle}>
-                        <div className="flex items-center gap-2 mb-3">
-                            <ShoppingCart size={16} style={{ color: '#f97316' }} />
-                            <h3 className="text-xs font-black uppercase tracking-widest" style={{ color: colors.textPrimary }}>
-                                {activeTab === 'services' ? 'Serviços' : 'Produtos'}
-                            </h3>
-                            {!isStoreOpen && (
+                    <div className={v3 ? '' : 'rounded-2xl p-4'} style={v3 ? undefined : cardStyle}>
+                        {/* v3: a aba já diz "Produtos"/"Serviços" e o cabeçalho já diz se está fechada: sem título repetido (só o botão do dono) */}
+                        <div className={`flex items-center gap-2 ${v3 ? (isOwner && storeSubscriptionActive !== false ? 'mb-3' : 'hidden') : 'mb-3'}`}>
+                            {!v3 && <ShoppingCart size={16} style={{ color: '#f97316' }} />}
+                            {!v3 && (
+                                <h3 className="text-xs font-black uppercase tracking-widest" style={{ color: colors.textPrimary }}>
+                                    {activeTab === 'services' ? 'Serviços' : 'Produtos'}
+                                </h3>
+                            )}
+                            {!v3 && !isStoreOpen && (
                                 <span className="text-[8px] font-bold px-2 py-0.5 rounded-full" style={{ background: '#ef444420', color: '#ef4444' }}>
                                     Fechado
                                 </span>
@@ -1447,15 +1569,51 @@ export function Store({
                                     <h4 className="text-[10px] font-black uppercase tracking-wider" style={{ color: '#f97316' }}>
                                         {category}
                                     </h4>
-                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                    <div className={v3 && activeTab === 'services' && actions.serviceRows ? 'flex flex-col' : 'grid grid-cols-2 sm:grid-cols-3 gap-2'}>
                                         {products.map(product => {
                                             const isHourly = product.price_type === 'hourly'
                                             const hasImage = !!product.image_url
+
+                                            // v3, lojas de atendimento e mistas: serviços em LINHAS (foto pequena, nome, duração e preço, botão Agendar)
+                                            if (v3 && activeTab === 'services' && actions.serviceRows) {
+                                                return (
+                                                    <div
+                                                        key={product.id}
+                                                        id={`produto-${product.id}`}
+                                                        onClick={(e) => handleProductClick(product, e)}
+                                                        className="flex items-center gap-3 py-3 cursor-pointer transition active:opacity-80"
+                                                        style={{ borderBottom: `1px solid ${colors.border}50` }}
+                                                    >
+                                                        <div className="w-16 h-16 rounded-2xl overflow-hidden flex-shrink-0 flex items-center justify-center" style={{ background: `${colors.accentLight}` }}>
+                                                            {hasImage ? <img src={product.image_url!} className="w-full h-full object-cover" alt="" /> : <span className="text-xl font-black" style={{ color: '#f97316' }}>{product.name.charAt(0).toUpperCase()}</span>}
+                                                        </div>
+                                                        <div className="min-w-0 flex-1">
+                                                            <h4 className="text-[14px] font-black leading-snug line-clamp-2" style={{ color: colors.textPrimary }}>{product.name}</h4>
+                                                            <p className="text-[12px] mt-0.5" style={{ color: colors.textSecondary }}>
+                                                                {product.duration_minutes ? `${product.duration_minutes} min` : 'Duração a combinar'}
+                                                            </p>
+                                                            <span className="text-sm font-black" style={{ color: '#f97316' }}>
+                                                                {(product.price || 0) > 0 ? `R$ ${(product.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : product.type === 'service' ? 'Valor a combinar' : 'Sem custo'}{isHourly && (product.price || 0) > 0 ? '/h' : ''}
+                                                            </span>
+                                                        </div>
+                                                        {isOwner ? (
+                                                            <button onClick={e => { e.stopPropagation(); setEditingProductId(product.id) }} className="h-9 px-4 rounded-full flex items-center gap-1.5 text-[12px] font-black flex-shrink-0" style={{ background: `${colors.border}40`, color: colors.textPrimary }}>
+                                                                <Pencil size={12} /> Editar
+                                                            </button>
+                                                        ) : owner?.allow_scheduling ? (
+                                                            <button onClick={e => { e.stopPropagation(); setScheduleProductId(product.id); setShowScheduleModal(true) }} className="h-9 px-4 rounded-full flex items-center gap-1.5 text-[12px] font-black flex-shrink-0 transition active:scale-95" style={{ background: '#f97316', color: '#fff' }}>
+                                                                <Calendar size={13} /> Agendar
+                                                            </button>
+                                                        ) : null}
+                                                    </div>
+                                                )
+                                            }
 
                                             if (!hasImage) {
                                                 return (
                                                     <div
                                                         key={product.id}
+                                                        id={`produto-${product.id}`}
                                                         onClick={(e) => handleProductClick(product, e)}
                                                         className="col-span-2 rounded-xl overflow-hidden border transition-all duration-300 hover:shadow-xl hover:-translate-y-1 cursor-pointer"
                                                         style={{
@@ -1504,14 +1662,17 @@ export function Store({
                                             return (
                                                 <div
                                                     key={product.id}
+                                                    id={`produto-${product.id}`}
                                                     onClick={(e) => handleProductClick(product, e)}
-                                                    className="relative rounded-xl overflow-hidden border transition-all duration-300 hover:shadow-xl hover:-translate-y-1 cursor-pointer"
-                                                    style={{
+                                                    className={v3
+                                                        ? 'relative cursor-pointer transition active:scale-[0.98]'
+                                                        : 'relative rounded-xl overflow-hidden border transition-all duration-300 hover:shadow-xl hover:-translate-y-1 cursor-pointer'}
+                                                    style={v3 ? undefined : {
                                                         background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
                                                         borderColor: colors.border,
                                                     }}
                                                 >
-                                                    <div className="aspect-square relative overflow-hidden" style={{ background: colors.accentLight }}>
+                                                    <div className={`aspect-square relative overflow-hidden ${v3 ? 'rounded-2xl' : ''}`} style={{ background: colors.accentLight }}>
                                                         {product.image_url ? (
                                                             <img src={product.image_url} className="w-full h-full object-cover" alt="" />
                                                         ) : (
@@ -1526,19 +1687,31 @@ export function Store({
                                                             </span>
                                                         )}
                                                     </div>
-                                                    <div className="p-2">
-                                                        <h4 className="text-xs font-bold line-clamp-1" style={{ color: colors.textPrimary }}>
+                                                    <div className={v3 ? 'pt-1.5 px-0.5' : 'p-2'}>
+                                                        <h4 className={`${v3 ? 'text-[13px]' : 'text-xs'} font-bold line-clamp-1`} style={{ color: colors.textPrimary }}>
                                                             {product.name}
                                                         </h4>
-                                                        <p className="text-[10px] line-clamp-1 mt-0.5 opacity-75" style={{ color: colors.textSecondary }}>
-                                                            {product.description || 'Sem descrição'}
-                                                        </p>
-                                                        <div className="mt-2 flex items-center">
+                                                        {!v3 && (
+                                                            <p className="text-[10px] line-clamp-1 mt-0.5 opacity-75" style={{ color: colors.textSecondary }}>
+                                                                {product.description || 'Sem descrição'}
+                                                            </p>
+                                                        )}
+                                                        <div className={`${v3 ? 'mt-0.5' : 'mt-2'} flex items-center`}>
                                                             <span className="text-sm font-extrabold" style={{ color: '#f97316' }}>
                                                                 R$ {(product.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                                             </span>
                                                             {isHourly && <span className="text-[10px] ml-1 opacity-75">/h</span>}
+                                                            {v3 && product.type === 'service' && product.duration_minutes ? <span className="text-[11px] ml-2 font-bold" style={{ color: colors.textSecondary }}>{product.duration_minutes} min</span> : null}
                                                         </div>
+                                                        {v3 && product.type === 'service' && !!owner?.allow_scheduling && !isOwner && (
+                                                            <button
+                                                                onClick={e => { e.stopPropagation(); setScheduleProductId(product.id); setShowScheduleModal(true) }}
+                                                                className="mt-1.5 w-full h-9 rounded-full text-[12px] font-black flex items-center justify-center gap-1.5 transition active:scale-95"
+                                                                style={{ background: '#f97316', color: '#fff' }}
+                                                            >
+                                                                <Calendar size={13} /> Agendar
+                                                            </button>
+                                                        )}
                                                         {isOwner && (
                                                             <div className="mt-1.5 flex items-center gap-1.5">
                                                                 <button
@@ -1572,8 +1745,9 @@ export function Store({
 
                 {/* TAB AVALIAÇÕES */}
                 {activeTab === 'reviews' && (
-                    <div className="rounded-2xl p-4" style={cardStyle}>
-                        <div className="flex items-center gap-2 mb-3">
+                    <div className={v3 ? '' : 'rounded-2xl p-4'} style={v3 ? undefined : cardStyle}>
+                        {/* v3: a aba já diz "Avaliações" e a nota já aparece no cabeçalho: sem título nem cartão */}
+                        <div className={`flex items-center gap-2 mb-3 ${v3 ? 'hidden' : ''}`}>
                             <Star size={16} style={{ color: '#f97316' }} />
                             <h3 className="text-xs font-black uppercase tracking-widest" style={{ color: colors.textPrimary }}>
                                 Avaliações
@@ -1585,7 +1759,32 @@ export function Store({
                             )}
                         </div>
 
-                        {ratings.length === 0 ? (
+                        {v3 ? (
+                            <ReviewsV3
+                                ratings={ratings as any}
+                                colors={colors}
+                                renderAvatar={(rating: any) => {
+                                    const avatarUrl = getAvatarUrl(supabase, rating.profiles?.avatar_url)
+                                    const avatarBox = (
+                                        <PlanAvatarRing userId={rating.is_anonymous ? null : rating.profile_id} radius="999px">
+                                            <div className="w-9 h-9 rounded-full overflow-hidden flex items-center justify-center shrink-0" style={{ background: `${colors.border}60` }}>
+                                                {avatarUrl && !rating.is_anonymous ? (
+                                                    <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
+                                                ) : (
+                                                    <span className="font-black text-xs" style={{ color: '#f97316' }}>
+                                                        {rating.is_anonymous ? '?' : (rating.profiles?.profileSlug || rating.profiles?.name || '?').slice(0, 1).toUpperCase()}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </PlanAvatarRing>
+                                    )
+                                    // clicar no avatar leva ao perfil de quem avaliou (avaliação anônima não leva a lugar nenhum)
+                                    return !rating.is_anonymous && rating.profiles?.profileSlug
+                                        ? <a href={`/${rating.profiles.profileSlug}`} aria-label={`Ver perfil de ${profileLabel(rating.profiles)}`} className="shrink-0">{avatarBox}</a>
+                                        : avatarBox
+                                }}
+                            />
+                        ) : ratings.length === 0 ? (
                             <div className="py-8 text-center rounded-xl" style={{
                                 background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
                                 border: `1px dashed ${colors.border}`,

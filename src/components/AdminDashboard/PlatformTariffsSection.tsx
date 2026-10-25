@@ -13,7 +13,7 @@ import { callAdminApi } from '@/lib/callAdminApi'
 import { Spinner } from '@/components/Spinner'
 import type { ThemeColors } from '@/app/contexts/theme'
 import { PLATFORM_TARIFF_COLUMNS, loadPlatformTariffs, type PlatformTariffRow } from '@/lib/platformTariffs'
-import { computeHourlyEarnings, computePickupFee, explainSuggestedPrice, type DriverPricing } from '@/lib/driverPricing'
+import { computeHourlyEarnings, explainSuggestedPrice, type DriverPricing } from '@/lib/driverPricing'
 import type { VehicleKind } from '@/lib/rideVehicle'
 
 const VEHICLES: { kind: VehicleKind; label: string; icon: typeof Car }[] = [
@@ -125,10 +125,8 @@ export default function PlatformTariffsSection({ cardStyle, colors }: { cardStyl
         conditionExtraFees: { condominio: 0, compras: 0, necessidade_especial: 0, pet_sem_caixa: 0, entrega_interna: 0, ar_condicionado: 0 },
     }
     const example = explainSuggestedPrice(10, live)
-    // Ganho por hora do exemplo: corrida de 10 km + 2 km até o passageiro, a 40 km/h.
-    // A Tarifa iUser soma o deslocamento (km × valor/km); as horas contam o deslocamento também.
-    const pickupFee = computePickupFee(live, 2)
-    const hourly = computeHourlyEarnings(example.total + pickupFee, 10, 2)
+    // Ganho por hora do exemplo: só uma corrida de 10 km (sem deslocamento até o passageiro), a 40 km/h, com folga entre corridas (rideCycle.ts).
+    const hourly = computeHourlyEarnings(example.total, 10, 0)
 
     const field = (key: keyof Form, label: string, hint?: string) => (
         <div key={key} className="flex flex-col gap-0.5">
@@ -175,7 +173,7 @@ export default function PlatformTariffsSection({ cardStyle, colors }: { cardStyl
                 </div>
                 {hourly && (
                     <div className="rounded-xl p-3 text-[11px] leading-snug" style={{ background: '#22c55e14', color: colors.textPrimary, border: '1px solid #22c55e40' }}>
-                        <strong>Ganho por hora (exemplo):</strong> corrida de 10 km + 2 km até o passageiro, sempre a 40 km/h ({hourly.totalMin} min no total). {brl(example.total)} da corrida + {brl(pickupFee)} do deslocamento = {brl(example.total + pickupFee)} ÷ {hourly.hours.toFixed(2).replace('.', ',')} h = <strong>{brl(hourly.perHour)} por hora</strong>
+                        <strong>Ganho por hora (exemplo):</strong> corrida de 10 km, sempre a 40 km/h = {hourly.totalMin} min cada. Com {hourly.gapMin} min de folga entre uma corrida e outra, {hourly.rides >= 1 ? `cabem ${hourly.rides} ${hourly.rides === 1 ? 'corrida' : 'corridas'} em 60 min` : 'não cabe nem uma corrida em 60 min'}: {hourly.rides >= 1 ? <>{hourly.rides} × {brl(example.total)} = </> : null}<strong>{brl(hourly.perHour)} por hora</strong>
                     </div>
                 )}
             </div>

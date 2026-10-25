@@ -28,6 +28,11 @@ import {
     User,
     Camera,
 } from 'lucide-react'
+import { useInsideShell } from '@/components/InsideShell'
+import { dateKey } from '@/lib/storeSlots'
+import ScheduleV3 from '@/components/v3/ScheduleV3'
+import AppointmentDepositPanel from '@/components/AppointmentDepositPanel'
+import { brl as depositBrl, depositConfigOf, depositRuleLabel, previewDeposit, DEPOSIT_HOLD_MINUTES, type DepositConfig } from '@/lib/appointmentDeposit'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
@@ -87,6 +92,9 @@ interface Props {
     onSuccess?: () => void
     /** abre já com este serviço escolhido (vindo do botão "Agendar" do cartão do serviço) */
     preselectProductId?: string | null
+    /** abre já com este dia e horário escolhidos (vindo da agenda da página da loja) */
+    preselectDate?: Date | null
+    preselectTime?: string | null
 }
 
 // ===== GRADIENTE FIXO =====
@@ -115,10 +123,14 @@ export default function StoreSchedule({
     onClose,
     onSuccess,
     preselectProductId,
+    preselectDate,
+    preselectTime,
 }: Props) {
     const { colors } = useTheme()
     const { appointments, refetch } = useAppointments()
     const { userId: contextUserId, loading: profileLoading } = useProfile()
+    // Na 3.0 as etapas de data/hora e de confirmação usam a tela nova (ScheduleV3); a busca de loja e as regras são as mesmas
+    const v3 = useInsideShell()
 
     // ---------- Estados ----------
     const [step, setStep] = useState<'search' | 'datetime' | 'confirm'>(
@@ -146,6 +158,11 @@ export default function StoreSchedule({
     const [calendarYear, setCalendarYear] = useState(new Date().getFullYear())
     const [appointmentNote, setAppointmentNote] = useState('')
     const [isPublic, setIsPublic] = useState(false)
+    // 3.0: o recado do cliente é separado da lista de serviços (que vira o texto do agendamento); os dois se juntam em `appointmentNote`
+    const [v3Recado, setV3Recado] = useState('')
+    // Entrada (opcional, definida pela loja): regra da loja, valor previsto e o agendamento aguardando o pagamento da entrada
+    const [depositCfg, setDepositCfg] = useState<DepositConfig>({ mode: 'none', value: 0, policy: null })
+    const [depositAppt, setDepositAppt] = useState<string | null>(null)
 
     const [storeProducts, setStoreProducts] = useState<Product[]>([])
     const [loadingProducts, setLoadingProducts] = useState(false)
@@ -377,6 +394,54 @@ export default function StoreSchedule({
         }
     }, [autoNote, isEditingNote])
 
+    useEffect(() => {
+        if (!v3) return
+        const recado = v3Recado.trim()
+        setAppointmentNote(autoNote + (recado ? (autoNote ? ' — ' : '') + recado : ''))
+    }, [v3, autoNote, v3Recado])
+
+    useEffect(() => {
+        if (!target?.id || step === 'search') return
+        let cancelled = false
+        supabase.from('stores').select('deposit_mode, deposit_value, deposit_policy').eq('id', target.id).maybeSingle().then(({ data }) => {
+            if (!cancelled) setDepositCfg(depositConfigOf(data as any))
+        })
+        return () => { cancelled = true }
+    }, [target?.id, step === 'search'])
+
+    // Horários já tomados por QUALQUER cliente da loja (só data, hora e duração): sem isso o agendador só conhecia os agendamentos do próprio
+    // cliente e oferecia vagas já ocupadas. Enquanto não chega (ou se falhar), vale o que o cliente já tinha.
+    const [storeBusy, setStoreBusy] = useState<{ date: string; time: string; duration: number }[] | null>(null)
+    const [mineOpenTime, setMineOpenTime] = useState<string | null>(null)
+    const [myBusy, setMyBusy] = useState<{ date: string; time: string; duration: number; title: string; place: string }[]>([])
+    useEffect(() => {
+        if (!target?.id || step === 'search') return
+        let cancelled = false
+        const from = new Date()
+        const to = new Date(from.getFullYear(), from.getMonth(), from.getDate() + 60)
+        const ymd = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+        // Onde EU já estou ocupado (qualquer loja ou agenda): esses horários também somem — ninguém fica em dois lugares ao mesmo tempo
+        supabase.rpc('get_my_busy_slots', { p_from: ymd(from), p_to: ymd(to) }).then(({ data }) => {
+            if (cancelled || !data) return
+            setMyBusy((data as { slot_date: string; slot_time: string; duration_minutes: number; title: string; place: string }[]).map((r) => ({ date: r.slot_date, time: r.slot_time, duration: r.duration_minutes, title: r.title, place: r.place })))
+        })
+        supabase.rpc('get_store_busy_slots', { p_store_id: target.id, p_from: ymd(from), p_to: ymd(to) }).then(({ data, error }) => {
+            if (cancelled || error || !data) return
+            setStoreBusy((data as { slot_date: string; slot_time: string; duration_minutes: number }[]).map((r) => ({ date: r.slot_date, time: r.slot_time, duration: r.duration_minutes })))
+        })
+        return () => { cancelled = true }
+    }, [target?.id, step === 'search'])
+    // A lista que as contas de vaga usam: a da loja inteira quando chegou; senão os agendamentos do próprio cliente
+    const slotAppointments = useMemo(() => {
+        if (!target || !storeBusy) return appointments
+        // os da loja inteira + os meus (de qualquer lugar): a vaga some se a loja já tem alguém OU se eu já estou ocupado
+        // (os meus levam `mine` com o compromisso, para o horário mostrar qual é)
+        return [...storeBusy, ...myBusy].map((b, i) => ({ id: `busy-${i}`, store_id: target.id, date: b.date, time: b.time, duration_minutes: b.duration, status: 'confirmed', mine: 'title' in b ? { title: (b as any).title, place: (b as any).place } : undefined })) as unknown as typeof appointments
+    }, [storeBusy, myBusy, appointments, target])
+
+    const selectedTotal = useMemo(() => selectedItems.reduce((sum, i) => sum + (Number(i.product.price) || 0) * i.quantity, 0), [selectedItems])
+    const depositPreview = previewDeposit(depositCfg, selectedTotal)
+
     // ---------- Efeitos ----------
 
     useEffect(() => {
@@ -465,6 +530,7 @@ export default function StoreSchedule({
         setLoadingProducts(false)
         const wanted = preselectProductId ? (data || []).find((p: any) => p.id === preselectProductId) : null
         if (wanted) setSelectedItems((prev) => (prev.length ? prev : [{ product: wanted as Product, quantity: 1 }]))
+        if (preselectDate && preselectTime) { setSelectedDate(preselectDate); setSelectedTime(preselectTime) }
     }
 
     // ---------- Manipulação dos itens selecionados ----------
@@ -536,9 +602,9 @@ export default function StoreSchedule({
         const slotInterval = config.slot_interval || 60
 
         for (let d = 0; d < maxDays; d++) {
-            const date = new Date(now)
-            date.setDate(date.getDate() + d)
-            const dateStr = date.toISOString().split('T')[0]
+            // meia-noite do dia local (com a hora de agora a data cairia no dia seguinte, em UTC, depois das 20 h no Brasil)
+            const date = new Date(now.getFullYear(), now.getMonth(), now.getDate() + d)
+            const dateStr = dateKey(date)
 
             if (dateStr < todayStr) continue
             if (config.blocked_dates && config.blocked_dates.includes(dateStr)) continue
@@ -553,7 +619,7 @@ export default function StoreSchedule({
             const lunchStart = dayConfig.lunchStart ? toMinutes(dayConfig.lunchStart) : null
             const lunchEnd = dayConfig.lunchEnd ? toMinutes(dayConfig.lunchEnd) : null
 
-            const relevantAppointments = appointments.filter(a =>
+            const relevantAppointments = slotAppointments.filter(a =>
                 a.date === dateStr && a.status !== 'cancelled' && a.store_id === target.id
             )
 
@@ -587,12 +653,12 @@ export default function StoreSchedule({
         }
 
         return slots.slice(0, 5)
-    }, [target, config, appointments, selectedDuration, todayStr, selectedItems.length])
+    }, [target, config, slotAppointments, selectedDuration, todayStr, selectedItems.length])
 
     // ---------- Todos os slots do dia (livres + ocupados) ----------
     const allSlots = useMemo(() => {
         if (!selectedDate || !target) return []
-        const dateStr = selectedDate.toISOString().split('T')[0]
+        const dateStr = dateKey(selectedDate)
         const cfg = config
         if (!cfg.is_active || (cfg.blocked_dates && cfg.blocked_dates.includes(dateStr))) return []
         const dayOfWeek = selectedDate.getDay().toString()
@@ -605,11 +671,11 @@ export default function StoreSchedule({
         const lunchStart = dayConfig.lunchStart ? toMinutes(dayConfig.lunchStart) : null
         const lunchEnd = dayConfig.lunchEnd ? toMinutes(dayConfig.lunchEnd) : null
 
-        const relevantAppointments = appointments.filter(a =>
+        const relevantAppointments = slotAppointments.filter(a =>
             a.date === dateStr && a.status !== 'cancelled' && a.store_id === target.id
         )
 
-        const slots: { time: string; status: 'free' | 'occupied'; appointment?: typeof relevantAppointments[0] }[] = []
+        const slots: { time: string; status: 'free' | 'occupied'; appointment?: typeof relevantAppointments[0]; mine?: { title: string; place: string; from: string; to: string } }[] = []
         const now = new Date()
         const isToday = selectedDate.toDateString() === now.toDateString()
         const currentMinutes = now.getHours() * 60 + now.getMinutes()
@@ -624,34 +690,38 @@ export default function StoreSchedule({
             const slotEnd = m + selectedDuration
             if (slotEnd > endMinutes) continue
 
-            const overlapping = relevantAppointments.find(a => {
+            const clashes = (a: typeof relevantAppointments[0]) => {
                 const aStart = toMinutes(a.time)
                 const aEnd = aStart + (a.duration_minutes || 60)
                 return m < aEnd && aStart < slotEnd
-            })
+            }
+            // se EU já tenho compromisso nesse horário, o que aparece é o meu compromisso (em vez de só "ocupado")
+            const mineHit = relevantAppointments.find((a) => (a as any).mine && clashes(a))
+            const overlapping = mineHit || relevantAppointments.find(clashes)
 
             slots.push({
                 time: timeStr,
                 status: overlapping ? 'occupied' : 'free',
                 appointment: overlapping || undefined,
+                mine: mineHit ? { ...(mineHit as any).mine, from: mineHit.time.slice(0, 5), to: fromMinutes(toMinutes(mineHit.time) + (mineHit.duration_minutes || 60)) } : undefined,
             })
         }
 
         return slots
-    }, [selectedDate, appointments, config, target, selectedDuration])
+    }, [selectedDate, slotAppointments, config, target, selectedDuration])
 
     // ---------- Mapa de compromissos ocupados ----------
     const eventsByDate = useMemo(() => {
         const map: Record<string, number> = {}
         if (target) {
-            appointments
+            slotAppointments
                 .filter(a => a.store_id === target.id && a.status !== 'cancelled')
                 .forEach(a => {
                     map[a.date] = (map[a.date] || 0) + 1
                 })
         }
         return map
-    }, [appointments, target])
+    }, [slotAppointments, target])
 
     // ---------- Mapa de vagas livres por dia ----------
     const freeSlotsByDate = useMemo(() => {
@@ -667,7 +737,7 @@ export default function StoreSchedule({
 
         for (let d = 1; d <= daysInMonth; d++) {
             const date = new Date(year, month, d)
-            const dateStr = date.toISOString().split('T')[0]
+            const dateStr = dateKey(date)
             if (dateStr < todayStr) {
                 map[dateStr] = 0
                 continue
@@ -689,7 +759,7 @@ export default function StoreSchedule({
             const lunchStart = dayConfig.lunchStart ? toMinutes(dayConfig.lunchStart) : null
             const lunchEnd = dayConfig.lunchEnd ? toMinutes(dayConfig.lunchEnd) : null
 
-            const relevantAppointments = appointments.filter(
+            const relevantAppointments = slotAppointments.filter(
                 a => a.store_id === target.id && a.date === dateStr && a.status !== 'cancelled'
             )
 
@@ -714,7 +784,46 @@ export default function StoreSchedule({
             map[dateStr] = freeCount
         }
         return map
-    }, [config, appointments, target, selectedDuration, calendarMonth, calendarYear, todayStr, selectedItems.length])
+    }, [config, slotAppointments, target, selectedDuration, calendarMonth, calendarYear, todayStr, selectedItems.length])
+
+    // ---------- Faixa dos próximos dias com o número de vagas livres (tela da 3.0) ----------
+    const dayStrip = useMemo(() => {
+        const out: { date: Date; dateStr: string; free: number }[] = []
+        if (!target || selectedItems.length === 0 || !config.is_active) return out
+        const now = new Date()
+        for (let d = 0; d < 21; d++) {
+            const date = new Date(now.getFullYear(), now.getMonth(), now.getDate() + d)
+            const dateStr = dateKey(date)
+            let free = 0
+            if (!(config.blocked_dates && config.blocked_dates.includes(dateStr))) {
+                const dayConfig = config.weekly?.[date.getDay().toString()]
+                if (dayConfig && dayConfig.isOpen) {
+                    const slotInterval = config.slot_interval || 30
+                    const startMinutes = toMinutes(dayConfig.start || '08:00')
+                    const endMinutes = toMinutes(dayConfig.end || '18:00')
+                    const lunchStart = dayConfig.lunchStart ? toMinutes(dayConfig.lunchStart) : null
+                    const lunchEnd = dayConfig.lunchEnd ? toMinutes(dayConfig.lunchEnd) : null
+                    const rel = slotAppointments.filter(a => a.store_id === target.id && a.date === dateStr && a.status !== 'cancelled')
+                    const isToday = date.toDateString() === now.toDateString()
+                    const currentMinutes = now.getHours() * 60 + now.getMinutes()
+                    for (let m = startMinutes; m + selectedDuration <= endMinutes; m += slotInterval) {
+                        if (lunchStart !== null && lunchEnd !== null) {
+                            const slotEnd = m + selectedDuration
+                            if ((m >= lunchStart && m < lunchEnd) || (slotEnd > lunchStart && slotEnd <= lunchEnd)) continue
+                        }
+                        if (isToday && m <= currentMinutes) continue
+                        const overlaps = rel.some(a => {
+                            const aStart = toMinutes(a.time)
+                            return m < aStart + (a.duration_minutes || 60) && aStart < m + selectedDuration
+                        })
+                        if (!overlaps) free++
+                    }
+                }
+            }
+            out.push({ date, dateStr, free })
+        }
+        return out
+    }, [config, slotAppointments, target, selectedDuration, selectedItems.length])
 
     const diasDoMes = new Date(calendarYear, calendarMonth + 1, 0).getDate()
     const primeiroDia = new Date(calendarYear, calendarMonth, 1).getDay()
@@ -788,7 +897,7 @@ export default function StoreSchedule({
             return
         }
 
-        const dateStr = selectedDate.toISOString().split('T')[0]
+        const dateStr = dateKey(selectedDate)
         const note = appointmentNote.trim() || 'Compromisso'
 
         const { data: store } = await supabase
@@ -830,6 +939,8 @@ export default function StoreSchedule({
             status: 'pending',
             direction: 'outgoing',
             is_public: isPublic,
+            // o banco calcula a entrada (se a loja cobra) pelo preço destes serviços
+            service_items: selectedItems.map((i) => ({ product_id: i.product.id, quantity: i.quantity })),
         }
         const { data: created, error } = await supabase.from('appointments').insert(appointment).select('id').maybeSingle()
         if (error) {
@@ -842,8 +953,15 @@ export default function StoreSchedule({
             fetch('/api/whatsapp/appointment-notice', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ appointmentId: created.id }) }).catch(() => { /* só um aviso a mais */ })
         }
         await refetch()
-        toast.success('Compromisso criado com sucesso!')
+        // loja que cobra entrada: o agendamento só fica garantido depois de pagar — mostra o Pix e o prazo em vez de fechar.
+        // (onSuccess recarrega a loja e remontaria esta janela: só roda quando ela fecha, no botão "Fechar" da entrada.)
+        if (created?.id && depositPreview > 0) {
+            setDepositAppt(created.id)
+            setSubmitting(false)
+            return
+        }
         onSuccess?.()
+        toast.success('Compromisso criado com sucesso!')
         onClose?.()
     }
 
@@ -854,7 +972,8 @@ export default function StoreSchedule({
     const textSecondary = colors.textSecondary
     const accentColor = colors.accent
 
-    const title = step === 'search' ? 'Buscar loja' : step === 'datetime' ? `Agendar em ${target?.name || ''}` : 'Confirmar'
+    const v3Flow = v3 && !!target && !depositAppt && (step === 'datetime' || step === 'confirm')
+    const title = depositAppt ? 'Pague a entrada' : step === 'search' ? 'Buscar loja' : step === 'datetime' ? (v3 ? 'Agendar atendimento' : `Agendar em ${target?.name || ''}`) : 'Confirmar'
 
     const formatDate = (date: Date) => {
         return date.toLocaleDateString('pt-BR', {
@@ -893,8 +1012,65 @@ export default function StoreSchedule({
                     )}
                 </div>
 
+                {/* 3.0: data/hora e confirmação numa tela só de apresentação (as regras acima são as mesmas) */}
+                {v3Flow && target && (
+                    <ScheduleV3
+                        colors={colors}
+                        step={step === 'confirm' ? 'confirm' : 'datetime'}
+                        storeName={target.name}
+                        services={storeProducts as any}
+                        loadingServices={loadingProducts}
+                        items={selectedItems as any}
+                        onToggleService={(srv) => addToSelection(srv as any)}
+                        onChangeQty={(id, delta) => updateItemQuantity(id, delta)}
+                        duration={selectedDuration}
+                        nextSlots={getNextAvailableSlots}
+                        days={dayStrip}
+                        selectedDate={selectedDate}
+                        onPickDate={(d) => { setSelectedDate(d); setSelectedTime(null); setValidationError(null) }}
+                        slots={allSlots}
+                        selectedTime={selectedTime}
+                        onPickTime={(t) => { setSelectedTime(t); setValidationError(null) }}
+                        onPickSuggestion={(sg) => { setSelectedDate(sg.date); setSelectedTime(sg.time); setValidationError(null) }}
+                        onContinue={() => {
+                            if (selectedItems.length === 0) return setValidationError('Escolha pelo menos um serviço')
+                            if (!selectedDate || !selectedTime) return setValidationError('Escolha o dia e o horário')
+                            setValidationError(null)
+                            setStep('confirm')
+                        }}
+                        note={v3Recado}
+                        onNote={setV3Recado}
+                        isPublic={isPublic}
+                        onPublic={setIsPublic}
+                        authed={isAuthenticated}
+                        onLogin={() => {
+                            // entra e volta para esta loja com a agenda aberta e o serviço já escolhido
+                            const back = `${window.location.pathname}?agendar=${selectedItems[0]?.product.id || '1'}`
+                            window.location.href = `/login?redirect=${encodeURIComponent(back)}`
+                        }}
+                        submitting={submitting}
+                        onConfirm={handleConfirmClick}
+                        error={validationError}
+                        deposit={depositPreview > 0 ? { amount: depositPreview, rule: depositRuleLabel(depositCfg), policy: depositCfg.policy || null, holdMinutes: DEPOSIT_HOLD_MINUTES } : null}
+                    />
+                )}
+
+                {/* ENTRADA: o agendamento foi registrado e espera o Pix da entrada (reserva o horário por alguns minutos) */}
+                {depositAppt && (
+                    <div className="flex flex-col gap-4">
+                        <p className="text-sm" style={{ color: textSecondary }}>Seu horário está reservado. Pague a entrada para confirmar o agendamento.</p>
+                        <AppointmentDepositPanel appointmentId={depositAppt} role="customer" onChanged={() => { refetch() }} />
+                        <button
+                            onClick={() => { onSuccess?.(); onClose?.() }}
+                            style={v3 ? { height: 48, borderRadius: 9999, background: `${colors.border}40`, color: textPrimary, fontWeight: 900, fontSize: 14 } : { ...pillButtonStyle, background: 'transparent', border: `1px solid ${borderColor}`, color: textSecondary }}
+                        >
+                            Fechar (pago depois em Compromissos)
+                        </button>
+                    </div>
+                )}
+
                 {/* ETAPA BUSCA */}
-                {step === 'search' && (
+                {!depositAppt && step === 'search' && (
                     <div style={{ position: 'relative' }}>
                         <input
                             ref={searchInputRef}
@@ -995,7 +1171,7 @@ export default function StoreSchedule({
                 )}
 
                 {/* ETAPA DATA/HORA */}
-                {step === 'datetime' && target && (
+                {!depositAppt && !v3Flow && step === 'datetime' && target && (
                     <>
                         <div
                             style={{
@@ -1593,7 +1769,7 @@ export default function StoreSchedule({
                                     {Array.from({ length: diasDoMes }).map((_, i) => {
                                         const dia = i + 1
                                         const date = new Date(calendarYear, calendarMonth, dia)
-                                        const dateStr = date.toISOString().split('T')[0]
+                                        const dateStr = dateKey(date)
                                         const occupiedCount = eventsByDate[dateStr] || 0
                                         const freeCount = freeSlotsByDate[dateStr] || 0
                                         const isPast = dateStr < todayStr
@@ -1728,7 +1904,7 @@ export default function StoreSchedule({
                                         {!config?.is_active
                                             ? 'Loja não está aceitando agendamentos.'
                                             : config?.blocked_dates?.includes(
-                                                selectedDate.toISOString().split('T')[0]
+                                                dateKey(selectedDate)
                                             )
                                                 ? 'Data bloqueada pela loja.'
                                                 : !config?.weekly?.[
@@ -1738,6 +1914,7 @@ export default function StoreSchedule({
                                                     : 'Nenhum horário disponível.'}
                                     </div>
                                 ) : (
+                                    <>
                                     <div
                                         style={{
                                             display: 'grid',
@@ -1776,6 +1953,34 @@ export default function StoreSchedule({
                                                         }}
                                                     >
                                                         {slot.time}
+                                                    </button>
+                                                )
+                                            } else if (slot.mine) {
+                                                // já tenho compromisso nesse horário: tile calmo com um ponto laranja; tocar conta qual é
+                                                const openMine = mineOpenTime === slot.time
+                                                return (
+                                                    <button
+                                                        key={slot.time}
+                                                        type="button"
+                                                        onClick={() => setMineOpenTime(openMine ? null : slot.time)}
+                                                        aria-label={`${slot.time}, você já tem um compromisso`}
+                                                        style={{
+                                                            padding: '16px 12px',
+                                                            borderRadius: 18,
+                                                            border: `1px solid ${openMine ? '#fdba74' : borderColor}`,
+                                                            background: openMine ? '#fff1e0' : 'transparent',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center',
+                                                            gap: 6,
+                                                            color: textSecondary,
+                                                            fontWeight: 700,
+                                                            fontSize: 15,
+                                                            cursor: 'pointer',
+                                                        }}
+                                                    >
+                                                        {slot.time}
+                                                        <span style={{ width: 6, height: 6, borderRadius: 9999, background: '#f97316' }} />
                                                     </button>
                                                 )
                                             } else {
@@ -1849,6 +2054,20 @@ export default function StoreSchedule({
                                             }
                                         })}
                                     </div>
+                                {(() => {
+                                    const open = allSlots.find((x) => x.time === mineOpenTime)?.mine
+                                    if (!open) return null
+                                    return (
+                                        <div style={{ marginTop: 12, display: 'flex', gap: 12, alignItems: 'flex-start', padding: 14, borderRadius: 18, background: '#fff7ed' }}>
+                                            <span style={{ width: 32, height: 32, borderRadius: 9999, background: '#ffedd5', color: '#ea580c', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Calendar size={15} /></span>
+                                            <div>
+                                                <p style={{ margin: 0, fontSize: 13, lineHeight: 1.35, color: '#7c2d12' }}>Às {open.from} você já tem <b>{open.title}</b>{open.place ? ` — ${open.place}` : ''}.</p>
+                                                <p style={{ margin: '2px 0 0', fontSize: 11, color: '#9a3412', opacity: 0.8 }}>{open.from}–{open.to} · escolha outro horário para marcar aqui.</p>
+                                            </div>
+                                        </div>
+                                    )
+                                })()}
+                                    </>
                                 )}
                             </div>
                         )}
@@ -1856,7 +2075,7 @@ export default function StoreSchedule({
                 )}
 
                 {/* ===== TELA DE CONFIRMAÇÃO COM LOGIN ===== */}
-                {step === 'confirm' && selectedDate && selectedTime && target && (
+                {!depositAppt && !v3Flow && step === 'confirm' && selectedDate && selectedTime && target && (
                     <div style={{ textAlign: 'center' }}>
                         {/* ===== SE NÃO ESTIVER AUTENTICADO, MOSTRA O FORMULÁRIO DE LOGIN ===== */}
                         {!isAuthenticated ? (
@@ -2225,6 +2444,14 @@ export default function StoreSchedule({
                                         </div>
                                     </div>
                                 </div>
+
+                                {depositPreview > 0 && (
+                                    <div style={{ marginBottom: 16, padding: '12px 16px', borderRadius: 16, background: `${accentColor}12`, border: `1px solid ${accentColor}40`, textAlign: 'left' }}>
+                                        <p style={{ fontWeight: 800, fontSize: 14, color: textPrimary, margin: 0 }}>Entrada de {depositBrl(depositPreview)}</p>
+                                        <p style={{ fontSize: 12, color: textSecondary, margin: '4px 0 0' }}>{depositRuleLabel(depositCfg)}. Depois de confirmar você paga por Pix e o horário fica reservado por {DEPOSIT_HOLD_MINUTES} min.</p>
+                                        {depositCfg.policy && <p style={{ fontSize: 12, color: textSecondary, margin: '6px 0 0' }}><b>Cancelamento:</b> {depositCfg.policy}</p>}
+                                    </div>
+                                )}
 
                                 <div style={{ display: 'flex', gap: 12 }}>
                                     <button

@@ -8,7 +8,7 @@ import { useRouter } from 'next/navigation'
 import { MapPin, CheckCircle2, Clock, HeartCrack } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
-import { getServiceIcon } from '@/lib/serviceTypes'
+import { getServiceIcon, getRequestTitle } from '@/lib/serviceTypes'
 import { MyApplication } from '@/hooks/useMyServiceApplications'
 import { HOME_GRADIENT, HomeSectionHeader } from './HomeSectionKit'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
@@ -56,15 +56,17 @@ export default function MyServiceApplications({ items }: { items: MyApplication[
                     const Icon = getServiceIcon(item.serviceType)
                     const who = item.requesterSlug ? `@${item.requesterSlug}` : item.requesterName?.split(' ')[0] || 'Alguém'
                     const pulsing = item.status === 'accepted' && !item.completedAt
+                    const photo = item.photoUrl
+                    const title = getRequestTitle(item.description, item.serviceType, item.serviceLabel)
                     const go = () => { startNavProgress(); router.push(`/procurar-servico?pedido=${item.requestId}`) }
-                    // Mesmo desenho do card de "Quem procura serviço": quem pediu e há quanto tempo,
-                    // foto + o que procura + onde, descrição e, embaixo, a situação da inscrição.
+                    // Mesmo desenho do card de "Quem procura serviço": com foto, a foto inteira em cima e o título embaixo;
+                    // sem foto, o cartão é o próprio texto do pedido. Embaixo, a situação da inscrição.
                     return (
                         <div
                             key={item.applicationId}
                             onClick={go}
                             // Escolhido e ainda por fazer: mesma borda verde pulsante do card em "Seus pedidos em aberto"
-                            className={`snap-start flex-shrink-0 w-64 rounded-2xl p-3.5 flex flex-col gap-2 cursor-pointer ${pulsing ? 'hired-pulse-border' : ''}`}
+                            className={`snap-start flex-shrink-0 w-60 rounded-3xl overflow-hidden flex flex-col cursor-pointer ${pulsing ? 'hired-pulse-border' : ''}`}
                             style={{
                                 background: colors.surface,
                                 ...(pulsing ? {} : {
@@ -74,45 +76,52 @@ export default function MyServiceApplications({ items }: { items: MyApplication[
                                 opacity: item.status === 'rejected' ? 0.7 : 1,
                             }}
                         >
-                            <div className="flex items-center gap-2">
-                                <PlanAvatarRing userId={item.requesterId}>
-                                    {item.requesterAvatarUrl ? (
-                                        <img src={item.requesterAvatarUrl} className="w-7 h-7 rounded-full object-cover flex-shrink-0" alt="" />
-                                    ) : (
-                                        <span className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-black" style={{ background: HOME_GRADIENT, color: '#fff' }}>
-                                            {who.charAt(0).toUpperCase()}
-                                        </span>
-                                    )}
-                                </PlanAvatarRing>
-                                <div className="min-w-0 flex-1">
-                                    <p className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>{who}</p>
-                                    <p className="text-[10px] whitespace-nowrap" style={{ color: colors.textSecondary }}>inscrito {appliedAgo(item.appliedAt)}</p>
+                            {photo && (
+                                <div className="relative h-36 w-full overflow-hidden flex-shrink-0" style={{ background: '#0b1220' }}>
+                                    <img src={photo} alt="" aria-hidden className="absolute inset-0 w-full h-full object-cover scale-125 blur-xl opacity-60" loading="lazy" />
+                                    <img src={photo} alt={title} className="relative w-full h-full object-contain" loading="lazy" />
                                 </div>
-                            </div>
-
-                            <div className="flex items-center gap-3">
-                                <span
-                                    className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 overflow-hidden"
-                                    style={{ background: item.photoUrl ? colors.border : HOME_GRADIENT, color: '#fff' }}
-                                >
-                                    {item.photoUrl ? (
-                                        <img src={item.photoUrl} alt="" className="w-full h-full object-cover" loading="lazy" />
-                                    ) : (
-                                        <Icon size={22} />
-                                    )}
-                                </span>
-                                <div className="min-w-0">
-                                    <p className="text-sm font-black truncate" style={{ color: colors.textPrimary }}>Procura {item.serviceLabel.toLowerCase()}</p>
-                                    <p className="text-[11px] flex items-center gap-1 truncate" style={{ color: colors.textSecondary }}>
-                                        <MapPin size={10} className="flex-shrink-0" />
-                                        {shortAddress(item.locationAddress)}
-                                    </p>
-                                </div>
-                            </div>
-
-                            {item.description && (
-                                <p className="text-xs line-clamp-2" style={{ color: colors.textSecondary }}>{item.description}</p>
                             )}
+
+                            <div className={`flex flex-col gap-2 flex-1 ${photo ? 'p-3.5' : 'p-4'}`} style={photo ? undefined : { background: `${colors.accent}10` }}>
+                                <div className="flex items-center justify-between gap-2">
+                                    <span className="self-start flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: `${colors.accent}18`, color: colors.accent }}>
+                                        <Icon size={11} />
+                                        {item.serviceLabel}
+                                    </span>
+                                    <span className="text-[10px] flex-shrink-0 whitespace-nowrap" style={{ color: colors.textSecondary }}>inscrito {appliedAgo(item.appliedAt)}</span>
+                                </div>
+
+                                {/* O que a pessoa pediu é o foco: sem foto fica bem maior */}
+                                <p
+                                    className={`${photo ? 'text-sm' : 'text-[17px]'} font-black leading-snug flex-1`}
+                                    title={title}
+                                    style={{ color: colors.textPrimary, display: '-webkit-box', WebkitLineClamp: photo ? 2 : 6, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
+                                >
+                                    {title}
+                                </p>
+
+                                <div className="flex items-center justify-between gap-2 text-[11px]" style={{ color: colors.textSecondary }}>
+                                    <span className="flex items-center gap-1 min-w-0">
+                                        <MapPin size={11} className="flex-shrink-0" />
+                                        <span className="truncate">{shortAddress(item.locationAddress)}</span>
+                                    </span>
+                                </div>
+
+                                <div className="flex items-center gap-1.5 text-[11px] min-w-0" style={{ color: colors.textSecondary }}>
+                                    <span className="flex items-center gap-1.5 min-w-0">
+                                        <PlanAvatarRing userId={item.requesterId}>
+                                            {item.requesterAvatarUrl ? (
+                                                <img src={item.requesterAvatarUrl} className="w-4 h-4 rounded-full object-cover flex-shrink-0" alt="" />
+                                            ) : (
+                                                <span className="w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 text-[8px] font-black" style={{ background: HOME_GRADIENT, color: '#fff' }}>
+                                                    {who.replace('@', '').charAt(0).toUpperCase()}
+                                                </span>
+                                            )}
+                                        </PlanAvatarRing>
+                                        <span className="truncate font-bold">{who}</span>
+                                    </span>
+                                </div>
 
                             {item.status === 'accepted' ? (
                                 <div className="mt-auto flex flex-col gap-1">
@@ -139,9 +148,10 @@ export default function MyServiceApplications({ items }: { items: MyApplication[
                             ) : (
                                 <div className="mt-auto w-full flex items-center justify-center gap-2 py-3 rounded-full font-black text-xs text-center leading-tight" style={{ background: `${colors.accent}15`, color: colors.accent, border: `1px solid ${colors.accent}40` }}>
                                     <Clock size={15} className="flex-shrink-0" />
-                                    Inscrição enviada. Esperando a resposta.
+                                    Aguardando resposta
                                 </div>
                             )}
+                            </div>
                         </div>
                     )
                 })}

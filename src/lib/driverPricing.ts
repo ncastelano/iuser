@@ -1,5 +1,6 @@
 // src/lib/driverPricing.ts
 
+import { RIDE_GAP_MIN, ridesInOneHour } from './rideCycle'
 import type { VehicleKind } from './rideVehicle'
 
 export type PricingMode = 'platform' | 'custom'
@@ -191,14 +192,19 @@ export function computePickupFee(pricing: DriverPricing, km: number): number {
 // pra o "valor por hora" ser comparável entre corridas).
 export const HOURLY_ASSUMED_SPEED_KMH = 40
 
-// Ganho por hora (só informativo, não muda nenhum preço): valor ÷ horas gastas. As horas são
-// (km até o passageiro + km da corrida) ÷ 40 km/h. O deslocamento até o passageiro conta no
-// tempo sempre; no valor ele só entra na Tarifa iUser (km × valor/km, já somado em `price`).
+// Ganho por hora (só informativo, não muda nenhum preço), sempre pelo TEMPO: cada corrida leva (km até o passageiro +
+// km da corrida) ÷ 40 km/h e, entre uma corrida e a próxima, há RIDE_GAP_MIN minutos de folga. Contam-se as corridas
+// iguais que cabem em 60 minutos (`rides`, ver rideCycle.ts) e o ganho por hora é rides × valor de cada uma.
+// O deslocamento até o passageiro conta no tempo sempre; no valor ele só entra na Tarifa iUser (km × valor/km, já
+// somado em `price`). Se uma corrida sozinha passa de 1 hora, vale a proporção (valor ÷ horas).
 export function computeHourlyEarnings(price: number, tripKm: number, pickupKm: number) {
     const totalKm = tripKm + pickupKm
     if (!(totalKm > 0)) return null
     const hours = totalKm / HOURLY_ASSUMED_SPEED_KMH
-    return { totalKm, totalMin: Math.round(hours * 60), hours, perHour: price / hours }
+    const cycleMin = hours * 60
+    const rides = ridesInOneHour(cycleMin)
+    const perHour = rides >= 1 ? rides * price : price / hours
+    return { totalKm, totalMin: Math.round(cycleMin), hours, rides, gapMin: RIDE_GAP_MIN, perHour }
 }
 
 // "Minha tarifa": os valores próprios que o motorista deixou salvos, mesmo

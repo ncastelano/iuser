@@ -35,6 +35,12 @@ import { useProfile } from "@/app/contexts/ProfileContext";
 import Header from '@/components/Header';
 import { categorias } from "@/lib/categorias";
 import { checkSlugAvailability, getSlugSuggestions, sanitizeSlug } from "@/lib/slugUtils";
+import { useInsideShell } from "@/components/InsideShell";
+import { useTheme } from "@/app/contexts/theme";
+import LinkListInput, { type LinkRow } from "@/components/v3/LinkListInput";
+import { linksFromRows } from "@/lib/storeLinks";
+import StoreModelPicker from "@/components/v3/StoreModelPicker";
+import { STORE_MODELS, suggestModelForCategory, type StoreModel } from "@/lib/storeModel";
 
 // Filtra as categorias para remover "Social"
 const CATEGORIAS_LOJAS = categorias.filter(cat => cat.slug !== 'social');
@@ -158,6 +164,9 @@ function formatWhatsApp(number: string): string {
 
 export default function CriarLoja() {
   const router = useRouter();
+  // v3 (dentro da casca): formulário no desenho da 3.0 (campos neutros, categorias em fichas, botão fixo embaixo) — mesma lógica da v2
+  const v3 = useInsideShell();
+  const { colors } = useTheme();
   const { userId, bgMode, customBgUrl, loading: profileLoading, avatarUrl: contextAvatarUrl } = useProfile();
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -189,6 +198,12 @@ export default function CriarLoja() {
   const [whatsappError, setWhatsappError] = useState("");
   const [whatsappOrders, setWhatsappOrders] = useState(false);
   const [showWhatsapp, setShowWhatsapp] = useState(false);
+  // Links da loja (texto + endereço): aparecem embaixo da descrição na página da loja
+  const [linkRows, setLinkRows] = useState<LinkRow[]>([]);
+  // Modelo da loja (produtos / atendimento / mista): muda o botão central da página. A agenda liga junto nos modelos de atendimento.
+  const [storeModel, setStoreModel] = useState<StoreModel>('products');
+  const modelTouchedRef = useRef(false);
+  const [agendaOn, setAgendaOn] = useState(true);
 
   const [selectedPosition, setSelectedPosition] = useState<{ lat: number; lng: number }>({
     lat: -15.7801,
@@ -239,6 +254,13 @@ export default function CriarLoja() {
       setCurrentUserAvatar(contextAvatarUrl);
     }
   }, [contextAvatarUrl, currentUserAvatar]);
+
+  // O nome já chega sugerido: "Loja do <seu @>". Dá para trocar; o link (username) acompanha o nome e, se estiver em uso, sugere outros.
+  const nameTouchedRef = useRef(false);
+  useEffect(() => {
+    if (currentUserSlug && !nameTouchedRef.current && !name) setName(`Loja do ${currentUserSlug}`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUserSlug]);
 
   useEffect(() => {
     if (!name) {
@@ -577,14 +599,16 @@ export default function CriarLoja() {
       return;
     }
 
+    // WhatsApp é opcional; se a pessoa preencheu, tem que ser um número válido
     const whatsappClean = whatsapp.replace(/\D/g, '');
-    if (!whatsappClean || whatsappClean.length < 10) {
-      toast.error("Digite um número de WhatsApp válido com DDD");
+    if (whatsappClean && (whatsappClean.length < 10 || whatsappClean.length > 13)) {
+      toast.error("Digite um número de WhatsApp válido com DDD (ou deixe em branco)");
       return;
     }
 
-    if (whatsappClean.length > 13) {
-      toast.error("Número de WhatsApp inválido");
+    const parsedLinks = linksFromRows(linkRows);
+    if (!parsedLinks.ok) {
+      toast.error(parsedLinks.error);
       return;
     }
 
@@ -642,7 +666,7 @@ export default function CriarLoja() {
         address_number: addressNumber,
         address_complement: addressComplement || null,
         category: categoryName,
-        whatsapp: whatsappClean,
+        whatsapp: whatsappClean || null,
       },
     });
 
@@ -652,10 +676,13 @@ export default function CriarLoja() {
       return;
     }
 
-    // Os dois começam desmarcados: grava explicitamente a escolha da pessoa.
+    // v3: sem os dois interruptores do WhatsApp (não incentivamos): número preenchido aparece como link na página; pedidos só pelo iUser.
+    // Os links da loja entram aqui. v2: grava explicitamente a escolha da pessoa nos interruptores.
     await supabase
       .from("stores")
-      .update({ whatsapp_orders_enabled: whatsappOrders, show_whatsapp: showWhatsapp })
+      .update(v3
+        ? { links: parsedLinks.links, whatsapp_orders_enabled: false, show_whatsapp: !!whatsappClean, store_model: storeModel, allow_scheduling: storeModel !== 'products' && agendaOn }
+        : { whatsapp_orders_enabled: whatsappOrders, show_whatsapp: showWhatsapp })
       .eq("storeSlug", storeSlug);
 
     setLoading(false);
@@ -682,6 +709,211 @@ export default function CriarLoja() {
       isActive: true,
     },
   ];
+
+  // ===== v3 =====
+  if (v3) {
+    const soft = `${colors.border}30`;
+    const field = "w-full h-12 rounded-2xl px-4 text-sm outline-none transition focus:ring-2";
+    const fieldStyle = { background: soft, color: colors.textPrimary, ['--tw-ring-color' as any]: '#f97316' } as React.CSSProperties;
+    const label = (text: string, hint?: string) => (
+      <div className="mb-1.5">
+        <p className="text-[14px] font-black" style={{ color: colors.textPrimary }}>{text}</p>
+        {hint && <p className="text-[12px]" style={{ color: colors.textSecondary }}>{hint}</p>}
+      </div>
+    );
+    const Switch = ({ on, set }: { on: boolean; set: (v: boolean) => void }) => (
+      <button type="button" onClick={() => set(!on)} aria-pressed={on} className="relative w-12 h-7 rounded-full flex-shrink-0 transition-colors" style={{ background: on ? '#f97316' : `${colors.border}90` }}>
+        <span className="absolute top-1 w-5 h-5 bg-white rounded-full shadow-sm transition-all" style={{ left: on ? 24 : 4 }} />
+      </button>
+    );
+    const wppDigits = whatsapp.replace(/\D/g, '').length;
+    const checklist = [
+      { ok: !!name && !!storeSlug && slugStatus === 'available', text: 'Nome e link' },
+      { ok: !!selectedCategorySlug, text: 'Categoria' },
+      { ok: !!addressNumber, text: 'Localização' },
+    ];
+    return (
+      <div className="w-full max-w-xl mx-auto px-4 pt-1 pb-6">
+        <Header
+          title="Criar loja"
+          showBack
+          onBack={() => router.back()}
+          greeting={`Olá, ${currentUserSlug ? `@${currentUserSlug}` : "Visitante"}`}
+          avatarUrl={currentUserAvatar}
+          loading={profileLoading}
+          showSearch={false}
+          profileSlug={currentUserSlug}
+        />
+
+        <div className="space-y-6">
+          {/* logo */}
+          <div className="flex flex-col items-center">
+            <button type="button" onClick={() => fileInputRef.current?.click()} aria-label="Escolher a logo da loja"
+              className="w-28 h-28 rounded-3xl overflow-hidden flex items-center justify-center transition active:scale-95" style={{ background: preview ? undefined : '#f9731620', border: preview ? 'none' : '2px dashed #f9731670' }}>
+              {preview ? <img src={preview} className="w-full h-full object-cover" alt="" /> : <Camera size={30} style={{ color: '#f97316' }} />}
+            </button>
+            <p className="mt-2 text-[13px] font-black" style={{ color: colors.textPrimary }}>{preview ? 'Trocar logo' : 'Adicionar logo'} <span style={{ color: '#ef4444' }}>*</span></p>
+            <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (file) handleImageChange(file); }} />
+          </div>
+
+          {/* modelo da loja */}
+          <div>
+            {label('Como é a sua loja?', 'Escolha o modelo: ele define o botão central da página. Dá para trocar depois.')}
+            <StoreModelPicker value={storeModel} onChange={(m) => { modelTouchedRef.current = true; setStoreModel(m) }} colors={colors} />
+            {STORE_MODELS.find((m) => m.id === storeModel)?.needsAgenda && (
+              <div className="mt-3 flex items-start gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="text-[13px] font-black" style={{ color: colors.textPrimary }}>Ativar a agenda de atendimentos</p>
+                  <p className="text-[12px] leading-snug" style={{ color: colors.textSecondary }}>Os clientes agendam horários pela página. Você define os dias e horários depois.</p>
+                </div>
+                <Switch on={agendaOn} set={setAgendaOn} />
+              </div>
+            )}
+          </div>
+
+          {/* nome */}
+          <div>
+            {label('Nome da loja', 'Já sugerimos um nome com o seu @. Pode trocar.')}
+            <input placeholder="Minha Super Loja" value={name} onChange={(e) => { nameTouchedRef.current = true; setName(e.target.value) }} className={field} style={fieldStyle} />
+          </div>
+
+          {/* link / username */}
+          <div>
+            {label('Link da loja (username)', 'O endereço da sua loja no iUser. Acompanha o nome, e você pode ajustar.')}
+            <div className="flex items-center h-12 rounded-2xl overflow-hidden focus-within:ring-2" style={{ background: soft, ['--tw-ring-color' as any]: '#f97316' } as React.CSSProperties}>
+              <span className="pl-4 pr-1 text-sm font-black" style={{ color: colors.textSecondary }}>@</span>
+              <input placeholder="minha-loja" value={storeSlug} onChange={(e) => setStoreSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
+                className="flex-1 min-w-0 h-full bg-transparent pr-4 text-sm outline-none" style={{ color: colors.textPrimary }} />
+            </div>
+            {storeSlug && (
+              <p className="mt-1.5 text-[12px] font-bold flex items-center gap-1.5" style={{ color: slugStatus === 'available' ? '#16a34a' : slugStatus === 'taken' ? '#ef4444' : colors.textSecondary }}>
+                {slugStatus === 'checking' && <>Verificando...</>}
+                {slugStatus === 'available' && <><CheckCircle2 size={14} /> @{storeSlug} está disponível</>}
+                {slugStatus === 'taken' && <><AlertCircle size={14} /> @{storeSlug} já está em uso. Escolha outro:</>}
+              </p>
+            )}
+            {storeSlugSuggestions.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {storeSlugSuggestions.map((sug) => (
+                  <button key={sug} type="button" onClick={() => { setStoreSlug(sug); setStoreSlugSuggestions([]); }} className="h-9 px-4 rounded-full text-[13px] font-black transition active:scale-95" style={{ background: '#f9731618', color: '#ea580c' }}>
+                    @{sug}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* descrição: logo abaixo do link, para escrever */}
+          <div>
+            {label('Descrição', 'O que você vende? (opcional)')}
+            <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Conte em poucas palavras o que a sua loja oferece"
+              className="w-full min-h-[96px] rounded-2xl px-4 py-3 text-sm outline-none focus:ring-2" style={fieldStyle} />
+          </div>
+
+          {/* links: texto + endereço, aparecem embaixo da descrição */}
+          <div>
+            {label('Links (opcional)', 'Escreva o texto e o endereço. Eles aparecem embaixo da descrição, na página da loja.')}
+            <LinkListInput rows={linkRows} onChange={setLinkRows} colors={colors} />
+          </div>
+
+          {/* categoria */}
+          <div>
+            {label('Categoria')}
+            <div className="flex flex-wrap gap-2">
+              {CATEGORIAS_LOJAS.map((cat) => {
+                const Icon = cat.icone;
+                const on = selectedCategorySlug === cat.slug;
+                return (
+                  <button key={cat.slug} type="button" onClick={() => { setSelectedCategorySlug(cat.slug); if (!modelTouchedRef.current) setStoreModel(suggestModelForCategory(cat.slug)) }} aria-pressed={on}
+                    className="h-10 pl-3 pr-4 rounded-full flex items-center gap-1.5 text-[13px] font-black transition active:scale-95"
+                    style={on ? { background: '#f97316', color: '#fff' } : { background: soft, color: colors.textPrimary }}>
+                    <Icon size={15} style={{ color: on ? '#fff' : cat.color }} />{cat.nome}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* whatsapp: só um campo opcional, sem interruptores */}
+          <div>
+            {label('WhatsApp (opcional)', 'Se preencher, o número aparece como link na página da loja.')}
+            <div className="flex items-center h-12 rounded-2xl overflow-hidden focus-within:ring-2" style={{ background: soft, boxShadow: whatsappError ? '0 0 0 2px #ef4444' : undefined, ['--tw-ring-color' as any]: '#f97316' } as React.CSSProperties}>
+              <span className="pl-4 pr-2 text-sm font-black" style={{ color: colors.textSecondary }}>+55</span>
+              <input placeholder="(11) 99999-9999" value={whatsapp} onChange={(e) => handleWhatsAppChange(e.target.value)} maxLength={18} inputMode="tel"
+                className="flex-1 min-w-0 h-full bg-transparent pr-4 text-sm outline-none" style={{ color: colors.textPrimary }} />
+            </div>
+            {whatsappError ? <p className="mt-1.5 text-[12px] font-bold" style={{ color: '#ef4444' }}>{whatsappError}</p>
+              : wppDigits >= 10 ? <p className="mt-1.5 text-[12px] font-bold" style={{ color: '#16a34a' }}>Número válido ({wppDigits >= 11 ? 'celular' : 'telefone'})</p> : null}
+          </div>
+
+          {/* localização */}
+          <div>
+            {label('Localização da loja', 'Arraste o marcador ou mova o mapa até o lugar da loja.')}
+            <div className="relative w-full h-60 rounded-3xl overflow-hidden" style={{ background: soft }}>
+              <div ref={setMapEl} className="w-full h-full" />
+              {!mapReady && <div className="absolute inset-0 flex items-center justify-center" style={{ background: `${colors.background}cc` }}><Spinner size={24} color="#f97316" /></div>}
+            </div>
+            <div className="mt-3 flex items-start gap-2.5 px-4 py-3 rounded-2xl" style={{ background: soft }}>
+              <MapPinned size={18} className="mt-0.5 flex-shrink-0" style={{ color: '#f97316' }} />
+              <p className="text-[13px] font-bold leading-snug break-words" style={{ color: colors.textPrimary }}>
+                {resolvingAddress ? 'Obtendo endereço...' : address || 'Arraste o marcador ou mova o mapa'}
+              </p>
+            </div>
+            <button type="button" onClick={() => { setShowAddressSearch((v) => !v); setTimeout(() => searchInputRef.current?.focus(), 150); }}
+              className="mt-2 w-full h-11 rounded-full flex items-center justify-center gap-2 text-[13px] font-black transition active:scale-95" style={{ background: soft, color: colors.textPrimary }}>
+              <Search size={15} style={{ color: '#f97316' }} /> Escrever endereço
+            </button>
+            {showAddressSearch && (
+              <div className="mt-2 flex items-center h-12 rounded-full pl-4 pr-1.5" style={{ background: soft }}>
+                <input ref={searchInputRef} type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Rua, número, bairro, cidade..."
+                  className="flex-1 min-w-0 bg-transparent outline-none text-sm" style={{ color: colors.textPrimary }} disabled={loadingLocation}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleSearchAddress(); }} />
+                {searchQuery && <button type="button" onClick={handleSearchAddress} disabled={loadingLocation} className="h-9 px-4 rounded-full text-[13px] font-black text-white" style={{ background: '#f97316' }}>{loadingLocation ? '...' : 'Ir'}</button>}
+              </div>
+            )}
+            {!resolvingAddress && address && (
+              <div className="mt-3 space-y-3">
+                <div>
+                  {label('Número da casa ou apartamento')}
+                  <input type="text" value={addressNumber} onChange={(e) => setAddressNumber(e.target.value)} placeholder="Ex: 2836" className={field} style={fieldStyle} />
+                </div>
+                <div>
+                  {label('Complemento', 'Opcional')}
+                  <input type="text" value={addressComplement} onChange={(e) => setAddressComplement(e.target.value)} placeholder="Ex: portão azul, ao lado da padaria" className={field} style={fieldStyle} />
+                </div>
+              </div>
+            )}
+            {locationError && <p className="mt-2 text-[12px] font-bold" style={{ color: '#ef4444' }}>{locationError}</p>}
+          </div>
+        </div>
+
+        {showLocationConfirm && (
+          <div className="fixed inset-0 z-[60] bg-black/50 flex items-end sm:items-center justify-center p-4">
+            <div className="w-full max-w-sm rounded-3xl p-5 space-y-4" style={{ background: colors.background }}>
+              <p className="text-base font-black" style={{ color: colors.textPrimary }}>Essa é a localização correta?</p>
+              <p className="text-sm px-3 py-2.5 rounded-2xl" style={{ background: soft, color: colors.textPrimary }}>{pendingAddress}</p>
+              <div className="flex gap-2">
+                <button type="button" onClick={handleRejectLocation} className="flex-1 h-11 rounded-full text-[13px] font-black" style={{ background: soft, color: colors.textPrimary }}>Digitar de novo</button>
+                <button type="button" onClick={handleConfirmLocation} className="flex-1 h-11 rounded-full text-[13px] font-black text-white" style={{ background: '#f97316' }}>Sim, está correta</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* botão fixo embaixo, com o que ainda falta */}
+        <div className="sticky z-20 -mx-4 px-4 pt-3 pb-3 mt-6" style={{ bottom: 'var(--staging-banner-h, 0px)', background: colors.background, borderTop: `1px solid ${colors.border}50` }}>
+          {checklist.some((c) => !c.ok) && (
+            <p className="text-center mb-2 text-[12px] font-bold truncate" style={{ color: colors.textSecondary }}>
+              Falta: {checklist.filter((c) => !c.ok).map((c) => c.text).join(', ')}
+            </p>
+          )}
+          <button onClick={handleCreate} disabled={loading} className="w-full h-12 rounded-full text-[14px] font-black text-white flex items-center justify-center gap-2 transition active:scale-[0.98] disabled:opacity-50" style={{ background: '#f97316' }}>
+            {loading ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : 'Criar loja'}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative flex flex-col min-h-screen bg-gradient-to-br from-orange-50 via-red-50 to-yellow-50 pb-32">
@@ -740,7 +972,7 @@ export default function CriarLoja() {
               <input
                 placeholder="Minha Super Loja"
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={(e) => { nameTouchedRef.current = true; setName(e.target.value) }}
                 className="w-full bg-white border-2 border-orange-200 rounded-xl px-4 py-3 text-gray-900 placeholder:text-gray-400 text-sm focus:outline-none focus:border-orange-500 transition-all"
                 required
               />
@@ -806,7 +1038,7 @@ export default function CriarLoja() {
             <div className="space-y-2">
               <label className="block text-[10px] font-black uppercase tracking-wider text-gray-700 flex items-center gap-2">
                 <MessageCircle className="w-3 h-3 text-green-500" />
-                WhatsApp da Loja *
+                WhatsApp da Loja (opcional)
               </label>
               <div className="relative">
                 <div className="flex items-center bg-white border-2 rounded-xl overflow-hidden focus-within:border-orange-500 transition-all"

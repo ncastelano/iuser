@@ -272,6 +272,7 @@ export default function ProfileNotification({ userId }: { userId: string }) {
     const preview = useMemo(() => (items || []).slice(0, PREVIEW_COUNT), [items])
 
     return (
+        <div data-keep-color>
         <DashboardSection
             storageKey="notificacoes-perfil"
             title="Notificações do perfil"
@@ -350,5 +351,6 @@ export default function ProfileNotification({ userId }: { userId: string }) {
                 </div>
             )}
         </DashboardSection>
+        </div>
     )
 }

@@ -312,3 +312,56 @@ svg,
     .iuser-shimmer { animation: none; }
     .iuser-skeleton-in { animation: none; }
 }
+
+
+/* Tema "Preto e branco" (escuro-cinza; o atributo vem do ThemeColorSync): o LARANJA da interface (botões, degradês, contornos, brilhos e textos
+   laranja) vira cinza; fotos, marcações dos mapas e o que tiver cor de significado (verde/vermelho de aberto/fechado, status) seguem coloridos.
+   Quem deve ficar laranja marca o elemento com `data-keep-color` (brinde de 90 dias, notificações, cartões de pedido); as marcações do Mapbox
+   (.mapboxgl-marker) ficam de fora sozinhas. Não é um filtro: um filtro na raiz também tirava a cor das fotos e do mapa. Os seletores olham o
+   style inline (o servidor entrega "#f97316" e, depois de hidratar, o navegador mostra "rgb(249, 115, 22)": os dois formatos são cobertos). */
+html[data-iuser-theme="escuro-cinza"] {
+    --bw-solid: #71717a;
+    --bw-grad: linear-gradient(135deg, #8d8d96, #4a4a52);
+    --bw-tint: rgba(255, 255, 255, 0.09);
+    --bw-text: #d4d4d8;
+}
+/* degradês laranja(→vermelho) */
+html[data-iuser-theme="escuro-cinza"] :is([style*="gradient"][style*="rgb(249, 115, 22"], [style*="gradient"][style*="rgba(249, 115, 22"], [style*="gradient"][style*="#f97316"], [style*="gradient"][style*="rgb(234, 88, 12"], [style*="gradient"][style*="rgba(234, 88, 12"], [style*="gradient"][style*="#ea580c"]):not([data-keep-color] *):not([data-keep-color]):not(.mapboxgl-marker *):not(.mapboxgl-marker) {
+    background: var(--bw-grad) !important;
+}
+/* fundos laranja: translúcidos primeiro, sólidos depois (o sólido vence) */
+html[data-iuser-theme="escuro-cinza"] :is([style*="background:rgb(249, 115, 22"], [style*="background: rgb(249, 115, 22"], [style*="background-color:rgb(249, 115, 22"], [style*="background-color: rgb(249, 115, 22"], [style*="background:rgba(249, 115, 22"], [style*="background: rgba(249, 115, 22"], [style*="background-color:rgba(249, 115, 22"], [style*="background-color: rgba(249, 115, 22"], [style*="background:#f97316"], [style*="background: #f97316"], [style*="background-color:#f97316"], [style*="background-color: #f97316"], [style*="background:rgb(234, 88, 12"], [style*="background: rgb(234, 88, 12"], [style*="background-color:rgb(234, 88, 12"], [style*="background-color: rgb(234, 88, 12"], [style*="background:rgba(234, 88, 12"], [style*="background: rgba(234, 88, 12"], [style*="background-color:rgba(234, 88, 12"], [style*="background-color: rgba(234, 88, 12"], [style*="background:#ea580c"], [style*="background: #ea580c"], [style*="background-color:#ea580c"], [style*="background-color: #ea580c"]):not([data-keep-color] *):not([data-keep-color]):not(.mapboxgl-marker *):not(.mapboxgl-marker) {
+    background: var(--bw-tint) !important;
+}
+html[data-iuser-theme="escuro-cinza"] :is([style*="background:rgb(249, 115, 22)"], [style*="background:rgb(234, 88, 12)"], [style*="background:#f97316;"], [style*="background:#f97316 "], [style$="background:#f97316"], [style*="background:#ea580c;"], [style*="background:#ea580c "], [style$="background:#ea580c"], [style*="background: rgb(249, 115, 22)"], [style*="background: rgb(234, 88, 12)"], [style*="background: #f97316;"], [style*="background: #f97316 "], [style$="background: #f97316"], [style*="background: #ea580c;"], [style*="background: #ea580c "], [style$="background: #ea580c"], [style*="background-color:rgb(249, 115, 22)"], [style*="background-color:rgb(234, 88, 12)"], [style*="background-color:#f97316;"], [style*="background-color:#f97316 "], [style$="background-color:#f97316"], [style*="background-color:#ea580c;"], [style*="background-color:#ea580c "], [style$="background-color:#ea580c"], [style*="background-color: rgb(249, 115, 22)"], [style*="background-color: rgb(234, 88, 12)"], [style*="background-color: #f97316;"], [style*="background-color: #f97316 "], [style$="background-color: #f97316"], [style*="background-color: #ea580c;"], [style*="background-color: #ea580c "], [style$="background-color: #ea580c"], button[style*="background: rgb(239, 68, 68)"], button[style*="background:#ef4444"]):not([data-keep-color] *):not([data-keep-color]):not(.mapboxgl-marker *):not(.mapboxgl-marker) {
+    background: var(--bw-solid) !important;
+}
+/* contornos, brilhos e textos */
+html[data-iuser-theme="escuro-cinza"] :is([style*="border"][style*="rgb(249, 115, 22"], [style*="border"][style*="rgba(249, 115, 22"], [style*="border"][style*="#f97316"], [style*="border"][style*="rgb(234, 88, 12"], [style*="border"][style*="rgba(234, 88, 12"], [style*="border"][style*="#ea580c"]):not([data-keep-color] *):not([data-keep-color]):not(.mapboxgl-marker *):not(.mapboxgl-marker) {
+    border-color: var(--bw-solid) !important;
+}
+html[data-iuser-theme="escuro-cinza"] :is([style*="box-shadow"][style*="rgb(249, 115, 22"], [style*="box-shadow"][style*="rgba(249, 115, 22"], [style*="box-shadow"][style*="#f97316"], [style*="box-shadow"][style*="rgb(234, 88, 12"], [style*="box-shadow"][style*="rgba(234, 88, 12"], [style*="box-shadow"][style*="#ea580c"]):not([data-keep-color] *):not([data-keep-color]):not(.mapboxgl-marker *):not(.mapboxgl-marker) {
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5) !important;
+}
+html[data-iuser-theme="escuro-cinza"] :is([style^="color:rgb(249, 115, 22"], [style^="color: rgb(249, 115, 22"], [style*=";color:rgb(249, 115, 22"], [style*="; color:rgb(249, 115, 22"], [style*=";color: rgb(249, 115, 22"], [style*="; color: rgb(249, 115, 22"], [style^="color:rgba(249, 115, 22"], [style^="color: rgba(249, 115, 22"], [style*=";color:rgba(249, 115, 22"], [style*="; color:rgba(249, 115, 22"], [style*=";color: rgba(249, 115, 22"], [style*="; color: rgba(249, 115, 22"], [style^="color:#f97316"], [style^="color: #f97316"], [style*=";color:#f97316"], [style*="; color:#f97316"], [style*=";color: #f97316"], [style*="; color: #f97316"], [style^="color:rgb(234, 88, 12"], [style^="color: rgb(234, 88, 12"], [style*=";color:rgb(234, 88, 12"], [style*="; color:rgb(234, 88, 12"], [style*=";color: rgb(234, 88, 12"], [style*="; color: rgb(234, 88, 12"], [style^="color:rgba(234, 88, 12"], [style^="color: rgba(234, 88, 12"], [style*=";color:rgba(234, 88, 12"], [style*="; color:rgba(234, 88, 12"], [style*=";color: rgba(234, 88, 12"], [style*="; color: rgba(234, 88, 12"], [style^="color:#ea580c"], [style^="color: #ea580c"], [style*=";color:#ea580c"], [style*="; color:#ea580c"], [style*=";color: #ea580c"], [style*="; color: #ea580c"]):not([data-keep-color] *):not([data-keep-color]):not(.mapboxgl-marker *):not(.mapboxgl-marker) {
+    color: var(--bw-text) !important;
+}
+/* classes do Tailwind (laranja) */
+html[data-iuser-theme="escuro-cinza"] :is([class*="bg-orange-50"], [class*="bg-orange-100"], [class*="bg-orange-200"]):not([data-keep-color] *):not([data-keep-color]):not(.mapboxgl-marker *) {
+    background-color: var(--bw-tint) !important;
+}
+html[data-iuser-theme="escuro-cinza"] :is([class*="bg-orange-400"], [class*="bg-orange-500"], [class*="bg-orange-600"], [class*="bg-orange-700"]):not([data-keep-color] *):not([data-keep-color]):not(.mapboxgl-marker *) {
+    background-color: var(--bw-solid) !important;
+}
+html[data-iuser-theme="escuro-cinza"] [class*="from-orange-"]:not([data-keep-color] *):not([data-keep-color]):not(.mapboxgl-marker *) {
+    --tw-gradient-from: #8d8d96 !important;
+    --tw-gradient-to: #4a4a52 !important;
+    --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+html[data-iuser-theme="escuro-cinza"] :is([class*="border-orange-"], [class*="ring-orange-"]):not([data-keep-color] *):not([data-keep-color]):not(.mapboxgl-marker *) {
+    border-color: var(--bw-solid) !important;
+    --tw-ring-color: var(--bw-solid) !important;
+}
+html[data-iuser-theme="escuro-cinza"] [class*="text-orange-"]:not([data-keep-color] *):not([data-keep-color]):not(.mapboxgl-marker *) {
+    color: var(--bw-text) !important;
+}

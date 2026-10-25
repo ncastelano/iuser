@@ -28,6 +28,11 @@ const PATHS: Record<VehicleKind, string> = {
     `,
 }
 
+// Só o traço do veículo (sem o círculo), pra usar de ícone dentro de outros marcadores.
+export function vehicleGlyphSvg(kind: VehicleKind, color: string, size = 26): string {
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${PATHS[kind]}</svg>`
+}
+
 // Marcador redondo colorido com o ícone do veículo dentro, mais um rótulo
 // opcional acima (ex: "Você") — igual ao padrão dos outros marcadores do mapa.
 export function vehicleMarkerHtml(kind: VehicleKind, color: string, label?: string): string {

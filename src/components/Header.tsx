@@ -37,6 +37,8 @@ interface HeaderProps {
     profileSlug?: string | null
     onHomeClick?: () => void
     locationElement?: React.ReactNode
+    /** v3: título, abas e busca ficam presos no topo enquanto a lista rola */
+    pinned?: boolean
 }
 
 export default function Header({
@@ -57,6 +59,7 @@ export default function Header({
     profileSlug,
     onHomeClick,
     locationElement,
+    pinned = false,
 }: HeaderProps) {
     const router = useRouter()
     const pathname = usePathname()
@@ -245,28 +248,42 @@ export default function Header({
         return tab.isActive ? '#f97316' : '#ffffff'
     }
 
-    // Dentro da casca da 3.0 a navbar e o menu já existem: aqui sobram só o voltar/título, as abas e a busca da página
+    // Dentro da casca da 3.0 a navbar e o menu já existem: aqui sobram só o voltar/título, as abas e a busca da página.
+    // A linha do voltar + título fica SEMPRE fixa logo abaixo da navbar (não anda com a rolagem); com `pinned`, o bloco inteiro (abas e busca) fica.
     if (insideShell) {
-        return (
-            <div className="relative z-10 flex flex-col gap-2.5 pb-3" style={{ color: colors.textPrimary }}>
-                {(showBack || (title && title !== 'iUser') || locationElement) && (
-                    <div className="flex items-center gap-2">
-                        {showBack && (
-                            <button
-                                onClick={handleBack}
-                                aria-label="Voltar"
-                                className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 transition active:scale-95"
-                                style={{ background: `${colors.border}50` }}
-                            >
-                                <ArrowLeft size={18} color={colors.textPrimary} />
-                            </button>
-                        )}
-                        {title && title !== 'iUser' && (
-                            <span className="text-lg font-black truncate" style={{ color: colors.textPrimary }}>{title}</span>
-                        )}
-                        {locationElement && <div className="ml-auto flex-shrink-0">{locationElement}</div>}
-                    </div>
+        const hasTitleRow = showBack || (title && title !== 'iUser') || locationElement
+        const stickStyle = { background: colors.background, top: 'var(--shell-top, 0px)' }
+        const titleRow = hasTitleRow ? (
+            <div
+                // Parado onde nasce (não sobe com a rolagem): sobe 1rem para dentro do respiro do cartão (-mt-4) e o devolve em padding (pt-5), então
+                // o botão fica na mesma altura de sempre e o fundo da faixa cobre o respiro acima dele e as laterais (-mx-4 px-4: a largura toda do cartão, que recorta os cantos).
+                className={`flex items-center gap-2 ${pinned ? '' : 'sticky z-30 pt-5 pb-2.5 -mt-4 -mx-4 px-4'}`}
+                style={{ color: colors.textPrimary, ...(pinned ? {} : stickStyle) }}
+            >
+                {showBack && (
+                    <button
+                        onClick={handleBack}
+                        aria-label="Voltar"
+                        className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 transition active:scale-95"
+                        style={{ background: `${colors.border}50` }}
+                    >
+                        <ArrowLeft size={18} color={colors.textPrimary} />
+                    </button>
                 )}
+                {title && title !== 'iUser' && (
+                    <span className="text-lg font-black truncate" style={{ color: colors.textPrimary }}>{title}</span>
+                )}
+                {locationElement && <div className="ml-auto flex-shrink-0">{locationElement}</div>}
+            </div>
+        ) : null
+        return (
+            <>
+                {!pinned && titleRow}
+                <div
+                    className={`flex flex-col gap-2.5 pb-3 ${pinned ? 'sticky z-30 pt-1' : 'relative z-10'}`}
+                    style={{ color: colors.textPrimary, ...(pinned ? stickStyle : {}) }}
+                >
+                {pinned && titleRow}
 
                 {enhancedTabs.length > 0 && <PageTabs tabs={enhancedTabs} />}
 
@@ -298,7 +315,8 @@ export default function Header({
                         )}
                     </div>
                 )}
-            </div>
+                </div>
+            </>
         )
     }
 

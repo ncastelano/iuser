@@ -11,5 +11,7 @@ export async function GET() {
     const jar = await cookies()
     const user = await identifyUser(jar.getAll())
     const access = await getV3Access(user)
-    return NextResponse.json(access)
+    // Sem usuário validado aqui pode ser só uma falha passageira (a tela já sabe que a pessoa está logada): `unknown` avisa para não
+    // tratar como "acesso revogado" (isso apagaria o cookie da 3.0).
+    return NextResponse.json(user ? access : { ...access, unknown: true })
 }

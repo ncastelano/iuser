@@ -1,6 +1,7 @@
 // app/(main)/comunidade/[communitySlug]/CommunityRoomClient.tsx
 'use client'
 
+import { useInsideShell } from '@/components/InsideShell'
 import LinkPreviewCard from '@/components/communities/LinkPreviewCard'
 import { extractFirstUrl, linkify } from '@/lib/linkify'
 import { profileLabel } from '@/lib/profileDisplay'
@@ -32,10 +33,24 @@ import {
     X,
 } from 'lucide-react'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
+import ShareCardView from '@/components/chat/ShareCardView'
+import ShareSheet from '@/components/chat/ShareSheet'
+import ChatLinkPreviews from '@/components/chat/ChatLinkPreviews'
+import { firstDisallowedLink, isAllowedChatLink, urlsIn, withoutPreviewedUrls, withoutUrls } from '@/lib/chatLinks'
+import { SHARE_DEFAULT_TEXT, cardKeyOf, fetchShareCards, isDefaultShareText, refColumns, type ShareCard } from '@/lib/shareCards'
 import CommunityPhotoCampaign from '@/components/communities/CommunityPhotoCampaign'
 import { fetchCommunitiesActivity, type CommunityActivity } from '@/lib/communityActivity'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
+const MESSAGE_SELECT = 'id, content, created_at, edited_at, profile_id, ref_product_id, ref_store_id, ref_profile_id, reply_to_id, profiles!profile_id(name, avatar_url, "profileSlug")'
+// Conversa ao vivo: quem está na sala avisa as mensagens na hora (broadcast) e, por garantia, a sala confere as novas a cada
+// POLL_MS e refaz a lista inteira a cada RESYNC_MS (pega edições e exclusões).
+const POLL_MS = 1500
+const RESYNC_MS = 20000
+const TYPING_IDLE_MS = 3000
+const normalizeMessage = (m: any): CommunityMessage => ({ ...m, profiles: Array.isArray(m.profiles) ? m.profiles[0] : m.profiles })
+
+interface Typer { key: string; name: string; avatar: string | null }
 
 interface Community {
     id: string
@@ -55,6 +70,10 @@ interface CommunityMessage {
     created_at: string
     edited_at?: string | null
     profile_id: string
+    ref_product_id?: string | null
+    ref_store_id?: string | null
+    ref_profile_id?: string | null
+    reply_to_id?: string | null
     profiles?: {
         name: string | null
         avatar_url: string | null
@@ -68,6 +87,8 @@ export default function CommunityRoomClient() {
     const { colors } = useTheme()
     const { userId: currentUserId, avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
     const bottomRef = useRef<HTMLDivElement>(null)
+    // v3: a sala ocupa a área abaixo da navbar e não rola; voltar, nome, cidade e info ficam parados e só as mensagens rolam
+    const v3 = useInsideShell()
 
     const communitySlug = Array.isArray(params.communitySlug) ? params.communitySlug[0] : params.communitySlug
 
@@ -91,10 +112,31 @@ export default function CommunityRoomClient() {
     const [editingId, setEditingId] = useState<string | null>(null)
     const [editText, setEditText] = useState('')
     const [savingEdit, setSavingEdit] = useState(false)
+    // Loja, serviço, produto, publicação e perfil compartilhados na conversa viram cartões
+    const [shareCards, setShareCards] = useState<Record<string, ShareCard>>({})
+    const [shareOpen, setShareOpen] = useState(false)
+    const [pending, setPending] = useState<ShareCard | null>(null)
+    // Responder a outra mensagem da comunidade (a citação aparece em cima da resposta)
+    const [replyTo, setReplyTo] = useState<CommunityMessage | null>(null)
+    const [flashId, setFlashId] = useState<string | null>(null)
+    // Ao vivo: quem está escrevendo agora, o canal da sala e a rolagem (a conversa só desce sozinha se a pessoa já está no fim)
+    const [typers, setTypers] = useState<Typer[]>([])
+    const channelRef = useRef<any>(null)
+    const channelReadyRef = useRef(false)
+    const typingRef = useRef(false)
+    const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const messagesRef = useRef<CommunityMessage[]>([])
+    const scrollRef = useRef<HTMLDivElement>(null)
+    const contentRef = useRef<HTMLDivElement>(null)
+    const atBottomRef = useRef(true)
+    const [newBelow, setNewBelow] = useState(false)
 
+    // Só a PRIMEIRA carga mostra o "carregando" (que desmonta a conversa): quando a conta termina de carregar, `currentUserId` muda e a sala é
+    // recarregada por baixo — sem desmontar a lista, senão a conversa voltava para o começo sozinha depois de alguns segundos.
+    const firstLoadRef = useRef(true)
     const loadRoom = useCallback(async () => {
         if (!communitySlug) return
-        setLoading(true)
+        if (firstLoadRef.current) setLoading(true)
         setError(null)
         try {
             const { data: communityData, error: communityErr } = await supabase
@@ -127,22 +169,23 @@ export default function CommunityRoomClient() {
 
             const { data: messagesData, error: messagesErr } = await supabase
                 .from('community_messages')
-                .select('id, content, created_at, edited_at, profile_id, profiles(name, avatar_url, "profileSlug")')
+                .select(MESSAGE_SELECT)
                 .eq('community_id', communityData.id)
                 .order('created_at', { ascending: true })
 
             if (messagesErr) throw messagesErr
 
-            setMessages(
-                (messagesData || []).map((m: any) => ({
-                    ...m,
-                    profiles: Array.isArray(m.profiles) ? m.profiles[0] : m.profiles,
-                }))
-            )
+            const loaded = (messagesData || []).map((m: any) => ({
+                ...m,
+                profiles: Array.isArray(m.profiles) ? m.profiles[0] : m.profiles,
+            }))
+            setMessages(loaded)
+            fetchShareCards(loaded).then((c) => setShareCards((prev) => ({ ...prev, ...c })))
         } catch (err: any) {
             console.error('[CommunityRoom] Erro ao carregar sala:', err)
             setError(err.message || 'Comunidade não encontrada')
         } finally {
+            firstLoadRef.current = false
             setLoading(false)
         }
     }, [communitySlug, currentUserId])
@@ -159,9 +202,172 @@ export default function CommunityRoomClient() {
         return () => { cancelled = true }
     }, [community?.id, community?.kind, showCampaign])
 
+    useEffect(() => { messagesRef.current = messages }, [messages])
+
+    // Na 2.0 a sala não tem altura fixa: quem rola é a PÁGINA, não a lista (só na 3.0 a lista é a própria área de rolagem)
+    const pageScrolls = () => {
+        const el = scrollRef.current
+        return !!el && el.scrollHeight - el.clientHeight < 4
+    }
+    const scrollToBottom = useCallback((smooth = true) => {
+        const el = scrollRef.current
+        if (!el) return
+        if (el.scrollHeight - el.clientHeight < 4) window.scrollTo({ top: document.documentElement.scrollHeight, behavior: smooth ? 'smooth' : 'auto' })
+        else el.scrollTo({ top: el.scrollHeight, behavior: smooth ? 'smooth' : 'auto' })
+        atBottomRef.current = true
+        setNewBelow(false)
+    }, [])
+    const onScrollList = () => {
+        const el = scrollRef.current
+        if (!el) return
+        if (openedRef.current && el.scrollHeight - el.scrollTop - el.clientHeight > 200) userScrolledRef.current = true
+        atBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80
+        if (atBottomRef.current) setNewBelow(false)
+    }
+
+    // 2.0: a página rola (não a lista) — acompanha se a pessoa está no fim da página
     useEffect(() => {
-        bottomRef.current?.scrollIntoView({ block: 'end' })
-    }, [messages.length])
+        const onWin = () => {
+            if (!pageScrolls()) return
+            const dist = document.documentElement.scrollHeight - window.scrollY - window.innerHeight
+            if (openedRef.current && dist > 200) userScrolledRef.current = true
+            atBottomRef.current = dist < 120
+            if (atBottomRef.current) setNewBelow(false)
+        }
+        window.addEventListener('scroll', onWin, { passive: true })
+        return () => window.removeEventListener('scroll', onWin)
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
+
+    // Fotos e cartões carregam depois das mensagens e esticam a conversa: quem está no fim continua no fim
+    useEffect(() => {
+        const content = contentRef.current
+        if (!content || typeof ResizeObserver === 'undefined') return
+        const ro = new ResizeObserver(() => {
+            const el = scrollRef.current
+            if (!el || !atBottomRef.current) return
+            if (pageScrolls()) window.scrollTo(0, document.documentElement.scrollHeight)
+            else el.scrollTop = el.scrollHeight
+        })
+        ro.observe(content)
+        return () => ro.disconnect()
+    }, [loading])
+
+    // Chegou mensagem (ou alguém começou a escrever): se a pessoa está no fim, a conversa desce junto; senão avisa "novas mensagens"
+    const lastCountRef = useRef(0)
+    useEffect(() => {
+        const before = lastCountRef.current
+        const grew = messages.length > before
+        const lastMine = messages[messages.length - 1]?.profile_id === currentUserId
+        lastCountRef.current = messages.length
+        if (messages.length === 0) return
+        // primeira carga: vai direto ao fim; depois, desce suave
+        if (atBottomRef.current || lastMine) scrollToBottom(before > 0 && grew)
+        else if (grew) setNewBelow(true)
+    }, [messages, currentUserId, scrollToBottom])
+    useEffect(() => { if (typers.length > 0 && atBottomRef.current) scrollToBottom() }, [typers.length, scrollToBottom])
+
+    // Ao ENTRAR na conversa: abre na última mensagem. As mensagens chegam antes de a lista existir na tela (ela só aparece quando `loading`
+    // acaba), então o efeito acima não achava a lista para rolar e a sala abria no começo; aqui rola assim que a lista aparece e de novo quando
+    // as fotos e cartões esticam a conversa (a pessoa ainda não mexeu no scroll).
+    const openedRef = useRef(false)
+    const userScrolledRef = useRef(false)
+    useEffect(() => {
+        if (loading || openedRef.current || messages.length === 0) return
+        openedRef.current = true
+        atBottomRef.current = true
+        const go = () => { if (!userScrolledRef.current) scrollToBottom(false) }
+        go()
+        const timers = [60, 250, 800, 1800].map((ms) => setTimeout(go, ms))
+        return () => timers.forEach(clearTimeout)
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [loading, messages.length, scrollToBottom])
+
+    // ----- ao vivo: mensagens novas, edições/exclusões e "escrevendo..." -----
+    const readable = !!community && (!community.requires_password || isMember)
+    const fetchNewMessages = useCallback(async () => {
+        const cid = community?.id
+        if (!cid || document.hidden) return
+        const last = messagesRef.current[messagesRef.current.length - 1]?.created_at
+        let q = supabase.from('community_messages').select(MESSAGE_SELECT).eq('community_id', cid).order('created_at', { ascending: true })
+        if (last) q = q.gt('created_at', last)
+        const { data } = await q
+        if (!data || data.length === 0) return
+        const fresh = data.map(normalizeMessage)
+        setMessages((prev) => {
+            const ids = new Set(prev.map((m) => m.id))
+            const add = fresh.filter((m) => !ids.has(m.id))
+            return add.length ? [...prev, ...add] : prev
+        })
+        fetchShareCards(fresh).then((c) => setShareCards((prev) => ({ ...prev, ...c })))
+    }, [community?.id])
+
+    const resyncMessages = useCallback(async () => {
+        const cid = community?.id
+        if (!cid || document.hidden) return
+        const { data } = await supabase.from('community_messages').select(MESSAGE_SELECT).eq('community_id', cid).order('created_at', { ascending: true })
+        if (!data) return
+        const all = data.map(normalizeMessage)
+        // só troca a lista se algo mudou (texto, edição, exclusão ou mensagem nova), para não mexer na tela à toa
+        const sig = (l: CommunityMessage[]) => l.map((m) => `${m.id}:${m.edited_at || ''}:${m.content.length}`).join('|')
+        setMessages((prev) => (sig(prev) === sig(all) ? prev : all))
+        fetchShareCards(all).then((c) => setShareCards((prev) => ({ ...prev, ...c })))
+    }, [community?.id])
+
+    useEffect(() => {
+        if (!readable) return
+        const a = setInterval(fetchNewMessages, POLL_MS)
+        const b = setInterval(resyncMessages, RESYNC_MS)
+        const onVisible = () => { if (!document.hidden) fetchNewMessages() }
+        document.addEventListener('visibilitychange', onVisible)
+        return () => { clearInterval(a); clearInterval(b); document.removeEventListener('visibilitychange', onVisible) }
+    }, [readable, fetchNewMessages, resyncMessages])
+
+    const myName = profileSlug ? `@${profileSlug}` : 'Alguém'
+    useEffect(() => {
+        const cid = community?.id
+        if (!cid || !readable) return
+        const presenceKey = currentUserId || `visitante-${Math.random().toString(36).slice(2)}`
+        const channel = supabase.channel(`community-room:${cid}`, { config: { presence: { key: presenceKey }, broadcast: { self: false } } })
+        channelRef.current = channel
+        channelReadyRef.current = false
+        channel
+            .on('presence', { event: 'sync' }, () => {
+                const state = channel.presenceState() as Record<string, { typing?: boolean; name?: string; avatar?: string | null }[]>
+                setTypers(
+                    Object.entries(state)
+                        .filter(([key]) => key !== presenceKey)
+                        .map(([key, metas]) => ({ key, meta: metas[metas.length - 1] }))
+                        .filter((x) => x.meta?.typing)
+                        .map((x) => ({ key: x.key, name: x.meta?.name || 'Alguém', avatar: x.meta?.avatar || null })),
+                )
+            })
+            .on('broadcast', { event: 'msg' }, () => { fetchNewMessages() })
+            .on('broadcast', { event: 'sync' }, () => { resyncMessages() })
+            .subscribe((status: string) => {
+                if (status !== 'SUBSCRIBED') return
+                channelReadyRef.current = true
+                if (currentUserId && isMember) channel.track({ typing: false, name: myName, avatar: avatarUrl || null })
+            })
+        return () => {
+            channelReadyRef.current = false
+            channelRef.current = null
+            if (typingTimerRef.current) clearTimeout(typingTimerRef.current)
+            typingRef.current = false
+            setTypers([])
+            supabase.removeChannel(channel)
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [community?.id, readable, currentUserId, isMember])
+
+    const setTyping = useCallback((on: boolean) => {
+        if (typingTimerRef.current) { clearTimeout(typingTimerRef.current); typingTimerRef.current = null }
+        if (on) typingTimerRef.current = setTimeout(() => setTyping(false), TYPING_IDLE_MS)
+        if (typingRef.current === on) return
+        typingRef.current = on
+        if (channelReadyRef.current && currentUserId && isMember) channelRef.current?.track({ typing: on, name: myName, avatar: avatarUrl || null })
+    }, [currentUserId, isMember, myName, avatarUrl])
+    const tellRoom = (event: 'msg' | 'sync') => { if (channelReadyRef.current) channelRef.current?.send({ type: 'broadcast', event, payload: {} }) }
 
     const handleJoin = async () => {
         if (!currentUserId) {
@@ -214,6 +420,7 @@ export default function CommunityRoomClient() {
         const id = editingId
         const text = editText.trim()
         if (!id || !text) return
+        if (firstDisallowedLink(text)) { toast.error('Só dá para enviar link de imagem ou link do iUser.'); return }
         setSavingEdit(true)
         const { data, error } = await supabase
             .from('community_messages')
@@ -224,6 +431,7 @@ export default function CommunityRoomClient() {
         setSavingEdit(false)
         if (error) { toast.error('Não foi possível editar: ' + error.message); return }
         setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, content: data.content, edited_at: data.edited_at } : m)))
+        tellRoom('sync')
         setEditingId(null)
         toast.success('Mensagem editada')
     }
@@ -233,6 +441,7 @@ export default function CommunityRoomClient() {
         const { error } = await supabase.from('community_messages').delete().eq('id', messageId)
         if (error) { toast.error('Não foi possível excluir: ' + error.message); return }
         setMessages((prev) => prev.filter((m) => m.id !== messageId))
+        tellRoom('sync')
         toast.success('Mensagem excluída')
     }
 
@@ -245,7 +454,8 @@ export default function CommunityRoomClient() {
             toast.error('Entre na comunidade primeiro')
             return
         }
-        if (!messageInput.trim() || !community) return
+        if ((!messageInput.trim() && !pending) || !community) return
+        if (firstDisallowedLink(messageInput)) { toast.error('Só dá para enviar link de imagem ou link do iUser.'); return }
 
         setSending(true)
         try {
@@ -254,17 +464,21 @@ export default function CommunityRoomClient() {
                 .insert({
                     community_id: community.id,
                     profile_id: currentUserId,
-                    content: messageInput.trim(),
+                    content: messageInput.trim() || (pending ? SHARE_DEFAULT_TEXT[pending.kind] : ''),
+                    ...(pending ? refColumns(pending) : {}),
+                    ...(replyTo ? { reply_to_id: replyTo.id } : {}),
                 })
-                .select('id, content, created_at, edited_at, profile_id, profiles(name, avatar_url, "profileSlug")')
+                .select(MESSAGE_SELECT)
                 .single()
 
             if (error) throw error
 
-            setMessages((prev) => [
-                ...prev,
-                { ...data, profiles: Array.isArray(data.profiles) ? data.profiles[0] : data.profiles } as CommunityMessage,
-            ])
+            setMessages((prev) => (prev.some((m) => m.id === data.id) ? prev : [...prev, normalizeMessage(data)]))
+            setTyping(false)
+            tellRoom('msg')
+            if (pending) setShareCards((prev) => ({ ...prev, [`${pending.kind === 'store' ? 'store' : pending.kind === 'profile' ? 'profile' : 'product'}:${pending.id}`]: pending }))
+            setPending(null)
+            setReplyTo(null)
             setMessageInput('')
         } catch (err: any) {
             toast.error('Erro ao enviar mensagem: ' + (err.message || 'tente novamente'))
@@ -306,12 +520,16 @@ export default function CommunityRoomClient() {
     }
 
     return (
-        <div className="relative min-h-dvh flex flex-col" style={{ background: colors.background }}>
-            <div className="fixed inset-0 z-0">
-                <AnimatedBackgroundiUser bgMode={bgMode} customBgUrl={customBgUrl} />
-            </div>
+        <div className={v3 ? 'fixed inset-x-0 bottom-[var(--staging-banner-h,0px)] top-[var(--shell-top,0px)] rounded-t-[28px] overflow-hidden flex flex-col' : 'relative min-h-dvh flex flex-col'} style={{ background: colors.background }}>
+            {!v3 && (
+                <div className="fixed inset-0 z-0">
+                    <AnimatedBackgroundiUser bgMode={bgMode} customBgUrl={customBgUrl} />
+                </div>
+            )}
 
-            <div className="relative z-10 flex flex-col min-h-dvh">
+            <div className={v3 ? 'relative z-10 flex flex-col h-full min-h-0 w-full max-w-3xl mx-auto' : 'relative z-10 flex flex-col min-h-dvh'}>
+                <div className={v3 ? 'flex-shrink-0 max-h-[55%] overflow-y-auto pt-4 px-0' : ''}>
+                <div className={v3 ? 'px-4' : ''}>
                 <Header
                     title={community.name}
                     showBack={true}
@@ -320,6 +538,7 @@ export default function CommunityRoomClient() {
                     avatarUrl={avatarUrl}
                     loading={profileLoading}
                 />
+                </div>
 
                 {/* Info da comunidade */}
                 <div className="px-4 md:px-6 mt-2">
@@ -461,8 +680,12 @@ export default function CommunityRoomClient() {
                     )}
                 </div>
 
+                </div>
+
                 {/* Mensagens */}
-                <div className="flex-1 overflow-y-auto px-4 md:px-6 py-4 space-y-3">
+                <div className="relative flex-1 min-h-0 flex flex-col">
+                <div ref={scrollRef} onScroll={onScrollList} className="flex-1 min-h-0 overflow-y-auto px-4 md:px-6 py-4">
+                <div ref={contentRef} className="space-y-3">
                     {messages.length === 0 ? (
                         <div className="flex flex-col items-center justify-center gap-2 py-16 opacity-60">
                             <MessageCircle size={32} style={{ color: colors.textSecondary }} />
@@ -475,7 +698,7 @@ export default function CommunityRoomClient() {
                             const isMine = message.profile_id === currentUserId
                             const senderAvatar = message.profiles?.avatar_url ? getAvatarUrl(supabase, message.profiles.avatar_url) : null
                             return (
-                                <div key={message.id} className={`flex gap-2 ${isMine ? 'flex-row-reverse' : ''}`}>
+                                <div key={message.id} id={`msg-${message.id}`} className={`flex gap-2 rounded-2xl transition-colors duration-700 ${isMine ? 'flex-row-reverse' : ''}`} style={flashId === message.id ? { background: `${colors.accent}22` } : undefined}>
                                     <PlanAvatarRing userId={message.profile_id}>
                                     <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0" style={{ background: `${colors.border}60` }}>
                                         {senderAvatar ? (
@@ -584,25 +807,53 @@ export default function CommunityRoomClient() {
                                             </div>
                                         ) : (
                                             <div className={`flex flex-col gap-1.5 mt-1 ${isMine ? 'items-end' : 'items-start'}`}>
+                                                {(() => {
+                                                    const quoted = message.reply_to_id ? messages.find((x) => x.id === message.reply_to_id) : null
+                                                    if (!quoted) return null
+                                                    const quotedCardKey = cardKeyOf(quoted)
+                                                    const snippet = withoutUrls(quoted.content) || (urlsIn(quoted.content).some((u) => isAllowedChatLink(u)) ? 'Imagem ou link' : quoted.content)
+                                                    return (
+                                                        <button
+                                                            onClick={() => { const el = document.getElementById(`msg-${quoted.id}`); el?.scrollIntoView({ block: 'center', behavior: 'smooth' }); setFlashId(quoted.id); setTimeout(() => setFlashId(null), 1800) }}
+                                                            className="w-full max-w-[320px] text-left rounded-xl px-3 py-1.5 border-l-4"
+                                                            style={{ background: `${colors.border}30`, borderColor: colors.accent, color: colors.textPrimary }}
+                                                        >
+                                                            <span className="block text-[11px] font-black" style={{ color: colors.accent }}>{profileLabel(quoted.profiles)}</span>
+                                                            <span className="block text-xs line-clamp-2" style={{ color: colors.textSecondary }}>{quotedCardKey && isDefaultShareText(quoted.content) ? quoted.content : snippet}</span>
+                                                        </button>
+                                                    )
+                                                })()}
+                                                {(() => {
+                                                    const key = cardKeyOf(message)
+                                                    const card = key ? shareCards[key] : null
+                                                    return card ? (
+                                                        <div className="w-full max-w-[320px] rounded-2xl overflow-hidden pt-2 pl-0 pr-0 pb-0" style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}>
+                                                            <ShareCardView card={card} colors={colors} />
+                                                        </div>
+                                                    ) : null
+                                                })()}
                                                 <div
                                                     className="rounded-2xl px-3 py-2 text-sm break-words whitespace-pre-wrap max-w-full"
+                                                    hidden={(() => {
+                                                        const k = cardKeyOf(message)
+                                                        if (k && shareCards[k] && isDefaultShareText(message.content)) return true
+                                                        return urlsIn(message.content).length > 0 && withoutPreviewedUrls(message.content) === ''
+                                                    })()}
                                                     style={
                                                         isMine
                                                             ? { background: GRADIENT, color: '#fff' }
                                                             : { background: colors.surface, color: colors.textPrimary, border: `1px solid ${colors.border}` }
                                                     }
                                                 >
-                                                    {linkify(message.content, { color: isMine ? '#fff' : colors.accent })}
+                                                    {linkify(withoutPreviewedUrls(message.content) || message.content, { color: isMine ? '#fff' : colors.accent })}
                                                     {message.edited_at && (
                                                         <span className="ml-1.5 text-[10px] opacity-70">(editada)</span>
                                                     )}
                                                 </div>
-                                                {(() => {
-                                                    const url = extractFirstUrl(message.content)
-                                                    return url ? (
-                                                        <div className="w-full max-w-[320px]"><LinkPreviewCard url={url} /></div>
-                                                    ) : null
-                                                })()}
+                                                <ChatLinkPreviews content={message.content} colors={colors} />
+                                                {!!currentUserId && isMember && (
+                                                    <button onClick={() => setReplyTo(message)} className="text-[11px] font-bold px-1 hover:underline" style={{ color: colors.accent }}>Responder</button>
+                                                )}
                                             </div>
                                         )}
                                     </div>
@@ -610,11 +861,40 @@ export default function CommunityRoomClient() {
                             )
                         })
                     )}
+                    {typers.length > 0 && (
+                        <div className="flex items-center gap-2" aria-live="polite">
+                            <span className="flex -space-x-2 flex-shrink-0">
+                                {typers.slice(0, 3).map((t) => (
+                                    <span key={t.key} className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center text-xs font-bold" style={{ background: `${colors.border}80`, color: colors.textSecondary, border: `2px solid ${colors.background}` }}>
+                                        {t.avatar ? <img src={t.avatar} alt="" className="w-full h-full object-cover" /> : t.name.replace('@', '').charAt(0).toUpperCase()}
+                                    </span>
+                                ))}
+                            </span>
+                            <span className="rounded-2xl px-3 py-2.5 flex items-center gap-1" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
+                                <span className="typing-dot" /><span className="typing-dot" style={{ animationDelay: '.18s' }} /><span className="typing-dot" style={{ animationDelay: '.36s' }} />
+                            </span>
+                            <span className="text-[11px] font-bold truncate" style={{ color: colors.textSecondary }}>
+                                {typers.length === 1 ? `${typers[0].name} está escrevendo...` : typers.length === 2 ? `${typers[0].name} e ${typers[1].name} estão escrevendo...` : `${typers.length} pessoas estão escrevendo...`}
+                            </span>
+                        </div>
+                    )}
                     <div ref={bottomRef} />
+                </div>
+                </div>
+                {newBelow && (
+                    <button onClick={() => scrollToBottom()} className="absolute left-1/2 -translate-x-1/2 bottom-2 h-9 px-4 rounded-full text-xs font-black text-white shadow-lg transition active:scale-95" style={{ background: '#f97316' }}>
+                        Novas mensagens ↓
+                    </button>
+                )}
+                <style>{`
+                    .typing-dot { width: 6px; height: 6px; border-radius: 9999px; background: ${colors.textSecondary}; display: inline-block; animation: typingDot 1s infinite ease-in-out; }
+                    @keyframes typingDot { 0%, 60%, 100% { transform: translateY(0); opacity: .45; } 30% { transform: translateY(-4px); opacity: 1; } }
+                    @media (prefers-reduced-motion: reduce) { .typing-dot { animation: none; } }
+                `}</style>
                 </div>
 
                 {/* Composer */}
-                <div className="px-4 md:px-6 pb-24 pt-2 sticky bottom-0" style={{ background: `${colors.background}dd`, backdropFilter: 'blur(8px)' }}>
+                <div className={v3 ? 'px-4 pb-3 pt-2 flex-shrink-0' : 'px-4 md:px-6 pb-24 pt-2 sticky bottom-0'} style={{ background: `${colors.background}dd`, backdropFilter: 'blur(8px)' }}>
                     {!currentUserId ? (
                         /* Visitante lê a conversa à vontade; na hora de escrever é que pede o login (e volta pra cá) */
                         <div className="flex gap-2">
@@ -642,14 +922,35 @@ export default function CommunityRoomClient() {
                     ) : (
                         <div className="flex flex-col gap-2">
                             {/* Colou um link: o cartão aparece antes de enviar, como no WhatsApp */}
-                            {extractFirstUrl(messageInput) && (
-                                <div className="max-w-[360px]"><LinkPreviewCard url={extractFirstUrl(messageInput)!} compact /></div>
+                            {replyTo && (
+                                <div className="flex items-start gap-2 rounded-xl px-3 py-2 border-l-4" style={{ background: `${colors.border}30`, borderColor: colors.accent }}>
+                                    <div className="min-w-0 flex-1">
+                                        <p className="text-[11px] font-black" style={{ color: colors.accent }}>Respondendo a {profileLabel(replyTo.profiles)}</p>
+                                        <p className="text-xs line-clamp-1" style={{ color: colors.textSecondary }}>{withoutUrls(replyTo.content) || 'Imagem ou link'}</p>
+                                    </div>
+                                    <button onClick={() => setReplyTo(null)} aria-label="Cancelar resposta" className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: `${colors.border}50`, color: colors.textPrimary }}>×</button>
+                                </div>
+                            )}
+                            {urlsIn(messageInput).length > 0 && (
+                                firstDisallowedLink(messageInput)
+                                    ? <p className="text-[11px] font-bold" style={{ color: '#ef4444' }}>Só dá para enviar link de imagem ou link do iUser.</p>
+                                    : <ChatLinkPreviews content={messageInput} colors={colors} compact />
+                            )}
+                            {pending && (
+                                <div className="flex items-start gap-2">
+                                    <div className="flex-1 min-w-0 max-w-[360px] rounded-xl overflow-hidden" style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}>
+                                        <ShareCardView card={{ ...pending, href: '#' }} colors={colors} compact />
+                                    </div>
+                                    <button onClick={() => setPending(null)} aria-label="Tirar o item" className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: `${colors.border}50`, color: colors.textPrimary }}>×</button>
+                                </div>
                             )}
                         <div className="flex gap-2">
+                            <button onClick={() => setShareOpen(true)} aria-label="Compartilhar loja, serviço, publicação ou perfil" className="w-11 rounded-xl flex items-center justify-center text-lg font-black transition active:scale-95" style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: '#f97316' }}>+</button>
                             <input
                                 type="text"
                                 value={messageInput}
-                                onChange={(e) => setMessageInput(e.target.value)}
+                                onChange={(e) => { setMessageInput(e.target.value); setTyping(e.target.value.trim().length > 0) }}
+                                onBlur={() => setTyping(false)}
                                 onKeyDown={(e) => {
                                     if (e.key === 'Enter' && !e.shiftKey) {
                                         e.preventDefault()
@@ -663,7 +964,7 @@ export default function CommunityRoomClient() {
                             />
                             <button
                                 onClick={handleSend}
-                                disabled={!messageInput.trim() || sending}
+                                disabled={(!messageInput.trim() && !pending) || sending || !!firstDisallowedLink(messageInput)}
                                 className="px-4 py-2.5 rounded-xl transition-all hover:scale-105 disabled:opacity-50 flex items-center justify-center"
                                 style={{ background: GRADIENT, color: '#fff' }}
                             >
@@ -674,6 +975,7 @@ export default function CommunityRoomClient() {
                     )}
                 </div>
             </div>
+            <ShareSheet open={shareOpen} onClose={() => setShareOpen(false)} onPick={setPending} colors={colors} />
         </div>
     )
 }

@@ -411,7 +411,7 @@ function ConviteContent() {
                 <a href="/termos" className="font-bold hover:underline" style={{ color: accentColor }}>Termos de Uso</a>
             </p>
 
-            <ShareLinkDialog open={shareOpen} onClose={() => setShareOpen(false)} url={inviteLink} title="Convidar para o iUser" text={inviteText} />
+            <ShareLinkDialog open={shareOpen} onClose={() => setShareOpen(false)} url={inviteLink} title="Convidar para o iUser" text={inviteText} internal={false} />
         </>
     )
 }

@@ -6,6 +6,7 @@
 import { Eye, Star } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import PlanAvatarRing from '@/components/PlanAvatarRing'
+import { useInsideShell } from '@/components/InsideShell'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -31,21 +32,25 @@ const clean = (t?: string | null) => (t || '').replace(/\s*\n+\s*/g, ' · ').tri
 
 export default function ListingRowCard({ title, description, imageUrl, fallbackIcon, priceLabel, priceNote, sellerName, sellerImageUrl, sellerId, rating, views, tag, flat = false, onClick }: ListingRowCardProps) {
     const { colors } = useTheme()
+    // v3 (dentro da casca): linha corrida, sem cartão nem sombra; foto menor e quadrada
+    const v3 = useInsideShell()
     const desc = clean(description)
 
     return (
         <div
             onClick={onClick}
-            className={flat
+            className={v3
+                ? 'group snap-start py-3 flex items-stretch gap-3 cursor-pointer transition active:opacity-80'
+                : flat
                 ? 'group snap-start rounded-2xl px-2 py-3 flex items-stretch gap-3 cursor-pointer transition-colors duration-200 hover:bg-black/5'
                 : 'group snap-start rounded-3xl border p-3 flex items-stretch gap-3 cursor-pointer transition-all duration-300 hover:shadow-xl hover:-translate-y-0.5'}
-            style={flat ? undefined : { background: colors.surface, borderColor: colors.border, boxShadow: colors.shadow }}
+            style={v3 ? { borderBottom: `1px solid ${colors.border}50` } : flat ? undefined : { background: colors.surface, borderColor: colors.border, boxShadow: colors.shadow }}
         >
             <div className="flex-1 min-w-0 flex flex-col gap-1">
                 {/* Quem vende */}
                 <div className="flex items-center gap-1.5 min-w-0">
                     <PlanAvatarRing userId={sellerId}>
-                        <span className="w-5 h-5 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0 text-[9px] font-black text-white" style={{ background: GRADIENT }}>
+                        <span className="w-5 h-5 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0 text-[9px] font-black text-white" style={{ background: v3 ? '#f97316' : GRADIENT }}>
                             {sellerImageUrl ? <img src={sellerImageUrl} alt="" className="w-full h-full object-cover" loading="lazy" /> : sellerName.charAt(0).toUpperCase()}
                         </span>
                     </PlanAvatarRing>
@@ -75,12 +80,12 @@ export default function ListingRowCard({ title, description, imageUrl, fallbackI
             </div>
 
             {/* Foto flutuando do lado, com sombra */}
-            <div className="relative flex-shrink-0 w-24 h-24 self-center rounded-2xl overflow-hidden transition-transform duration-300 group-hover:scale-105"
-                style={{ background: GRADIENT, boxShadow: '0 8px 18px rgba(0,0,0,0.22)' }}>
+            <div className={v3 ? 'relative flex-shrink-0 w-20 h-20 self-center rounded-2xl overflow-hidden' : 'relative flex-shrink-0 w-24 h-24 self-center rounded-2xl overflow-hidden transition-transform duration-300 group-hover:scale-105'}
+                style={v3 ? { background: '#f9731620' } : { background: GRADIENT, boxShadow: '0 8px 18px rgba(0,0,0,0.22)' }}>
                 {imageUrl ? (
                     <img src={imageUrl} alt={title} className="w-full h-full object-cover" loading="lazy" />
                 ) : (
-                    <div className="w-full h-full flex items-center justify-center text-white">{fallbackIcon}</div>
+                    <div className="w-full h-full flex items-center justify-center" style={{ color: v3 ? '#f97316' : '#fff' }}>{fallbackIcon}</div>
                 )}
             </div>
         </div>

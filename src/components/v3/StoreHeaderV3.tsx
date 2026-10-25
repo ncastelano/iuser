@@ -1,0 +1,226 @@
+// src/components/v3/StoreHeaderV3.tsx
+//
+// Cabeçalho da página pública de uma LOJA na interface 3.0: logo, nome, status, atalhos em cápsulas e uma linha de ações (sem capa: a navbar da v3 já é a faixa laranja).
+// Só apresentação: todos os dados e ações vêm de `Store.tsx` (mesmas regras da v2). Fica em `components/v3` (neutro) e é usado
+// quando a tela está dentro da casca da 3.0 (`useInsideShell`).
+'use client'
+
+import { useState, type ReactNode } from 'react'
+import LinkLinesV3, { type LinkLine } from './LinkLinesV3'
+import type { StoreLink } from '@/lib/storeLinks'
+import {
+    ArrowLeft, ShoppingBag, Calendar, Clock, Eye, MapPin, MessageCircle, Star, UserCheck, UserPlus, Users,
+} from 'lucide-react'
+
+const ORANGE = '#f97316'
+
+export interface StoreHeaderV3Props {
+    colors: any
+    name: string
+    imageUrl: string | null
+    description?: string | null
+    isOpen: boolean
+    statusText: string
+    nextOpen?: { day: string; open: string } | null
+    hasHours: boolean
+    onOpenHours: () => void
+    address?: string | null
+    onOpenMaps: () => void
+    rating: number
+    ratingsCount: number
+    visitors: number
+    followers: number
+    onOpenFollowers: () => void
+    canFollow: boolean
+    isFollowing: boolean
+    onFollowToggle: () => void
+    onOpenCatalog: () => void
+    whatsappLink?: string | null
+        /** links que a loja cadastrou (texto + endereço), mostrados sob a descrição */
+    links: StoreLink[]
+    allowScheduling: boolean
+    /** modelo da loja: quais botões centrais aparecem (Comprar, Agendar, os dois) — ver lib/storeModel */
+    model?: 'products' | 'services' | 'mixed'
+    showBuy?: boolean
+    showSchedule?: boolean
+    /** loja de atendimento com produtos: "Produtos" vira um botão discreto */
+    productsSecondary?: boolean
+    onOpenSchedule: () => void
+    isOwner: boolean
+    chatEnabled: boolean
+    chatSaving: boolean
+    onToggleChat: () => void
+    onOpenAgendaDialog: () => void
+    /** botão "Conversar" (quando o chat da loja está ativo e quem vê não é o dono) */
+    contactSlot?: ReactNode
+    /** voltar: o botão fica na mesma linha do logo e do nome da loja */
+    onBack?: () => void
+    /** agenda de horários disponíveis (lojas de atendimento): logo abaixo das ações */
+    agendaSlot?: ReactNode
+    /** Clube VIP e demais blocos que já existiam no cabeçalho da v2 */
+    extraSlot?: ReactNode
+    /** só o dono: ajustar dias e horários */
+    ownerToolsSlot?: ReactNode
+}
+
+export default function StoreHeaderV3(p: StoreHeaderV3Props) {
+    const { colors } = p
+    const [expanded, setExpanded] = useState(false)
+    const soft = `${colors.border}40`
+    const statusColor = p.isOpen ? '#16a34a' : '#ef4444'
+    const DESC_LIMIT = 90
+    const desc = p.description || ''
+    const initial = (p.name || '?').charAt(0).toUpperCase()
+
+    const capsule = 'inline-flex items-center gap-1.5 h-8 px-3 rounded-full text-[11px] font-bold transition active:scale-95 max-w-full'
+    
+    return (
+        <section>
+            <div className="px-1 pt-0 pb-2">
+                {/* voltar + logo + nome + situação, numa linha só */}
+                <div className="flex items-center gap-2.5">
+                    {p.onBack && (
+                        <button onClick={p.onBack} aria-label="Voltar" className="flex-shrink-0 rounded-full flex items-center justify-center transition active:scale-95" style={{ width: 46, height: 46, background: soft, color: colors.textPrimary }}>
+                            <ArrowLeft size={20} />
+                        </button>
+                    )}
+                    <div className="flex-shrink-0 w-[46px] h-[46px] rounded-2xl overflow-hidden flex items-center justify-center" style={{ background: colors.surface, outline: `2px solid ${statusColor}`, outlineOffset: 1 }}>
+                        {p.imageUrl ? <img src={p.imageUrl} alt="" className="w-full h-full object-cover" /> : <span className="text-xl font-black" style={{ color: ORANGE }}>{initial}</span>}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                        <h2 className="text-[17px] font-black leading-tight truncate" style={{ color: colors.textPrimary }}>{p.name}</h2>
+                        <button
+                            onClick={() => { if (p.hasHours) p.onOpenHours() }}
+                            className="flex items-center gap-1 text-[11px] font-bold mt-0.5 max-w-full"
+                            style={{ color: statusColor }}
+                        >
+                            <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: statusColor }} />
+                            <span className="truncate">{p.statusText}</span>
+                        </button>
+                    </div>
+                </div>
+
+                {/* atalhos em cápsulas, numa fileira só (rola para o lado se não couber) */}
+                <div className="mt-3 flex gap-1.5 overflow-x-auto -mx-1 px-1 pb-0.5" style={{ scrollbarWidth: 'none' }}>
+                    {p.ratingsCount > 0 && (
+                        <span className={`${capsule} flex-shrink-0`} style={{ background: soft, color: colors.textPrimary }}>
+                            <Star size={13} className="flex-shrink-0" style={{ color: ORANGE, fill: ORANGE }} />
+                            {p.rating.toFixed(1).replace('.', ',')} ({p.ratingsCount})
+                        </span>
+                    )}
+                    <span className={`${capsule} flex-shrink-0`} style={{ background: soft, color: colors.textSecondary }}>
+                        <Eye size={13} className="flex-shrink-0" />
+                        <b style={{ color: colors.textPrimary }}>{p.visitors}</b>
+                    </span>
+                    <button onClick={p.onOpenFollowers} className={`${capsule} flex-shrink-0`} style={{ background: soft, color: colors.textSecondary }}>
+                        <Users size={13} className="flex-shrink-0" />
+                        <b style={{ color: colors.textPrimary }}>{p.followers}</b> seguidores
+                    </button>
+                    {!p.isOpen && p.nextOpen && (
+                        <button onClick={() => p.hasHours && p.onOpenHours()} className={`${capsule} flex-shrink-0`} style={{ background: `${ORANGE}1a`, color: ORANGE }}>
+                            <Clock size={13} className="flex-shrink-0" />
+                            Abre {p.nextOpen.day} às {p.nextOpen.open}
+                        </button>
+                    )}
+                    {p.address && (
+                        <button onClick={p.onOpenMaps} className={`${capsule} flex-shrink-0`} style={{ background: soft, color: colors.textPrimary }}>
+                            <MapPin size={13} className="flex-shrink-0" style={{ color: ORANGE }} />
+                            <span className="truncate max-w-[210px]">{p.address}</span>
+                        </button>
+                    )}
+                </div>
+
+                {desc && (
+                    <p className="mt-3 text-[13px] leading-relaxed" style={{ color: colors.textSecondary }}>
+                        {expanded || desc.length <= DESC_LIMIT ? desc : `${desc.slice(0, DESC_LIMIT)}…`}
+                        {desc.length > DESC_LIMIT && (
+                            <button onClick={() => setExpanded((v) => !v)} className="ml-1 font-black text-[11px]" style={{ color: ORANGE }}>{expanded ? 'ver menos' : 'ver mais'}</button>
+                        )}
+                    </p>
+                )}
+
+                {/* links em texto (WhatsApp e redes sociais que tiverem link), juntos numa linha */}
+                <LinkLinesV3
+                    inline
+                    lines={[
+                        ...(p.whatsappLink ? [{ label: 'WhatsApp', url: p.whatsappLink } as LinkLine] : []),
+                        ...p.links,
+                    ]}
+                    colors={colors}
+                />
+
+                {/* botão(ões) central(is) conforme o modelo da loja: produtos = Comprar; atendimento = Agendar; mista = Comprar e Agendar lado a lado */}
+                {(() => {
+                    const buy = p.showBuy ?? true
+                    const sched = !!p.showSchedule
+                    const big = 'h-12 rounded-full text-[14px] font-black flex items-center justify-center gap-2 transition active:scale-95'
+                    const follow = p.canFollow ? (
+                        <button
+                            onClick={p.onFollowToggle}
+                            className="flex-1 h-11 rounded-full text-[13px] font-black flex items-center justify-center gap-1.5 transition active:scale-95"
+                            style={p.isFollowing ? { background: soft, color: colors.textPrimary } : { background: 'transparent', color: ORANGE, border: `2px solid ${ORANGE}` }}
+                        >
+                            {p.isFollowing ? <UserCheck size={16} /> : <UserPlus size={16} />}
+                            {p.isFollowing ? 'Seguindo' : 'Seguir'}
+                        </button>
+                    ) : null
+                    const contact = p.contactSlot
+                    // loja de atendimento com produtos: os produtos ficam na aba "Produtos" (sem botão extra apertando a linha)
+                    const productsBtn = null
+                    return (
+                        <>
+                            <div className="mt-3 flex items-center gap-2">
+                                {buy && (
+                                    <button onClick={p.onOpenCatalog} className={`flex-1 ${big}`} style={{ background: ORANGE, color: '#fff' }}>
+                                        <ShoppingBag size={17} /> Comprar
+                                    </button>
+                                )}
+                                {sched && (
+                                    <button onClick={p.onOpenSchedule} className={`flex-1 ${big}`} style={buy ? { background: 'transparent', color: ORANGE, border: `2px solid ${ORANGE}` } : { background: ORANGE, color: '#fff' }}>
+                                        <Calendar size={17} /> {buy ? 'Agendar' : 'Agendar atendimento'}
+                                    </button>
+                                )}
+                            </div>
+                            {(follow || contact || productsBtn) && (
+                                <div className="mt-2 flex items-center gap-2">
+                                    {follow}
+                                    {contact}
+                                    {productsBtn}
+                                </div>
+                            )}
+                        </>
+                    )
+                })()}
+
+                {/* loja de produtos com agenda ligada: a agenda fica como atalho discreto */}
+                {p.allowScheduling && !p.showSchedule && (
+                    <button onClick={p.onOpenSchedule} className="mt-2 w-full h-11 rounded-2xl px-3 flex items-center gap-2.5 text-left transition active:scale-[0.99]" style={{ background: soft }}>
+                        <Calendar size={17} style={{ color: ORANGE }} className="flex-shrink-0" />
+                        <span className="text-[13px] font-black flex-1" style={{ color: colors.textPrimary }}>Agendar atendimento</span>
+                        {p.nextOpen && <span className="text-[10px] font-bold" style={{ color: colors.textSecondary }}>{p.nextOpen.day} {p.nextOpen.open}</span>}
+                    </button>
+                )}
+
+                {/* só o dono: chat e agenda */}
+                {p.isOwner && (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                        <button onClick={p.onToggleChat} disabled={p.chatSaving} className={`${capsule} disabled:opacity-60`} style={p.chatEnabled ? { background: soft, color: colors.textPrimary } : { background: `${ORANGE}1a`, color: ORANGE, border: `1px dashed ${ORANGE}` }}>
+                            <MessageCircle size={13} />
+                            {p.chatEnabled ? 'Chat ativo' : 'Ativar chat'}
+                        </button>
+                        <button onClick={p.onOpenAgendaDialog} className={capsule} style={p.allowScheduling ? { background: soft, color: colors.textPrimary } : { background: `${ORANGE}1a`, color: ORANGE, border: `1px dashed ${ORANGE}` }}>
+                            <Calendar size={13} />
+                            {p.allowScheduling ? 'Agenda ativa' : 'Ativar agenda'}
+                        </button>
+                    </div>
+                )}
+
+                {p.agendaSlot}
+
+                {p.extraSlot && <div className="mt-2">{p.extraSlot}</div>}
+
+                {p.ownerToolsSlot && <div className="mt-2">{p.ownerToolsSlot}</div>}
+            </div>
+        </section>
+    )
+}

@@ -29,6 +29,7 @@ import { useProfile } from '@/app/contexts/ProfileContext'
 import { useTheme } from '@/app/contexts/theme'
 import Header from '@/components/Header'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
+import { useInsideShell } from '@/components/InsideShell'
 import { useLastSeen } from '@/hooks/useLastSeen'
 import SocialProfileCard, { type SocialCardStore } from './SocialProfileCard'
 
@@ -90,6 +91,7 @@ const PROFILE_COLUMNS = `
 
 export default function SocialList() {
     const router = useRouter()
+    const v3 = useInsideShell()   // v3: lista de linhas compactas em vez de cartões
     const { userId, avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
     const { colors } = useTheme()
 
@@ -533,7 +535,7 @@ export default function SocialList() {
                                     )}
                                 </div>
                             ) : (
-                                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-stretch">
+                                <div className={v3 ? 'flex flex-col' : 'grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-stretch'}>
                                     {filteredProfiles.map((profile) => (
                                         <SocialProfileCard
                                             key={profile.id}

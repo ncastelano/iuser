@@ -20,7 +20,9 @@ import {
     CheckCircle,
     Package,
     Truck,
+    MessageCircle,
 } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 import CallIuserDriverDialog from './CallIuserDriverDialog'
 import { OrderModal } from '@/components/OrderModal'
 import { fetchOptimizedRoute } from '@/lib/mapboxRoute'
@@ -276,7 +278,9 @@ export default function StoreOrders({
                 const deliveryFee = Number(order.delivery_fee || 0)
                 return {
                     id: order.id,
+                    store_id: storeId,
                     checkout_id: order.checkout_id,
+                    buyer_id: order.buyer_id,
                     buyer_name: order.buyer_name,
                     buyer_profile_slug: order.buyer_profile_slug,
                     created_at: order.created_at,
@@ -1376,6 +1380,24 @@ function OrderButton({
         setSingleAssignOpen({ order })
     }
 
+    // Conversa com quem comprou: abre (ou cria) o chat da loja com o cliente e vai direto pra dentro dele
+    const router = useRouter()
+    const [openingChat, setOpeningChat] = useState(false)
+    const canChat = !isInPerson && !!order.buyer_id
+    const handleChatClick = async (e: React.MouseEvent) => {
+        e.stopPropagation()
+        e.preventDefault()
+        if (openingChat) return
+        setOpeningChat(true)
+        const { data, error } = await supabase.rpc('start_store_conversation_with_buyer', { p_store: order.store_id, p_buyer: order.buyer_id })
+        if (error || !data?.id) {
+            toast.error(error?.message || 'Não foi possível abrir a conversa')
+            setOpeningChat(false)
+            return
+        }
+        router.push(`/conversas?sala=${encodeURIComponent(data.store_slug)}&c=${data.id}`)
+    }
+
     // ===== 3.0: cartão claro (nome, canal, valor e hora), com a cor do status só na barra da esquerda =====
     if (v3) {
         return (
@@ -1428,6 +1450,11 @@ function OrderButton({
                                 </button>
                             )
                         )}
+                        {canChat && (
+                            <button onClick={handleChatClick} disabled={openingChat} className="w-8 h-8 rounded-full flex items-center justify-center transition active:scale-90 disabled:opacity-50" style={{ background: `${themeColors.border}50` }} title="Conversar com o cliente" type="button">
+                                <MessageCircle size={14} style={{ color: '#f97316' }} />
+                            </button>
+                        )}
                         {!isInPerson && !isPaid && (
                             <button onClick={handleAssignClick} className="w-8 h-8 rounded-full flex items-center justify-center transition active:scale-90" style={{ background: `${themeColors.border}50` }} title="Atribuir entregador" type="button">
                                 <Send size={14} style={{ color: themeColors.textPrimary }} />
@@ -1441,6 +1468,7 @@ function OrderButton({
 
     return (
         <div
+            data-keep-color
             className={`w-full rounded-2xl transition-all duration-200 hover:scale-[1.01] active:scale-[0.99] hover:shadow-xl relative overflow-hidden will-change-transform ${isPaid ? 'opacity-80' : 'cursor-pointer'}`}
             style={{
                 background: getStatusGradient(order.status),
@@ -1523,6 +1551,17 @@ function OrderButton({
                                 <Truck size={14} style={{ color: statusColor }} />
                             </button>
                         )
+                    )}
+                    {canChat && (
+                        <button
+                            onClick={handleChatClick}
+                            disabled={openingChat}
+                            className="p-2 rounded-full transition-all duration-200 active:scale-90 flex-shrink-0 disabled:opacity-50"
+                            title="Conversar com o cliente"
+                            type="button"
+                        >
+                            <MessageCircle size={14} style={{ color: statusColor }} />
+                        </button>
                     )}
                     {!isInPerson && !isPaid && (
                         <button

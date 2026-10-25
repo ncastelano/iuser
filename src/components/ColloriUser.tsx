@@ -17,7 +17,7 @@ const themeOptions: { id: ThemeName; label: string; preview: { bg: string; text:
     },
     {
         id: 'escuro-cinza',
-        label: 'Escuro + Cinza',
+        label: 'Preto e branco',
         preview: { bg: '#000000', text: '#ffffff', accent: '#6b7280' },
     },
 ]

@@ -4,6 +4,7 @@
 
 import { profileLabel } from '@/lib/profileDisplay'
 import { useParams, useRouter } from 'next/navigation'
+import { useInsideShell } from '@/components/InsideShell'
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
@@ -87,6 +88,10 @@ interface PublicationClientPageProps {
     profileLoading?: boolean
 }
 
+function countAllComments(list: Comment[]): number {
+    return list.reduce((n, c) => n + 1 + countAllComments(c.replies || []), 0)
+}
+
 export function PublicationClientPage({
     ownerSlug,
     slug,
@@ -98,6 +103,8 @@ export function PublicationClientPage({
     profileLoading = false
 }: PublicationClientPageProps) {
     const router = useRouter()
+    // v3 (dentro da casca): sem barra de título repetida, cartões sem moldura e laranja sólido (só apresentação)
+    const v3 = useInsideShell()
     const { userId: currentUserId } = useProfile()
 
     const [loading, setLoading] = useState(true)
@@ -111,6 +118,48 @@ export function PublicationClientPage({
     const [submittingComment, setSubmittingComment] = useState(false)
     const [replyTo, setReplyTo] = useState<Comment | null>(null)
     const [expandedComments, setExpandedComments] = useState<Set<string>>(new Set())
+    // v3: mostra poucos comentários e abre aos poucos; ordena por curtidas ou por data
+    const [commentsShown, setCommentsShown] = useState(3)
+    const [commentSort, setCommentSort] = useState<'top' | 'recent'>('top')
+
+    // Vindo de "Meus comentários" (?comentario=<id>&de=meus-comentarios): a câmera vai até o comentário e ele é destacado;
+    // o "voltar" retorna ao painel (onde a pessoa estava)
+    const [focusCommentId, setFocusCommentId] = useState<string | null>(null)
+    const [fromMyComments, setFromMyComments] = useState(false)
+    const [highlightId, setHighlightId] = useState<string | null>(null)
+    const focusedRef = useRef(false)
+    useEffect(() => {
+        const q = new URLSearchParams(window.location.search)
+        setFocusCommentId(q.get('comentario'))
+        setFromMyComments(q.get('de') === 'meus-comentarios')
+    }, [])
+    const goBack = () => { if (fromMyComments && window.history.length > 1) router.back(); else router.push(`/${ownerSlug}`) }
+
+    useEffect(() => {
+        if (!focusCommentId || focusedRef.current || comments.length === 0) return
+        // o comentário pode ser uma resposta: acha o caminho até ele (as respostas dos pais precisam estar abertas)
+        const path: string[] = []
+        const find = (list: Comment[], trail: string[]): boolean => {
+            for (const c of list) {
+                if (c.id === focusCommentId) { path.push(...trail); return true }
+                if (c.replies?.length && find(c.replies, [...trail, c.id])) return true
+            }
+            return false
+        }
+        if (!find(comments, [])) return
+        focusedRef.current = true
+        setCommentSort('recent')
+        setCommentsShown(Math.max(comments.length, 3))
+        if (path.length > 0) setExpandedComments((prev) => new Set([...Array.from(prev), ...path]))
+        // sem "cleanup" de propósito: os comentários podem ser recarregados logo depois (login, curtidas) e isso cancelaria o movimento
+        setTimeout(() => {
+            const el = document.getElementById(`comment-${focusCommentId}`)
+            if (!el) return
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+            setHighlightId(focusCommentId)
+            setTimeout(() => setHighlightId(null), 4500)
+        }, 600)
+    }, [focusCommentId, comments])
 
     // ===== CONTA A VISITA (publicação + perfil de quem publicou, quando é de pessoa) =====
     useEffect(() => {
@@ -133,7 +182,7 @@ export function PublicationClientPage({
         image_url: string | null
     }[]>([])
 
-    const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
+    const GRADIENT = v3 ? '#f97316' : 'linear-gradient(135deg, #f97316, #dc2626)'
 
     // ========== CARREGAR PUBLICAÇÃO ==========
     useEffect(() => {
@@ -261,6 +310,8 @@ export function PublicationClientPage({
     const loadPublicationComments = async (publicationId: string) => {
         try {
             setLoadingComments(true)
+            // Uma consulta com todos os comentários da publicação (respostas e respostas de respostas) e as curtidas em lote:
+            // a árvore é montada aqui. (Antes eram 2 consultas por comentário e só 1 nível de resposta.)
             const { data, error } = await supabase
                 .from('comments')
                 .select(`
@@ -270,75 +321,39 @@ export function PublicationClientPage({
                         name,
                         avatar_url,
                         profileSlug
-                    ),
-                    replies:comments!parent_comment_id (
-                        *,
-                        profiles:profile_id (
-                            id,
-                            name,
-                            avatar_url,
-                            profileSlug
-                        )
                     )
                 `)
                 .eq('publication_id', publicationId)
-                .is('parent_comment_id', null)
-                .order('created_at', { ascending: false })
+                .order('created_at', { ascending: true })
 
             if (error) throw error
+            const rows = (data || []) as any[]
 
-            const processed = await Promise.all((data || []).map(async (comment: any) => {
-                const { count: likeCount } = await supabase
+            const counts = new Map<string, number>()
+            const mine = new Set<string>()
+            const ids = rows.map((r) => r.id as string)
+            for (let i = 0; i < ids.length; i += 100) {
+                const { data: likes } = await supabase
                     .from('comment_likes')
-                    .select('*', { count: 'exact', head: true })
-                    .eq('comment_id', comment.id)
-
-                let isLiked = false
-                if (currentUserId) {
-                    const { data: likeData } = await supabase
-                        .from('comment_likes')
-                        .select('id')
-                        .eq('comment_id', comment.id)
-                        .eq('profile_id', currentUserId)
-                        .maybeSingle()
-                    isLiked = !!likeData
+                    .select('comment_id, profile_id')
+                    .in('comment_id', ids.slice(i, i + 100))
+                for (const l of (likes || []) as { comment_id: string; profile_id: string }[]) {
+                    counts.set(l.comment_id, (counts.get(l.comment_id) || 0) + 1)
+                    if (currentUserId && l.profile_id === currentUserId) mine.add(l.comment_id)
                 }
+            }
 
-                const repliesWithLikes = await Promise.all((comment.replies || []).map(async (reply: any) => {
-                    const { count: replyLikeCount } = await supabase
-                        .from('comment_likes')
-                        .select('*', { count: 'exact', head: true })
-                        .eq('comment_id', reply.id)
-
-                    let replyIsLiked = false
-                    if (currentUserId) {
-                        const { data: replyLikeData } = await supabase
-                            .from('comment_likes')
-                            .select('id')
-                            .eq('comment_id', reply.id)
-                            .eq('profile_id', currentUserId)
-                            .maybeSingle()
-                        replyIsLiked = !!replyLikeData
-                    }
-
-                    return {
-                        ...reply,
-                        like_count: replyLikeCount || 0,
-                        is_liked: replyIsLiked
-                    }
-                }))
-
-                return {
-                    ...comment,
-                    like_count: likeCount || 0,
-                    is_liked: isLiked,
-                    replies: repliesWithLikes.sort((a: any, b: any) =>
-                        new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-                    )
-                }
-            }))
-
-            setComments(processed)
+            const byId = new Map<string, Comment>()
+            for (const r of rows) byId.set(r.id, { ...r, like_count: counts.get(r.id) || 0, is_liked: mine.has(r.id), replies: [] })
+            const roots: Comment[] = []
+            for (const c of byId.values()) {
+                const parent = c.parent_comment_id ? byId.get(c.parent_comment_id) : null
+                if (parent) parent.replies!.push(c)
+                else roots.push(c)
+            }
+            // comentários principais: mais recentes primeiro (como antes); respostas: em ordem de conversa
+            roots.reverse()
+            setComments(roots)
         } catch (error) {
             console.error('Erro ao carregar comentários:', error)
         } finally {
@@ -392,13 +407,12 @@ export function PublicationClientPage({
             }
 
             if (replyTo) {
-                setComments(prev =>
-                    prev.map(c =>
-                        c.id === replyTo.id
-                            ? { ...c, replies: [...(c.replies || []), newComment] }
-                            : c
-                    )
-                )
+                const addReply = (list: Comment[]): Comment[] => list.map(c =>
+                    c.id === replyTo.id
+                        ? { ...c, replies: [...(c.replies || []), newComment] }
+                        : { ...c, replies: addReply(c.replies || []) })
+                setComments(prev => addReply(prev))
+                setExpandedComments(prev => new Set(prev).add(replyTo.id))
                 setReplyTo(null)
                 toast.success('Resposta adicionada!')
             } else {
@@ -427,7 +441,8 @@ export function PublicationClientPage({
 
             if (error) throw error
 
-            setComments(prev => prev.filter(c => c.id !== commentId))
+            const removeFrom = (list: Comment[]): Comment[] => list.filter(c => c.id !== commentId).map(c => ({ ...c, replies: removeFrom(c.replies || []) }))
+            setComments(prev => removeFrom(prev))
             toast.success('Comentário excluído')
         } catch (error: any) {
             toast.error('Erro ao excluir: ' + error.message)
@@ -501,18 +516,29 @@ export function PublicationClientPage({
     }
 
     // ========== RENDER COMENTÁRIO ==========
-    const renderCommentTree = (commentsList: Comment[], isReply = false) => {
+    const renderCommentTree = (commentsList: Comment[], depth = 0) => {
+        const isReply = depth > 0
         return commentsList.map((comment) => {
             const isBeingReplied = replyTo?.id === comment.id
 
             return (
-                <div key={comment.id} className={`${isReply ? 'ml-8' : ''}`}>
-                    <div className="flex gap-3 p-3 rounded-xl" style={{
+                <div
+                    key={comment.id}
+                    id={`comment-${comment.id}`}
+                    className={isReply ? (depth <= 2 ? 'ml-6' : '') : ''}
+                    style={highlightId === comment.id ? { borderRadius: 16, background: '#f9731622', boxShadow: '0 0 0 2px #f97316, 0 0 22px #f9731666', transition: 'all .4s ease' } : { transition: 'all .6s ease' }}
+                >
+                    <div className={v3 ? 'flex gap-2.5 py-2 rounded-xl' : 'flex gap-3 p-3 rounded-xl'} style={v3 ? (isBeingReplied ? { background: '#f9731612' } : undefined) : {
                         background: isReply ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.05)',
                         border: `1px solid ${isBeingReplied ? '#f97316' : colors.border}`,
                         boxShadow: isBeingReplied ? '0 0 0 2px rgba(249, 115, 22, 0.2)' : 'none',
                         transition: 'all 0.2s ease',
                     }}>
+                        <a
+                            href={comment.profiles?.profileSlug ? `/${comment.profiles.profileSlug}` : undefined}
+                            aria-label={`Ver perfil de ${profileLabel(comment.profiles)}`}
+                            className="flex-shrink-0 self-start"
+                        >
                         <PlanAvatarRing userId={comment.profile_id}>
                         <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0" style={{ background: 'rgba(255,255,255,0.1)' }}>
                             {comment.profiles?.avatar_url ? (
@@ -524,13 +550,18 @@ export function PublicationClientPage({
                             )}
                         </div>
                         </PlanAvatarRing>
+                        </a>
 
                         <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between flex-wrap gap-1">
                                 <div className="flex items-center gap-2">
-                                    <span className="text-sm font-bold" style={{ color: colors.textPrimary }}>
+                                    <a
+                                        href={comment.profiles?.profileSlug ? `/${comment.profiles.profileSlug}` : undefined}
+                                        className="text-sm font-bold hover:underline"
+                                        style={{ color: colors.textPrimary }}
+                                    >
                                         {profileLabel(comment.profiles)}
-                                    </span>
+                                    </a>
                                     <span className="text-[10px]" style={{ color: colors.textSecondary }}>
                                         {formatDistanceToNow(new Date(comment.created_at), {
                                             addSuffix: true,
@@ -678,15 +709,15 @@ export function PublicationClientPage({
                                     }
                                     setExpandedComments(new Set(expandedComments))
                                 }}
-                                className="text-xs font-bold transition hover:opacity-70 ml-3"
+                                className={`text-xs font-bold transition hover:opacity-70 ${v3 ? 'ml-[42px] py-1' : 'ml-3'}`}
                                 style={{ color: colors.textSecondary }}
                             >
-                                {expandedComments.has(comment.id) ? 'Ocultar' : 'Mostrar'} {comment.replies.length} respostas
+                                {expandedComments.has(comment.id) ? 'Ocultar' : (v3 ? 'Ver' : 'Mostrar')} {comment.replies.length} {comment.replies.length === 1 ? 'resposta' : 'respostas'}
                             </button>
 
                             {expandedComments.has(comment.id) && (
                                 <div className="space-y-2 mt-2">
-                                    {renderCommentTree(comment.replies, true)}
+                                    {renderCommentTree(comment.replies, depth + 1)}
                                 </div>
                             )}
                         </div>
@@ -774,8 +805,8 @@ export function PublicationClientPage({
         <div className="relative min-h-dvh" style={{ background: colors.background }}>
             {/* Barra do topo (mobile): fica grudada no topo enquanto rola. */}
             <div
-                className="md:hidden sticky top-0 z-30"
-                style={{
+                className={v3 ? 'md:hidden' : 'md:hidden sticky top-0 z-30'}
+                style={v3 ? undefined : {
                     background: colors.background,
                     borderBottom: `1px solid ${colors.border}`,
                     boxShadow: '0 8px 24px rgba(0,0,0,0.08)',
@@ -784,23 +815,25 @@ export function PublicationClientPage({
             >
                 <div className="flex items-center gap-2 px-4 py-3">
                     <button
-                        onClick={() => router.push(`/${ownerSlug}`)}
+                        onClick={goBack}
                         aria-label="Voltar"
                         className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition hover:scale-105"
                         style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
                     >
                         <ArrowLeft size={20} />
                     </button>
-                    <h1 className="flex-1 min-w-0 truncate text-base font-black" style={{ color: colors.textPrimary }}>
-                        {publication.name || 'Publicação'}
-                    </h1>
+                    {!v3 && (
+                        <h1 className="flex-1 min-w-0 truncate text-base font-black" style={{ color: colors.textPrimary }}>
+                            {publication.name || 'Publicação'}
+                        </h1>
+                    )}
                 </div>
             </div>
 
             {/* Header no fluxo normal (web) */}
             <div className="hidden md:flex items-center gap-3 max-w-4xl mx-auto px-6 pt-6">
                 <button
-                    onClick={() => router.push(`/${ownerSlug}`)}
+                    onClick={goBack}
                     aria-label="Voltar"
                     className="flex items-center gap-2 pl-3 pr-4 py-2 rounded-full text-sm font-medium flex-shrink-0 transition hover:scale-105"
                     style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
@@ -842,8 +875,8 @@ export function PublicationClientPage({
                         <div className="px-5 pt-4 md:px-0 md:pt-0 space-y-3">
                             {/* Quem publicou: em cima do título, pra descrição longa não empurrar o perfil pra baixo */}
                             <div
-                                className="w-full flex items-center gap-2 px-3 py-2.5 rounded-2xl"
-                                style={{ background: colors.surface, border: `1px solid ${colors.border}` }}
+                                className={v3 ? 'w-full flex items-center gap-2 py-1' : 'w-full flex items-center gap-2 px-3 py-2.5 rounded-2xl'}
+                                style={v3 ? undefined : { background: colors.surface, border: `1px solid ${colors.border}` }}
                             >
                                 <button
                                     onClick={goToStore}
@@ -870,10 +903,12 @@ export function PublicationClientPage({
                                     </div>
                                 </button>
                                 <button
-                                    onClick={() => handleShareLink({
-                                        title: `${publication.name || 'Publicação'} | ${ownerDisplay.name}`,
-                                        text: publication.description || 'Confira no iUser!'
-                                    })}
+                                    onClick={async () => {
+                                        if (await handleShareLink({
+                                            title: `${publication.name || 'Publicação'} | ${ownerDisplay.name}`,
+                                            text: publication.description || 'Confira no iUser!'
+                                        })) void supabase.rpc('increment_product_share_count', { p_product: publication.id })
+                                    }}
                                     aria-label="Compartilhar"
                                     className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition hover:scale-105"
                                     style={{ background: `${colors.border}40`, color: colors.textPrimary }}
@@ -913,11 +948,11 @@ export function PublicationClientPage({
                                         href={getWhatsAppLink(publication.store.whatsapp, encodeURIComponent(`Olá! Vi "${publication.name}" no iUser e quero saber mais.`))}
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition hover:scale-105"
-                                        style={{ background: '#25D366', color: '#fff' }}
+                                        className={v3 ? 'text-[13px] underline underline-offset-2 active:opacity-70' : 'flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition hover:scale-105'}
+                                        style={v3 ? { color: colors.textSecondary } : { background: '#25D366', color: '#fff' }}
                                     >
-                                        <MessageCircle size={18} />
-                                        Falar no WhatsApp
+                                        {!v3 && <MessageCircle size={18} />}
+                                        {v3 ? 'WhatsApp' : 'Falar no WhatsApp'}
                                     </a>
                                 )}
                             </div>
@@ -925,56 +960,8 @@ export function PublicationClientPage({
                     </main>
                 </div>
 
-                {/* Outras publicações da loja */}
-                {otherPublications.length > 0 && (
-                    <div className="px-5 md:px-0 mt-3 md:mt-6">
-                        <h2 className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: colors.textSecondary, opacity: 0.6 }}>
-                            Outras publicações desta loja
-                        </h2>
-                        <div className="flex gap-3 overflow-x-auto pb-1 -mx-5 px-5 md:mx-0 md:px-0 scrollbar-hide">
-                            {otherPublications.map((other) => {
-                                const otherImageUrl = other.image_url
-                                    ? supabase.storage.from('product-images').getPublicUrl(other.image_url).data.publicUrl
-                                    : finalOwnerImage
-
-                                return (
-                                    <button
-                                        key={other.id}
-                                        onClick={() => router.push(`/${ownerSlug}/${other.slug}`)}
-                                        className="text-left rounded-2xl overflow-hidden flex-shrink-0 w-36 md:w-44 transition-transform hover:scale-[1.02]"
-                                        style={{
-                                            background: colors.surface,
-                                            border: `1px solid ${colors.border}`,
-                                            boxShadow: colors.shadow,
-                                        }}
-                                    >
-                                        <div className="w-full aspect-square" style={{ background: `${colors.accentLight}20` }}>
-                                            {otherImageUrl ? (
-                                                <img
-                                                    src={otherImageUrl}
-                                                    alt={other.name}
-                                                    className="w-full h-full object-cover"
-                                                />
-                                            ) : (
-                                                <div className="w-full h-full flex items-center justify-center">
-                                                    <Store size={24} style={{ color: colors.textSecondary }} />
-                                                </div>
-                                            )}
-                                        </div>
-                                        <div className="p-2.5">
-                                            <p className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>
-                                                {other.name}
-                                            </p>
-                                        </div>
-                                    </button>
-                                )
-                            })}
-                        </div>
-                    </div>
-                )}
-
                 {/* ===== SEÇÃO DE COMENTÁRIOS ===== */}
-                <div className="mx-5 md:mx-0 mt-6 rounded-2xl border p-6" style={{
+                <div className={v3 ? 'mx-5 md:mx-0 mt-6' : 'mx-5 md:mx-0 mt-6 rounded-2xl border p-6'} style={v3 ? undefined : {
                     background: colors.surface,
                     borderColor: colors.border,
                 }}>
@@ -984,7 +971,7 @@ export function PublicationClientPage({
                                 Comentários
                             </h3>
                             <span className="text-sm font-bold px-3 py-1 rounded-full" style={{ background: '#f9731620', color: '#f97316' }}>
-                                {comments.length}
+                                {countAllComments(comments)}
                             </span>
                         </div>
 
@@ -1074,11 +1061,92 @@ export function PublicationClientPage({
                                 <p className="text-xs" style={{ color: colors.textSecondary }}>Seja o primeiro a comentar!</p>
                             </div>
                         ) : (
+                            v3 ? (() => {
+                                const sorted = commentSort === 'top'
+                                    ? [...comments].sort((a, b) => (b.like_count || 0) - (a.like_count || 0) || new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                                    : comments
+                                return (
+                                    <div>
+                                        <div className="flex gap-1.5 mb-2">
+                                            {(['top', 'recent'] as const).map((k) => (
+                                                <button
+                                                    key={k}
+                                                    onClick={() => setCommentSort(k)}
+                                                    className="h-8 px-3 rounded-full text-[12px] font-black transition active:scale-95"
+                                                    style={commentSort === k ? { background: colors.textPrimary, color: colors.background } : { background: `${colors.border}40`, color: colors.textSecondary }}
+                                                >
+                                                    {k === 'top' ? 'Mais curtidos' : 'Mais recentes'}
+                                                </button>
+                                            ))}
+                                        </div>
+                                        <div className="space-y-1">{renderCommentTree(sorted.slice(0, commentsShown))}</div>
+                                        {commentsShown < sorted.length && (
+                                            <button
+                                                onClick={() => setCommentsShown((n) => n + 10)}
+                                                className="mt-2 w-full h-10 rounded-full text-[13px] font-black transition active:scale-95"
+                                                style={{ background: `${colors.border}40`, color: colors.textPrimary }}
+                                            >
+                                                Ver mais comentários ({sorted.length - commentsShown})
+                                            </button>
+                                        )}
+                                    </div>
+                                )
+                            })() : (
                             <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
                                 {renderCommentTree(comments)}
-                            </div>
+                            </div>)
                         )}
                     </div>
+
+                {/* Outras publicações da loja */}
+                {otherPublications.length > 0 && (
+                    <div className="px-5 md:px-0 mt-3 md:mt-6">
+                        <h2 className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: colors.textSecondary, opacity: 0.6 }}>
+                            Outras publicações desta loja
+                        </h2>
+                        <div className="flex gap-3 overflow-x-auto pb-1 -mx-5 px-5 md:mx-0 md:px-0 scrollbar-hide">
+                            {otherPublications.map((other) => {
+                                const otherImageUrl = other.image_url
+                                    ? supabase.storage.from('product-images').getPublicUrl(other.image_url).data.publicUrl
+                                    : finalOwnerImage
+
+                                return (
+                                    <button
+                                        key={other.id}
+                                        onClick={() => router.push(`/${ownerSlug}/${other.slug}`)}
+                                        className={v3 ? 'text-left flex-shrink-0 w-36 transition active:scale-95' : 'text-left rounded-2xl overflow-hidden flex-shrink-0 w-36 md:w-44 transition-transform hover:scale-[1.02]'}
+                                        style={v3 ? undefined : {
+                                            background: colors.surface,
+                                            border: `1px solid ${colors.border}`,
+                                            boxShadow: colors.shadow,
+                                        }}
+                                    >
+                                        <div className={`w-full aspect-square ${v3 ? 'rounded-2xl overflow-hidden' : ''}`} style={{ background: `${colors.accentLight}20` }}>
+                                            {otherImageUrl ? (
+                                                <img
+                                                    src={otherImageUrl}
+                                                    alt={other.name}
+                                                    className="w-full h-full object-cover"
+                                                />
+                                            ) : (
+                                                <div className="w-full h-full flex items-center justify-center">
+                                                    <Store size={24} style={{ color: colors.textSecondary }} />
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className={v3 ? 'pt-1.5 px-0.5' : 'p-2.5'}>
+                                            <p className={`${v3 ? 'text-[13px] font-black' : 'text-xs font-bold'} truncate`} style={{ color: colors.textPrimary }}>
+                                                {other.name}
+                                            </p>
+                                        </div>
+                                    </button>
+                                )
+                            })}
+                        </div>
+                    </div>
+                )}
+
+
                 </div>
 
             <style jsx global>{`

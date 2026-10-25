@@ -59,28 +59,34 @@ export function useUiVersion(): UiVersion {
  * Esta pessoa pode usar a 3.0? (liberada pelo admin, ou é o admin). A resposta vem do servidor — a mesma regra do
  * proxy —, então nada na interface mostra a 3.0 antes da liberação.
  */
-const accessCache = new Map<string, { p: Promise<{ allowed?: boolean; isAdmin?: boolean }>; at: number }>()
+const accessCache = new Map<string, { p: Promise<{ allowed?: boolean; isAdmin?: boolean; unknown?: boolean }>; at: number }>()
 
-export function useV3Access(): { allowed: boolean; isAdmin: boolean; loading: boolean } {
+export function useV3Access(): { allowed: boolean; isAdmin: boolean; loading: boolean; /** a resposta não é confiável (erro de rede/servidor): não tratar como acesso revogado */ unknown: boolean } {
     const { userId } = useProfile()
-    const [state, setState] = useState({ allowed: false, isAdmin: false, loading: true })
+    // A resposta vale para UMA pessoa (`forUser`). Quando o userId chega depois da 1ª renderização (carga completa da página),
+    // o estado antigo ("sem acesso, já carregado", de quando não havia ninguém) não pode valer para ele: senão o VersionSync
+    // lê "sem permissão" por um instante e apaga o cookie da 3.0 (a pessoa "sai da v3" ao navegar).
+    const [state, setState] = useState<{ forUser: string | null; allowed: boolean; isAdmin: boolean; unknown: boolean }>({ forUser: null, allowed: false, isAdmin: false, unknown: false })
     useEffect(() => {
-        if (!userId) { setState({ allowed: false, isAdmin: false, loading: false }); return }
+        if (!userId) { setState({ forUser: null, allowed: false, isAdmin: false, unknown: false }); return }
         let cancelled = false
         // uma consulta só por pessoa (a barra, o card e o botão do admin perguntam ao mesmo tempo)
         const hit = accessCache.get(userId)
         const request = hit && Date.now() - hit.at < 20_000
             ? hit.p
             : fetch('/api/ui-version/access', { cache: 'no-store' })
-                .then((r) => (r.ok ? r.json() : { allowed: false, isAdmin: false }))
-                .catch(() => ({ allowed: false, isAdmin: false }))
+                .then((r) => (r.ok ? r.json() : { allowed: false, isAdmin: false, unknown: true }))
+                .catch(() => ({ allowed: false, isAdmin: false, unknown: true }))
         if (!hit || request !== hit.p) accessCache.set(userId, { p: request, at: Date.now() })
-        request.then((d: { allowed?: boolean; isAdmin?: boolean }) => {
-            if (!cancelled) setState({ allowed: !!d.allowed, isAdmin: !!d.isAdmin, loading: false })
+        request.then((d: { allowed?: boolean; isAdmin?: boolean; unknown?: boolean }) => {
+            if (!cancelled) setState({ forUser: userId, allowed: !!d.allowed, isAdmin: !!d.isAdmin, unknown: !!d.unknown })
         })
         return () => { cancelled = true }
     }, [userId])
-    return state
+    // sem usuário: nada a carregar; com usuário: carregando até a resposta DELE chegar
+    const loading = !!userId && state.forUser !== userId
+    if (loading || !userId) return { allowed: false, isAdmin: false, loading, unknown: false }
+    return { allowed: state.allowed, isAdmin: state.isAdmin, loading: false, unknown: state.unknown }
 }
 
 /** Rótulo de uma versão para a interface */
@@ -100,8 +106,9 @@ export function VersionSync() {
         if (!userId || access.loading) return
         const cookie = readVersionCookie()
         if (!access.allowed) {
-            // sem permissão (nunca teve, ou foi revogada): não fica preso a uma escolha que o servidor ignora
-            if (cookie === 'v3') {
+            // sem permissão (nunca teve, ou foi revogada): não fica preso a uma escolha que o servidor ignora.
+            // Resposta duvidosa (erro/instabilidade): não mexe no cookie, senão a pessoa cairia na 2.0 por uma falha passageira.
+            if (cookie === 'v3' && !access.unknown) {
                 try { document.cookie = `${VERSION_COOKIE}=; path=/; max-age=0` } catch { /* ignora */ }
             }
             return
@@ -129,6 +136,6 @@ export function VersionSync() {
             }
         })()
         return () => { cancelled = true }
-    }, [userId, access.allowed, access.loading])
+    }, [userId, access.allowed, access.loading, access.unknown])
     return null
 }

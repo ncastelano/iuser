@@ -6,6 +6,7 @@ import { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import { useParams, useRouter, usePathname, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { Spinner } from '@/components/Spinner'
+import OwnerSkeleton, { rememberOwnerType } from '@/components/v3/OwnerSkeleton'
 import { useTheme } from '@/app/contexts/theme'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { useProfile } from '@/app/contexts/ProfileContext'
@@ -315,6 +316,7 @@ export default function OwnerClientPage() {
                 }
 
                 setOwnerType(result.type)
+                rememberOwnerType(ownerSlug, result.type)
                 setOwnerId(result.id)
                 setReferralOwnerProfileId(result.ownerProfileId)
             } catch (err: any) {
@@ -361,12 +363,10 @@ export default function OwnerClientPage() {
 
     // ========== RENDER ==========
     if (loading) {
+        // esqueleto da página (em vez de "Carregando..."): a forma da loja já aparece e o conteúdo entra no lugar
         return (
-            <div className="min-h-screen flex items-center justify-center" style={{ background: colors.background }}>
-                <div className="text-center">
-                    <Spinner size={48} color={colors.accent} className="mx-auto mb-4" />
-                    <p className="text-sm font-bold" style={{ color: colors.textSecondary }}>Carregando...</p>
-                </div>
+            <div className="min-h-screen" style={{ background: colors.background }}>
+                <OwnerSkeleton />
             </div>
         )
     }
@@ -431,7 +431,8 @@ export default function OwnerClientPage() {
             <main className="relative z-10 min-h-dvh pb-28" style={{ overscrollBehavior: 'none' }}>
                 <Header
                     title="iUser"
-                    showBack={insideShell}
+                    // na página de uma loja (3.0) o voltar fica na mesma linha do logo e do nome, dentro do cabeçalho da loja
+                    showBack={insideShell && !(ownerType === 'store' && !showProfile && !showStoreDashboard && !showPublications)}
                     onBack={insideShell
                         ? ((showProfile || showStoreDashboard || showPublications) ? showMainContent : () => (window.history.length > 1 ? router.back() : router.push('/')))
                         : undefined}
@@ -478,6 +479,7 @@ export default function OwnerClientPage() {
                     <>
                         {ownerType === 'profile' ? (
                             <Profile
+                                ui={insideShell ? 'v3' : 'v2'}
                                 ownerSlug={ownerSlug}
                                 colors={colors}
                                 bgMode={bgMode}
@@ -486,6 +488,7 @@ export default function OwnerClientPage() {
                             />
                         ) : (
                             <Store
+                                ui={insideShell ? 'v3' : 'v2'}
                                 ownerSlug={ownerSlug}
                                 colors={colors}
                                 bgMode={bgMode}
@@ -502,7 +505,7 @@ export default function OwnerClientPage() {
                 {/* Escondidos com algum dialog do Store aberto (ex: Agendar,
                     horários, produto) — senão ficam flutuando por cima dele. */}
                 {/* Botão "Ver Catálogo" - lado esquerdo (apenas fora do dashboard) */}
-                {!showProfile && !showStoreDashboard && !showPublications && !storeDialogOpen && ownerType === 'store' && (
+                {!showProfile && !showStoreDashboard && !showPublications && !storeDialogOpen && ownerType === 'store' && !insideShell && (
                     <div style={{ position: 'fixed', bottom: 32, left: 24, zIndex: 998 }}>
                         <button
                             onClick={handleOpenCatalogo}

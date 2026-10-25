@@ -1,5 +1,6 @@
 // Localização em "Informações do Perfil": onde a pessoa está (LocationPicker) e o que ela deixa aparecer:
-// no perfil (chave geral — desligada, não aparece em lugar nenhum), no mapa (Radar), no Social e em tempo real.
+// no perfil (chave geral — desligada, não aparece em lugar nenhum), no Social e em tempo real. Aparecer no Radar tem componente próprio
+// (ProfileRadarVisibility, "Visível no Radar").
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
@@ -104,7 +105,6 @@ export default function ProfileLocationSettings({ profileId }: { profileId: stri
 
     const toggles: { key: FlagKey; title: string; text: string; fallback: boolean; needsMaster: boolean }[] = [
         { key: 'show_location', title: 'Mostrar no meu perfil', text: 'Chave geral. Desligada, a localização não aparece em lugar nenhum.', fallback: true, needsMaster: false },
-        { key: 'show_on_map', title: 'Aparecer no mapa', text: 'Seus serviços aparecem no mapa (Radar).', fallback: true, needsMaster: true },
         { key: 'show_in_social', title: 'Mostrar no Social', text: 'O endereço aparece no seu cartão do Social.', fallback: true, needsMaster: true },
         { key: 'live_location', title: 'Localização em tempo real', text: 'Mostra a sua posição de agora (aproximada, ~100 m) no perfil enquanto o app estiver aberto.', fallback: false, needsMaster: true },
     ]
@@ -115,10 +115,11 @@ export default function ProfileLocationSettings({ profileId }: { profileId: stri
 
     const summary = !row ? '' : [
         addressLine || 'Sem localização definida',
-        master ? `perfil sim · mapa ${flag('show_on_map', true) ? 'sim' : 'não'} · Social ${flag('show_in_social', true) ? 'sim' : 'não'}` : 'oculta',
+        master ? `perfil sim · Radar ${flag('show_on_map', false) ? 'sim' : 'não'} · Social ${flag('show_in_social', true) ? 'sim' : 'não'}` : 'oculta',
     ].join(' · ')
 
     return (
+        <>
         <DashboardSection storageKey="config-localizacao" title="Configurações de localização" subtitle="Onde você está e quem pode ver" collapsedSummary={summary}>
             <div className="flex items-center gap-3 p-3 rounded-2xl" style={{ border: `1px solid ${colors.border}` }}>
                 <span className="w-10 h-10 rounded-full flex items-center justify-center text-white flex-shrink-0" style={{ background: GRADIENT }}><MapPin size={18} /></span>
@@ -160,8 +161,9 @@ export default function ProfileLocationSettings({ profileId }: { profileId: stri
                     )
                 })}
             </div>
+        </DashboardSection>
 
-            {showPicker && (
+        {showPicker && (
                 <LocationPicker
                     initialLocation={row?.store_lat != null && row?.store_lng != null
                         ? { lat: row.store_lat, lng: row.store_lng, address: row.address || 'Local salvo', addressNumber: row.address_number || '', addressComplement: row.address_complement || '' }
@@ -169,9 +171,10 @@ export default function ProfileLocationSettings({ profileId }: { profileId: stri
                     onSave={saveLocation}
                     onClose={() => setShowPicker(false)}
                     allowDriverSync={false}
+                    askRadarVisibility
                     onClear={row?.address ? clearLocation : undefined}
                 />
             )}
-        </DashboardSection>
+        </>
     )
 }

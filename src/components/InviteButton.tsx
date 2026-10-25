@@ -66,6 +66,7 @@ export default function InviteButton({ className = '', label = 'Convidar para o 
                 url={inviteUrl}
                 title="Convidar para o iUser"
                 text={inviteText}
+                internal={false}
             />
         </>
     )
