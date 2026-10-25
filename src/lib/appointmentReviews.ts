@@ -22,6 +22,8 @@ export interface TrackRecord {
     by_owners: OwnerReview[]
     own_comments: OwnComment[]
     summary: { count: number; avg: number }
+    /** como a pessoa costuma avaliar os serviços: média que dá, notas baixas (1–2★) e quantas têm comentário */
+    own_summary: { count: number; avg: number; low: number; with_comment: number }
     services_done: number
 }
 

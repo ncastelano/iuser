@@ -38,6 +38,17 @@ export default function ClientTrackRecord({ clientId, palette }: { clientId: str
                 </span>
                 <span style={{ color: c.textSecondary, fontSize: 12 }}>{rec.services_done} {rec.services_done === 1 ? 'serviço feito' : 'serviços feitos'}</span>
             </div>
+            {rec.own_summary.count > 0 && (() => {
+                const o = rec.own_summary
+                const harsh = o.count >= 2 && o.low / o.count >= 0.5   // metade ou mais das notas dela são 1–2★
+                return (
+                    <p style={{ marginTop: 8, padding: '8px 10px', borderRadius: 12, fontSize: 12.5, fontWeight: 700, color: harsh ? '#f87171' : c.textPrimary, background: harsh ? 'rgba(239,68,68,0.12)' : `${c.border}22` }}>
+                        Como ela avalia os serviços: média {String(o.avg).replace('.', ',')}★ em {o.count} {o.count === 1 ? 'avaliação' : 'avaliações'}
+                        {o.low > 0 ? ` · ${o.low} ${o.low === 1 ? 'nota baixa' : 'notas baixas'}` : ' · nenhuma nota baixa'}
+                        {harsh ? ' — costuma avaliar mal' : ''}
+                    </p>
+                )
+            })()}
             {empty && <p style={{ color: c.textSecondary, fontSize: 12, marginTop: 8 }}>Ainda não há avaliações nem comentários dessa pessoa.</p>}
             {rec.by_owners.length > 0 && (<>
                 {label('O que donos de serviço disseram')}

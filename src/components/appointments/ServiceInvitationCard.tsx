@@ -41,7 +41,8 @@ export default function ServiceInvitationCard({ client, slots, palette, onAccept
     onDecline: (id: string) => void
     onOpen?: (id: string) => void
 }) {
-    const [open, setOpen] = useState(false)
+    // aberto de saída: o dono quer ver quem é a pessoa ANTES de aceitar
+    const [open, setOpen] = useState(true)
     const c = palette
     return (
         <div style={{ background: c.surface, border: `1px solid ${c.border}66`, borderRadius: 22, padding: 14, boxShadow: '0 6px 20px rgba(0,0,0,0.08)' }}>
