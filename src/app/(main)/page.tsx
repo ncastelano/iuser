@@ -595,7 +595,7 @@ function HomePageContent() {
             case 'servicosOferecidos':
                 return <OfferAService />
             case 'servicosProcurados':
-                return <NeedAService />
+                return <NeedAService origin={savedLocation ? { lat: savedLocation.lat, lng: savedLocation.lng } : null} />
             default:
                 return null
         }
