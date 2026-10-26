@@ -2,10 +2,10 @@
 // Rodar: npm run test:rentals
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { priceLabel, monthlyTotal, moveInCost, stayTotal, specsLine, approxCoord, filterListings, EMPTY_FILTERS, validateListing, trustBadge, listingSlug } from '../src/modules/rentals/domain.ts'
+import { priceLabel, monthlyTotal, moveInCost, stayTotal, specsLine, approxCoord, filterListings, EMPTY_FILTERS, activeFilterCount, validateListing, trustBadge, listingSlug } from '../src/modules/rentals/domain.ts'
 
 const apto = { price: 1800, condoFee: 250, iptuFee: 50, depositAmount: 3600, rentalKind: 'mensal', minStayDays: null }
-const base = (o = {}) => ({ rentalKind: 'mensal', propertyType: 'apartamento', price: 1500, bedrooms: 2, petsAllowed: false, furnished: false, neighborhood: 'Centro', city: 'Porto Velho', title: 'Apto Centro', createdAt: '2026-10-01T00:00:00Z', ...o })
+const base = (o = {}) => ({ rentalKind: 'mensal', propertyType: 'apartamento', price: 1500, bedrooms: 2, bathrooms: 1, parking: 1, areaM2: 60, amenities: [], storeId: null, petsAllowed: false, furnished: false, neighborhood: 'Centro', city: 'Porto Velho', title: 'Apto Centro', createdAt: '2026-10-01T00:00:00Z', ...o })
 
 test('preço: mês ou dia', () => {
     assert.match(priceLabel(apto), /R\$\s?1\.800\/mês/)
@@ -66,4 +66,25 @@ test('endereço do anúncio: sem acento, sem símbolo, com sufixo', () => {
     const slug = listingSlug('Apartamento 2 quartos — Olaria!', 'São Cristóvão', () => 0)
     assert.match(slug, /^apartamento-2-quartos-olaria-sao-cristovao-?[a-z0-9]*-aaaaa$/)
     assert.match(listingSlug('', '', () => 0.5), /^imovel-[a-z0-9]{5}$/)
+})
+
+test('busca avançada: faixa de preço, banheiros, vagas, área, comodidades e imobiliária', () => {
+    const items = [
+        base({ id: 1, price: 900, bathrooms: 1, parking: 0, areaM2: 30, amenities: ['Wi-Fi'] }),
+        base({ id: 2, price: 1800, bathrooms: 2, parking: 2, areaM2: 90, amenities: ['Wi-Fi', 'Piscina'], storeId: 's1', createdAt: '2026-10-02T00:00:00Z' }),
+        base({ id: 3, price: 3000, bathrooms: 3, parking: 1, areaM2: 140, amenities: ['Piscina'], createdAt: '2026-10-03T00:00:00Z' }),
+    ]
+    const ids = (f) => filterListings(items, { ...EMPTY_FILTERS, ...f, sort: 'menor_preco' }).map((i) => i.id)
+    assert.deepEqual(ids({ minPrice: 1000, maxPrice: 2000 }), [2])
+    assert.deepEqual(ids({ minBathrooms: 2 }), [2, 3])
+    assert.deepEqual(ids({ minParking: 1 }), [2, 3])
+    assert.deepEqual(ids({ minArea: 100 }), [3])
+    assert.deepEqual(ids({ amenities: ['Wi-Fi', 'Piscina'] }), [2])           // precisa ter TODAS
+    assert.deepEqual(ids({ amenities: ['Piscina'] }), [2, 3])
+    assert.deepEqual(ids({ agencyOnly: true }), [2])
+})
+test('contador de filtros ligados (ordem e busca por lugar não contam)', () => {
+    assert.equal(activeFilterCount(EMPTY_FILTERS), 0)
+    assert.equal(activeFilterCount({ ...EMPTY_FILTERS, where: 'centro', sort: 'menor_preco' }), 0)
+    assert.equal(activeFilterCount({ ...EMPTY_FILTERS, kind: 'mensal', types: ['casa'], maxPrice: 2000, pets: true, amenities: ['Wi-Fi'] }), 5)
 })

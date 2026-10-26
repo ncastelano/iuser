@@ -7,7 +7,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Home, PawPrint, Plus, Search, Sofa, X } from 'lucide-react'
+import { ArrowLeft, Home, LayoutGrid, PawPrint, Plus, Search, Sofa, X } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { handleShareLink } from '@/lib/share'
@@ -49,24 +49,22 @@ export default function ImoveisScreen() {
                 </div>
             </div>
 
-            {/* Filtros numa linha só (rola pro lado) */}
-            <div className="mt-3 flex items-center gap-2 overflow-x-auto scrollbar-hide -mx-4 px-4">
-                {([['todos', 'Tudo'], ['mensal', 'Mensal'], ['temporada', 'Temporada']] as const).map(([k, label]) => (
-                    <button key={k} onClick={() => set({ kind: k })} className={pill} style={chip(f.kind === k)}>{label}</button>
+            {/* Filtros numa linha só (rola pro lado), como no /comprar: finalidade e condições primeiro, depois os tipos, e preço/quartos/ordem no fim */}
+            <div className="mt-3 flex items-center gap-2 overflow-x-auto scrollbar-hide -mx-4 px-4" style={{ overflowAnchor: 'none' }}>
+                {([['mensal', 'Mensal'], ['temporada', 'Temporada']] as const).map(([k, label]) => (
+                    <button key={k} onClick={() => set({ kind: f.kind === k ? 'todos' : k })} className={pill} style={chip(f.kind === k)}>{label}</button>
                 ))}
-                <span aria-hidden className="flex-shrink-0 w-px h-6" style={{ background: colors.border }} />
                 <button onClick={() => set({ pets: !f.pets })} className={pill} style={chip(f.pets)}><PawPrint size={14} /> Aceita pet</button>
                 <button onClick={() => set({ furnished: !f.furnished })} className={pill} style={chip(f.furnished)}><Sofa size={14} /> Mobiliado</button>
-            </div>
-            <div className="mt-2 flex items-center gap-2 overflow-x-auto scrollbar-hide -mx-4 px-4">
-                {PROPERTY_TYPES.slice(0, 6).map((t) => <button key={t.id} onClick={() => toggleType(t.id)} className={pill} style={chip(f.types.includes(t.id))}>{t.label}</button>)}
-            </div>
-            <div className="mt-2 flex items-center gap-2 overflow-x-auto scrollbar-hide -mx-4 px-4">
-                <select value={f.maxPrice ?? ''} onChange={(e) => set({ maxPrice: e.target.value ? Number(e.target.value) : null })} className="flex-shrink-0 h-10 px-3 rounded-full text-[13px] font-black focus:outline-none" style={{ background: soft, color: colors.textPrimary }} aria-label="Preço máximo">
+                <span aria-hidden className="flex-shrink-0 w-px h-6" style={{ background: colors.border }} />
+                <button onClick={() => set({ types: [] })} className={`${pill} pl-3`} style={chip(f.types.length === 0)}><LayoutGrid size={14} /> Tudo</button>
+                {PROPERTY_TYPES.map((t) => <button key={t.id} onClick={() => toggleType(t.id)} className={pill} style={chip(f.types.includes(t.id))}>{t.label}</button>)}
+                <span aria-hidden className="flex-shrink-0 w-px h-6" style={{ background: colors.border }} />
+                <select value={f.maxPrice ?? ''} onChange={(e) => set({ maxPrice: e.target.value ? Number(e.target.value) : null })} className="flex-shrink-0 h-10 px-3 rounded-full text-[13px] font-black focus:outline-none" style={f.maxPrice != null ? { background: GRADIENT, color: '#fff' } : { background: soft, color: colors.textPrimary }} aria-label="Preço máximo">
                     <option value="">Qualquer preço</option>
                     {PRICES.map((p) => <option key={p} value={p}>Até R$ {p.toLocaleString('pt-BR')}</option>)}
                 </select>
-                <select value={f.minBedrooms ?? ''} onChange={(e) => set({ minBedrooms: e.target.value ? Number(e.target.value) : null })} className="flex-shrink-0 h-10 px-3 rounded-full text-[13px] font-black focus:outline-none" style={{ background: soft, color: colors.textPrimary }} aria-label="Quartos">
+                <select value={f.minBedrooms ?? ''} onChange={(e) => set({ minBedrooms: e.target.value ? Number(e.target.value) : null })} className="flex-shrink-0 h-10 px-3 rounded-full text-[13px] font-black focus:outline-none" style={f.minBedrooms != null ? { background: GRADIENT, color: '#fff' } : { background: soft, color: colors.textPrimary }} aria-label="Quartos">
                     <option value="">Quartos</option>
                     {[1, 2, 3, 4].map((n) => <option key={n} value={n}>{n}+ quartos</option>)}
                 </select>

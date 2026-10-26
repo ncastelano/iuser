@@ -109,25 +109,48 @@ export const approxCoord = (n: number) => Math.round(n * 100) / 100
 export interface RentalFilters {
     kind: RentalKind | 'todos'
     types: PropertyType[]
+    minPrice: number | null
     maxPrice: number | null
     minBedrooms: number | null
+    minBathrooms: number | null
+    minParking: number | null
+    minArea: number | null
     pets: boolean
     furnished: boolean
+    /** só os que têm TODAS essas comodidades */
+    amenities: string[]
+    /** só anúncios de imobiliária (em nome de uma loja) */
+    agencyOnly: boolean
     /** bairro ou cidade */
     where: string
     sort: 'recentes' | 'menor_preco' | 'maior_preco'
 }
-export const EMPTY_FILTERS: RentalFilters = { kind: 'todos', types: [], maxPrice: null, minBedrooms: null, pets: false, furnished: false, where: '', sort: 'recentes' }
+export const EMPTY_FILTERS: RentalFilters = {
+    kind: 'todos', types: [], minPrice: null, maxPrice: null, minBedrooms: null, minBathrooms: null, minParking: null, minArea: null,
+    pets: false, furnished: false, amenities: [], agencyOnly: false, where: '', sort: 'recentes',
+}
+
+/** Quantos filtros estão ligados (a ordem e o texto de busca não contam): o número do botão "Filtros". */
+export function activeFilterCount(f: RentalFilters): number {
+    return [f.kind !== 'todos', f.types.length > 0, f.minPrice != null, f.maxPrice != null, f.minBedrooms != null, f.minBathrooms != null, f.minParking != null,
+        f.minArea != null, f.pets, f.furnished, f.amenities.length > 0, f.agencyOnly].filter(Boolean).length
+}
 
 const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim()
 
-export function filterListings<T extends Pick<RentalListing, 'rentalKind' | 'propertyType' | 'price' | 'bedrooms' | 'petsAllowed' | 'furnished' | 'neighborhood' | 'city' | 'title' | 'createdAt'>>(items: T[], f: RentalFilters): T[] {
+export function filterListings<T extends Pick<RentalListing, 'rentalKind' | 'propertyType' | 'price' | 'bedrooms' | 'bathrooms' | 'parking' | 'areaM2' | 'petsAllowed' | 'furnished' | 'amenities' | 'storeId' | 'neighborhood' | 'city' | 'title' | 'createdAt'>>(items: T[], f: RentalFilters): T[] {
     const q = norm(f.where)
     const out = items.filter((l) => {
         if (f.kind !== 'todos' && l.rentalKind !== f.kind) return false
         if (f.types.length > 0 && !f.types.includes(l.propertyType)) return false
+        if (f.minPrice != null && l.price < f.minPrice) return false
         if (f.maxPrice != null && l.price > f.maxPrice) return false
         if (f.minBedrooms != null && (l.bedrooms ?? 0) < f.minBedrooms) return false
+        if (f.minBathrooms != null && (l.bathrooms ?? 0) < f.minBathrooms) return false
+        if (f.minParking != null && (l.parking ?? 0) < f.minParking) return false
+        if (f.minArea != null && (l.areaM2 ?? 0) < f.minArea) return false
+        if (f.agencyOnly && !l.storeId) return false
+        if (f.amenities.length > 0 && !f.amenities.every((a) => l.amenities.includes(a))) return false
         if (f.pets && !l.petsAllowed) return false
         if (f.furnished && !l.furnished) return false
         if (q && !norm(`${l.neighborhood} ${l.city} ${l.title}`).includes(q)) return false
