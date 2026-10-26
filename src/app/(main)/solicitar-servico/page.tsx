@@ -846,9 +846,10 @@ export default function PedirServicoPage() {
             }).select('id').single()
 
             if (error) throw error
-            // a coordenada EXATA fica numa tabela privada: só quem pediu e o profissional que ele escolher a recebem (get_service_request_location)
+            // o endereço completo já foi para a tabela privada (gatilho do banco); a coordenada EXATA vai junto: só quem pediu e o profissional
+            // que ele escolher recebem (get_service_request_location)
             if (created && location.coords) {
-                const { error: exactError } = await supabase.from('service_request_private').insert({ request_id: created.id, lat: location.coords[1], lng: location.coords[0] })
+                const { error: exactError } = await supabase.from('service_request_private').upsert({ request_id: created.id, lat: location.coords[1], lng: location.coords[0] }, { onConflict: 'request_id' })
                 if (exactError) console.warn('[solicitar-servico] não guardou a coordenada exata:', exactError.message)
             }
             setSubmitted(true)
