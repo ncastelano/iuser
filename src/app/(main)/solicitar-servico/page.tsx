@@ -829,7 +829,7 @@ export default function PedirServicoPage() {
                 }
             }
 
-            const { error } = await supabase.from('service_requests').insert({
+            const { data: created, error } = await supabase.from('service_requests').insert({
                 requester_id: user.id,
                 service_type: serviceType,
                 custom_service: serviceType === 'outro' ? customService.trim() || null : null,
@@ -843,9 +843,14 @@ export default function PedirServicoPage() {
                 // posição APROXIMADA do pedido (o banco arredonda para ~1 km, nunca guarda a exata): serve para o "Ver ao redor" mostrar o que está perto
                 approx_lat: location.coords ? location.coords[1] : null,
                 approx_lng: location.coords ? location.coords[0] : null,
-            })
+            }).select('id').single()
 
             if (error) throw error
+            // a coordenada EXATA fica numa tabela privada: só quem pediu e o profissional que ele escolher a recebem (get_service_request_location)
+            if (created && location.coords) {
+                const { error: exactError } = await supabase.from('service_request_private').insert({ request_id: created.id, lat: location.coords[1], lng: location.coords[0] })
+                if (exactError) console.warn('[solicitar-servico] não guardou a coordenada exata:', exactError.message)
+            }
             setSubmitted(true)
         } catch (err: any) {
             toast.error('Erro ao enviar pedido: ' + (err.message || 'tente novamente'))
