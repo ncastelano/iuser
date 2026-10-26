@@ -12,7 +12,6 @@ import { useNavProgressStore } from '@/store/useNavProgressStore'
 import { HOME_GRADIENT } from './HomeSectionKit'
 import { supabase } from '@/lib/supabase/client'
 import InviteChoiceDialog from '@/components/InviteChoiceDialog'
-import RentalsPreviewCard from '@/components/v3/RentalsPreviewCard'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = HOME_GRADIENT
@@ -100,6 +99,8 @@ export default function CanIhelp({ dragHandle }: CanIhelpProps) {
         { label: 'Contratar serviço', desc: 'Descreva o que você precisa', color: '#7c3aed', icon: Wrench, onClick: () => go('/solicitar-servico') },
         { label: 'Pedir motorista', desc: 'Corrida rápida, preço combinado', color: '#ea580c', icon: Car, onClick: () => go('/pedir-motorista') },
         { label: 'Ver ao redor', desc: 'Mapa com lojas, serviços e pessoas', color: '#0891b2', icon: Radar, onClick: () => go('/radar') },
+        // As páginas de imóveis abrem na casca da 3.0 mesmo para quem está na 2.0 (não têm versão própria); os imóveis em si aparecem na seção "Imóveis para alugar"
+        { label: 'Buscar imóvel', desc: 'Casa, apartamento, salas comerciais, kitnets, etc.', color: '#16a34a', icon: Home, onClick: () => go('/imoveis') },
     ]
     const earnActions: FeaturedAction[] = [
         { label: 'Vender', color: '#16a34a', icon: CircleDollarSign, onClick: () => go(profileSlug ? '/criar-loja' : '/criar-loja-com-cadastro') },
@@ -177,13 +178,15 @@ export default function CanIhelp({ dragHandle }: CanIhelpProps) {
                     e o que ela pode GANHAR, numa faixa compacta logo abaixo. As categorias vêm depois. */}
                 <p className="text-[11px] font-black uppercase tracking-wider mb-2 px-0.5" style={{ color: colors.textSecondary }}>O que você precisa?</p>
                 <div className="grid grid-cols-2 gap-2.5 mb-4">
-                    {needActions.map((action) => {
+                    {needActions.map((action, i) => {
                         const Icon = action.icon
+                        // Sobrou um atalho sozinho na última linha: ele ocupa a linha inteira (ícone ao lado do texto), como na 3.0
+                        const lonely = needActions.length % 2 === 1 && i === needActions.length - 1
                         return (
                             <button
                                 key={action.label}
                                 onClick={action.onClick}
-                                className="flex flex-col items-start gap-2.5 p-3.5 rounded-3xl text-left transition-all duration-200 hover:scale-[1.02] active:scale-95 min-w-0"
+                                className={`flex ${lonely ? 'col-span-2 flex-row items-center gap-3.5' : 'flex-col items-start gap-2.5'} p-3.5 rounded-3xl text-left transition-all duration-200 hover:scale-[1.02] active:scale-95 min-w-0`}
                                 style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: `0 6px 18px ${action.color}18` }}
                             >
                                 <span className="w-11 h-11 rounded-2xl flex items-center justify-center" style={{ background: `${action.color}1c`, color: action.color }}>
@@ -196,12 +199,6 @@ export default function CanIhelp({ dragHandle }: CanIhelpProps) {
                             </button>
                         )
                     })}
-                </div>
-
-                {/* Buscar imóvel: o mesmo cartão-vitrine da 3.0 (alguns imóveis à vista; "Ver todos" abre a busca).
-                    As páginas de imóveis abrem na casca da 3.0 mesmo para quem está na 2.0 (não têm versão própria). */}
-                <div className="mb-4">
-                    <RentalsPreviewCard title="Buscar imóvel" desc="Casa, apartamento, salas comerciais, kitnets, etc." />
                 </div>
 
                 <div className="rounded-3xl p-3 mb-5" style={{ background: `${colors.accent}12`, border: `1px solid ${colors.accent}30` }}>
