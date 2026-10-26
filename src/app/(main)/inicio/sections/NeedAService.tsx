@@ -6,7 +6,6 @@
 // Prestador); aqui é só a vitrine.
 'use client'
 
-import ServiceRequestShareButton from '@/components/ServiceRequestShareButton'
 import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
@@ -180,42 +179,39 @@ export default function NeedAService({ dragHandle, limit = 8, origin }: { dragHa
                                     <FitText text={title} title={title} min={photo ? 14 : 16} max={photo ? 22 : 34} style={{ color: colors.textPrimary }} />
                                 </div>
 
-                                {/* Só a distância (a partir do local da pessoa); sem local ou sem posição do pedido, nada */}
-                                {distances.get(item.id) != null && (
-                                    <span className="flex items-center gap-1 text-[11px] font-bold" style={{ color: colors.textSecondary }}>
-                                        <MapPin size={11} className="flex-shrink-0" />
-                                        {formatDistance(distances.get(item.id) as number)}
-                                    </span>
+                                {/* Embaixo, numa linha só: a distância (só quando há local e posição do pedido) e a ação */}
+                                {(distances.get(item.id) != null || !mine) && (
+                                    <div className="nas-row flex items-center gap-2">
+                                        {distances.get(item.id) != null && (
+                                            <span className="flex-shrink-0 flex items-center gap-1 text-[11px] font-bold whitespace-nowrap" style={{ color: colors.textSecondary }}>
+                                                <MapPin size={11} className="flex-shrink-0" />
+                                                {formatDistance(distances.get(item.id) as number)}
+                                            </span>
+                                        )}
+
+                                        {!mine && applied?.has(item.id) && applied.get(item.id) !== 'rejected' && (
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); goFromHome(`/procurar-servico?pedido=${item.id}`) }}
+                                                className="flex-1 min-w-0 flex items-center justify-center gap-1.5 h-10 rounded-full font-black text-[13px]"
+                                                style={{ background: '#22c55e18', color: '#16a34a', border: '1px solid #22c55e55' }}
+                                            >
+                                                <Check size={15} className="flex-shrink-0" />
+                                                <span className="truncate">{applied.get(item.id) === 'accepted' ? 'Você foi escolhido!' : 'Já me inscrevi'}</span>
+                                            </button>
+                                        )}
+
+                                        {!mine && !(applied?.has(item.id) && applied.get(item.id) !== 'rejected') && (
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); goFromHome(`/procurar-servico?pedido=${item.id}`) }}
+                                                className="flex-1 min-w-0 flex items-center justify-center h-10 px-2 rounded-full font-black text-[13px] whitespace-nowrap transition-all hover:scale-[1.02] active:scale-95"
+                                                style={{ background: HOME_GRADIENT, color: '#fff', boxShadow: '0 4px 12px #f9731640' }}
+                                            >
+                                                <span className="nas-long">Quero me inscrever</span>
+                                                <span className="nas-short">Me inscrever</span>
+                                            </button>
+                                        )}
+                                    </div>
                                 )}
-
-                                {/* Embaixo, numa linha só: a ação e o compartilhar */}
-                                <div className="nas-row flex items-center gap-1.5">
-                                    {!mine && applied?.has(item.id) && applied.get(item.id) !== 'rejected' && (
-                                        <button
-                                            onClick={(e) => { e.stopPropagation(); goFromHome(`/procurar-servico?pedido=${item.id}`) }}
-                                            className="flex-1 min-w-0 flex items-center justify-center gap-1.5 h-10 rounded-full font-black text-[13px]"
-                                            style={{ background: '#22c55e18', color: '#16a34a', border: '1px solid #22c55e55' }}
-                                        >
-                                            <Check size={15} className="flex-shrink-0" />
-                                            <span className="truncate">{applied.get(item.id) === 'accepted' ? 'Você foi escolhido!' : 'Você já se inscreveu'}</span>
-                                        </button>
-                                    )}
-
-                                    {!mine && !(applied?.has(item.id) && applied.get(item.id) !== 'rejected') && (
-                                        <button
-                                            onClick={(e) => { e.stopPropagation(); goFromHome(`/procurar-servico?pedido=${item.id}`) }}
-                                            className="flex-1 min-w-0 flex items-center justify-center h-10 px-2 rounded-full font-black text-[13px] whitespace-nowrap transition-all hover:scale-[1.02] active:scale-95"
-                                            style={{ background: HOME_GRADIENT, color: '#fff', boxShadow: '0 4px 12px #f9731640' }}
-                                        >
-                                            <span className="nas-long">Quero me inscrever</span>
-                                            <span className="nas-short">Me inscrever</span>
-                                        </button>
-                                    )}
-
-                                    {/* No pedido da própria pessoa não há botão de inscrição: o compartilhar vai para a ponta direita */}
-                                    {mine && <span className="flex-1" />}
-                                    <ServiceRequestShareButton item={item} size={40} />
-                                </div>
                             </div>
                         </SeenBox>
                     )
@@ -224,11 +220,11 @@ export default function NeedAService({ dragHandle, limit = 8, origin }: { dragHa
             </div>
             <PageDots pages={pages} page={page} onGo={goTo} label="Ver pedidos, página" />
             <style>{PAGE_SLIDE_CSS}</style>
-            {/* Cartão estreito (2 por linha no celular): o botão usa o texto curto para caber ao lado do compartilhar */}
+            {/* Cartão estreito (2 por linha no celular): o botão usa o texto curto para caber ao lado da distância */}
             <style>{`
                 .nas-row { container-type: inline-size; }
                 .nas-short { display: none; }
-                @container (max-width: 185px) { .nas-long { display: none; } .nas-short { display: inline; } }
+                @container (max-width: 215px) { .nas-long { display: none; } .nas-short { display: inline; } }
             `}</style>
 
             {menuItem && createPortal(
