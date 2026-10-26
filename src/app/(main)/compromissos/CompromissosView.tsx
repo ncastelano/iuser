@@ -49,6 +49,10 @@ import PlanAvatarRing from '@/components/PlanAvatarRing'
 import { useProfilesById } from '@/hooks/useProfilesById'
 import ShareAppointmentButton from '@/components/ShareAppointmentButton'
 import AppointmentDepositPanel from '@/components/AppointmentDepositPanel'
+import AppointmentReviewPanel from '@/components/appointments/AppointmentReviewPanel'
+import ClientTrackRecord from '@/components/appointments/ClientTrackRecord'
+import ServiceInvitationCard from '@/components/appointments/ServiceInvitationCard'
+import { isServiceBooking } from '@/lib/appointmentReviews'
 
 type BgMode = 'animated' | 'black' | 'custom'
 
@@ -247,6 +251,14 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
     const [showPendingInNext, setShowPendingInNext] = useState(true)
 
     const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null)
+    // o selo do detalhe acompanha o banco (ex.: o dono marcou "serviço feito" e a lista foi recarregada)
+    useEffect(() => {
+        setSelectedAppointment((cur) => {
+            if (!cur) return cur
+            const fresh = appointments.find((x) => x.id === cur.id)
+            return fresh && fresh.status !== cur.status ? fresh : cur
+        })
+    }, [appointments])
     const [detailModalOpen, setDetailModalOpen] = useState(false)
     const [inviteSlugDetail, setInviteSlugDetail] = useState('')
     const [searchedProfileDetail, setSearchedProfileDetail] = useState<any>(null)
@@ -1024,7 +1036,32 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
                                     <div style={{ ...cardStyle, padding: 20, color: colors.textSecondary }}>Nenhum agendamento pendente.</div>
                                 ) : (
                                     <div style={AGENDA_GRID}>
-                                        {pendentesLoja.map((agendamento) => renderCard(agendamento, { accept: true }))}
+                                        {/* Serviço agendado = CONVITE DE SERVIÇO: um cartão por cliente, com os horários que ele pediu e o histórico dele */}
+                                        {(() => {
+                                            const services = pendentesLoja.filter(isServiceBooking)
+                                            const byClient = new Map<string, Appointment[]>()
+                                            for (const a of services) byClient.set(a.customer_id, [...(byClient.get(a.customer_id) || []), a])
+                                            const palette = { textPrimary: colors.textPrimary, textSecondary: colors.textSecondary, surface: colors.surface, border: colors.border, accent: colors.accent }
+                                            return (
+                                                <>
+                                                    {[...byClient.entries()].map(([clientId, list]) => {
+                                                        const first = list[0]
+                                                        return (
+                                                            <ServiceInvitationCard
+                                                                key={clientId}
+                                                                client={{ id: clientId, slug: first.customer_slug, name: personName(first), avatarUrl: getPublicUrl(first.customer_avatar_url, 'avatars') }}
+                                                                slots={[...list].sort((x, y) => `${x.date}T${x.time}`.localeCompare(`${y.date}T${y.time}`)).map((a) => ({ id: a.id, date: a.date, time: a.time, duration_minutes: a.duration_minutes, service_name: a.service_name, deposit_status: a.deposit_status, deposit_amount: a.deposit_amount }))}
+                                                                palette={palette}
+                                                                onAccept={aceitarCompromisso}
+                                                                onDecline={recusarCompromisso}
+                                                                onOpen={(id) => { const a = list.find((x) => x.id === id); if (a) openDetailModal(a) }}
+                                                            />
+                                                        )
+                                                    })}
+                                                    {pendentesLoja.filter((a) => !isServiceBooking(a)).map((agendamento) => renderCard(agendamento, { accept: true }))}
+                                                </>
+                                            )
+                                        })()}
                                     </div>
                                 )}
                             </section>
@@ -1224,8 +1261,8 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
                                             <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Calendar size={14} /> {new Date(selectedAppointment.date).toLocaleDateString('pt-BR')}</span>
                                             <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Clock3 size={14} /> {formatTime(selectedAppointment.time)}</span>
                                         </div>
-                                        <span style={{ marginTop: 8, display: 'inline-block', padding: '4px 12px', borderRadius: 12, background: selectedAppointment.status === 'confirmed' ? 'rgba(16,185,129,0.2)' : 'rgba(234,179,8,0.2)', color: selectedAppointment.status === 'confirmed' ? '#10b981' : '#facc15', fontWeight: 700, fontSize: 12 }}>
-                                            {selectedAppointment.status === 'confirmed' ? 'Confirmado' : 'Pendente'}
+                                        <span style={{ marginTop: 8, display: 'inline-block', padding: '4px 12px', borderRadius: 12, background: selectedAppointment.status === 'confirmed' || selectedAppointment.status === 'completed' ? 'rgba(16,185,129,0.2)' : selectedAppointment.status === 'cancelled' ? 'rgba(239,68,68,0.2)' : 'rgba(234,179,8,0.2)', color: selectedAppointment.status === 'confirmed' || selectedAppointment.status === 'completed' ? '#10b981' : selectedAppointment.status === 'cancelled' ? '#f87171' : '#facc15', fontWeight: 700, fontSize: 12 }}>
+                                            {selectedAppointment.status === 'confirmed' ? 'Confirmado' : selectedAppointment.status === 'completed' ? 'Serviço feito' : selectedAppointment.status === 'cancelled' ? 'Cancelado' : 'Pendente'}
                                         </span>
                                     </div>
                                 </div>
@@ -1237,6 +1274,24 @@ export default function CompromissosView({ agendaSlug }: { agendaSlug: string })
                                             palette={{ textPrimary: '#fff', textSecondary: '#94a3b8', surface: 'rgba(255,255,255,0.1)', border: '#94a3b8', accent: colors.accent }}
                                             onChanged={() => { refetch(); setDetailModalOpen(false) }}
                                         />
+                                    </div>
+                                )}
+                                {isServiceBooking(selectedAppointment) && (selectedAppointment.status === 'confirmed' || selectedAppointment.status === 'completed') && (() => {
+                                    const pal = { textPrimary: '#fff', textSecondary: '#94a3b8', surface: 'rgba(255,255,255,0.06)', border: '#94a3b8', accent: colors.accent }
+                                    return (
+                                        <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 20, marginBottom: 20 }}>
+                                            <AppointmentReviewPanel
+                                                appointmentId={selectedAppointment.id}
+                                                palette={pal}
+                                                onChanged={() => { refetch(); setSelectedAppointment({ ...selectedAppointment }) }}
+                                            />
+                                        </div>
+                                    )
+                                })()}
+                                {isServiceBooking(selectedAppointment) && selectedAppointment.customer_id !== userId && (selectedAppointment.owner_id === userId || selectedAppointment.provider_profile_id === userId) && (
+                                    <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 20, marginBottom: 20 }}>
+                                        <h4 style={{ fontWeight: 700, fontSize: 16, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8, color: '#10b981' }}>Histórico do cliente</h4>
+                                        <ClientTrackRecord clientId={selectedAppointment.customer_id} palette={{ textPrimary: '#fff', textSecondary: '#94a3b8', surface: 'rgba(255,255,255,0.06)', border: '#94a3b8', accent: colors.accent }} />
                                     </div>
                                 )}
                                 <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 20, marginBottom: 20 }}>

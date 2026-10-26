@@ -8,6 +8,7 @@ import { User, Store, Home, MapPin, LayoutDashboard, X, Car } from 'lucide-react
 
 import CategoriasSection from './inicio/sections/CanIhelp'
 import RadarSection from './inicio/sections/RadarSection'
+import RentalShowcase from './inicio/sections/RentalShowcase'
 import MotoristaSection from './inicio/sections/MotoristaSection'
 import AcceptARider from './inicio/sections/AcceptARider'
 import MyServiceRequests from './inicio/sections/MyServiceRequests'
@@ -60,6 +61,7 @@ const DEFAULT_SECTIONS = [
     'canalMotorista',
     'productShowcase',
     'publicationShowcase',
+    'rentalShowcase',
     'communities',
     'profileShowcase',
     'motorista',
@@ -235,6 +237,11 @@ function HomePageContent() {
                     if (!filtered.includes('communities')) {
                         const at = filtered.indexOf('publicationShowcase')
                         filtered = at >= 0 ? [...filtered.slice(0, at + 1), 'communities', ...filtered.slice(at + 1)] : filtered
+                    }
+                    // Imóveis para alugar: entra logo abaixo das publicações em destaque (antes das comunidades)
+                    if (!filtered.includes('rentalShowcase')) {
+                        const at = filtered.indexOf('publicationShowcase')
+                        filtered = at >= 0 ? [...filtered.slice(0, at + 1), 'rentalShowcase', ...filtered.slice(at + 1)] : filtered
                     }
                     const missing = DEFAULT_SECTIONS.filter(s => !filtered.includes(s))
                     let final = hasCategorias ? ['categorias', ...filtered, ...missing] : [...filtered, ...missing]
@@ -573,6 +580,8 @@ function HomePageContent() {
                 return <ProductShowcase />
             case 'publicationShowcase':
                 return <FeaturedPublications maxItems={6} />
+            case 'rentalShowcase':
+                return <RentalShowcase />
             case 'communities':
                 return <CommunitiesPreview origin={savedLocation ? { lat: savedLocation.lat, lng: savedLocation.lng } : null} />
             case 'profileShowcase':

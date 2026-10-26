@@ -2,7 +2,7 @@
 // Rodar: npm run test:shopping
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { isQuickAddable, matchesQuery, sortTrending, limitPerStore, distinctRecent } from '../src/modules/shopping/domain.ts'
+import { isQuickAddable, matchesQuery, sortTrending, limitPerStore, distinctRecent, servicePriceLabel, serviceCta, sortServices } from '../src/modules/shopping/domain.ts'
 
 const base = { price: 20, hasAddons: false, stock: null, storeOpen: true }
 
@@ -37,4 +37,20 @@ test('no máximo N produtos por loja, mantendo a ordem', () => {
 })
 test('pedir de novo: sem repetir, sem vazios, respeita o máximo', () => {
     assert.deepEqual(distinctRecent(['p1', null, 'p2', 'p1', undefined, 'p3'], 2), ['p1', 'p2'])
+})
+
+test('serviço: preço em reais ou "Valor a combinar"; loja agenda, pessoa combina', () => {
+    assert.match(servicePriceLabel(45), /R\$\s?45,00/)
+    assert.equal(servicePriceLabel(0), 'Valor a combinar')
+    assert.equal(servicePriceLabel(null), 'Valor a combinar')
+    assert.equal(serviceCta('store'), 'Agendar')
+    assert.equal(serviceCta('person'), 'Combinar')
+})
+test('serviços: loja fechada por último; depois os mais vistos', () => {
+    const items = [
+        { id: 'loja-fechada', kind: 'store', storeOpen: false, viewCount: 900 },
+        { id: 'pessoa', kind: 'person', storeOpen: true, viewCount: 5 },
+        { id: 'loja-aberta', kind: 'store', storeOpen: true, viewCount: 50 },
+    ]
+    assert.deepEqual(sortServices(items).map((i) => i.id), ['loja-aberta', 'pessoa', 'loja-fechada'])
 })

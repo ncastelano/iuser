@@ -67,6 +67,8 @@ export default function ServiceRequestDetailsDialog({ requestId, onClose }: Prop
             .eq('id', requestId)
             .maybeSingle()
         if (!r) { onClose(); return }
+        // o endereço completo (com número) é só de quem pediu: vem da tabela privada; a coluna pública só tem rua e bairro
+        const { data: priv } = await supabase.from('service_request_private').select('address').eq('request_id', requestId).maybeSingle()
 
         const { data: apps } = await supabase
             .from('service_applications')
@@ -84,7 +86,7 @@ export default function ServiceRequestDetailsDialog({ requestId, onClose }: Prop
             serviceLabel: getServiceLabel(r.service_type, r.custom_service),
             customService: r.custom_service || null,
             customIcon: r.custom_icon || null,
-            locationAddress: r.location_address,
+            locationAddress: (priv as { address: string | null } | null)?.address || r.location_address,
             description: r.description || '',
             photoUrls: r.photo_urls || [],
             needsAccess: !!r.location_needs_access,

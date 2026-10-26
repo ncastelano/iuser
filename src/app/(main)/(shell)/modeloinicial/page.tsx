@@ -12,7 +12,7 @@ import { ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
     Search, ShoppingBag, Store as StoreIcon, Car, Wrench, Briefcase, Users, MessageCircle,
-    ChevronRight, Star, MapPin, Eye, User, LogIn, LogOut, Radar, UserPlus, X, Plus, Package, ShoppingCart, Scissors, Check,
+    Home as HomeIcon, ChevronRight, Star, MapPin, Eye, User, LogIn, LogOut, Radar, UserPlus, X, Plus, Package, ShoppingCart, Scissors, Check,
     UtensilsCrossed, Shirt, Smartphone, Hand, Sparkles, Bike, Motorbike, CircleDollarSign, type LucideIcon,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
@@ -33,6 +33,7 @@ import { fetchCommunitiesActivity, type CommunityActivity } from '@/lib/communit
 import PlanAvatarRing, { usePlanRing } from '@/components/PlanAvatarRing'
 import ListingRowCard from '@/components/ListingRowCard'
 import NearbyAroundCard from '@/components/v3/NearbyAroundCard'
+import RentalsPreviewCard from '@/components/v3/RentalsPreviewCard'
 import { loadServiceCards } from '@/lib/serviceCards'
 import SearchResultsSection from '../../inicio/SearchResultsSection'
 import { rankStyle } from '../../social/SocialProfileCard'
@@ -608,7 +609,7 @@ export default function ModeloInicialPage() {
     const inviteUrl = typeof window !== 'undefined' && profileSlug ? `${window.location.origin}/convite?ref=${profileSlug}` : ''
 
     // `icons`: quatro ícones (quadrado 2x2) no lugar do ícone único — dão uma ideia do que cabe naquele cartão
-    type Action = { /** Cartão próprio: o que tem por perto (um de cada tipo) */ nearby?: boolean; /** Com algo em andamento o cartão vira um retângulo horizontal: fotos do que está em andamento + botão de voltar a isso */ wide?: { images: string[]; cta: string; hot?: boolean; sub?: string }; title: string; desc: string; icon: LucideIcon; icons?: LucideIcon[]; color: string; onClick: () => void; /** Algo esperando a pessoa (ex.: candidatos a escolher) */ alert?: boolean; /** Destaca o texto (o cartão está mostrando o andamento, não só a chamada) */ live?: boolean }
+    type Action = { /** Cartão próprio: o que tem por perto (um de cada tipo) */ nearby?: boolean; /** Cartão próprio: vitrine com alguns imóveis para alugar */ rentals?: boolean; /** Com algo em andamento o cartão vira um retângulo horizontal: fotos do que está em andamento + botão de voltar a isso */ wide?: { images: string[]; cta: string; hot?: boolean; sub?: string; /** O botão da ponta leva a outro lugar que o cartão (ex.: Comprar abre a loja, "Finalizar" abre o carrinho) */ onCta?: () => void }; title: string; desc: string; icon: LucideIcon; icons?: LucideIcon[]; color: string; onClick: () => void; /** Algo esperando a pessoa (ex.: candidatos a escolher) */ alert?: boolean; /** Destaca o texto (o cartão está mostrando o andamento, não só a chamada) */ live?: boolean }
     // Quem PRECISA de algo (o visitante chega por aqui)
     // Os cartões se moldam ao que a pessoa tem em andamento: pedidos de serviço e carrinho
     const reqBuscando = myRequests.filter((r) => r.stage === 'buscando').length
@@ -631,8 +632,8 @@ export default function ModeloInicialPage() {
     const needs: Action[] = [
         {
             title: 'Comprar', desc: cartCount > 0 ? `${cartCount} ${cartCount === 1 ? 'item' : 'itens'} no carrinho${money(cartTotal) ? ` · ${money(cartTotal)}` : ''}` : 'Lojas e produtos perto de você', live: cartCount > 0,
-            wide: cartCount > 0 ? { images: cartImages, cta: 'Finalizar' } : undefined,
-            icon: ShoppingBag, icons: [ShoppingBag, UtensilsCrossed, Shirt, Smartphone], color: TYPE.loja.color, onClick: () => go(cartCount > 0 ? '/carrinho' : '/comprar') },
+            wide: cartCount > 0 ? { images: cartImages, cta: 'Finalizar', onCta: () => go('/carrinho') } : undefined,
+            icon: ShoppingBag, icons: [ShoppingBag, UtensilsCrossed, Shirt, Smartphone], color: TYPE.loja.color, onClick: () => go('/comprar') },
         { title: 'Contratar serviço', desc: serviceParts.length > 0 ? serviceParts.join(' · ') : 'Descreva o que você precisa', live: serviceParts.length > 0, alert: reqEscolher > 0 || reqAvaliar > 0,
             wide: serviceParts.length > 0 ? { images: reqImages, cta: reqEscolher > 0 ? 'Escolher' : reqAvaliar > 0 ? 'Avaliar' : 'Ver', hot: reqEscolher > 0 || reqAvaliar > 0 } : undefined,
             icon: Wrench, icons: [Wrench, Scissors, Hand, Sparkles], color: TYPE.servico.color, onClick: () => go('/solicitar-servico') },
@@ -640,10 +641,13 @@ export default function ModeloInicialPage() {
             wide: activeRide ? { images: [], cta: activeRide.status === 'pending' ? (activeRide.candidates > 0 ? 'Escolher' : 'Ver') : 'Acompanhar', hot: activeRide.candidates > 0 || activeRide.arrived, sub: activeRide.destination ? `Para ${shortAddress(activeRide.destination)}` : undefined } : undefined,
             icon: Car, icons: [Car, Bike, Motorbike, Package], color: '#ea580c', onClick: () => go('/pedir-motorista') },
         { title: 'Ver ao redor', desc: 'Mapa com lojas, serviços e pessoas', nearby: true, icon: Radar, icons: [Radar, MapPin, StoreIcon, Users], color: '#0891b2', onClick: () => go('/radar') },
+        { title: 'Buscar imóvel', desc: 'Casa, apartamento, salas comerciais, kitnets, etc.', rentals: true, icon: HomeIcon, color: '#16a34a', onClick: () => go('/imoveis') },
     ]
     // Quem QUER GANHAR com o iUser
     const earns: Action[] = [
         { title: 'Vender', desc: 'Mostre seu produto, serviço ou loja', icon: CircleDollarSign, color: '#16a34a', onClick: () => setSellOpen(true) },
+        { title: 'Fazer serviços', desc: 'Veja os pedidos e se inscreva', icon: Briefcase, color: '#ea580c', onClick: () => go('/procurar-servico') },
+        { title: 'Anunciar imóvel', desc: 'Alugue sua casa, apto ou sala', icon: HomeIcon, color: '#16a34a', onClick: () => go('/anunciar-imovel') },
         { title: 'Ser motorista', desc: 'Receba corridas na sua região', icon: Car, color: '#ea580c', onClick: () => go('/painel-motorista') },
         {
             title: 'Indicar e ganhar', desc: 'Convide e receba comissão', icon: UserPlus, color: '#7c3aed',
@@ -697,8 +701,9 @@ export default function ModeloInicialPage() {
                                 {needs.map((a) => {
                                     const Icon = a.icon
                                     if (a.nearby) return <NearbyAroundCard key={a.title} userId={userId} />
+                                    if (a.rentals) return <RentalsPreviewCard key={a.title} title={a.title} desc={a.desc} />
                                     // Sobrou um quadrado sozinho na linha (os outros viraram retângulos): ele também vira retângulo, só sem botão
-                                    const squares = needs.filter((n) => !n.wide && !n.nearby)
+                                    const squares = needs.filter((n) => !n.wide && !n.nearby && !n.rentals)
                                     const lonely = !a.wide && squares.length % 2 === 1 && squares[squares.length - 1] === a
                                     if (a.wide || lonely) {
                                         const Ic = a.icon
@@ -725,7 +730,12 @@ export default function ModeloInicialPage() {
                                                     {w.sub && <span className="block text-[11px] mt-0.5 truncate" style={{ color: colors.textSecondary }}>{w.sub}</span>}
                                                 </span>
                                                 {w.cta
-                                                    ? <span className="flex-shrink-0 h-9 px-4 rounded-full flex items-center text-[13px] font-black text-white" style={{ background: w.hot ? '#ef4444' : '#f97316' }}>{w.cta}</span>
+                                                    ? <span
+                                                        role={w.onCta ? 'button' : undefined}
+                                                        onClick={w.onCta ? (e) => { e.stopPropagation(); w.onCta!() } : undefined}
+                                                        className="flex-shrink-0 h-9 px-4 rounded-full flex items-center text-[13px] font-black text-white"
+                                                        style={{ background: w.hot ? '#ef4444' : '#f97316' }}
+                                                    >{w.cta}</span>
                                                     : <ChevronRight size={16} className="flex-shrink-0" style={{ color: colors.textSecondary }} />}
                                             </button>
                                         )

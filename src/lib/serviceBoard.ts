@@ -145,9 +145,10 @@ export function notifyServiceRequestsChanged() {
 }
 
 // ===== Compartilhar um pedido de serviço =====
-// O link é o da própria vitrine (/procurar-servico?pedido=<id>): abre a lista já na altura do pedido. Na comunidade ele vira cartão.
+// O link é o da própria vitrine (/procurar-servico?ver=<id>): abre os DETALHES do pedido, sem inscrever ninguém (o antigo ?pedido=<id> inscreve quem abre
+// — é o caminho do botão "Quero me inscrever" da home — e por isso não serve para compartilhar). Na comunidade ele vira cartão.
 export function serviceRequestLink(id: string): string {
-    return `${typeof window !== 'undefined' ? window.location.origin : 'https://www.iuser.com.br'}/procurar-servico?pedido=${id}`
+    return `${typeof window !== 'undefined' ? window.location.origin : 'https://www.iuser.com.br'}/procurar-servico?ver=${id}`
 }
 
 export function serviceRequestShare(item: Pick<BoardItem, 'id' | 'service_type' | 'custom_service' | 'description' | 'photo_urls'>) {

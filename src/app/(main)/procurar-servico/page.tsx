@@ -18,6 +18,7 @@ import DriverDebtBanner from '@/components/DriverDebtBanner'
 import { notifyServiceApplication } from '@/lib/notifyRideStatus'
 import { trackServiceRequestView } from '@/lib/trackServiceRequestView'
 import ServiceRequestShareButton from '@/components/ServiceRequestShareButton'
+import ServiceRequestLocation from '@/components/ServiceRequestLocation'
 import ServiceRequestViewDialog from '@/components/ServiceRequestViewDialog'
 import ServiceRequestDetailsDialog from '@/components/ServiceRequestDetailsDialog'
 import ServiceExchangePanel from '@/components/ServiceExchangePanel'
@@ -596,6 +597,7 @@ function SerParceiroContent() {
                                                                 : `Você foi escolhido! Combine os detalhes com ${app.requesterSlug ? `@${app.requesterSlug}` : 'quem pediu'}.`}
                                                         </span>
                                                     </div>
+                                                    <ServiceRequestLocation requestId={app.requestId} />
                                                     {app.requesterId && (
                                                         <ServiceExchangePanel
                                                             applicationId={app.applicationId}

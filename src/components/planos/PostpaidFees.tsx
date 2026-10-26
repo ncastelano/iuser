@@ -7,13 +7,13 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Car, Wrench, ShoppingBag, Package, Megaphone, CalendarCheck, CalendarPlus, Wallet, Briefcase, Store, MessageCircle } from 'lucide-react'
+import { Car, Wrench, ShoppingBag, Package, Megaphone, CalendarCheck, CalendarPlus, Wallet, Briefcase, Store, MessageCircle, Home } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 
 export type ChargeType =
     | 'ride_fee' | 'service_fee' | 'service_listing_fee' | 'order_fee' | 'in_person_fee' | 'product_fee' | 'publication_fee'
-    | 'schedule_activation_fee' | 'appointment_fee' | 'whatsapp_bot_message_fee' | 'payment'
+    | 'schedule_activation_fee' | 'appointment_fee' | 'whatsapp_bot_message_fee' | 'rental_listing_fee' | 'payment'
 
 export const TYPE_INFO: Record<ChargeType, { label: string; plural: string; icon: any; how: string }> = {
     ride_fee: { label: 'Corrida finalizada', plural: 'corridas', icon: Car, how: 'Cada corrida que você finaliza como motorista.' },
@@ -26,6 +26,7 @@ export const TYPE_INFO: Record<ChargeType, { label: string; plural: string; icon
     schedule_activation_fee: { label: 'Agenda ativada', plural: 'ativações de agenda', icon: CalendarPlus, how: 'Ao ativar a agenda da loja ou do perfil (uma única vez em cada).' },
     appointment_fee: { label: 'Agendamento aceito', plural: 'agendamentos', icon: CalendarCheck, how: 'Cada agendamento de cliente que você aceita, na loja ou no perfil.' },
     whatsapp_bot_message_fee: { label: 'Mensagem do bot de WhatsApp', plural: 'mensagens do bot', icon: MessageCircle, how: 'Cada mensagem do bot depois da cota gratuita mensal da Meta — sempre cobrada à parte, em qualquer plano. No Pós-pago conta como um uso normal e entra no saldo; no Pré-pago custa R$ 0,25 por mensagem, fora da mensalidade.' },
+    rental_listing_fee: { label: 'Imóvel anunciado', plural: 'imóveis anunciados', icon: Home, how: 'Cada imóvel novo que você anuncia para aluguel (casa, apartamento, quarto, sala comercial...). Anunciou, pagou a taxa — uma vez por imóvel. A visita marcada pelo interessado conta como agendamento aceito.' },
     payment: { label: 'Pagamento via Pix', plural: 'pagamentos', icon: Wallet, how: '' },
 }
 
@@ -34,6 +35,7 @@ const GROUPS: { title: string; icon: any; types: ChargeType[] }[] = [
     { title: 'Motorista', icon: Car, types: ['ride_fee'] },
     { title: 'Serviços', icon: Briefcase, types: ['service_listing_fee', 'service_fee'] },
     { title: 'Agenda', icon: CalendarCheck, types: ['schedule_activation_fee', 'appointment_fee'] },
+    { title: 'Imóveis', icon: Home, types: ['rental_listing_fee'] },
     { title: 'WhatsApp', icon: MessageCircle, types: ['whatsapp_bot_message_fee'] },
 ]
 

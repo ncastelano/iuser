@@ -1,14 +1,16 @@
 // src/lib/radarNearest.ts
 //
-// Os 3 mais próximos de cada tipo (lojas, produtos e serviços), do mais perto pro mais
+// Os 3 mais próximos de cada tipo (lojas, produtos, serviços, pessoas, imóveis para alugar e pedidos de serviço), do mais perto pro mais
 // longe — o Radar da home alterna entre eles. Mesmas fontes e mesma leitura de coordenadas do /radar
 // (stores.location; products.location ou lat/lng, senão a loja dona do item).
 import { supabase } from '@/lib/supabase/client'
 import { parseCoords } from '@/lib/geoParse'
 import { haversineKm } from '@/lib/mapboxRoute'
 import { getProfilesHiddenFromMap } from '@/lib/mapPrivacy'
+import { getRequestTitle } from '@/lib/serviceTypes'
 
-export type NearestKind = 'loja' | 'produto' | 'servico' | 'pessoa'
+// 'imovel' = anúncio de aluguel; 'pedido' = pedido de serviço que alguém PRECISA (não o serviço que alguém oferece: esse é 'servico')
+export type NearestKind = 'loja' | 'produto' | 'servico' | 'pessoa' | 'imovel' | 'pedido'
 
 export interface NearestItem {
     kind: NearestKind
@@ -118,5 +120,37 @@ export async function fetchNearest(origin: { lat: number; lng: number } | null, 
     const top3People = nearestPeople
         .sort((a, b) => (from ? (a.distanceKm as number) - (b.distanceKm as number) : (b.points || 0) - (a.points || 0)))
         .slice(0, 3)
-    return { loja: top3(nearestStores), produto: top3(nearestProducts), servico: top3(nearestServices), pessoa: top3People }
+
+    // --- imóveis para alugar (posição aproximada pública do anúncio) ---
+    const { data: rentals } = await supabase.from('rental_listings')
+        .select('id, slug, title, photos, price, rental_kind, neighborhood, approx_lat, approx_lng, view_count, owner_id').eq('status', 'active').limit(200)
+    const nearestRentals: NearestItem[] = []
+    for (const r of (rentals || []) as any[]) {
+        if (userId && r.owner_id === userId) continue
+        const d = km(Number.isFinite(r.approx_lat) && Number.isFinite(r.approx_lng) ? [r.approx_lng, r.approx_lat] as [number, number] : null)
+        if (d === undefined) continue
+        const price = `R$ ${Number(r.price).toLocaleString('pt-BR')}/${r.rental_kind === 'temporada' ? 'dia' : 'mês'}`
+        const photo = ((r.photos as string[]) || [])[0]
+        nearestRentals.push({ kind: 'imovel', id: r.id, name: r.title, subtitle: `${r.neighborhood} · ${price}`, imageUrl: photo ? productImage(photo) : null, price: null, distanceKm: d, viewCount: Number(r.view_count) || 0, href: `/imoveis/${r.slug}` })
+    }
+
+    // --- pedidos de serviço em aberto (o que as pessoas PEDEM). Com a posição aproximada do pedido (guardada ao publicar) e um local de
+    //     referência, vão do mais perto ao mais longe; os que não têm posição (antigos, ou endereço digitado à mão, ou "online") completam
+    //     a lista pelos mais novos, sem distância. Mostra só a rua/bairro, sem número ---
+    const { data: requests } = await supabase.from('service_requests')
+        .select('id, requester_id, service_type, custom_service, description, location_address, photo_urls, created_at, view_count, approx_lat, approx_lng').eq('status', 'pending').order('created_at', { ascending: false }).limit(60)
+    const place = (a: string | null) => (a || '').split(',')[0].trim().replace(/[,\s]+\d+\s*\w*$/, '')
+    const asItem = (r: any, d: number | null): NearestItem => ({ kind: 'pedido', id: r.id, name: getRequestTitle(r.description, r.service_type, r.custom_service, 60), subtitle: place(r.location_address) || null, imageUrl: (r.photo_urls as string[] | null)?.[0] || null, price: null, distanceKm: d, viewCount: Number(r.view_count) || 0, href: `/procurar-servico?ver=${r.id}` })
+    const others = ((requests || []) as any[]).filter((r) => !(userId && r.requester_id === userId))
+    const located = from
+        ? others.filter((r) => Number.isFinite(r.approx_lat) && Number.isFinite(r.approx_lng))
+            .map((r) => asItem(r, haversineKm(from, [r.approx_lng, r.approx_lat] as [number, number]))).sort((a, b) => (a.distanceKm as number) - (b.distanceKm as number))
+        : []
+    const usedIds = new Set(located.slice(0, 3).map((i) => i.id))
+    const nearestRequests: NearestItem[] = [
+        ...located.slice(0, 3),
+        ...others.filter((r) => !usedIds.has(r.id)).map((r) => asItem(r, null)),     // já vêm do mais novo para o mais antigo
+    ].slice(0, 3)
+
+    return { loja: top3(nearestStores), produto: top3(nearestProducts), servico: top3(nearestServices), pessoa: top3People, imovel: top3(nearestRentals), pedido: nearestRequests }
 }

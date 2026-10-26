@@ -10,7 +10,7 @@ import { cartAddedFeedback } from '@/lib/cartFeedback'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { ArrowLeft, ChevronRight, Clock, Flame, LayoutGrid, Package, Plus, RotateCcw, Search, ShoppingCart, Sparkles, Store as StoreIcon, Truck, X } from 'lucide-react'
+import { ArrowLeft, CalendarCheck, Car, ChevronRight, Home as HomeIcon, Clock, Flame, LayoutGrid, Package, Plus, Radar, RotateCcw, Search, ShoppingCart, Sparkles, Store as StoreIcon, Truck, Users, Wrench, X } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme, type ThemeColors } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
@@ -19,8 +19,8 @@ import { useCartStore, cartItemLineTotal } from '@/store/useCartStore'
 import StoreImageCard from '@/components/StoreImageCard'
 import { Spinner } from '@/components/Spinner'
 import {
-    isQuickAddable, matchesQuery, sortTrending, limitPerStore, loadShop,
-    type ShopData, type ShopProduct,
+    isQuickAddable, matchesQuery, sortTrending, limitPerStore, loadShop, servicePriceLabel, serviceCta, sortServices,
+    type ShopData, type ShopProduct, type ShopService,
 } from '@/modules/shopping'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -93,7 +93,7 @@ export default function ComprarScreen() {
     useEffect(() => {
         if (!meLoaded) return
         let cancelled = false
-        loadShop(supabase, userId || null, me).then((d) => { if (!cancelled) setData(d) }).catch(() => { if (!cancelled) setData({ stores: [], products: [], reorder: [] }) })
+        loadShop(supabase, userId || null, me).then((d) => { if (!cancelled) setData(d) }).catch(() => { if (!cancelled) setData({ stores: [], products: [], reorder: [], services: [] }) })
         return () => { cancelled = true }
     }, [meLoaded, me, userId])
 
@@ -117,6 +117,7 @@ export default function ComprarScreen() {
         void cartAddedFeedback()
     }
     const openProduct = (p: ShopProduct) => router.push(`/${p.storeSlug}/${p.slug}`)
+    const openService = (v: ShopService) => router.push(`/${v.ownerSlug}/${v.slug}`)
 
     // ----- filtros -----
     const passes = useCallback((p: ShopProduct) => {
@@ -136,9 +137,17 @@ export default function ComprarScreen() {
             if (freeDelivery && !/gr[aá]tis/i.test(s.delivery || '')) return false
             return !q || matchesQuery([s.name, s.category], q)
         }).sort((a, b) => Number(b.open) - Number(a.open) || b.orders - a.orders || b.views - a.views)
+        // Serviços: os de loja seguem a categoria/"aberta" da loja; os de pessoa só aparecem sem filtro (não têm categoria nem horário); entrega não se aplica
+        const services = sortServices(data.services.filter((v) => {
+            if (freeDelivery) return false
+            if (v.kind === 'store' ? (category !== 'todas' && v.storeCategorySlug !== category) || (onlyOpen && !v.storeOpen) : category !== 'todas' || onlyOpen) return false
+            return !q || matchesQuery([v.name, v.ownerName, v.category], q)
+        }))
         return {
             products,
             stores,
+            storeServices: services.filter((v) => v.kind === 'store'),
+            peopleServices: services.filter((v) => v.kind === 'person'),
             reorder: data.reorder.filter(passes),
             trending: limitPerStore(sortTrending(products), 2).slice(0, 8),
             fresh: [...products].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 10),
@@ -223,7 +232,66 @@ export default function ComprarScreen() {
         </div>
     )
 
-    const empty = view && view.products.length === 0 && view.stores.length === 0
+    const renderService = (v: ShopService) => (
+        <div key={v.id} className="rounded-3xl overflow-hidden flex flex-col text-left" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
+            <button onClick={() => openService(v)} className="relative block w-full aspect-square overflow-hidden" style={{ background: GRADIENT }}>
+                {v.imageUrl
+                    ? <img src={v.imageUrl} alt="" className="w-full h-full object-cover" loading="lazy" />
+                    : <span className="absolute inset-0 flex items-center justify-center text-white/90"><Wrench size={34} /></span>}
+                {v.kind === 'store' && !v.storeOpen && <span className="absolute left-2 top-2 text-[10px] font-black uppercase px-2 py-0.5 rounded-full text-white" style={{ background: '#dc2626' }}>Fechada</span>}
+            </button>
+            <div className="p-2.5 flex flex-col gap-1 flex-1">
+                <button onClick={() => openService(v)} className="text-left">
+                    <span className="block text-[13px] font-black leading-snug" style={{ color: colors.textPrimary, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{v.name}</span>
+                </button>
+                <button onClick={() => router.push(`/${v.ownerSlug}`)} className="flex items-center gap-1.5 text-left min-w-0">
+                    <span className="w-4 h-4 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center" style={{ background: GRADIENT }}>
+                        {v.ownerImage ? <img src={v.ownerImage} alt="" className="w-full h-full object-cover" /> : v.kind === 'store' ? <StoreIcon size={9} color="#fff" /> : <Users size={9} color="#fff" />}
+                    </span>
+                    <span className="text-[11px] truncate" style={{ color: colors.textSecondary }}>{v.ownerName}</span>
+                </button>
+                <div className="mt-auto pt-1 flex flex-col gap-1.5">
+                    <span className="text-sm font-black leading-tight" style={{ color: v.price ? colors.textPrimary : colors.textSecondary }}>{servicePriceLabel(v.price)}</span>
+                    <button onClick={() => openService(v)} className="h-9 w-full rounded-full flex items-center justify-center gap-1.5 text-white text-xs font-black transition active:scale-95" style={{ background: GRADIENT }}>
+                        {v.kind === 'store' ? <CalendarCheck size={13} /> : <Users size={13} />}{serviceCta(v.kind)}
+                    </button>
+                </div>
+            </div>
+        </div>
+    )
+    const serviceRow = (items: ShopService[]) => (
+        <div className="flex gap-3 overflow-x-auto scrollbar-hide snap-x scroll-pl-4 scroll-pr-4 -mx-4 px-4 pb-1">
+            {items.slice(0, 12).map((v) => <div key={v.id} className="flex-shrink-0 w-40 snap-start">{renderService(v)}</div>)}
+        </div>
+    )
+    const serviceGrid = (items: ShopService[]) => (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">{items.map((v) => renderService(v))}</div>
+    )
+    // Além de comprar: o que mais se pede no iUser
+    const quick: { label: string; desc: string; icon: any; color: string; to: string }[] = [
+        { label: 'Buscar imóvel', desc: 'Casa, apartamento, kitnet, sala', icon: HomeIcon, color: '#16a34a', to: '/imoveis' },
+        { label: 'Pedir motorista', desc: 'Corrida ou entrega', icon: Car, color: '#ea580c', to: '/pedir-motorista' },
+        { label: 'Contratar profissional', desc: 'Descreva o que precisa', icon: Wrench, color: '#7c3aed', to: '/solicitar-servico' },
+        { label: 'Ver ao redor', desc: 'Lojas e serviços no mapa', icon: Radar, color: '#0891b2', to: '/radar' },
+    ]
+    const quickRow = (
+        <div className="flex gap-2.5 overflow-x-auto scrollbar-hide -mx-4 px-4 pb-1">
+            {quick.map((q) => {
+                const Icon = q.icon
+                return (
+                    <button key={q.label} onClick={() => router.push(q.to)} className="flex-shrink-0 flex items-center gap-2.5 pl-2.5 pr-4 py-2.5 rounded-2xl text-left transition active:scale-95" style={{ background: soft }}>
+                        <span className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: `${q.color}22`, color: q.color }}><Icon size={19} /></span>
+                        <span className="min-w-0">
+                            <span className="block text-[13px] font-black leading-tight whitespace-nowrap" style={{ color: colors.textPrimary }}>{q.label}</span>
+                            <span className="block text-[10.5px] whitespace-nowrap" style={{ color: colors.textSecondary }}>{q.desc}</span>
+                        </span>
+                    </button>
+                )
+            })}
+        </div>
+    )
+
+    const empty = view && view.products.length === 0 && view.stores.length === 0 && view.storeServices.length === 0 && view.peopleServices.length === 0
 
     return (
         <div className="pb-28">
@@ -283,6 +351,12 @@ export default function ComprarScreen() {
                     {view.stores.length > 0 && (
                         <Section colors={colors} icon={StoreIcon} title={`Lojas (${view.stores.length})`}>{storeRow(view.stores)}</Section>
                     )}
+                    {view.storeServices.length > 0 && (
+                        <Section colors={colors} icon={CalendarCheck} title={`Serviços de lojas (${view.storeServices.length})`}>{serviceGrid(view.storeServices.slice(0, limit))}</Section>
+                    )}
+                    {view.peopleServices.length > 0 && (
+                        <Section colors={colors} icon={Users} title={`Serviços de pessoas (${view.peopleServices.length})`}>{serviceGrid(view.peopleServices.slice(0, limit))}</Section>
+                    )}
                     {view.products.length > 0 && (
                         <Section colors={colors} icon={Package} title={`Produtos (${view.products.length})`}>
                             {grid(view.products.slice(0, limit))}
@@ -294,6 +368,7 @@ export default function ComprarScreen() {
                 </>
             ) : (
                 <>
+                    <Section colors={colors} icon={Sparkles} title="Também dá para pedir" subtitle="Além de comprar, o iUser leva você e traz quem faz">{quickRow}</Section>
                     {view.reorder.length > 0 && (
                         <Section colors={colors} icon={RotateCcw} title="Pedir de novo" subtitle="O que você já pediu">{productRow(view.reorder)}</Section>
                     )}
@@ -307,6 +382,12 @@ export default function ComprarScreen() {
                     )}
                     {view.fresh.length > 0 && (
                         <Section colors={colors} icon={Sparkles} title="Novidades" subtitle="Chegou há pouco">{productRow(view.fresh)}</Section>
+                    )}
+                    {view.storeServices.length > 0 && (
+                        <Section colors={colors} icon={CalendarCheck} title="Serviços para agendar" subtitle="Marque um horário em lojas e estúdios" onAll={() => router.push('/servicos-disponiveis')}>{serviceRow(view.storeServices)}</Section>
+                    )}
+                    {view.peopleServices.length > 0 && (
+                        <Section colors={colors} icon={Users} title="Profissionais" subtitle="Serviços de pessoas, com valor combinado" onAll={() => router.push('/servicos-disponiveis')}>{serviceRow(view.peopleServices)}</Section>
                     )}
                     {view.products.length > 0 && (
                         <Section colors={colors} icon={Package} title="Todos os produtos" subtitle={`${view.products.length} ${view.products.length === 1 ? 'produto' : 'produtos'}`}>

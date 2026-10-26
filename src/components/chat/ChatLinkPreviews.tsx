@@ -50,7 +50,7 @@ export default function ChatLinkPreviews({ content, colors, compact = false, max
                     )
                 }
                 const t = iuserTarget(u)
-                const request = t && t.path === '/procurar-servico' ? t.search.get('pedido') : null
+                const request = t && t.path === '/procurar-servico' ? (t.search.get('ver') || t.search.get('pedido')) : null
                 return t ? <IuserCard key={u} path={t.path} request={request} colors={colors} compact={compact} /> : null
             })}
         </>

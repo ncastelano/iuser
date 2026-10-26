@@ -29,6 +29,43 @@ export interface ShopProduct {
 }
 
 /**
+ * Um SERVIÇO que dá pra contratar na página de compras: de loja (`kind: 'store'`, com preço e horário para agendar) ou de uma pessoa
+ * (`kind: 'person'`, valor combinado). Não vai pro carrinho: abre a página do serviço, onde se agenda ou se combina.
+ */
+export interface ShopService {
+    id: string
+    kind: 'store' | 'person'
+    name: string
+    slug: string
+    imageUrl: string | null
+    price: number | null
+    category: string | null
+    createdAt: string
+    viewCount: number
+    /** quem oferece: a loja (nome, slug e logo) ou a pessoa (nome, @ e foto) */
+    ownerSlug: string
+    ownerName: string
+    ownerImage: string | null
+    /** só serviço de loja */
+    storeOpen: boolean
+    storeCategorySlug: string | null
+    storeRating: number | null
+}
+
+/** "R$ 45,00" quando tem preço; senão "Valor a combinar" (serviço de pessoa nunca tem preço; o de loja pode não ter). */
+export function servicePriceLabel(price: number | null | undefined): string {
+    return price != null && price > 0 ? price.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : 'Valor a combinar'
+}
+
+/** O que o botão do serviço diz: loja = "Agendar"; pessoa = "Combinar". */
+export const serviceCta = (kind: ShopService['kind']) => (kind === 'store' ? 'Agendar' : 'Combinar')
+
+/** Serviços mais procurados primeiro; os de loja aberta vêm antes dos de loja fechada (pessoa não tem "aberto"). */
+export function sortServices<T extends Pick<ShopService, 'viewCount' | 'storeOpen' | 'kind'>>(items: T[]): T[] {
+    return [...items].sort((a, b) => Number(b.kind === 'person' || b.storeOpen) - Number(a.kind === 'person' || a.storeOpen) || b.viewCount - a.viewCount)
+}
+
+/**
  * Dá pra adicionar ao carrinho com um toque: tem preço, não pede adicionais (a pessoa precisa escolher na página do
  * produto), tem estoque e a loja está aberta. Os demais abrem a página do produto.
  */

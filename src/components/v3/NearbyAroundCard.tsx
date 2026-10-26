@@ -7,7 +7,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ChevronRight, MapPin, Package, Radar, Store as StoreIcon, User, Wrench } from 'lucide-react'
+import { Briefcase, ChevronRight, Home, MapPin, Package, Radar, Store as StoreIcon, User, Wrench } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { fetchNearest, formatDistance, type NearestItem, type NearestKind } from '@/lib/radarNearest'
@@ -19,6 +19,8 @@ const KINDS: { kind: NearestKind; label: string; icon: typeof StoreIcon; color: 
     { kind: 'produto', label: 'Produto', icon: Package, color: '#059669' },
     { kind: 'servico', label: 'Serviço', icon: Wrench, color: '#7c3aed' },
     { kind: 'pessoa', label: 'Pessoa', icon: User, color: '#db2777' },
+    { kind: 'imovel', label: 'Aluguel', icon: Home, color: '#16a34a' },
+    { kind: 'pedido', label: 'Pedido', icon: Briefcase, color: '#ea580c' },
 ]
 
 export default function NearbyAroundCard({ userId }: { userId: string | null }) {
@@ -53,7 +55,7 @@ export default function NearbyAroundCard({ userId }: { userId: string | null }) 
         fetchNearest(origin, userId)
             
             .then((res) => { if (!cancelled) setNearest(res) })
-            .catch(() => { if (!cancelled) setNearest({ loja: [], produto: [], servico: [], pessoa: [] }) })
+            .catch(() => { if (!cancelled) setNearest({ loja: [], produto: [], servico: [], pessoa: [], imovel: [], pedido: [] }) })
         return () => { cancelled = true }
     }, [origin, userId])
 
@@ -76,15 +78,15 @@ export default function NearbyAroundCard({ userId }: { userId: string | null }) 
                         {origin ? 'O que tem perto de você agora' : origin === null ? 'Mais vistos · defina seu local para ver o mais perto' : 'Procurando ao redor...'}
                     </span>
                 </span>
-                <span className="flex items-center gap-0.5 text-xs font-black flex-shrink-0" style={{ color: COLOR }}>Mapa <ChevronRight size={14} /></span>
+                <span className="flex items-center gap-0.5 text-xs font-black flex-shrink-0" style={{ color: COLOR }}>Radar <ChevronRight size={14} /></span>
             </button>
 
             {items === null || origin === undefined ? (
-                <div className="px-3.5 pb-3.5 flex gap-2.5 overflow-hidden">
-                    {[0, 1, 2].map((i) => <div key={i} className="flex-shrink-0 w-[152px] h-[66px] rounded-2xl animate-pulse" style={{ background: soft }} />)}
+                <div className="px-3.5 pb-3.5 grid grid-cols-2 gap-2.5">
+                    {[0, 1, 2, 3, 4, 5].map((i) => <div key={i} className="h-[66px] rounded-2xl animate-pulse" style={{ background: soft }} />)}
                 </div>
             ) : items.length > 0 && (
-                <div className="px-3.5 pb-3.5 flex gap-2.5 overflow-x-auto snap-x [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <div className="px-3.5 pb-3.5 grid grid-cols-2 md:grid-cols-3 gap-2.5">
                     {items.map((it) => {
                         const meta = KINDS.find((k) => k.kind === it.kind)!
                         const Icon = meta.icon
@@ -92,7 +94,7 @@ export default function NearbyAroundCard({ userId }: { userId: string | null }) 
                             <button
                                 key={it.kind + it.id}
                                 onClick={() => router.push(it.href)}
-                                className="nearby-in snap-start flex-shrink-0 w-[168px] rounded-2xl p-2 flex items-center gap-2.5 text-left transition active:scale-[0.98]"
+                                className="nearby-in min-w-0 rounded-2xl p-2 flex items-center gap-2.5 text-left transition active:scale-[0.98]"
                                 style={{ background: soft }}
                             >
                                 <span className={`w-12 h-12 overflow-hidden flex-shrink-0 flex items-center justify-center ${it.kind === 'pessoa' ? 'rounded-full' : 'rounded-xl'}`} style={{ background: `${meta.color}22`, color: meta.color }}>
@@ -100,7 +102,8 @@ export default function NearbyAroundCard({ userId }: { userId: string | null }) 
                                 </span>
                                 <span className="min-w-0 flex-1">
                                     <span className="block text-[10px] font-black uppercase tracking-wide" style={{ color: meta.color }}>{meta.label}</span>
-                                    <span className="block text-[13px] font-black leading-tight truncate" style={{ color: colors.textPrimary }}>{it.name}</span>
+                                    <span className="block text-[13px] font-black leading-tight" style={{ color: colors.textPrimary, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' }}>{it.name}</span>
+                                    {(it.kind === 'imovel' || it.kind === 'pedido') && it.subtitle && <span className="block text-[11px] truncate" style={{ color: colors.textSecondary }}>{it.subtitle}</span>}
                                     {it.distanceKm != null
                                         ? <span className="flex items-center gap-0.5 text-[11px]" style={{ color: colors.textSecondary }}><MapPin size={10} />{formatDistance(it.distanceKm)}</span>
                                         : it.price != null ? <span className="block text-[11px] font-bold" style={{ color: colors.textSecondary }}>R$ {it.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span> : null}
