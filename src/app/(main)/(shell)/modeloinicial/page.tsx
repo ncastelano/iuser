@@ -639,7 +639,6 @@ export default function ModeloInicialPage() {
         { title: 'Pedir motorista', desc: rideStatus ?? 'Corrida rápida, preço combinado', live: !!activeRide,
             wide: activeRide ? { images: [], cta: activeRide.status === 'pending' ? (activeRide.candidates > 0 ? 'Escolher' : 'Ver') : 'Acompanhar', hot: activeRide.candidates > 0 || activeRide.arrived, sub: activeRide.destination ? `Para ${shortAddress(activeRide.destination)}` : undefined } : undefined,
             icon: Car, icons: [Car, Bike, Motorbike, Package], color: '#ea580c', onClick: () => go('/pedir-motorista') },
-        { title: 'Alugar imóvel', desc: 'Casas, aptos e salas, com visita marcada', icon: HomeIcon, color: '#16a34a', onClick: () => go('/imoveis') },
         { title: 'Ver ao redor', desc: 'Mapa com lojas, serviços e pessoas', nearby: true, icon: Radar, icons: [Radar, MapPin, StoreIcon, Users], color: '#0891b2', onClick: () => go('/radar') },
     ]
     // Quem QUER GANHAR com o iUser
