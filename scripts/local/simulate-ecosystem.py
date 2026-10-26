@@ -259,8 +259,10 @@ def post_service_request():
     t, desc, addr = R.choice(REQUESTS)
     note = R.choice(REQ_NOTES)
     c = approx_coords(addr)
+    # ~60% dos pedidos têm foto (geradas por scripts/local/seed-request-photos.mjs, uma por tipo de serviço)
+    photos = f"array['http://127.0.0.1:54321/storage/v1/object/public/service-request-photos/sim/{t}-{R.randint(1, 2)}.jpg']" if R.random() < 0.6 else "'{}'"
     as_user(p['id'], f"""insert into service_requests (requester_id, service_type, location_address, location_needs_access, description, notes, photo_urls, status, approx_lat, approx_lng)
-        values ({esc(p['id'])}::uuid, {esc(t)}, {esc(addr)}, {'true' if R.random() < 0.2 else 'false'}, {esc(desc)}, {esc(note) if note else 'null'}, '{{}}', 'pending', {c[0] if c else 'null'}, {c[1] if c else 'null'});""")
+        values ({esc(p['id'])}::uuid, {esc(t)}, {esc(addr)}, {'true' if R.random() < 0.2 else 'false'}, {esc(desc)}, {esc(note) if note else 'null'}, {photos}, 'pending', {c[0] if c else 'null'}, {c[1] if c else 'null'});""")
     log(f"  🧰 {p['name']} publicou um pedido de {t} em Procurar serviço")
     return p, t
 
@@ -300,7 +302,7 @@ def chat_message():
             req = q_local(f"select id, requester_id from service_requests where status = 'pending' and requester_id in (select profile_id from community_members where community_id = {esc(c['id'])}::uuid) order by random() limit 1")
             if req:
                 who = req[0]['requester_id']
-                content += '\nhttp://localhost:3100/procurar-servico?pedido=' + req[0]['id']
+                content += '\nhttp://localhost:3100/procurar-servico?ver=' + req[0]['id']
     elif kind == 'store':
         s = R.choice(POOL.stores)
         who, ref_store, content = s['owner_id'], s['id'], R.choice(OWN_STORE_LINES)

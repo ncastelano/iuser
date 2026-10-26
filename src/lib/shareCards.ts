@@ -100,7 +100,7 @@ export async function fetchRequestCard(id: string): Promise<ShareCard | null> {
         kind: 'request', id: r.id, title: getRequestTitle(r.description, r.service_type, r.custom_service, 120),
         subtitle: [getServiceLabel(r.service_type, r.custom_service), place, status].filter(Boolean).join(' · '),
         detail: p ? (p.profileSlug ? `@${p.profileSlug}` : p.name) : null,
-        imageUrl: (r.photo_urls as string[] | null)?.[0] || null, href: `/procurar-servico?pedido=${r.id}`, rating: null, ratingsCount: 0,
+        imageUrl: (r.photo_urls as string[] | null)?.[0] || null, href: `/procurar-servico?ver=${r.id}`, rating: null, ratingsCount: 0,
     }
 }
 
