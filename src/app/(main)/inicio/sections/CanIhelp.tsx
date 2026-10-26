@@ -4,7 +4,7 @@
 import Link from 'next/link'
 import { ReactNode, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Car, Wrench, Megaphone, ShoppingBag, Radar, CircleDollarSign, UserPlus, Home, type LucideIcon } from 'lucide-react'
+import { Car, Wrench, Megaphone, ShoppingBag, Radar, CircleDollarSign, UserPlus, Home, Briefcase, type LucideIcon } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { categorias, resolveCategoria, type Categoria } from '@/lib/categorias'
@@ -105,6 +105,8 @@ export default function CanIhelp({ dragHandle }: CanIhelpProps) {
     const earnActions: FeaturedAction[] = [
         { label: 'Vender', color: '#16a34a', icon: CircleDollarSign, onClick: () => go(profileSlug ? '/criar-loja' : '/criar-loja-com-cadastro') },
         { label: 'Publicar serviço', color: '#7c3aed', icon: Megaphone, onClick: () => go(profileSlug ? '/meus-servicos' : '/login') },
+        // Pedidos de serviço das pessoas: quem vem de fora vê o que estão procurando e se inscreve para fazer e ganhar
+        { label: 'Fazer serviços', color: '#ea580c', icon: Briefcase, onClick: () => go('/procurar-servico') },
         { label: 'Anunciar imóvel', color: '#16a34a', icon: Home, onClick: () => go(profileSlug ? '/anunciar-imovel' : '/login') },
         { label: 'Ser motorista', color: '#ea580c', icon: Car, onClick: () => go('/painel-motorista') },
         { label: 'Indicar e ganhar', color: '#db2777', icon: UserPlus, onClick: () => (profileSlug ? setInviteChoiceOpen(true) : go('/login')) },
@@ -205,7 +207,7 @@ export default function CanIhelp({ dragHandle }: CanIhelpProps) {
                     <p className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider mb-2.5 px-0.5" style={{ color: colors.accent }}>
                         <CircleDollarSign size={13} /> Quer ganhar com o iUser?
                     </p>
-                    <div className="grid grid-cols-5 gap-0.5">
+                    <div className="grid grid-cols-3 gap-x-1 gap-y-2">
                         {earnActions.map((action) => {
                             const Icon = action.icon
                             return (

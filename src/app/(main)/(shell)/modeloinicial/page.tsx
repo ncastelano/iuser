@@ -646,6 +646,7 @@ export default function ModeloInicialPage() {
     // Quem QUER GANHAR com o iUser
     const earns: Action[] = [
         { title: 'Vender', desc: 'Mostre seu produto, serviço ou loja', icon: CircleDollarSign, color: '#16a34a', onClick: () => setSellOpen(true) },
+        { title: 'Fazer serviços', desc: 'Veja os pedidos e se inscreva', icon: Briefcase, color: '#ea580c', onClick: () => go('/procurar-servico') },
         { title: 'Anunciar imóvel', desc: 'Alugue sua casa, apto ou sala', icon: HomeIcon, color: '#16a34a', onClick: () => go('/anunciar-imovel') },
         { title: 'Ser motorista', desc: 'Receba corridas na sua região', icon: Car, color: '#ea580c', onClick: () => go('/painel-motorista') },
         {
