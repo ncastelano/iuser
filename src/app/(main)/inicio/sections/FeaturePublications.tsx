@@ -274,7 +274,7 @@ export default function FeaturedPublications({
                 subtitle="Veja o que lojas e pessoas estão compartilhando"
                 dragHandle={dragHandle}
                 action={hasPublications ? (
-                    <ViewServicesButton label="ver publicações" count={publications.length} onClick={handleViewAll} />
+                    <ViewServicesButton label="ver publicações" onClick={handleViewAll} />
                 ) : <span />}
             />
 

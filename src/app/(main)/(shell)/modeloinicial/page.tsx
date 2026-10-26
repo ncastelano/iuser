@@ -910,7 +910,6 @@ export default function ModeloInicialPage() {
                                                     title={p.name}
                                                     description={p.description}
                                                     imageUrl={p.imageUrl || p.storeLogoUrl}
-                                                    fallbackIcon={<Package size={30} />}
                                                     priceLabel={money(p.price)}
                                                     sellerName={p.storeName}
                                                     sellerImageUrl={p.storeLogoUrl}

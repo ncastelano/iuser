@@ -83,7 +83,7 @@ export default function MyServiceApplications({ items }: { items: MyApplication[
                                 </div>
                             )}
 
-                            <div className={`flex flex-col gap-2 flex-1 ${photo ? 'p-3.5' : 'p-4'}`} style={photo ? undefined : { background: `${colors.accent}10` }}>
+                            <div className={`flex flex-col gap-2 flex-1 ${photo ? 'p-3.5' : 'p-4'}`}>
                                 <div className="flex items-center justify-between gap-2">
                                     <span className="self-start flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: `${colors.accent}18`, color: colors.accent }}>
                                         <Icon size={11} />

@@ -19,7 +19,7 @@ import { Spinner } from '@/components/Spinner'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
-import { BoardItem, fetchOpenBoardItems, fetchOpenRequestCount, getItemIcon, getItemLabel, shortAddress, askedAgo, notifyServiceRequestsChanged, SERVICE_REQUESTS_CHANGED } from '@/lib/serviceBoard'
+import { BoardItem, fetchOpenBoardItems, getItemIcon, getItemLabel, shortAddress, askedAgo, notifyServiceRequestsChanged, SERVICE_REQUESTS_CHANGED } from '@/lib/serviceBoard'
 import { HOME_GRADIENT, HomeSectionHeader } from './HomeSectionKit'
 import { ViewServicesButton } from './ViewServicesButton'
 import { useMyServiceApplications } from '@/hooks/useMyServiceApplications'
@@ -43,7 +43,6 @@ export default function NeedAService({ dragHandle, limit = 8 }: { dragHandle?: R
     const { items: myApplications } = useMyServiceApplications()
     const applied = useMemo(() => new Map(myApplications.map((a) => [a.requestId, a.status])), [myApplications])
     const [items, setItems] = useState<BoardItem[] | null>(null)
-    const [totalCount, setTotalCount] = useState(0)
     const [menuItem, setMenuItem] = useState<BoardItem | null>(null)
     const [confirmDelete, setConfirmDelete] = useState(false)
     const [deleting, setDeleting] = useState(false)
@@ -55,7 +54,6 @@ export default function NeedAService({ dragHandle, limit = 8 }: { dragHandle?: R
 
     const load = useCallback(() => {
         fetchOpenBoardItems(limit).then(setItems)
-        fetchOpenRequestCount().then(setTotalCount)
     }, [limit])
 
     useEffect(() => {
@@ -106,7 +104,7 @@ export default function NeedAService({ dragHandle, limit = 8 }: { dragHandle?: R
                 dragHandle={dragHandle}
                 title="Quem procura serviço"
                 subtitle={items.length > 0 ? 'Pessoas precisando de um profissional agora' : 'Ninguém pediu ainda — seja o primeiro'}
-                action={<ViewServicesButton onClick={() => goFromHome('/procurar-servico')} count={totalCount} />}
+                action={<ViewServicesButton onClick={() => goFromHome('/procurar-servico')} />}
             />
 
             {/* Versão vertical do cartão em linha: 2 por vez no celular, 3 em tela maior; alterna sozinho, deslizando ou pelos pontinhos */}
@@ -145,7 +143,7 @@ export default function NeedAService({ dragHandle, limit = 8 }: { dragHandle?: R
                                 </div>
                             )}
 
-                            <div className={`flex flex-col gap-2 flex-1 ${photo ? 'p-3.5' : 'p-4'}`} style={photo ? undefined : { background: `${colors.accent}10` }}>
+                            <div className={`flex flex-col gap-2 flex-1 ${photo ? 'p-3.5' : 'p-4'}`}>
                                 <div className="flex items-start justify-between gap-2">
                                     <span className="self-start flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: `${colors.accent}18`, color: colors.accent }}>
                                         <Icon size={11} />

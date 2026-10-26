@@ -14,7 +14,6 @@ export interface ListingRowCardProps {
     title: string
     description?: string | null
     imageUrl?: string | null
-    fallbackIcon?: React.ReactNode
     priceLabel?: string | null          // "R$ 120,00"
     priceNote?: string | null           // "por hora"
     sellerName: string
@@ -30,7 +29,7 @@ export interface ListingRowCardProps {
 
 const clean = (t?: string | null) => (t || '').replace(/\s*\n+\s*/g, ' · ').trim()
 
-export default function ListingRowCard({ title, description, imageUrl, fallbackIcon, priceLabel, priceNote, sellerName, sellerImageUrl, sellerId, rating, views, tag, flat = false, onClick }: ListingRowCardProps) {
+export default function ListingRowCard({ title, description, imageUrl, priceLabel, priceNote, sellerName, sellerImageUrl, sellerId, rating, views, tag, flat = false, onClick }: ListingRowCardProps) {
     const { colors } = useTheme()
     // v3 (dentro da casca): linha corrida, sem cartão nem sombra; foto menor e quadrada
     const v3 = useInsideShell()
@@ -79,15 +78,13 @@ export default function ListingRowCard({ title, description, imageUrl, fallbackI
                 </div>
             </div>
 
-            {/* Foto flutuando do lado, com sombra */}
-            <div className={v3 ? 'relative flex-shrink-0 w-20 h-20 self-center rounded-2xl overflow-hidden' : 'relative flex-shrink-0 w-24 h-24 self-center rounded-2xl overflow-hidden transition-transform duration-300 group-hover:scale-105'}
-                style={v3 ? { background: '#f9731620' } : { background: GRADIENT, boxShadow: '0 8px 18px rgba(0,0,0,0.22)' }}>
-                {imageUrl ? (
+            {/* Foto flutuando do lado, com sombra. Sem foto não há quadro de ícone: o texto e o valor ficam em destaque */}
+            {imageUrl && (
+                <div className={v3 ? 'relative flex-shrink-0 w-20 h-20 self-center rounded-2xl overflow-hidden' : 'relative flex-shrink-0 w-24 h-24 self-center rounded-2xl overflow-hidden transition-transform duration-300 group-hover:scale-105'}
+                    style={v3 ? { background: '#f9731620' } : { background: GRADIENT, boxShadow: '0 8px 18px rgba(0,0,0,0.22)' }}>
                     <img src={imageUrl} alt={title} className="w-full h-full object-cover" loading="lazy" />
-                ) : (
-                    <div className="w-full h-full flex items-center justify-center" style={{ color: v3 ? '#f97316' : '#fff' }}>{fallbackIcon}</div>
-                )}
-            </div>
+                </div>
+            )}
         </div>
     )
 }

@@ -7,7 +7,6 @@
 
 import { useEffect, useState, ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
-import { Home } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
 import { useTheme } from '@/app/contexts/theme'
@@ -58,7 +57,7 @@ export default function RentalShowcase({ dragHandle }: { dragHandle?: ReactNode 
                 title="Imóveis para alugar"
                 subtitle={`${list.length} ${list.length === 1 ? 'imóvel' : 'imóveis'}`}
                 dragHandle={dragHandle}
-                action={<ViewServicesButton label="ver imóveis" count={list.length} onClick={() => open('/imoveis')} />}
+                action={<ViewServicesButton label="ver imóveis" onClick={() => open('/imoveis')} />}
             />
             <div {...handlers}>
                 <div key={page} className={`grid grid-cols-1 md:grid-cols-3 gap-3 ${dir > 0 ? 'page-in-next' : 'page-in-prev'}`} style={{ touchAction: 'pan-y' }}>
@@ -68,7 +67,6 @@ export default function RentalShowcase({ dragHandle }: { dragHandle?: ReactNode 
                             title={l.title}
                             description={[l.neighborhood, specsLine(l)].filter(Boolean).join(' · ')}
                             imageUrl={l.photos[0] || l.storeLogo || l.ownerAvatar}
-                            fallbackIcon={<Home size={30} />}
                             priceLabel={priceLabel(l)}
                             sellerName={l.storeName || l.ownerName || 'Anunciante'}
                             sellerImageUrl={l.storeLogo || l.ownerAvatar}

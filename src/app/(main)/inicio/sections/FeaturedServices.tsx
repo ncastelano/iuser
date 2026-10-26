@@ -266,7 +266,7 @@ export default function FeaturedServices({ dragHandle, title = 'Serviços em des
                 title={title}
                 subtitle={subtitle ?? (onViewAll ? undefined : `${services.length} ${services.length === 1 ? 'serviço' : 'serviços'}`)}
                 dragHandle={dragHandle}
-                action={onViewAll ? <ViewServicesButton onClick={onViewAll} count={services.length} /> : <span />}
+                action={onViewAll ? <ViewServicesButton onClick={onViewAll} /> : <span />}
             />
 
             {actions && <div className="-mt-1 mb-4">{actions(services.length)}</div>}
@@ -285,7 +285,6 @@ export default function FeaturedServices({ dragHandle, title = 'Serviços em des
                                 title={service.title}
                                 description={service.description}
                                 imageUrl={service.imageUrl}
-                                fallbackIcon={<Wrench size={30} />}
                                 priceLabel={service.price ? formatServicePrice(service.price) : null}
                                 priceNote={service.price && service.unit ? `por ${service.unit}` : null}
                                 sellerName={service.providerName}
