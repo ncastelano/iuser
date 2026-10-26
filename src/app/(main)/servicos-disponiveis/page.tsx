@@ -82,7 +82,6 @@ export default function ServicosDisponiveisPage() {
                                         title={s.name}
                                         description={s.description}
                                         imageUrl={s.imageUrl || s.sellerImage}
-                                        fallbackIcon={<Wrench size={30} />}
                                         priceLabel={formatPrice(s.price)}
                                         priceNote={s.minutes ? `${s.minutes} min` : null}
                                         sellerName={s.seller}

@@ -151,7 +151,7 @@ export default function FeaturedProfiles({
                 subtitle="Seja bem-vindo"
                 dragHandle={dragHandle}
                 action={hasProfiles ? (
-                    <ViewServicesButton label="ver pessoas" count={profiles.length} onClick={handleViewAll} />
+                    <ViewServicesButton label="ver pessoas" onClick={handleViewAll} />
                 ) : <span />}
             />
 

@@ -4,7 +4,6 @@
 import { useState, useEffect, ReactNode } from 'react'
 import {
     Star,
-    Package,
     Eye,
 } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
@@ -365,7 +364,7 @@ export default function ProductShowcase({ dragHandle }: ProductShowcaseProps) {
                 title="Produtos em destaque"
                 subtitle={`${products.length} ${products.length === 1 ? 'produto' : 'produtos'}`}
                 dragHandle={dragHandle}
-                action={<ViewServicesButton label="ver produtos" count={products.length} onClick={() => { startNavProgress(); router.push('/produtos') }} />}
+                action={<ViewServicesButton label="ver produtos" onClick={() => { startNavProgress(); router.push('/produtos') }} />}
             />
 
             {/* 3 cartões por vez; passa de 3 em 3 sem repetir até mostrar todos (deslizar ou pontinhos também trocam) */}
@@ -382,7 +381,6 @@ export default function ProductShowcase({ dragHandle }: ProductShowcaseProps) {
                                 title={product.name}
                                 description={product.description}
                                 imageUrl={product.imageUrl || product.storeLogoUrl}
-                                fallbackIcon={<Package size={30} />}
                                 priceLabel={formatPrice(product.price)}
                                 sellerName={product.storeName}
                                 sellerImageUrl={product.storeLogoUrl}

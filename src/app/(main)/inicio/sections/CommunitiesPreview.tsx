@@ -130,7 +130,7 @@ export default function CommunitiesPreview({ origin, dragHandle }: { origin: { l
                 title="Comunidades"
                 subtitle={city ? `Converse com quem é de ${city}, do estado e do Brasil` : 'Salas de conversa por cidade, estado e país'}
                 dragHandle={dragHandle}
-                action={<ViewServicesButton label="ver comunidades" count={items.length} onClick={() => go('/comunidade')} />}
+                action={<ViewServicesButton label="ver comunidades" onClick={() => go('/comunidade')} />}
             />
 
             <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 items-stretch" style={{ scrollbarWidth: 'none' }}>

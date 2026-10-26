@@ -17,6 +17,9 @@ export interface ServiceRequestRow {
     photo_urls: string[]
     created_at: string
     view_count: number
+    /** Posição aproximada (~1 km) do pedido, pública; serve só para a distância */
+    approx_lat?: number | null
+    approx_lng?: number | null
 }
 
 export interface BoardRequester {
@@ -92,7 +95,7 @@ export async function fetchOpenRequestCount(): Promise<number> {
 export async function fetchOpenBoardItems(limit?: number): Promise<BoardItem[]> {
     let query = supabase
         .from('service_requests')
-        .select('id, requester_id, service_type, custom_service, custom_icon, location_address, location_needs_access, location_access_notes, description, photo_urls, created_at, view_count')
+        .select('id, requester_id, service_type, custom_service, custom_icon, location_address, location_needs_access, location_access_notes, description, photo_urls, created_at, view_count, approx_lat, approx_lng')
         .eq('status', 'pending')
         .order('created_at', { ascending: false })
     if (limit) query = query.limit(limit)

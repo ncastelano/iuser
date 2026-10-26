@@ -770,6 +770,49 @@ export default function LocationPicker({ initialLocation, onSave, onClose, allow
         return null
     }
 
+    // "Remover localização" (só quando o chamador passa onClear, ou seja, já existe uma localização salva): aparece na 1ª etapa e na etapa do endereço salvo
+    const clearControl = onClear ? (
+
+                confirmClear ? (
+                    <div className="mt-2.5 flex flex-col gap-2">
+                        <p className="text-[11px] font-semibold" style={{ color: colors.textPrimary }}>
+                            Remover a localização salva? Você pode definir outra quando quiser.
+                        </p>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={() => setConfirmClear(false)}
+                                disabled={clearing}
+                                className="flex-1 py-1.5 rounded-full text-[11px] font-bold border"
+                                style={{ borderColor: colors.border, color: colors.textPrimary }}
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={async () => {
+                                    setClearing(true)
+                                    try { await onClear() } finally { setClearing(false); setConfirmClear(false) }
+                                }}
+                                disabled={clearing}
+                                className="flex-1 py-1.5 rounded-full text-[11px] font-bold text-white flex items-center justify-center gap-1 disabled:opacity-60"
+                                style={{ background: '#ef4444' }}
+                            >
+                                {clearing ? <Spinner size={12} color="#ffffff" /> : <Trash2 size={12} />}
+                                Remover
+                            </button>
+                        </div>
+                    </div>
+                ) : (
+                    <button
+                        onClick={() => setConfirmClear(true)}
+                        className="mt-2 flex items-center gap-1 text-[11px] font-bold"
+                        style={{ color: '#ef4444' }}
+                    >
+                        <Trash2 size={12} />
+                        Remover localização
+                    </button>
+                )
+    ) : null
+
     return (
         <>
             <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-sm">
@@ -832,6 +875,7 @@ export default function LocationPicker({ initialLocation, onSave, onClose, allow
                             >
                                 Continuar
                             </button>
+                            {clearControl && <div className="mt-1 w-full [&>button]:mx-auto">{clearControl}</div>}
                         </>
                     )}
 
@@ -871,46 +915,7 @@ export default function LocationPicker({ initialLocation, onSave, onClose, allow
                                         )}
 
                                         {/* Apagar a localização salva e começar do zero */}
-                                        {onClear && (
-                                            confirmClear ? (
-                                                <div className="mt-2.5 flex flex-col gap-2">
-                                                    <p className="text-[11px] font-semibold" style={{ color: colors.textPrimary }}>
-                                                        Remover a localização salva? Você pode definir outra quando quiser.
-                                                    </p>
-                                                    <div className="flex gap-2">
-                                                        <button
-                                                            onClick={() => setConfirmClear(false)}
-                                                            disabled={clearing}
-                                                            className="flex-1 py-1.5 rounded-full text-[11px] font-bold border"
-                                                            style={{ borderColor: colors.border, color: colors.textPrimary }}
-                                                        >
-                                                            Cancelar
-                                                        </button>
-                                                        <button
-                                                            onClick={async () => {
-                                                                setClearing(true)
-                                                                try { await onClear() } finally { setClearing(false); setConfirmClear(false) }
-                                                            }}
-                                                            disabled={clearing}
-                                                            className="flex-1 py-1.5 rounded-full text-[11px] font-bold text-white flex items-center justify-center gap-1 disabled:opacity-60"
-                                                            style={{ background: '#ef4444' }}
-                                                        >
-                                                            {clearing ? <Spinner size={12} color="#ffffff" /> : <Trash2 size={12} />}
-                                                            Remover
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            ) : (
-                                                <button
-                                                    onClick={() => setConfirmClear(true)}
-                                                    className="mt-2 flex items-center gap-1 text-[11px] font-bold"
-                                                    style={{ color: '#ef4444' }}
-                                                >
-                                                    <Trash2 size={12} />
-                                                    Remover localização
-                                                </button>
-                                            )
-                                        )}
+                                        {clearControl}
                                     </div>
                                 </div>
                             )}

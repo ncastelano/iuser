@@ -98,16 +98,6 @@ export function StoreList({
     const [currentIndex, setCurrentIndex] = useState(0)
     const [isAutoPlayPaused, setIsAutoPlayPaused] = useState(false)
     const [isHovered, setIsHovered] = useState(false)
-    // Total de lojas (a lista só carrega as mais visitadas) — vai no badge do "ver lojas"
-    const [totalStores, setTotalStores] = useState(0)
-
-    useEffect(() => {
-        supabase
-            .from('stores')
-            .select('id', { count: 'exact', head: true })
-            .then(({ count }) => setTotalStores(count || 0))
-    }, [])
-
     const itemsPerPage = useBreakpoint()
     const totalPages = Math.max(1, Math.ceil(filteredStores.length / itemsPerPage))
 
@@ -470,7 +460,6 @@ export function StoreList({
                 action={hasAnyProduct ? (
                     <ViewServicesButton
                         label="ver lojas"
-                        count={totalStores || filteredStores.length}
                         onClick={() => { startNavProgress(); router.push('/lojas') }}
                     />
                 ) : <span />}

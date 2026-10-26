@@ -6,7 +6,6 @@
 // Prestador); aqui é só a vitrine.
 'use client'
 
-import ServiceRequestShareButton from '@/components/ServiceRequestShareButton'
 import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
@@ -19,9 +18,12 @@ import { Spinner } from '@/components/Spinner'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
-import { BoardItem, fetchOpenBoardItems, fetchOpenRequestCount, getItemIcon, getItemLabel, shortAddress, askedAgo, notifyServiceRequestsChanged, SERVICE_REQUESTS_CHANGED } from '@/lib/serviceBoard'
+import { BoardItem, fetchOpenBoardItems, getItemIcon, getItemLabel, askedAgo, notifyServiceRequestsChanged, SERVICE_REQUESTS_CHANGED } from '@/lib/serviceBoard'
 import { HOME_GRADIENT, HomeSectionHeader } from './HomeSectionKit'
 import { ViewServicesButton } from './ViewServicesButton'
+import FitText from '@/components/FitText'
+import { haversineKm } from '@/lib/mapboxRoute'
+import { formatDistance } from '@/lib/radarNearest'
 import { useMyServiceApplications } from '@/hooks/useMyServiceApplications'
 import SeenBox from '@/components/SeenBox'
 import { trackServiceRequestView } from '@/lib/trackServiceRequestView'
@@ -30,12 +32,7 @@ import { usePagedRotation } from '@/hooks/usePagedRotation'
 import { useResponsivePageSize } from '@/hooks/useResponsivePageSize'
 import { PageDots, PAGE_SLIDE_CSS } from '@/components/PageDots'
 
-// Em vitrine pública, só rua/bairro — o número fica pra quem for atender.
-function publicPlace(address: string): string {
-    return shortAddress(address).replace(/[,\s]+\d+\s*\w*$/, '')
-}
-
-export default function NeedAService({ dragHandle, limit = 8 }: { dragHandle?: ReactNode; limit?: number }) {
+export default function NeedAService({ dragHandle, limit = 8, origin }: { dragHandle?: ReactNode; limit?: number; origin?: { lat: number; lng: number } | null }) {
     const { colors } = useTheme()
     const router = useRouter()
     const startNavProgress = useNavProgressStore((s) => s.start)
@@ -43,7 +40,17 @@ export default function NeedAService({ dragHandle, limit = 8 }: { dragHandle?: R
     const { items: myApplications } = useMyServiceApplications()
     const applied = useMemo(() => new Map(myApplications.map((a) => [a.requestId, a.status])), [myApplications])
     const [items, setItems] = useState<BoardItem[] | null>(null)
-    const [totalCount, setTotalCount] = useState(0)
+    // Distância até cada pedido, a partir do local definido pela pessoa e da posição aproximada do pedido (sem local ou sem posição: não aparece)
+    const originLat = origin?.lat
+    const originLng = origin?.lng
+    const distances = useMemo(() => {
+        const m = new Map<string, number>()
+        if (originLat == null || originLng == null) return m
+        for (const it of items || []) {
+            if (it.approx_lat != null && it.approx_lng != null) m.set(it.id, haversineKm([originLng, originLat], [Number(it.approx_lng), Number(it.approx_lat)]))
+        }
+        return m
+    }, [items, originLat, originLng])
     const [menuItem, setMenuItem] = useState<BoardItem | null>(null)
     const [confirmDelete, setConfirmDelete] = useState(false)
     const [deleting, setDeleting] = useState(false)
@@ -55,7 +62,6 @@ export default function NeedAService({ dragHandle, limit = 8 }: { dragHandle?: R
 
     const load = useCallback(() => {
         fetchOpenBoardItems(limit).then(setItems)
-        fetchOpenRequestCount().then(setTotalCount)
     }, [limit])
 
     useEffect(() => {
@@ -106,7 +112,7 @@ export default function NeedAService({ dragHandle, limit = 8 }: { dragHandle?: R
                 dragHandle={dragHandle}
                 title="Quem procura serviço"
                 subtitle={items.length > 0 ? 'Pessoas precisando de um profissional agora' : 'Ninguém pediu ainda — seja o primeiro'}
-                action={<ViewServicesButton onClick={() => goFromHome('/procurar-servico')} count={totalCount} />}
+                action={<ViewServicesButton onClick={() => goFromHome('/procurar-servico')} />}
             />
 
             {/* Versão vertical do cartão em linha: 2 por vez no celular, 3 em tela maior; alterna sozinho, deslizando ou pelos pontinhos */}
@@ -145,64 +151,66 @@ export default function NeedAService({ dragHandle, limit = 8 }: { dragHandle?: R
                                 </div>
                             )}
 
-                            <div className={`flex flex-col gap-2 flex-1 ${photo ? 'p-3.5' : 'p-4'}`} style={photo ? undefined : { background: `${colors.accent}10` }}>
+                            <div className={`flex flex-col gap-2 flex-1 ${photo ? 'p-3' : 'p-3.5'}`}>
+                                {/* Em cima: o tipo do serviço (esquerda) e há quanto tempo foi pedido (direita) */}
                                 <div className="flex items-start justify-between gap-2">
-                                    <span className="self-start flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: `${colors.accent}18`, color: colors.accent }}>
-                                        <Icon size={11} />
-                                        {getItemLabel(item)}
+                                    <span className="min-w-0 flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: `${colors.accent}18`, color: colors.accent }}>
+                                        <Icon size={11} className="flex-shrink-0" />
+                                        <span className="truncate">{getItemLabel(item)}</span>
                                     </span>
-                                    {mine && !photo && <span className="text-[9px] font-black uppercase px-2 py-1 rounded-full text-white" style={{ background: HOME_GRADIENT }}>seu pedido</span>}
-                                    {mine && (
-                                        <button
-                                            onClick={(e) => { e.stopPropagation(); setMenuItem(item) }}
-                                            aria-label="Mais opções do seu pedido"
-                                            className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 -mr-1 -mt-1 transition-colors hover:bg-black/10"
-                                            style={{ color: colors.textPrimary }}
-                                        >
-                                            <MoreHorizontal size={17} />
-                                        </button>
-                                    )}
-                                </div>
-
-                                {/* O que a pessoa pediu é o foco: sem foto fica bem maior */}
-                                <p
-                                    className={`${photo ? 'text-sm' : 'text-[17px]'} font-black leading-snug flex-1`}
-                                    title={title}
-                                    style={{ color: colors.textPrimary, display: '-webkit-box', WebkitLineClamp: photo ? 2 : 6, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
-                                >
-                                    {title}
-                                </p>
-
-                                <div className="flex items-center justify-between gap-2 text-[11px]" style={{ color: colors.textSecondary }}>
-                                    <span className="flex items-center gap-1 min-w-0">
-                                        <MapPin size={11} className="flex-shrink-0" />
-                                        <span className="truncate">{publicPlace(item.location_address)}</span>
-                                    </span>
-                                    <span className="flex-shrink-0 flex items-center gap-1.5">
+                                    <span className="flex-shrink-0 flex items-center gap-1 text-[10px] pt-0.5" style={{ color: colors.textSecondary }}>
+                                        {mine && !photo && <span className="text-[9px] font-black uppercase px-2 py-1 rounded-full text-white" style={{ background: HOME_GRADIENT }}>seu pedido</span>}
                                         {askedAgo(item.created_at).replace('pediu ', '')}
-                                        <ServiceRequestShareButton item={item} size={26} />
+                                        {mine && (
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); setMenuItem(item) }}
+                                                aria-label="Mais opções do seu pedido"
+                                                className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 -mr-1 -my-1 transition-colors hover:bg-black/10"
+                                                style={{ color: colors.textPrimary }}
+                                            >
+                                                <MoreHorizontal size={17} />
+                                            </button>
+                                        )}
                                     </span>
                                 </div>
 
-                                {!mine && applied?.has(item.id) && applied.get(item.id) !== 'rejected' && (
-                                    <button
-                                        onClick={(e) => { e.stopPropagation(); goFromHome(`/procurar-servico?pedido=${item.id}`) }}
-                                        className="w-full flex items-center justify-center gap-2 py-3 rounded-full font-black text-sm"
-                                        style={{ background: '#22c55e18', color: '#16a34a', border: '1px solid #22c55e55' }}
-                                    >
-                                        <Check size={16} />
-                                        {applied.get(item.id) === 'accepted' ? 'Você foi escolhido!' : 'Você já se inscreveu'}
-                                    </button>
-                                )}
+                                {/* O que a pessoa pediu é o foco: a letra cresce até preencher o espaço do cartão (mais ainda sem foto) */}
+                                <div className={`flex flex-col flex-1 ${photo ? 'min-h-[44px]' : 'min-h-[130px]'}`}>
+                                    <FitText text={title} title={title} min={photo ? 14 : 16} max={photo ? 22 : 34} style={{ color: colors.textPrimary }} />
+                                </div>
 
-                                {!mine && !(applied?.has(item.id) && applied.get(item.id) !== 'rejected') && (
-                                    <button
-                                        onClick={(e) => { e.stopPropagation(); goFromHome(`/procurar-servico?pedido=${item.id}`) }}
-                                        className="w-full flex items-center justify-center gap-2 py-3 rounded-full font-black text-sm transition-all hover:scale-[1.02] active:scale-95"
-                                        style={{ background: HOME_GRADIENT, color: '#fff', boxShadow: '0 4px 12px #f9731640' }}
-                                    >
-                                        Quero me inscrever
-                                    </button>
+                                {/* Embaixo, numa linha só: a distância (só quando há local e posição do pedido) e a ação */}
+                                {(distances.get(item.id) != null || !mine) && (
+                                    <div className="nas-row flex items-center gap-2">
+                                        {distances.get(item.id) != null && (
+                                            <span className="flex-shrink-0 flex items-center gap-1 text-[11px] font-bold whitespace-nowrap" style={{ color: colors.textSecondary }}>
+                                                <MapPin size={11} className="flex-shrink-0" />
+                                                {formatDistance(distances.get(item.id) as number)}
+                                            </span>
+                                        )}
+
+                                        {!mine && applied?.has(item.id) && applied.get(item.id) !== 'rejected' && (
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); goFromHome(`/procurar-servico?pedido=${item.id}`) }}
+                                                className="flex-1 min-w-0 flex items-center justify-center gap-1.5 h-10 rounded-full font-black text-[13px]"
+                                                style={{ background: '#22c55e18', color: '#16a34a', border: '1px solid #22c55e55' }}
+                                            >
+                                                <Check size={15} className="flex-shrink-0" />
+                                                <span className="truncate">{applied.get(item.id) === 'accepted' ? 'Você foi escolhido!' : 'Já me inscrevi'}</span>
+                                            </button>
+                                        )}
+
+                                        {!mine && !(applied?.has(item.id) && applied.get(item.id) !== 'rejected') && (
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); goFromHome(`/procurar-servico?pedido=${item.id}`) }}
+                                                className="flex-1 min-w-0 flex items-center justify-center h-10 px-2 rounded-full font-black text-[13px] whitespace-nowrap transition-all hover:scale-[1.02] active:scale-95"
+                                                style={{ background: HOME_GRADIENT, color: '#fff', boxShadow: '0 4px 12px #f9731640' }}
+                                            >
+                                                <span className="nas-long">Quero me inscrever</span>
+                                                <span className="nas-short">Me inscrever</span>
+                                            </button>
+                                        )}
+                                    </div>
                                 )}
                             </div>
                         </SeenBox>
@@ -212,6 +220,12 @@ export default function NeedAService({ dragHandle, limit = 8 }: { dragHandle?: R
             </div>
             <PageDots pages={pages} page={page} onGo={goTo} label="Ver pedidos, página" />
             <style>{PAGE_SLIDE_CSS}</style>
+            {/* Cartão estreito (2 por linha no celular): o botão usa o texto curto para caber ao lado da distância */}
+            <style>{`
+                .nas-row { container-type: inline-size; }
+                .nas-short { display: none; }
+                @container (max-width: 215px) { .nas-long { display: none; } .nas-short { display: inline; } }
+            `}</style>
 
             {menuItem && createPortal(
                 <div className="fixed inset-0 z-[1000] flex items-end sm:items-center justify-center sm:p-4" style={{ background: 'rgba(0,0,0,0.55)' }} onClick={closeMenu}>

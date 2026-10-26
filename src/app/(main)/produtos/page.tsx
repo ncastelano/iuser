@@ -92,7 +92,6 @@ export default function ProdutosPage() {
                                         title={p.name}
                                         description={p.description}
                                         imageUrl={p.imageUrl || p.storeLogoUrl}
-                                        fallbackIcon={<Package size={30} />}
                                         priceLabel={formatPrice(p.price)}
                                         sellerName={p.storeName}
                                         sellerImageUrl={p.storeLogoUrl}

@@ -327,7 +327,6 @@ export default function LastSearched({ onItemClick, onClearResults }: LastSearch
                                         <ListingRowCard
                                             title={item.name || 'Produto'}
                                             imageUrl={item.imageUrl}
-                                            fallbackIcon={<Package size={30} />}
                                             priceLabel={price}
                                             sellerName={item.storeName || 'Loja'}
                                             sellerImageUrl={item.storeImage}
