@@ -4,7 +4,7 @@
 import Link from 'next/link'
 import { ReactNode, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Car, Wrench, Megaphone, ShoppingBag, Radar, CircleDollarSign, UserPlus, type LucideIcon } from 'lucide-react'
+import { Car, Wrench, Megaphone, ShoppingBag, Radar, CircleDollarSign, UserPlus, Home, type LucideIcon } from 'lucide-react'
 import { useTheme } from '@/app/contexts/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { categorias, resolveCategoria, type Categoria } from '@/lib/categorias'
@@ -12,6 +12,7 @@ import { useNavProgressStore } from '@/store/useNavProgressStore'
 import { HOME_GRADIENT } from './HomeSectionKit'
 import { supabase } from '@/lib/supabase/client'
 import InviteChoiceDialog from '@/components/InviteChoiceDialog'
+import RentalsPreviewCard from '@/components/v3/RentalsPreviewCard'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = HOME_GRADIENT
@@ -103,6 +104,7 @@ export default function CanIhelp({ dragHandle }: CanIhelpProps) {
     const earnActions: FeaturedAction[] = [
         { label: 'Vender', color: '#16a34a', icon: CircleDollarSign, onClick: () => go(profileSlug ? '/criar-loja' : '/criar-loja-com-cadastro') },
         { label: 'Publicar serviço', color: '#7c3aed', icon: Megaphone, onClick: () => go(profileSlug ? '/meus-servicos' : '/login') },
+        { label: 'Anunciar imóvel', color: '#16a34a', icon: Home, onClick: () => go(profileSlug ? '/anunciar-imovel' : '/login') },
         { label: 'Ser motorista', color: '#ea580c', icon: Car, onClick: () => go('/painel-motorista') },
         { label: 'Indicar e ganhar', color: '#db2777', icon: UserPlus, onClick: () => (profileSlug ? setInviteChoiceOpen(true) : go('/login')) },
     ]
@@ -196,11 +198,17 @@ export default function CanIhelp({ dragHandle }: CanIhelpProps) {
                     })}
                 </div>
 
+                {/* Buscar imóvel: o mesmo cartão-vitrine da 3.0 (alguns imóveis à vista; "Ver todos" abre a busca).
+                    As páginas de imóveis abrem na casca da 3.0 mesmo para quem está na 2.0 (não têm versão própria). */}
+                <div className="mb-4">
+                    <RentalsPreviewCard title="Buscar imóvel" desc="Casa, apartamento, salas comerciais, kitnets, etc." />
+                </div>
+
                 <div className="rounded-3xl p-3 mb-5" style={{ background: `${colors.accent}12`, border: `1px solid ${colors.accent}30` }}>
                     <p className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider mb-2.5 px-0.5" style={{ color: colors.accent }}>
                         <CircleDollarSign size={13} /> Quer ganhar com o iUser?
                     </p>
-                    <div className="grid grid-cols-4 gap-1">
+                    <div className="grid grid-cols-5 gap-0.5">
                         {earnActions.map((action) => {
                             const Icon = action.icon
                             return (

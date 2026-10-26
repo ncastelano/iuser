@@ -78,7 +78,7 @@ export default function NearbyAroundCard({ userId }: { userId: string | null }) 
                         {origin ? 'O que tem perto de você agora' : origin === null ? 'Mais vistos · defina seu local para ver o mais perto' : 'Procurando ao redor...'}
                     </span>
                 </span>
-                <span className="flex items-center gap-0.5 text-xs font-black flex-shrink-0" style={{ color: COLOR }}>Mapa <ChevronRight size={14} /></span>
+                <span className="flex items-center gap-0.5 text-xs font-black flex-shrink-0" style={{ color: COLOR }}>Radar <ChevronRight size={14} /></span>
             </button>
 
             {items === null || origin === undefined ? (

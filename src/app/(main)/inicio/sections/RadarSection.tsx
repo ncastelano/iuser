@@ -3,7 +3,7 @@
 
 import { ReactNode, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Radar as Navigation, Store, ShoppingBag, Wrench, MapPin, Eye, Users } from 'lucide-react'
+import { Radar as Navigation, Store, ShoppingBag, Wrench, MapPin, Eye, Users, Home, Briefcase } from 'lucide-react'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
 import { trackProfileVisit } from '@/lib/trackProfileVisit'
 import { fetchNearest, formatDistance, type NearestItem, type NearestKind } from '@/lib/radarNearest'
@@ -26,12 +26,12 @@ const KIND_META: Record<NearestKind, { label: string; icon: typeof Store; color:
     produto: { label: 'Produto', icon: ShoppingBag, color: '#059669' },
     servico: { label: 'Serviço', icon: Wrench, color: '#7c3aed' },
     pessoa: { label: 'Pessoa', icon: Users, color: '#db2777' },
-    // a home 2.0 só mostra loja, produto, serviço e pessoa (KINDS abaixo); aluguel e pedido existem para o cartão da 3.0
-    imovel: { label: 'Aluguel', icon: Store, color: '#16a34a' },
-    pedido: { label: 'Pedido de serviço', icon: Wrench, color: '#ea580c' },
+    // mesmos seis tipos do cartão "Ver ao redor" da 3.0 (o que entra numa versão entra na outra)
+    imovel: { label: 'Aluguel', icon: Home, color: '#16a34a' },
+    pedido: { label: 'Pedido', icon: Briefcase, color: '#ea580c' },
 }
 
-const KINDS: NearestKind[] = ['loja', 'produto', 'servico', 'pessoa']
+const KINDS: NearestKind[] = ['loja', 'produto', 'servico', 'pessoa', 'imovel', 'pedido']
 
 // Banner de destaque pro Radar — antes só existia como botão flutuante
 // (continua existindo, não mexi nele); isso aqui é o mesmo atalho com mais
@@ -42,7 +42,7 @@ export default function RadarSection({ dragHandle, origin, userId, onDefineLocat
     const [nearest, setNearest] = useState<Record<NearestKind, NearestItem[]> | null>(null)
     // Qual dos (até) 3 de cada tipo está na tela; troca sozinho a cada 5 segundos
     const [tick, setTick] = useState(0)
-    // Quantos de cada tipo cabem na tela: 1 no celular (grade 2×2: loja e produto em cima, serviço e pessoa embaixo), 2 no tablet (8) e 3 no desktop (12)
+    // Quantos de cada tipo cabem na tela: 1 no celular (grade 2×3: loja e produto, serviço e pessoa, aluguel e pedido), 2 no tablet (12) e 3 no desktop (18)
     const [perKind, setPerKind] = useState(1)
     useEffect(() => {
         const update = () => setPerKind(window.innerWidth >= 1280 ? 3 : window.innerWidth >= 640 ? 2 : 1)
@@ -71,7 +71,7 @@ export default function RadarSection({ dragHandle, origin, userId, onDefineLocat
         return () => clearInterval(timer)
     }, [nearest, perKind])
 
-    // Até `perKind` cards de cada tipo (loja, produto, serviço); se tem mais do que cabe, a janela gira a cada 5 s
+    // Até `perKind` cards de cada tipo (loja, produto, serviço, pessoa, aluguel, pedido); se tem mais do que cabe, a janela gira a cada 5 s
     const cards = nearest
         ? KINDS.flatMap((k) => {
             const list = nearest[k]
@@ -141,10 +141,10 @@ export default function RadarSection({ dragHandle, origin, userId, onDefineLocat
                     </p>
                 </div>
 
-                {/* Os mais perto de você: uma loja, um produto, um serviço e uma pessoa */}
+                {/* Os mais perto de você: uma loja, um produto, um serviço, uma pessoa, um aluguel e um pedido de serviço */}
                 <div className="relative z-10 mt-5">
                     {nearest == null ? (                        <div className="grid grid-cols-2 sm:grid-cols-4 min-[1280px]:grid-cols-6 gap-3">
-                            {Array.from({ length: perKind * 4 }).map((_, i) => <div key={i} className="aspect-square rounded-2xl animate-pulse" style={{ background: 'rgba(255,255,255,0.08)' }} />)}
+                            {Array.from({ length: perKind * KINDS.length }).map((_, i) => <div key={i} className="aspect-square rounded-2xl animate-pulse" style={{ background: 'rgba(255,255,255,0.08)' }} />)}
                         </div>
                     ) : (
                         <>
