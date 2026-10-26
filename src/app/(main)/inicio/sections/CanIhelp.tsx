@@ -203,10 +203,14 @@ export default function CanIhelp({ dragHandle }: CanIhelpProps) {
                     })}
                 </div>
 
-                <div className="rounded-3xl p-3 mb-5" style={{ background: `${colors.accent}12`, border: `1px solid ${colors.accent}30` }}>
-                    <p className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider mb-2.5 px-0.5" style={{ color: colors.accent }}>
-                        <CircleDollarSign size={13} /> Quer ganhar com o iUser?
-                    </p>
+                {/* Mesmo cartão dos atalhos de cima; o título é um selo pendurado na borda, como o "Seu plano" */}
+                <div className="relative rounded-3xl p-3 pt-5 mt-5 mb-5" style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}>
+                    <span
+                        className="absolute -top-2.5 left-1/2 -translate-x-1/2 flex items-center gap-1 text-[9px] font-black uppercase tracking-wider px-3 py-1 rounded-full text-white whitespace-nowrap"
+                        style={{ background: '#111827' }}
+                    >
+                        <CircleDollarSign size={10} /> Quer ganhar com o iUser?
+                    </span>
                     <div className="grid grid-cols-3 gap-x-1 gap-y-2">
                         {earnActions.map((action) => {
                             const Icon = action.icon
