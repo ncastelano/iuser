@@ -7,7 +7,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ChevronRight, MapPin, Package, Radar, Store as StoreIcon, User, Wrench } from 'lucide-react'
+import { Briefcase, ChevronRight, Home, MapPin, Package, Radar, Store as StoreIcon, User, Wrench } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/contexts/theme'
 import { fetchNearest, formatDistance, type NearestItem, type NearestKind } from '@/lib/radarNearest'
@@ -19,6 +19,8 @@ const KINDS: { kind: NearestKind; label: string; icon: typeof StoreIcon; color: 
     { kind: 'produto', label: 'Produto', icon: Package, color: '#059669' },
     { kind: 'servico', label: 'Serviço', icon: Wrench, color: '#7c3aed' },
     { kind: 'pessoa', label: 'Pessoa', icon: User, color: '#db2777' },
+    { kind: 'imovel', label: 'Aluguel', icon: Home, color: '#16a34a' },
+    { kind: 'pedido', label: 'Pedido de serviço', icon: Briefcase, color: '#ea580c' },
 ]
 
 export default function NearbyAroundCard({ userId }: { userId: string | null }) {
@@ -53,7 +55,7 @@ export default function NearbyAroundCard({ userId }: { userId: string | null }) 
         fetchNearest(origin, userId)
             
             .then((res) => { if (!cancelled) setNearest(res) })
-            .catch(() => { if (!cancelled) setNearest({ loja: [], produto: [], servico: [], pessoa: [] }) })
+            .catch(() => { if (!cancelled) setNearest({ loja: [], produto: [], servico: [], pessoa: [], imovel: [], pedido: [] }) })
         return () => { cancelled = true }
     }, [origin, userId])
 
@@ -101,6 +103,7 @@ export default function NearbyAroundCard({ userId }: { userId: string | null }) 
                                 <span className="min-w-0 flex-1">
                                     <span className="block text-[10px] font-black uppercase tracking-wide" style={{ color: meta.color }}>{meta.label}</span>
                                     <span className="block text-[13px] font-black leading-tight truncate" style={{ color: colors.textPrimary }}>{it.name}</span>
+                                    {(it.kind === 'imovel' || it.kind === 'pedido') && it.subtitle && <span className="block text-[11px] truncate" style={{ color: colors.textSecondary }}>{it.subtitle}</span>}
                                     {it.distanceKm != null
                                         ? <span className="flex items-center gap-0.5 text-[11px]" style={{ color: colors.textSecondary }}><MapPin size={10} />{formatDistance(it.distanceKm)}</span>
                                         : it.price != null ? <span className="block text-[11px] font-bold" style={{ color: colors.textSecondary }}>R$ {it.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span> : null}

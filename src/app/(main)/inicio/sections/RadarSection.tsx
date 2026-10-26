@@ -26,6 +26,9 @@ const KIND_META: Record<NearestKind, { label: string; icon: typeof Store; color:
     produto: { label: 'Produto', icon: ShoppingBag, color: '#059669' },
     servico: { label: 'Serviço', icon: Wrench, color: '#7c3aed' },
     pessoa: { label: 'Pessoa', icon: Users, color: '#db2777' },
+    // a home 2.0 só mostra loja, produto, serviço e pessoa (KINDS abaixo); aluguel e pedido existem para o cartão da 3.0
+    imovel: { label: 'Aluguel', icon: Store, color: '#16a34a' },
+    pedido: { label: 'Pedido de serviço', icon: Wrench, color: '#ea580c' },
 }
 
 const KINDS: NearestKind[] = ['loja', 'produto', 'servico', 'pessoa']
@@ -56,7 +59,7 @@ export default function RadarSection({ dragHandle, origin, userId, onDefineLocat
         setNearest(null)
         fetchNearest(lat != null && lng != null ? { lat, lng } : null, userId)
             .then((res) => { if (!cancelled) setNearest(res) })
-            .catch(() => { if (!cancelled) setNearest({ loja: [], produto: [], servico: [], pessoa: [] }) })
+            .catch(() => { if (!cancelled) setNearest({ loja: [], produto: [], servico: [], pessoa: [], imovel: [], pedido: [] }) })
         return () => { cancelled = true }
     }, [lat, lng, userId])
 
