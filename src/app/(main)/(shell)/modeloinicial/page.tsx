@@ -608,7 +608,7 @@ export default function ModeloInicialPage() {
     const inviteUrl = typeof window !== 'undefined' && profileSlug ? `${window.location.origin}/convite?ref=${profileSlug}` : ''
 
     // `icons`: quatro ícones (quadrado 2x2) no lugar do ícone único — dão uma ideia do que cabe naquele cartão
-    type Action = { /** Cartão próprio: o que tem por perto (um de cada tipo) */ nearby?: boolean; /** Com algo em andamento o cartão vira um retângulo horizontal: fotos do que está em andamento + botão de voltar a isso */ wide?: { images: string[]; cta: string; hot?: boolean; sub?: string }; title: string; desc: string; icon: LucideIcon; icons?: LucideIcon[]; color: string; onClick: () => void; /** Algo esperando a pessoa (ex.: candidatos a escolher) */ alert?: boolean; /** Destaca o texto (o cartão está mostrando o andamento, não só a chamada) */ live?: boolean }
+    type Action = { /** Cartão próprio: o que tem por perto (um de cada tipo) */ nearby?: boolean; /** Com algo em andamento o cartão vira um retângulo horizontal: fotos do que está em andamento + botão de voltar a isso */ wide?: { images: string[]; cta: string; hot?: boolean; sub?: string; /** O botão da ponta leva a outro lugar que o cartão (ex.: Comprar abre a loja, "Finalizar" abre o carrinho) */ onCta?: () => void }; title: string; desc: string; icon: LucideIcon; icons?: LucideIcon[]; color: string; onClick: () => void; /** Algo esperando a pessoa (ex.: candidatos a escolher) */ alert?: boolean; /** Destaca o texto (o cartão está mostrando o andamento, não só a chamada) */ live?: boolean }
     // Quem PRECISA de algo (o visitante chega por aqui)
     // Os cartões se moldam ao que a pessoa tem em andamento: pedidos de serviço e carrinho
     const reqBuscando = myRequests.filter((r) => r.stage === 'buscando').length
@@ -631,8 +631,8 @@ export default function ModeloInicialPage() {
     const needs: Action[] = [
         {
             title: 'Comprar', desc: cartCount > 0 ? `${cartCount} ${cartCount === 1 ? 'item' : 'itens'} no carrinho${money(cartTotal) ? ` · ${money(cartTotal)}` : ''}` : 'Lojas e produtos perto de você', live: cartCount > 0,
-            wide: cartCount > 0 ? { images: cartImages, cta: 'Finalizar' } : undefined,
-            icon: ShoppingBag, icons: [ShoppingBag, UtensilsCrossed, Shirt, Smartphone], color: TYPE.loja.color, onClick: () => go(cartCount > 0 ? '/carrinho' : '/comprar') },
+            wide: cartCount > 0 ? { images: cartImages, cta: 'Finalizar', onCta: () => go('/carrinho') } : undefined,
+            icon: ShoppingBag, icons: [ShoppingBag, UtensilsCrossed, Shirt, Smartphone], color: TYPE.loja.color, onClick: () => go('/comprar') },
         { title: 'Contratar serviço', desc: serviceParts.length > 0 ? serviceParts.join(' · ') : 'Descreva o que você precisa', live: serviceParts.length > 0, alert: reqEscolher > 0 || reqAvaliar > 0,
             wide: serviceParts.length > 0 ? { images: reqImages, cta: reqEscolher > 0 ? 'Escolher' : reqAvaliar > 0 ? 'Avaliar' : 'Ver', hot: reqEscolher > 0 || reqAvaliar > 0 } : undefined,
             icon: Wrench, icons: [Wrench, Scissors, Hand, Sparkles], color: TYPE.servico.color, onClick: () => go('/solicitar-servico') },
@@ -727,7 +727,12 @@ export default function ModeloInicialPage() {
                                                     {w.sub && <span className="block text-[11px] mt-0.5 truncate" style={{ color: colors.textSecondary }}>{w.sub}</span>}
                                                 </span>
                                                 {w.cta
-                                                    ? <span className="flex-shrink-0 h-9 px-4 rounded-full flex items-center text-[13px] font-black text-white" style={{ background: w.hot ? '#ef4444' : '#f97316' }}>{w.cta}</span>
+                                                    ? <span
+                                                        role={w.onCta ? 'button' : undefined}
+                                                        onClick={w.onCta ? (e) => { e.stopPropagation(); w.onCta!() } : undefined}
+                                                        className="flex-shrink-0 h-9 px-4 rounded-full flex items-center text-[13px] font-black text-white"
+                                                        style={{ background: w.hot ? '#ef4444' : '#f97316' }}
+                                                    >{w.cta}</span>
                                                     : <ChevronRight size={16} className="flex-shrink-0" style={{ color: colors.textSecondary }} />}
                                             </button>
                                         )
