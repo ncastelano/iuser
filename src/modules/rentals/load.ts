@@ -39,6 +39,12 @@ export async function loadRentalListings(client: SupabaseClient): Promise<Rental
     return ((data as any[]) || []).map((r) => toCard(client, r))
 }
 
+/** Alguns imóveis ativos (os mais novos) para a vitrine da home. */
+export async function loadRentalPreview(client: SupabaseClient, limit = 4): Promise<RentalCard[]> {
+    const { data } = await client.from('rental_listings').select(SELECT).eq('status', 'active').order('created_at', { ascending: false }).limit(limit)
+    return ((data as any[]) || []).map((r) => toCard(client, r))
+}
+
 export async function loadRentalListing(client: SupabaseClient, slug: string): Promise<RentalCard | null> {
     const { data } = await client.from('rental_listings').select(SELECT).eq('slug', slug).maybeSingle()
     return data ? toCard(client, data) : null

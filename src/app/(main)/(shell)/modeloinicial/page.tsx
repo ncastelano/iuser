@@ -33,6 +33,7 @@ import { fetchCommunitiesActivity, type CommunityActivity } from '@/lib/communit
 import PlanAvatarRing, { usePlanRing } from '@/components/PlanAvatarRing'
 import ListingRowCard from '@/components/ListingRowCard'
 import NearbyAroundCard from '@/components/v3/NearbyAroundCard'
+import RentalsPreviewCard from '@/components/v3/RentalsPreviewCard'
 import { loadServiceCards } from '@/lib/serviceCards'
 import SearchResultsSection from '../../inicio/SearchResultsSection'
 import { rankStyle } from '../../social/SocialProfileCard'
@@ -608,7 +609,7 @@ export default function ModeloInicialPage() {
     const inviteUrl = typeof window !== 'undefined' && profileSlug ? `${window.location.origin}/convite?ref=${profileSlug}` : ''
 
     // `icons`: quatro ícones (quadrado 2x2) no lugar do ícone único — dão uma ideia do que cabe naquele cartão
-    type Action = { /** Cartão próprio: o que tem por perto (um de cada tipo) */ nearby?: boolean; /** Com algo em andamento o cartão vira um retângulo horizontal: fotos do que está em andamento + botão de voltar a isso */ wide?: { images: string[]; cta: string; hot?: boolean; sub?: string; /** O botão da ponta leva a outro lugar que o cartão (ex.: Comprar abre a loja, "Finalizar" abre o carrinho) */ onCta?: () => void }; title: string; desc: string; icon: LucideIcon; icons?: LucideIcon[]; color: string; onClick: () => void; /** Algo esperando a pessoa (ex.: candidatos a escolher) */ alert?: boolean; /** Destaca o texto (o cartão está mostrando o andamento, não só a chamada) */ live?: boolean }
+    type Action = { /** Cartão próprio: o que tem por perto (um de cada tipo) */ nearby?: boolean; /** Cartão próprio: vitrine com alguns imóveis para alugar */ rentals?: boolean; /** Com algo em andamento o cartão vira um retângulo horizontal: fotos do que está em andamento + botão de voltar a isso */ wide?: { images: string[]; cta: string; hot?: boolean; sub?: string; /** O botão da ponta leva a outro lugar que o cartão (ex.: Comprar abre a loja, "Finalizar" abre o carrinho) */ onCta?: () => void }; title: string; desc: string; icon: LucideIcon; icons?: LucideIcon[]; color: string; onClick: () => void; /** Algo esperando a pessoa (ex.: candidatos a escolher) */ alert?: boolean; /** Destaca o texto (o cartão está mostrando o andamento, não só a chamada) */ live?: boolean }
     // Quem PRECISA de algo (o visitante chega por aqui)
     // Os cartões se moldam ao que a pessoa tem em andamento: pedidos de serviço e carrinho
     const reqBuscando = myRequests.filter((r) => r.stage === 'buscando').length
@@ -639,7 +640,7 @@ export default function ModeloInicialPage() {
         { title: 'Pedir motorista', desc: rideStatus ?? 'Corrida rápida, preço combinado', live: !!activeRide,
             wide: activeRide ? { images: [], cta: activeRide.status === 'pending' ? (activeRide.candidates > 0 ? 'Escolher' : 'Ver') : 'Acompanhar', hot: activeRide.candidates > 0 || activeRide.arrived, sub: activeRide.destination ? `Para ${shortAddress(activeRide.destination)}` : undefined } : undefined,
             icon: Car, icons: [Car, Bike, Motorbike, Package], color: '#ea580c', onClick: () => go('/pedir-motorista') },
-        { title: 'Buscar imóvel', desc: 'Casa, apartamento, salas comerciais, kitnets, etc.', icon: HomeIcon, color: '#16a34a', onClick: () => go('/imoveis') },
+        { title: 'Buscar imóvel', desc: 'Casa, apartamento, salas comerciais, kitnets, etc.', rentals: true, icon: HomeIcon, color: '#16a34a', onClick: () => go('/imoveis') },
         { title: 'Ver ao redor', desc: 'Mapa com lojas, serviços e pessoas', nearby: true, icon: Radar, icons: [Radar, MapPin, StoreIcon, Users], color: '#0891b2', onClick: () => go('/radar') },
     ]
     // Quem QUER GANHAR com o iUser
@@ -699,8 +700,9 @@ export default function ModeloInicialPage() {
                                 {needs.map((a) => {
                                     const Icon = a.icon
                                     if (a.nearby) return <NearbyAroundCard key={a.title} userId={userId} />
+                                    if (a.rentals) return <RentalsPreviewCard key={a.title} title={a.title} desc={a.desc} />
                                     // Sobrou um quadrado sozinho na linha (os outros viraram retângulos): ele também vira retângulo, só sem botão
-                                    const squares = needs.filter((n) => !n.wide && !n.nearby)
+                                    const squares = needs.filter((n) => !n.wide && !n.nearby && !n.rentals)
                                     const lonely = !a.wide && squares.length % 2 === 1 && squares[squares.length - 1] === a
                                     if (a.wide || lonely) {
                                         const Ic = a.icon
