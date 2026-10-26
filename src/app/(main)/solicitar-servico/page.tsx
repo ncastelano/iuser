@@ -840,6 +840,9 @@ export default function PedirServicoPage() {
                 description: description.trim(),
                 photo_urls: photoUrls,
                 notes: notes.trim() || null,
+                // posição APROXIMADA do pedido (o banco arredonda para ~1 km, nunca guarda a exata): serve para o "Ver ao redor" mostrar o que está perto
+                approx_lat: location.coords ? location.coords[1] : null,
+                approx_lng: location.coords ? location.coords[0] : null,
             })
 
             if (error) throw error

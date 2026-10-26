@@ -242,12 +242,25 @@ ASK_LINES = ['Acabei de pedir um {t} no iUser, alguém pode me indicar também?'
              'Publiquei um pedido de {t} agora, quem atender fecha na hora']
 
 
+# posição aproximada de cada bairro de Porto Velho (o app manda a do ponto escolhido; o banco arredonda para ~1 km)
+BAIRRO_COORDS = {'São Cristóvão': (-8.763, -63.906), 'Embratel': (-8.755, -63.93), 'Industrial': (-8.748, -63.89), 'Liberdade': (-8.761, -63.908), 'Centro': (-8.762, -63.903),
+                 'Mato Grosso': (-8.751, -63.915), 'Olaria': (-8.7635, -63.9035), 'Shopping': (-8.755, -63.93), 'Sete de Setembro': (-8.7625, -63.903), 'Palmeiras': (-8.76, -63.9)}
+
+
+def approx_coords(addr):
+    for k, v in BAIRRO_COORDS.items():
+        if k.lower() in addr.lower():
+            return v
+    return None
+
+
 def post_service_request():
     p = R.choice(POOL.customers)
     t, desc, addr = R.choice(REQUESTS)
     note = R.choice(REQ_NOTES)
-    as_user(p['id'], f"""insert into service_requests (requester_id, service_type, location_address, location_needs_access, description, notes, photo_urls, status)
-        values ({esc(p['id'])}::uuid, {esc(t)}, {esc(addr)}, {'true' if R.random() < 0.2 else 'false'}, {esc(desc)}, {esc(note) if note else 'null'}, '{{}}', 'pending');""")
+    c = approx_coords(addr)
+    as_user(p['id'], f"""insert into service_requests (requester_id, service_type, location_address, location_needs_access, description, notes, photo_urls, status, approx_lat, approx_lng)
+        values ({esc(p['id'])}::uuid, {esc(t)}, {esc(addr)}, {'true' if R.random() < 0.2 else 'false'}, {esc(desc)}, {esc(note) if note else 'null'}, '{{}}', 'pending', {c[0] if c else 'null'}, {c[1] if c else 'null'});""")
     log(f"  🧰 {p['name']} publicou um pedido de {t} em Procurar serviço")
     return p, t
 
