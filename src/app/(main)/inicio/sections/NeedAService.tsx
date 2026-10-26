@@ -22,6 +22,7 @@ import { useNavProgressStore } from '@/store/useNavProgressStore'
 import { BoardItem, fetchOpenBoardItems, getItemIcon, getItemLabel, shortAddress, askedAgo, notifyServiceRequestsChanged, SERVICE_REQUESTS_CHANGED } from '@/lib/serviceBoard'
 import { HOME_GRADIENT, HomeSectionHeader } from './HomeSectionKit'
 import { ViewServicesButton } from './ViewServicesButton'
+import FitText from '@/components/FitText'
 import { useMyServiceApplications } from '@/hooks/useMyServiceApplications'
 import SeenBox from '@/components/SeenBox'
 import { trackServiceRequestView } from '@/lib/trackServiceRequestView'
@@ -162,14 +163,10 @@ export default function NeedAService({ dragHandle, limit = 8 }: { dragHandle?: R
                                     )}
                                 </div>
 
-                                {/* O que a pessoa pediu é o foco: sem foto fica bem maior */}
-                                <p
-                                    className={`${photo ? 'text-sm' : 'text-[17px]'} font-black leading-snug flex-1`}
-                                    title={title}
-                                    style={{ color: colors.textPrimary, display: '-webkit-box', WebkitLineClamp: photo ? 2 : 6, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
-                                >
-                                    {title}
-                                </p>
+                                {/* O que a pessoa pediu é o foco: a letra cresce até preencher o espaço do cartão (mais ainda sem foto) */}
+                                <div className={`flex flex-col flex-1 ${photo ? 'min-h-[44px]' : 'min-h-[150px]'}`}>
+                                    <FitText text={title} title={title} min={photo ? 14 : 16} max={photo ? 22 : 34} style={{ color: colors.textPrimary }} />
+                                </div>
 
                                 <div className="flex items-center justify-between gap-2 text-[11px]" style={{ color: colors.textSecondary }}>
                                     <span className="flex items-center gap-1 min-w-0">
