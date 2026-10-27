@@ -36,7 +36,7 @@ export const VERSION_FLAG_KEY = 'ui_v3'
  * versões são servidas internamente por outro caminho (o proxy faz o rewrite, o endereço no navegador não muda).
  */
 export const VERSION_ROUTES: Record<string, Partial<Record<UiVersion, string>>> = {
-    '/': { v3: '/modeloinicial' },
+    '/': { v3: '/v3' },
     '/carrinho': { v3: '/v3/carrinho' },
     '/conversas': { v3: '/v3/conversas' },
     '/lojas': { v3: '/v3/lojas' },
@@ -55,5 +55,5 @@ export const INTERNAL_PREFIX: Partial<Record<UiVersion, string>> = { v3: '/v3' }
 export const SHELL_EXCLUDED = ['/entregador']
 
 /** Páginas que só existem na v3 (não há equivalente na v2: voltar para a v2 leva à home da v2) */
-export const V3_ONLY_ROUTES = ['/modeloinicial', '/painel-perfil', '/modoprestador', '/comprar', '/imoveis', '/anunciar-imovel', '/meus-imoveis']
+export const V3_ONLY_ROUTES = ['/painel-perfil', '/modoprestador', '/comprar', '/imoveis', '/anunciar-imovel', '/meus-imoveis']
 export const V3_ONLY_PREFIXES = ['/painel-loja/', '/veiculo/', '/imoveis/']

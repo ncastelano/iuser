@@ -1,6 +1,6 @@
 // src/versions/v3/shell/ModeShell.tsx
 //
-// Casca das páginas "de modo" (/modeloinicial, /modoprestador...): o topo com selo (logo/foto), cumprimento do modo,
+// Casca das páginas "de modo" (/v3, /modoprestador...): o topo com selo (logo/foto), cumprimento do modo,
 // atalhos de conversas e carrinho, e o menu lateral (drawer) em que a pessoa escolhe o modo — Meu perfil/prestador,
 // loja ou motorista. O menu empurra a página pra direita. O conteúdo de cada página entra como `children`.
 'use client'
@@ -230,13 +230,13 @@ function MenuDrawerContent({ slug, avatarUrl, data, active, recent, onSelect, on
     )
 }
 
-// Explorar: a lupa + as 5 últimas coisas buscadas; leva ao /modeloinicial
+// Explorar: a lupa + as 5 últimas coisas buscadas; leva à home (/)
 function DrawerExplorar({ recent, onGo }: { recent: RecentClickItem[]; onGo: (path: string) => void }) {
     return (
         <>
             <button
                 type="button"
-                onClick={() => onGo('/modeloinicial')}
+                onClick={() => onGo('/')}
                 className="mt-4 w-full rounded-full px-4 py-3 flex items-center gap-3 text-white font-black text-sm transition active:scale-[0.98]"
                 style={{ background: 'rgba(255,255,255,0.18)', border: '1px solid rgba(255,255,255,0.3)' }}
             >
@@ -591,10 +591,10 @@ export default function ModeShell({ children, search }: {
     // Fica em CIMA (e não embaixo) pra o teclado não cobrir a barra quando a busca está aberta.
     const NAV_H = 'calc(74px + env(safe-area-inset-top))'
     // Qual ícone da barra é o da página atual (o "selecionado")
-    // (a 3.0 serve /carrinho por /v3/carrinho e a home por /modeloinicial; o endereço visível é o canônico)
+    // (a 3.0 serve /carrinho por /v3/carrinho e a home por /v3; o endereço visível é o canônico)
     const shellPath = (pathname || '').replace(/^\/v3(?=\/|$)/, '') || '/'
     const activeTab: 'cart' | 'chat' | 'search' | null =
-        shellPath.startsWith('/carrinho') ? 'cart' : shellPath.startsWith('/conversas') ? 'chat' : (shellPath === '/modeloinicial' || shellPath === '/') ? 'search' : null
+        shellPath.startsWith('/carrinho') ? 'cart' : shellPath.startsWith('/conversas') ? 'chat' : shellPath === '/' ? 'search' : null
     // Na página do modo escolhido (painel do perfil, loja, veículo...), o botão do menu (selo + nome) também é uma aba
     const modeSelected = !!userId && dataLoaded && !!pathname && modePath(activeMode, drawerData) === pathname
     // Qual aba está selecionada: ao tocar num ícone ela já sai andando (antes da página nova abrir). O layout é o mesmo
@@ -726,7 +726,7 @@ export default function ModeShell({ children, search }: {
     // Pelo menu: a aba clara já começa a ir para o destino JUNTO com o menu fechando (antes ela só saía quando a página nova abria,
     // então o cartão assentava primeiro e a aba escorregava depois, deixando uma fresta entre a barra e o cartão).
     const goAndClose = (path: string) => {
-        const tab: TabKey | null = path === '/modeloinicial' ? 'search' : path === '/carrinho' ? 'cart' : path === '/conversas' ? 'chat' : null
+        const tab: TabKey | null = path === '/' ? 'search' : path === '/carrinho' ? 'cart' : path === '/conversas' ? 'chat' : null
         if (tab && pathname !== path) setPendingTab(tab)
         setDrawerOpen(false)
         router.push(path)
@@ -805,7 +805,7 @@ export default function ModeShell({ children, search }: {
         </div>
 
         {/* Navegação no TOPO, FORA do cartão do app (fica fixa na tela; o cartão desliza por cima do menu e termina nela): o botão do menu (selo + nome), o carrinho, as mensagens e a lupa. Na página com busca,
-            a lupa se EXPANDE no lugar e vira o campo; nas outras, leva ao /modeloinicial. */}
+            a lupa se EXPANDE no lugar e vira o campo; nas outras, leva à home. */}
         <nav
             ref={navRef}
             className="fixed top-0 left-0 right-0 z-40"
@@ -886,7 +886,7 @@ export default function ModeShell({ children, search }: {
 
                 {/* Carrinho, conversas e lupa, juntos. O da página atual fica "selecionado": vira uma aba com a cor do cartão
                     do app e se funde a ele (com curvas de encaixe nos pés). Com busca na página, a lupa expande no lugar e
-                    vira o campo (o carrinho e as conversas encolhem); nas outras páginas, leva ao /modeloinicial. */}
+                    vira o campo (o carrinho e as conversas encolhem); nas outras páginas, leva à home. */}
                 <div
                     className={`relative flex ${searchOpen ? 'items-center self-center rounded-full' : 'items-stretch self-end'}`}
                     style={{
@@ -940,7 +940,7 @@ export default function ModeShell({ children, search }: {
                         </>
                     ) : (
                         <NavTab btnRef={lupaRef} toEdge selectedColor={colors.textPrimary} colorDelay={indicatorOn ? TAB_COLOR_DELAY : 0} selected={indicatorOn && target === 'search'} label="iUser: tudo do iUser" onClick={() => pickTab('search', () => {
-                            if (!search) return go('/modeloinicial')
+                            if (!search) return go('/')
                             // já está na página que reúne tudo do iUser: só volta ao topo
                             if (search.inline) { window.scrollTo({ top: 0, behavior: 'smooth' }); return }
                             setSearchOpen(true)

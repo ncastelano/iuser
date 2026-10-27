@@ -25,7 +25,7 @@ src/
   app/                       # Rotas Next: páginas FINAS, layouts, route handlers (api/)
     (main)/                  # Interface 2.0 (páginas atuais, preservadas)
       (shell)/               # Rotas servidas dentro da casca da 3.0 (layout persistente)
-        modeloinicial/ painel-perfil/ modoprestador/ painel-loja/ veiculo/
+        v3/ painel-perfil/ modoprestador/ painel-loja/ veiculo/
         v3/carrinho/ v3/conversas/   # implementações 3.0 de URLs compartilhadas (ver §5)
       carrinho/ conversas/ page.tsx  # implementações 2.0 dessas URLs
   versions/                  # Experiência de interface POR VERSÃO + o sistema de versionamento
@@ -99,7 +99,7 @@ Seleção de versão **não** concede nada: segurança continua no servidor e no
 3. **Resolução**: `src/proxy.ts` (URLs compartilhadas) e `app/(main)/layout.tsx` (moldura), pela mesma função
    `resolveRequestVersion`. Prioridade: cookie + permissão > padrão (`v2`).
 4. **Rotas compartilhadas** (`/`, `/carrinho`, `/conversas`): o endereço **não muda**. Para a v3 o proxy faz *rewrite*
-   interno (`/` → `/modeloinicial`, `/carrinho` → `/v3/carrinho`...). `registry.ts › VERSION_ROUTES` é o mapa.
+   interno (`/` → `/v3`, `/carrinho` → `/v3/carrinho`...). `registry.ts › VERSION_ROUTES` é o mapa.
 5. **Moldura da 3.0 para TODAS as páginas.** Na 3.0, `VersionFrame` (em `app/(main)/layout.tsx`) abre qualquer página
    dentro da casca persistente (navbar + drawer). O componente `Header` da 2.0 detecta a casca (`InsideShell`) e se
    apresenta compacto (voltar/título + abas + busca). Telas cheias (mapas) abrem na casca e começam abaixo da navbar

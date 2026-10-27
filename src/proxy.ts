@@ -49,7 +49,7 @@ const IGNORED_ROUTES = [
     '/administrador',
     '/aceitar-corridas/mapa',
     '/pedir-motorista/escolher-local',
-    '/modeloinicial',
+    '/modeloinicial', // endereço antigo da home da 3.0: só redireciona para `/`
     '/modoprestador',
     '/painel-perfil',
     '/comprar',

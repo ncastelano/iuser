@@ -25,16 +25,16 @@ Detalhes e justificativas: `docs/ARCHITECTURE.md` e `docs/decisions/`. Resumo op
   - Na 3.0 **toda** página abre dentro da casca (`VersionFrame`); o `Header` da 2.0 vira compacto via `InsideShell`.
     Tela cheia (mapa) → posicione com `top-[var(--shell-top,0px)]` em vez de `inset-0`; fora da casca → `SHELL_EXCLUDED`. Ao migrar uma página, ajuste só o que ficar estranho na casca.
   - URLs compartilhadas (`/`, `/carrinho`, `/conversas`, `/lojas`) mantêm o endereço; a 3.0 é servida por *rewrite* para
-    `/modeloinicial`, `/v3/carrinho`, `/v3/conversas`, `/v3/lojas`. **Nova URL que existirá nas duas versões** → entrada em
+    `/v3` (a home), `/v3/carrinho`, `/v3/conversas`, `/v3/lojas`. O endereço antigo `/v3` só redireciona para `/`. **Nova URL que existirá nas duas versões** → entrada em
     `VERSION_ROUTES` (`registry.ts`) e teste em `scripts/test-versions.mjs`. Página só da 3.0 → fica em
     `app/(main)/(shell)/` e entra em `IGNORED_ROUTES`/`IGNORED_PREFIXES` + `V3_ONLY_*` em `registry.ts`.
   - Seletor de versão: UM mecanismo (`switchVersion` em `src/versions/client.tsx`), exibido só em dois lugares —
     `ProfileDashboard` (2.0, com permissão), botão **v3** do admin na home 2.0 e drawer (3.0). Não crie outro.
-- **Regra permanente: o que entra numa versão entra em TODAS.** Atalho, cartão, tipo do "Ver ao redor", seção ou página nova adicionada na 3.0 (ou na 2.0) precisa aparecer também na outra, no estilo dela; se a página só existe na 3.0 (`V3_ONLY_*`), a home da 2.0 leva até ela (abre dentro da casca) em vez de ficar sem o recurso. Ao fechar uma mudança, compare `modeloinicial/page.tsx` (3.0) com `inicio/sections/CanIhelp.tsx` e `RadarSection.tsx` (2.0) e liste o que ficou de fora.
+- **Regra permanente: o que entra numa versão entra em TODAS.** Atalho, cartão, tipo do "Ver ao redor", seção ou página nova adicionada na 3.0 (ou na 2.0) precisa aparecer também na outra, no estilo dela; se a página só existe na 3.0 (`V3_ONLY_*`), a home da 2.0 leva até ela (abre dentro da casca) em vez de ficar sem o recurso. Ao fechar uma mudança, compare `(shell)/v3/page.tsx` (home da 3.0) com `inicio/sections/CanIhelp.tsx` e `RadarSection.tsx` (2.0) e liste o que ficou de fora.
 - **Não mexa sem justificativa:** a casca da 3.0 (`src/versions/v3/shell/ModeShell.tsx`: navbar, drawer, aba que
   desliza e encaixa no cartão), `src/proxy.ts`, a lógica de `CarrinhoScreen`/`ConversasScreen`, e a telemetria de
   `lib/supabase/client.ts`. Preserve o comportamento visual/interativo existente ao refatorar.
-- **Navbar da 3.0 (`ModeShell`):** o botão do menu (esquerda) mostra SÓ a imagem (foto do perfil, logo da loja ou foto do carro; visitante: ícone de pessoa) — a logo do iUser não gira mais com a foto. A **logo do iUser é o botão da direita** (onde ficava a lupa): leva à home (`/modeloinicial`), a aba que reúne tudo do iUser; já na home só volta ao topo. A aba clara continua deslizando entre os ícones (`target === 'search'` é a aba da logo).
+- **Navbar da 3.0 (`ModeShell`):** o botão do menu (esquerda) mostra SÓ a imagem (foto do perfil, logo da loja ou foto do carro; visitante: ícone de pessoa) — a logo do iUser não gira mais com a foto. A **logo do iUser é o botão da direita** (onde ficava a lupa): leva à home (`/v3`), a aba que reúne tudo do iUser; já na home só volta ao topo. A aba clara continua deslizando entre os ícones (`target === 'search'` é a aba da logo).
 - **Testar:** `npx tsc --noEmit`, `npm run test:versions` (e `test:graduation`/`test:fare` se tocar nessas áreas),
   `npx next build` (pare o `next dev` antes: os dois usam `.next`), e conferir no navegador as duas versões
   (v2 e v3: troca nos dois sentidos, sessão preservada, preferência salva, URL antiga funcionando).

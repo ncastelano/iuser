@@ -1,4 +1,4 @@
-// app/(main)/modeloinicial/page.tsx
+// app/(main)/(shell)/v3/page.tsx — página inicial da 3.0 (o endereço público é `/`; o proxy faz o rewrite para `/v3`)
 //
 // MODELO INICIAL — proposta de página inicial pensada em quem usa: o que ela pode
 // FAZER aqui e o que existe pra ela VER. Mesmos dados reais da home, outra organização:

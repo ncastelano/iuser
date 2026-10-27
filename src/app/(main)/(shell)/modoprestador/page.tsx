@@ -1,7 +1,7 @@
 // app/(main)/modoprestador/page.tsx
 //
 // Modo prestador: os serviços que a própria pessoa publicou (products.listing_type = 'service_offer'). Usa a mesma
-// casca de topo/menu do /modeloinicial (ModeShell), então o cabeçalho e o menu lateral continuam iguais.
+// casca de topo/menu da home da 3.0 (ModeShell), então o cabeçalho e o menu lateral continuam iguais.
 'use client'
 
 import { useEffect, useState } from 'react'
